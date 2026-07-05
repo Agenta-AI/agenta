@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
+import {Input} from "@agenta/primitive-ui/components/input"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Cascader, Input} from "antd"
+import {Cascader} from "antd"
 
 interface TestsetSelectorProps {
     cascaderValue: string[]

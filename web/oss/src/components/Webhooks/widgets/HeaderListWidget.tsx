@@ -1,6 +1,7 @@
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Form, Input} from "antd"
+import {Form} from "antd"
 
 export const HeaderListWidget = () => {
     return (

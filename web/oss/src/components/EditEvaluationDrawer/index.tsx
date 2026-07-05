@@ -8,12 +8,14 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import {VersionBadge} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Input, Tag} from "antd"
+import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {saveEvaluationEditAtom} from "@/oss/components/EvalRunDetails/atoms/mutations/editEvaluation"
@@ -152,7 +154,7 @@ const EditEvaluationDrawer = ({runId, open, onClose}: EditEvaluationDrawerProps)
 
                 <div className="flex flex-col gap-1">
                     <span className="font-semibold">Description</span>
-                    <Input.TextArea
+                    <Textarea
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
                         placeholder="Add a description"

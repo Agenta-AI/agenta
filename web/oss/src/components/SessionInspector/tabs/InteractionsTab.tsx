@@ -1,11 +1,12 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Card, Empty, Input, Space, Tag} from "antd"
+import {Alert, Card, Empty, Space, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -151,7 +152,6 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                 ) : (
                                     <Space.Compact className="w-full">
                                         <Input
-                                            size="small"
                                             placeholder="input"
                                             value={inputs[id] ?? ""}
                                             disabled={!isPending}
@@ -161,6 +161,7 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                                     [id]: e.target.value,
                                                 }))
                                             }
+                                            className="h-6"
                                         />
                                         <Button
                                             disabled={!isPending || !id || busyId === id}

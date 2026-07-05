@@ -2,12 +2,14 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Input, Tag} from "antd"
+import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -154,7 +156,7 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                 </div>
                 <div className="flex flex-col gap-1">
                     <span className="text-[11px] text-colorTextTertiary">Description</span>
-                    <Input.TextArea
+                    <Textarea
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
                         rows={3}

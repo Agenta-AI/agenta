@@ -10,6 +10,7 @@ import {
 } from "react"
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {
     CopyButton,
     Editor as EditorWrapper,
@@ -31,7 +32,7 @@ import {
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {Button, Input, Select} from "antd"
+import {Button, Select} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
@@ -516,15 +517,17 @@ export const TraceSpanDrillInView = memo(
                             {isSearchOpen && isCodeMode && (
                                 <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
                                     <Input
-                                        className="w-[180px] min-w-[80px]"
                                         placeholder="Search..."
                                         value={searchTerm}
                                         onChange={(e) => {
                                             setSearchTerm(e.target.value)
                                             setCurrentResultIndex(0)
                                         }}
-                                        onPressEnter={handleNextMatch}
                                         autoFocus
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") handleNextMatch()
+                                        }}
+                                        className="w-[180px] min-w-[80px]"
                                     />
                                     <Button
                                         size="small"

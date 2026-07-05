@@ -1,10 +1,11 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {Input} from "@agenta/primitive-ui/components/input"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {ButtonProps, Dropdown, DropdownProps, Form, Input, MenuProps, Tag, message} from "antd"
+import {ButtonProps, Dropdown, DropdownProps, Form, MenuProps, Tag, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"

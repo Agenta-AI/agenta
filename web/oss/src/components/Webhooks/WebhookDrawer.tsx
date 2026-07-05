@@ -1,11 +1,12 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
-import {Collapse, Form, Input, message, Select, Switch, Tabs} from "antd"
+import {Collapse, Form, message, Select, Switch, Tabs} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {

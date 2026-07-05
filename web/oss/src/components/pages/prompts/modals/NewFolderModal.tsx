@@ -1,7 +1,7 @@
 import React, {Dispatch, SetStateAction} from "react"
 
+import {Input} from "@agenta/primitive-ui/components/input"
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Input} from "antd"
 
 export interface FolderModalState {
     name: string

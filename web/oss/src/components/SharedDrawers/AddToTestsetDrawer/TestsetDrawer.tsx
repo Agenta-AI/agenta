@@ -2,8 +2,8 @@ import {useCallback, useEffect, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import {WarningCircle} from "@phosphor-icons/react"
-import {Input} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import GenericDrawer from "@/oss/components/GenericDrawer"
@@ -85,7 +85,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                         {/* Commit message input */}
                         <div className="flex flex-col gap-1">
                             <span className="text-gray-500">Commit message (optional)</span>
-                            <Input.TextArea
+                            <Textarea
                                 placeholder="Describe your changes..."
                                 value={drawer.commitMessage}
                                 onChange={(e) => drawer.setCommitMessage(e.target.value)}

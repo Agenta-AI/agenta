@@ -1,7 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {Input} from "@agenta/primitive-ui/components/input"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Input} from "antd"
 
 import type {ChangesSummary} from "../hooks/types"
 
@@ -109,7 +110,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                     </div>
                     <div>
                         <span className="block mb-1 font-semibold">Description</span>
-                        <Input.TextArea
+                        <Textarea
                             value={editModalDescription}
                             onChange={(e) => setEditModalDescription(e.target.value)}
                             placeholder="Testset description (optional)"
@@ -152,8 +153,10 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                         value={newColumnName}
                         onChange={(e) => setNewColumnName(e.target.value)}
                         placeholder="Enter column name"
-                        onPressEnter={handleAddColumn}
                         autoFocus
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") handleAddColumn()
+                        }}
                     />
                     <span className="text-xs mt-2 block text-muted-foreground">
                         Tip: Use dot notation to create nested columns. For example,{" "}

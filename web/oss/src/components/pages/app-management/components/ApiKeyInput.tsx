@@ -1,9 +1,10 @@
 import {useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
-import {Input, Space} from "antd"
+import {Space} from "antd"
 
 import {createApiKey} from "@/oss/services/apiKeys/api"
 import {fetchAllProjects} from "@/oss/services/project"
@@ -117,10 +118,10 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
             <span className="font-medium">Create or enter your API key</span>
             <Space>
                 <Input
-                    className="w-[300px]"
                     placeholder="Enter existing API key"
                     value={apiKeyValue}
                     onChange={(e) => onApiKeyChange(e.target.value)}
+                    className="w-[300px]"
                 />
 
                 <Button onClick={handleGenerateApiKey} disabled={isLoadingApiKey}>

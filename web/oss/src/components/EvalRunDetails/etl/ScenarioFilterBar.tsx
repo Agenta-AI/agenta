@@ -23,8 +23,9 @@ import {
     type RunSchema,
 } from "@agenta/entities/evaluationRun/etl"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
-import {Divider, Input, InputNumber, Popover, Select} from "antd"
+import {Divider, InputNumber, Popover, Select} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 
@@ -448,11 +449,11 @@ const ConditionValueInput = ({
     }
     return (
         <Input
-            className="w-full"
             placeholder="Value"
             disabled={disabled}
             value={typeof value === "string" ? value : value == null ? "" : String(value)}
             onChange={(e) => onChange(e.target.value)}
+            className="w-full"
         />
     )
 }

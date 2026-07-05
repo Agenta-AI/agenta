@@ -1,11 +1,12 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
-import {Alert, Form, Input, Popover, Upload, UploadFile} from "antd"
+import {Alert, Form, Popover, Upload, UploadFile} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"

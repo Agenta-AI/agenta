@@ -7,10 +7,12 @@ import {
     type HumanEvaluatorMetric,
 } from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
-import {Alert, Form, Input} from "antd"
+import {Alert, Form} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
@@ -353,7 +355,7 @@ const CreateEvaluator = ({
                     Evaluator description <span className="text-gray-500">(optional)</span>
                 </span>
                 <Form.Item name="evaluatorDescription" rules={[{required: false}]} className="mb-0">
-                    <Input.TextArea placeholder="Enter a description" rows={2} />
+                    <Textarea placeholder="Enter a description" rows={2} />
                 </Form.Item>
             </div>
 

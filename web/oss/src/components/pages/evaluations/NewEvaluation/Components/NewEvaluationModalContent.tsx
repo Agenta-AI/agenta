@@ -2,9 +2,10 @@ import {type FC, memo, useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
-import {Input, Tabs, Tag} from "antd"
+import {Tabs, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -106,7 +107,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     onEvaluatorCreated,
     ...props
 }) => {
-    const {inputRef} = useFocusInput({isOpen: props.isOpen || false})
+    const {inputRef} = useFocusInput<HTMLInputElement>({isOpen: props.isOpen || false})
     const appSelectionComplete = Boolean(selectedAppId)
 
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)

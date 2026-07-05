@@ -15,10 +15,10 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {PreviewPanelRenderProps} from "@agenta/playground-ui/components"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input} from "antd"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
@@ -229,7 +229,9 @@ export function TestsetPreviewPanelWrapper({
                             onChange={(e) => setNewColumnName(e.target.value)}
                             placeholder="e.g. prompt or metadata.notes"
                             autoFocus
-                            onPressEnter={handleConfirmAddColumn}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") handleConfirmAddColumn()
+                            }}
                         />
                         <span className="text-xs text-muted-foreground">
                             Tip: Use dot notation like{" "}

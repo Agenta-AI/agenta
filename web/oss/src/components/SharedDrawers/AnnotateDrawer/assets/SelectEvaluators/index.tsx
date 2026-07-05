@@ -1,8 +1,9 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {evaluatorsListQueryAtom, humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
-import {Checkbox, CheckboxChangeEvent, Input, Skeleton} from "antd"
+import {Checkbox, CheckboxChangeEvent, Skeleton} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -47,9 +48,8 @@ const SelectEvaluators = ({
         <section className="h-full flex flex-col gap-2">
             <Input
                 placeholder="Search"
-                variant="borderless"
-                className="border-0 border-b border-solid border-[var(--ag-c-0517290F)] rounded-none py-2"
                 onChange={(e) => setSearch(e.target.value)}
+                className="border-0 border-b border-solid border-[var(--ag-c-0517290F)] rounded-none py-2 border-transparent bg-transparent shadow-none focus-visible:ring-0"
             />
             <div className="flex flex-col gap-3 py-1 px-2">
                 <Skeleton

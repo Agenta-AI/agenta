@@ -1,8 +1,10 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {Input} from "@agenta/primitive-ui/components/input"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, Input, Radio, Rate, Space} from "antd"
+import {Button, Checkbox, Form, Radio, Rate, Space} from "antd"
 import {useRouter} from "next/router"
 import {
     type MultipleSurveyQuestion,
@@ -307,7 +309,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                             label={question.question}
                             rules={[{required: true, message: "Please enter a response"}]}
                         >
-                            <Input.TextArea rows={3} placeholder="Type here" />
+                            <Textarea rows={3} placeholder="Type here" />
                         </Form.Item>
                     </div>
                 )

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
+import {Input} from "@agenta/primitive-ui/components/input"
 import {
     CopyButton,
     Editor as EditorWrapper,
@@ -20,7 +21,7 @@ import {
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {Button, Collapse, Dropdown, Input, Radio, Space, theme} from "antd"
+import {Button, Collapse, Dropdown, Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
@@ -433,25 +434,29 @@ const AccordionTreePanel = ({
         <div className="relative">
             {isSearchOpen && (
                 <div className={classes.searchBar}>
-                    <Input
-                        size="small"
-                        placeholder="Search..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                            setSearchTerm(e.target.value)
-                            setCurrentResultIndex(0)
-                        }}
-                        onPressEnter={handleNextMatch}
-                        autoFocus
-                        style={{width: 150}}
-                        suffix={
-                            resultCount > 0 ? (
+                    <div className="relative">
+                        <Input
+                            placeholder="Search..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value)
+                                setCurrentResultIndex(0)
+                            }}
+                            autoFocus
+                            style={{width: 150}}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") handleNextMatch()
+                            }}
+                            className="h-6 pe-8"
+                        />
+                        <span className="absolute end-2.5 top-1/2 z-10 -translate-y-1/2 text-muted-foreground [&_svg]:size-3.5">
+                            {resultCount > 0 ? (
                                 <span className="text-xs text-gray-400">
                                     {currentResultIndex + 1}/{resultCount}
                                 </span>
-                            ) : null
-                        }
-                    />
+                            ) : null}
+                        </span>
+                    </div>
                     <EnhancedButton
                         size="small"
                         type="text"

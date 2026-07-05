@@ -1,10 +1,10 @@
 import {useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {message} from "@agenta/ui/app-message"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Input} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 

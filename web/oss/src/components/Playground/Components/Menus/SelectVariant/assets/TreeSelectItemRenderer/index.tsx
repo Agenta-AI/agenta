@@ -1,6 +1,7 @@
 import {memo} from "react"
 
-import {Button, Input} from "antd"
+import {Input} from "@agenta/primitive-ui/components/input"
+import {Button} from "antd"
 
 import useFocusInput from "@/oss/hooks/useFocusInput"
 
@@ -16,17 +17,16 @@ const TreeSelectItemRenderer = ({
     searchTerm,
     setSearchTerm,
 }: TreeSelectItemRendererProps) => {
-    const {inputRef} = useFocusInput({isOpen})
+    const {inputRef} = useFocusInput<HTMLInputElement>({isOpen})
     return (
         <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between border-0 border-b border-solid border-[var(--ag-c-F0F0F0)]">
                 <Input
                     ref={inputRef}
                     placeholder="Search"
-                    variant="borderless"
-                    className="rounded-none py-2"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    className="rounded-none py-2 border-transparent bg-transparent shadow-none focus-visible:ring-0"
                 />
 
                 <div className="flex items-center gap-1">

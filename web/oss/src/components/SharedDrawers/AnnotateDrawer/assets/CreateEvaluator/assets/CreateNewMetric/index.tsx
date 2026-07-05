@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Form, FormListFieldData, Input, InputNumber, Select, Switch} from "antd"
+import {Form, FormListFieldData, InputNumber, Select, Switch} from "antd"
 import dynamic from "next/dynamic"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"

@@ -1,11 +1,12 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple, Trash} from "@phosphor-icons/react"
-import {Dropdown, Input} from "antd"
+import {Dropdown} from "antd"
 
 interface EditableColumnHeaderProps {
     columnKey: string
@@ -182,11 +183,13 @@ const EditableColumnHeader = ({
                 <div className="py-2">
                     <span className="block mb-2">Column name:</span>
                     <Input
-                        className="rename-column-modal-input"
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                         placeholder="Enter column name"
-                        onPressEnter={handleRename}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRename()
+                        }}
+                        className="rename-column-modal-input"
                     />
                     <span className="text-xs mt-2 block text-muted-foreground">
                         Tip: Use dot notation to create nested columns. For example,{" "}

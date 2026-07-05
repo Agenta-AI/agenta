@@ -1,9 +1,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {invalidateWorkflowsListCache, updateWorkflow} from "@agenta/entities/workflow"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CheckOutlined} from "@ant-design/icons"
-import {Input} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 

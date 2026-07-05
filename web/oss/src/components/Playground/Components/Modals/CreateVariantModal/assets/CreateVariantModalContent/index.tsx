@@ -1,7 +1,8 @@
 import {type ChangeEvent, useCallback} from "react"
 
+import {Input} from "@agenta/primitive-ui/components/input"
 import {CommitMessageInput} from "@agenta/ui"
-import {Input, Select, Form, Checkbox} from "antd"
+import {Select, Form, Checkbox} from "antd"
 import clsx from "clsx"
 
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"

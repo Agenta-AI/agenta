@@ -7,11 +7,12 @@ import {
     useVaultSecret,
 } from "@agenta/entities/secret"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import type {LlmProvider} from "@agenta/shared/types"
 import {SelectLLMProviderBase, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {capitalize} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
-import {Form, Input} from "antd"
+import {Form} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
 import {isSlugInputValid} from "@/oss/lib/helpers/utils"
@@ -69,12 +70,12 @@ const renderControl = (field: FieldWithAttributes, isRequired?: boolean) => {
                     {field.label}
                     {isRequired ? <span aria-hidden> *</span> : null}
                 </span>
-                <Input.TextArea
+                <Textarea
                     placeholder={field.placeholder}
                     rows={a.rows ?? 6}
-                    className={a.monospace ? "font-mono" : undefined}
                     spellCheck={false}
                     autoComplete="off"
+                    className={a.monospace ? "font-mono" : undefined}
                 />
             </div>
         )
@@ -87,12 +88,12 @@ const renderControl = (field: FieldWithAttributes, isRequired?: boolean) => {
                 {field.label}
                 {isRequired ? <span aria-hidden> *</span> : null}
             </span>
-            <Input.TextArea
+            <Textarea
                 placeholder={field.placeholder ?? '{\n  "type": "service_account",\n  ...\n}'}
                 rows={a.rows ?? 10}
-                className={a.monospace !== false ? "font-mono" : undefined}
                 spellCheck={false}
                 autoComplete="off"
+                className={a.monospace !== false ? "font-mono" : undefined}
             />
         </div>
     )

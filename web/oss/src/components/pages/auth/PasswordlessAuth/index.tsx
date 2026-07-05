@@ -1,8 +1,9 @@
 import {useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
-import {Form, FormProps, Input} from "antd"
+import {Form, FormProps} from "antd"
 import {createCode} from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
@@ -89,13 +90,14 @@ const PasswordlessAuth = ({
                 rules={[{required: true, message: "Please input your email!"}]}
             >
                 <Input
-                    size="large"
                     type="email"
                     value={email}
                     placeholder="Enter valid email address"
                     disabled={lockEmail}
-                    className={lockEmail ? "auth-locked-input" : undefined}
                     onChange={(e) => setEmail(e.target.value)}
+                    className={[lockEmail ? "auth-locked-input" : undefined, "h-10"]
+                        .filter(Boolean)
+                        .join(" ")}
                 />
             </Form.Item>
 

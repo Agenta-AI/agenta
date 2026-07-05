@@ -1,6 +1,7 @@
 import {memo, useCallback, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -15,7 +16,7 @@ import {
     Trash,
     X,
 } from "@phosphor-icons/react"
-import {Dropdown, Input, Popover} from "antd"
+import {Dropdown, Popover} from "antd"
 import type {MenuProps} from "antd"
 
 export interface DrillInFieldHeaderProps {
@@ -135,12 +136,14 @@ const MappingPopover = memo(
                         {showNewColumnInput ? (
                             <div className="flex gap-1">
                                 <Input
-                                    size="small"
                                     placeholder="Column name"
                                     value={newColumnName}
                                     onChange={(e) => setNewColumnName(e.target.value)}
-                                    onPressEnter={handleCreateColumn}
                                     autoFocus
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") handleCreateColumn()
+                                    }}
+                                    className="h-6"
                                 />
                                 <Button onClick={handleCreateColumn} size="sm">
                                     Add

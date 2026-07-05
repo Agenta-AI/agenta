@@ -1,8 +1,9 @@
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {UploadOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
-import {Collapse, Form, Input, Upload, theme} from "antd"
+import {Collapse, Form, Upload, theme} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
