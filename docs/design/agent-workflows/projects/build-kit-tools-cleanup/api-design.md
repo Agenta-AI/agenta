@@ -143,24 +143,25 @@ In the tools domain (`core/tools/` service code, dispatched from the tool-call p
   skill tells the agent to warn the user (same convention as `test_subscription`'s
   blocking behavior note in the tools-review).
 
-## 5a shipped / 5b contract
+## 5a shipped / 5b landed
 
-Slice 5a ships the server handler and SDK catalog shape, but the committed runner is not
-yet the 5b runner. Until 5b lands, these limits are part of the contract:
+**5b landed on 2026-07-05.** The contract items below are now live:
 
-- The recursion guard is inert until 5b propagates `x-agenta-run-kind` from
-  `RunContext` onto every child `/tools/call`. 5a sets `meta.run_kind = "test"`
-  on the child invoke and refuses marked requests, but old runners do not forward
-  the mark.
-- On timeout, the child invoke is orphaned, not cancelled. The timeout response
-  carries no `trace_id`; recovery depends on a time-window `query_spans` lookup
-  in the same project.
-- Until 5b honors spec `timeoutMs`, the committed runner aborts relayed calls at
-  `TOOL_CALL_TIMEOUT_MS=30s` while the server-side child run may continue up to
-  120s.
-- Handler-mode resolver output is gated by
-  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`, default off. 5b flips the default on
-  when the runner honors `callRef`, `contextBindings`, and `timeoutMs`.
+- The recursion header is propagated. The handler sets `meta.run_kind = "test"`
+  on the child invoke, the agent service surfaces it as `RunContext.run.kind`,
+  and the runner forwards it to child `/tools/call` requests as
+  `x-agenta-run-kind`. The handler refuses marked requests, so recursive
+  `test_run` calls remain capped at one level.
+- `timeoutMs` is honored end to end. The runner applies it to the host
+  `/tools/call` fetch and the child file-relay poll. A positive per-spec timeout
+  gets a 10s grace window on both sides so digest/span work produced at the child
+  ceiling can still return.
+- Handler-mode resolver output is default-on. Set
+  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` to `0`, `false`, `f`, `n`, `no`,
+  `off`, `disable`, or `disabled` to disable it.
+- The orphaned-timeout caveat is unchanged. On timeout, the child invoke is
+  orphaned, not cancelled. The timeout response carries no `trace_id`; recovery
+  depends on a time-window `query_spans` lookup in the same project.
 
 ## Shape decision (provisional default: sync + delta, flagged for PR review) {#shape-decision}
 
