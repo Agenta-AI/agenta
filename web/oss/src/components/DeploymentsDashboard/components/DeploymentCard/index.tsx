@@ -2,10 +2,11 @@ import type {ComponentProps} from "react"
 import {useMemo} from "react"
 
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {dayjs} from "@agenta/shared/utils"
 import {EnvironmentTag} from "@agenta/ui"
 import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentational"
-import {Card, Space, Tag} from "antd"
+import {Card, Space} from "antd"
 
 import {deploymentCardClass} from "./styles"
 
@@ -49,7 +50,9 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
                         }
                     />
                 ) : (
-                    <Tag onClick={(e) => e.stopPropagation()}>No deployment</Tag>
+                    <Badge onClick={(e) => e.stopPropagation()} variant="secondary">
+                        No deployment
+                    </Badge>
                 )}
             </Space>
             <Space className="justify-between">

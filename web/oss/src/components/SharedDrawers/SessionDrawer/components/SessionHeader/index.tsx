@@ -1,8 +1,9 @@
 import {useCallback, useMemo} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDown, CaretUp, ChatCenteredDots, SidebarSimple} from "@phosphor-icons/react"
-import {Button, Tag} from "antd"
+import {Button} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {isAgentChatSliceEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
@@ -75,9 +76,9 @@ const SessionHeader = () => {
 
                 <span className="text-sm font-medium">Session</span>
                 <TooltipWithCopyAction copyText={sessionId || ""} title="Copy session id">
-                    <Tag className="font-mono bg-[var(--ag-c-0517290F)]" bordered={false}>
+                    <Badge className="font-mono bg-[var(--ag-c-0517290F)]" variant="secondary">
                         # {sessionId || "-"}
-                    </Tag>
+                    </Badge>
                 </TooltipWithCopyAction>
             </div>
 

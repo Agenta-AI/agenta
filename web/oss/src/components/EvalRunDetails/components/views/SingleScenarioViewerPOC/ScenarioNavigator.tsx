@@ -1,9 +1,10 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {LeftOutlined, RightOutlined} from "@ant-design/icons"
-import {Select, SelectProps, Tag} from "antd"
+import {Select, SelectProps} from "antd"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
@@ -154,11 +155,11 @@ const ScenarioNavigator = ({
                 />
             </div>
             {showScenarioIdTag && selectedOption?.description ? (
-                <Tag bordered={false} className="bg-[var(--ag-c-0517290F)] font-normal">
+                <Badge className="bg-[var(--ag-c-0517290F)] font-normal" variant="secondary">
                     <CopyTooltip copyText={selectedOption.description} title="Copy scenario id">
                         <span className="cursor-copy">{selectedOption.description}</span>
                     </CopyTooltip>
-                </Tag>
+                </Badge>
             ) : null}
         </div>
     )

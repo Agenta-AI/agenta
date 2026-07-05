@@ -1,8 +1,9 @@
 import {useMemo, useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {DownOutlined} from "@ant-design/icons"
-import {Form, Tag} from "antd"
+import {Form} from "antd"
 import {useAtomValue} from "jotai"
 
 import {testsetReferenceQueryAtomFamily} from "../../../../atoms/references"
@@ -80,9 +81,13 @@ const EmbeddedTestsetRows = ({
             <DefRow label="Columns">
                 {columns ? (
                     columns.map((col) => (
-                        <Tag key={`${testsetId}-${col}`} className="!m-0 font-mono text-[11px]">
+                        <Badge
+                            key={`${testsetId}-${col}`}
+                            className="!m-0 font-mono text-[11px]"
+                            variant="secondary"
+                        >
                             {col}
-                        </Tag>
+                        </Badge>
                     ))
                 ) : (
                     <span className="text-muted-foreground">No column metadata.</span>
@@ -153,9 +158,12 @@ const TestsetCard = ({
                     <div className="flex flex-wrap items-center gap-4">
                         <div className="flex items-center gap-2">
                             <span className="font-medium text-neutral-800">Test cases</span>
-                            <Tag className="!m-0 !bg-[var(--ag-c-EEF2FF)] !border-[var(--ag-c-E0EAFF)] !text-[var(--ag-c-344054)]">
+                            <Badge
+                                className="!m-0 !bg-[var(--ag-c-EEF2FF)] !border-[var(--ag-c-E0EAFF)] !text-[var(--ag-c-344054)]"
+                                variant="secondary"
+                            >
                                 {testcaseCount ?? "—"}
-                            </Tag>
+                            </Badge>
                         </div>
                     </div>
 
@@ -164,17 +172,21 @@ const TestsetCard = ({
                         {columns && columns.length ? (
                             <div className="flex flex-wrap gap-2">
                                 {columnPreview.map((col) => (
-                                    <Tag
+                                    <Badge
                                         key={`${testsetId}-${col}`}
                                         className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-E4E7EC)] !text-[var(--ag-c-344054)]"
+                                        variant="secondary"
                                     >
                                         {col}
-                                    </Tag>
+                                    </Badge>
                                 ))}
                                 {remainingColumnCount > 0 ? (
-                                    <Tag className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-E4E7EC)] !text-[var(--ag-c-344054)]">
+                                    <Badge
+                                        className="!m-0 !bg-[var(--ag-c-F2F4F7)] !border-[var(--ag-c-E4E7EC)] !text-[var(--ag-c-344054)]"
+                                        variant="secondary"
+                                    >
                                         +{remainingColumnCount} more
-                                    </Tag>
+                                    </Badge>
                                 ) : null}
                             </div>
                         ) : (

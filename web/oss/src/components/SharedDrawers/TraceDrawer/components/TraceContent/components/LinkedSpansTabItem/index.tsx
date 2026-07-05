@@ -1,9 +1,9 @@
 import {useCallback, useMemo} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {InfiniteVirtualTable} from "@agenta/ui/table"
 import type {InfiniteTableRowBase} from "@agenta/ui/table"
-import {Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -110,13 +110,13 @@ const LinkedSpansTabItem = ({isActive}: LinkedSpansTabItemProps) => {
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
                     <EnhancedTooltip copyText={spanId} title="Copy span id">
-                        <Tag
-                            bordered={false}
+                        <Badge
                             className="font-mono bg-[var(--ag-c-0517290F)]"
                             onClick={() => navigateToLink(record)}
+                            variant="secondary"
                         >
                             # {shortId}
-                        </Tag>
+                        </Badge>
                     </EnhancedTooltip>
                 )
             },

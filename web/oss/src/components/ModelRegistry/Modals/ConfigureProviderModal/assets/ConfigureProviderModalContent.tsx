@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {Tag} from "antd"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 
 import LabelInput from "../../../assets/LabelInput"
 
@@ -14,13 +14,9 @@ const ConfigureProviderModalContent = ({
         <div className="flex flex-col gap-4">
             <div className="flex flex-col items-start gap-1">
                 <span>Provider</span>
-                <Tag
-                    bordered={false}
-                    color="default"
-                    className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                >
+                <Badge className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]" variant="secondary">
                     {selectedProvider?.title}
-                </Tag>
+                </Badge>
             </div>
             <div className="flex flex-col gap-1">
                 <LabelInput

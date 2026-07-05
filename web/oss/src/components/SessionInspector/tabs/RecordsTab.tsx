@@ -1,7 +1,8 @@
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Collapse, Empty, Tag} from "antd"
+import {Alert, Collapse, Empty} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -44,9 +45,11 @@ const RecordsTab = ({sessionId}: {sessionId: string}) => {
                     key: event.record_id,
                     label: (
                         <span className="flex items-center gap-2">
-                            <Tag>{event.record_index ?? "—"}</Tag>
+                            <Badge variant="secondary">{event.record_index ?? "—"}</Badge>
                             <span>{event.record_source ?? "record"}</span>
-                            {event.record_type ? <Tag color="blue">{event.record_type}</Tag> : null}
+                            {event.record_type ? (
+                                <Badge variant="info">{event.record_type}</Badge>
+                            ) : null}
                         </span>
                     ),
                     children: (

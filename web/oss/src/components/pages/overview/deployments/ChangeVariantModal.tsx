@@ -3,9 +3,10 @@ import {SetStateAction, useMemo, useState} from "react"
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import type {Workflow} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Table, Tag} from "antd"
+import {Input, Table} from "antd"
 import {createUseStyles} from "react-jss"
 
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
@@ -96,12 +97,15 @@ const ChangeVariantModal = ({
                                                 />
 
                                                 <div className="flex items-center gap-2">
-                                                    <Tag className="flex items-center gap-2">
+                                                    <Badge
+                                                        className="flex items-center gap-2"
+                                                        variant="secondary"
+                                                    >
                                                         <EnvironmentStatus variant={record} />
                                                         <span>
                                                             {formatVariantIdWithHash(record.id)}
                                                         </span>
-                                                    </Tag>
+                                                    </Badge>
                                                     <CaretRight />
                                                 </div>
                                             </div>

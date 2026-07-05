@@ -1,9 +1,10 @@
 import {memo, useCallback, useMemo, useRef} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {CaretRight} from "@phosphor-icons/react"
-import {Menu, Tag} from "antd"
+import {Menu} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
@@ -89,7 +90,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 if (item.submenu && !(collapsed && item.isDynamic)) {
                     const titleNode = (
                         <>
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            {item.title} {item.tag && <Badge variant="success">{item.tag}</Badge>}
                         </>
                     )
                     const labelNode = item.link ? (
@@ -213,11 +214,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
                             rel={item.link?.startsWith("http") ? "noopener noreferrer" : undefined}
                         >
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            {item.title} {item.tag && <Badge variant="success">{item.tag}</Badge>}
                         </Link>
                     ) : (
                         <span className={labelClassName} onClick={item.onClick}>
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            {item.title} {item.tag && <Badge variant="success">{item.tag}</Badge>}
                         </span>
                     )
 

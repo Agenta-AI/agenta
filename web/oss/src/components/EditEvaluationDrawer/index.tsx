@@ -7,6 +7,7 @@ import {
     useEnrichedHumanEvaluatorAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
@@ -15,7 +16,6 @@ import {VersionBadge} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {saveEvaluationEditAtom} from "@/oss/components/EvalRunDetails/atoms/mutations/editEvaluation"
@@ -220,12 +220,12 @@ const EvaluatorMetricTags = ({
     return (
         <div className="flex flex-wrap gap-1">
             {list.map((metric) => (
-                <Tag key={metric.name} className="!m-0 !text-xs">
+                <Badge key={metric.name} className="!m-0 !text-xs" variant="secondary">
                     {metric.name}
                     {metric.metricType ? (
                         <span className="ml-1 opacity-60">{metric.metricType}</span>
                     ) : null}
-                </Tag>
+                </Badge>
             ))}
         </div>
     )
@@ -267,9 +267,9 @@ const PendingEvaluatorCard = ({
                 {typeof revision === "number" ? (
                     <VersionBadge version={revision} variant="chip" size="small" />
                 ) : null}
-                <Tag color="processing" className="!m-0 !text-xs">
+                <Badge className="!m-0 !text-xs" variant="info">
                     Pending
-                </Tag>
+                </Badge>
                 <Button
                     className="ml-auto shrink-0"
                     aria-label="Remove staged evaluator"

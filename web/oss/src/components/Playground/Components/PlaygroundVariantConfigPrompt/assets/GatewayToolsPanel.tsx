@@ -12,11 +12,12 @@ import {
     ConnectionStatusBadge,
     ToolExecutionDrawer,
 } from "@agenta/entity-ui/gatewayTool"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Play, Plus} from "@phosphor-icons/react"
-import {Collapse, Empty, Tag} from "antd"
+import {Collapse, Empty} from "antd"
 import {useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -79,7 +80,11 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
                     items={integrationKeys.map((integrationKey) => ({
                         key: integrationKey,
                         label: <IntegrationSectionLabel integrationKey={integrationKey} />,
-                        extra: <Tag className="text-xs">{grouped[integrationKey].length}</Tag>,
+                        extra: (
+                            <Badge className="text-xs" variant="secondary">
+                                {grouped[integrationKey].length}
+                            </Badge>
+                        ),
                         children: (
                             <div className="flex flex-col gap-1">
                                 {grouped[integrationKey].map((conn, index) => (

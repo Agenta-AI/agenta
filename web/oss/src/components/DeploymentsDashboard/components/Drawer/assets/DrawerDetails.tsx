@@ -3,9 +3,10 @@ import {useMemo} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus, type VariantStatusInfo} from "@agenta/entity-ui/variant"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Space, Tag} from "antd"
+import {Space} from "antd"
 import {useAtomValue} from "jotai"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -69,27 +70,27 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
             {createdAt && (
                 <div className="flex flex-col">
                     <span className="text-sm font-medium leading-5">Date modified</span>
-                    <Tag bordered={false} className="w-fit bg-[var(--ag-c-0517290F)]">
+                    <Badge className="w-fit bg-[var(--ag-c-0517290F)]" variant="secondary">
                         {new Date(createdAt).toLocaleDateString()}
-                    </Tag>
+                    </Badge>
                 </div>
             )}
 
             {createdById && (
                 <div className="flex flex-col">
                     <span className="text-sm font-medium leading-5">Modified by</span>
-                    <Tag bordered={false} className="w-fit bg-[var(--ag-c-0517290F)]">
+                    <Badge className="w-fit bg-[var(--ag-c-0517290F)]" variant="secondary">
                         <UserAuthorLabel userId={createdById} showPrefix={false} showAvatar />
-                    </Tag>
+                    </Badge>
                 </div>
             )}
 
             {commitMessage && (
                 <div className="flex flex-col">
                     <span className="text-sm font-medium leading-5">Notes</span>
-                    <Tag bordered={false} className="w-fit bg-[var(--ag-c-0517290F)]">
+                    <Badge className="w-fit bg-[var(--ag-c-0517290F)]" variant="secondary">
                         {commitMessage}
-                    </Tag>
+                    </Badge>
                 </div>
             )}
         </div>

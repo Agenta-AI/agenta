@@ -1,7 +1,7 @@
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ColumnVisibilityMenuTrigger} from "@agenta/ui/table"
-import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
@@ -63,9 +63,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 const shortId = spanId ? spanId.split("-")[0] : "-"
                 return (
                     <TooltipWithCopyAction copyText={spanId || ""} title="Copy span id">
-                        <Tag className="font-mono bg-[var(--ag-c-0517290F)]" bordered={false}>
+                        <Badge className="font-mono bg-[var(--ag-c-0517290F)]" variant="secondary">
                             # {shortId}
-                        </Tag>
+                        </Badge>
                     </TooltipWithCopyAction>
                 )
             },

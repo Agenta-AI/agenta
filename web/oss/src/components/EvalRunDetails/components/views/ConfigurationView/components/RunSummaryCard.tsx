@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
@@ -9,7 +10,6 @@ import {Textarea} from "@agenta/primitive-ui/components/textarea"
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
@@ -224,9 +224,9 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
             {runTags.length ? (
                 <div className="flex flex-wrap gap-1">
                     {runTags.map((tag) => (
-                        <Tag key={tag} className="!m-0">
+                        <Badge key={tag} className="!m-0" variant="secondary">
                             {tag}
-                        </Tag>
+                        </Badge>
                     ))}
                 </div>
             ) : null}

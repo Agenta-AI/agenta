@@ -1,9 +1,10 @@
 import {useMemo, useRef, useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
-import {Collapse, CollapseProps, Tag} from "antd"
+import {Collapse, CollapseProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -64,12 +65,12 @@ const SessionMessagePanel = ({
                                     title="Copy span id"
                                     tooltipProps={{placement: "top", arrow: true}}
                                 >
-                                    <Tag
+                                    <Badge
                                         className="font-mono truncate bg-[var(--ag-c-0517290F)]"
-                                        bordered={false}
+                                        variant="secondary"
                                     >
                                         # {trace?.span_id || "-"}
-                                    </Tag>
+                                    </Badge>
                                 </EnhancedTooltip>
                             </div>
                         ),

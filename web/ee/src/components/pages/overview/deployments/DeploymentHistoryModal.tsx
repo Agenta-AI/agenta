@@ -6,13 +6,14 @@ import {
     type EnvironmentRevision,
 } from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {ClockCounterClockwise, GearSix} from "@phosphor-icons/react"
-import {Dropdown, Space, Spin, Table, Tag} from "antd"
+import {Dropdown, Space, Spin, Table} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -278,9 +279,9 @@ const DeploymentHistoryModal = ({
                     <span>
                         v{record.appDeploymentIndex}
                         {record.appRevisionId === currentAppRevisionId && (
-                            <Tag color="green" className="ml-2">
+                            <Badge className="ml-2" variant="success">
                                 current
-                            </Tag>
+                            </Badge>
                         )}
                     </span>
                 ),
@@ -466,7 +467,7 @@ const DeploymentHistoryModal = ({
                                         <span className="text-sm font-medium">
                                             Variant Deployed
                                         </span>
-                                        <Tag>{selectedRow.variantSlug}</Tag>
+                                        <Badge variant="secondary">{selectedRow.variantSlug}</Badge>
                                     </div>
                                 )}
 

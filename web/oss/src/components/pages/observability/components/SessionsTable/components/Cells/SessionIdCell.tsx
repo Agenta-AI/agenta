@@ -1,15 +1,15 @@
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Tag} from "antd"
 
 export const SessionIdCell = ({sessionId}: {sessionId: string}) => {
     return (
         <TooltipWithCopyAction copyText={sessionId || ""} title="Copy session id">
-            <Tag
+            <Badge
                 className="font-mono bg-[var(--ag-c-0517290F)] max-w-full truncate inline-block align-middle"
-                bordered={false}
+                variant="secondary"
             >
                 # {sessionId}
-            </Tag>
+            </Badge>
         </TooltipWithCopyAction>
     )
 }

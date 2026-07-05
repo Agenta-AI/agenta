@@ -1,8 +1,9 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
-import {Button, Checkbox, Input, List, Popover, Space, Tag} from "antd"
+import {Button, Checkbox, Input, List, Popover, Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
@@ -440,16 +441,16 @@ const StatusChip = ({status}: {status: string}) => {
     const tone = resolveStatusTone(status)
     const colors = STATUS_COLOR_MAP[tone]
     return (
-        <Tag
-            bordered={false}
+        <Badge
             style={{
                 backgroundColor: colors.background,
                 color: colors.text,
                 fontWeight: 600,
             }}
+            variant="secondary"
         >
             {normalizeStatusLabel(status)}
-        </Tag>
+        </Badge>
     )
 }
 

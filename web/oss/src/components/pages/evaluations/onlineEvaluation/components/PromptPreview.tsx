@@ -1,5 +1,5 @@
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {ImagePreview} from "@agenta/ui/components/presentational"
-import {Tag} from "antd"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 
@@ -29,7 +29,9 @@ const PromptPreview = ({sections}: PromptPreviewProps) => {
 
                 const headerName = (
                     <div className="flex items-center gap-2">
-                        <Tag className="!m-0 capitalize">{tagContent}</Tag>
+                        <Badge className="!m-0 capitalize" variant="secondary">
+                            {tagContent}
+                        </Badge>
                         {/* {secondaryLabel ? (
                             <span className="text-xs font-medium uppercase text-[var(--ag-c-475467)]">
                                 {secondaryLabel}

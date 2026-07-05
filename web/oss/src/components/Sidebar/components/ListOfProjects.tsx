@@ -1,11 +1,12 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {ButtonProps, Dropdown, DropdownProps, Form, MenuProps, Tag, message} from "antd"
+import {ButtonProps, Dropdown, DropdownProps, Form, MenuProps, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -359,7 +360,12 @@ const ListOfProjects = ({
                         <div className="flex min-w-0 items-center gap-2">
                             <span className="truncate">{proj.project_name}</span>
                             {proj.is_default_project && (
-                                <Tag className="bg-[var(--ag-c-0517290F)] m-0">default</Tag>
+                                <Badge
+                                    className="bg-[var(--ag-c-0517290F)] m-0"
+                                    variant="secondary"
+                                >
+                                    default
+                                </Badge>
                             )}
                         </div>
                     </div>

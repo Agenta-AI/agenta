@@ -1,9 +1,10 @@
 import {useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {ClockCounterClockwise, Trash} from "@phosphor-icons/react"
-import {Empty, Popover, Tag} from "antd"
+import {Empty, Popover} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useChatScopeKey} from "../state/scope"
@@ -74,9 +75,9 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                             </span>
                         </div>
                         {isOpen && (
-                            <Tag color="processing" className="!m-0 !text-[11px]">
+                            <Badge className="!m-0 !text-[11px]" variant="info">
                                 open
-                            </Tag>
+                            </Badge>
                         )}
                         <Tooltip>
                             <TooltipTrigger

@@ -1,8 +1,9 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {DownOutlined} from "@ant-design/icons"
-import {Segmented, Tag} from "antd"
+import {Segmented} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -192,9 +193,9 @@ const InvocationSection = ({
                         )}
                     </DefRow>
                     <DefRow label="Type">
-                        <Tag className="!m-0">
+                        <Badge className="!m-0" variant="secondary">
                             {hasSchemaAvailable ? "Workflow" : "Custom workflow"}
-                        </Tag>
+                        </Badge>
                         {!hasSchemaAvailable ? (
                             <span className="text-[12.5px] text-muted-foreground">
                                 No playground schema — snapshot available as JSON

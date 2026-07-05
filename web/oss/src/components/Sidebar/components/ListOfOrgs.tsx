@@ -1,20 +1,11 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {
-    ButtonProps,
-    Dropdown,
-    DropdownProps,
-    Form,
-    Input,
-    MenuProps,
-    Select,
-    Tag,
-    message,
-} from "antd"
+import {ButtonProps, Dropdown, DropdownProps, Form, Input, MenuProps, Select, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -176,7 +167,14 @@ const ListOfOrgs = ({
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                             <InitialsAvatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
-                            {isDemo && <Tag className="bg-[var(--ag-c-0517290F)] m-0">demo</Tag>}
+                            {isDemo && (
+                                <Badge
+                                    className="bg-[var(--ag-c-0517290F)] m-0"
+                                    variant="secondary"
+                                >
+                                    demo
+                                </Badge>
+                            )}
                         </div>
                     </div>
                 ),

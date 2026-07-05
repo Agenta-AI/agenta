@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentShouldResumeAfterApproval} from "@agenta/playground"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
@@ -9,7 +10,7 @@ import {useChat} from "@ai-sdk/react"
 import {Attachments, Bubble, Sender} from "@ant-design/x"
 import {Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Alert, Tag, type UploadFile} from "antd"
+import {Alert, type UploadFile} from "antd"
 import {useSetAtom, useStore} from "jotai"
 
 import {useAgConfigStatus} from "../assets/agConfig"
@@ -33,11 +34,13 @@ const ignoreStreamRejection = () => {}
 const ConfigBadge = ({appId}: {appId: string}) => {
     const {ready, version} = useAgConfigStatus(appId)
     return ready ? (
-        <Tag color="success" className="!m-0 !text-[11px]">
+        <Badge className="!m-0 !text-[11px]" variant="success">
             config: revision{version != null ? ` v${version}` : ""}
-        </Tag>
+        </Badge>
     ) : (
-        <Tag className="!m-0 !text-[11px]">config: loading… (stub until ready)</Tag>
+        <Badge className="!m-0 !text-[11px]" variant="secondary">
+            config: loading… (stub until ready)
+        </Badge>
     )
 }
 

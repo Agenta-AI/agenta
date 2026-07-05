@@ -1,5 +1,5 @@
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Tag} from "antd"
 
 import {TestsetColumn} from "../assets/types"
 
@@ -50,9 +50,9 @@ export function ConfirmSaveModal({
                     <span className="text-muted-foreground">New columns:</span>
                     <div className="flex flex-wrap gap-1">
                         {newColumns.map((col) => (
-                            <Tag key={col} color="blue">
+                            <Badge key={col} variant="info">
                                 {col}
-                            </Tag>
+                            </Badge>
                         ))}
                     </div>
                 </div>

@@ -1,7 +1,8 @@
 import React, {useMemo, useState} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Menu, Divider, Input, Radio, Tag} from "antd"
+import {Menu, Divider, Input, Radio} from "antd"
 import yaml from "js-yaml"
 
 import {SettingsPreset} from "@/oss/lib/Types"
@@ -101,9 +102,9 @@ const LoadEvaluatorPresetContent = ({
                 {presetMetadata.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                         {presetMetadata.map(([key, value]) => (
-                            <Tag key={key} className="m-0">
+                            <Badge key={key} className="m-0" variant="secondary">
                                 {key}: {String(value)}
-                            </Tag>
+                            </Badge>
                         ))}
                     </div>
                 ) : null}

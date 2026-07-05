@@ -1,10 +1,11 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {EvaluatorDefinition} from "@agenta/entities/workflow"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
-import {Alert, Form, Segmented, Tag} from "antd"
+import {Alert, Form, Segmented} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -310,9 +311,13 @@ const EvaluatorCard = ({
                             <SectionLabel>Metrics</SectionLabel>
                             <div className="flex flex-wrap gap-2">
                                 {metricsFallback.map((metric) => (
-                                    <Tag key={`${evaluator.id}-${metric.name}`} className="!m-0">
+                                    <Badge
+                                        key={`${evaluator.id}-${metric.name}`}
+                                        className="!m-0"
+                                        variant="secondary"
+                                    >
                                         {metric.displayLabel ?? metric.name}
-                                    </Tag>
+                                    </Badge>
                                 ))}
                             </div>
                         </div>

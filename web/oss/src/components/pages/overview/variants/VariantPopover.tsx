@@ -2,9 +2,10 @@ import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import type {Workflow} from "@agenta/entities/workflow"
 import {VariantNameCell} from "@agenta/entity-ui/variant"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Badge, Flex, Popover, Tag} from "antd"
+import {Badge as AntBadge, Flex, Popover} from "antd"
 
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
@@ -64,15 +65,16 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                 </div>
             }
         >
-            <Tag
+            <Badge
                 className="w-fit cursor-pointer py-[1px] px-2"
                 onClick={(e) => e.stopPropagation()}
+                variant="secondary"
             >
-                <Badge
+                <AntBadge
                     text={formatVariantIdWithHash(env.deployedRevisionId as string)}
                     color={statusMap[env.name]?.badge ?? "transparent"}
                 />
-            </Tag>
+            </Badge>
         </Popover>
     )
 }

@@ -7,6 +7,7 @@ import {
     buildTurnCapture,
     playgroundController,
 } from "@agenta/playground"
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
@@ -18,7 +19,7 @@ import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
 import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Tabs, Tag} from "antd"
+import {Tabs} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -996,7 +997,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     gated on position so it can never smear onto past turns. Cleared on resend / ask. */}
                 {stopped && isLast && message.role === "assistant" && (
                     <div className="flex items-center gap-2 self-start pl-1">
-                        <Tag className="!m-0 !text-[11px]">Stopped</Tag>
+                        <Badge className="!m-0 !text-[11px]" variant="secondary">
+                            Stopped
+                        </Badge>
                         <Button
                             className="!px-0 !text-xs"
                             disabled={busy}

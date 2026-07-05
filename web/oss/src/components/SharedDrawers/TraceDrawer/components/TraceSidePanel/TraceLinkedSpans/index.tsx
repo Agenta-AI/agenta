@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {TreeStructureIcon} from "@phosphor-icons/react"
-import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -47,15 +47,15 @@ const TraceLinkedSpans = () => {
                 <div className="flex flex-col gap-2">
                     {validLinks.map((link) => {
                         return (
-                            <Tag
+                            <Badge
                                 key={`${link.trace_id}-${link.span_id}-${link.key || ""}`}
-                                bordered={false}
                                 className="cursor-pointer self-start bg-[var(--ag-c-0517290F)] flex gap-1 items-center"
                                 onClick={() => handleNavigate(link)}
+                                variant="secondary"
                             >
                                 <TreeStructureIcon size={14} />{" "}
                                 {link?.trace?.[0]?.span_name || link?.key}
-                            </Tag>
+                            </Badge>
                         )
                     })}
                 </div>

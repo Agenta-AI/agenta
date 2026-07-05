@@ -1,6 +1,7 @@
 import {Fragment} from "react"
 
-import {Form, Tag, Tooltip} from "antd"
+import {Badge} from "@agenta/primitive-ui/components/badge"
+import {Form, Tooltip} from "antd"
 
 import type {EvaluatorDetails, OutputMetric, ParameterPreviewItem} from "../types"
 
@@ -112,24 +113,24 @@ const EvaluatorDetailsPreview = ({
                                 <span className="font-semibold text-[var(--ag-c-475467)]">
                                     {metric.name}
                                 </span>
-                                <Tag className="!m-0" bordered={false}>
+                                <Badge className="!m-0" variant="secondary">
                                     {renderOutputType(metric)}
-                                </Tag>
+                                </Badge>
                                 {metric.required ? (
-                                    <Tag className="!m-0" bordered={false} color="success">
+                                    <Badge className="!m-0" variant="success">
                                         Required
-                                    </Tag>
+                                    </Badge>
                                 ) : (
-                                    <Tag
+                                    <Badge
                                         className="!m-0"
-                                        bordered={false}
                                         style={{
                                             backgroundColor: "var(--ag-c-F2F4F7)",
                                             color: "var(--ag-c-475467)",
                                         }}
+                                        variant="secondary"
                                     >
                                         Optional
-                                    </Tag>
+                                    </Badge>
                                 )}
                             </div>
                             {metric.description ? (

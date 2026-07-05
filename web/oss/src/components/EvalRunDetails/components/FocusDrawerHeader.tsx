@@ -1,9 +1,10 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
-import {Select, SelectProps, Tag} from "antd"
+import {Select, SelectProps} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
@@ -176,9 +177,9 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
                     copyText={selectedOption.description}
                     title={`Copy ${scenarioLabel.toLowerCase()} id`}
                 >
-                    <Tag bordered={false} className="bg-[var(--ag-c-0517290F)] font-normal">
+                    <Badge className="bg-[var(--ag-c-0517290F)] font-normal" variant="secondary">
                         {selectedOption.description}
-                    </Tag>
+                    </Badge>
                 </TooltipWithCopyAction>
             ) : null}
         </div>
