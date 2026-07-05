@@ -3,10 +3,11 @@ import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Input} from "@agenta/primitive-ui/components/input"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
-import {Collapse, Form, message, Select, Switch, Tabs} from "antd"
+import {Collapse, Form, message, Select, Switch} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {
@@ -496,13 +497,30 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     </div>
                 }
             >
-                <div className="h-full min-h-0 [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:h-full [&_.ant-tabs-tabpane]:h-full">
+                <div className="h-full min-h-0">
                     <Tabs
-                        activeKey={activeTab}
-                        onChange={setActiveTab}
-                        items={drawerTabs}
-                        className="h-full"
-                    />
+                        value={activeTab}
+                        onValueChange={(value) => setActiveTab(String(value))}
+                        className="h-full min-h-0 gap-0"
+                    >
+                        <TabsList variant="line" className="shrink-0">
+                            {drawerTabs.map((item) => (
+                                <TabsTrigger key={item.key} value={item.key}>
+                                    {item.label}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                        {drawerTabs.map((item) => (
+                            <TabsContent
+                                key={item.key}
+                                value={item.key}
+                                keepMounted
+                                className="min-h-0 overflow-y-auto pt-2"
+                            >
+                                {item.children}
+                            </TabsContent>
+                        ))}
+                    </Tabs>
                 </div>
             </EnhancedDrawer>
         </>

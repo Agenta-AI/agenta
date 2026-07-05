@@ -9,6 +9,7 @@ import {
 } from "@agenta/playground"
 import {Badge} from "@agenta/primitive-ui/components/badge"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tabs, TabsContent} from "@agenta/primitive-ui/components/tabs"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
@@ -19,7 +20,6 @@ import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
 import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Tabs} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -381,7 +381,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // ── "Run in playground" seam (producer: a trigger drawer's Run-in-playground) ──
     // A trigger fires server-side and never reaches the playground; this lets a user
     // channel a trigger's resolved inputs into the active session. Only the ACTIVE
-    // session's conversation consumes the pending run (antd Tabs can keep inactive
+    // session's conversation consumes the pending run (primitive Tabs keeps inactive
     // panes mounted), sends it as a user turn, and clears it. A monotonic nonce lets
     // the same inputs run again; a ref guards double-firing. The consuming effect lives
     // below `useAgentChatQueue` so the run goes through the same `submit` path as a manual
@@ -1269,44 +1269,46 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 <SessionRail activeId={activeId} className="h-full w-[248px]" />
             </div>
             <Tabs
-                animated={false}
-                className="flex min-h-0 min-w-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
-                activeKey={activeId}
-                onChange={setActiveSession}
-                renderTabBar={() => (
-                    // Chat mode has no inline session controls (they live in the SessionRail), so the
-                    // bar would be an empty 48px strip. Collapse its height to 0 — animated to match
-                    // the rail/config panes — rather than leaving dead space or snapping it away.
-                    <div
-                        className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                        style={{height: chatMaximized ? 0 : 48}}
+                value={activeId ?? null}
+                onValueChange={(key) => {
+                    if (key !== null) setActiveSession(String(key))
+                }}
+                className="flex min-h-0 min-w-0 flex-1 flex-col gap-0"
+            >
+                {/* Chat mode has no inline session controls when maximized, so collapse the bar height. */}
+                <div
+                    className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                    style={{height: chatMaximized ? 0 : 48}}
+                >
+                    <SessionTagBar
+                        sessions={sessions}
+                        activeId={activeId}
+                        onSelect={setActiveSession}
+                        onAdd={addSession}
+                        onClose={closeSession}
+                        onRename={(id, title) => renameSession({id, title})}
+                        showSessions={!chatMaximized}
+                        extra={
+                            chatMaximized ? undefined : (
+                                <>
+                                    <SessionInspectorButton sessionId={activeId ?? null} />
+                                    <SessionHistoryMenu />
+                                </>
+                            )
+                        }
+                    />
+                </div>
+                {sessions.map((session) => (
+                    <TabsContent
+                        key={session.id}
+                        value={session.id}
+                        keepMounted
+                        className="h-full min-h-0 flex-1"
                     >
-                        <SessionTagBar
-                            sessions={sessions}
-                            activeId={activeId}
-                            onSelect={setActiveSession}
-                            onAdd={addSession}
-                            onClose={closeSession}
-                            onRename={(id, title) => renameSession({id, title})}
-                            showSessions={!chatMaximized}
-                            extra={
-                                chatMaximized ? undefined : (
-                                    <>
-                                        <SessionInspectorButton sessionId={activeId ?? null} />
-                                        <SessionHistoryMenu />
-                                    </>
-                                )
-                            }
-                        />
-                    </div>
-                )}
-                items={sessions.map((session) => ({
-                    key: session.id,
-                    // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
-                    label: null,
-                    children: <AgentConversation entityId={entityId} sessionId={session.id} />,
-                }))}
-            />
+                        <AgentConversation entityId={entityId} sessionId={session.id} />
+                    </TabsContent>
+                ))}
+            </Tabs>
         </div>
     )
 }

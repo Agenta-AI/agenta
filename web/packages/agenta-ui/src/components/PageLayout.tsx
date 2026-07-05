@@ -1,13 +1,27 @@
-import type {ElementType, ReactNode} from "react"
+import type {CSSProperties, ElementType, ReactNode} from "react"
 
-import {Tabs, type TabsProps} from "antd"
+import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import clsx from "clsx"
+
+export interface HeaderTabItem {
+    key: string
+    label: ReactNode
+    disabled?: boolean
+}
+
+export interface HeaderTabsProps {
+    items: HeaderTabItem[]
+    activeKey: string
+    onChange: (key: string) => void
+    className?: string
+    indicatorColor?: string
+}
 
 export interface PageLayoutProps {
     title?: ReactNode
     titleLevel?: 1 | 2 | 3 | 4 | 5
     headerTabs?: ReactNode
-    headerTabsProps?: TabsProps
+    headerTabsProps?: HeaderTabsProps
     children: ReactNode
     className?: string
     headerClassName?: string
@@ -32,7 +46,34 @@ const PageLayout = ({
     }[titleLevel]
     const titleText = typeof title === "string" || typeof title === "number" ? String(title) : ""
     const headerTabsContent = headerTabsProps ? (
-        <Tabs {...headerTabsProps} className={clsx(headerTabsProps.className)} />
+        <Tabs
+            value={headerTabsProps.activeKey}
+            onValueChange={(key) => {
+                if (key !== null) headerTabsProps.onChange(String(key))
+            }}
+            className={clsx("gap-0", headerTabsProps.className)}
+            style={
+                headerTabsProps.indicatorColor
+                    ? ({
+                          "--tab-indicator-color": headerTabsProps.indicatorColor,
+                      } as CSSProperties)
+                    : undefined
+            }
+        >
+            <TabsList variant="line" className="min-w-[320px]">
+                {headerTabsProps.items.map((item) => (
+                    <TabsTrigger
+                        key={item.key}
+                        value={item.key}
+                        disabled={item.disabled}
+                        data-tab-key={item.key}
+                        className="gap-2 px-3 text-[14px] leading-[1.5714285714] data-active:after:bg-[var(--tab-indicator-color,var(--foreground))]"
+                    >
+                        {item.label}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+        </Tabs>
     ) : (
         headerTabs
     )
@@ -61,9 +102,7 @@ const PageLayout = ({
                         </TitleTag>
                     </div>
                     {headerTabsContent ? (
-                        <div className="flex items-center justify-end [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-tab-btn]:font-medium [&_.ant-tabs-tab-btn]:text-[14px] [&_.ant-tabs-tab-btn]:leading-[1.5714285714] [&_.ant-tabs-tab-btn]:inline-flex [&_.ant-tabs-tab-btn]:items-center [&_.ant-tabs-tab-btn]:gap-2">
-                            {headerTabsContent}
-                        </div>
+                        <div className="flex items-center justify-end">{headerTabsContent}</div>
                     ) : null}
                 </div>
             ) : null}

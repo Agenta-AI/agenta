@@ -156,7 +156,7 @@ const goToAutoEvaluationStep = async (modal: Locator, step: string) => {
     await expect(tab).toBeVisible()
     await tab.click()
     await expect(tab).toHaveAttribute("aria-selected", "true")
-    await expect(modal.locator(".ant-tabs-tabpane-active").last()).toBeVisible()
+    await expect(modal.locator('[data-slot="tabs-content"]:not([hidden])').last()).toBeVisible()
 }
 
 const selectAutoEvaluationModalTableInput = async ({
@@ -168,13 +168,13 @@ const selectAutoEvaluationModalTableInput = async ({
     rowText?: string
     inputType: "checkbox" | "radio"
 }) => {
-    const activePane = modal.locator(".ant-tabs-tabpane-active").last()
+    const activePane = modal.locator('[data-slot="tabs-content"]:not([hidden])').last()
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
     const inputSelector =
         'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
     const controlSelector =
         '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
-    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
+    const selectedTags = modal.locator('[data-slot="tabs-trigger"] .ant-tag')
 
     if (rowText && (await searchInput.isVisible().catch(() => false))) {
         await typeIntoLocator(searchInput, rowText)
@@ -360,7 +360,7 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
             })
             await expect(
                 modal
-                    .locator(".ant-tabs-tab", {hasText: "Test set"})
+                    .locator('[data-slot="tabs-trigger"]', {hasText: "Test set"})
                     .locator(".ant-tag", {hasText: testset}),
             ).toBeVisible()
 
@@ -373,7 +373,7 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
                 })
                 await expect(
                     modal
-                        .locator(".ant-tabs-tab", {hasText: "Evaluators"})
+                        .locator('[data-slot="tabs-trigger"]', {hasText: "Evaluators"})
                         .locator(".ant-tag", {hasText: evaluator}),
                 ).toBeVisible()
             }

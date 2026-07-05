@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
@@ -15,8 +16,7 @@ import {
     Rocket,
     Swap,
 } from "@phosphor-icons/react"
-import {DrawerProps, Dropdown, Space, Tabs} from "antd"
-import clsx from "clsx"
+import {DrawerProps, Dropdown, Space} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -213,72 +213,45 @@ const DeploymentDrawer = ({
                             )}
                         </div>
 
-                        <div
-                            className={clsx([
-                                "[&_.ant-tabs-nav]:sticky",
-                                "[&_.ant-tabs-nav]:-top-[25px]",
-                                "[&_.ant-tabs-nav]:bg-[var(--ag-c-FFFFFF)]",
-                                "[&_.ant-tabs-nav]:z-[1]",
-                            ])}
-                        >
+                        <div>
                             <Tabs
-                                destroyOnHidden
-                                defaultActiveKey={selectedLang}
-                                items={[
-                                    {
-                                        key: "python",
-                                        label: "Python",
-                                        children: (
-                                            <LanguageCodeBlock
-                                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                                selectedLang={selectedLang}
-                                                handleOpenSelectDeployVariantModal={
-                                                    handleOpenSelectDeployVariantModal
-                                                }
-                                                invokeLlmUrl={invokeLlmUrl}
-                                                showDeployOverlay={false}
-                                            />
-                                        ),
-                                        icon: <PythonOutlined />,
-                                    },
-                                    {
-                                        key: "typescript",
-                                        label: "TypeScript",
-                                        children: (
-                                            <LanguageCodeBlock
-                                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                                selectedLang={selectedLang}
-                                                handleOpenSelectDeployVariantModal={
-                                                    handleOpenSelectDeployVariantModal
-                                                }
-                                                invokeLlmUrl={invokeLlmUrl}
-                                                showDeployOverlay={false}
-                                            />
-                                        ),
-                                        icon: <FileTs size={14} />,
-                                    },
-                                    {
-                                        key: "bash",
-                                        label: "cURL",
-                                        children: (
-                                            <LanguageCodeBlock
-                                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                                selectedLang={selectedLang}
-                                                handleOpenSelectDeployVariantModal={
-                                                    handleOpenSelectDeployVariantModal
-                                                }
-                                                invokeLlmUrl={invokeLlmUrl}
-                                                showDeployOverlay={false}
-                                            />
-                                        ),
-                                        icon: <FileCode size={14} />,
-                                    },
-                                ]}
-                                onChange={setSelectedLang}
-                            />
+                                value={selectedLang}
+                                onValueChange={(key) => {
+                                    if (key !== null) setSelectedLang(String(key))
+                                }}
+                            >
+                                <TabsList
+                                    variant="line"
+                                    className="sticky -top-[25px] z-[1] bg-[var(--ag-c-FFFFFF)]"
+                                >
+                                    <TabsTrigger value="python" className="gap-1.5 px-3">
+                                        <PythonOutlined />
+                                        Python
+                                    </TabsTrigger>
+                                    <TabsTrigger value="typescript" className="gap-1.5 px-3">
+                                        <FileTs size={14} />
+                                        TypeScript
+                                    </TabsTrigger>
+                                    <TabsTrigger value="bash" className="gap-1.5 px-3">
+                                        <FileCode size={14} />
+                                        cURL
+                                    </TabsTrigger>
+                                </TabsList>
+                                {["python", "typescript", "bash"].map((lang) => (
+                                    <TabsContent key={lang} value={lang}>
+                                        <LanguageCodeBlock
+                                            fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                            invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                            selectedLang={selectedLang}
+                                            handleOpenSelectDeployVariantModal={
+                                                handleOpenSelectDeployVariantModal
+                                            }
+                                            invokeLlmUrl={invokeLlmUrl}
+                                            showDeployOverlay={false}
+                                        />
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
                         </div>
                     </div>
                 ) : (

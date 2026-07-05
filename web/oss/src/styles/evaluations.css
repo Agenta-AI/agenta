@@ -1,7 +1,8 @@
-.evaluations-tabs .ant-tabs-ink-bar {
-    background-color: var(--tab-indicator-color, var(--ag-c-DBEAFE)) !important;
+.evaluations-tabs [data-slot="tabs-trigger"][data-active]::after {
+    background-color: var(--tab-indicator-color, var(--ag-c-DBEAFE));
 }
-.evaluations-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+
+.evaluations-tabs [data-slot="tabs-trigger"][data-active] {
     color: var(--ag-c-0F172A);
 }
 

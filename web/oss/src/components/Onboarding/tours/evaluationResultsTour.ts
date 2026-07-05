@@ -27,7 +27,7 @@ const evaluationResultsTour: OnboardingTour = {
             title: "Aggregated Results",
             content:
                 "The Overview tab shows aggregated metrics and summary statistics for your entire evaluation run.",
-            selector: ".ant-tabs-nav .ant-tabs-tab:first-child", // Target the Overview tab
+            selector: '[data-tour="eval-run-tab-overview"]',
             side: "right-end", // Position to the right, aligned to bottom
             showControls: true,
             showSkip: true,
@@ -39,7 +39,7 @@ const evaluationResultsTour: OnboardingTour = {
             title: "Detailed Results",
             content:
                 "The Scenarios tab shows detailed results for each test case. Click on any row to see inputs, outputs, and individual metric scores.",
-            selector: ".ant-tabs-nav .ant-tabs-tab:nth-child(2)", // Target the Scenarios tab
+            selector: '[data-tour="eval-run-tab-scenarios"]',
             side: "right-end", // Position to the right, aligned to bottom
             showControls: true,
             showSkip: true,
@@ -51,7 +51,7 @@ const evaluationResultsTour: OnboardingTour = {
             // Click the Scenarios tab when this step is shown
             onEnter: () => {
                 const scenariosTab = document.querySelector(
-                    ".ant-tabs-nav .ant-tabs-tab:nth-child(2)",
+                    '[data-tour="eval-run-tab-scenarios"]',
                 ) as HTMLElement | null
                 if (scenariosTab) {
                     scenariosTab.click()

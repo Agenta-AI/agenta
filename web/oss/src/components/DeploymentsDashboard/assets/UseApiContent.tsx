@@ -1,9 +1,10 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
-import {Spin, Tabs} from "antd"
+import {Spin} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -162,11 +163,29 @@ const UseApiContent = ({
                 <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
             </div>
             <Tabs
-                destroyOnHidden
-                defaultActiveKey={selectedLang}
-                items={tabItems}
-                onChange={setSelectedLang}
-            />
+                value={selectedLang}
+                onValueChange={(key) => {
+                    if (key !== null) setSelectedLang(String(key))
+                }}
+                className="h-full gap-0"
+            >
+                <TabsList
+                    variant="line"
+                    className="sticky -top-[25px] z-[1] shrink-0 bg-[var(--ag-c-FFFFFF)] px-4"
+                >
+                    {tabItems.map((item) => (
+                        <TabsTrigger key={item.key} value={item.key} className="gap-1.5 px-3">
+                            {item.icon}
+                            {item.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+                {tabItems.map((item) => (
+                    <TabsContent key={item.key} value={item.key} className="h-full p-4">
+                        {item.children}
+                    </TabsContent>
+                ))}
+            </Tabs>
         </div>
     )
 }

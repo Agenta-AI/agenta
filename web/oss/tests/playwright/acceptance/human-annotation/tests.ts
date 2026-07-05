@@ -518,11 +518,11 @@ const goToHumanEvaluationStep = async (modal: Locator, step: string) => {
     await expect(stepTab).toBeVisible()
     await stepTab.click()
     await expect(stepTab).toHaveAttribute("aria-selected", "true")
-    await expect(modal.locator(".ant-tabs-tabpane-active").last()).toBeVisible()
+    await expect(modal.locator('[data-slot="tabs-content"]:not([hidden])').last()).toBeVisible()
 }
 
 const getActiveHumanEvaluationPane = (modal: Locator) =>
-    modal.locator(".ant-tabs-tabpane-active").last()
+    modal.locator('[data-slot="tabs-content"]:not([hidden])').last()
 
 const selectHumanEvaluationModalTableInput = async ({
     modal,
@@ -539,7 +539,7 @@ const selectHumanEvaluationModalTableInput = async ({
         'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
     const controlSelector =
         '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
-    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
+    const selectedTags = modal.locator('[data-slot="tabs-trigger"] .ant-tag')
 
     if (typeof rowText === "string" && (await searchInput.isVisible().catch(() => false))) {
         await typeIntoLocator(searchInput, rowText)

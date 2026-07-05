@@ -22,6 +22,7 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -35,7 +36,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Dropdown, Popover, Tabs, Tooltip} from "antd"
+import {Dropdown, Popover, Tooltip} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -1379,14 +1380,33 @@ function PlaygroundConfigSection({
                     </div>
                 ) : (
                     <Tabs
-                        activeKey={activeConfigureTab}
-                        onChange={handleConfigureTabChange}
-                        className="[&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-nav]:!bg-[var(--ag-c-F6F8FA)] [&_.ant-tabs-nav]:!px-0 [&_.ant-tabs-nav-wrap]:!w-full [&_.ant-tabs-nav-list]:!w-full [&_.ant-tabs-tab]:!basis-0 [&_.ant-tabs-tab]:!flex-1 [&_.ant-tabs-tab]:!justify-center [&_.ant-tabs-tab]:!mx-0 [&_.ant-tabs-tab-btn]:!mx-auto [&_.ant-tabs-content-holder]:max-h-[452px] [&_.ant-tabs-content-holder]:overflow-y-auto [&_.ant-tabs-content-holder]:px-3 [&_.ant-tabs-content-holder]:py-3"
-                        items={[
-                            {
-                                key: "model",
-                                label: "Model",
-                                children: promptModelInfo ? (
+                        value={activeConfigureTab}
+                        onValueChange={(key) => {
+                            if (key !== null) handleConfigureTabChange(String(key))
+                        }}
+                        className="gap-0"
+                    >
+                        <TabsList
+                            variant="line"
+                            className="w-full rounded-none bg-[var(--ag-c-F6F8FA)] px-0"
+                        >
+                            <TabsTrigger value="model" className="basis-0 px-3">
+                                Model
+                            </TabsTrigger>
+                            {hasPromptExtensionFields ? (
+                                <>
+                                    <TabsTrigger value="fallback" className="basis-0 px-3">
+                                        Fallback
+                                    </TabsTrigger>
+                                    <TabsTrigger value="retry" className="basis-0 px-3">
+                                        Retry
+                                    </TabsTrigger>
+                                </>
+                            ) : null}
+                        </TabsList>
+                        <div className="max-h-[452px] overflow-y-auto px-3 py-3">
+                            <TabsContent value="model" keepMounted>
+                                {promptModelInfo ? (
                                     <ModelConfigEditor
                                         value={
                                             (promptModelInfo.llmConfigValue ?? {}) as Record<
@@ -1404,81 +1424,70 @@ function PlaygroundConfigSection({
                                         disabled={disabled}
                                         excludeKeys={PROMPT_EXTENSION_KEYS}
                                     />
-                                ) : null,
-                            },
-                            ...(hasPromptExtensionFields
-                                ? [
-                                      {
-                                          key: "fallback",
-                                          label: "Fallback",
-                                          children: (
-                                              <FallbackConfigTab
-                                                  fallbackPolicy={
-                                                      (promptModelInfo?.promptValue
-                                                          .fallback_policy as
-                                                          | string
-                                                          | null
-                                                          | undefined) ?? null
-                                                  }
-                                                  fallbackConfigs={fallbackConfigs}
-                                                  fallbackConfigKeys={fallbackConfigKeys}
-                                                  fallbackPolicyOptions={fallbackPolicyOptions}
-                                                  fallbackPolicySchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .fallback_policy as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  fallbackConfigsSchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .fallback_configs as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  onPolicyChange={handleFallbackPolicyChange}
-                                                  onAddFallbackModel={handleAddFallbackModel}
-                                                  onEditFallbackModel={handleEditFallbackModel}
-                                                  onRemoveFallbackModel={handleRemoveFallbackModel}
-                                                  disabled={disabled}
-                                              />
-                                          ),
-                                      },
-                                      {
-                                          key: "retry",
-                                          label: "Retry",
-                                          children: (
-                                              <RetryConfigTab
-                                                  retryPolicy={
-                                                      (promptModelInfo?.promptValue.retry_policy as
-                                                          | string
-                                                          | null
-                                                          | undefined) ?? null
-                                                  }
-                                                  retryPolicyOptions={retryPolicyOptions}
-                                                  retryPolicySchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .retry_policy as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  retryConfigSchema={
-                                                      promptModelInfo?.promptSchemaProps
-                                                          .retry_config as
-                                                          | EntitySchemaProperty
-                                                          | undefined
-                                                  }
-                                                  maxRetries={effectiveRetryConfig.max_retries}
-                                                  baseDelay={effectiveRetryConfig.base_delay}
-                                                  onPolicyChange={handleRetryPolicyChange}
-                                                  onConfigFieldChange={handleRetryConfigFieldChange}
-                                                  disabled={disabled}
-                                              />
-                                          ),
-                                      },
-                                  ]
-                                : []),
-                        ]}
-                    />
+                                ) : null}
+                            </TabsContent>
+                            {hasPromptExtensionFields ? (
+                                <>
+                                    <TabsContent value="fallback" keepMounted>
+                                        <FallbackConfigTab
+                                            fallbackPolicy={
+                                                (promptModelInfo?.promptValue.fallback_policy as
+                                                    | string
+                                                    | null
+                                                    | undefined) ?? null
+                                            }
+                                            fallbackConfigs={fallbackConfigs}
+                                            fallbackConfigKeys={fallbackConfigKeys}
+                                            fallbackPolicyOptions={fallbackPolicyOptions}
+                                            fallbackPolicySchema={
+                                                promptModelInfo?.promptSchemaProps
+                                                    .fallback_policy as
+                                                    | EntitySchemaProperty
+                                                    | undefined
+                                            }
+                                            fallbackConfigsSchema={
+                                                promptModelInfo?.promptSchemaProps
+                                                    .fallback_configs as
+                                                    | EntitySchemaProperty
+                                                    | undefined
+                                            }
+                                            onPolicyChange={handleFallbackPolicyChange}
+                                            onAddFallbackModel={handleAddFallbackModel}
+                                            onEditFallbackModel={handleEditFallbackModel}
+                                            onRemoveFallbackModel={handleRemoveFallbackModel}
+                                            disabled={disabled}
+                                        />
+                                    </TabsContent>
+                                    <TabsContent value="retry" keepMounted>
+                                        <RetryConfigTab
+                                            retryPolicy={
+                                                (promptModelInfo?.promptValue.retry_policy as
+                                                    | string
+                                                    | null
+                                                    | undefined) ?? null
+                                            }
+                                            retryPolicyOptions={retryPolicyOptions}
+                                            retryPolicySchema={
+                                                promptModelInfo?.promptSchemaProps.retry_policy as
+                                                    | EntitySchemaProperty
+                                                    | undefined
+                                            }
+                                            retryConfigSchema={
+                                                promptModelInfo?.promptSchemaProps.retry_config as
+                                                    | EntitySchemaProperty
+                                                    | undefined
+                                            }
+                                            maxRetries={effectiveRetryConfig.max_retries}
+                                            baseDelay={effectiveRetryConfig.base_delay}
+                                            onPolicyChange={handleRetryPolicyChange}
+                                            onConfigFieldChange={handleRetryConfigFieldChange}
+                                            disabled={disabled}
+                                        />
+                                    </TabsContent>
+                                </>
+                            ) : null}
+                        </div>
+                    </Tabs>
                 )}
             </div>
         ),

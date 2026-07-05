@@ -16,10 +16,11 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties} from "react"
 
+import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {CaretDown, Plus, X} from "@phosphor-icons/react"
-import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
+import {Button, Checkbox, Empty, Popover, Spin} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
@@ -748,21 +749,23 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             {/* TABS (optional, only when adapter provides tabs) */}
             {tabs && tabs.length > 0 && (
                 <Tabs
-                    activeKey={activeTabKey}
-                    onChange={setActiveTabKey}
-                    items={tabs.map((tab) => ({
-                        key: tab.key,
-                        label: tab.label,
-                    }))}
-                    size="small"
-                    tabBarGutter={16}
+                    value={activeTabKey}
+                    onValueChange={(key) => {
+                        if (key !== null) setActiveTabKey(String(key))
+                    }}
                     className={cn(
-                        "[&_.ant-tabs-nav]:px-3 [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-nav::before]:border-b-0",
-                        "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
-                        "[&_.ant-tabs-nav-wrap]:pb-0",
+                        "gap-0 px-3",
                         "border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]",
                     )}
-                />
+                >
+                    <TabsList variant="line" size="sm" className="gap-4">
+                        {tabs.map((tab) => (
+                            <TabsTrigger key={tab.key} value={tab.key} size="sm" className="px-0">
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
             )}
 
             {/* PANELS: Root + Child side-by-side */}

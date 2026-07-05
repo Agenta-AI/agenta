@@ -1,10 +1,11 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {CopyButton} from "@agenta/ui"
 import {PythonOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileTs} from "@phosphor-icons/react"
-import {Radio, Tabs} from "antd"
+import {Radio} from "antd"
 
 import cURLCode from "@/oss/code_snippets/testsets/create_with_json/curl"
 import pythonCode from "@/oss/code_snippets/testsets/create_with_json/python"
@@ -75,6 +76,23 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
     }
 
     const codeSnippets = uploadType === "csv" ? csvCodeSnippets : jsonCodeSnippets
+    const tabItems = [
+        {
+            key: "python",
+            label: "Python",
+            icon: <PythonOutlined />,
+        },
+        {
+            key: "typescript",
+            label: "TypeScript",
+            icon: <FileTs size={14} className="!-mb-[3px]" />,
+        },
+        {
+            key: "bash",
+            label: "cURL",
+            icon: <FileCode size={14} className="!-mb-[3px]" />,
+        },
+    ]
 
     return (
         <section className="grid gap-4">
@@ -108,45 +126,32 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
 
                 <div>
                     <Tabs
-                        destroyOnHidden
-                        defaultActiveKey={selectedLang}
-                        onChange={setSelectedLang}
-                        items={[
-                            {
-                                key: "python",
-                                label: "Python",
-                                children: (
-                                    <LanguageCodeBlock
-                                        codeSnippets={codeSnippets}
-                                        selectedLang={selectedLang}
-                                    />
-                                ),
-                                icon: <PythonOutlined />,
-                            },
-                            {
-                                key: "typescript",
-                                label: "TypeScript",
-                                children: (
-                                    <LanguageCodeBlock
-                                        codeSnippets={codeSnippets}
-                                        selectedLang={selectedLang}
-                                    />
-                                ),
-                                icon: <FileTs size={14} className="!-mb-[3px]" />,
-                            },
-                            {
-                                key: "bash",
-                                label: "cURL",
-                                children: (
-                                    <LanguageCodeBlock
-                                        codeSnippets={codeSnippets}
-                                        selectedLang={selectedLang}
-                                    />
-                                ),
-                                icon: <FileCode size={14} className="!-mb-[3px]" />,
-                            },
-                        ]}
-                    />
+                        value={selectedLang}
+                        onValueChange={(key) => {
+                            if (key !== null) setSelectedLang(String(key))
+                        }}
+                    >
+                        <TabsList variant="line">
+                            {tabItems.map((item) => (
+                                <TabsTrigger
+                                    key={item.key}
+                                    value={item.key}
+                                    className="gap-1.5 px-3"
+                                >
+                                    {item.icon}
+                                    {item.label}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                        {tabItems.map((item) => (
+                            <TabsContent key={item.key} value={item.key}>
+                                <LanguageCodeBlock
+                                    codeSnippets={codeSnippets}
+                                    selectedLang={selectedLang}
+                                />
+                            </TabsContent>
+                        ))}
+                    </Tabs>
                 </div>
             </div>
 

@@ -3,10 +3,10 @@ import {type FC, memo, useCallback, useMemo} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
 import {Input} from "@agenta/primitive-ui/components/input"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
-import {Tabs, Tag} from "antd"
-import clsx from "clsx"
+import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -17,14 +17,6 @@ import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStor
 
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
-
-const tabsContainerClass =
-    "h-full flex [&_.ant-tabs-content-holder]:pl-4 [&_.ant-tabs-content-holder]:flex-1 " +
-    "[&_.ant-tabs-content-holder]:overflow-auto [&_.ant-tabs-tab]:text-colorTextSecondary " +
-    "[&_.ant-tabs-tab]:hover:bg-colorInfoBg [&_.ant-tabs-ink-bar]:hidden " +
-    "[&_.ant-tabs-tab-active]:bg-controlItemBgActive " +
-    "[&_.ant-tabs-tab-active]:[border-right:2px_solid_var(--ag-colorPrimary)] " +
-    "[&_.ant-tabs-tab-active]:text-colorPrimary [&_.ant-tabs-tab-active]:!font-medium"
 
 const SelectWorkflowSection = dynamic(() => import("./SelectWorkflowSection"), {ssr: false})
 
@@ -360,7 +352,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     ])
 
     return (
-        <div className="flex flex-col w-full gap-4 h-full max-h-full overflow-hidden [&_.ant-tabs]:!flex [&_.ant-tabs]:!w-full [&_.ant-tabs]:!grow [&_.ant-tabs]:!min-h-0">
+        <div className="flex flex-col w-full gap-4 h-full max-h-full overflow-hidden">
             <div className="flex flex-col gap-2">
                 <span className="font-medium">Evaluation name</span>
                 <Input
@@ -375,18 +367,38 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             </div>
 
             <Tabs
-                activeKey={activePanel || "appPanel"}
-                onChange={handlePanelChange as any}
-                items={items}
-                tabPlacement="left"
-                className={clsx([
-                    tabsContainerClass,
-                    "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
-                    "[&_.ant-tabs-nav]:!w-[240px]",
-                    "[&_.ant-tabs-content]:!h-full [&_.ant-tabs-content]:!w-full",
-                    "[&_.ant-tabs-tabpane]:!h-full [&_.ant-tabs-tabpane]:!max-h-full [&_.ant-tabs-tabpane]:!w-full",
-                ])}
-            />
+                value={activePanel || "appPanel"}
+                onValueChange={(value) => handlePanelChange(String(value))}
+                orientation="vertical"
+                className="w-full grow min-h-0 gap-4 overflow-hidden"
+            >
+                <TabsList
+                    variant="line"
+                    className="w-[240px] shrink-0 items-stretch justify-start overflow-y-auto p-0"
+                >
+                    {items.map((item) => (
+                        <TabsTrigger
+                            key={item.key}
+                            value={item.key}
+                            className="mt-1 h-auto min-h-0 w-full shrink-0 justify-start rounded-none p-2 text-colorTextSecondary hover:bg-colorInfoBg data-active:bg-controlItemBgActive data-active:text-colorPrimary data-active:font-medium after:!end-0 after:!bg-[var(--ag-colorPrimary)]"
+                        >
+                            {item.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+                <div className="min-w-0 flex-1 overflow-auto pl-4">
+                    {items.map((item) => (
+                        <TabsContent
+                            key={item.key}
+                            value={item.key}
+                            keepMounted
+                            className="h-full max-h-full w-full"
+                        >
+                            {item.children}
+                        </TabsContent>
+                    ))}
+                </div>
+            </Tabs>
         </div>
     )
 }

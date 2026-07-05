@@ -126,7 +126,7 @@ const testAutoEval = () => {
             await goToAutoEvaluationStep(modal, "Test set")
 
             const expectedInputsNote = modal
-                .locator(".ant-tabs-tabpane-active")
+                .locator('[data-slot="tabs-content"]:not([hidden])')
                 .last()
                 .locator("div")
                 .filter({

@@ -81,7 +81,7 @@ export {SyncStateTag, type SyncState, type SyncStateTagProps} from "./SyncStateT
 // LAYOUT COMPONENTS
 // ============================================================================
 
-export {default as PageLayout, type PageLayoutProps} from "./PageLayout"
+export {default as PageLayout, type HeaderTabsProps, type PageLayoutProps} from "./PageLayout"
 
 // ============================================================================
 // SCROLL COMPONENTS

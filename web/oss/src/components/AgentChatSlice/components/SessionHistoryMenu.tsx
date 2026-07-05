@@ -108,7 +108,7 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
 /**
  * History picker for the agent-chat tab bar: a clock button that opens the list of all past
  * sessions for the current app (open + closed) so closed conversations can be reopened. Lives
- * in the Tabs' `tabBarExtraContent` so it sits beside the `+` add control.
+ * in the session bar so it sits beside the `+` add control.
  */
 const SessionHistoryMenu = () => {
     const [open, setOpen] = useState(false)

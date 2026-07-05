@@ -1,18 +1,8 @@
-import {
-    memo,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    useTransition,
-    type CSSProperties,
-    type ReactNode,
-} from "react"
+import {memo, useEffect, useMemo, useRef, useState, useTransition, type ReactNode} from "react"
 
-import {PageLayout} from "@agenta/ui"
+import {PageLayout, type HeaderTabsProps} from "@agenta/ui"
 import {CloudServerOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, CodeIcon, ListChecksIcon} from "@phosphor-icons/react"
-import type {TabsProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -204,12 +194,10 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         [tabItems],
     )
 
-    const headerTabsProps = useMemo<TabsProps>(
+    const headerTabsProps = useMemo<HeaderTabsProps>(
         () => ({
-            className: "infinite-table-tabs min-w-[320px] [&_.ant-tabs-nav]:mb-0",
-            style: tabIndicatorColor
-                ? ({"--tab-indicator-color": tabIndicatorColor} as CSSProperties)
-                : undefined,
+            className: "evaluations-tabs min-w-[320px]",
+            indicatorColor: tabIndicatorColor,
             activeKey: activeTab,
             items: tabItemsWithIcons,
             onChange: (key) => {
@@ -217,7 +205,6 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
                     setKindParam(key)
                 })
             },
-            destroyOnHidden: true,
         }),
         [activeTab, setKindParam, startTransition, tabIndicatorColor, tabItemsWithIcons],
     )

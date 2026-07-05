@@ -1,7 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
-import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
@@ -144,7 +143,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     // `useQueryParam` reads the in-flight route's query, which Next updates at
     // `routeChangeStart` — before this page unmounts. Navigating away drops the
     // `view` param, which would snap the active tab back to the default and, via
-    // the `destroyOnHidden` Tabs below, tear down the active tab's table (e.g.
+    // conditional panel rendering below, tear down the active tab's table (e.g.
     // the Scenarios IVT) mid-navigation. Freeze the view while a navigation that
     // actually leaves this run is in flight; the page is replaced on completion.
     // Shallow tab switches keep the runId in the URL, so they still update.
@@ -193,61 +192,34 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
             }
             headerClassName="px-4 pt-2"
         >
-            <div className="flex h-full min-h-0 flex-col gap-2 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full">
+            <div className="flex h-full min-h-0 flex-col gap-2">
                 <PreviewEvalRunMeta runId={runId} projectId={projectId} activeView={activeView} />
-                <Tabs
-                    className="flex-1 min-h-0 overflow-hidden"
-                    activeKey={activeView}
-                    onChange={(key) => setActiveViewParam(key)}
-                    destroyOnHidden
-                    renderTabBar={() => <div style={{display: "none"}} />}
-                    items={[
-                        {
-                            key: "overview",
-                            label: "Overview",
-                            children: (
-                                <div className="h-full overflow-auto">
-                                    <OverviewView runId={runId} />
-                                </div>
-                            ),
-                        },
-                        {
-                            key: "scenarios",
-                            label: "Scenarios",
-                            children: (
-                                <div className="h-full min-h-0">
-                                    <EvalRunDetailsTable
-                                        runId={runId}
-                                        evaluationType={evaluationType}
-                                        projectId={projectId}
-                                    />
-                                </div>
-                            ),
-                        },
-                        {
-                            key: "configuration",
-                            label: "Configuration",
-                            children: (
-                                <div className="h-full overflow-auto">
-                                    <ConfigurationView runId={runId} />
-                                </div>
-                            ),
-                        },
-                        ...(evaluationType === "human"
-                            ? [
-                                  {
-                                      key: "focus",
-                                      label: "Annotate",
-                                      children: (
-                                          <div className="h-full min-h-0">
-                                              <FocusView runId={runId} />
-                                          </div>
-                                      ),
-                                  } satisfies (typeof Tabs)["prototype"]["props"]["items"][number],
-                              ]
-                            : []),
-                    ]}
-                />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    {activeView === "overview" ? (
+                        <div className="h-full overflow-auto">
+                            <OverviewView runId={runId} />
+                        </div>
+                    ) : null}
+                    {activeView === "scenarios" ? (
+                        <div className="h-full min-h-0">
+                            <EvalRunDetailsTable
+                                runId={runId}
+                                evaluationType={evaluationType}
+                                projectId={projectId}
+                            />
+                        </div>
+                    ) : null}
+                    {activeView === "configuration" ? (
+                        <div className="h-full overflow-auto">
+                            <ConfigurationView runId={runId} />
+                        </div>
+                    ) : null}
+                    {activeView === "focus" && evaluationType === "human" ? (
+                        <div className="h-full min-h-0">
+                            <FocusView runId={runId} />
+                        </div>
+                    ) : null}
+                </div>
             </div>
             {editDrawerRunId === runId ? (
                 <EditEvaluationDrawer runId={runId} open onClose={() => setEditDrawerRunId(null)} />

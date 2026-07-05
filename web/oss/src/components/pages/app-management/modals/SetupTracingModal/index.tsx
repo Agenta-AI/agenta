@@ -1,10 +1,10 @@
 import {useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {EnhancedModal, type EnhancedModalProps} from "@agenta/ui/components/modal"
 import {CloseOutlined, LinkOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
-import {Tabs, TabsProps} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -17,14 +17,9 @@ export const modalContainerClass = "overflow-hidden rounded-2xl p-0 transition-[
 export const modalHeaderClass =
     "flex items-center gap-3 py-4 px-6 [border-bottom:1px_solid_var(--ag-colorBorderSecondary)]"
 
-export const modalBodyClass =
-    "flex flex-col h-full overflow-y-auto gap-3 py-3 px-6 [&_.ant-tabs-tab-btn]:flex " +
-    "[&_.ant-tabs-tab-btn]:items-center [&_.ant-tabs-tab-btn]:gap-0 [&_.ant-tabs-tab-icon]:flex " +
-    "[&_.ant-tabs-tab-icon]:mr-0 [&_.ant-tabs-tab]:p-0 [&_.ant-tabs-tab]:mr-0"
+export const modalBodyClass = "flex flex-col h-full overflow-y-auto gap-3 py-3 px-6"
 
-const tabsClass =
-    "h-full overflow-y-auto [&_.ant-tabs-tab-btn]:mb-3 [&_.ant-tabs-content-holder]:h-full " +
-    "[&_.ant-tabs-content-holder]:overflow-y-auto"
+const tabsClass = "h-full min-h-0 overflow-hidden"
 
 const TracingTabContent = dynamic(
     () => import("./components/TracingTabContent").then((m) => m.TracingTabContent),
@@ -44,7 +39,7 @@ export const SetupTracingModalContent = ({
 }) => {
     const [apiKeyValue, setApiKeyValue] = useState("")
     const codeBlocks = useMemo(() => generateCodeBlocks(apiKeyValue, isDemo()), [apiKeyValue])
-    const items: TabsProps["items"] = [
+    const items = [
         {
             key: "openai",
             label: "OpenAI",
@@ -219,7 +214,23 @@ export const SetupTracingModalContent = ({
                         Debug effectively, bootstrap testsets, monitor and compare app versions
                     </span>
                 </div>
-                <Tabs defaultActiveKey="openai" items={items} className={tabsClass} />
+                <Tabs defaultValue="openai" className={tabsClass}>
+                    <TabsList variant="line" className="shrink-0 gap-4 overflow-x-auto">
+                        {items.map((item) => (
+                            <TabsTrigger key={item.key} value={item.key} className="p-0 pb-3">
+                                {"icon" in item ? item.icon : null}
+                                {item.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                        {items.map((item) => (
+                            <TabsContent key={item.key} value={item.key} keepMounted>
+                                {item.children}
+                            </TabsContent>
+                        ))}
+                    </div>
+                </Tabs>
             </div>
         </div>
     )

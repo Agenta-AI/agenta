@@ -7,8 +7,8 @@
 
 import React, {useMemo, useCallback} from "react"
 
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {resolveAdapter} from "../adapters/createAdapter"
@@ -181,10 +181,24 @@ export function EntitySelectorModal({
         >
             {tabItems.length > 1 ? (
                 <Tabs
-                    activeKey={activeType ?? tabItems[0]?.key}
-                    onChange={handleTabChange}
-                    items={tabItems}
-                />
+                    value={activeType ?? tabItems[0]?.key}
+                    onValueChange={(key) => {
+                        if (key !== null) handleTabChange(String(key))
+                    }}
+                >
+                    <TabsList variant="line">
+                        {tabItems.map((item) => (
+                            <TabsTrigger key={item.key} value={item.key} className="px-3">
+                                {item.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    {tabItems.map((item) => (
+                        <TabsContent key={item.key} value={item.key} keepMounted>
+                            {item.children}
+                        </TabsContent>
+                    ))}
+                </Tabs>
             ) : tabItems.length === 1 ? (
                 tabItems[0].children
             ) : null}

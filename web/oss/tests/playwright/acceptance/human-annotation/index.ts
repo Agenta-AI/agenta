@@ -122,7 +122,7 @@ const humanAnnotationTests = () => {
             await goToHumanEvaluationStep(modal, "Test set")
 
             const expectedInputsNote = modal
-                .locator(".ant-tabs-tabpane-active")
+                .locator('[data-slot="tabs-content"]:not([hidden])')
                 .last()
                 .locator("div")
                 .filter({hasText: /Expected input variables for selected variant\(s\):/})

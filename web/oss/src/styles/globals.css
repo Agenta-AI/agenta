@@ -99,11 +99,6 @@ body {
     }
 }
 
-/* It removes antd tabs transition to fix lag when using type="editable-card" */
-.editable-card.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
-    transition: none;
-}
-
 /* Center the gear/settings icon in the fixed-right action column header. */
 .ant-table-cell-fix-right-first svg {
     display: block;

@@ -7,10 +7,11 @@ import {
 } from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Empty, Popover, Tabs, Tag} from "antd"
+import {Empty, Popover, Tag} from "antd"
 import type {PopoverProps} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -159,19 +160,25 @@ const EvaluatorTemplateDropdown = ({
                 <span className="text-[14px] leading-[22px] font-[500]">Select evaluator type</span>
             </div>
             <Tabs
-                items={tabItems}
-                activeKey={activeTab}
-                onChange={handleTabChange}
-                size="small"
-                tabBarGutter={16}
-                className={cn(
-                    "[&_.ant-tabs-nav]:px-4 [&_.ant-tabs-nav]:mb-0",
-                    "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
-                    "[&_.ant-tabs-nav-list]:overflow-auto",
-                    "border-b",
-                    borderColors.secondary,
-                )}
-            />
+                value={activeTab}
+                onValueChange={(value) => handleTabChange(String(value))}
+                className="gap-0"
+            >
+                <TabsList
+                    variant="line"
+                    size="sm"
+                    className={cn(
+                        "w-full justify-start gap-4 overflow-x-auto px-4",
+                        borderColors.secondary,
+                    )}
+                >
+                    {tabItems.map((item) => (
+                        <TabsTrigger key={item.key} value={item.key} size="sm">
+                            {item.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+            </Tabs>
             {renderDropdownContent()}
         </div>
     )

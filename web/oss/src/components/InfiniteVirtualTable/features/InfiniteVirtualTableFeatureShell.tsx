@@ -3,8 +3,9 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {TrashIcon} from "@phosphor-icons/react"
-import {Grid, Tabs, Tooltip} from "antd"
+import {Grid, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 
@@ -527,10 +528,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (!tabs) return headerExtra // Fall back to headerExtra for backwards compatibility
         return (
             <div
-                className={clsx(
-                    "infinite-table-tabs min-w-[320px] [&_.ant-tabs-nav]:mb-0",
-                    tabs.className,
-                )}
+                className={clsx("infinite-table-tabs min-w-[320px]", tabs.className)}
                 style={
                     tabs.indicatorColor
                         ? ({"--tab-indicator-color": tabs.indicatorColor} as CSSProperties)
@@ -538,15 +536,24 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 }
             >
                 <Tabs
-                    className="min-w-[320px]"
-                    activeKey={tabs.activeKey}
-                    items={tabs.items.map((item) => ({
-                        key: item.key,
-                        label: item.label,
-                    }))}
-                    onChange={tabs.onChange}
-                    destroyOnHidden
-                />
+                    value={tabs.activeKey}
+                    onValueChange={(key) => {
+                        if (key !== null) tabs.onChange(String(key))
+                    }}
+                    className="min-w-[320px] gap-0"
+                >
+                    <TabsList variant="line" className="min-w-[320px]">
+                        {tabs.items.map((item) => (
+                            <TabsTrigger
+                                key={item.key}
+                                value={item.key}
+                                className="gap-2 px-3 data-active:after:bg-[var(--tab-indicator-color,var(--foreground))]"
+                            >
+                                {item.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
             </div>
         )
     }, [tabs, headerExtra])

@@ -31,6 +31,7 @@ import {
     stableStringify,
 } from "@agenta/entities/workflow/commitDiff"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {ConfigAccordionSection, sectionIndicatorColor} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -45,7 +46,7 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Tabs, Tooltip} from "antd"
+import {Tooltip} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue, useStore} from "jotai"
 
@@ -649,11 +650,10 @@ export function AgentTemplateControl({
             ) : layout === "tabs" ? (
                 // Tabs renders each section's body inline (no drawer), so edits are live. Drawer
                 // sections supply a trimmed `inlineContent` so the tab shows just their controls.
-                <Tabs
-                    items={sections.map((s) => ({
-                        key: s.key,
-                        label: (
-                            <span className="inline-flex items-center gap-1.5">
+                <Tabs defaultValue={sections[0]?.key}>
+                    <TabsList variant="line" className="max-w-full overflow-x-auto">
+                        {sections.map((s) => (
+                            <TabsTrigger key={s.key} value={s.key} className="gap-1.5 px-3">
                                 <Tooltip title={s.indicator?.tooltip}>
                                     <span
                                         className="relative inline-flex items-center"
@@ -679,18 +679,19 @@ export function AgentTemplateControl({
                                     </span>
                                 </Tooltip>
                                 {s.title}
-                            </span>
-                        ),
-                        children: (
-                            // Render `extra` (the add-action) here too, else tab users can't add
-                            // items. Body is the trimmed `inlineContent` or `content`.
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    {sections.map((s) => (
+                        <TabsContent key={s.key} value={s.key} keepMounted>
+                            {/* Render `extra` here too, else tab users cannot add items. */}
                             <div className="flex flex-col gap-3 pt-1">
                                 {s.extra ? <div className="flex justify-end">{s.extra}</div> : null}
                                 {s.inlineContent ?? s.content}
                             </div>
-                        ),
-                    }))}
-                />
+                        </TabsContent>
+                    ))}
+                </Tabs>
             ) : layout === "cards" ? (
                 <div className="flex flex-col gap-3 pt-1">
                     {sections.map((s) => (

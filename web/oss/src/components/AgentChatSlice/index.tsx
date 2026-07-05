@@ -1,7 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
+import {Tabs, TabsContent} from "@agenta/primitive-ui/components/tabs"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
-import {Segmented, Tabs} from "antd"
+import {Segmented} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
@@ -11,7 +12,7 @@ import {type AgentChatTrack, DEFAULT_TRACK} from "./assets/constants"
 import {loadSessionMessages} from "./assets/loadSession"
 import AgentChatConversation from "./components/AgentChatConversation"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
-import SessionTabLabel from "./components/SessionTabLabel"
+import SessionTagBar from "./components/SessionTagBar"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -19,7 +20,6 @@ import {
     adoptSessionAtomFamily,
     closeSessionAtomFamily,
     renameSessionAtomFamily,
-    sessionLabel,
     sessionMessagesAtom,
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
@@ -52,7 +52,6 @@ const AgentChatSlice = () => {
     const scope = useChatScopeKey()
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
-    const allMessages = useAtomValue(sessionMessagesAtom)
     const addSession = useSetAtom(addSessionAtomFamily(scope))
     const adoptSession = useSetAtom(adoptSessionAtomFamily(scope))
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
@@ -122,17 +121,20 @@ const AgentChatSlice = () => {
             </div>
 
             <Tabs
-                type="editable-card"
-                size="small"
-                className="flex min-h-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
-                activeKey={activeId}
-                onChange={setActiveSession}
-                onEdit={(targetKey, action) => {
-                    if (action === "add") addSession()
-                    else if (typeof targetKey === "string") closeSession(targetKey)
+                value={activeId ?? null}
+                onValueChange={(key) => {
+                    if (key !== null) setActiveSession(String(key))
                 }}
-                tabBarExtraContent={{
-                    right: (
+                className="flex min-h-0 flex-1 flex-col gap-0"
+            >
+                <SessionTagBar
+                    sessions={sessions}
+                    activeId={activeId}
+                    onSelect={setActiveSession}
+                    onAdd={addSession}
+                    onClose={closeSession}
+                    onRename={(id, title) => renameSession({id, title})}
+                    extra={
                         <div className="flex items-center gap-2">
                             <SessionHistoryMenu />
                             <Tooltip>
@@ -151,23 +153,20 @@ const AgentChatSlice = () => {
                                 />
                                 <TooltipContent>
                                     {track === "agenta"
-                                        ? "Dev: Track B — FE adapts to Agenta {role, content} + tool_approvals"
-                                        : "Dev: Track A — useChat posts UIMessage[] parts verbatim"}
+                                        ? "Dev: Track B - FE adapts to Agenta {role, content} + tool_approvals"
+                                        : "Dev: Track A - useChat posts UIMessage[] parts verbatim"}
                                 </TooltipContent>
                             </Tooltip>
                         </div>
-                    ),
-                }}
-                items={sessions.map((session, index) => ({
-                    key: session.id,
-                    closable: sessions.length > 1,
-                    label: (
-                        <SessionTabLabel
-                            label={sessionLabel(session, allMessages[session.id], index)}
-                            onRename={(title) => renameSession({id: session.id, title})}
-                        />
-                    ),
-                    children: (
+                    }
+                />
+                {sessions.map((session) => (
+                    <TabsContent
+                        key={session.id}
+                        value={session.id}
+                        keepMounted
+                        className="h-full min-h-0 flex-1"
+                    >
                         <AgentChatConversation
                             // `:${track}` → dev track flip remounts with a fresh transport,
                             // rehydrating messages from the persisted store.
@@ -176,9 +175,9 @@ const AgentChatSlice = () => {
                             track={track}
                             appId={appId}
                         />
-                    ),
-                }))}
-            />
+                    </TabsContent>
+                ))}
+            </Tabs>
         </div>
     )
 }

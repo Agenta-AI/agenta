@@ -6,6 +6,7 @@ import {
     workflowVariantsListDataAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
 } from "@agenta/entities/workflow"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {
     Alert,
@@ -14,7 +15,6 @@ import {
     Empty,
     Radio,
     type RadioChangeEvent,
-    Tabs,
     Tooltip,
 } from "antd"
 import {useAtomValue} from "jotai"
@@ -259,16 +259,7 @@ function VariantEndpointContent() {
             },
             {
                 key: "history",
-                label: !isOss ? (
-                    "History"
-                ) : (
-                    <Tooltip
-                        placement="right"
-                        title="Deployment History available in Cloud/EE only"
-                    >
-                        History
-                    </Tooltip>
-                ),
+                label: "History",
                 icon: <HistoryOutlined />,
                 children: (
                     <DeploymentHistory
@@ -277,6 +268,7 @@ function VariantEndpointContent() {
                     />
                 ),
                 disabled: isOss,
+                tooltipTitle: isOss ? "Deployment History available in Cloud/EE only" : undefined,
             },
         ],
         [collapseItems, isOss, selectedEnvironment?.name, appId],
@@ -321,7 +313,41 @@ function VariantEndpointContent() {
             </div>
 
             {selectedEnvironment?.deployedVariantId ? (
-                <Tabs destroyOnHidden defaultActiveKey={tab} items={tabItems} onChange={setTab} />
+                <Tabs
+                    value={tab}
+                    onValueChange={(key) => {
+                        if (key !== null) setTab(String(key))
+                    }}
+                >
+                    <TabsList variant="line">
+                        {tabItems.map((item) => {
+                            const trigger = (
+                                <TabsTrigger
+                                    key={item.key}
+                                    value={item.key}
+                                    disabled={item.disabled}
+                                    className="gap-1.5 px-3"
+                                >
+                                    {item.icon}
+                                    {item.label}
+                                </TabsTrigger>
+                            )
+
+                            return item.tooltipTitle ? (
+                                <Tooltip key={item.key} placement="right" title={item.tooltipTitle}>
+                                    <span className="inline-flex">{trigger}</span>
+                                </Tooltip>
+                            ) : (
+                                trigger
+                            )
+                        })}
+                    </TabsList>
+                    {tabItems.map((item) => (
+                        <TabsContent key={item.key} value={item.key}>
+                            {item.children}
+                        </TabsContent>
+                    ))}
+                </Tabs>
             ) : (
                 <Alert
                     message="Publish Required"

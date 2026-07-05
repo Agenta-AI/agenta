@@ -122,8 +122,8 @@ export interface SessionTagBarProps {
 }
 
 /**
- * Tag-style session bar for the agent playground. Replaces antd's editable-card tab strip via
- * `renderTabBar`, so the panes (and their live `useChat` streams) keep antd's mount semantics
+ * Tag-style session bar for the agent playground. It controls primitive tab panels so panes
+ * and their live `useChat` streams stay mounted
  * while the bar reads as a row of chips. The 48px height + bottom border aligns its bottom edge
  * with the config panel header on the left.
  */

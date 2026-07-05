@@ -1,6 +1,6 @@
 import {ReactNode, useState} from "react"
 
-import {Tabs} from "antd"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 
 interface WidgetData {
     leftSubHeading?: ReactNode
@@ -38,15 +38,20 @@ const WidgetCard: React.FC<Props> = ({title, leftSubHeading, rightSubHeading, ta
                 {title}
             </span>
             {tabs?.length ? (
-                <Tabs
-                    activeKey={tab}
-                    onChange={setTab}
-                    items={tabs.map((tab) => ({
-                        key: tab.title,
-                        label: tab.title,
-                        children: <WidgetInnerContent {...tab} />,
-                    }))}
-                />
+                <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
+                    <TabsList variant="line">
+                        {tabs.map((tabItem) => (
+                            <TabsTrigger key={tabItem.title} value={tabItem.title}>
+                                {tabItem.title}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    {tabs.map((tabItem) => (
+                        <TabsContent key={tabItem.title} value={tabItem.title} keepMounted>
+                            <WidgetInnerContent {...tabItem} />
+                        </TabsContent>
+                    ))}
+                </Tabs>
             ) : (
                 <WidgetInnerContent
                     leftSubHeading={leftSubHeading}

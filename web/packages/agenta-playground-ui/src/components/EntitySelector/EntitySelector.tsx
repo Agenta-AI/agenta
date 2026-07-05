@@ -41,9 +41,10 @@ import {
 } from "@agenta/entity-ui"
 import {entitySelectorController} from "@agenta/playground"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Tabs, Space} from "antd"
+import {Input, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 // Re-export types from controller for convenience
@@ -261,10 +262,24 @@ function EntitySelectorContent({
 
     return (
         <Tabs
-            activeKey={activeTab}
-            onChange={(key) => setActiveTab(key as SelectorTab)}
-            items={tabItems}
-        />
+            value={activeTab}
+            onValueChange={(key) => {
+                if (key !== null) setActiveTab(key as SelectorTab)
+            }}
+        >
+            <TabsList variant="line">
+                {tabItems.map((item) => (
+                    <TabsTrigger key={item.key} value={item.key} className="px-3">
+                        {item.label}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+            {tabItems.map((item) => (
+                <TabsContent key={item.key} value={item.key} keepMounted>
+                    {item.children}
+                </TabsContent>
+            ))}
+        </Tabs>
     )
 }
 

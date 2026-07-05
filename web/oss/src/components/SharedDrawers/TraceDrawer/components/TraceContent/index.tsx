@@ -1,7 +1,8 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
-import {Splitter, Tabs, TabsProps} from "antd"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
+import {Splitter} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -52,7 +53,7 @@ const TraceContent = ({
     useEffect(() => {
         const el = tabsWrapperRef.current
         if (!el) return
-        const nav = el.querySelector<HTMLElement>(".ant-tabs-nav")
+        const nav = el.querySelector<HTMLElement>('[data-slot="tabs-list"]')
         if (!nav) return
         const observer = new ResizeObserver(() => {
             setTabNavHeight(nav.getBoundingClientRect().height)
@@ -63,7 +64,7 @@ const TraceContent = ({
         return () => observer.disconnect()
     }, [])
 
-    const items: TabsProps["items"] = useMemo(() => {
+    const items = useMemo(() => {
         if (isLoading && !activeTrace) {
             return [
                 {
@@ -176,20 +177,35 @@ const TraceContent = ({
 
                 <Splitter className="flex-1 min-h-0">
                     <Splitter.Panel min={400} className="w-full flex-1">
-                        <div ref={tabsWrapperRef} className="flex-1">
+                        <div ref={tabsWrapperRef} className="flex-1 h-full min-h-0">
                             <Tabs
-                                defaultActiveKey="overview"
-                                activeKey={tab}
-                                onChange={setTab}
-                                items={items}
-                                className={clsx(
-                                    "flex flex-col h-full [&_.ant-tabs-nav]:!sticky [&_.ant-tabs-nav]:!top-0 [&_.ant-tabs-nav]:!z-30 [&_.ant-tabs-nav]:!bg-[var(--ag-c-FFFFFF)]",
-                                    "[&_.ant-tabs-nav]:mb-2 [&_.ant-tabs-nav]:flex-wrap-reverse [&_.ant-tabs-nav-wrap]:px-4",
-                                    "[&_.ant-tabs-content-holder]:p-3 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-content]:h-full [&_.ant-tabs-tabpane]:h-full",
-                                    "[&_.ant-tabs-nav-operations]:!hidden",
-                                    "[&_.ant-tabs-extra-content]:pt-[10px] [&_.ant-tabs-extra-content]:pb-[10px] [&_.ant-tabs-extra-content]:pl-4",
-                                )}
-                            />
+                                value={tab}
+                                onValueChange={(value) => setTab(String(value))}
+                                className="flex h-full min-h-0 gap-0"
+                            >
+                                <TabsList
+                                    variant="line"
+                                    className="sticky top-0 z-30 mb-2 shrink-0 flex-wrap-reverse justify-start bg-[var(--ag-c-FFFFFF)] px-4"
+                                >
+                                    {items.map((item) => (
+                                        <TabsTrigger key={item.key} value={item.key}>
+                                            {item.label}
+                                        </TabsTrigger>
+                                    ))}
+                                </TabsList>
+                                <div className="min-h-0 flex-1 p-3">
+                                    {items.map((item) => (
+                                        <TabsContent
+                                            key={item.key}
+                                            value={item.key}
+                                            keepMounted
+                                            className="h-full"
+                                        >
+                                            {item.children}
+                                        </TabsContent>
+                                    ))}
+                                </div>
+                            </Tabs>
                         </div>
                     </Splitter.Panel>
                     {isAnnotationsSectionOpen && (

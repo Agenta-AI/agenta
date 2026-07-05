@@ -1,10 +1,11 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {Tabs, TabsList, TabsTrigger} from "@agenta/primitive-ui/components/tabs"
 import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Tabs} from "antd"
+import {Button} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
@@ -118,19 +119,27 @@ const PreviewEvalRunTabs = ({
     return (
         <div className={clsx("flex items-center justify-end", className)}>
             <Tabs
-                className="run-header-tabs [&_.ant-tabs-nav]:mb-0"
-                activeKey={currentView}
-                onChange={(key) => {
-                    const view = key as ActiveView
+                className="run-header-tabs gap-0"
+                value={currentView}
+                onValueChange={(value) => {
+                    const view = String(value) as ActiveView
                     if (view !== currentView) {
                         onChangeView?.(view)
                     }
                 }}
-                items={tabs.map((tab) => ({
-                    key: tab.value,
-                    label: tab.label,
-                }))}
-            />
+            >
+                <TabsList variant="line">
+                    {tabs.map((tab) => (
+                        <TabsTrigger
+                            key={tab.value}
+                            value={tab.value}
+                            data-tour={`eval-run-tab-${tab.value}`}
+                        >
+                            {tab.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+            </Tabs>
         </div>
     )
 }

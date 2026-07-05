@@ -5,7 +5,6 @@ import {Button} from "@agenta/primitive-ui/components/button"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Divider} from "antd"
-import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {deploymentsDrawerStateAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
@@ -150,23 +149,7 @@ const DeploymentsDrawerContent = ({
     return (
         <div className="flex h-full">
             <div className={`flex-1 overflow-auto ${mainContentClassName}`}>
-                <div
-                    className={clsx([
-                        "[&_.ant-tabs-nav]:sticky",
-                        "[&_.ant-tabs-nav]:px-4",
-                        "[&_.ant-tabs-nav]:-top-[25px]",
-                        "[&_.ant-tabs-nav]:bg-[var(--ag-c-FFFFFF)]",
-                        "[&_.ant-tabs-nav]:z-[1]",
-                        "[&_.ant-tabs-nav]:m-0",
-                        "[&_.ant-tabs-content-holder]:p-4",
-                        "h-full",
-                        "[&_.ant-tabs]:h-full",
-                        "[&_.ant-tabs-content]:h-full",
-                        "[&_.ant-tabs-tabpane]:h-full",
-                    ])}
-                >
-                    {renderContent()}
-                </div>
+                <div className="h-full">{renderContent()}</div>
             </div>
             {drawerVariantId && (
                 <>
