@@ -2,8 +2,8 @@ import {memo, useState} from "react"
 
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Flask} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -37,24 +37,27 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
 
     return (
         <>
-            <Tooltip
-                title={
-                    isProjectScoped
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <Button
+                            className={clsx("self-start", className)}
+                            disabled={isDisabled}
+                            data-tour="run-evaluation-button"
+                            onClick={() => setIsModalOpen(true)}
+                            variant="ghost"
+                            size="sm"
+                        >
+                            {<Flask size={14} />}
+                            New Evaluation
+                        </Button>
+                    }
+                />
+                <TooltipContent>
+                    {isProjectScoped
                         ? "Open this trace from an app's playground to create an evaluation."
-                        : "Run your prompt against a full test set with evaluators. Results are saved to the Evaluations page."
-                }
-            >
-                <Button
-                    className={clsx("self-start", className)}
-                    disabled={isDisabled}
-                    data-tour="run-evaluation-button"
-                    onClick={() => setIsModalOpen(true)}
-                    variant="ghost"
-                    size="sm"
-                >
-                    {<Flask size={14} />}
-                    New Evaluation
-                </Button>
+                        : "Run your prompt against a full test set with evaluators. Results are saved to the Evaluations page."}
+                </TooltipContent>
             </Tooltip>
 
             <NewEvaluationModal

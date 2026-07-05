@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {PlusIcon} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, type ButtonProps, type MenuProps} from "antd"
+import {Button, Dropdown, type ButtonProps, type MenuProps} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {
@@ -153,37 +154,42 @@ const EvaluationRunsCreateButton = ({
     }, [availableTypes, isAllTab])
 
     return (
-        <Tooltip title={createTooltip ?? undefined}>
-            <div className="inline-flex">
-                {isAllTab ? (
-                    <Dropdown
-                        trigger={["click"]}
-                        disabled={!createEnabled}
-                        menu={{items: menuItems, onClick: handleMenuClick}}
-                    >
-                        <Button
-                            type="primary"
-                            icon={<PlusIcon size={16} />}
-                            disabled={!createEnabled}
-                            size={size}
-                            className={className}
-                        >
-                            {label ?? "New Evaluation"}
-                        </Button>
-                    </Dropdown>
-                ) : (
-                    <Button
-                        type="primary"
-                        icon={<PlusIcon size={16} />}
-                        disabled={!createEnabled}
-                        onClick={openCreateModal}
-                        size={size}
-                        className={className}
-                    >
-                        {label ?? "New evaluation"}
-                    </Button>
-                )}
-            </div>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <div className="inline-flex">
+                        {isAllTab ? (
+                            <Dropdown
+                                trigger={["click"]}
+                                disabled={!createEnabled}
+                                menu={{items: menuItems, onClick: handleMenuClick}}
+                            >
+                                <Button
+                                    type="primary"
+                                    icon={<PlusIcon size={16} />}
+                                    disabled={!createEnabled}
+                                    size={size}
+                                    className={className}
+                                >
+                                    {label ?? "New Evaluation"}
+                                </Button>
+                            </Dropdown>
+                        ) : (
+                            <Button
+                                type="primary"
+                                icon={<PlusIcon size={16} />}
+                                disabled={!createEnabled}
+                                onClick={openCreateModal}
+                                size={size}
+                                className={className}
+                            >
+                                {label ?? "New evaluation"}
+                            </Button>
+                        )}
+                    </div>
+                }
+            />
+            <TooltipContent>{createTooltip ?? undefined}</TooltipContent>
         </Tooltip>
     )
 }

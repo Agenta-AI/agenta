@@ -1,8 +1,9 @@
 import {useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Plus} from "@phosphor-icons/react"
-import {Input, Popover, Select, Tooltip} from "antd"
+import {Input, Popover, Select} from "antd"
 
 export type PropertyType = "string" | "number" | "boolean" | "object" | "array"
 
@@ -94,14 +95,21 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
                 placement="bottomLeft"
                 arrow={false}
             >
-                <Tooltip title={open ? undefined : "Add property"}>
-                    <button
-                        type="button"
-                        className="flex items-center justify-center w-6 h-6 rounded border-none cursor-pointer transition-colors bg-transparent text-[var(--ag-rgba-000-45)] hover:text-[var(--ag-c-1C2C3D)] hover:bg-[var(--ag-rgba-000-06)]"
-                    >
-                        <Plus size={14} />
-                    </button>
-                </Tooltip>
+                <span className="inline-flex">
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <button
+                                    type="button"
+                                    className="flex items-center justify-center w-6 h-6 rounded border-none cursor-pointer transition-colors bg-transparent text-[var(--ag-rgba-000-45)] hover:text-[var(--ag-c-1C2C3D)] hover:bg-[var(--ag-rgba-000-06)]"
+                                >
+                                    <Plus size={14} />
+                                </button>
+                            }
+                        />
+                        <TooltipContent>{open ? undefined : "Add property"}</TooltipContent>
+                    </Tooltip>
+                </span>
             </Popover>
         )
     }
@@ -114,15 +122,20 @@ export function AddPropertyForm({onAdd, mode = "inline"}: AddPropertyFormProps) 
                     {formContent}
                 </div>
             ) : (
-                <Tooltip title="Add property">
-                    <Button
-                        onClick={() => setOpen(true)}
-                        className="!px-2"
-                        variant="ghost"
-                        size="icon-sm"
-                    >
-                        {<Plus size={14} />}
-                    </Button>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                onClick={() => setOpen(true)}
+                                className="!px-2"
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<Plus size={14} />}
+                            </Button>
+                        }
+                    />
+                    <TooltipContent>{"Add property"}</TooltipContent>
                 </Tooltip>
             )}
         </div>

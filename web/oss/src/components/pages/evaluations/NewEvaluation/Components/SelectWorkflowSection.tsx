@@ -1,10 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {WorkflowKindTag, WorkflowTypeTag} from "@agenta/entity-ui/workflow"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {createStandardColumns} from "@agenta/ui/table"
 import {InfoCircleOutlined} from "@ant-design/icons"
-import {Input, Select, Switch, Tooltip} from "antd"
+import {Input, Select, Switch} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -236,8 +237,11 @@ const SelectWorkflowSection = ({
                             onChange={setShowEvaluators}
                         />
                         <span>Show evaluators</span>
-                        <Tooltip title={EVALUATOR_TOOLTIP}>
-                            <InfoCircleOutlined className="text-gray-400" />
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={<InfoCircleOutlined className="text-gray-400" />}
+                            />
+                            <TooltipContent>{EVALUATOR_TOOLTIP}</TooltipContent>
                         </Tooltip>
                     </label>
                 )}

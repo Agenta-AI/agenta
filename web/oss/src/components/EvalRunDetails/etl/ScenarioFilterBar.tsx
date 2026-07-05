@@ -23,7 +23,8 @@ import {
     type RunSchema,
 } from "@agenta/entities/evaluationRun/etl"
 import {Button} from "@agenta/primitive-ui/components/button"
-import {Divider, Input, InputNumber, Popover, Select, Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
+import {Divider, Input, InputNumber, Popover, Select} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {Filter as FilterIcon, Loader2, Plus, X} from "lucide-react"
 
@@ -298,14 +299,19 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
                                 disabled={!field}
                                 onChange={(value) => updateCondition(index, {value})}
                             />
-                            <Tooltip title="Remove">
-                                <Button
-                                    onClick={() => removeCondition(index)}
-                                    variant="ghost"
-                                    size="icon-sm"
-                                >
-                                    {<X size={14} />}
-                                </Button>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            onClick={() => removeCondition(index)}
+                                            variant="ghost"
+                                            size="icon-sm"
+                                        >
+                                            {<X size={14} />}
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent>{"Remove"}</TooltipContent>
                             </Tooltip>
                         </div>
                     )

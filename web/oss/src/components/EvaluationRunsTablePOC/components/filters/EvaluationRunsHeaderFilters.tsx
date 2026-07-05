@@ -1,6 +1,7 @@
 import {MouseEvent, useMemo, useState, useCallback} from "react"
 
-import {Input, Tag, Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
+import {Input, Tag} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -403,21 +404,24 @@ const FiltersSummary = () => {
                                     : undefined
                             }
                         >
-                            <Tooltip
-                                title={
-                                    chip.pending
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <span className={toneColors ? "text-inherit" : undefined}>
+                                            <span className="font-medium text-[var(--ag-c-101828)]">
+                                                {group.label}:
+                                            </span>{" "}
+                                            {chip.label}
+                                        </span>
+                                    }
+                                />
+                                <TooltipContent>
+                                    {chip.pending
                                         ? "Loading…"
                                         : chip.closable
                                           ? undefined
-                                          : "Preset by context; change view tab to remove"
-                                }
-                            >
-                                <span className={toneColors ? "text-inherit" : undefined}>
-                                    <span className="font-medium text-[var(--ag-c-101828)]">
-                                        {group.label}:
-                                    </span>{" "}
-                                    {chip.label}
-                                </span>
+                                          : "Preset by context; change view tab to remove"}
+                                </TooltipContent>
                             </Tooltip>
                         </Tag>
                     )

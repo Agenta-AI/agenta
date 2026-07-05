@@ -1,5 +1,6 @@
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined} from "@ant-design/icons"
-import {Space, Tag, TagProps, Tooltip} from "antd"
+import {Space, Tag, TagProps} from "antd"
 
 import {StatusCode} from "@/oss/services/tracing/types"
 
@@ -49,8 +50,9 @@ const StatusRenderer = ({
                 {label}
             </Tag>
             {showMore && errorMsg && (
-                <Tooltip title={errorMsg} placement="bottom">
-                    <InfoCircleOutlined />
+                <Tooltip>
+                    <TooltipTrigger render={<InfoCircleOutlined />} />
+                    <TooltipContent side="bottom">{errorMsg}</TooltipContent>
                 </Tooltip>
             )}
         </Space>

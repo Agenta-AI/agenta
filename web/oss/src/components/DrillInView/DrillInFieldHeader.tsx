@@ -1,6 +1,7 @@
 import {memo, useCallback, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {
     CaretDown,
@@ -14,7 +15,7 @@ import {
     Trash,
     X,
 } from "@phosphor-icons/react"
-import {Dropdown, Input, Popover, Tooltip} from "antd"
+import {Dropdown, Input, Popover} from "antd"
 import type {MenuProps} from "antd"
 
 export interface DrillInFieldHeaderProps {
@@ -190,15 +191,24 @@ const MappingPopover = memo(
                 }}
                 placement="bottomRight"
             >
-                <Tooltip title={isMapped ? "Mapping options" : "Map to column"}>
-                    <Button
-                        className={`!px-1 !h-6 text-xs ${isMapped ? "text-green-500" : "text-gray-500"}`}
-                        variant="ghost"
-                        size="icon-sm"
-                    >
-                        {<MapPin size={12} weight={isMapped ? "fill" : "regular"} />}
-                    </Button>
-                </Tooltip>
+                <span className="inline-flex">
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    className={`!px-1 !h-6 text-xs ${isMapped ? "text-green-500" : "text-gray-500"}`}
+                                    variant="ghost"
+                                    size="icon-sm"
+                                >
+                                    {<MapPin size={12} weight={isMapped ? "fill" : "regular"} />}
+                                </Button>
+                            }
+                        />
+                        <TooltipContent>
+                            {isMapped ? "Mapping options" : "Map to column"}
+                        </TooltipContent>
+                    </Tooltip>
+                </span>
             </Popover>
         )
     },
@@ -347,43 +357,68 @@ const DrillInFieldHeader = memo(
                             />
                         )}
                     {showCopyButton && (
-                        <Tooltip title={copiedField === name ? "Copied" : "Copy"}>
-                            <Button
-                                className="!px-1 !h-6 text-xs text-gray-500"
-                                onClick={handleCopy}
-                                variant="ghost"
-                                size="icon-sm"
-                            >
-                                {copiedField === name ? <Check size={12} /> : <Copy size={12} />}
-                            </Button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        className="!px-1 !h-6 text-xs text-gray-500"
+                                        onClick={handleCopy}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {copiedField === name ? (
+                                            <Check size={12} />
+                                        ) : (
+                                            <Copy size={12} />
+                                        )}
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent>
+                                {copiedField === name ? "Copied" : "Copy"}
+                            </TooltipContent>
                         </Tooltip>
                     )}
                     {showRawToggle && onToggleRawMode && (
-                        <Tooltip title={isRawMode ? "Show formatted" : "Show raw"}>
-                            <Button
-                                className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
-                                onClick={onToggleRawMode}
-                                variant="ghost"
-                                size="icon-sm"
-                            >
-                                {<Code size={12} />}
-                            </Button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        className={`!px-1 !h-6 text-xs ${isRawMode ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
+                                        onClick={onToggleRawMode}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {<Code size={12} />}
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent>
+                                {isRawMode ? "Show formatted" : "Show raw"}
+                            </TooltipContent>
                         </Tooltip>
                     )}
                     {showMarkdownToggle && onToggleMarkdownView && (
-                        <Tooltip title={isMarkdownView ? "Preview text" : "Preview markdown"}>
-                            <Button
-                                className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
-                                onClick={onToggleMarkdownView}
-                                variant="ghost"
-                                size="icon-sm"
-                            >
-                                {isMarkdownView ? (
-                                    <TextAa size={12} />
-                                ) : (
-                                    <MarkdownLogoIcon size={12} />
-                                )}
-                            </Button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        className={`!px-1 !h-6 text-xs ${isMarkdownView ? "text-blue-500 dark:text-[#58a6ff]" : "text-gray-500"}`}
+                                        onClick={onToggleMarkdownView}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {isMarkdownView ? (
+                                            <TextAa size={12} />
+                                        ) : (
+                                            <MarkdownLogoIcon size={12} />
+                                        )}
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent>
+                                {isMarkdownView ? "Preview text" : "Preview markdown"}
+                            </TooltipContent>
                         </Tooltip>
                     )}
                     {showDrillInButton && expandable && onDrillIn && (

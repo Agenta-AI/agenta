@@ -19,7 +19,7 @@
 import {useMemo} from "react"
 
 import {groupRunColumns, type ColumnGroup, type RunSchema} from "@agenta/entities/evaluationRun/etl"
-import {Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import type {ColumnsType} from "antd/es/table"
 
 import type {PreviewTableRow} from "../atoms/tableRows"
@@ -79,10 +79,15 @@ export const useEtlColumns = ({
                     key,
                     columnVisibilityLabel: leaf.name,
                     title: (
-                        <Tooltip title={leaf.name} placement="top">
-                            <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left">
-                                {leaf.name}
-                            </span>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left">
+                                        {leaf.name}
+                                    </span>
+                                }
+                            />
+                            <TooltipContent>{leaf.name}</TooltipContent>
                         </Tooltip>
                     ),
                     width: WIDTH_BY_KIND[leaf.kind],

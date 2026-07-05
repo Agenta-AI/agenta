@@ -14,8 +14,9 @@ import {
 } from "@agenta/entity-ui/gatewayTool"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Play, Plus} from "@phosphor-icons/react"
-import {Collapse, Empty, Tag, Tooltip} from "antd"
+import {Collapse, Empty, Tag} from "antd"
 import {useSetAtom} from "jotai"
 import Image from "next/image"
 
@@ -162,19 +163,24 @@ function ConnectionRow({connection, onTest}: {connection: ToolConnection; onTest
                 </span>
             </div>
             <ConnectionStatusBadge connection={connection} />
-            <Tooltip title="Test">
-                <Button
-                    aria-label="Test connection"
-                    disabled={!isReady}
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onTest()
-                    }}
-                    variant="ghost"
-                    size="icon-sm"
-                >
-                    {<Play size={12} />}
-                </Button>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <Button
+                            aria-label="Test connection"
+                            disabled={!isReady}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onTest()
+                            }}
+                            variant="ghost"
+                            size="icon-sm"
+                        >
+                            {<Play size={12} />}
+                        </Button>
+                    }
+                />
+                <TooltipContent>{"Test"}</TooltipContent>
             </Tooltip>
         </div>
     )

@@ -1,8 +1,9 @@
 import {type ReactNode, useState, useMemo, useCallback} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
-import {Dropdown, Popover, Tooltip} from "antd"
+import {Dropdown, Popover} from "antd"
 import type {MenuProps} from "antd"
 
 import type {ColumnVisibilityState} from "../../types"
@@ -145,16 +146,23 @@ const TableSettingsDropdown = <RowType extends object>({
                     },
                 }}
             >
-                <Tooltip title="Table settings">
-                    <Button
-                        onClick={(e) => e.stopPropagation()}
-                        variant="ghost"
-                        size="icon-sm"
-                        className="rounded-full"
-                    >
-                        {<GearSix size={16} weight="bold" />}
-                    </Button>
-                </Tooltip>
+                <span className="inline-flex">
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    onClick={(e) => e.stopPropagation()}
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="rounded-full"
+                                >
+                                    {<GearSix size={16} weight="bold" />}
+                                </Button>
+                            }
+                        />
+                        <TooltipContent>{"Table settings"}</TooltipContent>
+                    </Tooltip>
+                </span>
             </Dropdown>
         </Popover>
     )

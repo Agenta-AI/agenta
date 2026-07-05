@@ -1,6 +1,6 @@
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Plus} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 
 import {AddPropertyForm} from "./AddPropertyForm"
 import type {PropertyType} from "./AddPropertyForm"
@@ -30,15 +30,20 @@ export function DrillInControls({
     return (
         <div className="flex items-center gap-2">
             {currentPathDataType === "array" && (
-                <Tooltip title="Add item">
-                    <Button
-                        onClick={onAddArrayItem}
-                        className="!px-2"
-                        variant="ghost"
-                        size="icon-sm"
-                    >
-                        {<Plus size={14} />}
-                    </Button>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                onClick={onAddArrayItem}
+                                className="!px-2"
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<Plus size={14} />}
+                            </Button>
+                        }
+                    />
+                    <TooltipContent>{"Add item"}</TooltipContent>
                 </Tooltip>
             )}
             {currentPathDataType === "object" && (

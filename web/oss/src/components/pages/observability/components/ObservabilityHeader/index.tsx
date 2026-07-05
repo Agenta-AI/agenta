@@ -3,10 +3,11 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
 import {exportMatchingTraces} from "@agenta/entities/trace/etl"
 import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {useConfirmDialog} from "@agenta/ui/components/modal"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip} from "antd"
+import {Button, Input, Radio, RadioChangeEvent, Space, Switch} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -619,22 +620,27 @@ const ObservabilityHeader = ({
                         {isExporting ? "Cancel export" : "Export"}
                     </Button>
                 ) : null}
-                <Tooltip
-                    title={selectedRowKeys.length === 0 ? "Select traces to delete" : undefined}
-                >
-                    <span>
-                        <Button
-                            type="text"
-                            size={size}
-                            danger
-                            aria-label="Delete selected traces"
-                            onClick={onDelete}
-                            icon={<TrashIcon size={14} />}
-                            disabled={selectedRowKeys.length === 0}
-                        >
-                            Delete
-                        </Button>
-                    </span>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <span>
+                                <Button
+                                    type="text"
+                                    size={size}
+                                    danger
+                                    aria-label="Delete selected traces"
+                                    onClick={onDelete}
+                                    icon={<TrashIcon size={14} />}
+                                    disabled={selectedRowKeys.length === 0}
+                                >
+                                    Delete
+                                </Button>
+                            </span>
+                        }
+                    />
+                    <TooltipContent>
+                        {selectedRowKeys.length === 0 ? "Select traces to delete" : undefined}
+                    </TooltipContent>
                 </Tooltip>
             </Space>
         )

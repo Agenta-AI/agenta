@@ -1,8 +1,9 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {QuestionCircleOutlined} from "@ant-design/icons"
-import {Flex, Form, InputNumber, Tooltip} from "antd"
+import {Flex, Form, InputNumber} from "antd"
 import deepEqual from "fast-deep-equal"
 
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
@@ -68,8 +69,9 @@ const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSetting
                             label={
                                 <>
                                     {FIELD_LABELS[key]}&nbsp;
-                                    <Tooltip title={FIELD_TOOLTIPS[key]}>
-                                        <QuestionCircleOutlined />
+                                    <Tooltip>
+                                        <TooltipTrigger render={<QuestionCircleOutlined />} />
+                                        <TooltipContent>{FIELD_TOOLTIPS[key]}</TooltipContent>
                                     </Tooltip>
                                 </>
                             }

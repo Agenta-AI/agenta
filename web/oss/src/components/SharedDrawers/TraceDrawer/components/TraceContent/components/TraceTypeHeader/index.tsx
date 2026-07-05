@@ -3,10 +3,11 @@ import {type ReactNode, useCallback, useMemo, useState} from "react"
 import {extractAgData} from "@agenta/entities/trace"
 import {hasAppReference} from "@agenta/playground"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {DeleteOutlined} from "@ant-design/icons"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip} from "antd"
+import {Button, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -207,14 +208,17 @@ const TraceTypeHeader = ({
 
     return (
         <div className="h-10 px-4 flex items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
-            <Tooltip
-                placement="topLeft"
-                title={activeTrace?.span_name || (error ? "Error" : "")}
-                mouseEnterDelay={0.25}
-            >
-                <span className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <span className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}>
+                            {activeTrace?.span_name || (error ? "Error" : "")}
+                        </span>
+                    }
+                />
+                <TooltipContent align="start">
                     {activeTrace?.span_name || (error ? "Error" : "")}
-                </span>
+                </TooltipContent>
             </Tooltip>
 
             <div className="flex gap-2">
@@ -227,20 +231,24 @@ const TraceTypeHeader = ({
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
-                <Tooltip
-                    title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
-                    placement="bottom"
-                >
-                    <Button
-                        type="default"
-                        size="small"
-                        icon={<Play size={14} />}
-                        loading={isOpening}
-                        disabled={!canOpenInPlayground || isOpening}
-                        onClick={handleOpenInPlayground}
-                    >
-                        Playground
-                    </Button>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                type="default"
+                                size="small"
+                                icon={<Play size={14} />}
+                                loading={isOpening}
+                                disabled={!canOpenInPlayground || isOpening}
+                                onClick={handleOpenInPlayground}
+                            >
+                                Playground
+                            </Button>
+                        }
+                    />
+                    <TooltipContent side="bottom">
+                        {!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
+                    </TooltipContent>
                 </Tooltip>
                 <AddToTestsetButton
                     label="Add to testset"

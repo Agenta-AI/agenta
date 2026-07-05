@@ -1,7 +1,8 @@
 import {memo, useCallback} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {X} from "@phosphor-icons/react"
-import {Button, Input, InputNumber, Radio, Select, Slider, Tooltip} from "antd"
+import {Button, Input, InputNumber, Radio, Select, Slider} from "antd"
 
 /**
  * Annotation input components that call onChange immediately (no debounce).
@@ -46,35 +47,43 @@ export const BooleanGroupTab = memo(function BooleanGroupTab({
 
     return (
         <div className="flex flex-col gap-0 mb-0 playground-property-control">
-            <Tooltip title={description || ""} placement="right">
-                <div className="flex items-center gap-2 justify-between">
-                    <span className="playground-property-control-label">{label}</span>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <div className="flex items-center gap-2 justify-between">
+                            <span className="playground-property-control-label">{label}</span>
 
-                    <div className="flex items-center gap-1">
-                        <Radio.Group
-                            onChange={(e) => handleChange(e.target.value)}
-                            value={value}
-                            disabled={disabled}
-                            data-tour={isRatingField ? "annotation-rating" : undefined}
-                        >
-                            {options?.map((option) => (
-                                <Radio.Button key={String(option.value)} value={option.value}>
-                                    {option.label}
-                                </Radio.Button>
-                            ))}
-                        </Radio.Group>
+                            <div className="flex items-center gap-1">
+                                <Radio.Group
+                                    onChange={(e) => handleChange(e.target.value)}
+                                    value={value}
+                                    disabled={disabled}
+                                    data-tour={isRatingField ? "annotation-rating" : undefined}
+                                >
+                                    {options?.map((option) => (
+                                        <Radio.Button
+                                            key={String(option.value)}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </Radio.Button>
+                                    ))}
+                                </Radio.Group>
 
-                        {hasValue || allowClear ? (
-                            <Button
-                                icon={<X size={14} />}
-                                type="text"
-                                size="small"
-                                onClick={() => handleChange(null)}
-                                disabled={disabled || disableClear}
-                            />
-                        ) : null}
-                    </div>
-                </div>
+                                {hasValue || allowClear ? (
+                                    <Button
+                                        icon={<X size={14} />}
+                                        type="text"
+                                        size="small"
+                                        onClick={() => handleChange(null)}
+                                        disabled={disabled || disableClear}
+                                    />
+                                ) : null}
+                            </div>
+                        </div>
+                    }
+                />
+                <TooltipContent side="right">{description || ""}</TooltipContent>
             </Tooltip>
         </div>
     )
@@ -111,8 +120,11 @@ export const StringInput = memo(function StringInput({
 
     return (
         <div className="flex flex-col gap-1 playground-property-control">
-            <Tooltip title={description || ""} placement="right">
-                <span className="playground-property-control-label">{label}</span>
+            <Tooltip>
+                <TooltipTrigger
+                    render={<span className="playground-property-control-label">{label}</span>}
+                />
+                <TooltipContent side="right">{description || ""}</TooltipContent>
             </Tooltip>
             {multiline ? (
                 <Input.TextArea
@@ -181,23 +193,28 @@ export const NumberInput = memo(function NumberInput({
 
     return (
         <div className="flex flex-col gap-1 playground-property-control">
-            <Tooltip title={description || ""} placement="right">
-                <div className="flex items-center justify-between">
-                    <span className="playground-property-control-label">{label}</span>
-                    {useSlider && (
-                        <InputNumber
-                            value={displayValue}
-                            onChange={handleChange}
-                            disabled={disabled}
-                            min={min}
-                            max={max}
-                            step={step}
-                            precision={isInteger ? 0 : undefined}
-                            size="small"
-                            className="w-[70px]"
-                        />
-                    )}
-                </div>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <div className="flex items-center justify-between">
+                            <span className="playground-property-control-label">{label}</span>
+                            {useSlider && (
+                                <InputNumber
+                                    value={displayValue}
+                                    onChange={handleChange}
+                                    disabled={disabled}
+                                    min={min}
+                                    max={max}
+                                    step={step}
+                                    precision={isInteger ? 0 : undefined}
+                                    size="small"
+                                    className="w-[70px]"
+                                />
+                            )}
+                        </div>
+                    }
+                />
+                <TooltipContent side="right">{description || ""}</TooltipContent>
             </Tooltip>
             {useSlider ? (
                 <Slider
@@ -282,8 +299,11 @@ export const SelectInput = memo(function SelectInput({
 
     return (
         <div className="flex flex-col gap-1 playground-property-control">
-            <Tooltip title={description || ""} placement="right">
-                <span className="playground-property-control-label">{label}</span>
+            <Tooltip>
+                <TooltipTrigger
+                    render={<span className="playground-property-control-label">{label}</span>}
+                />
+                <TooltipContent side="right">{description || ""}</TooltipContent>
             </Tooltip>
             <Select
                 value={normalizedValue}

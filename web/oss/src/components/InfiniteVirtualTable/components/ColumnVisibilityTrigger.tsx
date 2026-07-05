@@ -2,8 +2,9 @@ import type {MouseEvent, ReactNode} from "react"
 import {useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {GearSix} from "@phosphor-icons/react"
-import {Checkbox, Divider, Popover, Space, Tooltip} from "antd"
+import {Checkbox, Divider, Popover, Space} from "antd"
 
 import type {ColumnVisibilityState} from "../types"
 
@@ -87,15 +88,20 @@ const ColumnVisibilityTrigger = <Row extends object>({
 
     const triggerNode =
         variant === "icon" ? (
-            <Tooltip title={label}>
-                <Button
-                    onClick={stopPropagation}
-                    variant="ghost"
-                    size="icon-sm"
-                    className="rounded-full"
-                >
-                    {<GearSix size={16} weight="bold" />}
-                </Button>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <Button
+                            onClick={stopPropagation}
+                            variant="ghost"
+                            size="icon-sm"
+                            className="rounded-full"
+                        >
+                            {<GearSix size={16} weight="bold" />}
+                        </Button>
+                    }
+                />
+                <TooltipContent>{label}</TooltipContent>
             </Tooltip>
         ) : (
             <Button onClick={stopPropagation} variant="outline">

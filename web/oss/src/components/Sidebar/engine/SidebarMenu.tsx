@@ -1,8 +1,9 @@
 import {memo, useCallback, useMemo, useRef} from "react"
 
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {CaretRight} from "@phosphor-icons/react"
-import {Menu, Tag, Tooltip} from "antd"
+import {Menu, Tag} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
@@ -108,12 +109,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         titleNode
                     )
                     const submenuLabel = collapsed ? (
-                        <Tooltip
-                            title={item.tooltip || item.title}
-                            placement="right"
-                            mouseEnterDelay={0.8}
-                        >
-                            <span className="w-full">{labelNode}</span>
+                        <Tooltip>
+                            <TooltipTrigger render={<span className="w-full">{labelNode}</span>} />
+                            <TooltipContent side="right">
+                                {item.tooltip || item.title}
+                            </TooltipContent>
                         </Tooltip>
                     ) : (
                         labelNode
@@ -234,14 +234,17 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         key: item.key,
                         disabled: item.disabled,
                         label: collapsed ? (
-                            <Tooltip
-                                title={item.tooltip || item.title}
-                                placement="right"
-                                mouseEnterDelay={0.8}
-                            >
-                                <div className="flex items-center justify-center w-full">
-                                    {labelNode}
-                                </div>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <div className="flex items-center justify-center w-full">
+                                            {labelNode}
+                                        </div>
+                                    }
+                                />
+                                <TooltipContent side="right">
+                                    {item.tooltip || item.title}
+                                </TooltipContent>
                             </Tooltip>
                         ) : (
                             labelNode

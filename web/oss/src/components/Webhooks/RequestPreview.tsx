@@ -1,8 +1,9 @@
 import {type FC, ReactNode, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
-import {Form, FormInstance, Tooltip} from "antd"
+import {Form, FormInstance} from "antd"
 import {useAtomValue} from "jotai"
 
 import {WebhookFormValues} from "@/oss/services/webhooks/types"
@@ -113,15 +114,24 @@ export const RequestPreview: FC<Props> = ({form}) => {
                 </span>
             </div>
 
-            <Tooltip title={copied ? "Copied!" : "Copy request"}>
-                <Button
-                    className="absolute right-2 top-2 text-[var(--color-text-tertiary)] hover:bg-transparent hover:text-[var(--color-text-primary)]"
-                    onClick={handleCopy}
-                    variant="ghost"
-                    size="icon"
-                >
-                    {copied ? <CheckOutlined style={{color: "#98c379"}} /> : <CopyOutlined />}
-                </Button>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <Button
+                            className="absolute right-2 top-2 text-[var(--color-text-tertiary)] hover:bg-transparent hover:text-[var(--color-text-primary)]"
+                            onClick={handleCopy}
+                            variant="ghost"
+                            size="icon"
+                        >
+                            {copied ? (
+                                <CheckOutlined style={{color: "#98c379"}} />
+                            ) : (
+                                <CopyOutlined />
+                            )}
+                        </Button>
+                    }
+                />
+                <TooltipContent>{copied ? "Copied!" : "Copy request"}</TooltipContent>
             </Tooltip>
 
             <div className="mb-3">

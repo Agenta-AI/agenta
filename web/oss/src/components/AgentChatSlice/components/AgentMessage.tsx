@@ -1,6 +1,7 @@
 import {memo, useEffect, useRef, useState} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {Actions, Bubble, FileCard, type ActionsProps} from "@ant-design/x"
 import {
@@ -16,7 +17,7 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Tooltip} from "antd"
+import {Avatar} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -47,11 +48,16 @@ const parseTraceTime = (value: unknown): number | undefined => {
 const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
     useAtomValue(nowTickAtom)
     return (
-        <Tooltip title={new Date(createdAt).toLocaleString()}>
-            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-[11px] text-colorTextTertiary">
-                <Clock size={12} />
-                {timeAgo(createdAt)}
-            </span>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <span className="flex items-center gap-1 whitespace-nowrap px-1 text-[11px] text-colorTextTertiary">
+                        <Clock size={12} />
+                        {timeAgo(createdAt)}
+                    </span>
+                }
+            />
+            <TooltipContent>{new Date(createdAt).toLocaleString()}</TooltipContent>
         </Tooltip>
     )
 }

@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {
     File as FileIcon,
     FileText,
@@ -9,7 +10,6 @@ import {
     WarningCircle,
     X,
 } from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import type {UploadFile} from "antd"
 
 import {type AttachmentLimits, type AttachmentRejection, formatBytes} from "../assets/attachments"
@@ -174,15 +174,20 @@ const ComposerAttachments = ({
                         )
                     })}
                     {!atMax && (
-                        <Tooltip title="Add more">
-                            <button
-                                type="button"
-                                onClick={pick}
-                                aria-label="Add more files"
-                                className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-lg border border-dashed border-colorBorder bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillQuaternary"
-                            >
-                                <Plus size={16} />
-                            </button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <button
+                                        type="button"
+                                        onClick={pick}
+                                        aria-label="Add more files"
+                                        className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-lg border border-dashed border-colorBorder bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillQuaternary"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                }
+                            />
+                            <TooltipContent>{"Add more"}</TooltipContent>
                         </Tooltip>
                     )}
                     <span className="ml-auto text-[11px] text-colorTextTertiary">

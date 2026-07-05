@@ -1,8 +1,9 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {ClockCounterClockwise, Trash} from "@phosphor-icons/react"
-import {Empty, Popover, Tag, Tooltip} from "antd"
+import {Empty, Popover, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useChatScopeKey} from "../state/scope"
@@ -77,19 +78,24 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                                 open
                             </Tag>
                         )}
-                        <Tooltip title="Delete session">
-                            <Button
-                                aria-label="Delete session"
-                                className="!opacity-0 group-hover:!opacity-100"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    deleteSession(session.id)
-                                }}
-                                variant="ghost"
-                                size="icon-sm"
-                            >
-                                {<Trash size={14} />}
-                            </Button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        aria-label="Delete session"
+                                        className="!opacity-0 group-hover:!opacity-100"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            deleteSession(session.id)
+                                        }}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                    >
+                                        {<Trash size={14} />}
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent>{"Delete session"}</TooltipContent>
                         </Tooltip>
                     </div>
                 )
@@ -114,11 +120,18 @@ const SessionHistoryMenu = () => {
             title={<span className="text-xs font-medium">Session history</span>}
             content={<SessionHistoryList onPicked={() => setOpen(false)} />}
         >
-            <Tooltip title="Session history">
-                <Button aria-label="Session history" variant="ghost" size="icon-sm">
-                    {<ClockCounterClockwise size={16} />}
-                </Button>
-            </Tooltip>
+            <span className="inline-flex">
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button aria-label="Session history" variant="ghost" size="icon-sm">
+                                {<ClockCounterClockwise size={16} />}
+                            </Button>
+                        }
+                    />
+                    <TooltipContent>{"Session history"}</TooltipContent>
+                </Tooltip>
+            </span>
         </Popover>
     )
 }

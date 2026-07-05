@@ -1,8 +1,9 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import type {DataType} from "@agenta/ui/drill-in"
 import {ArrowCounterClockwise, Code, Trash, TreeStructure} from "@phosphor-icons/react"
-import {Button, Segmented, Select, Tooltip} from "antd"
+import {Button, Segmented, Select} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {EntityAPI, EntityDrillIn} from "@/oss/state/entities/shared"
@@ -243,13 +244,18 @@ function EntityDualViewEditorInner<TEntity>({
                         />
                     )}
                     {showRevertButton && isDirty && (
-                        <Tooltip title="Revert changes">
-                            <Button
-                                size="small"
-                                type="text"
-                                icon={<ArrowCounterClockwise size={14} />}
-                                onClick={handleRevert}
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        size="small"
+                                        type="text"
+                                        icon={<ArrowCounterClockwise size={14} />}
+                                        onClick={handleRevert}
+                                    />
+                                }
                             />
+                            <TooltipContent>{"Revert changes"}</TooltipContent>
                         </Tooltip>
                     )}
                     {showRemoveButton && onRemove && (

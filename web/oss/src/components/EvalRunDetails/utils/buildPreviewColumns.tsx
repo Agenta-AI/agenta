@@ -1,6 +1,6 @@
 import React from "react"
 
-import {Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
 
@@ -30,10 +30,15 @@ const TITLEIZE = (value: string) =>
 const renderEllipsisTitle = (label?: string | null) => {
     if (!label) return null
     return (
-        <Tooltip title={label} placement="top">
-            <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left">
-                {label}
-            </span>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left">
+                        {label}
+                    </span>
+                }
+            />
+            <TooltipContent>{label}</TooltipContent>
         </Tooltip>
     )
 }
@@ -296,13 +301,23 @@ export function buildPreviewColumns<RowType>({
 
                     return (
                         <div className="flex h-full min-h-[54px] w-full items-start justify-start pt-4">
-                            <Tooltip title={tooltipLabel} placement="topLeft">
-                                <span className="inline-flex items-center gap-2 text-xs font-medium">
-                                    <span
-                                        className={clsx("h-2 w-2 rounded-full", style.dotClass)}
-                                    />
-                                    <span className={clsx(style.textClass)}>{displayValue}</span>
-                                </span>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <span className="inline-flex items-center gap-2 text-xs font-medium">
+                                            <span
+                                                className={clsx(
+                                                    "h-2 w-2 rounded-full",
+                                                    style.dotClass,
+                                                )}
+                                            />
+                                            <span className={clsx(style.textClass)}>
+                                                {displayValue}
+                                            </span>
+                                        </span>
+                                    }
+                                />
+                                <TooltipContent align="start">{tooltipLabel}</TooltipContent>
                             </Tooltip>
                         </div>
                     )
@@ -347,10 +362,17 @@ export function buildPreviewColumns<RowType>({
                         minute: "2-digit",
                     })
                     return (
-                        <Tooltip title={timestamp} placement="topLeft">
-                            <div className="flex h-full min-h-[54px] w-full items-center justify-start">
-                                <span className="text-xs text-neutral-600">{formatted}</span>
-                            </div>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <div className="flex h-full min-h-[54px] w-full items-center justify-start">
+                                        <span className="text-xs text-neutral-600">
+                                            {formatted}
+                                        </span>
+                                    </div>
+                                }
+                            />
+                            <TooltipContent align="start">{timestamp}</TooltipContent>
                         </Tooltip>
                     )
                 }
@@ -508,19 +530,24 @@ export function buildPreviewColumns<RowType>({
             group.kind === "input" || group.kind === "invocation" ? (
                 <StepGroupHeader group={group} fallbackLabel={resolvedGroupLabel} />
             ) : resolvedGroupLabel ? (
-                <Tooltip title={resolvedGroupLabel} placement="top">
-                    <span
-                        style={{
-                            display: "block",
-                            maxWidth: "100%",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            textAlign: "left",
-                        }}
-                    >
-                        {resolvedGroupLabel}
-                    </span>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <span
+                                style={{
+                                    display: "block",
+                                    maxWidth: "100%",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    textAlign: "left",
+                                }}
+                            >
+                                {resolvedGroupLabel}
+                            </span>
+                        }
+                    />
+                    <TooltipContent>{resolvedGroupLabel}</TooltipContent>
                 </Tooltip>
             ) : null
 

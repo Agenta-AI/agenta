@@ -2,9 +2,10 @@ import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
-import {Collapse, Form, Input, message, Select, Switch, Tabs, Tooltip} from "antd"
+import {Collapse, Form, Input, message, Select, Switch, Tabs} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {
@@ -446,15 +447,26 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             <EnhancedDrawer
                 title={isEdit ? "Edit Webhook" : "Add Webhook"}
                 extra={
-                    <Tooltip title="Documentation">
-                        <Button
-                            aria-label="Open webhook documentation"
-                            variant="ghost"
-                            size="icon-sm"
-                            render={<a href={docsUrl} target="_blank" rel="noopener noreferrer" />}
-                        >
-                            {<BookOpen size={16} />}
-                        </Button>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    aria-label="Open webhook documentation"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    render={
+                                        <a
+                                            href={docsUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        />
+                                    }
+                                >
+                                    {<BookOpen size={16} />}
+                                </Button>
+                            }
+                        />
+                        <TooltipContent>{"Documentation"}</TooltipContent>
                     </Tooltip>
                 }
                 open={open}

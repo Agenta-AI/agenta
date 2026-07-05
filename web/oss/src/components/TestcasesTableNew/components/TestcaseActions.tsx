@@ -1,8 +1,9 @@
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {PlusOutlined, UploadOutlined} from "@ant-design/icons"
 import {ListChecks} from "@phosphor-icons/react"
-import {Space, Tooltip} from "antd"
+import {Space} from "antd"
 import dynamic from "next/dynamic"
 
 const AddToQueuePopover = dynamic(
@@ -71,15 +72,20 @@ export function TestcaseActions(props: TestcaseActionsProps) {
                     Discard
                 </Button>
             )}
-            <Tooltip title="Import CSV/JSON file as new revision">
-                <Button
-                    onClick={onImportCSV}
-                    disabled={mode === "view" || isNewTestset}
-                    variant="outline"
-                >
-                    {<UploadOutlined />}
-                    Import
-                </Button>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <Button
+                            onClick={onImportCSV}
+                            disabled={mode === "view" || isNewTestset}
+                            variant="outline"
+                        >
+                            {<UploadOutlined />}
+                            Import
+                        </Button>
+                    }
+                />
+                <TooltipContent>{"Import CSV/JSON file as new revision"}</TooltipContent>
             </Tooltip>
             <Button onClick={onAddTestcase} disabled={mode === "view"} variant="outline">
                 {<PlusOutlined />}

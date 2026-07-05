@@ -2,8 +2,9 @@ import {memo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {CheckCircleOutlined, ExclamationCircleOutlined, LinkOutlined} from "@ant-design/icons"
-import {notification, Space, Tooltip} from "antd"
+import {notification, Space} from "antd"
 
 const CustomWorkflowModalFooter = ({
     handleEditCustomUrl,
@@ -77,9 +78,26 @@ const CustomWorkflowModalFooter = ({
                     <Button onClick={handleCancelButton} variant="outline">
                         Cancel
                     </Button>
-                    <Tooltip
-                        title={
-                            variantsReady === false
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    disabled={
+                                        variantsReady === false ||
+                                        !customWorkflowAppValues.appUrl ||
+                                        (typeof isUrlValid === "boolean" && !isUrlValid) ||
+                                        !testConnectionStatus.success ||
+                                        isConfiguringWorkflow
+                                    }
+                                    onClick={handleEditCustomUrl}
+                                >
+                                    {isConfiguringWorkflow ? <Spinner /> : null}
+                                    Save
+                                </Button>
+                            }
+                        />
+                        <TooltipContent>
+                            {variantsReady === false
                                 ? "Loading app variants..."
                                 : !customWorkflowAppValues.appUrl
                                   ? "Enter a workflow URL"
@@ -87,59 +105,48 @@ const CustomWorkflowModalFooter = ({
                                     ? "Enter a valid URL (http/https)"
                                     : !testConnectionStatus.success
                                       ? "Please test the connection and ensure a successful response before configuring the app."
-                                      : ""
-                        }
-                    >
-                        <Button
-                            disabled={
-                                variantsReady === false ||
-                                !customWorkflowAppValues.appUrl ||
-                                (typeof isUrlValid === "boolean" && !isUrlValid) ||
-                                !testConnectionStatus.success ||
-                                isConfiguringWorkflow
-                            }
-                            onClick={handleEditCustomUrl}
-                        >
-                            {isConfiguringWorkflow ? <Spinner /> : null}
-                            Save
-                        </Button>
+                                      : ""}
+                        </TooltipContent>
                     </Tooltip>
                 </Space>
             ) : (
-                <Tooltip
-                    title={
-                        !customWorkflowAppValues.appUrl
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                disabled={
+                                    !customWorkflowAppValues.appName ||
+                                    !customWorkflowAppValues.appUrl ||
+                                    (typeof isUrlValid === "boolean" && !isUrlValid) ||
+                                    appNameExist ||
+                                    !testConnectionStatus.success
+                                }
+                                onClick={() => {
+                                    if (appNameExist) {
+                                        notification.warning({
+                                            message: "Custom Workflow",
+                                            description:
+                                                "App name already exists. Please choose a different name.",
+                                            duration: 3,
+                                        })
+                                    } else {
+                                        handleCreateApp()
+                                    }
+                                }}
+                            >
+                                Create new app
+                            </Button>
+                        }
+                    />
+                    <TooltipContent>
+                        {!customWorkflowAppValues.appUrl
                             ? "Enter a workflow URL"
                             : typeof isUrlValid === "boolean" && !isUrlValid
                               ? "Enter a valid URL (http/https)"
                               : !testConnectionStatus.success
                                 ? "Please test the connection and ensure a successful response before creating the app."
-                                : ""
-                    }
-                >
-                    <Button
-                        disabled={
-                            !customWorkflowAppValues.appName ||
-                            !customWorkflowAppValues.appUrl ||
-                            (typeof isUrlValid === "boolean" && !isUrlValid) ||
-                            appNameExist ||
-                            !testConnectionStatus.success
-                        }
-                        onClick={() => {
-                            if (appNameExist) {
-                                notification.warning({
-                                    message: "Custom Workflow",
-                                    description:
-                                        "App name already exists. Please choose a different name.",
-                                    duration: 3,
-                                })
-                            } else {
-                                handleCreateApp()
-                            }
-                        }}
-                    >
-                        Create new app
-                    </Button>
+                                : ""}
+                    </TooltipContent>
                 </Tooltip>
             )}
         </div>

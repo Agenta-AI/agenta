@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {atom, useAtomValue} from "jotai"
 
 import {
@@ -221,19 +221,24 @@ const StepGroupHeader = ({
               : titleize(group.label || ""))
 
     return (
-        <Tooltip title={displayLabel} placement="top">
-            <span
-                style={{
-                    display: "block",
-                    maxWidth: "100%",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    textAlign: "left",
-                }}
-            >
-                {displayLabel}
-            </span>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <span
+                        style={{
+                            display: "block",
+                            maxWidth: "100%",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            textAlign: "left",
+                        }}
+                    >
+                        {displayLabel}
+                    </span>
+                }
+            />
+            <TooltipContent>{displayLabel}</TooltipContent>
         </Tooltip>
     )
 }

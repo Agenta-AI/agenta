@@ -1,8 +1,9 @@
 import {useMemo} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {ArrowRight, Crosshair, Plus, Trash} from "@phosphor-icons/react"
-import {AutoComplete, Select, Tooltip} from "antd"
+import {AutoComplete, Select} from "antd"
 
 import {createMappingId, Mapping, TestsetColumn} from "../assets/types"
 
@@ -148,36 +149,44 @@ export function MappingSection({
                                     />
 
                                     {mapping.column === "create" && (
-                                        <Tooltip
-                                            title="Tip: Use dot notation (e.g., parent.child) to create nested columns"
-                                            placement="topRight"
-                                        >
-                                            <AutoComplete
-                                                className="flex-1 min-w-0"
-                                                value={mapping.newColumn || undefined}
-                                                options={getAvailableColumnOptions(idx)}
-                                                onSelect={(value) =>
-                                                    onMappingOptionChange({
-                                                        pathName: "newColumn",
-                                                        value,
-                                                        idx,
-                                                    })
-                                                }
-                                                onChange={(value) =>
-                                                    onMappingOptionChange({
-                                                        pathName: "newColumn",
-                                                        value,
-                                                        idx,
-                                                    })
-                                                }
-                                                onBlur={onNewColumnBlur}
-                                                placeholder="Column name (e.g., parent.child)"
-                                                filterOption={(inputValue, option) =>
-                                                    option!.value
-                                                        .toUpperCase()
-                                                        .indexOf(inputValue.toUpperCase()) !== -1
+                                        <Tooltip>
+                                            <TooltipTrigger
+                                                render={
+                                                    <AutoComplete
+                                                        className="flex-1 min-w-0"
+                                                        value={mapping.newColumn || undefined}
+                                                        options={getAvailableColumnOptions(idx)}
+                                                        onSelect={(value) =>
+                                                            onMappingOptionChange({
+                                                                pathName: "newColumn",
+                                                                value,
+                                                                idx,
+                                                            })
+                                                        }
+                                                        onChange={(value) =>
+                                                            onMappingOptionChange({
+                                                                pathName: "newColumn",
+                                                                value,
+                                                                idx,
+                                                            })
+                                                        }
+                                                        onBlur={onNewColumnBlur}
+                                                        placeholder="Column name (e.g., parent.child)"
+                                                        filterOption={(inputValue, option) =>
+                                                            option!.value
+                                                                .toUpperCase()
+                                                                .indexOf(
+                                                                    inputValue.toUpperCase(),
+                                                                ) !== -1
+                                                        }
+                                                    />
                                                 }
                                             />
+                                            <TooltipContent align="end">
+                                                {
+                                                    "Tip: Use dot notation (e.g., parent.child) to create nested columns"
+                                                }
+                                            </TooltipContent>
                                         </Tooltip>
                                     )}
                                 </div>
@@ -187,14 +196,23 @@ export function MappingSection({
                                     {onFocusPath && (
                                         <div className="w-8 h-8 flex items-center justify-center">
                                             {mapping.data && (
-                                                <Tooltip title="Focus in data preview">
-                                                    <Button
-                                                        onClick={() => onFocusPath(mapping.data)}
-                                                        variant="ghost"
-                                                        size="icon-sm"
-                                                    >
-                                                        {<Crosshair size={16} />}
-                                                    </Button>
+                                                <Tooltip>
+                                                    <TooltipTrigger
+                                                        render={
+                                                            <Button
+                                                                onClick={() =>
+                                                                    onFocusPath(mapping.data)
+                                                                }
+                                                                variant="ghost"
+                                                                size="icon-sm"
+                                                            >
+                                                                {<Crosshair size={16} />}
+                                                            </Button>
+                                                        }
+                                                    />
+                                                    <TooltipContent>
+                                                        {"Focus in data preview"}
+                                                    </TooltipContent>
                                                 </Tooltip>
                                             )}
                                         </div>

@@ -10,9 +10,10 @@ import {
 } from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Spinner} from "@agenta/primitive-ui/components/spinner"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Collapse, DatePicker, Form, Input, Select, Switch, Tooltip} from "antd"
+import {Collapse, DatePicker, Form, Input, Select, Switch} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -509,15 +510,20 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                         }
                                         style={{marginBottom: 0}}
                                     >
-                                        <Tooltip title="Feature coming soon">
-                                            <Select
-                                                mode="tags"
-                                                className="w-full"
-                                                placeholder="Coming soon"
-                                                tokenSeparators={[","]}
-                                                allowClear
-                                                disabled
+                                        <Tooltip>
+                                            <TooltipTrigger
+                                                render={
+                                                    <Select
+                                                        mode="tags"
+                                                        className="w-full"
+                                                        placeholder="Coming soon"
+                                                        tokenSeparators={[","]}
+                                                        allowClear
+                                                        disabled
+                                                    />
+                                                }
                                             />
+                                            <TooltipContent>{"Feature coming soon"}</TooltipContent>
                                         </Tooltip>
                                     </Form.Item>
                                 </>
@@ -567,10 +573,17 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                             >
                                                 <Switch size="small" disabled />
                                             </Form.Item>
-                                            <Tooltip title="Not available yet">
-                                                <span className="text-muted-foreground">
-                                                    Run on historical data
-                                                </span>
+                                            <Tooltip>
+                                                <TooltipTrigger
+                                                    render={
+                                                        <span className="text-muted-foreground">
+                                                            Run on historical data
+                                                        </span>
+                                                    }
+                                                />
+                                                <TooltipContent>
+                                                    {"Not available yet"}
+                                                </TooltipContent>
                                             </Tooltip>
                                         </div>
                                         <Form.Item name="historical_range" className="mb-0">

@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Segmented, Tabs, Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
+import {Segmented, Tabs} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
@@ -134,22 +135,25 @@ const AgentChatSlice = () => {
                     right: (
                         <div className="flex items-center gap-2">
                             <SessionHistoryMenu />
-                            <Tooltip
-                                title={
-                                    track === "agenta"
-                                        ? "Dev: Track B — FE adapts to Agenta {role, content} + tool_approvals"
-                                        : "Dev: Track A — useChat posts UIMessage[] parts verbatim"
-                                }
-                            >
-                                <Segmented<AgentChatTrack>
-                                    size="small"
-                                    value={track}
-                                    onChange={setTrack}
-                                    options={[
-                                        {label: "A", value: "uimessage"},
-                                        {label: "B", value: "agenta"},
-                                    ]}
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Segmented<AgentChatTrack>
+                                            size="small"
+                                            value={track}
+                                            onChange={setTrack}
+                                            options={[
+                                                {label: "A", value: "uimessage"},
+                                                {label: "B", value: "agenta"},
+                                            ]}
+                                        />
+                                    }
                                 />
+                                <TooltipContent>
+                                    {track === "agenta"
+                                        ? "Dev: Track B — FE adapts to Agenta {role, content} + tool_approvals"
+                                        : "Dev: Track A — useChat posts UIMessage[] parts verbatim"}
+                                </TooltipContent>
                             </Tooltip>
                         </div>
                     ),

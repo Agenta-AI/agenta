@@ -1,6 +1,6 @@
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Plus, X} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -164,16 +164,21 @@ const SessionTagBar = ({
             {(showSessions || extra) && (
                 <div className="flex shrink-0 items-center gap-1">
                     {showSessions && (
-                        <Tooltip title="New session">
-                            <Button
-                                aria-label="New session"
-                                onClick={onAdd}
-                                className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                                variant="ghost"
-                                size="icon"
-                            >
-                                {<Plus size={14} />}
-                            </Button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        aria-label="New session"
+                                        onClick={onAdd}
+                                        className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                                        variant="ghost"
+                                        size="icon"
+                                    >
+                                        {<Plus size={14} />}
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent>{"New session"}</TooltipContent>
                         </Tooltip>
                     )}
                     {extra}

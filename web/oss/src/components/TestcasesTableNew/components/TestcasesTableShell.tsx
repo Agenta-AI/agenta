@@ -2,6 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
 import {Skeleton} from "@agenta/primitive-ui/components/skeleton"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {
     ColumnVisibilityMenuTrigger,
     defaultHeaderVariant,
@@ -13,7 +14,7 @@ import {
 } from "@agenta/ui/table"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Tooltip} from "antd"
+import {Input} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
@@ -673,17 +674,22 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 title: (
                     <div className="flex items-center gap-1 justify-end">
                         {onAddColumn && mode === "edit" && (
-                            <Tooltip title="Add column">
-                                <Button
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        onAddColumn()
-                                    }}
-                                    variant="ghost"
-                                    size="icon-sm"
-                                >
-                                    {<PlusOutlined />}
-                                </Button>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                onAddColumn()
+                                            }}
+                                            variant="ghost"
+                                            size="icon-sm"
+                                        >
+                                            {<PlusOutlined />}
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent>{"Add column"}</TooltipContent>
                             </Tooltip>
                         )}
                         <ColumnVisibilityMenuTrigger variant="icon" />

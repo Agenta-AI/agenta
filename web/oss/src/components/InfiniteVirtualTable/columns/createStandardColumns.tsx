@@ -1,9 +1,10 @@
 import type {ReactNode} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, DownloadSimple} from "@phosphor-icons/react"
-import {Dropdown, Tooltip} from "antd"
+import {Dropdown} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 
 import {UserReference} from "@/oss/components/References"
@@ -305,15 +306,22 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                         styles={{root: {width: 200}}}
                         menu={{items: menuItems}}
                     >
-                        <Tooltip title="Actions">
-                            <Button
-                                onClick={(e) => e.stopPropagation()}
-                                variant="ghost"
-                                size="icon-sm"
-                            >
-                                {<MoreOutlined />}
-                            </Button>
-                        </Tooltip>
+                        <span className="inline-flex">
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            onClick={(e) => e.stopPropagation()}
+                                            variant="ghost"
+                                            size="icon-sm"
+                                        >
+                                            {<MoreOutlined />}
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent>{"Actions"}</TooltipContent>
+                            </Tooltip>
+                        </span>
                     </Dropdown>
                 </div>
             )

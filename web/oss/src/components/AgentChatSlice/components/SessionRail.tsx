@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
-import {Empty, Input, Tooltip} from "antd"
+import {Empty, Input} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -111,19 +112,24 @@ const SessionRailRow = ({
                             </span>
                         )}
                         {active && <SessionInspectorButton sessionId={session.id} />}
-                        <Tooltip title="Delete session">
-                            <Button
-                                aria-label="Delete session"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    onDelete()
-                                }}
-                                className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                                variant="ghost"
-                                size="icon"
-                            >
-                                {<Trash size={12} />}
-                            </Button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        aria-label="Delete session"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onDelete()
+                                        }}
+                                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                                        variant="ghost"
+                                        size="icon"
+                                    >
+                                        {<Trash size={12} />}
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent>{"Delete session"}</TooltipContent>
                         </Tooltip>
                     </div>
                 </div>
@@ -215,16 +221,21 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
         >
             <div className="flex h-[48px] shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-[var(--ag-surface-divider)] px-3">
                 <span className="text-xs font-medium text-colorTextSecondary">Sessions</span>
-                <Tooltip title="New session">
-                    <Button
-                        aria-label="New session"
-                        onClick={() => addSession()}
-                        className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                        variant="ghost"
-                        size="icon"
-                    >
-                        {<Plus size={14} />}
-                    </Button>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                aria-label="New session"
+                                onClick={() => addSession()}
+                                className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                                variant="ghost"
+                                size="icon"
+                            >
+                                {<Plus size={14} />}
+                            </Button>
+                        }
+                    />
+                    <TooltipContent>{"New session"}</TooltipContent>
                 </Tooltip>
             </div>
 

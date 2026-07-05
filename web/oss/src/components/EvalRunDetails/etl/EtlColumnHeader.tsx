@@ -18,7 +18,7 @@
 import {useMemo} from "react"
 
 import type {ColumnGroup} from "@agenta/entities/evaluationRun/etl"
-import {Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {atom, useAtomValue} from "jotai"
 
 import {
@@ -110,10 +110,15 @@ const EtlColumnHeader = ({group, runId}: EtlColumnHeaderProps) => {
     }, [group.kind, group.label, group.slug, name, evaluatorName])
 
     return (
-        <Tooltip title={label} placement="top">
-            <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left">
-                {label}
-            </span>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left">
+                        {label}
+                    </span>
+                }
+            />
+            <TooltipContent>{label}</TooltipContent>
         </Tooltip>
     )
 }

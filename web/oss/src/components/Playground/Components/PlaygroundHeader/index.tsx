@@ -23,11 +23,12 @@ import {
 } from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
-import {Divider, Dropdown, Segmented, Space, Tag, Tooltip, message, type MenuProps} from "antd"
+import {Divider, Dropdown, Segmented, Space, Tag, message, type MenuProps} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -565,10 +566,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     ) : null}
                     {isAgentWorkflow ? (
                         <div className="flex min-w-0 items-center gap-2">
-                            <Tooltip title="Agent">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
-                                    <Robot size={15} weight="fill" />
-                                </span>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
+                                            <Robot size={15} weight="fill" />
+                                        </span>
+                                    }
+                                />
+                                <TooltipContent>{"Agent"}</TooltipContent>
                             </Tooltip>
                             <span className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                                 {currentWorkflow?.name || "Agent"}
@@ -612,49 +618,60 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                         <>
                             <Divider orientation="vertical" className="!mx-0 h-5" />
                             <span className="relative inline-flex">
-                                <Tooltip title="Add evaluators to automatically score outputs in the playground.">
-                                    <span>
-                                        <EntityPicker<WorkflowRevisionSelectionResult>
-                                            variant="popover-cascader"
-                                            adapter={evaluatorWorkflowAdapter}
-                                            onSelect={handleEvaluatorToggle}
-                                            size="small"
-                                            placeholder="Evaluator"
-                                            icon={<Gavel size={14} />}
-                                            disabled={!hasRootNode}
-                                            multiSelect
-                                            selectedChildIds={connectedRevisionIds}
-                                            selectionSummary
-                                            childItemLabelMode="simple"
-                                            panelWidth={320}
-                                            childPanelWidth={180}
-                                            openChildOnHover
-                                            showParentCheckboxes
-                                            selectedChildrenByParent={selectedChildrenByParent}
-                                            totalChildrenByParent={totalChildrenByParent}
-                                            onDeselectChild={handleDeselectChild}
-                                            showParentDescription
-                                            showGroupHeaders
-                                            showChildSelectAll
-                                            onClearAll={handleDisconnectAll}
-                                            onCreateNew={handleOpenTemplateDropdown}
-                                            createNewLabel="Create new"
-                                            popupFooter={
-                                                connectedEvaluatorNodes.length > 0 ? (
-                                                    <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
-                                                        <Button
-                                                            className="w-full"
-                                                            onClick={handleDisconnectAll}
-                                                            variant="destructive"
-                                                            size="sm"
-                                                        >
-                                                            Disconnect all
-                                                        </Button>
-                                                    </div>
-                                                ) : undefined
-                                            }
-                                        />
-                                    </span>
+                                <Tooltip>
+                                    <TooltipTrigger
+                                        render={
+                                            <span>
+                                                <EntityPicker<WorkflowRevisionSelectionResult>
+                                                    variant="popover-cascader"
+                                                    adapter={evaluatorWorkflowAdapter}
+                                                    onSelect={handleEvaluatorToggle}
+                                                    size="small"
+                                                    placeholder="Evaluator"
+                                                    icon={<Gavel size={14} />}
+                                                    disabled={!hasRootNode}
+                                                    multiSelect
+                                                    selectedChildIds={connectedRevisionIds}
+                                                    selectionSummary
+                                                    childItemLabelMode="simple"
+                                                    panelWidth={320}
+                                                    childPanelWidth={180}
+                                                    openChildOnHover
+                                                    showParentCheckboxes
+                                                    selectedChildrenByParent={
+                                                        selectedChildrenByParent
+                                                    }
+                                                    totalChildrenByParent={totalChildrenByParent}
+                                                    onDeselectChild={handleDeselectChild}
+                                                    showParentDescription
+                                                    showGroupHeaders
+                                                    showChildSelectAll
+                                                    onClearAll={handleDisconnectAll}
+                                                    onCreateNew={handleOpenTemplateDropdown}
+                                                    createNewLabel="Create new"
+                                                    popupFooter={
+                                                        connectedEvaluatorNodes.length > 0 ? (
+                                                            <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
+                                                                <Button
+                                                                    className="w-full"
+                                                                    onClick={handleDisconnectAll}
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                >
+                                                                    Disconnect all
+                                                                </Button>
+                                                            </div>
+                                                        ) : undefined
+                                                    }
+                                                />
+                                            </span>
+                                        }
+                                    />
+                                    <TooltipContent>
+                                        {
+                                            "Add evaluators to automatically score outputs in the playground."
+                                        }
+                                    </TooltipContent>
                                 </Tooltip>
                                 <EvaluatorTemplateDropdown
                                     onSelect={handleTemplateSelect}
@@ -667,20 +684,27 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             </span>
                             <TestsetDropdown />
                             {isProjectLevelPlayground ? (
-                                <Tooltip title="Compare mode is unavailable in project-level playground">
-                                    <Space.Compact size="small">
-                                        <Button
-                                            className="flex items-center gap-1"
-                                            disabled
-                                            variant="outline"
-                                        >
-                                            {<Plus size={14} />}
-                                            Compare
-                                        </Button>
-                                        <Button disabled variant="outline" size="icon">
-                                            {<DownOutlined style={{fontSize: 10}} />}
-                                        </Button>
-                                    </Space.Compact>
+                                <Tooltip>
+                                    <TooltipTrigger
+                                        render={
+                                            <Space.Compact size="small">
+                                                <Button
+                                                    className="flex items-center gap-1"
+                                                    disabled
+                                                    variant="outline"
+                                                >
+                                                    {<Plus size={14} />}
+                                                    Compare
+                                                </Button>
+                                                <Button disabled variant="outline" size="icon">
+                                                    {<DownOutlined style={{fontSize: 10}} />}
+                                                </Button>
+                                            </Space.Compact>
+                                        }
+                                    />
+                                    <TooltipContent>
+                                        {"Compare mode is unavailable in project-level playground"}
+                                    </TooltipContent>
                                 </Tooltip>
                             ) : (
                                 <SelectVariant

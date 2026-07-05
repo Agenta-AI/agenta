@@ -1,6 +1,7 @@
 import {ReactNode} from "react"
 
-import {Button, Empty, Space, Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
+import {Button, Empty, Space} from "antd"
 import {BaseButtonProps} from "antd/es/button/button"
 
 const emptyClass =
@@ -27,29 +28,39 @@ const EmptyComponent: React.FC<Props> = ({image, description, primaryCta, second
         <Empty className={emptyClass} description={description} image={image}>
             <Space orientation="vertical">
                 {primaryCta && (
-                    <Tooltip title={primaryCta.tooltip}>
-                        <Button
-                            size={primaryCta.size || "large"}
-                            icon={primaryCta.icon}
-                            type={primaryCta.type || "primary"}
-                            onClick={primaryCta.onClick}
-                        >
-                            {primaryCta.text}
-                        </Button>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    size={primaryCta.size || "large"}
+                                    icon={primaryCta.icon}
+                                    type={primaryCta.type || "primary"}
+                                    onClick={primaryCta.onClick}
+                                >
+                                    {primaryCta.text}
+                                </Button>
+                            }
+                        />
+                        <TooltipContent>{primaryCta.tooltip}</TooltipContent>
                     </Tooltip>
                 )}
                 {secondaryCta && (
                     <>
                         <span>Or</span>
-                        <Tooltip title={secondaryCta.tooltip} placement="bottom">
-                            <Button
-                                size={secondaryCta.size || "large"}
-                                icon={secondaryCta.icon}
-                                type={secondaryCta.type || "default"}
-                                onClick={secondaryCta.onClick}
-                            >
-                                {secondaryCta.text}
-                            </Button>
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        size={secondaryCta.size || "large"}
+                                        icon={secondaryCta.icon}
+                                        type={secondaryCta.type || "default"}
+                                        onClick={secondaryCta.onClick}
+                                    >
+                                        {secondaryCta.text}
+                                    </Button>
+                                }
+                            />
+                            <TooltipContent side="bottom">{secondaryCta.tooltip}</TooltipContent>
                         </Tooltip>
                     </>
                 )}

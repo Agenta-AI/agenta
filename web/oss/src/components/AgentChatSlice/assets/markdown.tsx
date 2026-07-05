@@ -1,9 +1,9 @@
 import {memo, type ReactNode} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {XMarkdown} from "@ant-design/x-markdown"
 import Latex from "@ant-design/x-markdown/plugins/Latex"
-import {Tooltip} from "antd"
 import {PrismAsync as SyntaxHighlighter} from "react-syntax-highlighter"
 import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism"
 
@@ -85,16 +85,21 @@ const CodeBlock = ({
     return (
         <div className="relative min-w-0 max-w-full">
             <div className="absolute top-3 right-2 z-10">
-                <Tooltip title="Copy code">
-                    <CopyButton
-                        text={code}
-                        buttonText={null}
-                        icon
-                        size="small"
-                        aria-label="Copy code"
-                        successMessage=""
-                        className="!h-7 !w-7 !border-colorBorderSecondary !bg-colorBgElevated !p-0 !text-colorTextSecondary shadow-sm"
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <CopyButton
+                                text={code}
+                                buttonText={null}
+                                icon
+                                size="small"
+                                aria-label="Copy code"
+                                successMessage=""
+                                className="!h-7 !w-7 !border-colorBorderSecondary !bg-colorBgElevated !p-0 !text-colorTextSecondary shadow-sm"
+                            />
+                        }
                     />
+                    <TooltipContent>{"Copy code"}</TooltipContent>
                 </Tooltip>
             </div>
             <SyntaxHighlighter

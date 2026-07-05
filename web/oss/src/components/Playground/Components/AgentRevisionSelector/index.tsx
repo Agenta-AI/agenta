@@ -4,7 +4,7 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createWorkflowRevisionAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {Tooltip} from "antd"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -68,18 +68,23 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                     v{variantRevision}
                 </span>
             )}
-            <Tooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
-                <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
-                    <span
-                        className="h-[7px] w-[7px] rounded-full"
-                        style={{
-                            backgroundColor: hasChanges
-                                ? "var(--ant-color-warning)"
-                                : "var(--ant-color-success)",
-                        }}
-                    />
-                    {hasChanges ? "Draft" : "Saved"}
-                </span>
+            <Tooltip>
+                <TooltipTrigger
+                    render={
+                        <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
+                            <span
+                                className="h-[7px] w-[7px] rounded-full"
+                                style={{
+                                    backgroundColor: hasChanges
+                                        ? "var(--ant-color-warning)"
+                                        : "var(--ant-color-success)",
+                                }}
+                            />
+                            {hasChanges ? "Draft" : "Saved"}
+                        </span>
+                    }
+                />
+                <TooltipContent>{hasChanges ? "Draft — unsaved changes" : "Saved"}</TooltipContent>
             </Tooltip>
         </div>
     )

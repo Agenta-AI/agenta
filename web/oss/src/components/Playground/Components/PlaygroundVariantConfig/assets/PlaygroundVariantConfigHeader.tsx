@@ -10,10 +10,10 @@ import {
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Trash} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -260,14 +260,19 @@ const PlaygroundVariantConfigHeader = ({
                             size="small"
                         />
                         {!rawEntity?.meta?.__ephemeral && (
-                            <Tooltip title="Discard draft">
-                                <Button
-                                    onClick={handleDiscardLocalDraft}
-                                    variant="destructive"
-                                    size="icon-sm"
-                                >
-                                    {<Trash size={16} />}
-                                </Button>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            onClick={handleDiscardLocalDraft}
+                                            variant="destructive"
+                                            size="icon-sm"
+                                        >
+                                            {<Trash size={16} />}
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent>{"Discard draft"}</TooltipContent>
                             </Tooltip>
                         )}
                     </>

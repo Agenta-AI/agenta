@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
@@ -14,7 +15,7 @@ import {
     Rocket,
     Swap,
 } from "@phosphor-icons/react"
-import {DrawerProps, Dropdown, Space, Tabs, Tooltip} from "antd"
+import {DrawerProps, Dropdown, Space, Tabs} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -148,19 +149,24 @@ const DeploymentDrawer = ({
 
                         {selectedEnvironment.deployedVariantName && (
                             <Space>
-                                <Tooltip
-                                    title={isDemo() ? "" : "History available in Cloud/EE only"}
-                                >
-                                    <Button
-                                        className="flex items-center gap-2"
-                                        disabled={!isDemo()}
-                                        onClick={() => setIsHistoryModalOpen(true)}
-                                        variant="outline"
-                                        size="sm"
-                                    >
-                                        <ClockClockwise size={16} />
-                                        View history
-                                    </Button>
+                                <Tooltip>
+                                    <TooltipTrigger
+                                        render={
+                                            <Button
+                                                className="flex items-center gap-2"
+                                                disabled={!isDemo()}
+                                                onClick={() => setIsHistoryModalOpen(true)}
+                                                variant="outline"
+                                                size="sm"
+                                            >
+                                                <ClockClockwise size={16} />
+                                                View history
+                                            </Button>
+                                        }
+                                    />
+                                    <TooltipContent>
+                                        {isDemo() ? "" : "History available in Cloud/EE only"}
+                                    </TooltipContent>
                                 </Tooltip>
                                 <Dropdown
                                     trigger={["hover"]}

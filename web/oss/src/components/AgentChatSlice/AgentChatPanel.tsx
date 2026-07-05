@@ -8,6 +8,7 @@ import {
     playgroundController,
 } from "@agenta/playground"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -17,7 +18,7 @@ import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
 import {ArrowDown, Paperclip, TreeStructure, UploadSimple} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Tabs, Tag, Tooltip} from "antd"
+import {Tabs, Tag} from "antd"
 import type {UploadFile} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -1162,22 +1163,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         prefix={
                             // Attach button is gated until the agent service is ready for inline
                             // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                            <Tooltip
-                                title={
-                                    atMax
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            disabled={true}
+                                            onClick={() => setAttachmentsOpen((open) => !open)}
+                                            aria-label="Attach files"
+                                            variant="ghost"
+                                            size="icon"
+                                        >
+                                            {<Paperclip size={16} />}
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent>
+                                    {atMax
                                         ? `Up to ${limits.maxCount} files`
-                                        : "Attach files coming soon"
-                                }
-                            >
-                                <Button
-                                    disabled={true}
-                                    onClick={() => setAttachmentsOpen((open) => !open)}
-                                    aria-label="Attach files"
-                                    variant="ghost"
-                                    size="icon"
-                                >
-                                    {<Paperclip size={16} />}
-                                </Button>
+                                        : "Attach files coming soon"}
+                                </TooltipContent>
                             </Tooltip>
                         }
                         header={

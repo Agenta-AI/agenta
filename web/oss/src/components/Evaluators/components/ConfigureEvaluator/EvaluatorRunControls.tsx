@@ -15,8 +15,8 @@
 import {EntityPicker} from "@agenta/entity-ui"
 import type {WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {X} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import dynamic from "next/dynamic"
 
 import RunOnSelector from "./RunOnSelector"
@@ -70,15 +70,20 @@ const EvaluatorRunControls = () => {
             )}
 
             {isAppMode && hasAppConnected && (
-                <Tooltip title="Disconnect app">
-                    <Button
-                        onClick={() => disconnectApp()}
-                        aria-label="Disconnect app"
-                        variant="ghost"
-                        size="icon-sm"
-                    >
-                        {<X size={12} />}
-                    </Button>
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <Button
+                                onClick={() => disconnectApp()}
+                                aria-label="Disconnect app"
+                                variant="ghost"
+                                size="icon-sm"
+                            >
+                                {<X size={12} />}
+                            </Button>
+                        }
+                    />
+                    <TooltipContent>{"Disconnect app"}</TooltipContent>
                 </Tooltip>
             )}
 

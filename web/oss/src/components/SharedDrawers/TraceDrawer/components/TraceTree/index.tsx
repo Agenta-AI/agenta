@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Button} from "@agenta/primitive-ui/components/button"
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {
     Coins,
     Info,
@@ -9,7 +10,7 @@ import {
     SlidersHorizontal,
     Timer,
 } from "@phosphor-icons/react"
-import {Divider, Input, Popover, Space, Tooltip} from "antd"
+import {Divider, Input, Popover, Space} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
@@ -46,56 +47,64 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
         <div className="flex flex-col gap-0.5 truncate" key={span_id}>
             <Space size={4}>
                 <AvatarTreeContent value={value} />
-                <Tooltip title={span_name} mouseEnterDelay={0.25}>
-                    <span
-                        className={
-                            status_code === StatusCode.STATUS_CODE_ERROR
-                                ? `${treeTitleClass} text-[var(--ag-c-D61010)] font-[500]`
-                                : treeTitleClass
+                <Tooltip>
+                    <TooltipTrigger
+                        render={
+                            <span
+                                className={
+                                    status_code === StatusCode.STATUS_CODE_ERROR
+                                        ? `${treeTitleClass} text-[var(--ag-c-D61010)] font-[500]`
+                                        : treeTitleClass
+                                }
+                            >
+                                {span_name}
+                            </span>
                         }
-                    >
-                        {span_name}
-                    </span>
+                    />
+                    <TooltipContent>{span_name}</TooltipContent>
                 </Tooltip>
             </Space>
 
             <Space className={treeContentContainerClass}>
                 {settings.latency && (
-                    <Tooltip
-                        title={`Latency: ${formattedLatency}`}
-                        mouseEnterDelay={0.25}
-                        placement="bottom"
-                    >
-                        <div className={treeContentClass}>
-                            <Timer />
-                            {formattedLatency}
-                        </div>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <div className={treeContentClass}>
+                                    <Timer />
+                                    {formattedLatency}
+                                </div>
+                            }
+                        />
+                        <TooltipContent side="bottom">{`Latency: ${formattedLatency}`}</TooltipContent>
                     </Tooltip>
                 )}
 
                 {settings.cost && formattedCost && (
-                    <Tooltip
-                        title={`Cost: ${formattedCost}`}
-                        mouseEnterDelay={0.25}
-                        placement="bottom"
-                    >
-                        <div className={treeContentClass}>
-                            <Coins />
-                            {formattedCost}
-                        </div>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <div className={treeContentClass}>
+                                    <Coins />
+                                    {formattedCost}
+                                </div>
+                            }
+                        />
+                        <TooltipContent side="bottom">{`Cost: ${formattedCost}`}</TooltipContent>
                     </Tooltip>
                 )}
 
                 {settings.tokens && !!formattedTokens && (
-                    <Tooltip
-                        title={`Tokens: ${formattedTokens}`}
-                        mouseEnterDelay={0.25}
-                        placement="bottom"
-                    >
-                        <div className={treeContentClass}>
-                            <PlusCircle />
-                            {formattedTokens}
-                        </div>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <div className={treeContentClass}>
+                                    <PlusCircle />
+                                    {formattedTokens}
+                                </div>
+                            }
+                        />
+                        <TooltipContent side="bottom">{`Tokens: ${formattedTokens}`}</TooltipContent>
                     </Tooltip>
                 )}
             </Space>

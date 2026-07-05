@@ -1,7 +1,8 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
-import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip} from "antd"
+import {Button, Checkbox, Input, List, Popover, Space, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
@@ -118,8 +119,9 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
             }
         >
             {disabledReason ? (
-                <Tooltip title={disabledReason} placement="bottom">
-                    <span>{button}</span>
+                <Tooltip>
+                    <TooltipTrigger render={<span>{button}</span>} />
+                    <TooltipContent side="bottom">{disabledReason}</TooltipContent>
                 </Tooltip>
             ) : (
                 button

@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {
     CopyOutlined,
@@ -7,7 +8,7 @@ import {
     FullscreenOutlined,
     InfoCircleOutlined,
 } from "@ant-design/icons"
-import {GlobalToken, Space, Tooltip, theme} from "antd"
+import {GlobalToken, Space, theme} from "antd"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -263,8 +264,11 @@ export const StatusRenderer = memo(
                 <span>{label}</span>
                 {errorMsg && (
                     <span style={{marginRight: 2}}>
-                        <Tooltip title={errorStacktrace ? errorStacktrace : ""}>
-                            <InfoCircleOutlined />
+                        <Tooltip>
+                            <TooltipTrigger render={<InfoCircleOutlined />} />
+                            <TooltipContent>
+                                {errorStacktrace ? errorStacktrace : ""}
+                            </TooltipContent>
                         </Tooltip>
                     </span>
                 )}

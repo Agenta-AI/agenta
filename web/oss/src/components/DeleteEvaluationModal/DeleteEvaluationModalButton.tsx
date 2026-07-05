@@ -1,7 +1,8 @@
 import {useState, useMemo, useCallback, type ReactNode, type MouseEvent} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Button} from "antd"
 import type {ButtonProps} from "antd"
 import dynamic from "next/dynamic"
 
@@ -92,8 +93,9 @@ const DeleteEvaluationModalButton = ({
     return (
         <>
             {tooltipTitle ? (
-                <Tooltip title={tooltipTitle}>
-                    <span>{content}</span>
+                <Tooltip>
+                    <TooltipTrigger render={<span>{content}</span>} />
+                    <TooltipContent>{tooltipTitle}</TooltipContent>
                 </Tooltip>
             ) : (
                 content

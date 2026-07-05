@@ -1,9 +1,10 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {Tooltip, TooltipTrigger, TooltipContent} from "@agenta/primitive-ui/components/tooltip"
 import {message} from "@agenta/ui/app-message"
 import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Tabs, Tooltip} from "antd"
+import {Button, Tabs} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
@@ -212,15 +213,28 @@ const PreviewEvalRunMeta = ({
 
             <div className="flex items-center gap-2">
                 {showOnlineAction ? (
-                    <Tooltip title={canStopOnline ? "Pause evaluation" : "Resume evaluation"}>
-                        <Button
-                            type={canStopOnline ? "default" : "primary"}
-                            icon={canStopOnline ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
-                            loading={onlineAction !== null}
-                            onClick={handleOnlineAction}
-                        >
-                            {canStopOnline ? "Pause" : "Resume"}
-                        </Button>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    type={canStopOnline ? "default" : "primary"}
+                                    icon={
+                                        canStopOnline ? (
+                                            <PauseIcon size={16} />
+                                        ) : (
+                                            <PlayIcon size={16} />
+                                        )
+                                    }
+                                    loading={onlineAction !== null}
+                                    onClick={handleOnlineAction}
+                                >
+                                    {canStopOnline ? "Pause" : "Resume"}
+                                </Button>
+                            }
+                        />
+                        <TooltipContent>
+                            {canStopOnline ? "Pause evaluation" : "Resume evaluation"}
+                        </TooltipContent>
                     </Tooltip>
                 ) : null}
                 {activeView === "scenarios" ? <ScenarioFilterBar runId={runId} /> : null}
