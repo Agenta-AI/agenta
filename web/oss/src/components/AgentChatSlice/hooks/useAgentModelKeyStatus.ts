@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {standardSecretsAtom} from "@agenta/entities/secret"
+import {standardSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
 import {useAtomValue} from "jotai"
@@ -14,6 +14,13 @@ export interface AgentModelKeyStatus {
     hasKey: boolean
     /** The canonical vault provider entry for the model's provider (to open the configure drawer). */
     providerEntry: LlmProvider | null
+    /**
+     * The project vault hasn't resolved yet (query pending or errored). `standardSecretsAtom` returns
+     * the static provider catalog with EMPTY keys until the vault query lands, so a reload would report
+     * every provider as keyless. Callers must NOT assert a missing key (block the composer / show the
+     * connect banner) while this is true — otherwise the gate flashes a false error on every reload.
+     */
+    loading: boolean
 }
 
 /** Strip the `_API_KEY` suffix from a vault env name → provider family ("OPENAI_API_KEY" → "openai"). */
@@ -34,6 +41,10 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
     const standardSecrets = useAtomValue(standardSecretsAtom)
+    // "Loaded" = the vault query produced an array (successful fetch). Pending/errored → `data` is
+    // undefined, so we treat the vault as unresolved and never assert a missing key from empty slots.
+    const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
+    const loading = !Array.isArray(vaultQuery.data)
 
     return useMemo(() => {
         const llm = (config as {agent?: {llm?: LlmRef}} | null)?.agent?.llm
@@ -55,6 +66,6 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
               ) ?? null)
             : null
 
-        return {provider, model, hasKey: !!providerEntry?.key, providerEntry}
-    }, [config, standardSecrets])
+        return {provider, model, hasKey: !!providerEntry?.key, providerEntry, loading}
+    }, [config, standardSecrets, loading])
 }

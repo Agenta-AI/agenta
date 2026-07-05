@@ -11,13 +11,14 @@ import {chatPanelMaximizedAtom} from "../state/panelLayout"
  * The composer is disabled alongside it (the parent gates on the same status). "Set up credentials"
  * flips the playground to Build and opens the Model & harness drawer, whose bottom credentials field
  * lets the user add the key without leaving — saving it clears this banner reactively (vault → hasKey).
- * Renders nothing once a key exists or when the provider can't be resolved (never a false gate).
+ * Renders nothing once a key exists, when the provider can't be resolved, or while the vault query is
+ * still resolving (never a false gate — the static provider catalog reads keyless until it lands).
  */
-const ConnectModelBanner = ({hasKey, provider, providerEntry}: AgentModelKeyStatus) => {
+const ConnectModelBanner = ({hasKey, provider, providerEntry, loading}: AgentModelKeyStatus) => {
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
     const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
 
-    if (hasKey || !providerEntry) return null
+    if (loading || hasKey || !providerEntry) return null
 
     const label = providerEntry.title ?? provider ?? "a model"
 

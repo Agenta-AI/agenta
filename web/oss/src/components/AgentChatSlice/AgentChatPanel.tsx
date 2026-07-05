@@ -399,7 +399,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // connect-a-model banner AND disables the composer until connected. Only gate when the provider
     // is KNOWN but keyless — an unresolved provider must never dead-end the composer with no banner.
     const modelKey = useAgentModelKeyStatus(entityId)
-    const modelBlocked = !!modelKey.providerEntry && !modelKey.hasKey
+    // `!modelKey.loading`: never block until the vault query resolves — otherwise a reload flashes a
+    // false "connect a model" gate (the static provider catalog reads keyless until the query lands).
+    const modelBlocked = !!modelKey.providerEntry && !modelKey.hasKey && !modelKey.loading
 
     // First-run seed: a freshly-created agent (from Home's composer/template) surfaces its starting
     // prompt in the empty state (see AgentChatEmptyState) rather than pre-filling the composer, so it
