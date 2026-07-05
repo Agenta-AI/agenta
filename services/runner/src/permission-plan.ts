@@ -8,7 +8,11 @@
  *  - Client-tool ladder: `services/runner/src/responder.ts` handles browser-fulfilled tools
  *    across the pause/resume boundary.
  */
-import type { AgentRunRequest, PermissionMode, ToolPermission } from "./protocol.ts";
+import type {
+  AgentRunRequest,
+  PermissionMode,
+  ToolPermission,
+} from "./protocol.ts";
 
 /** Which component executes the gated tool; decides how resume matching anchors names. */
 export type GateExecutor = "harness" | "relay" | "client";
@@ -33,10 +37,28 @@ export interface PermissionPlan {
   rules: { pattern: string; permission: ToolPermission }[];
 }
 
+export const PI_BUILTIN_TOOL_IDENTITY = {
+  read: { ruleName: "Read", readOnly: true },
+  bash: { ruleName: "Bash", readOnly: false },
+  edit: { ruleName: "Edit", readOnly: false },
+  write: { ruleName: "Write", readOnly: false },
+  grep: { ruleName: "Grep", readOnly: true },
+  find: { ruleName: "Find", readOnly: true },
+  ls: { ruleName: "Ls", readOnly: true },
+} as const satisfies Record<string, { ruleName: string; readOnly: boolean }>;
+
+export type PiBuiltinToolName = keyof typeof PI_BUILTIN_TOOL_IDENTITY;
+export type PiBuiltinRuleName =
+  (typeof PI_BUILTIN_TOOL_IDENTITY)[PiBuiltinToolName]["ruleName"];
+
+export interface PiBuiltinIdentity {
+  toolName: PiBuiltinToolName;
+  ruleName: PiBuiltinRuleName;
+  readOnly: boolean;
+}
+
 export type Verdict =
-  | { kind: "allow" }
-  | { kind: "deny" }
-  | { kind: "pendingApproval" };
+  { kind: "allow" } | { kind: "deny" } | { kind: "pendingApproval" };
 
 export interface StoredPermissionDecisions {
   take(gate: GateDescriptor): "allow" | "deny" | undefined;
@@ -54,6 +76,23 @@ const RULE_RANK: Record<ToolPermission, number> = {
   ask: 1,
   deny: 2,
 };
+const PI_BUILTIN_CANONICAL_NAMES = new Map<string, PiBuiltinIdentity>(
+  (
+    Object.entries(PI_BUILTIN_TOOL_IDENTITY) as Array<
+      [PiBuiltinToolName, (typeof PI_BUILTIN_TOOL_IDENTITY)[PiBuiltinToolName]]
+    >
+  ).flatMap(([toolName, identity]) => {
+    const builtin: PiBuiltinIdentity = {
+      toolName,
+      ruleName: identity.ruleName,
+      readOnly: identity.readOnly,
+    };
+    return [
+      [toolName, builtin],
+      [identity.ruleName, builtin],
+    ];
+  }),
+);
 
 export function permissionsFromRequest(
   request: AgentRunRequest,
@@ -109,6 +148,26 @@ export function decide(
   if (storedDecision === "allow") return { kind: "allow" };
   if (storedDecision === "deny") return { kind: "deny" };
   return { kind: "pendingApproval" };
+}
+
+export function piBuiltinIdentity(
+  toolName: string,
+): PiBuiltinIdentity | undefined {
+  return PI_BUILTIN_CANONICAL_NAMES.get(toolName);
+}
+
+export function storedDecisionKeyShape(
+  toolName: string | undefined,
+  args: unknown,
+): { toolName: string | undefined; args: unknown } {
+  if (!toolName) return { toolName, args };
+  const identity = piBuiltinIdentity(toolName);
+  if (!identity) return { toolName, args };
+  return {
+    toolName: identity.ruleName,
+    args:
+      identity.toolName === "bash" ? projectBashStoredDecisionArgs(args) : args,
+  };
 }
 
 export class PendingApprovalLatch {
@@ -194,6 +253,11 @@ function defaultPermission(
     return gate.readOnlyHint === true ? "allow" : "ask";
   }
   return mode;
+}
+
+function projectBashStoredDecisionArgs(args: unknown): unknown {
+  if (!isRecord(args) || !("command" in args)) return args;
+  return { command: args.command };
 }
 
 function isPermissionMode(value: unknown): value is PermissionMode {

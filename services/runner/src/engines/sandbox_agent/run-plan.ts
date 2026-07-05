@@ -17,6 +17,12 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
 } from "../../tools/mcp-bridge.ts";
 import {
+  PI_BUILTIN_TOOL_IDENTITY,
+  permissionsFromRequest,
+  piBuiltinIdentity,
+  type PermissionPlan,
+} from "../../permission-plan.ts";
+import {
   type MaterializedSkill,
   resolveSkillDirs as defaultResolveSkillDirs,
 } from "../skills.ts";
@@ -92,6 +98,10 @@ export interface RunPlan {
   usageOutPath?: string;
   toolSpecs: ResolvedToolSpec[];
   executableToolSpecs: ResolvedToolSpec[];
+  /** Normalized Pi builtin grants for the extension active-tool edit. */
+  builtinGrants: string[];
+  /** True when Pi builtin grants or permissions need extension enforcement. */
+  builtinGatingActive: boolean;
   useToolRelay: boolean;
   systemPrompt?: string;
   appendSystemPrompt?: string;
@@ -117,8 +127,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
@@ -151,6 +160,63 @@ function hasStdioMcpServer(servers: McpServerConfig[] | undefined): boolean {
  */
 function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
   return specs.some((spec) => spec.kind === "code");
+}
+
+const PI_DEFAULT_ACTIVE_BUILTINS = ["read", "bash", "edit", "write"];
+const PI_BUILTIN_TOOL_NAMES = Object.keys(PI_BUILTIN_TOOL_IDENTITY);
+const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
+
+function normalizePiBuiltinGrants(tools: string[] | undefined): string[] {
+  if (tools === undefined) return [...PI_DEFAULT_ACTIVE_BUILTINS];
+  if (!Array.isArray(tools)) return [];
+  const grants: string[] = [];
+  const seen = new Set<string>();
+  for (const tool of tools) {
+    if (typeof tool !== "string") continue;
+    const name = tool.trim().toLowerCase();
+    if (!PI_BUILTIN_TOOL_NAME_SET.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    grants.push(name);
+  }
+  return grants;
+}
+
+function sameStringSet(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
+}
+
+function permissionPlanCouldGatePiBuiltin(plan: PermissionPlan): boolean {
+  if (plan.default !== "allow") return true;
+  return plan.rules.some((rule) =>
+    permissionRuleTargetsPiBuiltin(rule.pattern),
+  );
+}
+
+function permissionRuleTargetsPiBuiltin(pattern: string): boolean {
+  const open = pattern.indexOf("(");
+  const toolName = open === -1 ? pattern : pattern.slice(0, open);
+  return piBuiltinIdentity(toolName) !== undefined;
+}
+
+function computeBuiltinGatingActive(
+  isPi: boolean,
+  permissionPlan: PermissionPlan,
+  builtinGrants: readonly string[],
+): boolean {
+  if (!isPi) return false;
+  try {
+    return (
+      permissionPlanCouldGatePiBuiltin(permissionPlan) ||
+      !sameStringSet(builtinGrants, PI_DEFAULT_ACTIVE_BUILTINS)
+    );
+  } catch {
+    return true;
+  }
 }
 
 function defaultLocalCwd(durableCwd?: string): string {
@@ -219,6 +285,13 @@ export function buildRunPlan(
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
+  const permissionPlan = permissionsFromRequest(request);
+  const builtinGrants = normalizePiBuiltinGrants(request.tools);
+  const builtinGatingActive = computeBuiltinGatingActive(
+    isPi,
+    permissionPlan,
+    builtinGrants,
+  );
 
   // Not-implemented boundary gates (sidecar-trust Part 2): a declared capability the runner
   // cannot actually enforce fails loudly, the way code tools do (`tools/code.ts`), rather than
@@ -305,12 +378,16 @@ export function buildRunPlan(
     }
   }
 
-  const cwd = isDaytona ? createDaytonaCwd(durableCwd) : createLocalCwd(durableCwd);
+  const cwd = isDaytona
+    ? createDaytonaCwd(durableCwd)
+    : createLocalCwd(durableCwd);
   // The tool-relay scratch (req/res JSON) is ephemeral runner<->child IPC, NOT durable session
   // data — keep it OFF the geesefs-mounted cwd. A relay dir inside the mount routes every tool
   // call through FUSE/S3, so a flaky mount surfaces as ENOTCONN on the relay file. Use an
   // ephemeral sibling: a plain host tmp dir (local) or an in-VM dir (daytona), never the mount.
-  const relayBase = isDaytona ? "/home/sandbox/agenta/relay" : join(tmpdir(), "agenta", "relay");
+  const relayBase = isDaytona
+    ? "/home/sandbox/agenta/relay"
+    : join(tmpdir(), "agenta", "relay");
   const relayDir = join(relayBase, basename(cwd));
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
@@ -365,7 +442,9 @@ export function buildRunPlan(
       usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
       toolSpecs,
       executableToolSpecs: executableToolSpecsForRun,
-      useToolRelay: toolSpecs.length > 0,
+      builtinGrants,
+      builtinGatingActive,
+      useToolRelay: toolSpecs.length > 0 || builtinGatingActive,
       systemPrompt,
       appendSystemPrompt,
       hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),

@@ -124,3 +124,9 @@ Request fields include:
 One-shot calls return one JSON result. Streaming calls use NDJSON internally: one
 `{"kind":"event"}` record per live event, followed by one `{"kind":"result"}` terminal
 record. The browser never sees this NDJSON directly; `/messages` converts it to Vercel SSE.
+
+This page covers the `/run` wire only. A separate internal channel, the relay directory the
+runner shares with the sandbox (used for Daytona tool calls and, now, for Pi builtin
+permission checks), recently gained a second record kind. See
+[Tools](tools.md#built-in-tools-the-harness-runs-them-natively-gated-through-the-same-relay)
+for the permission record shape.

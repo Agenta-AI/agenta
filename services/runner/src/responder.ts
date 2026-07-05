@@ -10,6 +10,7 @@ import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
 import {
   decide,
   effectivePermission,
+  storedDecisionKeyShape,
   type GateDescriptor,
   type PermissionPlan,
   type StoredPermissionDecisions,
@@ -18,7 +19,8 @@ import {
 
 export type PermissionDecision = "allow" | "deny";
 
-export type ClientToolOutcome = "deny" | "pendingApproval" | { output: unknown };
+export type ClientToolOutcome =
+  "deny" | "pendingApproval" | { output: unknown };
 
 /** A permission gate raised by the harness, normalized from the ACP request. */
 export interface PermissionGateRequest {
@@ -64,11 +66,13 @@ export function approvedCallKey(
   toolName: string | undefined,
   input: unknown,
 ): string | undefined {
-  if (!toolName) return undefined;
-  const args = input === null || input === undefined ? {} : input;
+  const shape = storedDecisionKeyShape(toolName, input);
+  if (!shape.toolName) return undefined;
+  const args =
+    shape.args === null || shape.args === undefined ? {} : shape.args;
   const hash = stableArgsHash(args);
   if (hash === undefined) return undefined;
-  return `${toolName}#${hash}`;
+  return `${shape.toolName}#${hash}`;
 }
 
 /**
@@ -89,7 +93,8 @@ function canonicalJson(value: unknown): string {
   if (value === undefined) throw new Error("undefined is not JSON");
   if (typeof value === "bigint") throw new Error("bigint is not JSON");
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("non-finite number is not JSON");
+    if (!Number.isFinite(value))
+      throw new Error("non-finite number is not JSON");
     return JSON.stringify(value);
   }
   if (typeof value !== "object") return JSON.stringify(value);
@@ -291,7 +296,10 @@ function buildCallShapeIndex(
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type === "tool_call" && block.toolCallId) {
-        index.set(block.toolCallId, { name: block.toolName, input: block.input });
+        index.set(block.toolCallId, {
+          name: block.toolName,
+          input: block.input,
+        });
       }
     }
   }
@@ -315,7 +323,9 @@ function coldReplayKey(
   block: ContentBlock,
   callShapeById: Map<string, { name?: string; input?: unknown }>,
 ): string | undefined {
-  const shape = block.toolCallId ? callShapeById.get(block.toolCallId) : undefined;
+  const shape = block.toolCallId
+    ? callShapeById.get(block.toolCallId)
+    : undefined;
   const name = block.toolName ?? shape?.name;
   const input = block.input ?? shape?.input;
   return approvedCallKey(name, input);
@@ -331,7 +341,9 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
  * `"allow"`/`"deny"` for one, or `undefined` for any other tool_result (a real browser/client
  * output).
  */
-function approvalDecisionOf(block: ContentBlock): PermissionDecision | undefined {
+function approvalDecisionOf(
+  block: ContentBlock,
+): PermissionDecision | undefined {
   if (!block || block.type !== "tool_result") return undefined;
   const output = block.output;
   if (
@@ -344,7 +356,6 @@ function approvalDecisionOf(block: ContentBlock): PermissionDecision | undefined
   }
   return undefined;
 }
-
 
 /**
  * Map an allow/deny decision onto the harness's available ACP replies.

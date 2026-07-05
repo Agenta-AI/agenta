@@ -325,12 +325,27 @@ The pause itself is shared by both delivery paths through one seam
 A client tool's `render` hint can be `{ kind: "connect" }` (e.g. `request_connection`), the typed
 member of `RenderHint` that asks the frontend to draw the connect widget.
 
-### Built-in tools: the harness runs them natively
+### Built-in tools: the harness runs them natively, gated through the same relay
 
 Execution is the harness's own. A built-in tool is just a name. The runner adds it to the
 session's allowlist and Pi runs its own implementation of `read`, `write`, `web_search`, and so
 on. Nothing is resolved and nothing is delivered. Note that built-ins are a Pi concept here;
 they are not delivered to non-Pi harnesses over ACP, which bring their own native tool set.
+
+Pi's builtins now flow through the same permission relay as gateway tools (code tools are
+declared but not yet executable in the runner; the relay path is shared either way). The
+bundled Pi extension's `tool_call` hook reports every builtin call over the relay directory as
+a permission record (`kind: "permission"`), and the runner decides it through the same shared
+`decide()` in `permission-plan.ts` the relay already uses for gateway tools. An `ask`
+verdict pauses the turn exactly like a relay tool does. The extension hook then maps a
+non-allow verdict to Pi's own `{ block: true }`, because Pi, not the runner, is the thing that
+would otherwise execute the call.
+
+The grant list (the wire `tools` field: the builtins an author selected) is enforced
+separately, at session start. The extension edits Pi's active tool set at
+`before_agent_start`, replacing only the builtin slice with the granted names and leaving
+every non-builtin tool untouched. A builtin outside the grant list is simply absent from the
+model's active tools, so no call for it ever fires, and the permission hook never sees it.
 
 ### MCP servers: a server process the daemon launches
 
@@ -371,10 +386,12 @@ Two gates consult this same decision:
   raises these today: it checks its own settings file first, and only an undecided call reaches
   the responder.
 - **The tool relay**, `services/runner/src/tools/relay.ts`, enforces permission on tools the
-  runner executes directly (gateway, code). It only needs to, because on Claude the harness
-  settings file plus the ACP responder already decide before a call reaches the relay. On Pi
-  there is no harness-side gate, so the relay is the only enforcement point, and it now gives Pi
-  the same human-in-the-loop behavior Claude gets.
+  runner executes directly (gateway, code) and, now, on Pi's own builtins, relayed through the
+  bundled extension's `tool_call` hook. It only needs to, because on Claude the harness settings
+  file plus the ACP responder already decide before a call reaches the relay. On Pi there is no
+  separate harness-side settings gate, so the relay is the enforcement point for everything Pi
+  runs, including its native builtins, and it gives Pi the same human-in-the-loop behavior
+  Claude gets.
 
 Client tools are a carve-out from that same ladder. They are decided by the responder's
 `onClientTool` (consulted at the ACP gate on Claude, and by the relay on Pi), not by the
@@ -515,9 +532,11 @@ The contract and the field-by-field Composio→Agenta mapping live in the
   Agenta are the default harnesses, so `mcp_servers` is a silent no-op for most runs. It would
   reach Claude only. Do not confuse this with the `agenta-tools` server, which is an internal
   tool-delivery vehicle for Claude, not a user MCP server.
-- A tool's `permission` is honored on both harnesses now. Claude checks its rendered settings
-  file first, then the ACP responder; Pi has no native gate, so the relay enforces it directly.
-  An `ask` pauses the run and asks a human on either harness.
+- A tool's `permission` is honored on both harnesses now, including Pi's own builtins. Claude
+  checks its rendered settings file first, then the ACP responder. Pi has no separate
+  harness-side settings gate, so the relay decides everything Pi runs: gateway and code tools
+  directly, and builtins relayed through the extension's `tool_call` hook. An `ask` pauses the
+  run and asks a human on either harness.
 - Gateway tools support only the `composio` provider today; other providers raise.
 - The `render` hint is plumbed end to end on the runner side, but full frontend projection of
   every render kind is still in progress.

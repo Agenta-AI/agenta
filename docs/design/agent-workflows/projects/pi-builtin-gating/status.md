@@ -1,0 +1,238 @@
+# Status
+
+## State
+
+MERGED to big-agents via PR #5066 (2026-07-05), after Mahmoud's review, all CI suites
+green, and the post-#4985 deployment smoke (all pass, no drift).
+
+## Decision log
+
+**Option B chosen: intercept in our extension, decide in the runner.** The extension's
+`tool_call` hook reports each builtin call, and the runner decides it through the existing
+relay permission machinery and the one shared `decide()`. This makes `bash: ask` expressible
+on Pi and re-activates the builtin grant list, with the real tool name and real arguments on
+the runner side.
+
+**Option A rejected: `ctx.ui.confirm` over ACP.** In that shape the runner-side gate would
+see only a synthetic tool call. The real arguments stay in the sandbox. So argument-prefix
+rules (`bash(git:*)`) and read-only classification would split across two sides, and the
+decision module would no longer be the single source of truth. That breaks the doctrine this
+design exists to uphold.
+
+**Option C rejected: fork Pi.** The `tool_call` hook already exists and already can block. A
+fork buys nothing and costs re-patching every Pi release in the runner image and the Daytona
+snapshot forever.
+
+**Executor reuses `"harness"` (settled, was open).** The first draft leaned toward a new
+`GateExecutor` value `"builtin"`. The Codex review argued that `executor` names the executing
+*component*, and Pi runs its own builtins, so the honest value is `"harness"`. Pending-to-block
+mapping and the read-only lookup are post-decision handling that does not belong in the
+descriptor: the runner-side permission-record handler writes the verdict verbatim, and the
+extension hook, at the Pi boundary, maps that verdict to Pi's `{ block: true }`. Accepted. No
+new enum value; add a named `toolClass`/`gateSource` dimension later only if resume anchoring
+ever needs it.
+
+**Grant list via `setActiveTools`, at `before_agent_start` (leaning yes, open).** The grant
+gap maps most cleanly to Pi's active-tool allowlist, so the model never sees a non-granted
+builtin. The Codex review corrected two things: `setActiveTools` cannot run at extension init
+(Pi stubs the action methods there), so the edit runs at `before_agent_start`; and the edit
+must preserve non-builtin active tools (`getActiveTools()` + `getAllTools()`, replace only the
+builtin slice) so it never drops a user or local extension tool. Block-in-hook stays the
+fallback. Phase 2 confirms after a live check.
+
+**Discriminator over a second file suffix (settled).** One `kind` field keeps a single relay
+poll loop and one host abstraction serving both record types. Codex agreed, with the condition
+that the types be a real discriminated union (not a shared type with optional fields) and that
+the permission response be parsed through its own validator so `relayToolCall` never reads it
+as a tool result. Both folded into design.md.
+
+## Open risks
+
+1. **Re-issue after block (top risk).** Whether Pi re-issues a builtin call after the hook
+   blocks it and the turn resumes is unverified. Phase 0 spikes it before any build. Fallback
+   is a retry-nudge reason, or, if Pi will not re-issue at all, a return to you before
+   building.
+2. **Relay polling timeout.** The runner must always write a response for a permission record,
+   including on pending, or the hook hangs 60s. Pinned by a Phase 1 test.
+3. **Concurrent pending builtins and the single-pending latch.** The second pending builtin in
+   one message must still get a block response so its hook does not hang. Handled and tested in
+   Phase 1.
+4. **Gating-active predicate.** Getting it wrong the safe way (gating on when it could be off)
+   only costs a relay round-trip per builtin. Getting it wrong the unsafe way (off when it
+   should be on) would silently skip the gate, so the predicate defaults to on when unsure.
+
+## Provenance
+
+Design workspace created 2026-07-04. Research read against the `gitbutler/workspace` branch.
+Codex review folded in below.
+
+## Codex review
+
+**Round 1 (2026-07-04, gpt-5.5 at xhigh, read-only).** Codex read the workspace and Pi's own
+source. Every finding was accepted and folded into design.md and plan.md. Nothing was rejected.
+
+Blockers folded in:
+
+1. `setActiveTools` cannot run at extension init (Pi stubs the action methods there). Moved to
+   `before_agent_start`, with a check that it affects the current turn's system prompt.
+2. The gating-active predicate was wrong. Pi's default active builtins are `read`, `bash`,
+   `edit`, `write`, not all seven, so the requested grant set alone can require gating even
+   under blanket `allow`. Predicate rewritten; `tools: undefined` now distinct from `tools: []`.
+3. Compute the predicate from `permissionsFromRequest(request)`, not raw `request.permissions`,
+   so the `SANDBOX_AGENT_DENY_PERMISSIONS` kill switch and fail-to-ask are honored.
+4. The re-issue mitigation was too soft. Pi turns `{ block: true }` into an error tool result,
+   so re-issue is pure model behavior. Phase 0 now spikes it through the real runner pause and
+   teardown and inspects the resumed transcript; if Pi will not re-issue, the design stops.
+5. The concurrent-pending handling needs `onPendingApproval` to return whether it emitted;
+   today it returns `void`. Contract change recorded in design.md and plan.md.
+6. The extension's inertness guard (agenta.ts:165) early-returns a gating-only run. Added
+   `hasBuiltinGating` to the guard.
+
+Improvements folded in: real discriminated-union record types with a dedicated permission
+validator so `relayToolCall` never mis-parses a permission response; `executor: "harness"`
+instead of a new `"builtin"` value; preserve non-builtin active tools when editing the active
+set; first-class `builtinGatingActive` + `builtinGrants` on `RunPlan`; lowercase Pi builtin
+rule names versus Claude-style `Bash(...)`.
+
+Nits folded in (the `effect` rename was later reversed in review round 1, see below): response field renamed `decision` -> `effect` to avoid colliding with the
+permission module's `allow | deny`; validate `AGENTA_AGENT_BUILTIN_GRANTS` (de-dupe, known
+seven, drop-and-log unknowns). Codex also confirmed the pending-and-block double effect is
+sound because `toolRelay.stop()` drains inflight handlers before teardown.
+
+## Review round 1 (Mahmoud, 2026-07-04)
+
+Four comments on design.md, all folded:
+
+- **The hook does policy only.** The grant check came out of the `tool_call` handler. A
+  non-granted builtin is simply absent from Pi's active tool set, so no call fires and
+  nothing is checked twice.
+- **No duplicated configuration.** The author's builtin selection stays the single source
+  (the existing config and wire `tools` field). Asked why the grant is not written into Pi's
+  config the way Claude gets settings.json: verified that Pi has no settings-file surface
+  for tools at all, and its native surfaces (the `--tools` launch flag, the SDK's
+  `createAgentSession({tools})`) are dropped by every layer of the sandbox-agent/ACP chain
+  (evidence in research.md, "Native tool-selection surfaces"). The extension's
+  `setActiveTools` is therefore the only reachable enforcement point today. The durable
+  upstream fix (a `tools` field on sandbox-agent's SessionCreateRequest forwarded by pi-acp
+  into pi's argv) is filed as a follow-up; when it lands, the extension edit disappears and
+  the same config flows declaratively.
+- **Nomenclature aligned.** The permission response now transports `decide()`'s verdict
+  verbatim (`verdict: "allow" | "deny" | "pendingApproval"`) instead of the invented
+  `effect: allow | block`. The mapping to Pi's `{ block: true }` lives in the extension hook
+  at the Pi boundary.
+- **Extension context added.** design.md now opens with what our extension does today
+  (registers relay-backed custom tools, flushes tracing and usage on `agent_end`).
+
+## Review round 2 (Mahmoud, 2026-07-04)
+
+Two comments on the grant section, folded as a new design.md subsection ("The folder is the
+delivery vehicle either way"): the folder route and the extension route are the same route
+(the extension ships in the per-run agent dir, like skills); Pi only lacks a declarative
+settings field, so the folder carries code instead of a config line. Portability recorded as
+a design goal: the same agent dir enforces the same grant under native `pi` use, outside our
+ACP path. Considered and rejected: a `pi` binary shim in the sandbox image (image-coupled,
+breaks native use) and waiting for the upstream passthrough (leaves the grant dead, ACP-only).
+
+## Codex re-review (round 2)
+
+**Verdict: fix first.** Codex re-read the workspace, found stale text left over from earlier
+drafts and three underspecified risks, and read Pi's shipped source again to source the three
+technical adds. All seven folded into design.md, plan.md, and research.md:
+
+1. Purged stale hook-side grant language. The `tool_call` hook does policy only; it never
+   checks the grant. A non-granted builtin is absent from the active set, so no call fires; if
+   one somehow does, that is a bug in the active-set edit, not a second grant check.
+2. Fixed block-mapping location inconsistencies. The runner writes `decide()`'s verdict
+   verbatim; only the extension hook, at the Pi boundary, maps a non-allow verdict to Pi's
+   `{ block: true }`. Several passages had drifted into saying the runner handler writes or
+   owns a block.
+3. Added the prompt-ordering mitigation for `setActiveTools`. `before_agent_start` handlers
+   chain on a system prompt each may replace from a stale copy, so a later handler can leak a
+   removed builtin back into the prompt. Phase 2 now asserts the removed builtin's name is
+   absent from the turn's final system prompt. A second extension re-enabling a builtin after
+   ours is declared out of scope for this slice (we install exactly one extension), noted as a
+   real question the day a user-supplied extension ships.
+4. Corrected the stale "set active tools to granted builtins plus our registered custom tools"
+   idea in research.md to the actual mechanism: read `getActiveTools()`/`getAllTools()`,
+   replace only the seven builtins' slice, leave every non-builtin tool untouched.
+5. Added a version-skew failure mode. The runner installs a pre-built bundle; a stale bundle
+   means gating silently does not exist, the same class of bug that once silently dropped
+   custom tools. The permission record now carries `protocol: 1`; both sides fail closed (deny,
+   logged) on a missing or unknown version. Plan.md adds a build/CI guard that the bundle is
+   rebuilt when `src/extensions` changes, plus the protocol-version pin test.
+6. Sharpened Phase 0's pass condition: 5 of 5 spike runs must show the approved builtin
+   executing exactly once after resume, never before approval, with matching canonical args,
+   with the resumed transcript recorded as evidence. Anything else fails the phase and the
+   design goes back to the owner.
+7. Added case normalization for rule matching: authored rules use Claude-style capitalized
+   names (`Bash(...)`), Pi's builtins are lowercase (`bash`). The permission-record handler now
+   normalizes through the same runner-side table that supplies `readOnlyHint`, so `Bash(npm:*)`
+   matches a Pi `bash` call. That table is the single place builtin identity lives.
+
+The three technical adds, the prompt-ordering assert, the protocol-version pin, and case
+normalization, came from Codex reading Pi's shipped source, not from re-reading our own docs.
+
+## Phase 0 spike, stage A: PASSED (2026-07-04)
+
+Host-local Pi (openai-codex subscription, gpt-5.4-mini), 13 runs, throwaway block-once
+extension. Results: cross-turn re-issue after an approval message 3/3 with byte-identical
+args; same-turn retry 0/10 regardless of reason wording (a blocked call is terminal for its
+turn, which suits the pause design: the turn tears down anyway); zero double executions, zero
+pre-approval executions. One finding: 1/13 runs added a spontaneous optional param
+(`timeout: 10` on bash), so the design gains a per-builtin match projection (bash matches on
+`command` alone; edit/write keep full args). Evidence: scratchpad pi-spike run logs.
+
+Gate call: stage A passes the model-behavior question, so the build proceeds. The plan's
+full 5-of-5 bar through the real runner pause and teardown runs as the live-QA acceptance
+once phases 1-3 land; a failure there still stops the ship.
+
+## Live QA (full pass)
+
+Full live QA ran against the real runner pause and teardown, past the Phase 0 host-local
+spike.
+
+- **S1 5/5 bar met, over six live runs.** Each run showed one prompt, no execution before
+  approval, exactly one execution after approval, and stable canonical arguments across the
+  pause and resume.
+- **Deny, read-free, grant-enforcement, deny-all, and fast-path scenarios all pass.** A
+  denied builtin call is refused and never runs. A read-only builtin call under
+  `allow_reads` runs without a prompt. A builtin outside the grant list is absent from Pi's
+  active tool set, so the model cannot call it at all. A blanket `deny` policy blocks every
+  builtin. A run with gating inactive skips the relay round-trip entirely.
+- **The headless paused envelope carries the tool.** A paused batch response's interaction
+  payload names the pending tool as `bash`, so a headless caller can tell which call is
+  waiting without guessing.
+- **Custom-tool relay regression is clean.** The existing relay path for gateway and code
+  tools still works with the new permission-record branch alongside it, verified with an
+  unguessable-token proof that a permission record and a tool-execute record never cross
+  each other's handling.
+
+## Follow-ups (filed, not this PR)
+
+- **Denied tool card shows an "approved" badge.** A frontend label bug: the card for a
+  denied builtin call still shows the "approved" badge. The underlying behavior is correct
+  (the call is refused), so this is cosmetic.
+- **The executed builtin block renders an empty command input on the resumed turn.** The
+  SSE `tool-input` events stop delivering the command text at `""` once the turn resumes
+  after approval. Execution itself uses the right arguments; only the rendered card is
+  affected. Cosmetic.
+- **An approval persists for identical re-calls across turns in one session.** Each turn
+  rebuilds the stored decisions from the transcript, so a call approved once keeps matching
+  on later turns in the same session, not just the one it was approved for. This behavior is
+  inherited from the approval-boundary design, not new here. Whether "once" should mean
+  "once per turn" instead of "once per session" is an open decision.
+- **A headless batch invoke without `x-ag-messages-format: vercel` fails with a 500.** The
+  error is "No user message to send" where a 4xx would better signal a caller mistake. This
+  is a service developer-experience gap, not a gating bug.
+- **Hardening, upgraded from candidate to next slice (CodeRabbit called it correctly: a
+  silent gate bypass, not polish). Fail loud when a gating-active turn ends with zero
+  permission records.** Design direction: a handshake record the extension writes at
+  `before_agent_start` when gating is active; the runner errors the turn if it is absent.
+  Exposure note: the prod image builds the bundle and the runner in one docker build
+  (the Dockerfile runs `build:extension`), so the skew is a dev-mount artifact.
+  Original finding: The `protocol: 1` pin catches an old runner talking to a new extension bundle,
+  but not the reverse: a new runner talking to an old extension bundle writes no permission
+  record at all, so the pin has nothing to reject and gating silently does not exist. A
+  policy that must gate could detect this directly: if a turn is gating-active but produces
+  zero permission records, fail loud instead of succeeding silently. The live sidecar hit
+  exactly this case, from an image-baked stale `dist/` bundle.

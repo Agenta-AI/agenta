@@ -15,7 +15,13 @@
  *
  * The same loop supports local filesystem relays and Daytona sandbox filesystem relays.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
@@ -31,9 +37,20 @@ import type {
   RunContext,
   ToolCallbackContext,
 } from "../protocol.ts";
-import type { GateDescriptor, Verdict } from "../permission-plan.ts";
-import type { ClientToolOutcome } from "../responder.ts";
+import {
+  piBuiltinIdentity,
+  type GateDescriptor,
+  type Verdict,
+} from "../permission-plan.ts";
+import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
+
+// Compatibility re-export: the type moved to `client-tool-relay.ts` (a pure type module);
+// importers that still reach it through this module keep working while they migrate.
+export type {
+  ClientToolRelay,
+  ClientToolRelayRequest,
+} from "./client-tool-relay.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
 export const RELAY_RES_SUFFIX = ".res.json";
@@ -58,6 +75,7 @@ export const RELAY_POLL_MAX_MS = Number(
 export const RELAY_POLL_IDLE_GROW_AFTER = Number(
   process.env.AGENTA_AGENT_TOOLS_RELAY_IDLE_GROW_AFTER ?? 5,
 );
+export const RELAY_PERMISSION_PROTOCOL = 1;
 
 /** The next poll delay given the count of consecutive idle polls (no new request seen). */
 export function relayPollDelayMs(idlePolls: number): number {
@@ -66,23 +84,37 @@ export function relayPollDelayMs(idlePolls: number): number {
   return Math.min(RELAY_POLL_MS * factor, RELAY_POLL_MAX_MS);
 }
 
-export interface RelayRequest {
+export interface ExecuteRelayRequest {
+  kind?: "execute";
   toolName: string;
   toolCallId: string;
   args: unknown;
 }
-export interface RelayResponse {
+export interface PermissionRelayRequest {
+  kind: "permission";
+  protocol: typeof RELAY_PERMISSION_PROTOCOL;
+  toolName: string;
+  toolCallId: string;
+  args: unknown;
+}
+export type RelayRequest = ExecuteRelayRequest | PermissionRelayRequest;
+
+export interface ExecuteRelayResponse {
+  kind?: "execute";
   ok: boolean;
   text?: string;
   error?: string;
 }
-export interface ClientToolRelayRequest {
-  id: string;
-  toolCallId: string;
-  toolName: string;
-  input: unknown;
-  spec: ResolvedToolSpec;
+export type RelayResponse = ExecuteRelayResponse;
+export type PermissionRelayVerdict = "allow" | "deny" | "pendingApproval";
+export interface PermissionRelayResponse {
+  kind: "permission";
+  ok: boolean;
+  verdict: PermissionRelayVerdict;
+  reason?: string;
 }
+export type RelayRecordResponse =
+  ExecuteRelayResponse | PermissionRelayResponse;
 export interface RelayPermissions {
   /** False when the harness raises its own gates first (Claude); the relay then executes
    *  what reaches it. True when the relay is the only gate (Pi). */
@@ -93,12 +125,7 @@ export interface RelayPermissions {
     toolCallId: string;
     toolName: string;
     args: unknown;
-  }) => void;
-}
-
-export interface ClientToolRelay {
-  onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
-  onPause?: (request: ClientToolRelayRequest) => void;
+  }) => { emitted: boolean };
 }
 const PAUSED = Symbol("paused");
 
@@ -107,8 +134,26 @@ export function sanitizeRelayId(id: string): string {
   return id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120) || "tool";
 }
 
-export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+export const sleep = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms));
 
+export function parsePermissionRelayResponse(
+  value: unknown,
+): PermissionRelayResponse | undefined {
+  if (!isRecord(value)) return undefined;
+  if (value.kind !== "permission") return undefined;
+  if (typeof value.ok !== "boolean") return undefined;
+  if (!isPermissionRelayVerdict(value.verdict)) return undefined;
+  if (value.reason !== undefined && typeof value.reason !== "string") {
+    return undefined;
+  }
+  return {
+    kind: "permission",
+    ok: value.ok,
+    verdict: value.verdict,
+    ...(value.reason === undefined ? {} : { reason: value.reason }),
+  };
+}
 
 export interface RelayHost {
   list: (dir: string) => Promise<string[]>;
@@ -147,7 +192,9 @@ export function sandboxRelayHost(sandbox: any): RelayHost {
     },
     read: async (path) => {
       const bytes = await sandbox.readFsFile({ path });
-      return typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+      return typeof bytes === "string"
+        ? bytes
+        : new TextDecoder().decode(bytes);
     },
     write: async (path, contents) => {
       await sandbox.writeFsFile({ path }, contents);
@@ -157,7 +204,7 @@ export function sandboxRelayHost(sandbox: any): RelayHost {
 
 async function executeRelayedTool(
   spec: ResolvedToolSpec,
-  req: RelayRequest,
+  req: ExecuteRelayRequest,
   callback: ToolCallbackContext | undefined,
   permissions: RelayPermissions,
   runContext: RunContext | undefined,
@@ -166,7 +213,9 @@ async function executeRelayedTool(
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
     if (!clientToolRelay) {
-      throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
+      throw new Error(
+        `client tool '${spec.name}' is browser-fulfilled and cannot be executed`,
+      );
     }
     const toolCallId = req.toolCallId;
     const request = {
@@ -198,9 +247,9 @@ async function executeRelayedTool(
     const verdict = permissions.decide(gate);
     if (verdict.kind === "deny") {
       if (spec.permission === "deny") {
-        return `Tool '${spec.name}' is denied by policy.`;
+        return authoredDenyReason(spec.name);
       }
-      return `Tool '${spec.name}' is denied by the permission policy.`;
+      return permissionPolicyDenyReason(spec.name);
     }
     if (verdict.kind === "pendingApproval") {
       permissions.onPendingApproval({
@@ -217,7 +266,7 @@ async function executeRelayedTool(
 
 async function executeAllowedRelayedTool(
   spec: ResolvedToolSpec,
-  req: RelayRequest,
+  req: ExecuteRelayRequest,
   callback: ToolCallbackContext | undefined,
   runContext: RunContext | undefined,
 ): Promise<string> {
@@ -260,6 +309,93 @@ async function executeAllowedRelayedTool(
  * the in-sandbox extension is waiting on. Returns `stop()` to end the loop and drain any
  * in-flight executions; call it once the prompt resolves.
  */
+function permissionPolicyDenyReason(toolName: string): string {
+  return `Tool '${toolName}' is denied by the permission policy.`;
+}
+
+function authoredDenyReason(toolName: string): string {
+  return `Tool '${toolName}' is denied by policy.`;
+}
+
+function permissionProtocolMismatchReason(): string {
+  return "Permission check denied because of a runner/extension version mismatch.";
+}
+
+function logPermissionRelayError(message: string): void {
+  process.stderr.write(`[tool-relay] ERROR ${message}\n`);
+}
+
+function permissionDenyResponse(reason: string): PermissionRelayResponse {
+  return { kind: "permission", ok: true, verdict: "deny", reason };
+}
+
+function isPermissionRelayVerdict(
+  value: unknown,
+): value is PermissionRelayVerdict {
+  return value === "allow" || value === "deny" || value === "pendingApproval";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function handlePermissionRelayRequest(
+  req: Partial<PermissionRelayRequest> & {
+    kind: "permission";
+    protocol?: unknown;
+  },
+  fallbackId: string,
+  permissions: RelayPermissions,
+): Promise<PermissionRelayResponse> {
+  const toolName =
+    typeof req.toolName === "string" ? req.toolName : "<unknown>";
+  if (req.protocol !== RELAY_PERMISSION_PROTOCOL) {
+    logPermissionRelayError(
+      `permission protocol mismatch for ${toolName}: got ${JSON.stringify(
+        req.protocol,
+      )}, expected ${RELAY_PERMISSION_PROTOCOL}; denying`,
+    );
+    return permissionDenyResponse(permissionProtocolMismatchReason());
+  }
+
+  const identity = piBuiltinIdentity(toolName);
+  if (!identity) {
+    logPermissionRelayError(
+      `unknown builtin permission tool ${toolName}; denying`,
+    );
+    return permissionDenyResponse(permissionPolicyDenyReason(toolName));
+  }
+
+  const gate: GateDescriptor = {
+    executor: "harness",
+    toolName: identity.ruleName,
+    readOnlyHint: identity.readOnly,
+    args: req.args,
+  };
+  const verdict = permissions.decide(gate);
+  if (verdict.kind === "allow") {
+    return { kind: "permission", ok: true, verdict: "allow" };
+  }
+  if (verdict.kind === "deny") {
+    return permissionDenyResponse(permissionPolicyDenyReason(toolName));
+  }
+
+  const pending = permissions.onPendingApproval({
+    toolCallId:
+      typeof req.toolCallId === "string" ? req.toolCallId : fallbackId,
+    toolName,
+    args: req.args,
+  });
+  return {
+    kind: "permission",
+    ok: true,
+    verdict: "pendingApproval",
+    reason: pending.emitted
+      ? `Waiting for approval of ${toolName}.`
+      : "Another approval is pending; retry after it resolves.",
+  };
+}
+
 export function startToolRelay(
   host: RelayHost,
   relayDir: string,
@@ -276,27 +412,51 @@ export function startToolRelay(
 
   const handle = async (reqName: string): Promise<void> => {
     const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
-    let res: RelayResponse;
+    let res: RelayRecordResponse;
+    let permissionReqName: string | undefined;
     try {
       const raw = await host.read(`${relayDir}/${reqName}`);
       const req = JSON.parse(raw) as RelayRequest;
-      const spec = specsByName.get(req.toolName);
-      if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
-      const text = await executeRelayedTool(
-        spec,
-        { ...req, toolCallId: req.toolCallId ?? id },
-        callback,
-        permissions,
-        runContext,
-        clientToolRelay,
-      );
-      if (text === PAUSED) return;
-      res = { ok: true, text };
+      if (req.kind === "permission") {
+        permissionReqName =
+          typeof req.toolName === "string" ? req.toolName : undefined;
+        res = await handlePermissionRelayRequest(req, id, permissions);
+      } else {
+        const spec = specsByName.get(req.toolName);
+        if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
+        const text = await executeRelayedTool(
+          spec,
+          { ...req, toolCallId: req.toolCallId ?? id },
+          callback,
+          permissions,
+          runContext,
+          clientToolRelay,
+        );
+        if (text === PAUSED) return;
+        res = { ok: true, text };
+      }
     } catch (err) {
-      res = { ok: false, error: err instanceof Error ? err.message : String(err) };
+      if (permissionReqName !== undefined) {
+        logPermissionRelayError(
+          `permission request for ${permissionReqName} failed: ${
+            err instanceof Error ? err.message : String(err)
+          }; denying`,
+        );
+        res = permissionDenyResponse(
+          permissionPolicyDenyReason(permissionReqName),
+        );
+      } else {
+        res = {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
     }
     try {
-      await host.write(`${relayDir}/${id}${RELAY_RES_SUFFIX}`, JSON.stringify(res));
+      await host.write(
+        `${relayDir}/${id}${RELAY_RES_SUFFIX}`,
+        JSON.stringify(res),
+      );
     } catch {
       // The extension will time out and surface a tool error; nothing else to do here.
     }
