@@ -22,11 +22,19 @@ import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
 import {useCreateAgent} from "./hooks/useCreateAgent"
+import {useIdeHandoffModal} from "./hooks/useIdeHandoffModal"
 import {useTemplateSelect} from "./hooks/useTemplateSelect"
 
 const AgentHome: React.FC = () => {
     const composerRef = useRef<RichChatInputHandle>(null)
-    const {onCreate, onContinueInIde} = useAgentHomeActions(composerRef)
+    const {onCreate} = useAgentHomeActions(composerRef)
+    // "Continue in IDE" opens the IDE-handoff modal with the current composer text (the default,
+    // non-playground behavior; the experimental playground onboarding uses a streamed bubble instead).
+    const ideModal = useIdeHandoffModal()
+    const onContinueInIde = useCallback(
+        () => ideModal.openWith(composerRef.current?.getMarkdown().trim() ?? ""),
+        [ideModal],
+    )
     const {firstRunOverride} = useAgentHomeVariants()
     const router = useRouter()
     const {baseAppURL} = useAtomValue(urlAtom)
@@ -133,6 +141,7 @@ const AgentHome: React.FC = () => {
                 onClose={() => setSetupTemplate(null)}
                 onCreate={handleTemplateCreate}
             />
+            {ideModal.node}
         </PageLayout>
     )
 }
