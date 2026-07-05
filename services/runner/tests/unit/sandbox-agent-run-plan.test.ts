@@ -506,13 +506,38 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
     });
 
-    it("allows claude x daytona x client-only tools (browser-fulfilled, not routed through the channel)", () => {
-      // `client` tools are excluded from `executableToolSpecsForRun` — they are fulfilled by the
-      // browser across a turn boundary and were never advertised over the internal tool-MCP
-      // channel (`tool-mcp-http.ts` `tools/list` filters them out too), so they carry no F1 gap.
+    it("refuses claude x daytona x client-only tools (they ride the MCP channel now)", () => {
+      // Client tools are delivered to Claude over the same internal loopback MCP channel as
+      // gateway tools (advertised in tools/list, paused in tools/call). On a remote sandbox that
+      // channel is unreachable, so a client tool is exactly as undeliverable as a gateway tool:
+      // the model would never see it. The old exemption (client tools "not routed through the
+      // channel") is gone; the gate now counts ALL custom tools.
+      let created = false;
       const result = buildRunPlan(
         {
           harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => {
+            created = true;
+            return "/home/sandbox/agenta-fixed";
+          },
+        },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.equal(created, false, "fails before any cwd is created (up-front gate)");
+    });
+
+    it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
+      const result = buildRunPlan(
+        {
+          harness: "pi_agenta",
           sandbox: "daytona",
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "request_connection", kind: "client" }],

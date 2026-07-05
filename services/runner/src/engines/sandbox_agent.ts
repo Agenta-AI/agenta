@@ -40,8 +40,15 @@ import {
   ApprovalResponder,
   ConversationDecisions,
   extractApprovalDecisions,
+  extractClientToolOutputs,
+  type ClientToolOutcome,
   type Responder,
 } from "../responder.ts";
+import type { ClientToolRelay } from "../tools/relay.ts";
+import {
+  buildClientToolRelay,
+  createToolCallCorrelationIndex,
+} from "./sandbox_agent/client-tools.ts";
 import {
   type AgentRunRequest,
   type AgentRunResult,
@@ -73,7 +80,6 @@ import {
   decide,
   PendingApprovalLatch,
   permissionsFromRequest,
-  type GateDescriptor,
 } from "../permission-plan.ts";
 import { attachPermissionResponder } from "./sandbox_agent/acp-interactions.ts";
 import {
@@ -415,6 +421,10 @@ export async function runSandboxAgent(
   // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
   // harness with executable tools; a no-op otherwise). Released in the `finally`.
   let closeToolMcp: (() => Promise<void>) | undefined;
+  // Aborts any in-flight loopback `tools/call` (a paused Claude client tool) on pause/teardown,
+  // so its handler is torn down deterministically and cannot write a result after the turn ends.
+  // Fired by the pause controller's destroy path and, as a backstop, by the `finally`.
+  const mcpAbort = new AbortController();
   // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
   // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
   let mountedCwd: string | undefined;
@@ -616,6 +626,23 @@ export async function runSandboxAgent(
       log: logger,
     });
 
+    // Correlate a Claude MCP `tools/call` (name + args only) to the real ACP tool-call id the
+    // event stream surfaces, so a paused `client_tool` widget attaches to Claude's tool bubble.
+    const toolCallIndex = createToolCallCorrelationIndex();
+    // The shared client-tool relay is only built AFTER the session/model resolve (it needs the
+    // responder + otel run + pause plumbing). But the internal MCP server is built HERE (its URL
+    // is handed to createSession) and pauses client tools through that relay. A `tools/call` can
+    // only arrive during `session.prompt()` — long after the relay is wired — so the server
+    // captures a DEFERRED reference that resolves to the real relay before any call lands.
+    let clientToolRelay: ClientToolRelay | undefined;
+    const deferredClientToolRelay: ClientToolRelay = {
+      onClientTool: (req) =>
+        clientToolRelay
+          ? clientToolRelay.onClientTool(req)
+          : Promise.resolve("deny" as ClientToolOutcome),
+      onPause: (req) => clientToolRelay?.onPause?.(req),
+    };
+
     const sessionMcp = await buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,
@@ -626,6 +653,11 @@ export async function runSandboxAgent(
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
+      // Local Claude only: lets the internal channel advertise + pause `client` tools. The
+      // deferred ref resolves before any `tools/call` arrives. buildSessionMcpServers ignores it
+      // for Pi / Daytona (no internal channel there).
+      clientToolRelay: deferredClientToolRelay,
+      signal: mcpAbort.signal,
       log: logger,
     });
     // Close the internal gateway-tool MCP server (if one started) when the run ends.
@@ -673,16 +705,24 @@ export async function runSandboxAgent(
       ],
     });
 
-    const pause = new PendingApprovalPauseController(() =>
-      sandbox.destroySession?.(session.id),
-    );
+    const pause = new PendingApprovalPauseController(() => {
+      // Abort any in-flight loopback `tools/call` (a paused Claude client tool) BEFORE the
+      // session teardown, so its handler cannot write a result after the turn ends.
+      mcpAbort.abort();
+      return sandbox.destroySession?.(session.id);
+    });
 
     session.onEvent((event: any) => {
       remountLocalCwdAfterRuntimeEnotconn(event);
       const payload = event?.payload;
       const update = payload?.params?.update ?? payload?.update;
-      if (update && !shouldSuppressPausedToolCallUpdate(update, pause)) {
-        run.handleUpdate(update);
+      if (update) {
+        // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's
+        // bubble (recorded even for suppressed frames; the index is first-write-wins).
+        toolCallIndex.record(update);
+        if (!shouldSuppressPausedToolCallUpdate(update, pause)) {
+          run.handleUpdate(update);
+        }
       }
     });
     const permissionPlan = permissionsFromRequest(request);
@@ -692,7 +732,10 @@ export async function runSandboxAgent(
         `[HITL] resume state: decisions=${JSON.stringify([...storedDecisionMap.keys()])}`,
       );
     }
-    const decisions = new ConversationDecisions(storedDecisionMap);
+    const decisions = new ConversationDecisions(
+      storedDecisionMap,
+      extractClientToolOutputs(request),
+    );
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
@@ -773,6 +816,21 @@ export async function runSandboxAgent(
       },
     });
 
+    // Resolve the ONE client-tool seam both delivery paths share: the Pi file relay (below)
+    // consumes it directly, and the Claude internal MCP server reaches it through the deferred
+    // ref captured above. Built here because it needs the responder, the otel run, and the pause
+    // plumbing. The correlation index is wired for Claude only — Pi's relay toolCallId is
+    // already exact, so it pauses with no index (behavior-preserving).
+    clientToolRelay = buildClientToolRelay({
+      responder,
+      run,
+      latch,
+      pause,
+      recordPendingInteraction,
+      toolCallIndex: plan.isPi ? undefined : toolCallIndex,
+      log: logger,
+    });
+
     if (plan.useToolRelay) {
       toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
@@ -783,59 +841,7 @@ export async function runSandboxAgent(
         request.toolCallback as ToolCallbackContext | undefined,
         relayPermissions,
         request.runContext,
-        {
-          onClientTool: async ({ id, toolCallId, toolName, input, spec }) => {
-            const gate: GateDescriptor = {
-              executor: "client",
-              toolName: spec.name,
-              specPermission: spec.permission,
-              readOnlyHint: spec.readOnly,
-              args: input,
-            };
-            const verdict = await responder.onClientTool(
-              {
-                id,
-                toolCallId,
-                gate,
-                raw: { spec },
-              },
-              { consume: true },
-            );
-            if (process.env.AGENTA_RUNNER_DEBUG_TOOLS) {
-              logger(
-                `[client-tool] ${toolName} id=${toolCallId} kind=${spec.kind} ` +
-                  `decision=${JSON.stringify(verdict).slice(0, 200)}`,
-              );
-            }
-            if (verdict.kind === "deny") return "deny";
-            if (verdict.kind === "fulfilled") return { output: verdict.output };
-            if (latch.tryAcquire()) {
-              pause.markPausedToolCall(toolCallId);
-              run.emitEvent({
-                type: "interaction_request",
-                id,
-                kind: "client_tool",
-                payload: {
-                  toolCallId,
-                  toolName,
-                  input,
-                  render: spec.render,
-                  toolCall: {
-                    id: toolCallId,
-                    toolCallId,
-                    name: toolName,
-                    rawInput: input,
-                    input,
-                    kind: spec.kind,
-                  },
-                },
-              });
-              recordPendingInteraction(id, toolName, input, "client_tool");
-            }
-            return "pendingApproval";
-          },
-          onPause: () => pause.pause(),
-        },
+        clientToolRelay,
       );
     }
 
@@ -944,6 +950,8 @@ export async function runSandboxAgent(
     await runtimeRemount?.catch(() => {});
     if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});
+    // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
+    mcpAbort.abort();
     await closeToolMcp?.().catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});

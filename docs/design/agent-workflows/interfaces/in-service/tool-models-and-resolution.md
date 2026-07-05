@@ -63,7 +63,8 @@ config (not markers); `resolve_tools` owns the tool-specific mapping.
 // code: sandboxed code with its named secrets injected into env
 { "kind": "code", "name": "...", "runtime": "python", "code": "...", "env": { "API_KEY": "..." } }
 
-// client: browser-fulfilled; filtered out of the runner's MCP tools/list
+// client: browser-fulfilled; advertised to the model (incl. over the local Claude MCP channel),
+// then PAUSED on call — never executed in the runner
 { "kind": "client", "name": "..." }
 ```
 

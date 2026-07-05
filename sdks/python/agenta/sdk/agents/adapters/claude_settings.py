@@ -26,8 +26,10 @@ when a human surface exists — so the tool's per-tool ``permission`` never reac
 that honors ``allow``. Emitting an ``allow`` rule here is the only way an ``allow`` tool actually
 runs on Claude instead of always parking. ``ask``/unset emits no allow rule (the gate stays raised
 -> HITL park preserved); ``deny`` emits a deny rule (which also closes a local-Claude execution
-gap). ``client`` tools are browser-fulfilled, never delivered over this channel, so they are
-excluded. The runner policy supplies the default permission when a tool has no explicit value.
+gap). ``client`` tools are browser-fulfilled but ARE delivered over this same channel (the runner
+advertises them on ``agenta-tools`` and pauses the ``tools/call``), so they get a rule too —
+allow unless denied; see :func:`_rules_from_tool_specs`. The runner policy supplies the default
+permission when a tool has no explicit value.
 """
 
 from __future__ import annotations
@@ -131,18 +133,28 @@ def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
 def _rules_from_tool_specs(
     tool_specs: Any, permission_default: PermissionMode
 ) -> Dict[str, List[str]]:
-    """Derive per-tool Claude rules from each resolved EXECUTABLE tool's Layer-3 ``permission`` (F-046).
+    """Derive per-tool Claude rules from each resolved tool's Layer-3 ``permission`` (F-046).
 
     Mirrors :func:`_rules_from_mcp_permissions`, but per-tool against the fixed internal server name
-    ``agenta-tools``: a callback/code tool is delivered to Claude as a tool of that MCP server, so
+    ``agenta-tools``: a resolved tool is delivered to Claude as a tool of that MCP server, so
     its rule is ``mcp__agenta-tools__<name>``. The standalone
     :func:`~agenta.sdk.agents.tools.models.effective_permission` ladder (explicit permission,
-    else read-only under ``allow_reads``, else the runner mode) routes it to the matching list. Unset tools
-    only render a rule when the runner mode needs an explicit Claude allow/deny rule. ``client``
-    tools are browser-fulfilled and never delivered over this channel, so they are excluded (this
-    mirrors the runner's ``mcp-bridge`` filter). Accepts a list
-    of :class:`~agenta.sdk.agents.tools.models.ToolSpec` or plain dicts (coerced to a spec so the
-    same permission ladder applies).
+    else read-only under ``allow_reads``, else the runner mode) routes an EXECUTABLE
+    (callback/code) tool to the matching list. Unset executable tools only render a rule when the
+    runner mode needs an explicit Claude allow/deny rule.
+
+    ``client`` tools (browser-fulfilled, e.g. ``request_connection``) ride this SAME channel:
+    the runner advertises them on ``agenta-tools`` and pauses their ``tools/call`` for the
+    browser. Their rule is **deny when the effective permission is deny, otherwise allow** —
+    including for an explicit ``ask`` and for unset. The runner-side pause seam is the
+    authoritative gate for a client tool: pausing for the browser IS the ask flow, so a
+    Claude-side ask rule would only duplicate that gate in a worse place (Claude's own prompt
+    fires before the runner ever sees the call, bypassing the pause path). Without an allow rule
+    the same thing happens: Claude's permission gate fires first and the call falls to the ACP
+    path instead of pausing over MCP.
+
+    Accepts a list of :class:`~agenta.sdk.agents.tools.models.ToolSpec` or plain dicts (coerced
+    to a spec so the same permission ladder applies).
     """
     # Lazy import: ``tools.models`` does not import this adapter, but keeping the import local
     # avoids loading the tool models when the claude adapter is used without resolved tools.
@@ -157,14 +169,20 @@ def _rules_from_tool_specs(
         except Exception:
             # A malformed/nameless spec contributes nothing (mirrors the MCP helper's name guard).
             continue
-        if spec.kind == "client":
-            continue
         permission = effective_permission(
             spec.permission, spec.read_only, permission_default
         )
+        rule = f"mcp__{INTERNAL_TOOL_MCP_SERVER}__{spec.name}"
+        if spec.kind == "client":
+            # Deny stays deny; everything else (allow, explicit ask, unset) renders allow: the
+            # runner pause seam is the authoritative ask for a client tool (see the docstring).
+            if permission == "deny":
+                deny.append(rule)
+            else:
+                allow.append(rule)
+            continue
         if spec.permission is None and permission == "ask":
             continue
-        rule = f"mcp__{INTERNAL_TOOL_MCP_SERVER}__{spec.name}"
         if permission == "allow":
             allow.append(rule)
         elif permission == "ask":

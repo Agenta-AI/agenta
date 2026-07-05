@@ -293,7 +293,12 @@ export interface HarnessCapabilities {
 export type RenderHint =
   | { kind: "component"; component: string }
   | { kind: "source"; runtime: "react" | "html"; source: string | string[] }
-  | { kind: "spec"; schema: string };
+  | { kind: "spec"; schema: string }
+  // `connect` requests the built-in connect widget: a `client` tool (e.g. `request_connection`)
+  // stamps it so the frontend renders the OAuth/API-key connect dialog when the tool pauses. No
+  // payload — the widget is fully described by the paused call's tool name + input. `wire.py` does
+  // not pin RenderHint (render rides as an opaque dict), so this member is TS-only.
+  | { kind: "connect" };
 
 export type AgentEvent =
   | { type: "message"; text: string }

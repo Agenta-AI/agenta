@@ -133,7 +133,7 @@ Either form is valid:
   "input_schema": {}, "secrets": ["API_KEY"],
   "permission": null, "render": null }
 
-// client: fulfilled by the browser; filtered out of the runner's MCP tools/list
+// client: fulfilled by the browser; advertised to the model, then paused on call (not executed)
 { "type": "client", "name": "pick_file", "description": "...", "input_schema": {},
   "permission": null, "render": null }
 

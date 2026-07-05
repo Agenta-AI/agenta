@@ -22,6 +22,7 @@
  */
 import type { ResolvedToolSpec } from "../protocol.ts";
 import type { McpServerHttp } from "../engines/sandbox_agent/mcp.ts";
+import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { startInternalToolMcpServer } from "./tool-mcp-http.ts";
 
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
@@ -73,10 +74,21 @@ export interface ToolMcpServersResult {
 
 const NO_OP_CLOSE = async (): Promise<void> => {};
 
+/** Options for the internal channel: the client-tool relay and the engine pause/teardown signal. */
+export interface BuildToolMcpServersOptions {
+  /** When set (local Claude), `client` tools are advertised and paused in `tools/call`. */
+  clientToolRelay?: ClientToolRelay;
+  /** Engine abort signal; destroys an in-flight `tools/call` on pause/teardown. */
+  signal?: AbortSignal;
+  log?: Log;
+}
+
 /**
- * Build the INTERNAL gateway-tool MCP channel: start a loopback HTTP MCP server advertising the
- * run's executable tools and return a `type: "http"` server entry pointing at it. An empty /
- * all-`client` spec list is a no-op (`{ servers: [], close }`), so the no-tools path is untouched.
+ * Build the INTERNAL tool MCP channel: start a loopback HTTP MCP server advertising the run's
+ * tools and return a `type: "http"` server entry pointing at it. An empty spec list is a no-op
+ * (`{ servers: [], close }`). `client` tools are included ONLY when a `clientToolRelay` is wired
+ * (local Claude), where the server's `tools/call` pauses them; without one they are dropped here
+ * (no pause path), so an all-`client` list with no relay stays a no-op as before.
  *
  * The returned `close()` MUST be called when the run ends (the engine does this in its `finally`)
  * to release the bound port. The channel carries no secret: the HTTP entry has empty `headers`,
@@ -85,15 +97,23 @@ const NO_OP_CLOSE = async (): Promise<void> => {};
 export async function buildToolMcpServers(
   specs: ResolvedToolSpec[],
   relayDir: string,
-  log: Log = () => {},
+  options: BuildToolMcpServersOptions = {},
 ): Promise<ToolMcpServersResult> {
+  const { clientToolRelay, signal, log = () => {} } = options;
   if (!specs || specs.length === 0) return { servers: [], close: NO_OP_CLOSE };
-  // `client` tools are browser-fulfilled and never go through this channel; only an executable
-  // (`code`/`callback`) spec needs delivering to the harness.
-  const executable = specs.filter((s) => (s.kind ?? "callback") !== "client");
-  if (executable.length === 0) return { servers: [], close: NO_OP_CLOSE };
+  // Without a relay, a `client` tool has no pause path over this channel, so drop it and deliver
+  // only executable (`code`/`callback`) specs. With a relay (local Claude), keep client tools —
+  // the server advertises them and pauses the call.
+  const deliverable = clientToolRelay
+    ? specs
+    : specs.filter((s) => (s.kind ?? "callback") !== "client");
+  if (deliverable.length === 0) return { servers: [], close: NO_OP_CLOSE };
 
-  const server = await startInternalToolMcpServer(executable, relayDir, log);
+  const server = await startInternalToolMcpServer(deliverable, relayDir, {
+    clientToolRelay,
+    signal,
+    log,
+  });
   return {
     servers: [
       {

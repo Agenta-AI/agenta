@@ -313,11 +313,48 @@ def test_deny_tool_renders_deny_rule():
     assert "allow" not in perms
 
 
-def test_client_tool_excluded():
-    # `client` tools are browser-fulfilled, never delivered over the `agenta-tools` channel, so
-    # they contribute no rule even with an explicit `allow`.
+def test_client_tool_allow_renders_allow_rule():
+    # `client` tools now ride the same `agenta-tools` channel (the runner advertises them and
+    # pauses their tools/call for the browser), so an explicit `allow` renders an allow rule —
+    # without it Claude's own gate fires first and the pause path is bypassed.
     spec = ClientToolSpec(name="ui_pick", description="d", permission="allow")
-    assert build_claude_settings_files(None, None, None, [spec]) == []
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["allow"] == [_rule("ui_pick")]
+    assert "ask" not in perms
+    assert "deny" not in perms
+
+
+def test_client_tool_unset_renders_allow_rule():
+    # Unset -> allow too: the runner-side pause seam is the authoritative gate (pausing for the
+    # browser IS the ask flow), so the Claude gate must stand down by default.
+    spec = ClientToolSpec(name="request_connection", description="d")
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["allow"] == [_rule("request_connection")]
+
+
+def test_client_tool_ask_renders_allow_rule():
+    # An explicit `ask` ALSO renders allow (not an ask rule): a Claude-side ask would duplicate
+    # the runner's pause gate in a worse place — the pause is the ask for a client tool.
+    spec = ClientToolSpec(name="ui_pick", description="d", permission="ask")
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["allow"] == [_rule("ui_pick")]
+    assert "ask" not in perms
+
+
+def test_client_tool_deny_renders_deny_rule():
+    # Deny stays deny — the one verdict Claude should enforce before the runner is reached.
+    spec = ClientToolSpec(name="ui_pick", description="d", permission="deny")
+    perms = _settings(build_claude_settings_files(None, None, None, [spec]))[
+        "permissions"
+    ]
+    assert perms["deny"] == [_rule("ui_pick")]
+    assert "allow" not in perms
 
 
 def test_tool_rules_merge_with_author_and_mcp():
@@ -347,7 +384,7 @@ def test_tool_rules_merge_with_author_and_mcp():
 
 def test_tool_rules_accept_plain_dicts():
     # The builder coerces plain wire dicts so the same permission ladder applies; a `client` dict
-    # is excluded.
+    # renders its allow-by-default rule alongside the executable tool's derived allow.
     perms = _settings(
         build_claude_settings_files(
             None,
@@ -365,4 +402,4 @@ def test_tool_rules_accept_plain_dicts():
             ],
         )
     )["permissions"]
-    assert perms["allow"] == [_rule("get_user")]
+    assert perms["allow"] == [_rule("get_user"), _rule("ui_pick")]

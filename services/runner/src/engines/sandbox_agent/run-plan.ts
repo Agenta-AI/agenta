@@ -270,16 +270,16 @@ export function buildRunPlan(
   }
 
   // F1 (audit finding, silent-tool-drop): a non-Pi harness on a remote sandbox has NO working
-  // delivery path for gateway/custom tools. The internal tool-MCP is loopback-only (unreachable
-  // from inside the sandbox), and the file-relay fallback has a sandbox-side writer only inside
-  // Pi's bundled extension. Before this gate the run proceeded, silently dropped every tool, and
+  // delivery path for ANY custom tool. The internal tool-MCP is loopback-only (unreachable from
+  // inside the sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's
+  // bundled extension. Before this gate the run proceeded, silently dropped every tool, and
   // still returned `ok:true`. Refuse up front, the way the other not-implemented gates above do,
   // and fail CLOSED for any non-local provider (see `isRemoteSandbox`) so a new remote provider
-  // cannot silently re-open F1. `executableToolSpecsForRun` excludes `client` tools
-  // (browser-fulfilled, never routed through this channel), matching what the internal MCP
-  // channel actually advertises; #4985 moves client tools onto that channel and owns tightening
-  // this exemption when it lands.
-  if (!isPi && isRemoteSandbox && executableToolSpecsForRun.length > 0) {
+  // cannot silently re-open F1. The gate counts ALL tools (`toolSpecs`), `client` kind included:
+  // client tools now ride the same internal MCP channel on local Claude (advertised + paused in
+  // `tools/call`), so on a remote sandbox they are exactly as undeliverable as gateway tools —
+  // the model would never see or be able to call them.
+  if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
     return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
   }
 
