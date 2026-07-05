@@ -11,7 +11,7 @@ import {
 } from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Spin, Typography} from "antd"
+import {Spin} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
@@ -259,7 +259,7 @@ const AnnotationSession = ({
     if (!queue) {
         return (
             <div className="flex items-center justify-center h-full py-20">
-                <Typography.Text type="secondary">Queue not found</Typography.Text>
+                <span className="text-muted-foreground">Queue not found</span>
             </div>
         )
     }

@@ -52,7 +52,7 @@ import {
     Eye,
     Plus,
 } from "@phosphor-icons/react"
-import {Button, Input, Skeleton, Tag, Tooltip, Typography, message} from "antd"
+import {Button, Input, Skeleton, Tag, Tooltip, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -102,7 +102,7 @@ const TestcaseDataCell = memo(function TestcaseDataCell({
     const value = testcase?.data?.[dataKey] ?? null
 
     if (value === null || value === undefined) {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     return (
@@ -266,7 +266,7 @@ const TraceInputKeyCell = memo(function TraceInputKeyCell({
     const value = getTraceInputDisplayValue(inputs, inputKey)
 
     if (!effectiveTraceId || value === null || value === undefined) {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     return (
@@ -308,7 +308,7 @@ const TraceInputCell = memo(function TraceInputCell({
     )
 
     if (!effectiveTraceId || Object.keys(displayInputs).length === 0) {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     return (
@@ -339,7 +339,7 @@ const TraceOutputCell = memo(function TraceOutputCell({
     const outputs = useAtomValue(traceOutputsAtomFamily(effectiveTraceId || null))
 
     if (!effectiveTraceId || outputs === null || outputs === undefined) {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     return (
@@ -368,22 +368,17 @@ const TraceNameCell = memo(function TraceNameCell({
     const traceQuery = useAtomValue(traceEntityAtomFamily(effectiveTraceId || null))
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(effectiveTraceId || null))
 
-    if (!effectiveTraceId) return <Typography.Text type="secondary">—</Typography.Text>
+    if (!effectiveTraceId) return <span className="text-muted-foreground">—</span>
     if (traceQuery.isPending)
         return <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
 
     return (
         <div className="flex items-center gap-1.5">
-            <Typography.Text className="text-xs font-medium" ellipsis>
-                {rootSpan?.span_name || "—"}
-            </Typography.Text>
+            <span className="text-xs font-medium truncate">{rootSpan?.span_name || "—"}</span>
             {rootSpan?.span_type && (
-                <Typography.Text
-                    type="secondary"
-                    className="text-[10px] px-1 py-0.5 rounded bg-[var(--ant-color-fill-tertiary)] shrink-0"
-                >
+                <span className="text-[10px] px-1 py-0.5 rounded bg-[var(--ant-color-fill-tertiary)] shrink-0 text-muted-foreground">
                     {rootSpan.span_type}
-                </Typography.Text>
+                </span>
             )}
         </div>
     )
@@ -552,7 +547,7 @@ const AnnotationColumnCell = memo(function AnnotationColumnCell({
             chatPreference={chatPreference}
         />
     ) : (
-        <Typography.Text type="secondary">—</Typography.Text>
+        <span className="text-muted-foreground">—</span>
     )
 
     if (PopoverWrapper && hasAnnotationValue) {
@@ -632,7 +627,7 @@ const AnnotationOutputKeyCell = memo(function AnnotationOutputKeyCell({
             chatPreference="output"
         />
     ) : (
-        <Typography.Text type="secondary">—</Typography.Text>
+        <span className="text-muted-foreground">—</span>
     )
 
     if (PopoverWrapper && hasAnnotationValue) {
@@ -1070,9 +1065,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
             onClose={onClose}
             title={
                 <div className="w-full flex items-center gap-2">
-                    <Typography.Text className="whitespace-nowrap">
-                        Annotate Scenario
-                    </Typography.Text>
+                    <span className="whitespace-nowrap">Annotate Scenario</span>
                     {/* <SessionNavigation /> */}
                 </div>
             }

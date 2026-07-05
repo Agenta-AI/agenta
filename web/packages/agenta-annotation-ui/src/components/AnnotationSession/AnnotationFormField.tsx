@@ -10,7 +10,7 @@
 import {memo, useCallback, type ReactNode} from "react"
 
 import {X} from "@phosphor-icons/react"
-import {Button, Input, InputNumber, Radio, Select, Slider, Typography} from "antd"
+import {Button, Input, InputNumber, Radio, Select, Slider} from "antd"
 
 import type {AnnotationMetricField} from "../../hooks/useAnnotationFormState"
 
@@ -90,7 +90,7 @@ const FieldLabelRow = memo(function FieldLabelRow({
 }) {
     return (
         <div className="flex items-center justify-between gap-2">
-            <Typography.Text className="playground-property-control-label">{label}</Typography.Text>
+            <span className="playground-property-control-label">{label}</span>
             <div className="flex items-center gap-1">
                 {trailing}
                 <ClearButton onClear={onClear} disabled={clearDisabled} />

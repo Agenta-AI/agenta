@@ -2,7 +2,7 @@ import {memo} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
 import {Tray} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
@@ -21,14 +21,12 @@ const EmptyQueueState = memo(function EmptyQueueState({onViewChange}: EmptyQueue
             </div>
 
             <div className="flex flex-col items-center gap-2 text-center">
-                <Typography.Text strong className="!text-base">
-                    There&apos;s nothing to see here
-                </Typography.Text>
-                <Typography.Text type="secondary" className="text-sm">
+                <span className="!text-base font-semibold">There&apos;s nothing to see here</span>
+                <span className="text-sm text-muted-foreground">
                     Currently there are no runs &amp; annotations in this queue,
                     <br />
                     {isTraces ? "please add runs from traces." : "please add items from test sets."}
-                </Typography.Text>
+                </span>
             </div>
 
             <div className="flex items-center gap-2">

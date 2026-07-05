@@ -354,7 +354,9 @@ function SubscriptionsList({
             okText: "Delete",
             okButtonProps: {danger: true},
             cancelText: "Cancel",
-            onOk: () => subscription.id && onDeleteSubscription(subscription.id),
+            onOk: () => {
+                if (subscription.id) onDeleteSubscription(subscription.id)
+            },
         })
 
     return (

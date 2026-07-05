@@ -2,7 +2,6 @@ import {ComponentProps, ReactNode, useMemo, useState} from "react"
 
 import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Divider} from "antd"
 import clsx from "clsx"

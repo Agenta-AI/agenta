@@ -17,13 +17,11 @@ import {EntityDeleteModal} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowSquareOut, CaretDown} from "@phosphor-icons/react"
-import {Button, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
+import {Button, Form, Input, Segmented, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
 import AssignmentsCell from "../AnnotationQueuesView/cells/AssignmentsCell"
-
-const {Text} = Typography
 
 // ============================================================================
 // SECTION PRIMITIVES (matching eval run config pattern)
@@ -61,7 +59,7 @@ function CollapsibleSection({
                 onClick={toggle}
                 onKeyDown={handleKeyDown}
             >
-                <Text className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</Text>
+                <span className="text-sm font-semibold text-[var(--ag-c-344054)]">{title}</span>
                 <Button
                     type="text"
                     size="small"
@@ -86,7 +84,7 @@ function CollapsibleSection({
 }
 
 function EmptyValue() {
-    return <Text type="secondary">—</Text>
+    return <span className="text-muted-foreground">—</span>
 }
 
 // ============================================================================
@@ -414,7 +412,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                             {/* Description */}
                             {description && (
                                 <Form.Item label="Description" style={{marginBottom: 12}}>
-                                    <Text type="secondary">{description}</Text>
+                                    <span className="text-muted-foreground">{description}</span>
                                 </Form.Item>
                             )}
 
@@ -502,7 +500,9 @@ const EvaluatorsSection = memo(function EvaluatorsSection() {
     if (evaluatorIds.length === 0) {
         return (
             <SectionCard>
-                <Text type="secondary">No evaluators configured for this queue.</Text>
+                <span className="text-muted-foreground">
+                    No evaluators configured for this queue.
+                </span>
             </SectionCard>
         )
     }
@@ -661,12 +661,12 @@ const DeleteSection = memo(function DeleteSection({
             <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[var(--ag-c-FEE4E2)] bg-[var(--ag-c-FFFBFA)] dark:border-[var(--ant-red-3)] dark:bg-[var(--ant-red-1)]">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex flex-col gap-1">
-                        <Text className="text-sm font-semibold text-[var(--ag-c-B42318)]">
+                        <span className="text-sm font-semibold text-[var(--ag-c-B42318)]">
                             Delete queue
-                        </Text>
-                        <Text type="secondary">
+                        </span>
+                        <span className="text-muted-foreground">
                             Permanently remove this annotation queue and return to the queue list.
-                        </Text>
+                        </span>
                     </div>
 
                     <Button danger onClick={handleDeleteClick}>
@@ -698,7 +698,7 @@ const ConfigurationView = memo(function ConfigurationView({queueId}: Configurati
     if (!queue) {
         return (
             <div className="flex items-center justify-center flex-1 py-20">
-                <Text type="secondary">Queue not found</Text>
+                <span className="text-muted-foreground">Queue not found</span>
             </div>
         )
     }
@@ -721,7 +721,7 @@ const ConfigurationView = memo(function ConfigurationView({queueId}: Configurati
                     <SectionCard>
                         <Form layout="vertical" requiredMark={false}>
                             <Form.Item label="Number of reviews per run" style={{marginBottom: 12}}>
-                                <Text>{repeats}</Text>
+                                <span>{repeats}</span>
                             </Form.Item>
 
                             <Form.Item label="Assignees" style={{marginBottom: 0}}>

@@ -5,7 +5,7 @@
  * This modal supports both "load" (initial connection) and "edit" (modify selection) modes.
  */
 
-import type {ModalProps} from "antd"
+import type {EnhancedModalProps} from "@agenta/ui/components/modal"
 
 // ============================================================================
 // CORE TYPES
@@ -52,7 +52,7 @@ export interface TestsetSelectionPayload {
 /**
  * Props for the main TestsetSelectionModal
  */
-export interface TestsetSelectionModalProps extends Omit<ModalProps, "onCancel"> {
+export interface TestsetSelectionModalProps extends Omit<EnhancedModalProps, "onCancel"> {
     /** Loadable ID for context */
     loadableId: string
     /** Current connected testset ID (for edit mode picker selection) */

@@ -16,7 +16,7 @@ import {useModifierKey} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {ArrowSquareOut, CaretLeft, CaretRight, Copy, Plus} from "@phosphor-icons/react"
-import {Button, Select, Switch, Tag, Tooltip, Typography} from "antd"
+import {Button, Select, Switch, Tag, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
@@ -209,16 +209,12 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                         checked={hideCompletedInFocus}
                         onChange={setHideCompletedInFocus}
                     />
-                    <Typography.Text type="secondary" className="text-xs">
-                        Hide marked complete
-                    </Typography.Text>
+                    <span className="text-xs text-muted-foreground">Hide marked complete</span>
                 </label>
 
                 <label className="inline-flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
                     <Switch size="small" checked={focusAutoNext} onChange={setFocusAutoNext} />
-                    <Typography.Text type="secondary" className="text-xs">
-                        Auto next
-                    </Typography.Text>
+                    <span className="text-xs text-muted-foreground">Auto next</span>
                 </label>
 
                 <div className="flex items-center gap-2">

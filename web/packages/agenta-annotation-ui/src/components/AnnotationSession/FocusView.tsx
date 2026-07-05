@@ -13,7 +13,7 @@ import {annotationFormController, annotationSessionController} from "@agenta/ann
 import type {SessionView} from "@agenta/annotation"
 import {message} from "@agenta/ui/app-message"
 import {Check, Plus} from "@phosphor-icons/react"
-import {Button, Skeleton, Typography} from "antd"
+import {Button, Skeleton} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
@@ -69,14 +69,12 @@ const AllCaughtUp = memo(function AllCaughtUp({
             </div>
 
             <div className="flex flex-col items-center gap-2 text-center">
-                <Typography.Text strong className="!text-base">
-                    You&apos;re all caught up
-                </Typography.Text>
-                <Typography.Text type="secondary" className="text-sm">
+                <span className="!text-base font-semibold">You&apos;re all caught up</span>
+                <span className="text-sm text-muted-foreground">
                     All runs in this queue have been annotated.
                     <br />
                     {isTraces ? "Add more from Tracing." : "Add more from Test Sets."}
-                </Typography.Text>
+                </span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -186,9 +184,9 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
         return (
             <div className="flex flex-col flex-1 min-h-0">
                 <div className="flex-1 bg-[var(--ag-c-F5F7FA)] flex items-center justify-center">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         Failed to load annotation scenarios
-                    </Typography.Text>
+                    </span>
                 </div>
             </div>
         )
@@ -198,7 +196,7 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
         return (
             <div className="flex flex-col flex-1 min-h-0">
                 <div className="flex-1 bg-[var(--ag-c-F5F7FA)] flex items-center justify-center">
-                    <Typography.Text type="secondary">No scenarios available</Typography.Text>
+                    <span className="text-muted-foreground">No scenarios available</span>
                 </div>
             </div>
         )
@@ -213,10 +211,10 @@ const FocusView = memo(function FocusView({queueId, onCompleted, onViewChange}: 
             <div className="flex flex-col flex-1 min-h-0">
                 <div className="flex-1 bg-[var(--ag-c-F5F7FA)] flex items-center justify-center">
                     <div className="flex flex-col items-center gap-2 text-center">
-                        <Typography.Text strong>No scenarios available</Typography.Text>
-                        <Typography.Text type="secondary" className="text-sm">
+                        <span className="font-semibold">No scenarios available</span>
+                        <span className="text-sm text-muted-foreground">
                             Adjust the focus switches to continue annotating.
-                        </Typography.Text>
+                        </span>
                     </div>
                 </div>
             </div>

@@ -42,7 +42,10 @@ import {ModalContentLayout} from "../presentational/layout/ModalContentLayout"
 
 export type SelectionModalSize = "small" | "medium" | "large"
 
-export interface SelectionModalShellProps extends Omit<EnhancedModalProps, "children" | "styles"> {
+export interface SelectionModalShellProps extends Omit<
+    EnhancedModalProps,
+    "children" | "styles" | "content"
+> {
     /**
      * Left panel content (picker, navigation, steps)
      */

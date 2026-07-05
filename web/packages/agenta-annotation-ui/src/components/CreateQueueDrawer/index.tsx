@@ -10,7 +10,7 @@ import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, message} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Divider, Form, Input, Select, Typography} from "antd"
+import {Divider, Form, Input, Select} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
@@ -64,11 +64,7 @@ const INITIAL_FORM_VALUES: Pick<FormValues, "kind"> = {
 const COMPACT_FORM_ITEM_CLASS = "!mb-0"
 
 function SectionTitle({children}: {children: React.ReactNode}) {
-    return (
-        <Typography.Title level={5} className="!m-0 !font-semibold">
-            {children}
-        </Typography.Title>
-    )
+    return <h5 className="!m-0 !font-semibold text-sm font-semibold leading-normal">{children}</h5>
 }
 
 function FieldLabel({
@@ -80,11 +76,9 @@ function FieldLabel({
 }) {
     return (
         <div className="flex flex-col">
-            <Typography.Text strong>{children}</Typography.Text>
+            <span className="font-semibold">{children}</span>
             {description ? (
-                <Typography.Text type="secondary" className="!text-xs !leading-5">
-                    {description}
-                </Typography.Text>
+                <span className="!text-xs !leading-5 text-muted-foreground">{description}</span>
             ) : null}
         </div>
     )

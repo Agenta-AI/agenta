@@ -302,7 +302,9 @@ function SchedulesList({
             okText: "Delete",
             okButtonProps: {danger: true},
             cancelText: "Cancel",
-            onOk: () => schedule.id && onDeleteSchedule(schedule.id),
+            onOk: () => {
+                if (schedule.id) onDeleteSchedule(schedule.id)
+            },
         })
 
     return (

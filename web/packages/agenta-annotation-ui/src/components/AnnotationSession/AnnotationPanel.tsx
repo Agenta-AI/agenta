@@ -19,7 +19,7 @@ import type {AnnotationMetricField} from "@agenta/annotation"
 import {message} from "@agenta/ui/app-message"
 import {Editor} from "@agenta/ui/editor"
 import {Info} from "@phosphor-icons/react"
-import {Alert, Button, Collapse, Popover, Tag, Typography} from "antd"
+import {Alert, Button, Collapse, Popover, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationFormState} from "../../hooks/useAnnotationFormState"
@@ -54,9 +54,9 @@ const EvaluatorSection = memo(function EvaluatorSection({
 
     if (fieldEntries.length === 0) {
         return (
-            <Typography.Text type="secondary" className="text-sm py-2 block">
+            <span className="text-sm py-2 block text-muted-foreground">
                 No annotation fields available
-            </Typography.Text>
+            </span>
         )
     }
 
@@ -192,18 +192,18 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     key: slug,
                     label: (
                         <div className="flex items-center justify-between w-full">
-                            <Typography.Text
+                            <span
                                 className="truncate max-w-[50%] text-start"
                                 title={evaluator.name ?? slug}
                             >
                                 {evaluator.name ?? slug}
-                            </Typography.Text>
-                            <Typography.Text
+                            </span>
+                            <span
                                 className="text-[var(--ag-c-758391)] truncate max-w-[40%] text-end"
                                 title={slug}
                             >
                                 {slug}
-                            </Typography.Text>
+                            </span>
                         </div>
                     ),
                     children: (
@@ -220,7 +220,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
     const panelHeader = (
         <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
             <div className="flex items-center gap-1">
-                <Typography.Text className="font-medium">Annotations</Typography.Text>
+                <span className="font-medium">Annotations</span>
                 {queueDescription && (
                     <Popover
                         trigger="click"
@@ -266,7 +266,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
             <div className="flex flex-col h-full">
                 {panelHeader}
                 <div className="flex-1 flex items-center justify-center p-4">
-                    <Typography.Text type="secondary">Loading evaluators...</Typography.Text>
+                    <span className="text-muted-foreground">Loading evaluators...</span>
                 </div>
             </div>
         )
@@ -277,9 +277,9 @@ const AnnotationPanel = memo(function AnnotationPanel({
             <div className="flex flex-col h-full border-l border-solid border-[var(--ant-color-border-secondary)]">
                 {panelHeader}
                 <div className="flex-1 flex items-center justify-center p-4">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         Could not load evaluator schemas for this queue
-                    </Typography.Text>
+                    </span>
                 </div>
             </div>
         )
@@ -290,9 +290,9 @@ const AnnotationPanel = memo(function AnnotationPanel({
             <div className="flex flex-col h-full">
                 {panelHeader}
                 <div className="flex-1 flex items-center justify-center p-4">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         No evaluators configured for this queue
-                    </Typography.Text>
+                    </span>
                 </div>
             </div>
         )

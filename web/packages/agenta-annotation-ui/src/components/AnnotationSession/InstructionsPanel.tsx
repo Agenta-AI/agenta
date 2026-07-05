@@ -8,7 +8,7 @@
 import {memo, useState} from "react"
 
 import {CaretDown, Info} from "@phosphor-icons/react"
-import {Popover, Typography} from "antd"
+import {Popover} from "antd"
 
 interface QueueDescriptionPanelProps {
     description: string
@@ -36,9 +36,9 @@ const QueueDescriptionPanel = memo(function QueueDescriptionPanel({
                             maxHeight: "min(320px, calc(100vh - 160px))",
                         }}
                     >
-                        <Typography.Text className="block whitespace-pre-wrap text-sm leading-6 text-[var(--ant-color-text)]">
+                        <span className="block whitespace-pre-wrap text-sm leading-6 text-[var(--ant-color-text)]">
                             {description}
-                        </Typography.Text>
+                        </span>
                     </div>
                 }
             >
@@ -48,9 +48,9 @@ const QueueDescriptionPanel = memo(function QueueDescriptionPanel({
                     className="flex items-center gap-2 w-full px-4 py-2 text-left bg-[var(--ant-color-fill-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)] transition-colors cursor-pointer border-none"
                 >
                     <Info size={14} className="shrink-0 text-[var(--ag-c-758391)]" />
-                    <Typography.Text type="secondary" className="text-xs font-medium flex-1">
+                    <span className="text-xs font-medium flex-1 text-muted-foreground">
                         Description
-                    </Typography.Text>
+                    </span>
                     <CaretDown
                         size={12}
                         className={`text-[var(--ag-c-758391)] transition-transform ${open ? "rotate-180" : ""}`}

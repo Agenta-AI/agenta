@@ -9,7 +9,6 @@ import {memo, useCallback, useEffect, useRef} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
 import {Check, Circle} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 // ============================================================================
@@ -68,13 +67,12 @@ const ScenarioListItem = memo(function ScenarioListItem({
             </span>
 
             {/* Scenario number */}
-            <Typography.Text
-                className={`text-xs ${isCurrent ? "font-medium" : ""}`}
-                ellipsis
+            <span
+                className={`text-xs ${isCurrent ? "font-medium" : ""} truncate`}
                 title={`Scenario ${index + 1}`}
             >
                 {index + 1}
-            </Typography.Text>
+            </span>
         </button>
     )
 })
@@ -101,9 +99,9 @@ const ScenarioListSidebar = memo(function ScenarioListSidebar() {
         <div className="flex flex-col h-full border-r border-solid border-[var(--ant-color-border-secondary)] w-[60px] min-w-[60px]">
             {/* Header */}
             <div className="px-2 py-3 border-b border-solid border-[var(--ant-color-border-secondary)] text-center">
-                <Typography.Text type="secondary" className="text-[10px]">
+                <span className="text-[10px] text-muted-foreground">
                     {progress.completed}/{progress.total}
-                </Typography.Text>
+                </span>
             </div>
 
             {/* Scenario list */}

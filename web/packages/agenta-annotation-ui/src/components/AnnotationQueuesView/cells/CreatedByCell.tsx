@@ -1,7 +1,6 @@
 import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared"
-import {Typography} from "antd"
 
 interface CreatedByCellProps {
     createdById: string | null | undefined
@@ -12,13 +11,13 @@ interface CreatedByCellProps {
  */
 const CreatedByCell = memo(function CreatedByCell({createdById}: CreatedByCellProps) {
     if (!createdById) {
-        return <Typography.Text type="secondary">—</Typography.Text>
+        return <span className="text-muted-foreground">—</span>
     }
 
     return (
-        <Typography.Text type="secondary" className="text-xs truncate block">
+        <span className="text-xs truncate block text-muted-foreground">
             <UserAuthorLabel userId={createdById} showPrefix={false} showAvatar />
-        </Typography.Text>
+        </span>
     )
 })
 

@@ -345,8 +345,7 @@ function transform(file) {
                         })
                     } else if (ts.isJsxExpression(classAttribute.initializer)) {
                         const expression = classAttribute.initializer.expression.getText(sourceFile)
-                        const text =
-                            "className={`" + "${(" + expression + ') ?? ""} ' + classText + "`}"
+                        const text = `className={[${expression}, ${JSON.stringify(classText)}].filter(Boolean).join(" ")}`
                         edits.push({
                             start: classAttribute.getStart(sourceFile),
                             end: classAttribute.getEnd(),

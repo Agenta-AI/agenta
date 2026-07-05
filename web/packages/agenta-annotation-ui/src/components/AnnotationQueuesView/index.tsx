@@ -18,7 +18,7 @@ import {
     FiltersPopoverTrigger,
 } from "@agenta/ui/table"
 import {ArrowRight, Copy, PlusIcon, Trash} from "@phosphor-icons/react"
-import {Button, Divider, Input, Select, Tag, Typography} from "antd"
+import {Button, Divider, Input, Select, Tag} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -93,13 +93,13 @@ function AnnotationQueuesEmptyState({onCreate}: {onCreate: () => void}) {
         <div className="px-4 py-6">
             <div className="mx-auto flex min-h-[300px] max-w-3xl items-center justify-center">
                 <div className="flex max-w-xl flex-col items-center text-center gap-3">
-                    <Typography.Text className="text-lg font-semibold">
+                    <span className="text-lg font-semibold">
                         Create your first annotation queue
-                    </Typography.Text>
-                    <Typography.Text>
+                    </span>
+                    <span>
                         Route trace and test case reviews into a shared queue, assign work, and keep
                         annotation progress visible in one place.
-                    </Typography.Text>
+                    </span>
                     <div className="flex gap-2 mt-5">
                         <Button type="primary" icon={<PlusIcon size={16} />} onClick={onCreate}>
                             New Queue
@@ -128,16 +128,13 @@ function AnnotationQueuesSearchEmptyState({
         <div className="px-4 py-6">
             <div className="mx-auto flex min-h-[220px] max-w-2xl items-center justify-center rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50/70 dark:border-[var(--ag-rgba-051729-06)] dark:bg-[var(--ag-rgba-051729-04)] px-6 py-8">
                 <div className="flex max-w-lg flex-col items-center text-center">
-                    <Typography.Title
-                        level={4}
-                        className="!mb-2 !text-xl !font-semibold !text-zinc-900 md:!text-2xl"
-                    >
+                    <h4 className="!mb-2 !text-xl !font-semibold !text-zinc-900 md:!text-2xl text-base font-semibold leading-snug">
                         No queues match your search
-                    </Typography.Title>
-                    <Typography.Paragraph className="!mb-5 !text-sm !leading-6 !text-zinc-500 md:!text-base">
+                    </h4>
+                    <p className="!mb-5 !text-sm !leading-6 !text-zinc-500 md:!text-base">
                         No annotation queues matched "{searchTerm}". Try a different name or clear
                         the search.
-                    </Typography.Paragraph>
+                    </p>
                     <Button onClick={onClearSearch}>Clear search</Button>
                 </div>
             </div>
@@ -174,9 +171,7 @@ const QueuesFiltersContent = ({onClose}: {onClose: () => void}) => {
     return (
         <div className="flex flex-col gap-4 min-w-[240px]">
             <div className="flex flex-col gap-2">
-                <Typography.Text strong className="text-gray-700">
-                    Type
-                </Typography.Text>
+                <span className="text-gray-700 font-semibold">Type</span>
                 <Select
                     value={draftKind ?? ""}
                     onChange={(val) => setDraftKind(val === "" ? null : (val as SimpleQueueKind))}
@@ -305,9 +300,7 @@ const AnnotationQueuesView = ({
                         if (record.__isSkeleton) return null
                         return (
                             <div className="h-full flex items-center">
-                                <Typography.Text strong>
-                                    {record.name || "Untitled"}
-                                </Typography.Text>
+                                <span className="font-semibold">{record.name || "Untitled"}</span>
                             </div>
                         )
                     },
@@ -371,16 +364,16 @@ const AnnotationQueuesView = ({
                         if (!record.description) {
                             return (
                                 <div className="h-full flex items-center">
-                                    <Typography.Text type="secondary">—</Typography.Text>
+                                    <span className="text-muted-foreground">—</span>
                                 </div>
                             )
                         }
 
                         return (
                             <div className="h-full flex items-center min-w-0">
-                                <Typography.Text type="secondary" className="block truncate">
+                                <span className="block truncate text-muted-foreground">
                                     {record.description}
-                                </Typography.Text>
+                                </span>
                             </div>
                         )
                     },

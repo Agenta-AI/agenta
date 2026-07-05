@@ -1,7 +1,7 @@
 import {ComponentProps, Dispatch, SetStateAction} from "react"
 
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
-import {CommitMessageInput, EnhancedModal} from "@agenta/ui"
+import {CommitMessageInput} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Space, Typography} from "antd"

@@ -18,7 +18,7 @@ import {
     traceInputsAtomFamily,
     traceOutputsAtomFamily,
 } from "@agenta/entities/trace"
-import {Skeleton, Typography} from "antd"
+import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import {
@@ -189,23 +189,17 @@ const DataSection = memo(function DataSection({
 
     return (
         <div className="flex flex-col gap-2">
-            <Typography.Text type="secondary" className="text-xs uppercase tracking-wide">
-                {title}
-            </Typography.Text>
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">{title}</span>
             <div className="flex flex-col gap-3">
                 {entries.map(([key, value]) => (
                     <div key={key} className="flex flex-col gap-1">
-                        <Typography.Text className="text-xs font-medium text-[var(--ag-c-758391)]">
-                            {key}
-                        </Typography.Text>
+                        <span className="text-xs font-medium text-[var(--ag-c-758391)]">{key}</span>
                         {isComplexValue(value) ? (
                             <pre className="text-xs m-0 whitespace-pre-wrap break-all max-h-80 overflow-auto p-2 rounded bg-[var(--ant-color-fill-quaternary)]">
                                 {formatValue(value)}
                             </pre>
                         ) : (
-                            <Typography.Text className="text-sm">
-                                {formatValue(value)}
-                            </Typography.Text>
+                            <span className="text-sm">{formatValue(value)}</span>
                         )}
                     </div>
                 ))}
@@ -267,11 +261,11 @@ const TraceScenarioContent = memo(function TraceScenarioContent({traceId}: {trac
         return (
             <div className="flex flex-col gap-4 p-4">
                 <div className="flex items-center justify-center py-10">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         {traceQuery.isError
                             ? "Failed to load trace data"
                             : "Trace data not available"}
-                    </Typography.Text>
+                    </span>
                 </div>
             </div>
         )
@@ -294,16 +288,12 @@ const TraceScenarioContent = memo(function TraceScenarioContent({traceId}: {trac
             {/* Trace / span info */}
             {rootSpan.span_name && (
                 <div className="flex items-center gap-2">
-                    <Typography.Text type="secondary" className="text-xs">
-                        Trace:
-                    </Typography.Text>
-                    <Typography.Text className="text-xs font-medium">
-                        {rootSpan.span_name}
-                    </Typography.Text>
+                    <span className="text-xs text-muted-foreground">Trace:</span>
+                    <span className="text-xs font-medium">{rootSpan.span_name}</span>
                     {rootSpan.span_type && (
-                        <Typography.Text type="secondary" className="text-xs px-1.5 py-0.5 rounded">
+                        <span className="text-xs px-1.5 py-0.5 rounded text-muted-foreground">
                             {rootSpan.span_type}
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             )}
@@ -317,9 +307,9 @@ const TraceScenarioContent = memo(function TraceScenarioContent({traceId}: {trac
             {/* Empty state */}
             {!hasData && (
                 <div className="flex items-center justify-center py-10">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         No input/output data available for this trace
-                    </Typography.Text>
+                    </span>
                 </div>
             )}
         </div>
@@ -379,9 +369,9 @@ const TestcaseScenarioContent = memo(function TestcaseScenarioContent({
 
             {!hasData && metaEntries.length === 0 && (
                 <div className="flex items-center justify-center py-10">
-                    <Typography.Text type="secondary">
+                    <span className="text-muted-foreground">
                         No data available for this scenario
-                    </Typography.Text>
+                    </span>
                 </div>
             )}
         </div>
@@ -401,7 +391,7 @@ const ScenarioContent = memo(function ScenarioContent({
     if (!scenario) {
         return (
             <div className="flex items-center justify-center h-full py-20">
-                <Typography.Text type="secondary">No scenario selected</Typography.Text>
+                <span className="text-muted-foreground">No scenario selected</span>
             </div>
         )
     }
@@ -418,9 +408,7 @@ const ScenarioContent = memo(function ScenarioContent({
     if (isTrace) {
         return (
             <div className="flex items-center justify-center h-full py-20">
-                <Typography.Text type="secondary">
-                    Trace reference is not available yet
-                </Typography.Text>
+                <span className="text-muted-foreground">Trace reference is not available yet</span>
             </div>
         )
     }

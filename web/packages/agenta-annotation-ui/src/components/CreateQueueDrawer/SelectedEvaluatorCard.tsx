@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
+import {Button, Tag} from "antd"
 import {useAtomValue} from "jotai"
 
 import {
@@ -44,9 +44,9 @@ export default function SelectedEvaluatorCard({
     return (
         <div className="flex items-start justify-between gap-3 rounded-lg bg-gray-100 px-3 py-3">
             <div className="min-w-0 flex-1">
-                <Typography.Text className="block">
+                <span className="block">
                     {evaluator.evaluatorName} - v{evaluator.version}
-                </Typography.Text>
+                </span>
                 {metrics.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1">
                         {metrics.map((metric) => (

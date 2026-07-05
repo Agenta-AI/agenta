@@ -11,7 +11,7 @@ import {dayjs} from "@agenta/shared/utils"
 import "dayjs/plugin/relativeTime"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Skeleton, Typography} from "antd"
+import {Button, Divider, Input, Popover, Skeleton} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigationSafe} from "../../context"
@@ -181,9 +181,7 @@ const QueueListContent = ({
             {/* Header */}
             <div className="flex flex-col gap-2 px-3">
                 <div className="flex items-center justify-between">
-                    <Typography.Text className="font-medium">
-                        Select annotation queue
-                    </Typography.Text>
+                    <span className="font-medium">Select annotation queue</span>
                     <Button
                         type="primary"
                         size="small"
@@ -214,11 +212,11 @@ const QueueListContent = ({
                     </div>
                 ) : filteredQueues.length === 0 ? (
                     <div className="py-8 text-center">
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-muted-foreground">
                             {search.trim()
                                 ? "No matching queues"
                                 : `No ${itemType === "traces" ? "trace" : "test case"} queues`}
-                        </Typography.Text>
+                        </span>
                     </div>
                 ) : (
                     filteredQueues.map((queue) => (
@@ -233,16 +231,15 @@ const QueueListContent = ({
                             }}
                         >
                             <div className="flex flex-col min-w-0">
-                                <Typography.Text
-                                    className="truncate"
-                                    strong={submittingId === queue.id}
+                                <span
+                                    className={`truncate ${submittingId === queue.id ? "font-semibold" : ""}`}
                                 >
                                     {queue.name || "Untitled"}
-                                </Typography.Text>
-                                <Typography.Text type="secondary" className="text-[10px]">
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
                                     Updated{" "}
                                     {queue.updated_at ? dayjs(queue.updated_at)?.fromNow() : "—"}
-                                </Typography.Text>
+                                </span>
                             </div>
                         </button>
                     ))

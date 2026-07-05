@@ -1,7 +1,7 @@
 import {memo} from "react"
 
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {Skeleton, Typography} from "antd"
+import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 interface QueueProgressCellProps {
@@ -20,13 +20,13 @@ const QueueProgressCell = memo(function QueueProgressCell({queueId}: QueueProgre
     }
 
     if (progress.total === 0) {
-        return <Typography.Text type="secondary">No items</Typography.Text>
+        return <span className="text-muted-foreground">No items</span>
     }
 
     return (
-        <Typography.Text>
+        <span>
             {progress.completed} out of {progress.total}
-        </Typography.Text>
+        </span>
     )
 })
 
