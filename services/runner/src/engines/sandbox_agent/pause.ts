@@ -3,6 +3,8 @@
  *
  * F-040: an unanswered approval must end the turn, destroy the session, and never reply to the
  * harness gate. Historical docs call this "park"; this module uses pause/pendingApproval names.
+ * The destroy callback also settles every announced-but-unresolved sibling tool call with a
+ * deterministic `tool_result` before teardown, so the client never holds an orphaned part.
  */
 export const PAUSED = Symbol("paused");
 

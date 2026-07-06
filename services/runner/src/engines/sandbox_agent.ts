@@ -29,7 +29,10 @@ import { apiBase } from "../apiBase.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
 
-import { createSandboxAgentOtel } from "../tracing/otel.ts";
+import {
+  createSandboxAgentOtel,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../tracing/otel.ts";
 import {
   localRelayHost,
   sandboxRelayHost,
@@ -708,6 +711,10 @@ export async function runSandboxAgent(
     });
 
     const pause = new PendingApprovalPauseController(() => {
+      run.settleOpenToolCalls(
+        (id) => pause.isPausedToolCall(id),
+        TOOL_NOT_EXECUTED_PAUSED,
+      );
       // Abort any in-flight loopback `tools/call` (a paused Claude client tool) BEFORE the
       // session teardown, so its handler cannot write a result after the turn ends.
       mcpAbort.abort();
@@ -724,6 +731,15 @@ export async function runSandboxAgent(
         toolCallIndex.record(update);
         if (!shouldSuppressPausedToolCallUpdate(update, pause)) {
           run.handleUpdate(update);
+          // A sibling announced AFTER the pause won the latch can never execute (the session
+          // is already being destroyed), and the pause-time sweep has already run — settle it
+          // immediately so the client never holds an orphaned part (idempotent re-sweep).
+          if (pause.active) {
+            run.settleOpenToolCalls(
+              (id) => pause.isPausedToolCall(id),
+              TOOL_NOT_EXECUTED_PAUSED,
+            );
+          }
         }
       }
     });
