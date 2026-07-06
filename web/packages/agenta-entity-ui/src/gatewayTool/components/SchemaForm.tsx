@@ -3,7 +3,17 @@ import {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState}
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button, Collapse, Form, Input, InputNumber, Switch, Select, Typography} from "antd"
+import {
+    Button,
+    Collapse,
+    DatePicker,
+    Form,
+    Input,
+    InputNumber,
+    Switch,
+    Select,
+    Typography,
+} from "antd"
 import type {FormInstance} from "antd"
 
 export interface SchemaFormHandle {
@@ -17,11 +27,16 @@ interface Props {
     jsonMode?: boolean
     /** Render optional fields inline instead of behind an "Optional (N)" collapse. */
     flat?: boolean
+    /** Opt-in `format` handling (date/date-time/multiline/email/uri) — see BuildFormFieldsOptions. */
+    formats?: boolean
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
-    ({schema, form, disabled, jsonMode, flat}, ref) => {
-        const fields = useMemo(() => buildFormFieldsFromSchema(schema), [schema])
+    ({schema, form, disabled, jsonMode, flat, formats}, ref) => {
+        const fields = useMemo(
+            () => buildFormFieldsFromSchema(schema, "", {formats: !!formats}),
+            [schema, formats],
+        )
         const requiredFields = useMemo(() => fields.filter((f) => f.required), [fields])
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
 
@@ -335,11 +350,44 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
             )
 
         default:
+            // Format-aware controls appear only when the host opted in via `formats`.
+            if (field.format === "date" || field.format === "date-time") {
+                return (
+                    <Form.Item
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={field.default}
+                    >
+                        <DatePicker
+                            className="w-full"
+                            showTime={field.format === "date-time"}
+                            placeholder={field.label}
+                        />
+                    </Form.Item>
+                )
+            }
+            if (field.format === "multiline") {
+                return (
+                    <Form.Item
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={field.default}
+                    >
+                        <Input.TextArea rows={3} placeholder={field.label} />
+                    </Form.Item>
+                )
+            }
             return (
                 <Form.Item
                     name={field.name.split(".")}
                     label={label}
-                    rules={rules}
+                    rules={[
+                        ...rules,
+                        ...(field.format === "email" ? [{type: "email" as const}] : []),
+                        ...(field.format === "uri" ? [{type: "url" as const}] : []),
+                    ]}
                     initialValue={field.default}
                 >
                     <Input placeholder={field.label} />
