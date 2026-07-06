@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -27,7 +27,7 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 
 
-PENDING_INTERACTION_TTL = "7 days"
+PENDING_INTERACTION_TTL = timedelta(days=7)
 
 
 class SessionInteractionsDAO(SessionInteractionsDAOInterface):
@@ -186,12 +186,10 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                             SessionInteractionDBE.flags.contains(flags_filter),
                         )
                 if query.actionable_only:
-                    from sqlalchemy import text  # noqa: PLC0415
-
                     stmt = stmt.where(
-                        text(
-                            f"created_at > NOW() - INTERVAL '{PENDING_INTERACTION_TTL}'"
-                        ),
+                        SessionInteractionDBE.status == "pending",
+                        SessionInteractionDBE.created_at
+                        > datetime.now(timezone.utc) - PENDING_INTERACTION_TTL,
                     )
 
             if windowing:
