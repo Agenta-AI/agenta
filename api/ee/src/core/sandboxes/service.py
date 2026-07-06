@@ -15,12 +15,10 @@ from oss.src.utils.locking import (
 )
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.access.entitlements.service import check_entitlements
-from ee.src.core.access.entitlements.types import Counter
 from ee.src.core.meters.service import MetersService
-from ee.src.core.meters.types import MeterScope
 from ee.src.core.sandboxes.dtos import SandboxUsageDTO, SandboxUsageResult
 from ee.src.core.sandboxes.exceptions import SandboxWebhookSignatureError
+from ee.src.core.sandboxes.sink import record_usage_credits
 
 log = get_module_logger(__name__)
 
@@ -53,11 +51,7 @@ class SandboxMeteringService:
     # ------------------------------------------------------------------
 
     async def record_usage(self, usage: SandboxUsageDTO) -> SandboxUsageResult:
-        """Persist sandbox resource-second usage into the meters layer.
-
-        Calls check_entitlements(cache=False) per meter so the Layer-2
-        atomic adjust() runs, giving an authoritative quota check.
-        The call is NON-BLOCKING in Phase 1 (quotas are soft).
+        """Persist sandbox resource-second usage into the wallet debit meters.
 
         Deduped on usage.delivery_id via Redis SET NX (webhook redelivery
         double-counting guard). Missing delivery_id skips dedup (best-effort).
@@ -78,34 +72,18 @@ class SandboxMeteringService:
                 )
 
         org_id = usage.organization_id
-        scope = MeterScope(organization_id=org_id)
 
-        meter_deltas: list[tuple[Counter, int]] = [
-            (Counter.SANDBOX_CPU_CORE_SECONDS, usage.vcpu_seconds),
-            (Counter.SANDBOX_RAM_GIBI_SECONDS, usage.ram_gib_seconds),
-            (Counter.SANDBOX_SSD_GIBI_SECONDS, usage.disk_gib_seconds),
-            (Counter.SANDBOX_GPU_CORE_SECONDS, usage.gpu_seconds),
-        ]
-
-        for counter, delta in meter_deltas:
-            if delta <= 0:
-                continue
-            try:
-                # cache=False → Layer-2 hard check (atomic DB adjust).
-                # Fails open on error per check_entitlements contract.
-                await check_entitlements(
-                    key=counter,
-                    delta=delta,
-                    cache=False,
-                    scope=scope,
-                )
-            except Exception:
-                log.warning(
-                    "[sandboxes] check_entitlements failed for %s/%s",
-                    org_id,
-                    counter,
-                    exc_info=True,
-                )
+        # Billing layer: per-dimension + sandbox + wallet debits, derived from
+        # the raw seconds (see sink.py). Raw *_seconds are cost-explainer data
+        # (traces/analytics), not billing meters, so they are not adjusted here.
+        await record_usage_credits(
+            provider=usage.provider,
+            organization_id=org_id,
+            cpu_seconds=Decimal(usage.vcpu_seconds),
+            ram_seconds=Decimal(usage.ram_gib_seconds),
+            ssd_seconds=Decimal(usage.disk_gib_seconds),
+            gpu_seconds=Decimal(usage.gpu_seconds) if usage.gpu_seconds else None,
+        )
 
         log.info(
             "[sandboxes] recorded provider=%s sandbox=%s org=%s "

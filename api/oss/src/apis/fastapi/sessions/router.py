@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 from typing import Any, Optional, Union
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 
@@ -233,6 +234,19 @@ class SessionStreamsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+
+        # Entitlement gate (EE): may-run (RBAC above) is separate from has-quota.
+        # Function-local guarded import so OSS never imports ee.* at module top.
+        if is_ee():
+            from ee.src.core.sandboxes.gating import check_sandbox_quota
+
+            allowed, reason = await check_sandbox_quota(
+                organization_id=UUID(request.state.organization_id),
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429, detail=reason or "Sandbox quota exceeded."
+                )
 
         await self._service.check_concurrency_cap(project_id=project_id)
 
