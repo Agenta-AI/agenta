@@ -25,6 +25,7 @@ import {type UIMessage} from "ai"
 import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
+import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 
 import {IDE_INSTALL_COMMAND} from "@/oss/components/pages/agent-home/assets/constants"
 import OnboardingBrowseTemplates from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingBrowseTemplates"
@@ -74,6 +75,12 @@ import {
 } from "./state/sessions"
 import {captureTurnRequestAtom} from "./state/turnCaptures"
 import {turnInspectorAtom} from "./state/turnInspector"
+import {
+    agentChatItemEstimateAtom,
+    agentChatOverscanAtom,
+    agentChatVirtualizeAtom,
+    isAgentChatVirtualizationAvailable,
+} from "./state/virtualization"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
@@ -175,6 +182,12 @@ const atLiveEdge = (el: HTMLElement): boolean => {
     const last = lastContentEl(el)
     if (!last) return true
     return last.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom < 24
+}
+
+/** SPIKE(virtuoso): context passed to the Virtuoso Header/Footer slots (top padding + active turn). */
+interface VirtCtx {
+    header: React.ReactNode
+    footer: React.ReactNode
 }
 
 /**
@@ -292,6 +305,16 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 
     const richInputRef = useRef<RichChatInputHandle>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
+    // ── SPIKE(react-virtuoso): windowing variant, evaluated against content-visibility. ──
+    // Controlled live from the playground settings dropdown (Virtualization section). When on, the
+    // SC-1..4 scroll effects below are disabled (Virtuoso owns measurement/anchoring) and the
+    // transcript renders via <Virtuoso>; overscan / row-estimate are tunable there too.
+    // Virtualize only when the env flag is present AND it's enabled in the settings — no other gates.
+    const virtEnabledInSettings = useAtomValue(agentChatVirtualizeAtom)
+    const useVirtuoso = isAgentChatVirtualizationAvailable() && virtEnabledInSettings
+    const virtOverscan = useAtomValue(agentChatOverscanAtom)
+    const virtItemEstimate = useAtomValue(agentChatItemEstimateAtom)
+    const virtuosoRef = useRef<VirtuosoHandle>(null)
     // Stick to the bottom of the scrollable area. This is the ONE source of truth for auto-scroll:
     // the active turn reserves a viewport (min-h-full), so "bottom" puts the latest question at the
     // top with the answer streaming into the space below — the pin is emergent, not computed. A real
@@ -850,10 +873,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     }, [messages])
 
     useEffect(() => {
+        if (useVirtuoso) return
         // Don't instant-jump while a programmatic glide (SC-1 submit / jump-to-latest) owns the
         // scroll — that snap would override the animation. The glide's own settle re-pins to bottom.
         if (stickRef.current && !programmaticScrollRef.current) scrollToBottom()
-    }, [messages, status, scrollToBottom])
+    }, [messages, status, scrollToBottom, useVirtuoso])
 
     const onScroll = useCallback(() => {
         const el = scrollRef.current
@@ -898,6 +922,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // anchored (topmost visible) message stays on the same line. Guarded so it never fights our own
     // pins. Re-subscribed when the message set changes (a part growing fires on the same wrapper).
     useEffect(() => {
+        if (useVirtuoso) return
         const el = scrollRef.current
         if (!el) return
         const onResize = (entries: ResizeObserverEntry[]) => {
@@ -948,7 +973,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         const ro = new ResizeObserver(onResize)
         el.querySelectorAll("[data-mid]").forEach((w) => ro.observe(w))
         return () => ro.disconnect()
-    }, [messages.length, scrollToBottom])
+    }, [messages.length, scrollToBottom, useVirtuoso])
 
     // SC-1 (submit) / SC-2 (restore): scroll the log to the bottom, once, when armed. With the active
     // turn reserving a viewport (min-h-full + top padding to clear the fade), "bottom" shows the new
@@ -956,6 +981,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // compute, nothing to keep re-aligning as content arrives. A fresh submit glides; a restore jumps.
     // Follow (stickRef) resumes only ON SETTLE so the per-token follow effect can't jam mid-glide.
     useLayoutEffect(() => {
+        if (useVirtuoso) return
         if (!armBottomRef.current) return
         const el = scrollRef.current
         if (!el) return
@@ -973,15 +999,16 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             el.scrollTop = el.scrollHeight
             requestAnimationFrame(settle)
         }
-    }, [messages, animatePinTo])
+    }, [messages, animatePinTo, useVirtuoso])
 
     // Keep the jump pill honest as content streams/settles: show it when the real latest message is
     // below the fold (e.g. a long answer growing past the viewport while parked at the top), and hide
     // it once that message is visible or while we're following. Coalesced (not a sync layout read per
     // streamed render) — the pill is display-only, so one frame of lag is imperceptible.
     useEffect(() => {
+        if (useVirtuoso) return
         scheduleShowJump()
-    }, [messages, status, scheduleShowJump])
+    }, [messages, status, scheduleShowJump, useVirtuoso])
 
     // SC-4: interaction is intent, not just scrolling. While following, a real text selection inside
     // the transcript — or opening a link in it — means the reader is engaging here, so release follow
@@ -1012,6 +1039,80 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             el.removeEventListener("click", onClick)
         }
     }, [])
+
+    // ── SPIKE(virtuoso) scroll wiring (only active when the flag is on) ──
+    // Follow = stick to the bottom. Virtuoso's `followOutput` fires on item-count changes only, but the
+    // active turn streams inside the Footer (not an item), so drive stick manually on each update.
+    const virtFollowRef = useRef(true)
+    // While true (a short window after a submit), the follow tracks the bottom SMOOTHLY — so the sent
+    // question glides to the top and the streaming answer is tracked continuously (each token retargets
+    // the in-flight smooth scroll). Otherwise it snaps instantly to keep up with fast streaming.
+    const virtSmoothRef = useRef(false)
+    const virtSmoothTimerRef = useRef(0)
+    useEffect(() => {
+        if (!useVirtuoso || !virtFollowRef.current) return
+        const behavior: ScrollBehavior = virtSmoothRef.current ? "smooth" : "auto"
+        const id = requestAnimationFrame(() => virtuosoRef.current?.scrollTo({top: 1e9, behavior}))
+        return () => cancelAnimationFrame(id)
+    }, [messages, status, useVirtuoso])
+    // SC-1 reserve for the virtuoso path: `min-h-full` doesn't work inside Virtuoso's Footer (100%
+    // resolves against its content-sized list, not the viewport), so measure the scroller's height and
+    // reserve it explicitly on the active-turn Footer — that's what lets a sent question pin to the top.
+    const virtRoRef = useRef<ResizeObserver | null>(null)
+    const [virtViewportH, setVirtViewportH] = useState(0)
+    const setVirtScroller = useCallback((el: HTMLElement | Window | null) => {
+        virtRoRef.current?.disconnect()
+        const node = el instanceof HTMLElement ? el : null
+        if (!node) return
+        setVirtViewportH(node.clientHeight)
+        const ro = new ResizeObserver(() => setVirtViewportH(node.clientHeight))
+        ro.observe(node)
+        virtRoRef.current = ro
+    }, [])
+    useEffect(
+        () => () => {
+            virtRoRef.current?.disconnect()
+            window.clearTimeout(virtSmoothTimerRef.current)
+        },
+        [],
+    )
+    // SC-1/2 equivalent: on submit/restore (armBottomRef), re-arm follow to the bottom once Virtuoso has
+    // mounted + measured (question-at-top emerges from the Footer's viewport reserve). A submit tracks
+    // smoothly for a short window; a restore snaps. The follow effect above does the per-token scrolling.
+    useLayoutEffect(() => {
+        if (!useVirtuoso || !armBottomRef.current) return
+        const animate = animateBottomRef.current
+        armBottomRef.current = false
+        animateBottomRef.current = false
+        virtFollowRef.current = true
+        setShowJump(false)
+        virtSmoothRef.current = animate
+        window.clearTimeout(virtSmoothTimerRef.current)
+        if (animate) {
+            virtSmoothTimerRef.current = window.setTimeout(() => {
+                virtSmoothRef.current = false
+            }, 600)
+        }
+        requestAnimationFrame(() =>
+            requestAnimationFrame(() =>
+                virtuosoRef.current?.scrollTo({top: 1e9, behavior: animate ? "smooth" : "auto"}),
+            ),
+        )
+    }, [messages, useVirtuoso])
+    const virtJumpToLatest = useCallback(() => {
+        virtFollowRef.current = true
+        setShowJump(false)
+        virtuosoRef.current?.scrollTo({top: 1e9, behavior: "smooth"})
+    }, [])
+    // Stable component identities (Virtuoso remounts these if their identity changes). They read live
+    // content from `context`, which we pass fresh each render — so they re-render without remounting.
+    const virtComponents = useMemo<Components<UIMessage, VirtCtx>>(
+        () => ({
+            Header: ({context}) => <>{context?.header ?? null}</>,
+            Footer: ({context}) => <>{context?.footer ?? null}</>,
+        }),
+        [],
+    )
 
     const toUploadFile = (file: File): UploadFile => ({
         uid: `${file.name}-${file.lastModified}-${file.size}`,
@@ -1186,8 +1287,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 enter={enter}
                 inspected={isInspected}
                 onInspect={onInspect}
-                // content-visibility off: rows rendering as they neared the bottom changed
-                // scrollHeight and snapped the follow logic to the last message.
+                // content-visibility stays OFF (disabled on the branch due to scroll artifacts); the
+                // non-virtualized path is plain Phase-1, and virtuoso owns windowing when enabled.
                 offscreenSkip={false}
             >
                 <AgentMessage
@@ -1268,77 +1369,131 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
                 <div className="ag-canvas relative flex min-h-0 flex-1 flex-col">
-                    <div
-                        ref={(el) => {
-                            scrollRef.current = el
-                        }}
-                        onScroll={onScroll}
-                        // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
-                        // reasoning fold): those resize the transcript without a scroll, so onScroll never
-                        // refreshes the anchor and the ResizeObserver would compensate against a stale one.
-                        onPointerDownCapture={recordAnchor}
-                        role="log"
-                        aria-live="polite"
-                        aria-label="Agent conversation"
-                        // `pt-8` (32px) ≥ the 28px fade so the first message clears it at rest; `pb-6`
-                        // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
-                        // anchoring off so our pin/anchor logic owns the scroll position).
-                        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
-                        // Fade content into the top edge (under the tab bar) and the bottom edge (into the
-                        // composer) as it scrolls. A gradient mask on the scroll container: transparent at
-                        // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
-                        style={{
-                            maskImage: EDGE_FADE_MASK,
-                            WebkitMaskImage: EDGE_FADE_MASK,
-                        }}
-                    >
-                        {messages.length === 0 &&
-                            (pendingFirstTurn ? (
-                                // Optimistic first turn: the submitted description as a sent user bubble +
-                                // an assistant loading placeholder (mirrors a real `status:"submitted"`
-                                // turn), so the commit reads as one continuous chat, not an empty state.
-                                <MessageRow mid="pending-first-turn" enter>
-                                    <AgentMessage
-                                        message={pendingFirstMessage}
-                                        isLastMessage
-                                        onRewind={handleRewind}
-                                        onClientToolOutput={handleClientToolOutput}
+                    {useVirtuoso && messages.length > 0 && (
+                        <Virtuoso<UIMessage, VirtCtx>
+                            ref={virtuosoRef}
+                            scrollerRef={setVirtScroller}
+                            data={messages.slice(0, activeStart)}
+                            className="ag-canvas flex-1 [overflow-anchor:none]"
+                            style={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                            // Wide buffer so rows are rendered AND measured before they enter view — the
+                            // height correction (85–1022px vs the estimate) then happens off-screen, so
+                            // real content scrolls in without blanks or jitter. Tunable from settings.
+                            increaseViewportBy={{
+                                top: virtOverscan,
+                                bottom: Math.round(virtOverscan * 0.66),
+                            }}
+                            defaultItemHeight={virtItemEstimate}
+                            initialTopMostItemIndex={{
+                                index: Math.max(0, activeStart - 1),
+                                align: "end",
+                            }}
+                            computeItemKey={(_i, m) => m.id}
+                            itemContent={(index, m) => (
+                                <div className="px-3 pb-3">{renderMessage(m, index)}</div>
+                            )}
+                            atBottomStateChange={(atBottom) => {
+                                virtFollowRef.current = atBottom
+                                setShowJump(!atBottom)
+                            }}
+                            context={{
+                                header: <div className="pt-8" />,
+                                footer:
+                                    activeStart < messages.length ? (
+                                        <div
+                                            className={`flex flex-col gap-3 px-3 pb-6${reserveActive ? " pt-8" : ""}`}
+                                            // Explicit viewport-height reserve (min-h-full is inert in the
+                                            // Footer) so scrolling to bottom pins the question to the top.
+                                            style={
+                                                reserveActive && virtViewportH
+                                                    ? {minHeight: virtViewportH}
+                                                    : undefined
+                                            }
+                                        >
+                                            {messages
+                                                .slice(activeStart)
+                                                .map((m, i) => renderMessage(m, activeStart + i))}
+                                        </div>
+                                    ) : null,
+                            }}
+                            components={virtComponents}
+                        />
+                    )}
+                    {(!useVirtuoso || messages.length === 0) && (
+                        <div
+                            ref={(el) => {
+                                scrollRef.current = el
+                            }}
+                            onScroll={onScroll}
+                            // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
+                            // reasoning fold): those resize the transcript without a scroll, so onScroll never
+                            // refreshes the anchor and the ResizeObserver would compensate against a stale one.
+                            onPointerDownCapture={recordAnchor}
+                            role="log"
+                            aria-live="polite"
+                            aria-label="Agent conversation"
+                            // `pt-8` (32px) ≥ the 28px fade so the first message clears it at rest; `pb-6`
+                            // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
+                            // anchoring off so our pin/anchor logic owns the scroll position).
+                            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
+                            // Fade content into the top edge (under the tab bar) and the bottom edge (into the
+                            // composer) as it scrolls. A gradient mask on the scroll container: transparent at
+                            // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
+                            style={{
+                                maskImage: EDGE_FADE_MASK,
+                                WebkitMaskImage: EDGE_FADE_MASK,
+                            }}
+                        >
+                            {messages.length === 0 &&
+                                (pendingFirstTurn ? (
+                                    // Optimistic first turn: the submitted description as a sent user bubble +
+                                    // an assistant loading placeholder (mirrors a real `status:"submitted"`
+                                    // turn), so the commit reads as one continuous chat, not an empty state.
+                                    <MessageRow mid="pending-first-turn" enter>
+                                        <AgentMessage
+                                            message={pendingFirstMessage}
+                                            isLastMessage
+                                            onRewind={handleRewind}
+                                            onClientToolOutput={handleClientToolOutput}
+                                        />
+                                        <Bubble
+                                            placement="start"
+                                            variant="borderless"
+                                            loading
+                                            content=""
+                                        />
+                                    </MessageRow>
+                                ) : onboardingActive && onboarding?.browseAll ? (
+                                    // "Browse all templates" swaps the hero for the full gallery IN PLACE.
+                                    <OnboardingBrowseTemplates />
+                                ) : (
+                                    <AgentChatEmptyState
+                                        entityId={entityId}
+                                        onStart={handleSubmit}
+                                        firstRunPrompt={firstRunPrompt}
+                                        canStart={!modelBlocked}
+                                        onboarding={onboardingActive}
+                                        onPrefill={(text) =>
+                                            richInputRef.current?.setMarkdown(text)
+                                        }
                                     />
-                                    <Bubble
-                                        placement="start"
-                                        variant="borderless"
-                                        loading
-                                        content=""
-                                    />
-                                </MessageRow>
-                            ) : onboardingActive && onboarding?.browseAll ? (
-                                // "Browse all templates" swaps the hero for the full gallery IN PLACE.
-                                <OnboardingBrowseTemplates />
-                            ) : (
-                                <AgentChatEmptyState
-                                    entityId={entityId}
-                                    onStart={handleSubmit}
-                                    firstRunPrompt={firstRunPrompt}
-                                    canStart={!modelBlocked}
-                                    onboarding={onboardingActive}
-                                    onPrefill={(text) => richInputRef.current?.setMarkdown(text)}
-                                />
-                            ))}
-                        {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
-                        {activeStart < messages.length && (
-                            // The active turn reserves a viewport (min-h-full) when there's prior
-                            // conversation, so sticking to the bottom shows the question at the top with the
-                            // answer streaming into the space below — the "pin" is this layout, not JS.
-                            // `pt-8` keeps the question clear of the top fade once it reaches the top.
-                            <div
-                                className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
-                            >
-                                {messages
-                                    .slice(activeStart)
-                                    .map((m, i) => renderMessage(m, activeStart + i))}
-                            </div>
-                        )}
-                    </div>
+                                ))}
+                            {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
+                            {activeStart < messages.length && (
+                                // The active turn reserves a viewport (min-h-full) when there's prior
+                                // conversation, so sticking to the bottom shows the question at the top with the
+                                // answer streaming into the space below — the "pin" is this layout, not JS.
+                                // `pt-8` keeps the question clear of the top fade once it reaches the top.
+                                <div
+                                    className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
+                                >
+                                    {messages
+                                        .slice(activeStart)
+                                        .map((m, i) => renderMessage(m, activeStart + i))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
                     keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
@@ -1346,7 +1501,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         size="small"
                         shape="round"
                         icon={<ArrowDown size={14} />}
-                        onClick={jumpToLatest}
+                        onClick={useVirtuoso ? virtJumpToLatest : jumpToLatest}
                         tabIndex={showJump ? 0 : -1}
                         aria-hidden={!showJump}
                         // Solid elevated surface + border + shadow so the pill reads clearly when it
