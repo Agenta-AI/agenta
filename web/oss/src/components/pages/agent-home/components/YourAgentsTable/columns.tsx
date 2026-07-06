@@ -1,10 +1,8 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {createStandardColumns} from "@agenta/ui/table"
 import {Note, Rocket, Trash} from "@phosphor-icons/react"
 
-import {
-    AppNameCell,
-    AppTypeCell,
-} from "@/oss/components/pages/app-management/components/appWorkflowColumns"
+import {AppNameCell} from "@/oss/components/pages/app-management/components/appWorkflowColumns"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 
 export interface AgentColumnActions {
@@ -13,7 +11,7 @@ export interface AgentColumnActions {
     onArchive: (record: AppWorkflowRow) => void
 }
 
-/** Lean read-only columns for the Home "Your agents" table: name + created + type. */
+/** Lean read-only columns for the Home "Your agents" table: name + creator + dates. */
 export function createAgentColumns(actions: AgentColumnActions) {
     return createStandardColumns<AppWorkflowRow>([
         {
@@ -25,21 +23,33 @@ export function createAgentColumns(actions: AgentColumnActions) {
             ),
         },
         {
+            type: "text",
+            key: "createdById",
+            title: "Created By",
+            width: 160,
+            render: (_, record) => (
+                <div className="h-full flex items-center">
+                    <UserAuthorLabel
+                        userId={record.createdById}
+                        showPrefix={false}
+                        showAvatar
+                        showYouLabel
+                        fallback="—"
+                    />
+                </div>
+            ),
+        },
+        {
             type: "date",
             key: "createdAt",
             title: "Created At",
             width: 220,
         },
         {
-            type: "text",
-            key: "appType",
-            title: "Type",
-            width: 160,
-            render: (_, record) => (
-                <div className="h-full flex items-center">
-                    <AppTypeCell workflowId={record.workflowId} />
-                </div>
-            ),
+            type: "date",
+            key: "updatedAt",
+            title: "Last modified",
+            width: 220,
         },
         {
             type: "actions",

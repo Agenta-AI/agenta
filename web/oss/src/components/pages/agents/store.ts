@@ -22,6 +22,7 @@ const mapWorkflowToRow = (workflow: Workflow): AppWorkflowRow => ({
     isEvaluator: false,
     updatedAt: workflow.updated_at ?? workflow.created_at ?? null,
     createdAt: workflow.created_at ?? null,
+    createdById: workflow.created_by_id ?? null,
 })
 
 const agentsWorkflowsQueryAtom = atomWithQuery((get) => {
