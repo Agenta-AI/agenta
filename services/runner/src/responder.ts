@@ -136,21 +136,32 @@ export type ClientToolOutputs = ReadonlyMap<string, readonly unknown[]>;
  * under the shared key (FIFO), so neither overwrites the other.
  */
 export class ConversationDecisions implements StoredPermissionDecisions {
+  private readonly decisionQueues: Map<string, unknown[]>;
   /** Per-key FIFO cursor: how many outputs under a key this conversation already consumed. */
   private readonly clientOutputCursor = new Map<string, number>();
 
   constructor(
-    private readonly byKey: Map<string, unknown>,
+    byKey: Map<string, unknown>,
     private readonly clientOutputs: ClientToolOutputs = new Map(),
-  ) {}
+  ) {
+    this.decisionQueues = new Map<string, unknown[]>(
+      [...byKey].map(([key, value]) => [
+        key,
+        Array.isArray(value) ? [...value] : [value],
+      ]),
+    );
+  }
 
   /** allow|deny for this exact call (name + canonical args), consumed on first take. */
   take(gate: GateDescriptor): "allow" | "deny" | undefined {
     const key = approvedCallKey(gate.toolName, gate.args);
-    if (!key || !this.byKey.has(key)) return undefined;
-    const value = this.byKey.get(key);
+    if (!key) return undefined;
+    const queue = this.decisionQueues.get(key);
+    if (!queue || queue.length === 0) return undefined;
+    const value = queue[0];
     if (!isPermissionDecision(value)) return undefined;
-    this.byKey.delete(key);
+    queue.shift();
+    if (queue.length === 0) this.decisionQueues.delete(key);
     return value;
   }
 
@@ -246,14 +257,17 @@ export class ApprovalResponder implements Responder {
  */
 export function extractApprovalDecisions(
   request: AgentRunRequest,
-): Map<string, unknown> {
-  const decisions = new Map<string, unknown>();
+): Map<string, unknown[]> {
+  const decisions = new Map<string, unknown[]>();
   const callShapeById = buildCallShapeIndex(request);
   for (const block of toolResultBlocks(request)) {
     const decision = approvalDecisionOf(block);
     if (decision === undefined) continue;
     const argsKey = coldReplayKey(block, callShapeById);
-    if (argsKey) decisions.set(argsKey, decision);
+    if (!argsKey) continue;
+    const list = decisions.get(argsKey) ?? [];
+    list.push(decision);
+    decisions.set(argsKey, list);
   }
   return decisions;
 }
@@ -341,7 +355,7 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
  * `"allow"`/`"deny"` for one, or `undefined` for any other tool_result (a real browser/client
  * output).
  */
-function approvalDecisionOf(
+export function approvalDecisionOf(
   block: ContentBlock,
 ): PermissionDecision | undefined {
   if (!block || block.type !== "tool_result") return undefined;

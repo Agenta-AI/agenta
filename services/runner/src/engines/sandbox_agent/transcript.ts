@@ -5,6 +5,7 @@ import {
   messageText,
   resolvePromptText,
 } from "../../protocol.ts";
+import { approvalDecisionOf } from "../../responder.ts";
 
 /** Prior turns (everything before the latest user message) for trace + history. */
 export function priorMessages(request: AgentRunRequest): ChatMessage[] {
@@ -51,8 +52,20 @@ export function messageTranscript(content: string | ContentBlock[] | undefined):
     } else if (block.type === "tool_call") {
       parts.push(`[called ${block.toolName ?? "tool"}(${safeJson(block.input)})]`);
     } else if (block.type === "tool_result") {
-      const body = safeJson(block.output);
-      parts.push(`[${block.toolName ?? "tool"} ${block.isError ? "error" : "returned"}: ${body}]`);
+      const decision = approvalDecisionOf(block);
+      if (decision !== undefined) {
+        const toolName = block.toolName ?? "tool";
+        parts.push(
+          decision === "allow"
+            ? `[user APPROVED ${toolName}; the call has NOT run yet. Call the tool again with the same arguments now to execute it.]`
+            : `[user DENIED ${toolName}; the call was not executed.]`,
+        );
+      } else {
+        const body = safeJson(block.output);
+        parts.push(
+          `[${block.toolName ?? "tool"} ${block.isError ? "error" : "returned"}: ${body}]`,
+        );
+      }
     } else if (block.type === "image") {
       parts.push("[image]");
     } else if (block.type === "resource") {
