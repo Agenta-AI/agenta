@@ -1,4 +1,4 @@
-"""Unit tests for the agent service's tracing glue (`oss.src.agent.tracing`).
+"""Unit tests for the SDK's ambient tracing capture (`agenta.sdk.agents.tracing`).
 
 Covers `run_context()`'s independent-failure-domain contract: the workflow identity and the trace
 identity are captured separately, so a failure reading one must not drop the other.
@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 from agenta.sdk.agents import RunContextTrace, RunContextWorkflow
 
-from oss.src.agent import tracing
+from agenta.sdk.agents import tracing
 
 
 def test_run_context_keeps_trace_when_workflow_capture_fails(monkeypatch):
