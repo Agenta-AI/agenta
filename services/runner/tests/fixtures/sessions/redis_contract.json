@@ -19,7 +19,7 @@
     "by": "watcher-abc"
   },
   "release_if_owner_lua": "local current = redis.call('GET', KEYS[1])\nif current == ARGV[1] then\n    return redis.call('DEL', KEYS[1])\nelse\n    return 0\nend",
-  "concurrency_cap": 1000,
+  "concurrency_limit": 1000,
   "session_id_max_len": 128,
   "session_id_pattern": "^[a-zA-Z0-9_\\-]{1,128}$"
 }

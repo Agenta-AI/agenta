@@ -306,7 +306,8 @@ async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connec
             _custom_provider(
                 "anthropic-gw",
                 "custom",
-                url="https://gw.example/v1",
+                # Literal public IP so the SSRF guard's range check runs with no live DNS.
+                url="https://93.184.216.34/v1",
                 extras={"api_key": "sk-gw"},
                 models=["gpt-5.5"],
             )
@@ -318,7 +319,76 @@ async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connec
     )
     assert resolved.deployment == "custom"
     assert resolved.env == {"ANTHROPIC_API_KEY": "sk-gw"}
-    assert resolved.endpoint.base_url == "https://gw.example/v1"
+    assert resolved.endpoint.base_url == "https://93.184.216.34/v1"
+
+
+async def test_custom_provider_private_url_is_dropped_not_pinned(fake_http, connection):
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "internal-gw",
+                "custom",
+                url="http://169.254.169.254/v1",
+                extras={"api_key": "sk-gw"},
+                models=["gpt-5.5"],
+            )
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("internal-gw", provider="anthropic", model="gpt-5.5"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.endpoint is None
+
+
+async def test_custom_provider_loopback_url_is_dropped_not_pinned(
+    fake_http, connection
+):
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "loopback-gw",
+                "custom",
+                url="https://127.0.0.1/v1",
+                extras={"api_key": "sk-gw"},
+                models=["gpt-5.5"],
+            )
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("loopback-gw", provider="anthropic", model="gpt-5.5"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.endpoint is None
+
+
+async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection):
+    from agenta.sdk.agents.platform import connections as connections_module
+
+    assert connections_module.assert_endpoint_url_allowed.__module__.endswith(
+        "utils.net"
+    )
+
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "private-gw",
+                "custom",
+                url="http://10.0.0.5/v1",
+                extras={"api_key": "sk-gw"},
+                models=["gpt-5.5"],
+            )
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("private-gw", provider="anthropic", model="gpt-5.5"),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    # Blocked with no env var required — secure by default.
+    assert resolved.endpoint is None
 
 
 async def test_full_custom_model_key_selects_and_strips_to_backend_model(

@@ -6,7 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from oss.src.core.events.types import EventType
 from oss.src.core.webhooks.types import WebhookEventType
-from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
+from oss.src.tasks.asyncio.webhooks.dispatcher import (
+    WebhooksDispatcher,
+    WebhookDispatchError,
+)
 
 
 class FakeEvent:
@@ -106,6 +109,103 @@ async def test_dispatch_real_event_without_flags_still_enqueues_matching_subscri
     assert kwargs["event_id"] == str(event.event_id)
     assert kwargs["event_type"] == EventType.ENVIRONMENTS_REVISIONS_COMMITTED.value
     assert kwargs["encrypted_secret"] == "enc:secret-1"
+
+
+@pytest.mark.anyio
+async def test_dispatch_deterministic_delivery_id_stable_across_passes(anyio_backend):
+    assert anyio_backend == "asyncio"
+    subscription_id = str(uuid4())
+    sub = FakeSubscription(
+        subscription_id=subscription_id,
+        event_types=None,
+        secret="secret-1",
+    )
+
+    deliver_task = MagicMock()
+    deliver_task.kiq = AsyncMock()
+
+    dispatcher = WebhooksDispatcher(
+        subscriptions_dao=MagicMock(),
+        vault_service=MagicMock(),
+        deliver_task=deliver_task,
+    )
+    dispatcher._get_subscriptions = AsyncMock(return_value=[sub])
+
+    project_id = uuid4()
+    event = FakeEvent(event_type=EventType.ENVIRONMENTS_REVISIONS_COMMITTED)
+    message = SimpleNamespace(event=event)
+
+    with patch(
+        "oss.src.tasks.asyncio.webhooks.dispatcher.encrypt",
+        side_effect=lambda secret: f"enc:{secret}",
+    ):
+        # Two passes over the same (event_id, subscription_id) — as a Redis-Streams
+        # redelivery would produce — must derive the same delivery_id both times.
+        await dispatcher.dispatch(
+            batches=[{"project_id": project_id, "events": [message]}]
+        )
+        await dispatcher.dispatch(
+            batches=[{"project_id": project_id, "events": [message]}]
+        )
+
+    first_delivery_id = deliver_task.kiq.await_args_list[0].kwargs["delivery_id"]
+    second_delivery_id = deliver_task.kiq.await_args_list[1].kwargs["delivery_id"]
+    assert first_delivery_id == second_delivery_id
+
+
+@pytest.mark.anyio
+async def test_dispatch_one_failing_delivery_raises_after_others_enqueue(
+    anyio_backend,
+):
+    assert anyio_backend == "asyncio"
+    failing = FakeSubscription(
+        subscription_id=str(uuid4()),
+        event_types=None,
+        secret="secret-fail",
+    )
+    succeeding = FakeSubscription(
+        subscription_id=str(uuid4()),
+        event_types=None,
+        secret="secret-ok",
+    )
+
+    deliver_task = MagicMock()
+
+    async def kiq(**kwargs):
+        if kwargs["subscription_id"] == failing.id:
+            raise RuntimeError("enqueue boom")
+        return None
+
+    deliver_task.kiq = AsyncMock(side_effect=kiq)
+
+    dispatcher = WebhooksDispatcher(
+        subscriptions_dao=MagicMock(),
+        vault_service=MagicMock(),
+        deliver_task=deliver_task,
+    )
+    dispatcher._get_subscriptions = AsyncMock(return_value=[failing, succeeding])
+
+    project_id = uuid4()
+    event = FakeEvent(event_type=EventType.ENVIRONMENTS_REVISIONS_COMMITTED)
+    message = SimpleNamespace(event=event)
+
+    with patch(
+        "oss.src.tasks.asyncio.webhooks.dispatcher.encrypt",
+        side_effect=lambda secret: f"enc:{secret}",
+    ):
+        # A failed enqueue must raise so the worker skips ACK/DEL and retries the whole batch
+        # (redelivery is deduped by the deterministic delivery_id). The good deliveries are
+        # still attempted before the batch-level raise.
+        with pytest.raises(WebhookDispatchError):
+            await dispatcher.dispatch(
+                batches=[{"project_id": project_id, "events": [message]}]
+            )
+
+    enqueued_subscription_ids = {
+        call.kwargs["subscription_id"] for call in deliver_task.kiq.await_args_list
+    }
+    assert succeeding.id in enqueued_subscription_ids
+    assert failing.id in enqueued_subscription_ids  # attempted, but its enqueue failed
 
 
 @pytest.fixture

@@ -14,6 +14,7 @@ from oss.src.core.shared.dtos import (
     Slug,
     LegacyLifecycleDTO,
 )
+from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 
 
 class StandardProviderSettingsDTO(BaseModel):
@@ -132,6 +133,13 @@ class SecretDTO(BaseModel):
                 raise ValueError(
                     "The provided kind in data is not a valid CustomProviderKind enum"
                 )
+
+            provider_url = (data.get("provider") or {}).get("url")
+            if isinstance(provider_url, str) and provider_url:
+                try:
+                    validate_url_format_and_literal_ip(provider_url)
+                except ValueError as exc:
+                    raise ValueError(f"custom_provider.url is invalid: {exc}") from exc
         elif kind == SecretKind.SSO_PROVIDER.value:
             if not isinstance(data, dict):
                 raise ValueError(
