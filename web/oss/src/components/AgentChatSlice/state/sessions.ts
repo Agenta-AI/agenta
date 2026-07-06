@@ -1,6 +1,6 @@
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
-import {atom, type Getter} from "jotai"
+import {atom, type Getter, type Setter} from "jotai"
 import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
@@ -281,11 +281,51 @@ export const setActiveSessionAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/** A localStorage-full error, across browsers (Chrome/Safari code 22, Firefox 1014). */
+const isQuotaExceeded = (e: unknown): boolean =>
+    e instanceof DOMException &&
+    (e.code === 22 ||
+        e.code === 1014 ||
+        e.name === "QuotaExceededError" ||
+        e.name === "NS_ERROR_DOM_QUOTA_REACHED")
+
+/**
+ * Persist the messages store, degrading gracefully when it overflows the ~5MB localStorage quota
+ * (large inline `data:` attachments make this reachable — see the file header note). On overflow we
+ * shed OTHER sessions' persisted messages, oldest-first, and retry, so the active conversation
+ * (`keepId`) still persists and the panel never crashes on a full store. Evicted sessions are
+ * closed/history and re-hydrate from the server when reopened.
+ */
+const writeMessagesWithQuotaGuard = (
+    set: Setter,
+    next: Record<string, UIMessage[]>,
+    keepId: string,
+): void => {
+    let candidate = next
+    for (;;) {
+        try {
+            set(sessionMessagesAtom, candidate)
+            return
+        } catch (e) {
+            if (!isQuotaExceeded(e)) throw e
+            // Object keys keep insertion order, so the first non-active id is the oldest.
+            const oldest = Object.keys(candidate).find((k) => k !== keepId)
+            if (oldest === undefined) {
+                // Even the active session alone won't fit — keep it in memory, skip persistence.
+                console.warn("[agent-chat] message store over quota; skipping persistence")
+                return
+            }
+            candidate = {...candidate}
+            delete candidate[oldest]
+        }
+    }
+}
+
 /** Write a session's messages to the persisted store (called when its stream settles). */
 export const persistSessionMessagesAtom = atom(
     null,
     (get, set, {id, messages}: {id: string; messages: UIMessage[]}) => {
-        set(sessionMessagesAtom, {...get(sessionMessagesAtom), [id]: messages})
+        writeMessagesWithQuotaGuard(set, {...get(sessionMessagesAtom), [id]: messages}, id)
     },
 )
 
