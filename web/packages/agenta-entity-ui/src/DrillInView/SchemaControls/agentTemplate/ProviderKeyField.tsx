@@ -3,7 +3,7 @@ import {useState} from "react"
 import {useVaultSecret} from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
 import {CheckCircle} from "@phosphor-icons/react"
-import {Button, Input, Typography} from "antd"
+import {App, Button, Input, Typography} from "antd"
 
 /**
  * "Provider key" content for the Model & credentials drawer — a key/value pair: a disabled input naming
@@ -13,6 +13,7 @@ import {Button, Input, Typography} from "antd"
  * without leaving the playground and the chat gate clears reactively.
  */
 const ProviderKeyField = ({provider}: {provider: LlmProvider}) => {
+    const {message} = App.useApp()
     const {handleModifyVaultSecret} = useVaultSecret()
     const [key, setKey] = useState("")
     const [saving, setSaving] = useState(false)
@@ -24,6 +25,9 @@ const ProviderKeyField = ({provider}: {provider: LlmProvider}) => {
         try {
             await handleModifyVaultSecret({...provider, key: trimmed})
             setKey("")
+        } catch {
+            // Security-sensitive write — never fail silently; keep the typed value so the user can retry.
+            message.error("Couldn't save the provider key. Please try again.")
         } finally {
             setSaving(false)
         }
