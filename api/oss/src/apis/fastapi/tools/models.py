@@ -138,7 +138,7 @@ class ToolResolveResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Tool discovery (find_capabilities)
+# Tool discovery (discover_tools)
 # ---------------------------------------------------------------------------
 
 

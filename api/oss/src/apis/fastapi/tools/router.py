@@ -49,11 +49,6 @@ from oss.src.core.tools.dtos import (
     #
     CapabilitiesResult,
 )
-from oss.src.core.tools.discovery import (
-    AGENTA_TOOL_CALL_REF_PREFIX,
-    FIND_CAPABILITIES_OP,
-    parse_find_capabilities_arguments,
-)
 from oss.src.core.tools.exceptions import (
     ActionNotFoundError,
     AdapterError,
@@ -69,6 +64,13 @@ from oss.src.core.tools.service import (
 )
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.exceptions import PlatformToolHandlerError
+from oss.src.core.tools.platform_handlers import (
+    dispatch_platform_tool_handler,
+    is_reserved_agenta_call_ref,
+    required_elevated_permission,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -140,12 +142,14 @@ class ToolsRouter:
         *,
         tools_service: ToolsService,
         workflows_service: Optional[WorkflowsService] = None,
+        tracing_service: Optional[TracingService] = None,
     ):
         self.tools_service = tools_service
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
         # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
         # Optional so a deployment that wires only the tools service still serves gateway tools.
         self.workflows_service = workflows_service
+        self.tracing_service = tracing_service
 
         self.router = APIRouter()
 
@@ -1092,20 +1096,14 @@ class ToolsRouter:
         # ``workflow.{slug}[.{version}]`` call_ref and runs a workflow revision server-side; a
         # Composio gateway tool carries the 5-segment ``tools.*`` slug and runs via the adapter.
         call_ref = body.data.function.name.replace("__", ".")
+        if is_reserved_agenta_call_ref(call_ref):
+            return await self._call_reserved_agenta_tool(
+                request=request,
+                body=body,
+                call_ref=call_ref,
+            )
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
-        if call_ref.startswith(AGENTA_TOOL_CALL_REF_PREFIX):
-            # Reserved discovery tools expose per-project connection state, so gate them
-            # with VIEW_TOOLS at the boundary on top of the outer RUN_TOOLS check.
-            has_view_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_view_permission:
-                raise FORBIDDEN_EXCEPTION
-            return await self._call_agenta_tool(request=request, body=body)
-
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
         slug_parts = body.data.function.name.replace("__", ".").split(".")
@@ -1194,69 +1192,60 @@ class ToolsRouter:
 
         return ToolCallResponse(call=result)
 
-    async def _call_agenta_tool(
+    async def _call_reserved_agenta_tool(
         self,
         *,
         request: Request,
         body: ToolCall,
+        call_ref: str,
     ) -> ToolCallResponse:
-        """Run a reserved ``tools.agenta.*`` platform tool. v1 op: find_capabilities.
-
-        Routed here from ``call_tool`` by the ``tools.agenta.`` prefix (so the reserved
-        tool is out of the Composio 5-segment namespace). Project scope comes from the
-        run's caller auth, exactly like the gateway path.
-        """
-        call_ref = body.data.function.name.replace("__", ".")
-        op = call_ref[len(AGENTA_TOOL_CALL_REF_PREFIX) :]
-        if op != FIND_CAPABILITIES_OP:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Unknown Agenta tool: {call_ref}",
-            )
-
-        arguments = body.data.function.arguments
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError as e:
-                log.warning(
-                    "Failed to parse find_capabilities arguments as JSON: %s", e
-                )
-                arguments = {}
-        elif not isinstance(arguments, dict):
-            arguments = {}
-
-        use_cases, provider, limit_alternatives = parse_find_capabilities_arguments(
-            arguments
+        # Some handlers demand an extra permission for specific argument shapes (e.g. a
+        # test_run delta needs EDIT_WORKFLOWS); the policy lives on the handler registration.
+        elevated_permission = required_elevated_permission(
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
         )
-        if not use_cases:
-            raise HTTPException(
-                status_code=400,
-                detail="find_capabilities requires at least one use_case",
+        if elevated_permission is not None:
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=elevated_permission,
             )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
 
         try:
-            result = await self.tools_service.discover_capabilities(
+            response = await dispatch_platform_tool_handler(
+                call_ref=call_ref,
+                arguments=body.data.function.arguments,
+                headers=request.headers,
                 project_id=UUID(request.state.project_id),
-                use_cases=use_cases,
-                provider_key=provider,
-                limit_alternatives=limit_alternatives,
+                user_id=UUID(request.state.user_id),
+                workflows_service=self.workflows_service,
+                tracing_service=self.tracing_service,
             )
-        except DiscoveryUnsupportedError as e:
-            raise HTTPException(status_code=422, detail=e.message) from e
+        except PlatformToolHandlerError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
-        tool_result = ToolResult(
+        # A business-level failed verdict is still a successful tool call (OK); only an
+        # infrastructure failure (child invoke never completed) surfaces as an error status,
+        # mirroring the adapter path's successful/unsuccessful split.
+        result = ToolResult(
             id=uuid4(),
             data=ToolResultData(
                 tool_call_id=body.data.id,
-                content=json.dumps(result.model_dump(mode="json", exclude_none=True)),
+                content=response.model_dump_json(exclude_none=True),
             ),
             status=Status(
                 timestamp=datetime.now(timezone.utc),
-                code="STATUS_CODE_OK",
+                code="STATUS_CODE_ERROR"
+                if response.infra_failure
+                else "STATUS_CODE_OK",
+                message=response.verdict_reason if response.infra_failure else None,
             ),
         )
-        return ToolCallResponse(call=tool_result)
+
+        return ToolCallResponse(call=result)
 
     @staticmethod
     def _validate_slug_segments(*, segments: List[str]) -> None:

@@ -16,6 +16,7 @@ same way.
 
 from __future__ import annotations
 
+import os
 from typing import Optional, Sequence
 
 from agenta.sdk.agents.tools import (
@@ -31,6 +32,17 @@ from .connection import PlatformConnection
 from .op_catalog import get_platform_op
 
 log = get_module_logger(__name__)
+
+_ENABLE_PLATFORM_HANDLERS_ENV = "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS"
+_DISABLED_ENV_VALUES = {"0", "false", "f", "n", "no", "off", "disable", "disabled"}
+# Empty string intentionally follows the default-on behavior. Unset now means enabled.
+
+
+def _platform_handlers_enabled() -> bool:
+    value = os.getenv(_ENABLE_PLATFORM_HANDLERS_ENV)
+    if value is None:
+        return True
+    return value.strip().lower() not in _DISABLED_ENV_VALUES
 
 
 class AgentaPlatformToolResolver:
@@ -60,6 +72,15 @@ class AgentaPlatformToolResolver:
         tool_specs: list[CallbackToolSpec] = []
         for tool_config in tools:
             op = get_platform_op(tool_config.op)
+            if op.handler is not None and not _platform_handlers_enabled():
+                log.warning(
+                    "agent: skipping platform handler-mode op %r because "
+                    "%s is explicitly disabled",
+                    op.op,
+                    _ENABLE_PLATFORM_HANDLERS_ENV,
+                )
+                continue
+
             if op.op in seen:
                 error = GatewayToolResolutionError(
                     f"Duplicate platform tool: {op.op}",
@@ -69,15 +90,27 @@ class AgentaPlatformToolResolver:
                 raise error
             seen.add(op.op)
 
+            # Both modes share the whole spec except the target: handler-mode ops carry a
+            # gateway ``call_ref`` (with spec-level bindings the relay injects); endpoint-mode
+            # ops carry a direct ``call`` descriptor (bindings ride inside ``call.context``).
+            if op.handler is not None:
+                target: dict = {
+                    "call_ref": op.to_call_ref(),
+                    "context_bindings": dict(op.context_bindings) or None,
+                }
+            else:
+                target = {"call": op.to_call()}
+
             tool_specs.append(
                 CallbackToolSpec(
                     name=op.op,
                     description=op.description,
                     input_schema=op.resolved_input_schema(),
-                    call=op.to_call(),
+                    timeout_ms=op.timeout_ms,
                     render=tool_config.render,
                     permission=tool_config.permission,
                     read_only=op.read_only,
+                    **target,
                 )
             )
 

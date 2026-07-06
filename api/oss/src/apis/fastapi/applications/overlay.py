@@ -2,13 +2,28 @@
 
 from typing import Any, Dict, List, Optional
 
-from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
-from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+from agenta.sdk.agents.adapters.agenta_builtins import (
+    AGENTA_FORCED_TOOLS,
+    BUILD_AN_AGENT_SLUG,
+)
 
-from oss.src.core.workflows.static_catalog import (
-    STATIC_SLUG_PREFIX,
-    StaticWorkflowCatalog,
-    _STATIC_WORKFLOWS,
+from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
+
+# Cut ops stay catalog opt-ins.
+DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
+    "discover_tools",
+    "commit_revision",
+    "annotate_trace",
+    "query_spans",
+    "test_run",
+    "discover_triggers",
+    "create_schedule",
+    "create_subscription",
+    "list_schedules",
+    "list_deliveries",
+    "test_subscription",
+    "remove_schedule",
+    "remove_subscription",
 )
 
 
@@ -45,9 +60,7 @@ def _reserved_static_tool_embeds(
     revision or missing flags is skipped so an invalid tool embed can't leak into the playground.
     """
     embeds: List[Dict[str, Any]] = []
-    for slug in _STATIC_WORKFLOWS:
-        if not slug.startswith(STATIC_SLUG_PREFIX):
-            continue
+    for slug in catalog.list_slugs():
         revision = catalog.retrieve_revision(slug=slug)
         if not revision or not revision.flags or revision.flags.is_skill:
             continue
@@ -67,11 +80,11 @@ def build_agent_template_overlay() -> Dict[str, Any]:
     catalog = StaticWorkflowCatalog()
 
     skills: List[Dict[str, Any]] = []
-    authoring_skill = catalog.retrieve_revision(slug=GETTING_STARTED_WITH_AGENTA_SLUG)
+    authoring_skill = catalog.retrieve_revision(slug=BUILD_AN_AGENT_SLUG)
     if authoring_skill:
         skills.append(
             _workflow_embed(
-                GETTING_STARTED_WITH_AGENTA_SLUG,
+                BUILD_AN_AGENT_SLUG,
                 name=authoring_skill.name,
                 selector_path="parameters.skill",
             )
@@ -79,7 +92,11 @@ def build_agent_template_overlay() -> Dict[str, Any]:
 
     return {
         "tools": [
-            *[{"type": "platform", "op": op_name} for op_name in PLATFORM_OPS],
+            # Harness builtins must be granted by selection: any custom tool on the wire
+            # switches the runner's Pi builtin gating from "Pi defaults" to "granted only",
+            # and without `read` the skill below is announced but unloadable.
+            *[{"type": "builtin", "name": name} for name in AGENTA_FORCED_TOOLS],
+            *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
             *_reserved_static_tool_embeds(catalog),
         ],
         "skills": skills,

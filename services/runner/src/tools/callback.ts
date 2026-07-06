@@ -23,6 +23,21 @@ export const EMPTY_OBJECT_SCHEMA = {
   additionalProperties: true,
 };
 
+export interface CallAgentaToolOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  runKind?: string;
+}
+
+function callbackFetchTimeoutMs(timeoutMs: number | undefined): number {
+  // A positive spec timeout caps the server-side child run. The host fetch gets
+  // a short grace window so digest/span work produced after the child ceiling
+  // is not lost to an abort at the same deadline.
+  return timeoutMs && timeoutMs > 0
+    ? timeoutMs + 10_000
+    : TOOL_CALL_TIMEOUT_MS;
+}
+
 /**
  * One /tools/call round-trip. Returns the result text; throws on failure. Callers turn a
  * throw into a tool-error result so the model loop continues rather than crashing the run.
@@ -34,15 +49,20 @@ export async function callAgentaTool(
   callRef: string,
   toolCallId: string,
   args: unknown,
-  signal?: AbortSignal,
+  options: CallAgentaToolOptions = {},
 ): Promise<string> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (authorization) headers["authorization"] = authorization;
+  if (options.runKind) headers["x-agenta-run-kind"] = options.runKind;
 
-  const timeoutSignal = AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS);
+  const timeoutSignal = AbortSignal.timeout(
+    callbackFetchTimeoutMs(options.timeoutMs),
+  );
   const anyOf = (AbortSignal as any).any;
   const combined =
-    signal && typeof anyOf === "function" ? anyOf([signal, timeoutSignal]) : timeoutSignal;
+    options.signal && typeof anyOf === "function"
+      ? anyOf([options.signal, timeoutSignal])
+      : timeoutSignal;
 
   const dbg = process.env.AGENTA_RUNNER_DEBUG_TOOLS ? console.error : undefined;
   dbg?.(`[tool-call] -> ${callRef} POST ${endpoint} auth=${authorization ? "yes" : "no"}`);

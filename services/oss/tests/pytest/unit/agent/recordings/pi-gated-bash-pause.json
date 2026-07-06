@@ -1,0 +1,25 @@
+{
+  "_provenance": "Captured from a live E2 (service / sandbox-agent local) run, 2026-07-02, during the pi-builtin-gating QA pass (see docs/design/agent-workflows/projects/pi-builtin-gating/). Config: harness pi_core, runner.permissions.default 'allow_reads', all seven builtins granted (read/bash/edit/write/grep/find/ls). Prompt asked the agent to run `echo qa-gate-7431` over bash. The real run paused with a user_approval interaction naming bash, exactly as this fixture replays. Redacted: tool_call/interaction ids -> fixed placeholders. The `command` value is the real captured argument, not a secret.",
+  "stop_reason": "paused",
+  "events": [
+    {
+      "type": "interaction_request",
+      "data": {
+        "id": "call_test-1|fc_test-1",
+        "kind": "user_approval",
+        "payload": {
+          "toolCallId": "call_test-1|fc_test-1",
+          "toolCall": {
+            "toolCallId": "call_test-1|fc_test-1",
+            "name": "bash",
+            "title": "bash",
+            "rawInput": { "command": "echo qa-gate-7431" },
+            "input": { "command": "echo qa-gate-7431" }
+          },
+          "availableReplies": ["once", "reject"]
+        }
+      }
+    },
+    { "type": "done", "data": {} }
+  ]
+}

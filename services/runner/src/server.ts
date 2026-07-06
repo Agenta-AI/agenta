@@ -28,6 +28,7 @@ import type {
   EmitEvent,
   StreamRecord,
 } from "./protocol.ts";
+import { resolvePromptText } from "./protocol.ts";
 import {
   destroyInFlightSandboxes,
   runSandboxAgent,
@@ -244,11 +245,16 @@ async function runAndStream(
       request.sandbox?.trim() || "local",
       watchdog.credential(),
     );
-    const { emit: persistingEmit, flush } = buildPersistingEmitter(
+    const { emit: persistingEmit, persist, flush } = buildPersistingEmitter(
       sessionId,
       watchdog.credential,
       liveEmit,
     );
+    // Record the inbound user turn first so the session record is the full conversation,
+    // not just agent output. Interaction replies ride tool_result blocks (no text) and are
+    // already recorded on the interaction, so an empty prompt persists nothing.
+    const promptText = resolvePromptText(request);
+    if (promptText) persist({ type: "message", text: promptText }, "user");
     emitFn = persistingEmit;
     flushPersist = flush;
   }

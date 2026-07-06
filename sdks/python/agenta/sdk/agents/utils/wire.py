@@ -116,8 +116,8 @@ def request_to_wire(
     that drops each entry into the cwd with no harness knowledge.
 
     ``run_context`` is the run's own context (trace + variant identity), refreshed per turn. When
-    set it rides as ``runContext`` and is consumed only by a tool's ``call.context`` binding at
-    dispatch (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
+    set it rides as ``runContext`` and is consumed by tool context bindings at dispatch
+    (``call.context`` on direct-call specs and ``contextBindings`` on callRef specs) (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
     so a run that needs no binding stays byte-identical to before.
     """
     payload: Dict[str, Any] = {

@@ -94,6 +94,74 @@ def test_fold_tool_run_produces_call_and_result_messages_in_order():
     assert result["stop_reason"] == "stop"
 
 
+def test_fold_repeat_tool_call_is_an_input_refresh_not_a_duplicate():
+    # The runner announces a call early (absent/partial args — Pi streams arg deltas) and
+    # re-emits the SAME id once the real args land on a later ACP tool_call_update. A repeat
+    # tool_call for a seen id is an input REFRESH (see vercel/stream.py's seen-id refresh):
+    # the batch fold must record the final args on the ONE tool_call message, not keep the
+    # early partial delta nor append a duplicate.
+    events = [
+        {
+            "type": "tool_call",
+            "data": {"id": "t1", "name": "search", "input": {"use_cases": [""]}},
+        },
+        {
+            "type": "tool_call",
+            "data": {
+                "id": "t1",
+                "name": "search",
+                "input": {"use_cases": ["a", "b"], "limit": 5},
+            },
+        },
+        {"type": "tool_result", "data": {"id": "t1", "output": "42"}},
+        _done(),
+    ]
+    result = fold(events)
+    roles = [m["role"] for m in result["messages"]]
+    assert roles == ["tool", "tool"]  # one call + one result, no duplicate call
+    call = result["messages"][0]
+    assert call["input"] == {"use_cases": ["a", "b"], "limit": 5}
+    assert call["tool_call_id"] == "t1" and call["tool_name"] == "search"
+
+
+def test_fold_repeat_tool_call_keeps_first_seen_name_and_position():
+    # The refresh carries only the drift-prone ACP title; keep the first-seen name
+    # (mirrors the stream egress) and the call's original position before its result.
+    events = [
+        {"type": "tool_call", "data": {"id": "t1", "name": "search", "input": {}}},
+        {
+            "type": "tool_call",
+            "data": {"id": "t1", "name": "Searching the web", "input": {"q": "x"}},
+        },
+        {"type": "tool_result", "data": {"id": "t1", "output": "ok"}},
+        _done(),
+    ]
+    result = fold(events)
+    call, tool_result = result["messages"][0], result["messages"][1]
+    assert call["tool_name"] == "search"
+    assert call["input"] == {"q": "x"}
+    assert tool_result["content"] == "ok"
+
+
+def test_fold_tool_call_prefers_raw_input_over_input():
+    # Some tool-call paths leave the plain `input` empty and carry the real args on
+    # `rawInput` (ACP); mirror the stream egress preference. `{}` is real args, not absent.
+    events = [
+        {
+            "type": "tool_call",
+            "data": {
+                "id": "t1",
+                "name": "ls",
+                "input": None,
+                "rawInput": {"path": "/tmp"},
+            },
+        },
+        _done(),
+    ]
+    result = fold(events)
+    assert result["messages"][0]["input"] == {"path": "/tmp"}
+
+
 def test_fold_tool_result_error_flag_carried():
     events = [
         {"type": "tool_call", "data": {"id": "t1", "name": "bash"}},

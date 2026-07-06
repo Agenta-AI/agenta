@@ -15,6 +15,8 @@
  *  - The run DOES drain before teardown so the last event is not lost to the race.
  *  - A persist failure is logged and swallowed; the SDK's in-memory replay store is the
  *    backstop. Three retries with linear backoff before the event is dropped.
+ *  - `record_source` marks who authored the record: "agent" for engine-emitted events,
+ *    "user" for the inbound user turn persisted at run start.
  */
 
 import { apiBase } from "../apiBase.ts";
@@ -82,7 +84,7 @@ export function persistEvent(
   auth: () => string,
   event: AgentEvent,
   eventIndex: number,
-  sender: string = "runner",
+  sender: string = "agent",
 ): void {
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
     postEvent(sessionId, auth, event, eventIndex, sender),
@@ -120,6 +122,9 @@ export function buildPersistingEmitter(
   liveEmit?: (event: AgentEvent) => void,
 ): {
   emit: (event: AgentEvent) => void;
+  /** Persist an out-of-band record (e.g. the inbound user turn) through the same
+   * ordered chain and index counter, without touching the live stream. */
+  persist: (event: AgentEvent, sender: string) => void;
   flush: () => Promise<void>;
 } {
   let eventIndex = 0;
@@ -189,7 +194,11 @@ export function buildPersistingEmitter(
     persistEvent(sessionId, auth, event, eventIndex++);
   };
 
+  const persist = (event: AgentEvent, sender: string): void => {
+    persistEvent(sessionId, auth, event, eventIndex++, sender);
+  };
+
   const flush = (): Promise<void> => drainPersist(sessionId);
 
-  return { emit, flush };
+  return { emit, persist, flush };
 }

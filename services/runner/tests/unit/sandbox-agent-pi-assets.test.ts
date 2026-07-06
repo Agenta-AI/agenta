@@ -64,6 +64,8 @@ describe("buildPiExtensionEnv", () => {
             properties: { x: { type: "string" } },
           },
           callRef: "server-secret-ref",
+          contextBindings: { "target.workflow_variant_id": "$ctx.workflow.variant.id" },
+          timeoutMs: 120000,
           env: { SECRET: "do-not-expose" },
           kind: "callback",
         },
@@ -105,6 +107,7 @@ describe("buildPiExtensionEnv", () => {
         description: "safe",
         inputSchema: { type: "object", properties: { x: { type: "string" } } },
         kind: "callback",
+        timeoutMs: 120000,
       },
       {
         name: "client_only",
@@ -118,6 +121,7 @@ describe("buildPiExtensionEnv", () => {
       },
     ]);
     assert.equal(JSON.stringify(specs).includes("server-secret-ref"), false);
+    assert.equal(JSON.stringify(specs).includes("contextBindings"), false);
     assert.equal(JSON.stringify(specs).includes("do-not-expose"), false);
   });
 
@@ -139,6 +143,19 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.TRACEPARENT, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
+  });
+
+  it("sets builtin gating env and relay dir without custom tools", () => {
+    const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
+      relayDir: "/tmp/relay",
+      builtinGatingActive: true,
+      builtinGrants: ["read", "write"],
+    });
+
+    assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
+    assert.equal(env.AGENTA_AGENT_BUILTIN_GRANTS, "read,write");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
   });
 
   it("accepts snake_case tool schemas from older Python wire payloads", () => {

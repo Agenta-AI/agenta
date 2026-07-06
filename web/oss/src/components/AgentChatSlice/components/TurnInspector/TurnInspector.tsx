@@ -1,15 +1,18 @@
 import {useMemo, useState} from "react"
 
 import {capturesForTrigger} from "@agenta/playground"
-import {X} from "@phosphor-icons/react"
+import {DownloadSimple, X} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
 import {Button} from "antd"
 import {useAtom, useAtomValue} from "jotai"
+
+import {downloadText} from "@/oss/lib/helpers/fileManipulations"
 
 import {sessionCapturesAtomFamily} from "../../state/turnCaptures"
 import {turnInspectorAtom} from "../../state/turnInspector"
 
 import ContextTab from "./ContextTab"
+import {contextMarkdown, rawMarkdown, timelineMarkdown} from "./dump"
 import RawTab from "./RawTab"
 import TimelineTab from "./TimelineTab"
 
@@ -113,6 +116,23 @@ const TurnInspector = ({sessionId, messages}: {sessionId: string; messages: UIMe
                             </Button>
                         )
                     })}
+                    <Button
+                        type="text"
+                        size="small"
+                        className="!ml-auto"
+                        icon={<DownloadSimple size={14} />}
+                        onClick={() => {
+                            const markdown =
+                                tab === "timeline"
+                                    ? timelineMarkdown(round, sessionId)
+                                    : tab === "context"
+                                      ? contextMarkdown(turnCaptures, sessionId)
+                                      : rawMarkdown(turnCaptures, sessionId)
+                            downloadText(markdown, `turn-${sessionId.slice(0, 8)}-${tab}.md`)
+                        }}
+                        aria-label={`Download ${tab} as markdown`}
+                        title="Download as markdown"
+                    />
                 </div>
                 <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3">
                     {tab === "timeline" ? <TimelineTab round={round} /> : null}

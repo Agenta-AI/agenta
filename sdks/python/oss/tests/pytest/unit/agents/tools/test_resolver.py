@@ -266,19 +266,19 @@ async def test_platform_tool_resolves_to_callback_spec_with_direct_call():
     # A type:"platform" tool becomes a callback spec carrying a direct `call` (no call_ref), plus
     # the shared ToolCallback that gives the runner the origin to resolve the relative path against.
     resolved = await ToolResolver(platform_resolver=FakePlatformResolver()).resolve(
-        [PlatformToolConfig(op="find_capabilities")]
+        [PlatformToolConfig(op="discover_tools")]
     )
     assert len(resolved.tool_specs) == 1
     spec = resolved.tool_specs[0]
     assert isinstance(spec, CallbackToolSpec)
     assert spec.call_ref is None
-    assert spec.call.path == "/api/find_capabilities"
+    assert spec.call.path == "/api/discover_tools"
     assert resolved.tool_callback.endpoint == "https://example/tools/call"
 
 
 async def test_platform_tool_requires_injected_resolver():
     with pytest.raises(UnsupportedToolProviderError):
-        await ToolResolver().resolve([PlatformToolConfig(op="find_capabilities")])
+        await ToolResolver().resolve([PlatformToolConfig(op="discover_tools")])
 
 
 async def test_reference_and_gateway_share_one_callback():

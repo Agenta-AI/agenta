@@ -1,9 +1,13 @@
-"""OpenTelemetry glue: thread the workflow trace into the run, record the run's usage.
+"""Ambient tracing capture: thread the active workflow trace into the run, record its usage.
 
-The handler runs inside the instrumented ``/invoke`` span, so threading its trace context
-into the harness makes the agent's spans children of that span (same trace), and stamping
-the run's token/cost totals onto it shows the run's usage even though the harness exports
-its span tree in a separate OTLP batch.
+These are the runtime defaults of the ``AgentComposition`` seam (see ``handler.py``). Each
+reads ambient SDK-owned state at CALL time — the active OpenTelemetry span, the
+``TracingContext`` ContextVar (traceparent, baggage, credentials, references) — and degrades
+to ``None``/no-op when a run has no such state (the standalone case). The handler runs inside
+the instrumented ``/invoke`` span, so threading its trace context into the harness makes the
+agent's spans children of that span (same trace), and stamping the run's token/cost totals
+onto it shows the run's usage even though the harness exports its span tree in a separate
+OTLP batch.
 """
 
 import os
@@ -11,12 +15,11 @@ from typing import Any, Dict, Optional
 
 from opentelemetry import trace as otel_trace
 
-import agenta as ag
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.utils.logging import get_module_logger
 
-from agenta.sdk.agents import (
+from agenta.sdk.agents.dtos import (
     RunContext,
     RunContextReference,
     RunContextTrace,
@@ -40,8 +43,11 @@ def trace_context() -> Optional[TraceContext]:
 
     Threading the ``/invoke`` span's ``traceparent`` into the run makes the agent's spans
     children of that span, so the whole run shows up under the response's ``trace_id`` the
-    way completion/chat nest their LLM spans. Best-effort: any failure returns ``None`` and
-    the run is traced standalone (or not at all) using the runner's env config.
+    way completion/chat nest their LLM spans. The caller's credential rides along (via
+    ``inject``'s ``Authorization`` re-emit from ``TracingContext.credentials``) — the runner
+    authenticates its session-coordination calls AS the caller with it. Best-effort: any
+    failure returns ``None`` and the run is traced standalone (or not at all) using the
+    runner's env config.
     """
     try:
         headers = inject({})
@@ -52,6 +58,8 @@ def trace_context() -> Optional[TraceContext]:
 
         endpoint = None
         try:
+            import agenta as ag  # deferred: this module loads during `agenta` init
+
             endpoint = ag.tracing.otlp_url
         except Exception:  # pylint: disable=broad-except
             endpoint = None
@@ -173,14 +181,15 @@ def _run_context_trace() -> Optional[RunContextTrace]:
 
 
 def run_context() -> Optional[RunContext]:
-    """Capture the run's own context for tool ``call.context`` binding (direct-call tools, Phase 3a).
+    """Capture the run's own context for tool bindings and run-kind propagation.
 
     Assembles the run's own trace + workflow identity into a :class:`RunContext` the service sends
-    on ``/run`` (refreshed per turn). It is consumed ONLY by a tool's ``call.context`` binding at
-    dispatch, server-side and hidden from the model (see
-    ``projects/direct-call-tools/run-context.md``). The conversation id is not part of this blob —
-    it rides the top-level ``sessionId`` field. Best-effort: any failure (or an entirely empty
-    context) returns ``None`` so the run proceeds and the ``runContext`` key is simply omitted.
+    on ``/run`` (refreshed per turn). The full ``runContext`` is consumed by direct-call
+    ``call.context`` bindings, callRef ``contextBindings``, and ``run.kind`` forwarding at dispatch,
+    server-side and hidden from the model (see ``projects/direct-call-tools/run-context.md``). The
+    conversation id is not part of this blob; it rides the top-level ``sessionId`` field.
+    Best-effort: any failure (or an entirely empty context) returns ``None`` so the run proceeds and
+    the ``runContext`` key is simply omitted.
 
     The workflow and the trace are captured as INDEPENDENT failure domains: a failure reading the
     workflow references must not drop an otherwise-valid ``trace`` (and vice versa), so a trace-only

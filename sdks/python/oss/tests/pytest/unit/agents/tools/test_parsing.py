@@ -191,9 +191,9 @@ def test_typed_reference_without_slug_raises():
 
 
 def test_typed_platform_config_round_trips():
-    tool = parse_tool_config({"type": "platform", "op": "find_capabilities"})
+    tool = parse_tool_config({"type": "platform", "op": "discover_tools"})
     assert isinstance(tool, PlatformToolConfig)
-    assert tool.op == "find_capabilities"
+    assert tool.op == "discover_tools"
 
 
 def test_compat_parser_accepts_platform_type_and_ignores_legacy_fields():

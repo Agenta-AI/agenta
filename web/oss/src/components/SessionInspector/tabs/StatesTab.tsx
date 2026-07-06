@@ -1,5 +1,5 @@
-import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Descriptions, Skeleton, Typography} from "antd"
+import {useQuery} from "@tanstack/react-query"
+import {Alert, Descriptions, Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -10,7 +10,6 @@ const {Text} = Typography
 
 const StatesTab = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
-    const queryClient = useQueryClient()
 
     const queryKey = ["session-inspector", "state", projectId, sessionId]
     const {data, isLoading, error} = useQuery({
@@ -20,34 +19,25 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
         refetchOnWindowFocus: false,
     })
 
-    const refresh = () => queryClient.invalidateQueries({queryKey})
-
     if (isLoading) return <Skeleton active />
     if (error) return <Alert type="error" message="Failed to load state" showIcon />
     if (!data) return <Text type="secondary">No durable state for this session yet.</Text>
 
     return (
-        <>
-            <Descriptions column={1} size="small" bordered>
-                <Descriptions.Item label="state_id">
-                    <span className="font-mono text-xs">{data.id ?? "—"}</span>
-                </Descriptions.Item>
-                <Descriptions.Item label="sandbox_id">
-                    <span className="font-mono text-xs">{data.sandbox_id ?? "—"}</span>
-                </Descriptions.Item>
-                <Descriptions.Item label="updated_at">{data.updated_at ?? "—"}</Descriptions.Item>
-                <Descriptions.Item label="data">
-                    <pre className="m-0 max-h-[40vh] overflow-auto text-xs">
-                        {JSON.stringify(data.data ?? {}, null, 2)}
-                    </pre>
-                </Descriptions.Item>
-            </Descriptions>
-            <div className="mt-2">
-                <Button type="text" onClick={refresh}>
-                    Refresh
-                </Button>
-            </div>
-        </>
+        <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label="state_id">
+                <span className="font-mono text-xs">{data.id ?? "—"}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label="sandbox_id">
+                <span className="font-mono text-xs">{data.sandbox_id ?? "—"}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label="updated_at">{data.updated_at ?? "—"}</Descriptions.Item>
+            <Descriptions.Item label="data">
+                <pre className="m-0 max-h-[40vh] overflow-auto text-xs">
+                    {JSON.stringify(data.data ?? {}, null, 2)}
+                </pre>
+            </Descriptions.Item>
+        </Descriptions>
     )
 }
 

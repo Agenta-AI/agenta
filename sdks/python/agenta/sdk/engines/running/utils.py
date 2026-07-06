@@ -410,14 +410,18 @@ def parse_uri(
 
 
 def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
-    """Register a handler function in the global handler registry.
+    """Register (or REPLACE) a handler function in the global handler registry.
 
     Stores a callable in the HANDLER_REGISTRY with a hierarchical URI structure
     of provider:kind:key:version. If no URI is provided, generates one automatically
     using the function's module and name (user:custom:module.name:latest).
 
-    The URI is parsed into components and used to create nested dictionary entries
-    in the registry for later retrieval by retrieve_handler().
+    Like :func:`register_interface`, this REPLACES any existing entry, so a service
+    process can bind its live handler under a builtin URI the SDK already seeds
+    (e.g. the agent service rebinds ``agenta:builtin:agent:v0`` over the seeded
+    composition-default ``agent_v0``). ``ag.workflow`` never re-registers an
+    already-bound URI (``Workflow.__call__`` skips when a handler resolved from
+    the registry), so replace semantics cannot clobber an instrumented handler.
 
     Args:
         fn: The callable function to register
@@ -445,9 +449,9 @@ def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
     if not provider or not kind or not key or not version:
         raise ValueError(f"Invalid URI: {uri}")
 
-    HANDLER_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(
-        key, {}
-    ).setdefault(version, fn)
+    HANDLER_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(key, {})[
+        version
+    ] = fn
 
     return uri
 
@@ -455,9 +459,9 @@ def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
 def register_interface(interface: WorkflowRevisionData, uri: str) -> str:
     """Register (or OVERRIDE) the interface for a URI in the global interface registry.
 
-    Unlike :func:`register_handler`'s ``setdefault``, this REPLACES any existing entry, so a
-    service process can bind its own richer interface under a builtin URI that the SDK already
-    seeds with a minimal default (e.g. the agent service overrides ``agenta:builtin:agent:v0`` so
+    Like :func:`register_handler`, this REPLACES any existing entry, so a service process can
+    bind its own richer interface under a builtin URI that the SDK already seeds with a minimal
+    default (e.g. the agent service overrides ``agenta:builtin:agent:v0`` so
     ``retrieve_interface`` returns the same schemas ``/inspect`` advertises). This is a
     process-local registration: it changes only the process that calls it (the agent service), not
     the API process that builds the catalog from the SDK defaults.
@@ -525,6 +529,19 @@ def retrieve_configuration(uri: Optional[str] = None) -> Optional[dict]:
     provider, kind, key, version = parse_uri(uri)
 
     return _get_with_latest(CONFIGURATION_REGISTRY, provider, kind, key, version)
+
+
+def seed_empty_parameters_from_configuration(
+    revision: Optional[WorkflowRevisionData],
+) -> Optional[WorkflowRevisionData]:
+    """Seed missing/empty parameters from the URI's registered default configuration."""
+    if revision is None or revision.parameters:
+        return revision
+
+    configuration = retrieve_configuration(revision.uri)
+    if configuration and configuration.parameters:
+        revision.parameters = configuration.parameters
+    return revision
 
 
 def register_meta(meta: dict, uri: str) -> str:

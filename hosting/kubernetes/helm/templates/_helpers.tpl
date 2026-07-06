@@ -366,6 +366,8 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- define "agenta.redisVolatile.maxmemoryPolicy" -}}{{ default "volatile-lru" (default dict .Values.redisVolatile).maxmemoryPolicy }}{{- end }}
 {{- define "agenta.redisDurable.maxmemory" -}}{{ default "512mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
 {{- define "agenta.redisDurable.maxmemoryPolicy" -}}{{ default "noeviction" (default dict .Values.redisDurable).maxmemoryPolicy }}{{- end }}
+{{/* Bytes of corrupt AOF tail redis may auto-truncate at load instead of refusing to start. */}}
+{{- define "agenta.redisDurable.aofLoadCorruptTailMaxSize" -}}{{ default 1048576 (default dict .Values.redisDurable).aofLoadCorruptTailMaxSize }}{{- end }}
 
 {{/* ================================================================
    Alembic job defaults.

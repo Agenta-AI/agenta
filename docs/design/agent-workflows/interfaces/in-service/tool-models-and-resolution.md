@@ -32,7 +32,7 @@ policy) and `render` (optional), discriminated by `type`:
 // platform: an existing Agenta endpoint exposed to the agent. `op` names a platform-op catalog
 // entry; the catalog owns the description, endpoint, schema, context bindings, and per-op gate defaults.
 // `permission` is optional here (null = use the catalog default).
-{ "type": "platform", "op": "find_capabilities", "permission": null }
+{ "type": "platform", "op": "discover_tools", "permission": null }
 ```
 
 A tool can also be a **workflow** referenced as a tool (`type: "reference"`, above) or a
@@ -54,11 +54,17 @@ config (not markers); `resolve_tools` owns the tool-specific mapping.
 // callback (direct): a type:"platform" tool. Instead of call_ref it carries a `call` descriptor —
 // the runner calls the endpoint directly (no /tools/call hop). `context` carries the run-context bindings.
 // A callback spec carries exactly one of `call_ref` (gateway) or `call` (direct).
-{ "kind": "callback", "name": "find_capabilities", "description": "...", "input_schema": {},
+{ "kind": "callback", "name": "discover_tools", "description": "...", "input_schema": {},
   "call": { "method": "POST", "path": "/api/tools/discover" } }
 // e.g. self-update commit_revision:
 // "call": { "method": "POST", "path": "/api/workflows/revisions/commit",
 //           "context": { "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id" } }
+// callback (handler mode, flag-gated): a handler-backed platform op (e.g. test_run). Carries a
+// reserved call_ref plus spec-level contextBindings/timeoutMs; routes through /tools/call to the
+// server-side handler registry. Only emitted when AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS is on.
+// { "kind": "callback", "name": "test_run", "call_ref": "tools.agenta.test_run",
+//   "contextBindings": { "target.workflow_variant_id": "$ctx.workflow.variant.id" },
+//   "timeoutMs": 120000 }
 
 // code: sandboxed code with its named secrets injected into env
 { "kind": "code", "name": "...", "runtime": "python", "code": "...", "env": { "API_KEY": "..." } }
@@ -111,20 +117,20 @@ secret; their provider key stays server-side and the call routes back through `/
   callback spec carrying a direct `call`.
 - `sdks/python/agenta/sdk/agents/platform/_schema.py`: `expand_type_refs` (resolve `x-ag-type-ref`
   against `CATALOG_TYPES`) used for platform-op input schemas.
-- `api/oss/src/apis/fastapi/tools/router.py`: `/tools/call` routes a `workflow.*` call_ref to
-  `WorkflowsService.invoke_workflow`, and a `tools.agenta.*` call_ref (the reserved
-  `find_capabilities` discovery tool) to `ToolsService.discover_capabilities` (server-side execute
-  paths). The `tools.agenta.*` server route is retained during migration and removed once platform
-  tools (the direct `call`) fully supersede it.
+- `api/oss/src/apis/fastapi/tools/router.py`: `/tools/call` routes a registered reserved
+  `tools.agenta.*` call_ref to the handler registry (`_call_reserved_agenta_tool`) and a
+  `workflow.*` call_ref to `WorkflowsService.invoke_workflow` (server-side execute paths). The
+  legacy `tools.agenta.find_capabilities` dispatch is deleted; an unregistered reserved ref
+  fails loud with a 404.
+- `api/oss/src/core/tools/platform_handlers.py`: the reserved-ref handler registry and the
+  `test_run` handler (hydrate + optional in-memory delta + headless invoke + digest/verdict).
 - `services/oss/src/agent/tools/resolver.py`: the service entrypoint (re-exports the SDK).
 
-`find_capabilities` is now the first **platform tool**: an agent config declares
-`{type:"platform", op:"find_capabilities"}` and the SDK resolver emits a `CallbackToolSpec` with a
-direct `call` to `POST /api/tools/discover`, so the model can call it end to end. The server-side
-`/tools/call` `tools.agenta.*` route still exists (removed in a later phase). The canonical
-reserved-tool spec (call_ref, input_schema, description) still lives in
-`api/oss/src/core/tools/discovery.py`; the SDK-side description + schema for the platform op live
-in `op_catalog.py` (the SDK must not import the API).
+`discover_tools` (renamed from `find_capabilities`, hard migrate, no alias) is the canonical
+endpoint-mode **platform tool**: an agent config declares
+`{type:"platform", op:"discover_tools"}` and the SDK resolver emits a `CallbackToolSpec` with a
+direct `call` to `POST /api/tools/discover`, so the model calls it end to end. The SDK-side
+description + schema live in `op_catalog.py` (the SDK must not import the API).
 
 ## Watch for when changing
 
@@ -149,6 +155,12 @@ in `op_catalog.py` (the SDK must not import the API).
   run-context token). Keep the catalog `path` pointing at an existing endpoint and the
   `context_bindings` token names in step with the `runContext` shape.
 - **Reserved platform call references.** `tools.agenta.{op}` is reserved for Agenta platform
-  tools (v1: `find_capabilities`, `query_workflows`, `commit_revision`). The model-visible tool
-  name is the bare `op`; the namespaced id is `PlatformOp.reserved_id`. Keep the reserved prefix
-  out of the Composio 5-segment namespace.
+  tools. The model-visible tool name is the bare `op`; the namespaced id is
+  `PlatformOp.reserved_id`. Handler-mode ops reuse the reserved id as their live `call_ref`
+  (`tools.agenta.test_run`), so the prefix now routes at `/tools/call`. Keep it out of the
+  Composio 5-segment namespace.
+- **Handler mode (`handler` XOR `method`+`path`).** A `PlatformOp` targets exactly one of an
+  existing endpoint or an allowlisted server handler. Handler ops emit `call_ref` +
+  spec-level `contextBindings`/`timeoutMs` instead of `call`, and only resolve when
+  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` is on (the runner half is pending). See the
+  [build-kit-tools-cleanup api-design](../../projects/build-kit-tools-cleanup/api-design.md).

@@ -174,8 +174,10 @@ lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in 
 - API or SDK changes: run `ruff format` then `ruff check --fix` within the SDK or API
   folder (from the repo root: `ruff format` then `ruff check`). Fix all errors before
   committing. Details: `api/AGENTS.md`.
-- Ant Design token changes: run `pnpm generate:tailwind-tokens` in the `web` folder and
-  commit the generated file.
+- Theme color changes: edit the source of truth `web/oss/src/styles/theme/palette.ts`,
+  then run `pnpm generate:tailwind-tokens` in the `web` folder and commit the regenerated
+  files (`theme-variables.css`, `theme/antd-overrides.generated.ts`). Do not hand-edit the
+  generated files.
 
 ## Local dev loop (deploy + test)
 

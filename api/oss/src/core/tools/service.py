@@ -52,7 +52,7 @@ log = get_module_logger(__name__)
 
 _SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9-]+(?:_[a-zA-Z0-9-]+)*$")
 
-# Discovery (find_capabilities): cache the tool/schema half, recompute connection
+# Discovery (discover_tools): cache the tool/schema half, recompute connection
 # state fresh (D6). Project-agnostic key — the search is global, only the
 # connection-state join is project-scoped.
 _DISCOVERY_CACHE_NAMESPACE = "tools:discover"
@@ -481,7 +481,7 @@ class ToolsService:
         )
 
     # -----------------------------------------------------------------------
-    # Tool discovery (find_capabilities)
+    # Tool discovery (discover_tools)
     # -----------------------------------------------------------------------
 
     async def discover_capabilities(

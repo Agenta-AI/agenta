@@ -108,6 +108,14 @@ export interface ResolvedToolSpec {
   /** Set for gateway `callback` tools (routes through /tools/call); absent for `code` / `client`, and absent when `call` is set. */
   callRef?: string;
   /**
+   * Executor-private argument bindings for `callRef` tools. The runner fills each dotted argument
+   * path from `runContext` after the permission verdict and before posting to `/tools/call`, so
+   * the model cannot override the bound fields. Not advertised to the model.
+   */
+  contextBindings?: Record<string, string>;
+  /** Optional per-tool execution budget for the `/tools/call` round-trip and child relay wait. */
+  timeoutMs?: number;
+  /**
    * Direct-call descriptor (direct-call tools, Phase 1). When set, the runner calls this Agenta
    * endpoint DIRECTLY (reusing the run's `toolCallback.authorization`) instead of routing through
    * `/tools/call`. `path` is an absolute path from the Agenta origin (the runner derives the
@@ -156,9 +164,10 @@ export interface RunContextReference {
 /**
  * The run's own context, delivered on `/run` and refreshed per turn (direct-call tools, Phase 3a;
  * see `projects/direct-call-tools/run-context.md`). The service computes it from the invocation's
- * own trace + workflow identity. It is consumed ONLY by a tool's `call.context` binding: the runner
- * fills bound request fields from this blob at dispatch, server-side and hidden from the model. The
- * model never reads run context directly.
+ * own trace + workflow identity. It is consumed by tool context bindings: `call.context` on
+ * direct-call specs and `contextBindings` on callRef specs. The runner fills bound request fields
+ * from this blob at dispatch, server-side and hidden from the model. The model never reads run
+ * context directly.
  *
  * `workflow` mirrors the platform's three workflow entities — the `artifact` (the workflow), the
  * `variant`, and the `revision` — so the run's identity reads the same way the rest of the platform
@@ -172,6 +181,9 @@ export interface RunContextReference {
  * best-effort — the service fills what it holds and omits the rest.
  */
 export interface RunContext {
+  run?: {
+    kind?: string;
+  };
   workflow?: {
     artifact?: RunContextReference;
     variant?: RunContextReference;

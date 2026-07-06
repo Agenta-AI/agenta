@@ -44,7 +44,7 @@ import {
   type ClientToolOutcome,
   type Responder,
 } from "../responder.ts";
-import type { ClientToolRelay } from "../tools/relay.ts";
+import type { ClientToolRelay } from "../tools/client-tool-relay.ts";
 import {
   buildClientToolRelay,
   createToolCallCorrelationIndex,
@@ -384,6 +384,8 @@ export async function runSandboxAgent(
     ? buildPiExtensionEnv(request, !plan.isDaytona, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
+        builtinGatingActive: plan.builtinGatingActive,
+        builtinGrants: plan.builtinGrants,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
         // records which skills loaded (F-029); local Pi self-instruments, so the runner's
         // sandbox-agent otel has no span to stamp here.
@@ -653,9 +655,9 @@ export async function runSandboxAgent(
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
-      // Local Claude only: lets the internal channel advertise + pause `client` tools. The
-      // deferred ref resolves before any `tools/call` arrives. buildSessionMcpServers ignores it
-      // for Pi / Daytona (no internal channel there).
+      // Any LOCAL non-Pi harness (Claude today): lets the internal channel advertise + pause
+      // `client` tools. The deferred ref resolves before any `tools/call` arrives.
+      // buildSessionMcpServers ignores it for Pi / Daytona (no internal channel there).
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
       log: logger,
@@ -718,7 +720,7 @@ export async function runSandboxAgent(
       const update = payload?.params?.update ?? payload?.update;
       if (update) {
         // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's
-        // bubble (recorded even for suppressed frames; the index is first-write-wins).
+        // bubble (recorded even for suppressed frames; a lookup CONSUMES its matched id).
         toolCallIndex.record(update);
         if (!shouldSuppressPausedToolCallUpdate(update, pause)) {
           run.handleUpdate(update);
@@ -770,7 +772,7 @@ export async function runSandboxAgent(
       enforce: plan.isPi,
       decide: (gate) => decide(gate, permissionPlan, decisions),
       onPendingApproval: ({ toolCallId, toolName, args }) => {
-        if (!latch.tryAcquire()) return;
+        if (!latch.tryAcquire()) return { emitted: false };
         pause.markPausedToolCall(toolCallId);
         run.emitEvent({
           type: "interaction_request",
@@ -790,6 +792,7 @@ export async function runSandboxAgent(
         });
         recordPendingInteraction(toolCallId, toolName, args);
         pause.pause();
+        return { emitted: true };
       },
     };
     const serverPermissions = serverPermissionsFromRequest(request);

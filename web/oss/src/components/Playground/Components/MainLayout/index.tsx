@@ -53,6 +53,13 @@ type MainLayoutProps = BaseContainerProps & {
     onConfigViewModeChange?: (mode: ConfigViewMode) => void
     /** Render slot for testset menu in the per-entity Generations header (single view). */
     renderTestsetActions?: PlaygroundGenerationsProps["renderTestsetActions"]
+    /**
+     * Replaces the config-panel content (the per-variant config forms) with custom content, keeping
+     * the panel's splitter/scroll/raised-surface chrome. Single-view only. Used by playground-native
+     * onboarding to show the templates list while the agent is still ephemeral. Omit for the normal
+     * config forms.
+     */
+    renderConfigOverride?: ReactNode
 }
 
 const SplitterPanel = Splitter.Panel
@@ -105,6 +112,7 @@ const PlaygroundMainView = ({
     configViewMode,
     onConfigViewModeChange,
     renderTestsetActions,
+    renderConfigOverride,
     ...divProps
 }: MainLayoutProps) => {
     const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
@@ -124,7 +132,11 @@ const PlaygroundMainView = ({
     // On project-level playground (no app in URL), show empty state instead of error
     // when no entities are selected. Evaluator mode always uses empty state (no URL app).
     const isProjectLevel = !urlAppId
-    const showEmptyState = isEmpty && (isProjectLevel || isEvaluatorMode)
+    // A caller-provided config override (playground-native onboarding: templates while ephemeral)
+    // supplies its own content, so never fall back to the "add an app revision" empty state — an
+    // ephemeral `local-*` entity never resolves to a backend revision, so `status` stays "empty" even
+    // though we do have a (local) entity to render. The drawer sidesteps the same way via !isProjectLevel.
+    const showEmptyState = isEmpty && (isProjectLevel || isEvaluatorMode) && !renderConfigOverride
     const showErrorState = isEmpty && !isProjectLevel && !isEvaluatorMode
 
     // Which entity IDs to render config panels for
@@ -323,7 +335,9 @@ const PlaygroundMainView = ({
                                         handleScroll={handleScroll}
                                     />
                                 )}
-                                {configEntityIds.length > 0 ? (
+                                {renderConfigOverride && !isComparisonView ? (
+                                    renderConfigOverride
+                                ) : configEntityIds.length > 0 ? (
                                     configEntityIds.map((variantId, index) => (
                                         <div
                                             key={`variant-config-${variantId}`}

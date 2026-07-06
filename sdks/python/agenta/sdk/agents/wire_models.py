@@ -196,11 +196,18 @@ class WireRunContextTrace(_WireModel):
     span_id: Optional[str] = None
 
 
+class WireRunContextRun(_WireModel):
+    """The run's own identity inside ``runContext`` (mirrors ``RunContextRun``)."""
+
+    kind: Optional[str] = None
+
+
 class WireRunContext(_WireModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; mirrors ``RunContext.to_wire``).
 
-    Consumed only by a tool's ``call.context`` binding at dispatch, server-side and hidden from
+    Consumed by tool context bindings at dispatch: ``call.context`` on direct-call specs and
+    ``contextBindings`` on callRef specs, server-side and hidden from
     the model. Unlike the rest of the wire, the INNER keys are snake_case
     (``workflow.variant.id`` / ``trace.trace_id``): they are the binding NAMESPACE a catalog
     entry's ``$ctx.<dotted.path>`` token addresses, so they must match those tokens exactly rather
@@ -208,6 +215,7 @@ class WireRunContext(_WireModel):
     the top-level camelCase ``sessionId`` field. The top-level field is still the camelCase
     ``runContext`` on the request."""
 
+    run: Optional[WireRunContextRun] = None
     workflow: Optional[WireRunContextWorkflow] = None
     trace: Optional[WireRunContextTrace] = None
 
@@ -254,6 +262,10 @@ class WireResolvedToolSpec(_WireModel):
     kind: Optional[str] = None
     call_ref: Optional[str] = Field(default=None, alias="callRef")
     call: Optional[WireToolCall] = None
+    context_bindings: Optional[Dict[str, str]] = Field(
+        default=None, alias="contextBindings"
+    )
+    timeout_ms: Optional[int] = Field(default=None, alias="timeoutMs")
     runtime: Optional[str] = None
     code: Optional[str] = None
     env: Optional[Dict[str, str]] = None

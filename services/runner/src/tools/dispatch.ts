@@ -19,19 +19,29 @@
  * `relayToolCall` lives here (not in extensions/agenta.ts) so this module is the single
  * dispatch home with no import cycle back into a call site.
  */
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 import {
+  RELAY_PERMISSION_PROTOCOL,
   RELAY_POLL_MS,
   RELAY_REQ_SUFFIX,
   RELAY_RES_SUFFIX,
   RELAY_TIMEOUT_MS,
+  parsePermissionRelayResponse,
   sanitizeRelayId,
   sleep,
+  type PermissionRelayRequest,
+  type PermissionRelayResponse,
   type RelayResponse,
 } from "./relay.ts";
 
@@ -58,6 +68,7 @@ export async function relayToolCall(
   toolName: string,
   toolCallId: string,
   params: unknown,
+  timeoutMs?: number,
   signal?: AbortSignal,
 ): Promise<string> {
   const id = sanitizeRelayId(toolCallId);
@@ -68,9 +79,15 @@ export async function relayToolCall(
   } catch {
     // The runner also creates it; a race here is harmless.
   }
-  writeFileSync(reqPath, JSON.stringify({ toolName, toolCallId, args: params ?? {} }), "utf-8");
+  writeFileSync(
+    reqPath,
+    JSON.stringify({ toolName, toolCallId, args: params ?? {} }),
+    "utf-8",
+  );
 
-  const deadline = Date.now() + RELAY_TIMEOUT_MS;
+  const deadline =
+    Date.now() +
+    (timeoutMs && timeoutMs > 0 ? timeoutMs + 10_000 : RELAY_TIMEOUT_MS);
   while (Date.now() < deadline) {
     if (signal?.aborted) throw new Error("aborted");
     if (existsSync(resPath)) {
@@ -93,6 +110,108 @@ export async function relayToolCall(
   throw new Error(`tool relay timed out for ${toolName}`);
 }
 
+function oneLineReason(reason: string): string {
+  return reason.replace(/\s+/g, " ").trim() || "Permission check failed.";
+}
+
+function denyPermissionRelayResponse(reason: string): PermissionRelayResponse {
+  return {
+    kind: "permission",
+    ok: false,
+    verdict: "deny",
+    reason: oneLineReason(reason),
+  };
+}
+
+/**
+ * Pi builtin permission check: write a permission request into the same relay directory the
+ * runner watches for tool execution, then poll for its permission response. The extension must
+ * fail closed because returning nothing lets Pi execute the builtin.
+ */
+export async function relayPermissionCheck(
+  dir: string,
+  toolName: string,
+  toolCallId: string,
+  args: unknown,
+): Promise<PermissionRelayResponse> {
+  const id = sanitizeRelayId(toolCallId);
+  const reqPath = `${dir}/${id}${RELAY_REQ_SUFFIX}`;
+  const resPath = `${dir}/${id}${RELAY_RES_SUFFIX}`;
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    // The runner also creates it; a race here is harmless.
+  }
+
+  const req: PermissionRelayRequest = {
+    kind: "permission",
+    protocol: RELAY_PERMISSION_PROTOCOL,
+    toolName,
+    toolCallId,
+    args: args ?? {},
+  };
+  try {
+    writeFileSync(reqPath, JSON.stringify(req), "utf-8");
+  } catch (err) {
+    return denyPermissionRelayResponse(
+      `permission relay request for ${toolName} could not be written: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+
+  const cleanup = (): void => {
+    try {
+      unlinkSync(reqPath);
+    } catch {
+      /* best-effort cleanup */
+    }
+    try {
+      unlinkSync(resPath);
+    } catch {
+      /* best-effort cleanup */
+    }
+  };
+
+  const deadline = Date.now() + RELAY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (existsSync(resPath)) {
+      let parsed: PermissionRelayResponse | undefined;
+      try {
+        parsed = parsePermissionRelayResponse(
+          JSON.parse(readFileSync(resPath, "utf-8")),
+        );
+      } catch {
+        cleanup();
+        return denyPermissionRelayResponse(
+          `permission relay response for ${toolName} was unparseable`,
+        );
+      }
+      cleanup();
+      if (!parsed) {
+        return denyPermissionRelayResponse(
+          `permission relay response for ${toolName} was unparseable`,
+        );
+      }
+      if (!parsed.ok) {
+        return denyPermissionRelayResponse(
+          parsed.reason || `permission relay failed for ${toolName}`,
+        );
+      }
+      return parsed;
+    }
+    await sleep(RELAY_POLL_MS);
+  }
+  try {
+    unlinkSync(reqPath);
+  } catch {
+    /* best-effort cleanup */
+  }
+  return denyPermissionRelayResponse(
+    `permission relay timed out for ${toolName}`,
+  );
+}
+
 /**
  * Execute one resolved tool and return its result text. Throws on failure; every call site
  * turns the throw into a tool-error result so the model loop continues rather than crashing.
@@ -109,17 +228,39 @@ export async function runResolvedTool(
 ): Promise<string> {
   assertRequiredArguments(spec, params);
   if (spec.kind === "code") {
-    return runCodeTool(spec.runtime, spec.code ?? "", spec.env, params, opts.signal);
+    return runCodeTool(
+      spec.runtime,
+      spec.code ?? "",
+      spec.env,
+      params,
+      opts.signal,
+    );
   }
   if (spec.kind === "client") {
     if (opts.relayDir) {
-      return relayToolCall(opts.relayDir, spec.name, opts.toolCallId, params, opts.signal);
+      return relayToolCall(
+        opts.relayDir,
+        spec.name,
+        opts.toolCallId,
+        params,
+        spec.timeoutMs,
+        opts.signal,
+      );
     }
-    throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
+    throw new Error(
+      `client tool '${spec.name}' is browser-fulfilled and cannot be executed`,
+    );
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {
-    return relayToolCall(opts.relayDir, spec.name, opts.toolCallId, params, opts.signal);
+    return relayToolCall(
+      opts.relayDir,
+      spec.name,
+      opts.toolCallId,
+      params,
+      spec.timeoutMs,
+      opts.signal,
+    );
   }
   return callAgentaTool(
     opts.endpoint ?? "",
@@ -127,6 +268,6 @@ export async function runResolvedTool(
     spec.callRef ?? "",
     opts.toolCallId,
     params,
-    opts.signal,
+    { signal: opts.signal, timeoutMs: spec.timeoutMs },
   );
 }

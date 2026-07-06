@@ -43,11 +43,26 @@ from oss.src.core.workflows.types import (
     StaticWorkflowSlug,
     is_static_workflow_slug,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
+from agenta.sdk.agents.adapters.agenta_builtins import (
+    BUILD_AN_AGENT_SLUG,
+    GETTING_STARTED_WITH_AGENTA_SLUG,
+)
 
 
-# The default catalogue's one static workflow (the getting-started skill).
+# The default catalogue keeps getting-started forced and build-an-agent overlay-resolvable.
 _STATIC_SLUG = GETTING_STARTED_WITH_AGENTA_SLUG
+_PLAYBOOK_SLUG = BUILD_AN_AGENT_SLUG
+
+
+def _old_authoring_slug(name: str) -> str:
+    return "__ag__" + name
+
+
+_OLD_AUTHORING_SKILL_SLUGS = {
+    _old_authoring_slug("build_your_first_app"),
+    _old_authoring_slug("discover_and_wire_tools"),
+    _old_authoring_slug("set_up_triggers"),
+}
 
 
 # A two-version catalogue used to pin that the artifact / variant ids are stable across versions
@@ -76,6 +91,16 @@ _MULTI_VERSION_CATALOG = {
 # ---------------------------------------------------------------------------
 
 
+def test_list_slugs_enumerates_resolvable_reserved_slugs():
+    catalog = StaticWorkflowCatalog()
+
+    slugs = catalog.list_slugs()
+    assert {_STATIC_SLUG, _PLAYBOOK_SLUG} <= set(slugs)
+    for slug in slugs:
+        assert slug.startswith(STATIC_SLUG_PREFIX)
+        assert catalog.retrieve_revision(slug=slug) is not None
+
+
 def test_is_static_slug():
     catalog = StaticWorkflowCatalog()
 
@@ -84,6 +109,29 @@ def test_is_static_slug():
     assert catalog.is_static_slug("agenta-getting-started") is False
     assert catalog.is_static_slug("my-skill") is False
     assert catalog.is_static_slug(None) is False
+
+
+def test_default_static_skill_catalog_replaces_old_authoring_skills():
+    catalog = StaticWorkflowCatalog()
+    skill_slugs = {
+        slug
+        for slug in catalog.list_slugs()
+        if (revision := catalog.retrieve_revision(slug=slug))
+        and revision.flags
+        and revision.flags.is_skill
+    }
+
+    assert skill_slugs == {_STATIC_SLUG, _PLAYBOOK_SLUG}
+    assert _OLD_AUTHORING_SKILL_SLUGS.isdisjoint(catalog.list_slugs())
+    for slug in _OLD_AUTHORING_SKILL_SLUGS:
+        assert catalog.retrieve_revision(slug=slug) is None
+
+    playbook = catalog.retrieve_revision(slug=_PLAYBOOK_SLUG)
+    skill = playbook.data.parameters["skill"]
+    assert skill["name"] == "build-an-agent"
+    assert skill["body"].startswith("# Build an Agenta agent")
+    assert "test_run" in skill["body"]
+    assert "query_spans" in skill["body"]
 
 
 def test_artifact_level_lookup_resolves_current():
@@ -138,6 +186,10 @@ def test_unknown_reserved_slug_returns_none():
     catalog = StaticWorkflowCatalog()
 
     assert catalog.retrieve_revision(slug=STATIC_SLUG_PREFIX + "does-not-exist") is None
+    assert (
+        catalog.retrieve_revision(slug=_old_authoring_slug("build_your_first_app"))
+        is None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +220,7 @@ async def test_fetch_revision_short_circuits_reserved_artifact_ref():
 
 
 @pytest.mark.asyncio
-async def test_default_agent_skill_embed_resolves_through_static_catalog_without_db():
+async def test_build_agent_skill_embed_resolves_through_static_catalog_without_db():
     workflows_dao = AsyncMock()
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
@@ -188,7 +240,9 @@ async def test_default_agent_skill_embed_resolves_through_static_catalog_without
                     "skills": [
                         {
                             "@ag.embed": {
-                                "@ag.references": {"workflow": {"slug": _STATIC_SLUG}},
+                                "@ag.references": {
+                                    "workflow": {"slug": _PLAYBOOK_SLUG}
+                                },
                                 "@ag.selector": {"path": "parameters.skill"},
                             }
                         }
@@ -207,10 +261,10 @@ async def test_default_agent_skill_embed_resolves_through_static_catalog_without
     )
 
     skill = resolved_revision.data.parameters["agent"]["skills"][0]
-    assert skill["name"] == "agenta-getting-started"
-    assert skill["body"].startswith("# Getting started with Agenta agents")
+    assert skill["name"] == "build-an-agent"
+    assert skill["body"].startswith("# Build an Agenta agent")
     assert resolution_info.embeds_resolved == 1
-    # Resolving the static default skill must use the catalogue, not Postgres.
+    # Resolving the static playbook skill must use the catalogue, not Postgres.
     workflows_dao.fetch_revision.assert_not_awaited()
     workflows_dao.fetch_artifact.assert_not_awaited()
 

@@ -35,7 +35,7 @@ shares two fields through `ToolConfigBase`, and then a `type` discriminator pick
 | `code` | `name`, `runtime` (`python`/`node`), `script`, `input_schema`, `secrets` | An inline snippet the author writes, with named vault secrets injected. |
 | `client` | `name`, `input_schema` | A tool the browser fulfils, like "ask the user to pick a date." |
 | `reference` | `ref_by` (`variant`/`environment`), `slug`, optional `environment`/`version`, optional `name`/`description`/`input_schema` | A workflow referenced as a tool (see below); the service runs the referenced workflow revision when the model calls it. |
-| `platform` | `op` (a platform-op catalog key), optional `permission` | An existing Agenta endpoint exposed to the agent (e.g. `find_capabilities`, `query_workflows`, `commit_revision`); the runner calls the endpoint directly. See [Platform tools](#platform-tools-existing-agenta-endpoints) below. |
+| `platform` | `op` (a platform-op catalog key), optional `permission` | An existing Agenta endpoint exposed to the agent (e.g. `discover_tools`, `query_spans`, `commit_revision`); the runner calls the endpoint directly. See [Platform tools](#platform-tools-existing-agenta-endpoints) below. |
 
 A tool can also be a **workflow** referenced as a tool:
 
@@ -325,12 +325,27 @@ The pause itself is shared by both delivery paths through one seam
 A client tool's `render` hint can be `{ kind: "connect" }` (e.g. `request_connection`), the typed
 member of `RenderHint` that asks the frontend to draw the connect widget.
 
-### Built-in tools: the harness runs them natively
+### Built-in tools: the harness runs them natively, gated through the same relay
 
 Execution is the harness's own. A built-in tool is just a name. The runner adds it to the
 session's allowlist and Pi runs its own implementation of `read`, `write`, `web_search`, and so
 on. Nothing is resolved and nothing is delivered. Note that built-ins are a Pi concept here;
 they are not delivered to non-Pi harnesses over ACP, which bring their own native tool set.
+
+Pi's builtins now flow through the same permission relay as gateway tools (code tools are
+declared but not yet executable in the runner; the relay path is shared either way). The
+bundled Pi extension's `tool_call` hook reports every builtin call over the relay directory as
+a permission record (`kind: "permission"`), and the runner decides it through the same shared
+`decide()` in `permission-plan.ts` the relay already uses for gateway tools. An `ask`
+verdict pauses the turn exactly like a relay tool does. The extension hook then maps a
+non-allow verdict to Pi's own `{ block: true }`, because Pi, not the runner, is the thing that
+would otherwise execute the call.
+
+The grant list (the wire `tools` field: the builtins an author selected) is enforced
+separately, at session start. The extension edits Pi's active tool set at
+`before_agent_start`, replacing only the builtin slice with the granted names and leaving
+every non-builtin tool untouched. A builtin outside the grant list is simply absent from the
+model's active tools, so no call for it ever fires, and the permission hook never sees it.
 
 ### MCP servers: a server process the daemon launches
 
@@ -371,10 +386,12 @@ Two gates consult this same decision:
   raises these today: it checks its own settings file first, and only an undecided call reaches
   the responder.
 - **The tool relay**, `services/runner/src/tools/relay.ts`, enforces permission on tools the
-  runner executes directly (gateway, code). It only needs to, because on Claude the harness
-  settings file plus the ACP responder already decide before a call reaches the relay. On Pi
-  there is no harness-side gate, so the relay is the only enforcement point, and it now gives Pi
-  the same human-in-the-loop behavior Claude gets.
+  runner executes directly (gateway, code) and, now, on Pi's own builtins, relayed through the
+  bundled extension's `tool_call` hook. It only needs to, because on Claude the harness settings
+  file plus the ACP responder already decide before a call reaches the relay. On Pi there is no
+  separate harness-side settings gate, so the relay is the enforcement point for everything Pi
+  runs, including its native builtins, and it gives Pi the same human-in-the-loop behavior
+  Claude gets.
 
 Client tools are a carve-out from that same ladder. They are decided by the responder's
 `onClientTool` (consulted at the ACP gate on Claude, and by the relay on Pi), not by the
@@ -413,32 +430,69 @@ Each catalog entry (`PlatformOp`, a typed model validated at import) maps an `op
 | Field | Meaning |
 | --- | --- |
 | `description` | The model-facing description (SDK-owned). |
-| `method`, `path` | The existing endpoint to call: `GET`/`POST` and a relative `/api/...` path. |
+| `method`, `path` | The existing endpoint to call: `GET`/`POST` and a relative `/api/...` path. Endpoint-mode ops set these; a handler-mode op sets `handler` instead (exactly one of the two targets). |
+| `handler` | A reserved `tools.agenta.<op>` call-ref for a server-side handler (see [server-handled ops](#server-handled-ops-handler-mode)). Mutually exclusive with `method`+`path`. |
 | `input_schema` / `input_schema_ref` | The request input schema — inline JSON Schema, or a `CATALOG_TYPES` key (expanded via `x-ag-type-ref`). Exactly one. |
-| `context_bindings` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context`. |
+| `context_bindings` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context` (endpoint mode) or spec-level `contextBindings` (handler mode). |
+| `timeout_ms` | Optional per-op execution budget, emitted as `timeoutMs` on the resolved spec. Used by long-running handler ops (`test_run` sets 120s). |
 | `read_only` | A bool hint, not a gate value. Under the `allow_reads` policy default it decides the op's effective permission: `true` runs without asking, anything else asks. The tool's own explicit `permission` (`allow`/`ask`/`deny`) always overrides this hint. |
 
-Each op has a stable reserved id, `tools.agenta.<op>` (the same namespace as the original
-`find_capabilities`). The first, minimal-useful set of ops:
+Each op has a stable reserved id, `tools.agenta.<op>`. The catalog holds every exposable op
+(discovery, workflow reads/writes, tracing reads, and the trigger/schedule/subscription
+lifecycle). The playground **build-kit overlay** embeds an explicit default subset,
+`DEFAULT_BUILD_KIT_OPS` in `api/oss/src/apis/fastapi/applications/overlay.py`: `discover_tools`,
+`commit_revision`, `annotate_trace`, `query_spans`, `discover_triggers`, `create_schedule`,
+`create_subscription`, `list_schedules`, `list_deliveries`, `test_subscription`,
+`remove_schedule`, and `remove_subscription` (12 ops, plus the `request_connection` client
+tool and the build-an-agent playbook skill). Every other catalog op (the pause/resume
+lifecycle, `query_workflows`, `list_connections`, `list_subscriptions`) stays a catalog
+opt-in: an author adds `{type:"platform", op}` explicitly. The rationale for the cut list
+lives in the [build-kit-tools-cleanup workspace](../projects/build-kit-tools-cleanup/research.md).
+
+A few ops worth naming:
 
 | Op | Endpoint | Gate | Notes |
 | --- | --- | --- | --- |
-| `find_capabilities` | `POST /api/tools/discover` | read (auto-allow) | Tool discovery; makes the discover endpoint agent-usable end to end (see below). |
-| `query_workflows` | `POST /api/workflows/query` | read (auto-allow) | List the project's workflow artifacts with optional filters. |
+| `discover_tools` | `POST /api/tools/discover` | read (auto-allow) | Tool discovery; turns plain-language use cases into Agenta-shaped tools (see below). Renamed from `find_capabilities` (hard migrate, no alias). |
+| `discover_triggers` | `POST /api/triggers/discover` | read (auto-allow) | Trigger discovery. Renamed from `find_triggers` (hard migrate, no alias). |
+| `query_spans` | `POST /api/spans/query` | read (auto-allow) | Read spans from past runs, so the builder can verify its own work. The op schema mirrors `SpansQueryRequest`; a drift contract test pins the two together. |
 | `commit_revision` | `POST /api/workflows/revisions/commit` | mutating (approval) | "Update yourself": binds `workflow_revision.workflow_variant_id` ← `$ctx.workflow.variant.id`, so the agent can only ever commit a revision to its own variant. |
+| `test_run` | handler `tools.agenta.test_run` | mutating (approval) | Run the agent's own variant once and return a digest + verdict. Handler mode, flag-gated off, not in the overlay yet (see below). |
 
-This mirrors two existing patterns: the reserved `tools.agenta.*` tool (PR #4884,
-`find_capabilities`) and the evaluators catalog
-(`api/oss/src/resources/evaluators/evaluators.py`, a code-defined table of named ops). Multi-step
-operations (e.g. create-then-commit) are composed by the harness across several endpoint-wrapper
-calls, guided by a skill — not collapsed into a new convenience endpoint. We expose the endpoints
-we have; we do not add new ones.
+This mirrors the evaluators catalog pattern (`api/oss/src/resources/evaluators/evaluators.py`,
+a code-defined table of named ops). Multi-step operations (e.g. create-then-commit) are composed
+by the harness across several endpoint-wrapper calls, guided by a skill, not collapsed into a
+new convenience endpoint. We expose the endpoints we have; a handler op is the one exception,
+reserved for logic that cannot be a thin endpoint wrapper.
 
-## Tool discovery: `find_capabilities`
+### Server-handled ops (handler mode)
 
-Before an agent can attach a tool it has to find the right one. `find_capabilities` turns a set
+Most platform ops are thin wrappers over an existing endpoint. A **handler-mode** op carries
+real server-side logic instead: the catalog entry sets `handler` (a reserved `tools.agenta.<op>`
+call-ref) rather than `method`+`path`, and the resolver emits a `CallbackToolSpec` with that
+`call_ref` plus spec-level `contextBindings` and `timeoutMs`. The call routes through
+`POST /tools/call`, where a reserved-ref registry
+(`api/oss/src/core/tools/platform_handlers.py`) dispatches it to a registered Python handler.
+An unknown reserved ref fails loud with a 404.
+
+The first handler op is `test_run`: it hydrates the bound variant's revision, applies an
+optional in-memory `delta` (which requires `EDIT_WORKFLOWS`), invokes the workflow headless
+with a server-minted token, digests the transcript and spans, and returns a verdict (the
+terminal result wins). It carries a recursion marker (inert until the runner half lands) and a
+120s ceiling.
+
+**Status:** the server half only. Resolution of handler-mode ops is gated off by
+`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off) until the runner learns to dispatch a
+reserved `call_ref` with spec-level context injection and `timeoutMs`; `test_run` joins the
+overlay when that flips. Contract and slice plan:
+[build-kit-tools-cleanup api-design](../projects/build-kit-tools-cleanup/api-design.md).
+
+## Tool discovery: `discover_tools`
+
+Before an agent can attach a tool it has to find the right one. `discover_tools` (named
+`find_capabilities` until the build-kit cleanup hard-migrated it, no alias) turns a set
 of plain-language use cases into Agenta-shaped tools, each integration's connection state, and
-operating guidance — in one call, so a builder agent never guesses slugs or learns Composio.
+operating guidance, in one call, so a builder agent never guesses slugs or learns Composio.
 
 - **Endpoint:** `POST /tools/discover` (project-scoped via caller auth, `VIEW_TOOLS`). Request:
   `{use_cases: string[], provider?: "composio", limit_alternatives?: 3}`. Response: the
@@ -453,17 +507,19 @@ operating guidance — in one call, so a builder agent never guesses slugs or le
 - **Scope (v1):** action tools only. A use case that reads like a trigger ("listen for…") is
   flagged in `notes` and on the capability; event listening is a separate trigger subscription
   (a follow-up). Composio has no semantic trigger search.
-- **Agent-facing tool:** `find_capabilities` is the first [platform tool](#platform-tools-existing-agenta-endpoints).
-  An agent config declares it as `{type:"platform", op:"find_capabilities"}`, and
+- **Agent-facing tool:** `discover_tools` is the first [platform tool](#platform-tools-existing-agenta-endpoints).
+  An agent config declares it as `{type:"platform", op:"discover_tools"}`, and
   `platform.resolve_tools` emits a `CallbackToolSpec` with a direct `call` to
-  `POST /api/tools/discover` — so the model can call it end to end (no `/tools/call` hop). The
-  server-side `/tools/call` `tools.agenta.*` dispatch (the original delivery path) still exists for
-  now and is removed in a later phase once nothing routes through it. The runner needs no change.
+  `POST /api/tools/discover`, so the model calls it end to end (no `/tools/call` hop). The
+  original server-side `/tools/call` `tools.agenta.find_capabilities` dispatch is deleted; the
+  reserved `tools.agenta.*` namespace now belongs to the
+  [handler registry](#server-handled-ops-handler-mode). The runner needs no change.
 
 The contract and the field-by-field Composio→Agenta mapping live in the
-[tool-discovery design](../../projects/tool-discovery/design.md). The setup-agent loop
-(discover → resolve connections → create → test) is the
-[discover-and-wire-tools skill](../../projects/tool-discovery/skills/discover-and-wire-tools/SKILL.md).
+[tool-discovery design](../projects/tool-discovery/design.md). The setup loop
+(discover → wire connections → build → test → schedule) is one ordered playbook skill,
+`build-an-agent` (slug `__ag__build_an_agent`), which replaced the three earlier authoring
+skills; see the [skills port](../projects/build-kit-tools-cleanup/skills-port.md).
 
 ## The whole picture
 
@@ -494,7 +550,9 @@ The contract and the field-by-field Composio→Agenta mapping live in the
 | Named-secret resolution (`/secrets/resolve`) | `sdks/python/agenta/sdk/agents/platform/secrets.py` (shim: `services/oss/src/agent/tools/secrets.py`) |
 | API resolve + execute | `api/oss/src/core/tools/service.py`, `api/oss/src/apis/fastapi/tools/router.py` |
 | Tool discovery (search + Composio→Agenta translation) | `api/oss/src/core/tools/discovery.py`, `service.py` (`discover_capabilities`) |
-| Discovery endpoint + reserved-tool route | `api/oss/src/apis/fastapi/tools/router.py` (`/tools/discover`, `_call_agenta_tool`) |
+| Discovery endpoint + reserved-handler dispatch | `api/oss/src/apis/fastapi/tools/router.py` (`/tools/discover`, `_call_reserved_agenta_tool`) |
+| Server-side platform-op handlers (reserved-ref registry, `test_run`) | `api/oss/src/core/tools/platform_handlers.py` |
+| Build-kit overlay defaults (`DEFAULT_BUILD_KIT_OPS` + skill/tool embeds) | `api/oss/src/apis/fastapi/applications/overlay.py` |
 | Wire contract | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py` |
 | Tool-delivery fork (branch on `mcpTools`) | `services/agent/src/engines/sandbox_agent/mcp.ts` |
 | Runtime dispatch (branch on `kind`) | `services/agent/src/tools/dispatch.ts` |
@@ -515,9 +573,11 @@ The contract and the field-by-field Composio→Agenta mapping live in the
   Agenta are the default harnesses, so `mcp_servers` is a silent no-op for most runs. It would
   reach Claude only. Do not confuse this with the `agenta-tools` server, which is an internal
   tool-delivery vehicle for Claude, not a user MCP server.
-- A tool's `permission` is honored on both harnesses now. Claude checks its rendered settings
-  file first, then the ACP responder; Pi has no native gate, so the relay enforces it directly.
-  An `ask` pauses the run and asks a human on either harness.
+- A tool's `permission` is honored on both harnesses now, including Pi's own builtins. Claude
+  checks its rendered settings file first, then the ACP responder. Pi has no separate
+  harness-side settings gate, so the relay decides everything Pi runs: gateway and code tools
+  directly, and builtins relayed through the extension's `tool_call` hook. An `ask` pauses the
+  run and asks a human on either harness.
 - Gateway tools support only the `composio` provider today; other providers raise.
 - The `render` hint is plumbed end to end on the runner side, but full frontend projection of
   every render kind is still in progress.
@@ -526,15 +586,24 @@ The contract and the field-by-field Composio→Agenta mapping live in the
 - **Code tools are standard-library-only.** The image ships `python3` and `node`, but the
   child env has no package install and no module path to the runner's dependencies, so a tool
   cannot import third-party packages.
-- **Tool discovery is now agent-usable** as the `find_capabilities` platform tool: an agent config
-  declares `{type:"platform", op:"find_capabilities"}` and the model calls
-  `POST /api/tools/discover` directly. The old server-side `/tools/call` `tools.agenta.*` dispatch
-  is left in place during the migration and removed in a later phase. v1 discovery covers action
-  tools, not triggers.
-- **Platform tools are SDK-resolved; the first set is small** (`find_capabilities`,
-  `query_workflows`, `commit_revision`). More ops are a data add to the catalog. The reference
-  tool still executes through the `/tools/call` `workflow.*` route; moving it to a direct `call`
-  and removing that route is a later phase.
+- **Tool discovery is agent-usable** as the `discover_tools` platform tool: an agent config
+  declares `{type:"platform", op:"discover_tools"}` and the model calls
+  `POST /api/tools/discover` directly. The legacy server-side `/tools/call`
+  `tools.agenta.find_capabilities` dispatch is deleted; the reserved namespace now serves the
+  handler registry. Trigger discovery is its own read op, `discover_triggers`.
+- **Platform tools are SDK-resolved from a catalog of ~20 ops**; the playground build-kit
+  overlay embeds an explicit 12-op default (`DEFAULT_BUILD_KIT_OPS`), and the rest stay
+  catalog opt-ins. More ops are a data add to the catalog. The reference tool still executes
+  through the `/tools/call` `workflow.*` route; moving it to a direct `call` and removing that
+  route is a later phase.
+- **Handler-mode ops are server-half only.** `test_run` exists behind
+  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off) and is not in the overlay; the runner
+  half (reserved `call_ref` dispatch, spec-level context injection, `timeoutMs`) is deferred.
+  See the [build-kit-tools-cleanup workspace](../projects/build-kit-tools-cleanup/status.md).
+- **Old op names are gone, hard.** `find_capabilities` and `find_triggers` no longer resolve;
+  a committed revision that still carries them fails loud (`UnknownPlatformOpError`) until the
+  [revision sweep script](../projects/build-kit-tools-cleanup/scripts/sweep_platform_op_renames.py)
+  runs against that database.
 - **Harness capabilities are probed but not consumed.** The runner probes `HarnessCapabilities`
   per run (`engines/sandbox_agent/capabilities.ts`), uses them only for the internal `mcpTools`
   delivery branch, and returns them on the `/run` result. The result field is parsed into

@@ -5,7 +5,13 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -21,20 +27,25 @@ import {
 } from "../../src/tools/relay.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
 import { decide, type PermissionPlan } from "../../src/permission-plan.ts";
-import {
-  approvedCallKey,
-  ConversationDecisions,
-} from "../../src/responder.ts";
+import { approvedCallKey, ConversationDecisions } from "../../src/responder.ts";
 
 describe("relayPollDelayMs (idle backoff)", () => {
   it("polls at the base rate while busy, then backs off geometrically up to the cap", () => {
     // No idle polls -> base rate.
     assert.equal(relayPollDelayMs(0), RELAY_POLL_MS);
-    assert.equal(relayPollDelayMs(4), RELAY_POLL_MS, "still base before the grow threshold");
+    assert.equal(
+      relayPollDelayMs(4),
+      RELAY_POLL_MS,
+      "still base before the grow threshold",
+    );
     // After the threshold the delay grows but never exceeds the cap.
     assert.ok(relayPollDelayMs(5) > RELAY_POLL_MS, "grows once idle");
     assert.ok(relayPollDelayMs(5) <= RELAY_POLL_MAX_MS);
-    assert.equal(relayPollDelayMs(100), RELAY_POLL_MAX_MS, "saturates at the cap");
+    assert.equal(
+      relayPollDelayMs(100),
+      RELAY_POLL_MAX_MS,
+      "saturates at the cap",
+    );
     // Monotonic non-decreasing.
     assert.ok(relayPollDelayMs(6) >= relayPollDelayMs(5));
   });
@@ -48,12 +59,14 @@ const codeSpec = (
   name,
   kind: "code",
   runtime: "python",
-  code: "def main(**kw):\n    return {\"ran\": True, \"echo\": kw}\n",
+  code: 'def main(**kw):\n    return {"ran": True, "echo": kw}\n',
   permission,
   readOnly,
 });
 
-function permissionPlan(defaultMode: PermissionPlan["default"]): PermissionPlan {
+function permissionPlan(
+  defaultMode: PermissionPlan["default"],
+): PermissionPlan {
   return { default: defaultMode, rules: [] };
 }
 
@@ -70,6 +83,7 @@ function permissions(input: {
     decide: (gate) => decide(gate, plan, decisions),
     onPendingApproval: (info) => {
       input.pending?.push(info);
+      return { emitted: true };
     },
   };
 }
@@ -112,7 +126,11 @@ async function relayOnce(input: {
     await relay.stop();
     const wroteResponse = existsSync(resPath);
     if (input.expectResponse === false) {
-      assert.equal(wroteResponse, false, "the relay did not write a response file");
+      assert.equal(
+        wroteResponse,
+        false,
+        "the relay did not write a response file",
+      );
       return undefined;
     }
     assert.ok(wroteResponse, "the relay wrote a response file");
@@ -124,12 +142,19 @@ async function relayOnce(input: {
 
 function assertCodeToolExecuted(res: RelayResponse | undefined): void {
   assert.equal(res?.ok, false);
-  assert.match(res?.error ?? "", /Code tools are not supported by the sidecar\./);
+  assert.match(
+    res?.error ?? "",
+    /Code tools are not supported by the sidecar\./,
+  );
 }
 
 describe("startToolRelay permission enforcement", () => {
   it("enforce=false executes an ask spec without pausing", async () => {
-    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const pending: Array<{
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+    }> = [];
     const res = await relayOnce({
       spec: codeSpec("needs_approval", "ask"),
       permissions: permissions({
@@ -144,16 +169,28 @@ describe("startToolRelay permission enforcement", () => {
   });
 
   it("enforce=true allows allowed tools and refuses authored deny distinctly", async () => {
-    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const pending: Array<{
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+    }> = [];
     const allow = await relayOnce({
       spec: codeSpec("permitted", "allow"),
-      permissions: permissions({ enforce: true, plan: permissionPlan("ask"), pending }),
+      permissions: permissions({
+        enforce: true,
+        plan: permissionPlan("ask"),
+        pending,
+      }),
     });
     assertCodeToolExecuted(allow);
 
     const deny = await relayOnce({
       spec: codeSpec("blocked", "deny"),
-      permissions: permissions({ enforce: true, plan: permissionPlan("allow"), pending }),
+      permissions: permissions({
+        enforce: true,
+        plan: permissionPlan("allow"),
+        pending,
+      }),
     });
     assert.equal(deny?.ok, true);
     assert.equal(deny?.text, "Tool 'blocked' is denied by policy.");
@@ -174,10 +211,18 @@ describe("startToolRelay permission enforcement", () => {
   });
 
   it("ask with no stored decision pauses without writing a response or executing", async () => {
-    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const pending: Array<{
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+    }> = [];
     await relayOnce({
       spec: codeSpec("approval_needed", "ask"),
-      permissions: permissions({ enforce: true, plan: permissionPlan("allow"), pending }),
+      permissions: permissions({
+        enforce: true,
+        plan: permissionPlan("allow"),
+        pending,
+      }),
       expectResponse: false,
       stopWhen: () => pending.length === 1,
     });
@@ -189,7 +234,11 @@ describe("startToolRelay permission enforcement", () => {
 
   it("ask with a stored allow executes once and consumes the stored decision", async () => {
     const key = approvedCallKey("approval_needed", { a: 1 })!;
-    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const pending: Array<{
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+    }> = [];
     const relayPermissions = permissions({
       enforce: true,
       plan: permissionPlan("allow"),
@@ -218,7 +267,11 @@ describe("startToolRelay permission enforcement", () => {
   });
 
   it("allow_reads executes read-hinted tools and pauses tools without a read hint", async () => {
-    const pending: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const pending: Array<{
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+    }> = [];
     const relayPermissions = permissions({
       enforce: true,
       plan: permissionPlan("allow_reads"),

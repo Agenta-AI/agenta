@@ -186,6 +186,43 @@ describe("createSandboxAgentOtel state machine", () => {
     assert.ok(seq.indexOf("tool_call") < seq.indexOf("tool_result"), "tool_call precedes its result");
   });
 
+  it("scenario 7: growing arg deltas keep refreshing until the FINAL args are recorded", () => {
+    // The real Pi wire for streamed args: the initial `tool_call` announces with `{}`, then
+    // tool_call_update frames carry a GROWING partial parse of the args (e.g. {use_cases:[""]}),
+    // and the final update has the complete args. The last recorded tool_call input MUST be the
+    // final args — a refresh-once gate that stops at the first partial delta records a lie
+    // (the executor demonstrably ran with the full args).
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "pi", model: "openai-codex/x", emit: (e) => emitted.push(e), emitSpans: false });
+    run.start({ prompt: "x" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "compare", rawInput: {} });
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", rawInput: { use_cases: [""] } }); // early partial delta
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", rawInput: { use_cases: ["a", "b"], limit: 5 } }); // final args
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "completed", content: [{ content: { type: "text", text: "ok" } }] });
+    run.finish();
+
+    const calls = ofType(emitted, "tool_call");
+    assert.deepEqual(calls[calls.length - 1].input, { use_cases: ["a", "b"], limit: 5 }, "the LAST refresh carries the final args");
+    const seq = types(emitted);
+    assert.ok(seq.lastIndexOf("tool_call") < seq.indexOf("tool_result"), "every refresh precedes the result");
+  });
+
+  it("scenario 8: a call announced with PARTIAL args still refreshes when the full args arrive", () => {
+    // The initial notification itself can carry an early partial parse (non-empty), so a
+    // has-args-at-announce gate must not suppress the refresh with the real args.
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "pi", model: "openai-codex/x", emit: (e) => emitted.push(e), emitSpans: false });
+    run.start({ prompt: "x" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "read", rawInput: { path: "/" } }); // partial
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", rawInput: { path: "/etc/hosts" } }); // real args
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "completed", content: [{ content: { type: "text", text: "ok" } }] });
+    run.finish();
+
+    const calls = ofType(emitted, "tool_call");
+    assert.equal(calls.length, 2, "one initial surface + one input refresh");
+    assert.deepEqual(calls[calls.length - 1].input, { path: "/etc/hosts" }, "the refresh carries the real args");
+  });
+
   it("scenario 6: a call announced WITH args refreshes only on genuinely new args", () => {
     // If the initial notification already has real args, that's the input — a later update that
     // merely repeats/omits args must NOT emit a duplicate tool_call.

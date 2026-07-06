@@ -8,7 +8,9 @@ network-touching helpers stubbed. No runner, no LLM, no HTTP. This is where the 
 from __future__ import annotations
 
 import inspect
+import json
 from itertools import product
+from pathlib import Path
 
 import pytest
 
@@ -155,6 +157,47 @@ async def test_batch_paused_run_surfaces_pending_interaction(monkeypatch, fake_b
         "pending_interaction": dict(
             interaction, type="interaction_request", tool="deleteFile"
         ),
+    }
+
+
+_RECORDINGS = Path(__file__).parent / "recordings"
+
+
+async def test_batch_paused_run_replays_gated_bash_builtin(monkeypatch, fake_backend):
+    """Pin the live-QA'd gated-builtin pause (agent-replay-test skill).
+
+    Captured 2026-07-02 from a real E2 (service / sandbox-agent local) run: pi_core, all
+    seven builtins granted, `runner.permissions.default: allow_reads`, prompted to run
+    `echo qa-gate-7431` over bash. The real run paused with `stop_reason: paused` and a
+    `user_approval` interaction naming `bash`, carrying the raw command. Recorded (ids
+    redacted) at `recordings/pi-gated-bash-pause.json`; replayed here through the real event
+    stream -> fold path with no live LLM, so the pi-builtin-gating wiring cannot silently
+    regress the way the grant list did in 0e71bd0f7a.
+    """
+    recorded = json.loads((_RECORDINGS / "pi-gated-bash-pause.json").read_text())
+    events = [Event(type=e["type"], data=e["data"]) for e in recorded["events"]]
+    backend = fake_backend(
+        result=AgentResult(
+            output="",
+            stop_reason=recorded["stop_reason"],
+            events=events,
+        )
+    )
+    _patch_handler(
+        monkeypatch,
+        backend,
+        builtins=["read", "bash", "edit", "write", "grep", "find", "ls"],
+    )
+
+    body = await _invoke("pi_core", permission_default="allow_reads")
+
+    # Structural facts the real run proved: it paused, and the pause names `bash` with the
+    # exact command the model tried to run.
+    assert body["stop_reason"] == "paused"
+    interaction = body["pending_interaction"]
+    assert interaction["tool"] == "bash"
+    assert interaction["payload"]["toolCall"]["rawInput"] == {
+        "command": "echo qa-gate-7431"
     }
 
 

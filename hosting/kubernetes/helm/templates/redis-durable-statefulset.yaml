@@ -47,6 +47,7 @@ spec:
               exec redis-server
               --appendonly yes
               --appendfsync no
+              --aof-load-corrupt-tail-max-size {{ include "agenta.redisDurable.aofLoadCorruptTailMaxSize" . }}
               --save ""
               --maxmemory {{ include "agenta.redisDurable.maxmemory" . | quote }}
               --maxmemory-policy {{ include "agenta.redisDurable.maxmemoryPolicy" . }}

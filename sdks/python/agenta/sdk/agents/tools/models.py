@@ -239,7 +239,7 @@ class PlatformToolConfig(ToolConfigBase):
     type: Literal["platform"] = "platform"
     op: str = Field(
         min_length=1,
-        description="Which catalog op (existing endpoint) to expose, e.g. 'find_capabilities'.",
+        description="Which catalog op (existing endpoint) to expose, e.g. 'discover_tools'.",
     )
 
 
@@ -363,6 +363,18 @@ class CallbackToolSpec(ToolSpecBase):
     # Direct-call descriptor (direct-call tools, Phase 1). When set the runner calls the endpoint
     # directly instead of the gateway. Plumbing only: nothing emits or dispatches it yet.
     call: Optional[ToolCall] = None
+    # Handler-mode callback specs use the same gateway executor as `call_ref`, but carry run-context
+    # bindings at the spec level so the relay can inject them before posting to `/tools/call`.
+    context_bindings: Optional[Dict[str, str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("context_bindings", "contextBindings"),
+        serialization_alias="contextBindings",
+    )
+    timeout_ms: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("timeout_ms", "timeoutMs"),
+        serialization_alias="timeoutMs",
+    )
 
     @model_validator(mode="after")
     def _check_call_target(self) -> "CallbackToolSpec":
@@ -374,6 +386,13 @@ class CallbackToolSpec(ToolSpecBase):
             raise ValueError(
                 "a callback tool spec must carry exactly one of `call_ref` (gateway) "
                 "or `call` (direct)"
+            )
+        # Spec-level bindings are applied by the gateway relay before it posts to
+        # ``/tools/call``; a direct call has no relay, so the combination is invalid
+        # (direct-call bindings belong inside ``call.context``).
+        if self.context_bindings is not None and self.call_ref is None:
+            raise ValueError(
+                "`context_bindings` is only valid with `call_ref` (gateway dispatch)"
             )
         return self
 
