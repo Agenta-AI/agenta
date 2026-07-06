@@ -209,7 +209,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         // The onboarding right panel IS the real AgentChatPanel (the agent-chat view) — "what do you
         // want to build?" is just an AgentChatEmptyState state + the same editor with different controls,
         // read from the OnboardingContext. So we DON'T override the generation panel; Playground uses its
-        // default AgentChatPanel. (OnboardingAgentPanel is now dead code — removed at cleanup.)
+        // default AgentChatPanel.
         agentPanel: null,
         renderConfigOverride,
         contextValue,
