@@ -1,6 +1,8 @@
 import {memo, useEffect, useRef, useState} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {buildRenderMap} from "@agenta/playground"
+import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {Actions, Bubble, FileCard, type ActionsProps} from "@ant-design/x"
 import {
@@ -340,6 +342,12 @@ const AgentMessage = ({
     const isSupersededGate = (p: ToolUIPart): boolean =>
         p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
 
+    // Message-scoped render hints (sibling `data-render` parts) + the elicitation retry cap.
+    const renderMap = buildRenderMap(message.parts as {type?: string; data?: unknown}[])
+    const degradedEarlierInTurn = hasPriorElicitationDegradation(
+        message.parts as {state?: string; errorText?: string}[],
+    )
+
     const renderItems: RenderItem[] = []
     message.parts.forEach((part, i) => {
         if (isToolPart(part.type)) {
@@ -348,7 +356,7 @@ const AgentMessage = ({
             if (isSupersededGate(part as ToolUIPart)) return
             // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
             // into the "Used N tools" group — so it breaks any current tool run.
-            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage})) {
+            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage}, renderMap)) {
                 renderItems.push({kind: "clientTool", part: part as ToolUIPart, index: i})
                 return
             }
@@ -435,6 +443,8 @@ const AgentMessage = ({
                             key={`${message.id}-clienttool-${item.part.toolCallId || item.index}`}
                             part={item.part}
                             onOutput={onClientToolOutput}
+                            renderMap={renderMap}
+                            degradedEarlierInTurn={degradedEarlierInTurn}
                         />
                     )
                 }

@@ -49,4 +49,7 @@ export interface ClientToolHandlerProps {
     meta: ClientToolMeta
     /** Settle the part (resumes the run). No-op once already settled. */
     settle: SettleClientTool
+    /** Retry cap (elicitation): an earlier part in this turn already auto-settled as a
+     * degradation — the widget PARKS (visible notice, no auto-settle) instead of looping. */
+    degradedEarlierInTurn?: boolean
 }

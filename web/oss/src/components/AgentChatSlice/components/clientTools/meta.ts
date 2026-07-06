@@ -3,6 +3,7 @@
  * a part is a client tool the playground must fulfill (vs an ordinary server tool or an approval
  * gate, which `ToolActivity` owns).
  */
+import {renderKindFor, type RenderHintLike} from "@agenta/playground"
 import type {ToolUIPart} from "ai"
 
 import {hasClientToolHandler} from "./registry"
@@ -18,18 +19,20 @@ export const clientToolName = (part: ToolUIPart): string => {
     return type.replace(/^tool-/, "")
 }
 
-/** Read the optional render hint off the part (may be absent on the wire in v1). */
-const renderKindOf = (part: ToolUIPart): string | undefined => {
-    const render = (part as {render?: {kind?: unknown}}).render
-    return render && typeof render.kind === "string" ? render.kind : undefined
-}
-
-export const clientToolMeta = (part: ToolUIPart): ClientToolMeta => {
+export const clientToolMeta = (
+    part: ToolUIPart,
+    renderMap?: Map<string, RenderHintLike>,
+): ClientToolMeta => {
     const state = part.state as string
     return {
         toolCallId: part.toolCallId,
         toolName: clientToolName(part),
-        renderKind: renderKindOf(part),
+        // Inline hint or the message-scoped sibling `data-render` part (strict tool chunks
+        // cannot carry `render` inline — see @agenta/playground buildRenderMap).
+        renderKind: renderKindFor(
+            part as {toolCallId?: string; render?: {kind?: unknown}},
+            renderMap,
+        ),
         state,
         input: (part as {input?: unknown}).input,
         output: (part as {output?: unknown}).output,
@@ -52,12 +55,13 @@ export const clientToolMeta = (part: ToolUIPart): ClientToolMeta => {
 export const isClientToolPart = (
     part: ToolUIPart,
     ctx: {isStreaming: boolean; isLastMessage: boolean},
+    renderMap?: Map<string, RenderHintLike>,
 ): boolean => {
     const state = part.state as string
     if (APPROVAL.has(state)) return false
     if ((part as {providerExecuted?: boolean}).providerExecuted === true) return false
 
-    const meta = clientToolMeta(part)
+    const meta = clientToolMeta(part, renderMap)
     if (hasClientToolHandler(meta)) return true
 
     // Parked unknown client tool: the run ended with this part still unsettled.

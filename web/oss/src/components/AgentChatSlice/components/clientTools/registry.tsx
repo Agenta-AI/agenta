@@ -1,18 +1,32 @@
 /**
- * Client-tool handler registry (#4920).
+ * Client-tool handler registry (#4920, interaction kinds M1).
  *
- * Dispatch precedence is **`render.kind` → `toolName` → generic fallback** (design §"Where dispatch
- * lives"). v1 ships exactly one real entry, `request_connection` (the connect widget), keyed by both
- * its `render.kind` (`connect`) and its `toolName` so it dispatches whether or not the render hint
- * reaches the browser (verify-first seam #1: for v1 we dispatch by `toolName`). Each later client
- * tool is one added entry, not a protocol change.
+ * Dispatch precedence is **`render.kind` → `toolName` → generic fallback**. `render.kind` is a
+ * REQUIRED wire field for interaction kinds — it arrives as a sibling `data-render` part (AI SDK
+ * tool chunks are strict), resolved into `meta.renderKind` via the message-scoped render map
+ * (@agenta/playground `buildRenderMap`). The `toolName` axis remains for the shipped connect
+ * widget, whose v1 wire predates the guarantee. Each later kind is one added entry, not a
+ * protocol change. Contract: docs/design/agent-chat-interaction-kinds/decisions.md
+ *
+ *   runner interaction_request ──▶ tool part (+ sibling data-render part)
+ *                                        │ AgentMessage: buildRenderMap(message.parts)
+ *                                        ▼
+ *                    ClientToolPart → resolveClientToolHandler(meta)
+ *                    render.kind ──▶ BY_RENDER_KIND   (elicitation, connect, …)
+ *                    toolName ─────▶ BY_TOOL_NAME     (request_connection)
+ *                    neither ──────▶ UnhandledClientTool ("can't handle", auto-settles)
+ *                                        │ widget settles: output {action,…} | errorText
+ *                                        ▼
+ *                    addToolOutput → agentShouldResumeAfterApproval → auto-resend → resume
  *
  * A streamed client tool with no entry is NOT an error here — `ClientToolPart` renders the explicit
- * "this app can't handle that request" surface and settles the part so the run never hangs.
+ * "this app can't handle that request" surface and settles the part so the run never hangs. An
+ * `elicitation` part whose payload fails validation degrades the same way (errorText, retry-capped).
  */
 import type {ComponentType} from "react"
 
 import ConnectToolWidget from "./ConnectToolWidget"
+import ElicitationWidget from "./ElicitationWidget"
 import type {ClientToolHandlerProps, ClientToolMeta} from "./types"
 
 type ClientToolHandler = ComponentType<ClientToolHandlerProps>
@@ -20,6 +34,7 @@ type ClientToolHandler = ComponentType<ClientToolHandlerProps>
 /** Handlers keyed by `render.kind` (checked first — the finer dispatch axis). */
 const BY_RENDER_KIND: Record<string, ClientToolHandler> = {
     connect: ConnectToolWidget,
+    elicitation: ElicitationWidget,
 }
 
 /** Handlers keyed by `toolName` (checked when no render hint matched). */
