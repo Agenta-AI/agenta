@@ -286,6 +286,7 @@ class TestSendWebhookRequestIpPin:
 
             async def post(self, url, *, content, headers, extensions):
                 captured["url"] = url
+                captured["headers"] = headers
                 return AsyncMock(status_code=200)
 
         with patch(
@@ -302,3 +303,34 @@ class TestSendWebhookRequestIpPin:
         assert (
             captured["url"] == "https://[2606:2800:220:1:248:1893:25c8:1946]:8443/hook"
         )
+        # Host header keeps the original authority including the explicit port.
+        assert captured["headers"]["Host"] == "example.com:8443"
+
+    @pytest.mark.anyio
+    async def test_host_header_brackets_ipv6_literal_hostname(self):
+        captured = {}
+
+        class _FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, *, content, headers, extensions):
+                captured["headers"] = headers
+                return AsyncMock(status_code=200)
+
+        with patch(
+            "oss.src.core.webhooks.delivery.httpx.AsyncClient",
+            return_value=_FakeClient(),
+        ):
+            await send_webhook_request(
+                url="https://[2001:db8::1]:9000/hook",
+                resolved_ip="2001:db8::1",
+                payload_json="{}",
+                headers={},
+            )
+
+        # RFC 9110 host grammar: IPv6 literal must be bracketed, port preserved.
+        assert captured["headers"]["Host"] == "[2001:db8::1]:9000"
