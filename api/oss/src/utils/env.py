@@ -1,5 +1,6 @@
 import os
 import hashlib
+import warnings
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -429,6 +430,48 @@ class WebhooksConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.redaction
+# ---------------------------------------------------------------------------
+
+_REDACTION_LIVE_MODES = {"off", "known"}
+_REDACTION_INERT_MODES = {"pattern", "full"}
+
+
+class RedactionConfig(BaseModel):
+    """Online redaction filter mode. Only `off`/`known` are live in Slice 1; `pattern`/`full`
+    are declared-but-inert (Slice 2) and behave as `known` with a warning."""
+
+    mode: str = os.getenv("AGENTA_REDACTION_MODE") or "known"
+
+    # Operator additions to the SDK's name/value matchers; the SDK (seed.py) owns the
+    # defaults and the merge-onto-default semantics — these are the raw overrides only.
+    prefixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_PREFIXES")
+    suffixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_SUFFIXES")
+    blocklist: list[str] = _load_csv_env_list("AGENTA_REDACTED_BLOCKLIST")
+    allowlist: list[str] = _load_csv_env_list("AGENTA_REDACTED_ALLOWLIST")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _validate_mode(self) -> "RedactionConfig":
+        mode = (self.mode or "known").strip().lower()
+        if mode in _REDACTION_INERT_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode} is declared but inert (Slice 2 not shipped); behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        elif mode not in _REDACTION_LIVE_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode!r} is not recognized; behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        self.mode = mode
+        return self
+
+
+# ---------------------------------------------------------------------------
 # agenta — top-level Agenta core config.
 # ---------------------------------------------------------------------------
 
@@ -453,6 +496,7 @@ class AgentaConfig(BaseModel):
     extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
+    redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
     workers: WorkersConfig = WorkersConfig()
