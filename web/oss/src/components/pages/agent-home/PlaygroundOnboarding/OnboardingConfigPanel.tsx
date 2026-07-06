@@ -3,7 +3,10 @@ import {useEffect, useState} from "react"
 import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
 import {Typography} from "antd"
 
-import {AGENT_TEMPLATES, templateBuilderMessage} from "../assets/templates"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+
+import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
+import {AGENT_TEMPLATES, templateBuilderMessage, type AgentTemplate} from "../assets/templates"
 
 import {useOnboardingContext} from "./OnboardingContext"
 
@@ -15,10 +18,25 @@ import {useOnboardingContext} from "./OnboardingContext"
  */
 const OnboardingConfigPanel = () => {
     const {commit, committing, browseAll, setBrowseAll} = useOnboardingContext()
+    const posthog = usePostHogAg()
     // Fade IN on mount, and OUT while committing (so the templates are gone before MainLayout swaps in
     // the real config panel) — softens both ends of the left-panel handoff instead of hard cuts.
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
+
+    const selectTemplate = (template: AgentTemplate) => {
+        captureFirstAgentIntent(posthog, {
+            source: "template",
+            properties: {
+                template: template.name,
+                templateId: template.key,
+                templateCategory: template.category,
+                mode: "playground_onboarding",
+            },
+            intentValue: template.category || template.name,
+        })
+        commit(templateBuilderMessage(template), template.name)
+    }
 
     return (
         <div
@@ -36,7 +54,7 @@ const OnboardingConfigPanel = () => {
                         key={template.key}
                         type="button"
                         disabled={committing}
-                        onClick={() => commit(templateBuilderMessage(template), template.name)}
+                        onClick={() => selectTemplate(template)}
                         className="box-border flex w-full cursor-pointer items-start gap-2.5 rounded-lg border-0 bg-transparent px-2 py-2 text-left transition-colors hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-[var(--ag-colorFillSecondary)] text-[11px] font-semibold text-[var(--ag-colorTextSecondary)]">
@@ -57,7 +75,14 @@ const OnboardingConfigPanel = () => {
             {/* Toggles the full in-place gallery in the right panel (no navigation away). */}
             <button
                 type="button"
-                onClick={() => setBrowseAll(!browseAll)}
+                onClick={() => {
+                    // Only the transition INTO the gallery is a "browsing away" signal, not the "back"
+                    // click (same button, opposite label) — avoid double-firing on the round trip.
+                    if (!browseAll) {
+                        captureFirstAgentIntent(posthog, {source: "browse_templates"})
+                    }
+                    setBrowseAll(!browseAll)
+                }}
                 className="mt-1 inline-flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-1 text-xs text-[var(--ag-colorPrimary)] hover:underline"
             >
                 {browseAll ? (

@@ -2,6 +2,14 @@ import {useCallback, type RefObject} from "react"
 
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+
+import {
+    captureFirstAgentIntent,
+    classifyAgentIntent,
+    truncateForCapture,
+} from "../assets/onboardingAnalytics"
+
 import {useCreateAgent} from "./useCreateAgent"
 
 /**
@@ -12,6 +20,7 @@ import {useCreateAgent} from "./useCreateAgent"
  */
 export function useAgentHomeActions(composerRef: RefObject<RichChatInputHandle | null>) {
     const createAgent = useCreateAgent()
+    const posthog = usePostHogAg()
 
     const readPrompt = useCallback(
         () => composerRef.current?.getMarkdown().trim() ?? "",
@@ -19,8 +28,16 @@ export function useAgentHomeActions(composerRef: RefObject<RichChatInputHandle |
     )
 
     const onCreate = useCallback(() => {
-        void createAgent({seedMessage: readPrompt()})
-    }, [createAgent, readPrompt])
+        const message = readPrompt()
+        if (message) {
+            captureFirstAgentIntent(posthog, {
+                source: "composer",
+                properties: {message: truncateForCapture(message)},
+                intentValue: classifyAgentIntent(message),
+            })
+        }
+        void createAgent({seedMessage: message})
+    }, [createAgent, posthog, readPrompt])
 
     return {onCreate}
 }
