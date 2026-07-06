@@ -14,7 +14,8 @@
  * predicate `useChat`'s `sendAutomaticallyWhen` uses — the two can't drift.
  */
 
-import {agentShouldResumeAfterApproval} from "./agentApprovalResume"
+import {agentShouldResumeAfterApproval, isPendingClientToolInteraction} from "./agentApprovalResume"
+import {buildRenderMap} from "./renderMap"
 
 interface ToolPartLike {
     type?: string
@@ -47,8 +48,14 @@ const isToolPart = (part: ToolPartLike): boolean => {
 export function isHitlPending(messages: MessageLike[]): boolean {
     const last = messages[messages.length - 1]
     if (!last || last.role !== "assistant") return false
-    return (last.parts ?? []).some(
-        (part) => isToolPart(part) && part.state === "approval-requested",
+    const parts = last.parts ?? []
+    // Parked client tools (elicitation forms, connect cards) hold the queue exactly like an
+    // approval gate: the stream reads "ready" while the run awaits the user's widget action.
+    const renderMap = buildRenderMap(parts)
+    return parts.some(
+        (part) =>
+            (isToolPart(part) && part.state === "approval-requested") ||
+            isPendingClientToolInteraction(part, renderMap),
     )
 }
 
