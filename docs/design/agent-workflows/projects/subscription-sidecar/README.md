@@ -111,6 +111,9 @@ Why each piece:
 - **CMD `node_modules/.bin/tsx src/server.ts`** — run the server directly. Skip the dev image's
   `build-extension` step: the image already baked the extension at build time, and a non-root user
   cannot rewrite `/app/dist`. The baked extension is fine for a Claude run.
+  **For Pi runs with mounted source, the container must run `node scripts/build-extension.mjs` at
+  startup** (live finding 2026-07-05: a plain restart loads a stale extension bundle baked at image
+  build time, silently missing newer runner tool changes).
 - **`--network <app-stack-compose-network>`** (e.g. `agenta-ee-dev-wp-b2-rendering_agenta-network`,
   see `docker network ls`) — the app's `services` container reaches the sidecar by name, and the
   sidecar reaches the API for session calls.
