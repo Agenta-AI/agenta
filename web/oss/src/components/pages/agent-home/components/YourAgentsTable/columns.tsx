@@ -1,5 +1,5 @@
 import {createStandardColumns} from "@agenta/ui/table"
-import {Note, Rocket} from "@phosphor-icons/react"
+import {Note, Rocket, Trash} from "@phosphor-icons/react"
 
 import {
     AppNameCell,
@@ -10,6 +10,7 @@ import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 export interface AgentColumnActions {
     onOpen: (record: AppWorkflowRow) => void
     onOpenPlayground: (record: AppWorkflowRow) => void
+    onArchive: (record: AppWorkflowRow) => void
 }
 
 /** Lean read-only columns for the Home "Your agents" table: name + created + type. */
@@ -54,6 +55,14 @@ export function createAgentColumns(actions: AgentColumnActions) {
                     label: "Open in playground",
                     icon: <Rocket size={16} />,
                     onClick: (record) => actions.onOpenPlayground(record),
+                },
+                {type: "divider"},
+                {
+                    key: "archive",
+                    label: "Archive",
+                    icon: <Trash size={16} />,
+                    danger: true,
+                    onClick: (record) => actions.onArchive(record),
                 },
             ],
             showCopyId: false,
