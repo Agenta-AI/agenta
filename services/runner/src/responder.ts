@@ -89,6 +89,52 @@ function stableArgsHash(input: unknown): string | undefined {
 }
 
 function canonicalJson(value: unknown): string {
+  return canonicalJsonValue(normalizeJsonish(value));
+}
+
+/**
+ * Models sometimes copy object-valued args out of the flattened replay transcript as JSON
+ * strings. Normalize only JSON strings that parse to objects/arrays before hashing so the
+ * stored approval and the live re-issued gate meet at the same semantic key without falling
+ * back to a weaker name-only match.
+ */
+function normalizeJsonish(value: unknown): unknown {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (isJsonContainer(parsed)) return normalizeJsonish(parsed);
+    } catch {
+      // Not a JSON-encoded object/array; keep the string literal.
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(normalizeJsonish);
+  if (isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        normalizeJsonish(entry),
+      ]),
+    );
+  }
+  return value;
+}
+
+function isJsonContainer(
+  value: unknown,
+): value is unknown[] | Record<string, unknown> {
+  return Array.isArray(value) || isPlainObject(value);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function canonicalJsonValue(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) throw new Error("undefined is not JSON");
   if (typeof value === "bigint") throw new Error("bigint is not JSON");
@@ -99,17 +145,16 @@ function canonicalJson(value: unknown): string {
   }
   if (typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`;
+    return `[${value.map(canonicalJsonValue).join(",")}]`;
   }
   // Only plain objects are stable JSON; reject Date/Map/Set/etc. so they don't collapse to {}.
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
+  if (!isPlainObject(value)) {
     throw new Error("non-plain object is not JSON");
   }
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, v]) => v !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJsonValue(v)}`).join(",")}}`;
 }
 
 /**
