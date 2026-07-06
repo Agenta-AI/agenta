@@ -23,9 +23,21 @@ export function createAgentColumns(actions: AgentColumnActions) {
             ),
         },
         {
+            type: "date",
+            key: "updatedAt",
+            title: "Last modified",
+            width: 220,
+        },
+        {
+            type: "date",
+            key: "createdAt",
+            title: "Created at",
+            width: 220,
+        },
+        {
             type: "text",
             key: "createdById",
-            title: "Created By",
+            title: "Created by",
             width: 160,
             render: (_, record) => (
                 <div className="h-full flex items-center">
@@ -38,18 +50,6 @@ export function createAgentColumns(actions: AgentColumnActions) {
                     />
                 </div>
             ),
-        },
-        {
-            type: "date",
-            key: "createdAt",
-            title: "Created At",
-            width: 220,
-        },
-        {
-            type: "date",
-            key: "updatedAt",
-            title: "Last modified",
-            width: 220,
         },
         {
             type: "actions",
