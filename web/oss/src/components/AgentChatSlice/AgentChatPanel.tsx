@@ -190,6 +190,7 @@ const MessageRow = ({
     children,
     inspected = false,
     onInspect,
+    offscreenSkip = false,
 }: {
     mid: string
     enter: boolean
@@ -198,6 +199,10 @@ const MessageRow = ({
     inspected?: boolean
     /** Set (assistant turns, inspector open) → click the row to re-focus the inspector on it. */
     onInspect?: () => void
+    /** Settled row → `content-visibility:auto` so the browser skips its layout/paint while off-screen.
+     * `contain-intrinsic-size: auto` remembers the real height after first paint, so leaving the
+     * viewport causes no layout shift (heights here range ~85–1022px; no fixed estimate works). */
+    offscreenSkip?: boolean
 }) => {
     const [shown, setShown] = useState(!enter)
     // Reveal one frame after mount so the opacity transition plays. Deps are [] (NOT
@@ -228,8 +233,10 @@ const MessageRow = ({
             data-mid={mid}
             onClick={handleClick}
             className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-[opacity,background-color] motion-safe:duration-200 motion-safe:ease-out ${
-                shown || !enter ? "opacity-100" : "motion-safe:opacity-0"
-            } ${interactive ? "box-border rounded-lg px-3 py-2.5" : ""} ${
+                offscreenSkip ? "[content-visibility:auto] [contain-intrinsic-size:auto_240px]" : ""
+            } ${shown || !enter ? "opacity-100" : "motion-safe:opacity-0"} ${
+                interactive ? "box-border rounded-lg px-3 py-2.5" : ""
+            } ${
                 inspected
                     ? "bg-[var(--ag-colorFillSecondary)]"
                     : interactive
@@ -893,7 +900,21 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     useEffect(() => {
         const el = scrollRef.current
         if (!el) return
-        const onResize = () => {
+        const onResize = (entries: ResizeObserverEntry[]) => {
+            // Pin each rendered row's REAL height as its own `content-visibility` placeholder, so it
+            // keeps the exact same box when it later scrolls off-screen. Heights span ~85–1022px
+            // (expanded tool/thought cards), so the generic fallback would make every first scroll-up
+            // re-correct each row → jump. Skip rows the browser has already collapsed to their
+            // placeholder (their measured height is the placeholder, not real content).
+            for (const e of entries) {
+                const node = e.target as HTMLElement
+                const check = node.checkVisibility as
+                    | ((o?: {contentVisibilityAuto?: boolean}) => boolean)
+                    | undefined
+                if (check && !check.call(node, {contentVisibilityAuto: true})) continue
+                const h = Math.round(node.getBoundingClientRect().height)
+                if (h > 0) node.style.containIntrinsicSize = `auto ${h}px`
+            }
             if (programmaticScrollRef.current) return
             if (stickRef.current) {
                 scrollToBottom() // guarded: no-op if the follow effect already pinned this growth
@@ -1165,6 +1186,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 enter={enter}
                 inspected={isInspected}
                 onInspect={onInspect}
+                offscreenSkip={index < activeStart}
             >
                 <AgentMessage
                     message={message}
