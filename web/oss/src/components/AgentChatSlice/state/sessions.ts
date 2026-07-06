@@ -222,6 +222,49 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/**
+ * Wipe a whole scope clean: drop its session history, open tabs, active id, and every message
+ * belonging to those sessions. Used to guarantee a fresh start for a surface that reuses a FIXED
+ * scope key across visits (the onboarding playground) — otherwise a prior visit's stale or failed
+ * conversation persists under the same key and gets restored on the next entry. Idempotent: a no-op
+ * on an already-empty scope.
+ */
+export const resetScopeAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set) => {
+        const sessions = get(sessionsByAppAtom)
+        const ids = (sessions[key] ?? []).map((s) => s.id)
+
+        if (key in sessions) {
+            const next = {...sessions}
+            delete next[key]
+            set(sessionsByAppAtom, next)
+        }
+        const open = get(openIdsByAppAtom)
+        if (key in open) {
+            const next = {...open}
+            delete next[key]
+            set(openIdsByAppAtom, next)
+        }
+        const active = get(activeByAppAtom)
+        if (key in active) {
+            const next = {...active}
+            delete next[key]
+            set(activeByAppAtom, next)
+        }
+        if (ids.length) {
+            const messages = {...get(sessionMessagesAtom)}
+            let changed = false
+            for (const id of ids) {
+                if (id in messages) {
+                    delete messages[id]
+                    changed = true
+                }
+            }
+            if (changed) set(sessionMessagesAtom, messages)
+        }
+    }),
+)
+
 export const renameSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set, {id, title}: {id: string; title: string}) => {
         const all = get(sessionsByAppAtom)

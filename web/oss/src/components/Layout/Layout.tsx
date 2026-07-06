@@ -64,6 +64,9 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     // (content-flow) layout.
     const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
     const isAuditLog = pathname.includes("/settings") && tab === "auditLog"
+    // The agent-templates gallery has its own fixed header + rail with an
+    // internally-scrolling card grid, so it needs the bounded full-height frame.
+    const isAgentTemplates = pathname.includes("/agent-templates")
 
     return {
         isAuthRoute:
@@ -82,7 +85,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAnnotations ||
             isRegistry ||
             isObservability ||
-            isAuditLog,
+            isAuditLog ||
+            isAgentTemplates,
     }
 })
 

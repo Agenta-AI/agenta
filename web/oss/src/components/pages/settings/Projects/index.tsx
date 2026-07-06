@@ -4,6 +4,7 @@ import {PlusOutlined} from "@ant-design/icons"
 import {TrashIcon} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 import {
+    App,
     Button,
     Empty,
     Form,
@@ -15,7 +16,6 @@ import {
     Tag,
     Tooltip,
     Typography,
-    message,
 } from "antd"
 import type {ColumnsType} from "antd/es/table"
 
@@ -32,6 +32,7 @@ interface ProjectFormValues {
 }
 
 const ProjectsSettings = () => {
+    const {message} = App.useApp()
     const {projects, isLoading} = useProjectData()
     const {workspaceId} = useURL()
     const queryClient = useQueryClient()

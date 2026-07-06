@@ -38,3 +38,12 @@ export function useChatScopeKey(): string {
  */
 export const drawerScopeKey = (entityId: string | null | undefined): string =>
     `drawer:${entityId || "new"}`
+
+/**
+ * Scope key for the playground-native onboarding surface. The onboarding playground runs on the
+ * PROJECT route (no app id), so without an override it would fall back to the shared `__global__`
+ * app scope and inherit whatever conversation the previous app-less visit left there (a stale/failed
+ * run leaking into a "fresh start"). A dedicated, fixed key isolates it; the onboarding wipes this
+ * scope clean on entry (see `resetScopeAtomFamily`) so every onboarding starts empty.
+ */
+export const ONBOARDING_SCOPE_KEY = "onboarding"
