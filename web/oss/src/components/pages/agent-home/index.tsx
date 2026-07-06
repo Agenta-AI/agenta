@@ -15,7 +15,6 @@ import {HERO, TUTORIAL_VIDEO} from "./assets/constants"
 import {captureFirstAgentIntent} from "./assets/onboardingAnalytics"
 import type {AgentTemplate} from "./assets/templates"
 import AgentComposer from "./components/AgentComposer"
-import OnRamps from "./components/OnRamps"
 import TemplateSetupDrawer, {type TemplateSetupResult} from "./components/TemplateSetupDrawer"
 import TemplatesSection from "./components/TemplatesSection"
 import TutorialVideoEmbed from "./components/TutorialVideoEmbed"
@@ -39,15 +38,9 @@ const AgentHome: React.FC = () => {
     )
     const {firstRunOverride} = useAgentHomeVariants()
     const router = useRouter()
-    const {baseAppURL, projectURL} = useAtomValue(urlAtom)
+    const {baseAppURL} = useAtomValue(urlAtom)
     const createAgent = useCreateAgent()
     const posthog = usePostHogAg()
-
-    // "Bring an existing app" → the observability page (send traces from existing code). "Explore a
-    // demo project" has no wired destination yet, so it's left off and OnRamps hides that card.
-    const onBringApp = useCallback(() => {
-        if (projectURL) router.push(`${projectURL}/observability`)
-    }, [projectURL, router])
 
     // Warm the app-templates cache so the ephemeral-create factory resolves the agent template.
     useAtomValue(appTemplatesQueryAtom)
@@ -84,11 +77,13 @@ const AgentHome: React.FC = () => {
         <PageLayout className="grow min-h-0">
             <div
                 className={`mx-auto flex w-full flex-col gap-12 pb-16 pt-8 ${
-                    showVideo ? "max-w-[1180px]" : firstRun ? "max-w-[680px]" : "max-w-[960px]"
+                    showVideo ? "max-w-[1180px]" : "max-w-[960px]"
                 }`}
             >
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-                    <div className="flex min-w-0 flex-1 flex-col gap-6 lg:max-w-[660px]">
+                    <div
+                        className={`flex min-w-0 flex-1 flex-col gap-6 ${showVideo ? "lg:max-w-[660px]" : ""}`}
+                    >
                         <div className="flex flex-col gap-3">
                             {firstRun ? (
                                 <div className="flex items-center gap-2">
@@ -130,13 +125,10 @@ const AgentHome: React.FC = () => {
                 </div>
 
                 {firstRun ? (
-                    <>
-                        <TemplatesSection
-                            onSelectTemplate={handleSelectTemplate}
-                            onBrowseAll={handleBrowseAll}
-                        />
-                        <OnRamps onBringApp={onBringApp} />
-                    </>
+                    <TemplatesSection
+                        onSelectTemplate={handleSelectTemplate}
+                        onBrowseAll={handleBrowseAll}
+                    />
                 ) : (
                     <>
                         <UsageSummary />

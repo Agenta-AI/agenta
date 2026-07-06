@@ -54,9 +54,8 @@ export const TEMPLATES_GALLERY = {
 } as const
 
 /** First-run tutorial video config. `null` hides the column (composer returns to full width). */
-export const TUTORIAL_VIDEO: {url?: string; poster?: string; durationLabel?: string} | null = {
-    durationLabel: "2:04",
-}
+// Hidden until we have an actual video — restore the config object to bring the card back.
+export const TUTORIAL_VIDEO: {url?: string; poster?: string; durationLabel?: string} | null = null
 
 export const TUTORIAL = {
     title: "Build your first agent",
