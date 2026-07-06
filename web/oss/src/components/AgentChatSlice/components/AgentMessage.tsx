@@ -1,4 +1,4 @@
-import {memo, useEffect, useRef, useState} from "react"
+import {memo, useMemo, useRef, useState} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
@@ -17,7 +17,7 @@ import {
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
 import {Avatar, Tooltip, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
@@ -29,6 +29,7 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
+import {agentChatExpandedAtomFamily} from "../state/expandState"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
@@ -92,30 +93,42 @@ interface AgentMessageProps {
 
 const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
 
+/** Dedup key for a tool call. Stringifies its input, which can be large — call it sparingly. */
+const toolIdentity = (p: ToolUIPart): string => {
+    let inputKey = ""
+    try {
+        inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
+    } catch {
+        inputKey = ""
+    }
+    return `${p.type}::${inputKey}`
+}
+
 /**
  * Collapsible reasoning ("thinking") block. While the model is reasoning (`state ===
  * "streaming"`) it auto-expands so the thoughts stream live; once done it auto-collapses to a
  * "Thought" toggle — click to re-expand. A manual toggle sticks (we stop auto-driving it).
  */
-const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) => {
-    // Auto-expand only while the thought streams live, then collapse to the "Thought" toggle when
-    // done — in BOTH modes. The full reasoning lives in the Turn Inspector, so the inline step log
-    // stays minimized by default. A manual toggle sticks (we stop auto-driving it).
-    const [expanded, setExpanded] = useState(streaming)
-    const userToggled = useRef(false)
-
-    useEffect(() => {
-        if (!userToggled.current) setExpanded(streaming)
-    }, [streaming])
+const ReasoningPart = ({
+    text,
+    streaming,
+    stateKey,
+}: {
+    text: string
+    streaming: boolean
+    stateKey: string
+}) => {
+    // Auto-expand while the thought streams live, then collapse to the "Thought" toggle when done. A
+    // manual toggle sticks. State is keyed + persisted (agentChatExpandedAtomFamily) so it survives a
+    // Virtuoso unmount when the row scrolls off: `undefined` follows `streaming`, a set value wins.
+    const [stored, setStored] = useAtom(agentChatExpandedAtomFamily(stateKey))
+    const expanded = stored ?? streaming
 
     return (
         <div className="flex flex-col">
             <button
                 type="button"
-                onClick={() => {
-                    userToggled.current = true
-                    setExpanded((e) => !e)
-                }}
+                onClick={() => setStored(!expanded)}
                 aria-expanded={expanded}
                 className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextSecondary transition-colors hover:bg-colorFillQuaternary hover:text-colorText"
             >
@@ -151,8 +164,10 @@ const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) =>
  * chat; when it's long, a "Show more" toggle expands it into a scrollable, whitespace-preserving
  * block so it stays readable.
  */
-const RunErrorBody = ({text}: {text: string}) => {
-    const [expanded, setExpanded] = useState(false)
+const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
+    const [stored, setStored] = useAtom(agentChatExpandedAtomFamily(stateKey))
+    const expanded = stored ?? false
+    const setExpanded = (v: boolean) => setStored(v)
     const isLong = text.length > 220 || text.includes("\n")
 
     return (
@@ -175,7 +190,7 @@ const RunErrorBody = ({text}: {text: string}) => {
                 {isLong && (
                     <button
                         type="button"
-                        onClick={() => setExpanded((e) => !e)}
+                        onClick={() => setExpanded(!expanded)}
                         aria-expanded={expanded}
                         className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[11px] font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
                     >
@@ -288,6 +303,29 @@ const AgentMessage = ({
     // failure (red), with the message inline — not a nested alert box.
     const isError = noResponse && showError
 
+    // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
+    // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
+    // re-run on every streamed token of a tool-heavy turn. Hoisted above the early returns below to
+    // keep hook order stable.
+    const toolSignature = message.parts
+        .filter((p) => isToolPart(p.type))
+        .map((p) => `${(p as ToolUIPart).toolCallId ?? ""}:${(p as ToolUIPart).state ?? ""}`)
+        .join("|")
+    const executedToolIdentities = useMemo(
+        () =>
+            new Set(
+                message.parts
+                    .filter(
+                        (p) =>
+                            isToolPart(p.type) &&
+                            ((p as ToolUIPart).state === "output-available" ||
+                                (p as ToolUIPart).state === "output-error"),
+                    )
+                    .map((p) => toolIdentity(p as ToolUIPart)),
+            ),
+        [toolSignature],
+    )
+
     // #3: collapse a run of empty "no response" turns to just the first. A turn with ANY content
     // (answer or reasoning) and any error turn (isError, which shows the real failure) always
     // render; only a truly-empty, non-error turn that follows another empty turn is hidden.
@@ -318,25 +356,6 @@ const AgentMessage = ({
     // tool + same input), so the turn shows the single completed call with its output — not a stuck
     // spinner beside a duplicate. Until the execution settles, the gate stays (it is genuinely
     // in-flight).
-    const toolIdentity = (p: ToolUIPart): string => {
-        let inputKey = ""
-        try {
-            inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
-        } catch {
-            inputKey = ""
-        }
-        return `${p.type}::${inputKey}`
-    }
-    const executedToolIdentities = new Set(
-        message.parts
-            .filter(
-                (p) =>
-                    isToolPart(p.type) &&
-                    ((p as ToolUIPart).state === "output-available" ||
-                        (p as ToolUIPart).state === "output-error"),
-            )
-            .map((p) => toolIdentity(p as ToolUIPart)),
-    )
     const isSupersededGate = (p: ToolUIPart): boolean =>
         p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
 
@@ -379,6 +398,7 @@ const AgentMessage = ({
             return (
                 <ReasoningPart
                     key={partKey}
+                    stateKey={partKey}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
                 />
@@ -470,7 +490,12 @@ const AgentMessage = ({
 
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // RunErrorBody truncates a long reason so it can't drown the chat (expand to read it all).
-    const errorBody = <RunErrorBody text={errorText || "The agent run failed."} />
+    const errorBody = (
+        <RunErrorBody
+            text={errorText || "The agent run failed."}
+            stateKey={`${message.id}-error`}
+        />
+    )
 
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
