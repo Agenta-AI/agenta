@@ -8,8 +8,10 @@ Last update: 2026-07-06 (design session, no code changed)
   with two precision corrections (see `research.md` section 8).
 - Design DONE. Recommendation: option A, server echoes the continuation id. See
   `fix-options.md`.
-- Implementation NOT STARTED. This workspace is design-only; no product code was
-  touched.
+- Implementation of the messageId fix IN PROGRESS (PR #5088).
+- Follow-up DESIGNED, decision pending: trace-context propagation so one turn = one
+  trace (fixes the multi-trace footer/Inspect trade-off v1 accepts). See
+  `trace-continuation.md`; Mahmoud decides whether it becomes an issue or a PR.
 
 ## Key decisions
 
@@ -36,3 +38,14 @@ None.
 2. On approval, implement slice 1 per `plan.md` (implement-feature flow), then the
    tests, then the manual playground scenario.
 3. File the runner usage issue and the root-cause-2 (phantom tool failure) issue.
+
+## Deferred
+
+- Batch intra-response id-collision corner: an echoed continuation id can collide
+  with a positional `msg-{i}` id assigned to another message inside the same raw
+  batch JSON. Accepted for v1: the frontend replay only ever extracts one message,
+  so this is not client-visible.
+- Runner usage bug (resumes report `0/0/~62k`, `otel.ts:1185-1197`) still needs its
+  own issue filed; not fixed by this PR.
+- Manual playground click-through of the approval-resume scenario (`plan.md`
+  "Manual playground scenario") is still pending.

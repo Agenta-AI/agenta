@@ -104,6 +104,6 @@ Deploy per the repo dev loop (`load-env` + `run.sh`, same edition). Then:
 
 ## Open questions
 
-- None blocking. The per-turn aggregated metrics follow-up (sum usage across
-  resumes, list all trace ids) is parked in `fix-options.md`; decide after the fix
-  ships whether it is worth the FE work.
+- None blocking. The per-turn metrics/trace follow-up is now designed in
+  `trace-continuation.md` (one trace per turn via traceparent propagation + FE usage
+  sum); decide after the fix ships whether to schedule it.

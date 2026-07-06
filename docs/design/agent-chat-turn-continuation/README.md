@@ -16,6 +16,7 @@ Design-only workspace (2026-07-06). No product code changed here.
 | `research.md` | The full verified flow: message-id lifecycle, why the client clones, frontend decision points, wire frames for normal/pause/resume, before/after playground mock. Read this to understand the system. |
 | `fix-options.md` | Options A/B/C evaluated, interface-role review, the trace-per-message implications, recommendation (A: server echoes the continuation id) |
 | `plan.md` | Implementation slices, unit + manual test plan, rollout |
+| `trace-continuation.md` | Follow-up design: propagate trace context across a turn's resumes so one turn = one trace (fixes the multi-trace trade-off v1 accepts). Decision pending. |
 | `status.md` | Current progress and decisions |
 
 ## Related

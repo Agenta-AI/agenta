@@ -133,10 +133,10 @@ Decision for v1: accept last-request metrics, deliberately.
   nor hides; it just becomes the turn's displayed figure. File it as its own issue
   (fix belongs in the runner's usage extraction, not here).
 
-Follow-up (not v1): per-turn aggregated metrics. Two candidate shapes, both FE-side:
-collect every `traceId` seen for a message (the `data-trace` part channel already
-exists as a list, since parts append: `trace.ts:29-33`) and sum usage across the
-turn's captures. Park this in the backlog; do not block the duplication fix on it.
+Follow-up (not v1): designed in `trace-continuation.md`. Instead of aggregating many
+traces FE-side, the frontend replays the turn's `traceparent` on resumes so the whole
+turn lands in ONE trace (the SDK already honors an inbound traceparent), plus an
+FE-side per-turn usage sum. Decision pending; do not block the duplication fix on it.
 
 ## The batch channel (Accept: application/json)
 
