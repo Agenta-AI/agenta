@@ -307,6 +307,23 @@ export interface DrillInUIComponents {
         extraOptionGroups?: LLMProviderGroup[]
         /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
         footerContent?: ReactElement | null
+        /** Opens the host's "Configure provider" drawer for a NEW custom provider, pre-selecting
+         * `kind` (e.g. "azure", "bedrock", "vertex_ai", "custom"). Absent on hosts with no drawer
+         * wired up — callers hide the affordance in that case. */
+        openConfigureProvider?: (kind: string) => void
+    }
+
+    /**
+     * Deployment (host app) facts the package can't determine itself. Today: whether this
+     * deployment is Agenta cloud, which gates the Provider credentials section's "Use
+     * subscription" connection mode (design.md D6, docs/design/connect-model-drawer).
+     * Absent (older hosts) reads as not-cloud, i.e. ungated.
+     */
+    deployment?: {
+        /** Policy: gates the self_managed connection mode in the UI. Never changes at runtime. */
+        isCloud: boolean
+        /** Link target for the self-managed info card's "Read the self-hosting guide" pill. */
+        selfHostingGuideUrl?: string
     }
 
     /** Gateway tools integration for the tool selector */

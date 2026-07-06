@@ -7,6 +7,7 @@ import {
 } from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
+import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
 export interface AgentModelKeyStatus {
@@ -32,9 +33,6 @@ export interface AgentModelKeyStatus {
      */
     gateActive: boolean
 }
-
-/** Strip the `_API_KEY` suffix from a vault env name → provider family ("OPENAI_API_KEY" → "openai"). */
-const providerFromEnvName = (name: string): string => name.toLowerCase().replace(/_api_key$/, "")
 
 interface LlmRef {
     provider?: unknown
@@ -77,12 +75,12 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
                   : null
         const selfManaged = llm?.connection?.mode === "self_managed"
 
-        const p = provider?.toLowerCase() ?? null
+        const p = normalizeProviderFamily(provider)
         const providerEntry = p
             ? (standardSecrets.find(
                   (secret) =>
-                      providerFromEnvName(secret.name ?? "") === p ||
-                      (secret.title ?? "").toLowerCase() === p,
+                      normalizeProviderFamily((secret.name ?? "").replace(/_api_key$/i, "")) ===
+                          p || normalizeProviderFamily(secret.title) === p,
               ) ?? null)
             : null
 

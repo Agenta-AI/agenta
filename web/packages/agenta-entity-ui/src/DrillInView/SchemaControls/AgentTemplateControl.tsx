@@ -179,8 +179,22 @@ export function AgentTemplateControl({
     // internal auto-correction effect must not leak into `draftConfig`). The live `mh` handles any
     // real auto-correction against the entity.
     const noopConfigChange = useCallback(() => {}, [])
+    // Single source of truth for "the currently open section has unsaved edits" — shared by the
+    // open-a-new-section guard below and the Save-button gate (`sectionDirty`) so they can't drift.
+    const isCurrentSectionDirty = useCallback(
+        () =>
+            openSection !== null &&
+            sectionBaseline.current !== null &&
+            (!deepEqual(draftConfig, sectionBaseline.current.config) ||
+                draftBuildKit !== sectionBaseline.current.buildKit),
+        [openSection, draftConfig, draftBuildKit],
+    )
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
+            // Same section already open: never re-snapshot over a live draft.
+            if (openSection === key) return
+            // Another section is open with unsaved edits: drop the request rather than clobber it.
+            if (isCurrentSectionDirty()) return
             const snapshotConfig = (value ?? {}) as Record<string, unknown>
             const snapshotBuildKit = store.get(
                 workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
@@ -190,7 +204,7 @@ export function AgentTemplateControl({
             sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
             setOpenSection(key)
         },
-        [value, store],
+        [value, store, openSection, isCurrentSectionDirty],
     )
     const closeSectionDraft = useCallback(() => {
         setOpenSection(null)
@@ -203,6 +217,8 @@ export function AgentTemplateControl({
     const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
     useEffect(() => {
         if (!openSectionRequest) return
+        // Always clears the request, even when openSectionDrawer no-ops on a dirty open section —
+        // the request is intentionally dropped rather than queued.
         openSectionDrawer(openSectionRequest)
         setOpenSectionRequest(null)
     }, [openSectionRequest, openSectionDrawer, setOpenSectionRequest])
@@ -236,11 +252,7 @@ export function AgentTemplateControl({
         closeSectionDraft()
     }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
-    const sectionDirty =
-        openSection !== null &&
-        sectionBaseline.current !== null &&
-        (!deepEqual(draftConfig, sectionBaseline.current.config) ||
-            draftBuildKit !== sectionBaseline.current.buildKit)
+    const sectionDirty = isCurrentSectionDirty()
 
     // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
     const layout = useAtomValue(agentTemplateLayoutAtom)
@@ -870,6 +882,7 @@ export function AgentTemplateControl({
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
+                dirty={sectionDirty}
                 width={mhDraft.modelHarnessDrawerWidth}
             >
                 {mhDraft.modelHarnessDrawerBody}
@@ -882,6 +895,7 @@ export function AgentTemplateControl({
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
+                dirty={sectionDirty}
                 width={880}
             >
                 {mhDraft.advancedDrawerBody}

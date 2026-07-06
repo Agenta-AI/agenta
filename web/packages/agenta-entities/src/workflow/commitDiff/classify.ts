@@ -224,31 +224,26 @@ function prefixed(
 }
 
 /**
- * Model & harness — the model identity (`llm.model`), its `provider`, and the harness engine
- * (`harness.kind`), mirroring the config panel's "Model & harness" control section. The rest of
- * `llm` (connection/auth) belongs to Advanced — the config panel groups it there.
+ * Model & harness — the model identity (`llm.model`), all of `llm` (provider + connection/auth),
+ * and the harness engine (`harness.kind`), mirroring the config panel's "Model & harness" control
+ * section, which now owns connection-mode UI too.
  */
 function modelHarnessBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
     if (v.model !== undefined) out["llm.model"] = v.model
-    if (isPlainObj(v.llm) && v.llm.provider !== undefined) out["llm.provider"] = v.llm.provider
+    Object.assign(out, prefixed("llm", v.llm))
     if (isPlainObj(v.harness) && "kind" in v.harness) out["harness.kind"] = v.harness.kind
     return out
 }
 
 /**
  * Advanced — everything the config panel *artificially groups* under "Advanced", which lives in
- * several JSON locations: the llm auth/connection (`llm.*` minus the model), generation params,
- * the runner/sandbox execution sections, and the harness's non-`kind` knobs (e.g. permissions).
+ * several JSON locations: generation params, the runner/sandbox execution sections, and the
+ * harness's non-`kind` knobs (e.g. permissions). `llm` in full belongs to Model & harness.
  */
 function advancedBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
     for (const key of PARAM_KEYS) if (v.params[key] !== undefined) out[key] = v.params[key]
-    // Authentication group: everything in `llm` except model + provider (those are Model & harness).
-    if (isPlainObj(v.llm)) {
-        const {model: _model, provider: _provider, ...rest} = v.llm
-        Object.assign(out, prefixed("llm", rest))
-    }
     Object.assign(out, prefixed("runner", v.runner))
     Object.assign(out, prefixed("sandbox", v.sandbox))
     if (isPlainObj(v.harness)) {

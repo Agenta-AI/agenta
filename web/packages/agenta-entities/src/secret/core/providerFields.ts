@@ -1,15 +1,33 @@
-import {STANDARD_PROVIDER_KINDS} from "@agenta/entities/secret"
+/**
+ * Custom-provider form field catalog — declarative field list + per-provider auth
+ * requirements for the "Configure provider" drawer. Data-driven so the form component
+ * has no provider-specific branching.
+ */
+
 import type {LlmProvider} from "@agenta/shared/types"
 
-export const PROVIDER_FIELDS: {
+import {STANDARD_PROVIDER_KINDS} from "./types"
+
+/**
+ * Render metadata attached to a `PROVIDER_FIELDS` item, e.g.
+ * `{kind: "json", rows: 10, monospace: true, strict: true}`.
+ */
+export type ProviderFieldAttributes =
+    | {kind: "text"; type?: "text" | "password" | "url"; inputType?: "text" | "password" | "url"}
+    | {kind: "textarea"; rows?: number; monospace?: boolean}
+    | {kind: "json"; rows?: number; monospace?: boolean; strict?: boolean}
+
+export interface ProviderFieldConfig {
     key: keyof LlmProvider
     label: string
     placeholder: string
     note?: string
     required?: boolean
     model?: string[]
-    attributes?: Record<string, any>
-}[] = [
+    attributes?: ProviderFieldAttributes
+}
+
+export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
     {
         key: "name",
         label: "Name",

@@ -46,6 +46,8 @@ export type {
     StandardProviderSettingsDto,
     UpdateSecretDto,
     VaultMigrationStatus,
+    ProviderFieldAttributes,
+    ProviderFieldConfig,
 } from "./core"
 
 export {
@@ -60,6 +62,8 @@ export {
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformSecret,
+    PROVIDER_AUTH_REQUIREMENTS,
+    PROVIDER_FIELDS,
 } from "./core"
 
 // ============================================================================

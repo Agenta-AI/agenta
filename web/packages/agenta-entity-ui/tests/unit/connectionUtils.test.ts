@@ -20,7 +20,6 @@ import {
     harnessAllowsProvider,
     modelIdFromConfig,
     modelSelectionMode,
-    namedConnectionOptions,
     providerForModel,
     type HarnessCapabilitiesMap,
 } from "../../src/DrillInView/SchemaControls/connectionUtils"
@@ -231,37 +230,5 @@ describe("connectionUtils: harness-filtered model picker", () => {
         // No published models -> permissive (don't over-clear the catalog fallback).
         expect(harnessAllowsModel(CAPABILITIES, "future-harness", "anything")).toBe(true)
         expect(harnessAllowsModel(CAPABILITIES, "pi_core", null)).toBe(true)
-    })
-})
-
-describe("connectionUtils: named connection options (vault list)", () => {
-    const SECRETS = [
-        {type: "provider_key", title: "openai", name: "OPENAI_API_KEY"},
-        {type: "custom_provider", name: "openai-prod", provider: "openai"},
-        {type: "custom_provider", name: "openai-staging", provider: "openai"},
-        {type: "custom_provider", name: "anthropic-prod", provider: "anthropic"},
-    ]
-
-    it("lists custom-provider connections filtered to the chosen provider", () => {
-        const opts = namedConnectionOptions(SECRETS, CAPABILITIES, "pi_core", "openai")
-        expect(opts.map((o) => o.value)).toEqual(["openai-prod", "openai-staging"])
-        // value is the slug == header.name (what the resolver matches on).
-        expect(opts[0]).toEqual({label: "openai-prod", value: "openai-prod"})
-    })
-
-    it("excludes standard provider_key secrets (the implicit project default)", () => {
-        const opts = namedConnectionOptions(SECRETS, CAPABILITIES, "pi_core", "openai")
-        expect(opts.some((o) => o.value === "OPENAI_API_KEY")).toBe(false)
-    })
-
-    it("with no provider chosen, keeps only connections the harness can reach", () => {
-        // claude reaches anthropic only -> openai connections dropped.
-        const opts = namedConnectionOptions(SECRETS, CAPABILITIES, "claude", null)
-        expect(opts.map((o) => o.value)).toEqual(["anthropic-prod"])
-    })
-
-    it("returns [] for an empty or missing vault list", () => {
-        expect(namedConnectionOptions([], CAPABILITIES, "pi_core", "openai")).toEqual([])
-        expect(namedConnectionOptions(null, CAPABILITIES, "pi_core", "openai")).toEqual([])
     })
 })

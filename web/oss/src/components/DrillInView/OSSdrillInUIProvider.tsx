@@ -71,6 +71,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isToolsEnabled} from "@/oss/lib/helpers/isEE"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
@@ -645,6 +646,9 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const toolsEnabled = isToolsEnabled()
     const workflowReference = useWorkflowReferenceBridge()
+    // Deployment policy, never changes at runtime — not memoized. Gates the Provider credentials
+    // section's "Use subscription" toggle (design.md D6, docs/design/connect-model-drawer).
+    const deployment = {isCloud: isDemo()}
 
     if (!toolsEnabled) {
         return (
@@ -655,6 +659,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                         EditorProvider,
                         SharedEditor,
                         workflowReference,
+                        deployment,
                     }}
                 >
                     {children}
@@ -669,6 +674,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
             <GatewayToolsEnabledProvider
                 llmProviderConfig={llmProviderConfig}
                 workflowReference={workflowReference}
+                deployment={deployment}
             >
                 {children}
             </GatewayToolsEnabledProvider>
@@ -681,10 +687,12 @@ function GatewayToolsEnabledProvider({
     children,
     llmProviderConfig,
     workflowReference,
+    deployment,
 }: {
     children: ReactNode
     llmProviderConfig: ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
     workflowReference: WorkflowReferenceBridge
+    deployment: {isCloud: boolean}
 }) {
     const {connections, isLoading} = useToolConnectionsQuery()
     const setCatalogDrawerOpen = useSetAtom(toolCatalogDrawerOpenAtom)
@@ -739,6 +747,7 @@ function GatewayToolsEnabledProvider({
                 SharedEditor,
                 gatewayTools,
                 workflowReference,
+                deployment,
             }}
         >
             {children}

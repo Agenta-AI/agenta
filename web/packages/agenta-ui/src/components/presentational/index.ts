@@ -179,9 +179,11 @@ export {
     LabeledField,
     CommitMessageInput,
     COMMIT_MESSAGE_MAX_LENGTH,
+    LabelInput,
     type SliderInputProps,
     type LabeledFieldProps,
     type CommitMessageInputProps,
+    type LabelInputProps,
 } from "./inputs"
 
 // ============================================================================

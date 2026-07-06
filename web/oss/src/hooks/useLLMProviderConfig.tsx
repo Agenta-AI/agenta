@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import {Anthropic, Gemini, Mistral, OpenAi, Together} from "@agenta/ui"
@@ -22,6 +22,7 @@ const icons = [OpenAi, Gemini, Anthropic, Mistral, Together]
 export function useLLMProviderConfig() {
     const {customRowSecrets} = useVaultSecret()
     const [isConfigProviderOpen, setIsConfigProviderOpen] = useState(false)
+    const [initialProviderKind, setInitialProviderKind] = useState<string | null>(null)
 
     const extraOptionGroups = useMemo<ProviderGroup[]>(() => {
         return customRowSecrets
@@ -35,6 +36,19 @@ export function useLLMProviderConfig() {
             }))
             .filter((group) => group.options.length > 0)
     }, [customRowSecrets])
+
+    // Opens the drawer for a NEW provider with `kind` pre-selected. Exposed via DrillInUIContext
+    // (llmProviderConfig) so the package-level Provider credentials rail's "Add Azure/Bedrock/
+    // Vertex AI/OpenAI-compatible" rows can reach this OSS-only drawer.
+    const openConfigureProvider = useCallback((kind: string) => {
+        setInitialProviderKind(kind)
+        setIsConfigProviderOpen(true)
+    }, [])
+
+    const closeConfigureProvider = useCallback(() => {
+        setIsConfigProviderOpen(false)
+        setInitialProviderKind(null)
+    }, [])
 
     const footerContent = (
         <>
@@ -61,7 +75,8 @@ export function useLLMProviderConfig() {
     const configureProviderDrawer = (
         <ConfigureProviderDrawer
             open={isConfigProviderOpen}
-            onClose={() => setIsConfigProviderOpen(false)}
+            initialProviderKind={initialProviderKind ?? undefined}
+            onClose={closeConfigureProvider}
         />
     )
 
@@ -69,8 +84,9 @@ export function useLLMProviderConfig() {
         () => ({
             extraOptionGroups,
             footerContent,
+            openConfigureProvider,
         }),
-        [extraOptionGroups, footerContent],
+        [extraOptionGroups, footerContent, openConfigureProvider],
     )
 
     return useMemo(

@@ -304,31 +304,10 @@ export function harnessAllowsModel(
 }
 
 // ---------------------------------------------------------------------------
-// Connection picker (Agenta-managed): named connections from the vault list.
-//
-// Fed by the existing `GET /secrets/` via vaultSecretsQueryAtom (read-only). The backend resolver
-// matches a named connection by the secret's `header.name` (the slug); the transformed vault list
-// surfaces custom-provider connections as `{type: "custom_provider", name, provider}`. We list
-// those, filtered to the selected provider and the harness's reachable providers.
+// Vault-hosted model options (Agenta-managed): a custom_provider connection's own models,
+// contributed to the model picker so they're selectable alongside the harness's static catalog.
+// Fed by the existing `GET /secrets/` via vaultSecretsQueryAtom (read-only).
 // ---------------------------------------------------------------------------
-
-/** A vault entry as surfaced by transformSecret (the in-app `LlmProvider` shape, loosely typed). */
-export interface VaultConnectionEntry {
-    /** The secret kind: "provider_key" (standard, no custom name) or "custom_provider". */
-    type?: string
-    /** For custom_provider: the connection name (== header.name == the slug to send). */
-    name?: string
-    /** For custom_provider: the provider family (data.kind). */
-    provider?: string
-    /** For standard provider_key: the provider title (the provider family). */
-    title?: string
-}
-
-/** A named-connection option for the picker: `{label: header.name, value: slug}`. */
-export interface ConnectionOption {
-    label: string
-    value: string
-}
 
 /** A vault custom_provider entry rich enough to contribute model options (its own models). */
 export interface VaultModelSource {
@@ -403,41 +382,4 @@ export function vaultModelGroups(
         })
     }
     return groups
-}
-
-/**
- * Named connections selectable for a provider under a harness, from the vault list. Only
- * custom-provider secrets carry a connection name (the slug the resolver matches on); standard
- * provider keys are the implicit project default and are not listed here. Filtered to the chosen
- * provider (case-insensitive) and, when no provider is chosen, to the harness's reachable
- * providers.
- */
-export function namedConnectionOptions(
-    secrets: VaultConnectionEntry[] | null | undefined,
-    capabilities: HarnessCapabilitiesMap | null | undefined,
-    harness: string | null | undefined,
-    provider: string | null | undefined,
-): ConnectionOption[] {
-    if (!secrets?.length) return []
-    const reachable = allowedProviders(capabilities, harness)
-    const anyProvider = reachable.includes("*")
-    const target = provider?.toLowerCase() || null
-
-    const out: ConnectionOption[] = []
-    const seen = new Set<string>()
-    for (const secret of secrets) {
-        if (secret.type !== "custom_provider") continue
-        const slug = secret.name?.trim()
-        if (!slug || seen.has(slug)) continue
-        const secretProvider = secret.provider?.toLowerCase() || null
-        if (target) {
-            if (secretProvider !== target) continue
-        } else if (!anyProvider && secretProvider) {
-            // No provider chosen yet: keep only connections the harness can reach.
-            if (!reachable.some((p) => p.toLowerCase() === secretProvider)) continue
-        }
-        seen.add(slug)
-        out.push({label: slug, value: slug})
-    }
-    return out
 }
