@@ -39,6 +39,8 @@ export type RolesCatalog = Record<"organization" | "workspace" | "project", Role
 
 export const plansQueryAtom = atomWithQuery((get) => {
     const sessionExists = get(sessionExistsAtom)
+    const user = get(profileQueryAtom).data as {id?: string} | undefined
+    const projectId = get(projectIdAtom)
     return {
         queryKey: ["access", "plans"],
         queryFn: async (): Promise<PlansCatalog> => {
@@ -49,7 +51,10 @@ export const plansQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists,
+        // Gate on the full auth context the axios interceptor requires (user +
+        // project), not just the session, so the request isn't fired and aborted
+        // before the profile resolves.
+        enabled: isEE() && sessionExists && !!user && !!projectId,
         retry: (failureCount, error) => {
             if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
                 return false
@@ -214,6 +219,8 @@ export const queueMaxItemsAtom = atom((get): number => {
 
 export const rolesQueryAtom = atomWithQuery((get) => {
     const sessionExists = get(sessionExistsAtom)
+    const user = get(profileQueryAtom).data as {id?: string} | undefined
+    const projectId = get(projectIdAtom)
     return {
         queryKey: ["access", "roles"],
         queryFn: async (): Promise<RolesCatalog> => {
@@ -224,7 +231,10 @@ export const rolesQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: sessionExists,
+        // Gate on the full auth context the axios interceptor requires (user +
+        // project), not just the session, so the request isn't fired and aborted
+        // before the profile resolves.
+        enabled: sessionExists && !!user && !!projectId,
         retry: (failureCount, error) => {
             if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
                 return false
