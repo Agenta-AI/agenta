@@ -8,8 +8,10 @@ Tests cover:
 """
 
 import json
-import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 from agenta.sdk.decorators.routing import (
     BATCH_MEDIA_TYPES,
@@ -17,9 +19,11 @@ from agenta.sdk.decorators.routing import (
     SUPPORTED_MEDIA_TYPES,
     _parse_accept,
     _make_not_acceptable_response,
+    apply_invoke_prelude,
     handle_invoke_success,
 )
 from agenta.sdk.models.workflows import (
+    WorkflowInvokeRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
     WorkflowServiceResponseData,
@@ -31,12 +35,19 @@ from agenta.sdk.models.workflows import (
 # ---------------------------------------------------------------------------
 
 
-def _mock_request(accept: str = "") -> MagicMock:
+def _mock_request(accept: str = "", messages_format: str = "") -> MagicMock:
     req = MagicMock()
+    req.state = SimpleNamespace()
     req.headers = MagicMock()
-    req.headers.get = lambda key, default="": (
-        accept if key == "accept" and accept else default
-    )
+
+    def _get(key, default=""):
+        if key == "accept" and accept:
+            return accept
+        if key == "x-ag-messages-format" and messages_format:
+            return messages_format
+        return default
+
+    req.headers.get = _get
     return req
 
 
@@ -60,6 +71,170 @@ def _batch_response(output="result") -> WorkflowServiceBatchResponse:
     return WorkflowServiceBatchResponse(
         data=WorkflowServiceResponseData(outputs=output)
     )
+
+
+async def _drain_streaming_response(response) -> str:
+    chunks = []
+    async for chunk in response.body_iterator:
+        if isinstance(chunk, bytes):
+            chunks.append(chunk.decode())
+        else:
+            chunks.append(chunk)
+    return "".join(chunks)
+
+
+def _sse_parts(body: str):
+    parts = []
+    for block in body.split("\n\n"):
+        if not block.startswith("data: "):
+            continue
+        payload = block.removeprefix("data: ")
+        if payload and payload != "[DONE]":
+            parts.append(json.loads(payload))
+    return parts
+
+
+def _message(role: str, message_id=None):
+    message = {
+        "role": role,
+        "parts": [{"type": "text", "text": f"{role} text"}],
+    }
+    if message_id is not None:
+        message["id"] = message_id
+    return message
+
+
+def _invoke_request_with_messages(messages) -> WorkflowInvokeRequest:
+    return WorkflowInvokeRequest(data={"inputs": {"messages": messages}})
+
+
+# ---------------------------------------------------------------------------
+# Vercel continuation message id
+# ---------------------------------------------------------------------------
+
+
+def test_prelude_captures_vercel_last_assistant_message_id():
+    req = _mock_request(messages_format="vercel")
+    request = _invoke_request_with_messages(
+        [_message("user", "user-1"), _message("assistant", "resume-msg-1")]
+    )
+
+    apply_invoke_prelude(req, request)
+
+    assert req.state.ag_continuation_message_id == "resume-msg-1"
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [
+        [_message("assistant", "assistant-1"), _message("user", "user-1")],
+        [{"role": "assistant", "parts": [{"type": "text", "text": "paused"}]}],
+        [_message("assistant", "")],
+        [
+            {
+                "role": "assistant",
+                "id": None,
+                "parts": [{"type": "text", "text": "paused"}],
+            }
+        ],
+    ],
+)
+def test_prelude_skips_vercel_messages_without_continuation_id(messages):
+    req = _mock_request(messages_format="vercel")
+    request = _invoke_request_with_messages(messages)
+
+    apply_invoke_prelude(req, request)
+
+    assert not hasattr(req.state, "ag_continuation_message_id")
+
+
+def test_prelude_does_not_capture_non_vercel_request():
+    req = _mock_request()
+    request = _invoke_request_with_messages([_message("assistant", "resume-msg-1")])
+
+    apply_invoke_prelude(req, request)
+
+    assert not hasattr(req.state, "ag_continuation_message_id")
+
+
+@pytest.mark.asyncio
+async def test_handle_invoke_success_vercel_stream_uses_continuation_message_id():
+    req = _mock_request("text/event-stream", messages_format="vercel")
+    req.state.ag_continuation_message_id = "resume-msg-1"
+    response = _stream_response([{"type": "message", "data": {"text": "hi"}}])
+    response.trace_id = "trace-1"
+
+    result = await handle_invoke_success(req, response)
+    parts = _sse_parts(await _drain_streaming_response(result))
+
+    assert parts[0]["type"] == "start"
+    assert parts[0]["messageId"] == "resume-msg-1"
+
+
+@pytest.mark.asyncio
+async def test_handle_invoke_success_vercel_stream_mints_trace_id_without_continuation():
+    req = _mock_request("text/event-stream", messages_format="vercel")
+    response = _stream_response([{"type": "message", "data": {"text": "hi"}}])
+    response.trace_id = "trace-1"
+
+    result = await handle_invoke_success(req, response)
+    parts = _sse_parts(await _drain_streaming_response(result))
+
+    assert parts[0]["type"] == "start"
+    assert parts[0]["messageId"] == "msg-trace-1"
+
+
+@pytest.mark.asyncio
+async def test_handle_invoke_success_vercel_json_uses_continuation_message_id():
+    req = _mock_request("application/json", messages_format="vercel")
+    req.state.ag_continuation_message_id = "resume-msg-1"
+    response = _batch_response(
+        {"messages": [{"role": "assistant", "content": "reply"}]}
+    )
+
+    result = await handle_invoke_success(req, response)
+    body = json.loads(result.body)
+
+    messages = body["data"]["outputs"]["messages"]
+    assert messages[-1]["role"] == "assistant"
+    assert messages[-1]["id"] == "resume-msg-1"
+
+
+@pytest.mark.asyncio
+async def test_handle_invoke_success_vercel_json_stamps_last_assistant_before_trailing_user():
+    req = _mock_request("application/json", messages_format="vercel")
+    req.state.ag_continuation_message_id = "resume-msg-1"
+    response = _batch_response(
+        {
+            "messages": [
+                {"role": "assistant", "content": "reply"},
+                {"role": "user", "content": "follow-up"},
+            ]
+        }
+    )
+
+    result = await handle_invoke_success(req, response)
+    body = json.loads(result.body)
+
+    messages = body["data"]["outputs"]["messages"]
+    assert messages[0]["role"] == "assistant"
+    assert messages[0]["id"] == "resume-msg-1"
+    assert messages[1]["role"] == "user"
+    assert messages[1]["id"] == "msg-2"
+
+
+@pytest.mark.asyncio
+async def test_handle_invoke_success_vercel_json_does_not_stamp_user_message():
+    req = _mock_request("application/json", messages_format="vercel")
+    req.state.ag_continuation_message_id = "resume-msg-1"
+    response = _batch_response({"messages": [{"role": "user", "content": "reply"}]})
+
+    result = await handle_invoke_success(req, response)
+    body = json.loads(result.body)
+
+    messages = body["data"]["outputs"]["messages"]
+    assert messages[-1]["role"] == "user"
+    assert messages[-1]["id"] == "msg-1"
 
 
 # ---------------------------------------------------------------------------
