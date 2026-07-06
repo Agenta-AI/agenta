@@ -56,6 +56,21 @@ const HOST = process.env.AGENTA_RUNNER_HOST ?? "127.0.0.1";
 // so co-located/loopback deployments are unaffected.
 const RUNNER_TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 
+// Per-box in-flight counter: gates `/invoke` and `/stream` at the process, independent of the
+// per-project DB count, so one hot replica can't saturate. Value from config, not a constant.
+const CONCURRENCY_LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
+const DEFAULT_CONCURRENCY_LIMIT = 1000;
+
+function concurrencyLimit(): number {
+  const raw = process.env[CONCURRENCY_LIMIT_ENV];
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_CONCURRENCY_LIMIT;
+}
+
+let inFlight = 0;
+
 /** Constant-time string compare so the token check does not leak length/prefix via timing. */
 function tokensMatch(provided: string, expected: string): boolean {
   const a = Buffer.from(provided, "utf8");
@@ -326,31 +341,47 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
-        const raw = await readBody(req);
-        let request: AgentRunRequest;
-        try {
-          request = raw.trim() ? (JSON.parse(raw) as AgentRunRequest) : {};
-        } catch (err) {
-          return send(res, 400, {
+
+        // Per-box admission gate: reject before doing any work when this replica
+        // is already at its in-flight limit. Reserve the slot for the whole run and release
+        // it in `finally`, whichever path (streaming or one-shot) is taken.
+        const limit = concurrencyLimit();
+        if (inFlight >= limit) {
+          return send(res, 429, {
             ok: false,
-            error: `Invalid JSON: ${String(err)}`,
+            error: `Runner at capacity (${limit} concurrent runs)`,
           });
         }
+        inFlight += 1;
+        try {
+          const raw = await readBody(req);
+          let request: AgentRunRequest;
+          try {
+            request = raw.trim() ? (JSON.parse(raw) as AgentRunRequest) : {};
+          } catch (err) {
+            return send(res, 400, {
+              ok: false,
+              error: `Invalid JSON: ${String(err)}`,
+            });
+          }
 
-        const wantsStream = (req.headers["accept"] ?? "").includes(
-          "application/x-ndjson",
-        );
-        if (wantsStream) {
-          await runAndStream(req, res, request, run);
-          return;
+          const wantsStream = (req.headers["accept"] ?? "").includes(
+            "application/x-ndjson",
+          );
+          if (wantsStream) {
+            await runAndStream(req, res, request, run);
+            return;
+          }
+
+          // DEVELOPMENT-ONLY: the one-shot JSON path. The live agent always requests NDJSON
+          // (Accept: application/x-ndjson) and the SDK coalesces the batch result from the
+          // stream. This coalesced JSON response is kept only for local debugging of /run; no
+          // live caller hits it. Do not build new behavior on this branch.
+          const result = await run(request);
+          return send(res, result.ok ? 200 : 500, result);
+        } finally {
+          inFlight -= 1;
         }
-
-        // DEVELOPMENT-ONLY: the one-shot JSON path. The live agent always requests NDJSON
-        // (Accept: application/x-ndjson) and the SDK coalesces the batch result from the
-        // stream. This coalesced JSON response is kept only for local debugging of /run; no
-        // live caller hits it. Do not build new behavior on this branch.
-        const result = await run(request);
-        return send(res, result.ok ? 200 : 500, result);
       }
 
       return send(res, 404, { ok: false, error: "Not found" });

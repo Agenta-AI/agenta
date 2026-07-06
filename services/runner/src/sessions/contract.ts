@@ -74,7 +74,7 @@ end
 // Concurrency cap
 // ---------------------------------------------------------------------------
 
-export const CONCURRENCY_CAP = 1000;
+export const CONCURRENCY_LIMIT = 1000;
 
 // ---------------------------------------------------------------------------
 // Session id validation

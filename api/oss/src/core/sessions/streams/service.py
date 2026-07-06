@@ -20,7 +20,7 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
-    CONCURRENCY_CAP,
+    CONCURRENCY_LIMIT,
     validate_session_id as _validate_session_id_fn,
 )
 from oss.src.dbs.redis.sessions.locks import (
@@ -49,7 +49,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamQuery,
 )
 from oss.src.core.sessions.streams.types import (
-    ConcurrencyCapExceeded,
+    ConcurrencyLimitExceeded,
     SessionIdInvalid,
     SessionTurnInUse,
 )
@@ -327,11 +327,11 @@ class SessionStreamsService:
             _validate_session_id(filter.session_id)
         return await self._dao.query(project_id=project_id, filter=filter)
 
-    async def check_concurrency_cap(self, *, project_id: UUID) -> None:
-        """Raise ConcurrencyCapExceeded if the per-replica cap is reached."""
-        count = await self._dao.count_active(project_id=None)
-        if count >= CONCURRENCY_CAP:
-            raise ConcurrencyCapExceeded(cap=CONCURRENCY_CAP)
+    async def check_runner_concurrency_limit(self, *, project_id: UUID) -> None:
+        """Raise ConcurrencyLimitExceeded if the per-project limit is reached."""
+        count = await self._dao.count_active(project_id=project_id)
+        if count >= CONCURRENCY_LIMIT:
+            raise ConcurrencyLimitExceeded(limit=CONCURRENCY_LIMIT)
 
     async def _start_turn(
         self,

@@ -879,6 +879,21 @@ class LoopsConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# runner — agent runner sidecar (services/runner). Node-process config; documented
+# here for the canonical env-var mapping even though the runner reads process.env
+# directly (it is a separate Node process, not this Python process).
+# ---------------------------------------------------------------------------
+
+
+class RunnerConfig(BaseModel):
+    """Agent runner (services/runner) sidecar configuration."""
+
+    concurrency_limit: int = int(os.getenv("AGENTA_RUNNER_CONCURRENCY_LIMIT") or "1000")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # store — shared S3-compatible object store
 # ---------------------------------------------------------------------------
 
@@ -1281,6 +1296,7 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    runner: RunnerConfig = RunnerConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
     store: StoreConfig = StoreConfig()

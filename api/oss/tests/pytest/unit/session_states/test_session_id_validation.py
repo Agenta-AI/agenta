@@ -1,4 +1,4 @@
-"""Unit tests for session_id shape validation (SEC-8)."""
+"""Unit tests for session_id shape validation."""
 
 import pytest
 from fastapi import HTTPException
