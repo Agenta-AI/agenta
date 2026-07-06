@@ -481,6 +481,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // bubble hands off the install command + prompt (a pseudo response; there's no agent to run
     // pre-commit). Two clear steps: install the skill, then give the coding agent the prompt — the prompt
     // is NOT inside the shell block (it's not a command). Clears the composer so the text isn't duplicated.
+    // Holds the pending IDE-bubble typewriter timer so it can be cancelled on unmount (tab close,
+    // rewind, route change) — otherwise the recursive chain keeps calling setMessages on a stale closure.
+    const ideBubbleTimerRef = useRef<number | null>(null)
     const streamIdeBubble = useCallback(() => {
         const prompt = richInputRef.current?.getMarkdown().trim() ?? ""
         const promptQuote = prompt
@@ -520,10 +523,18 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         m.id === id ? {...m, parts: [{type: "text", text}]} : m,
                     ) as typeof prev,
             )
-            if (shown < full.length) window.setTimeout(tick, 28)
+            if (shown < full.length) ideBubbleTimerRef.current = window.setTimeout(tick, 28)
         }
-        window.setTimeout(tick, 120)
+        ideBubbleTimerRef.current = window.setTimeout(tick, 120)
     }, [setMessages])
+
+    // Cancel any in-flight IDE-bubble animation on unmount so its timer chain can't fire post-unmount.
+    useEffect(
+        () => () => {
+            if (ideBubbleTimerRef.current) window.clearTimeout(ideBubbleTimerRef.current)
+        },
+        [],
+    )
 
     // After an IDE hand-off (onboarding + messages exist but nothing was committed), the chat is a
     // dead-end — there's no agent to talk to. Disable the composer and offer a single "Start over".
