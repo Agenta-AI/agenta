@@ -45,6 +45,7 @@ def fold(
     """
     messages: List[Message] = []
     open_text: Dict[Any, int] = {}  # message_start id -> index into `messages`
+    tool_calls: Dict[Any, int] = {}  # tool_call id -> index into `messages`
     event_stop_reason: Optional[str] = None
     last_interaction_request: Optional[Dict[str, Any]] = None
 
@@ -66,15 +67,35 @@ def fold(
         elif etype == "message_end":
             open_text.pop(data.get("id"), None)
         elif etype == "tool_call":
-            messages.append(
-                {
-                    "role": "tool",
-                    "content": "",
-                    "tool_call_id": data.get("id"),
-                    "tool_name": data.get("name"),
-                    "input": data.get("input"),
-                }
+            call_id = data.get("id")
+            # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
+            # plain `input` empty on some tool-call paths — mirrors the vercel egress.
+            # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
+            input_value = (
+                data["rawInput"]
+                if data.get("rawInput") is not None
+                else data.get("input")
             )
+            idx = tool_calls.get(call_id) if call_id is not None else None
+            if idx is not None:
+                # A repeat tool_call for a seen id is an input REFRESH: the runner re-emits
+                # the call once the real args land on a later ACP tool_call_update (the
+                # announcement often carries absent/partial args). Update the one recorded
+                # call in place — keep its position and first-seen name (the refresh carries
+                # only the drift-prone ACP title) — mirroring the vercel stream egress.
+                messages[idx]["input"] = input_value
+            else:
+                if call_id is not None:
+                    tool_calls[call_id] = len(messages)
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": "",
+                        "tool_call_id": call_id,
+                        "tool_name": data.get("name"),
+                        "input": input_value,
+                    }
+                )
         elif etype == "tool_result":
             messages.append(
                 {
