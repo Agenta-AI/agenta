@@ -11,26 +11,26 @@ import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import RevealCollapse from "./RevealCollapse"
 
 /**
- * Connect-a-model prompt shown above the composer when the agent's model provider has no vault key.
- * The composer is disabled alongside it (the parent gates on the same status). "Set up credentials"
- * flips the playground to Build and opens the Model & harness drawer, whose bottom credentials field
- * lets the user add the key without leaving — saving it clears this banner reactively (vault → hasKey).
+ * Connect-a-model prompt shown above the composer while the project vault is empty (see `gateActive`
+ * on `useAgentModelKeyStatus` — project-wide, not per-provider). The composer is disabled alongside it
+ * (the parent gates on the same status). "Set up credentials" flips the playground to Build and opens
+ * the Model & harness drawer, whose bottom credentials field lets the user add the key without leaving
+ * — saving it clears this banner reactively (any key added → gate never fires again).
  *
- * Always mounted so it can animate IN (status resolves to keyless) and OUT (key added / not applicable)
- * via `RevealCollapse` instead of popping. Shown only when the provider is resolved, keyless, the vault
- * query has landed (never a false gate), and not `suppressed` (the pre-commit onboarding defers the check).
+ * Always mounted so it can animate IN (gate activates) and OUT (key added / not applicable) via
+ * `RevealCollapse` instead of popping. Shown only when `gateActive` and not `suppressed` (the
+ * pre-commit onboarding defers the check).
  */
 const ConnectModelBanner = ({
-    hasKey,
     provider,
     providerEntry,
-    loading,
+    gateActive,
     suppressed = false,
 }: AgentModelKeyStatus & {suppressed?: boolean}) => {
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
     const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
 
-    const open = !suppressed && !loading && !hasKey && !!providerEntry
+    const open = !suppressed && gateActive
     // Latch the label so the banner keeps its text while it collapses closed (the leave transition
     // needs its content to persist through the height animation).
     const labelRef = useRef("a model")

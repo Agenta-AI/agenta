@@ -38,6 +38,7 @@ import {
     removeEmptyFromObjects,
 } from "@agenta/shared/utils"
 import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
@@ -75,6 +76,14 @@ export const vaultMigrationAtom = atom<VaultMigrationStatus>({
     migrating: false,
     migrated: false,
 })
+
+/** Persisted "user has connected a provider key at least once" flag, gating the connect-model prompt. */
+export const providerKeySetupDoneAtom = atomWithStorage<boolean>(
+    "agenta:provider-key-setup-done",
+    false,
+    undefined,
+    {getOnInit: true},
+)
 
 /**
  * Query atom for fetching vault secrets.

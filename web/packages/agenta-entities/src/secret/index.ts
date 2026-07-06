@@ -86,5 +86,6 @@ export {
     customNamedSecretsAtom,
     deleteSecretAtom,
     migrateVaultKeysAtom,
+    providerKeySetupDoneAtom,
     useVaultSecret,
 } from "./state"
