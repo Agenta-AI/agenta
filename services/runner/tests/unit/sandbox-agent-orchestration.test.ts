@@ -9,7 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
-import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
+import {
+  createSandboxAgentOtel,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
@@ -35,6 +38,10 @@ interface FakeOptions {
   promptError?: Error;
   permissionDecision?: PermissionDecision;
   emitPermission?: boolean;
+  permissionToolCallId?: string;
+  permissionToolName?: string;
+  permissionRawInput?: unknown;
+  permissionRequests?: Array<Record<string, unknown>>;
   // Model Claude-over-ACP: the prompt NEVER resolves on its own after a permission gate. The
   // runner must end the turn another way (the park -> destroySession -> cancel path, F-040).
   hangPrompt?: boolean;
@@ -95,11 +102,20 @@ function fakeHarness(options: FakeOptions = {}) {
       for (const event of promptEvents) eventHandler?.(event);
       await options.afterPromptEvents?.();
       if (options.emitPermission) {
-        permissionHandler?.({
-          id: "perm-1",
-          availableReplies: ["once", "always", "reject"],
-          toolCall: { toolCallId: "tool-1", name: "edit" },
-        });
+        const permissionRequests = options.permissionRequests ?? [
+          {
+            id: "perm-1",
+            availableReplies: ["once", "always", "reject"],
+            toolCall: {
+              toolCallId: options.permissionToolCallId ?? "tool-1",
+              name: options.permissionToolName ?? "edit",
+              title: options.permissionToolName ?? "edit",
+              rawInput: options.permissionRawInput,
+              input: options.permissionRawInput,
+            },
+          },
+        ];
+        for (const request of permissionRequests) permissionHandler?.(request);
       }
       if (options.postPermissionEvents?.length) {
         if (options.emitPermission) await flushPromises();
@@ -175,6 +191,10 @@ function fakeHarness(options: FakeOptions = {}) {
     events() {
       return events;
     },
+    settleOpenToolCalls(
+      _isExcluded: (id: string) => boolean,
+      _message: string,
+    ) {},
     traceId() {
       return "trace-1";
     },
@@ -927,6 +947,316 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     assert.deepEqual(calls.permissionReplies, []);
   });
 
+  it("settles serialized write-tool sibling calls before pause teardown", async () => {
+    const { deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-a",
+              title: "commit_revision",
+              rawInput: { revision: "r1" },
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-b",
+              title: "create_subscription",
+              rawInput: { plan: "pro" },
+            },
+          },
+        },
+      ],
+      emitPermission: true,
+      permissionToolCallId: "tool-a",
+      permissionToolName: "commit_revision",
+      permissionRawInput: { revision: "r1" },
+      hangPrompt: true,
+    });
+    delete deps.responderFactory;
+    deps.createOtel = createSandboxAgentOtel as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "commit and subscribe" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+
+    const interactions = result.events?.filter(
+      (event) => event.type === "interaction_request",
+    );
+    assert.equal(interactions?.length, 1);
+    assert.equal((interactions?.[0] as any).payload?.toolCallId, "tool-a");
+
+    const toolResults = result.events
+      ?.filter((event) => event.type === "tool_result")
+      .map((event) => ({
+        id: (event as any).id,
+        output: (event as any).output,
+        isError: (event as any).isError,
+      }));
+    assert.deepEqual(toolResults, [
+      {
+        id: "tool-b",
+        output: TOOL_NOT_EXECUTED_PAUSED,
+        isError: true,
+      },
+    ]);
+    assert.equal(toolResults?.some((event) => event.id === "tool-a"), false);
+  });
+
+  it("settles a latch-loser sibling when read-only permission requests race", async () => {
+    const readOnlySpec = (name: string) => ({
+      name,
+      kind: "callback",
+      readOnly: true,
+      permission: "ask",
+    });
+    const { deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-a",
+              title: "read_alpha",
+              rawInput: { path: "a" },
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-b",
+              title: "read_beta",
+              rawInput: { path: "b" },
+            },
+          },
+        },
+      ],
+      emitPermission: true,
+      permissionRequests: [
+        {
+          id: "perm-a",
+          availableReplies: ["once", "always", "reject"],
+          toolCall: {
+            toolCallId: "tool-a",
+            name: "read_alpha",
+            title: "read_alpha",
+            rawInput: { path: "a" },
+            input: { path: "a" },
+            spec: readOnlySpec("read_alpha"),
+          },
+        },
+        {
+          id: "perm-b",
+          availableReplies: ["once", "always", "reject"],
+          toolCall: {
+            toolCallId: "tool-b",
+            name: "read_beta",
+            title: "read_beta",
+            rawInput: { path: "b" },
+            input: { path: "b" },
+            spec: readOnlySpec("read_beta"),
+          },
+        },
+      ],
+      hangPrompt: true,
+    });
+    delete deps.responderFactory;
+    deps.createOtel = createSandboxAgentOtel as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "read both" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+
+    const interactions = result.events?.filter(
+      (event) => event.type === "interaction_request",
+    );
+    assert.equal(interactions?.length, 1);
+    assert.equal((interactions?.[0] as any).payload?.toolCallId, "tool-a");
+
+    const toolResults = result.events
+      ?.filter((event) => event.type === "tool_result")
+      .map((event) => ({
+        id: (event as any).id,
+        output: (event as any).output,
+        isError: (event as any).isError,
+      }));
+    assert.deepEqual(toolResults, [
+      {
+        id: "tool-b",
+        output: TOOL_NOT_EXECUTED_PAUSED,
+        isError: true,
+      },
+    ]);
+  });
+
+  it("settles a sibling whose announcement arrives AFTER the pause (teardown race)", async () => {
+    // The live incident shape: the sibling's `tool_call` announcement rides the ACP event
+    // stream and can arrive at the runner AFTER the gate won the latch and the pause-time
+    // sweep already ran. The event-handler re-sweep must settle it deterministically.
+    const { deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-a",
+              title: "commit_revision",
+              rawInput: { revision: "r1" },
+            },
+          },
+        },
+      ],
+      emitPermission: true,
+      permissionToolCallId: "tool-a",
+      permissionToolName: "commit_revision",
+      permissionRawInput: { revision: "r1" },
+      // Announced only after the permission gate fired (and the pause ran its sweep).
+      postPermissionEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-late",
+              title: "request_connection",
+              rawInput: { integration: "slack" },
+            },
+          },
+        },
+      ],
+      hangPrompt: true,
+    });
+    delete deps.responderFactory;
+    deps.createOtel = createSandboxAgentOtel as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "commit and connect" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    const toolResults = result.events
+      ?.filter((event) => event.type === "tool_result")
+      .map((event) => ({
+        id: (event as any).id,
+        output: (event as any).output,
+        isError: (event as any).isError,
+      }));
+    assert.deepEqual(toolResults, [
+      {
+        id: "tool-late",
+        output: TOOL_NOT_EXECUTED_PAUSED,
+        isError: true,
+      },
+    ]);
+  });
+
+  it("emits the deferred sibling result before the paused turn is done", async () => {
+    const emitted: AgentEvent[] = [];
+    const { deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-a",
+              title: "commit_revision",
+              rawInput: { revision: "r1" },
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-b",
+              title: "create_subscription",
+              rawInput: { plan: "pro" },
+            },
+          },
+        },
+      ],
+      emitPermission: true,
+      permissionToolCallId: "tool-a",
+      permissionToolName: "commit_revision",
+      permissionRawInput: { revision: "r1" },
+      hangPrompt: true,
+    });
+    delete deps.responderFactory;
+    deps.createOtel = createSandboxAgentOtel as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "commit and subscribe" }],
+      } as AgentRunRequest,
+      (event) => emitted.push(event),
+      undefined,
+      deps,
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    const interactionIndex = emitted.findIndex(
+      (event) => event.type === "interaction_request",
+    );
+    const siblingResultIndex = emitted.findIndex(
+      (event) => event.type === "tool_result" && (event as any).id === "tool-b",
+    );
+    const doneIndex = emitted.findIndex((event) => event.type === "done");
+
+    assert.notEqual(interactionIndex, -1, "approval request is emitted");
+    assert.notEqual(siblingResultIndex, -1, "sibling result is emitted");
+    assert.notEqual(doneIndex, -1, "done is emitted");
+    assert.ok(
+      interactionIndex < siblingResultIndex,
+      "approval request is emitted before the teardown sweep runs",
+    );
+    assert.ok(
+      siblingResultIndex < doneIndex,
+      "sibling result reaches the live sink before turn finish",
+    );
+  });
+
   it("drops teardown tool updates after a Pi relay approval pause while keeping other ids", async () => {
     const relayPause = { fire: () => {} };
     const { calls, deps } = fakeHarness({
@@ -1015,7 +1345,7 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
           output: (event as any).output,
           isError: (event as any).isError,
         })),
-      [{ id: "tool-2", output: "other failed", isError: true }],
+      [{ id: "tool-2", output: TOOL_NOT_EXECUTED_PAUSED, isError: true }],
     );
   });
 
