@@ -45,6 +45,20 @@ Mahmoud reviewed the plan on PR #5089 ("lgtm see comments though") and set the s
 - The losing call's args can be `{}` at pause time (refresh races teardown), so
   Option B needs an args-trust guard with Option A as its fallback.
 
+## Hotfix round (2026-07-06)
+
+Mahmoud's live testing hit an approval loop introduced by the honest-replay fix: the
+model re-issued the approved call with an object arg re-serialized as a JSON string, the
+exact-args key missed, a new gate fired, and stale "NOT run yet" envelopes compounded
+each resume. Fixed on the same lane with (a) JSON-normalizing canonicalization in
+`approvedCallKey` (string values that parse as objects/arrays are parsed before the
+stable stringify, both on stored decisions and live gates; no name-only fallback) and
+(b) history-aware envelope rendering in `buildTurnText` (executed-below when a later
+real result exists, the nudge only on the last unresolved envelope per tool, neutral
+"approved earlier" for older duplicates, deny unchanged). Verified live: one approval,
+one re-issue, decision consumed, revision landed, no repeat nudge on the next turn. Full
+detail in [phantom-execution-findings.md](phantom-execution-findings.md) §"Hotfix round".
+
 ## Blockers
 
 None.

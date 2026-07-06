@@ -195,3 +195,35 @@ per-turn transcript is where the contradiction lives, so fix it there.
 - Pi relay path: Pi folds the same `{approved}` envelope through the same transcript.
   The relay answers gates differently, but the phantom-success reading of the replay
   applies there too; verify once on Pi.
+
+## Hotfix round (2026-07-06, live testing of the first fix)
+
+Live testing of the honest-replay fix surfaced an approval LOOP, the args-drift open
+question above made real. The model re-issued `commit_revision` but copied the args off
+the flattened text transcript, re-serializing the object-valued `workflow_revision` as a
+JSON string. The exact-args key missed, the runner raised a NEW gate, and every resume
+added one more stale "NOT run yet, call it again NOW" envelope (approval-responded parts
+never leave that state and re-fold on each request), so the loop compounded: approve →
+resume → re-issue with drifted args → new gate → approve again.
+
+Two fixes landed on the same lane:
+
+- **Tolerant canonicalization (`responder.ts`):** `canonicalJson` now runs a
+  `normalizeJsonish` pre-pass — any string value that parses as a JSON object/array is
+  replaced by the parsed value, recursively, before the key-order-insensitive stable
+  stringify. Both sides (history extraction and live gates) share the path, so
+  `{"workflow_revision": "{\"delta\":…}"}` and `{"workflow_revision": {"delta":…}}`
+  produce the same key. No name-only fallback: semantically different args still miss.
+- **Smart envelope rendering (`transcript.ts`):** a pre-pass (`approvalRenderHints`)
+  over the whole prior history classifies each allow-envelope: rendered as
+  `[user APPROVED T; executed below]` when a later real (non-envelope) result for the
+  same tool exists (tool-name approximation, rendering only); the "call it again NOW"
+  nudge only on the LAST unresolved envelope per tool; older unresolved duplicates as a
+  neutral `[user approved T earlier.]`. Deny rendering unchanged.
+
+Verified live (claude/sonnet, self_managed sidecar): one approval, one re-issue, gate
+`outcome=allow` from the stored decision, revision v3 landed, and the next turn replayed
+without a nudge (plain answer, no gate). Unit-pinned in `responder.test.ts` (JSON-string
+drift matches, different args still miss, end-to-end `ConversationDecisions.take`) and
+`transcript.test.ts` (executed-below, single-nudge, cross-tool isolation, deny
+unchanged).
