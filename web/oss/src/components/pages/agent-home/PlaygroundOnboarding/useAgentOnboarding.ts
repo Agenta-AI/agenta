@@ -146,6 +146,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
             setCommittingSeed(seedMessage.trim() || null)
+            let committed = false
             void createAgent({
                 name,
                 seedMessage,
@@ -154,6 +155,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 // once the model is ready (no extra Start click), keeping the transition seamless.
                 autoSendSeed: true,
                 onCommitted: ({appId, revisionId}) => {
+                    committed = true
                     // Flip the onboarding state urgently — the settling skeleton, the `chromeRevealed`
                     // timer, and the commit-failure recovery all read `realEntityId` synchronously.
                     setRealEntityId(revisionId)
@@ -171,7 +173,12 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                         )
                     }
                 },
-            }).finally(() => setCommitting(false))
+            }).finally(() => {
+                setCommitting(false)
+                // On a failed commit (createAgent resolves without onCommitted), drop the optimistic
+                // seed so no stale "sent" turn can be re-surfaced by a later render.
+                if (!committed) setCommittingSeed(null)
+            })
         },
         [entityId, committing, realEntityId, createAgent, setEntityIds, baseAppURL],
     )
