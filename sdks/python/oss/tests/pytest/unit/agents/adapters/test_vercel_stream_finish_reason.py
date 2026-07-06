@@ -166,3 +166,32 @@ async def test_handler_stream_then_adapter_carries_paused_end_to_end() -> None:
 # Guard the DTO import surface the fakes lean on (Event/AgentResult stay importable here).
 def test_dto_imports_present() -> None:
     assert Event is not None and AgentResult is not None
+
+
+# --- a raw mid-stream exception still drains to a finish frame ----------------
+
+
+async def _events_then_raise(
+    items: List[Dict[str, Any]],
+) -> AsyncIterator[Dict[str, Any]]:
+    for item in items:
+        yield item
+    raise ValueError("unexpected adapter bug")
+
+
+@pytest.mark.asyncio
+async def test_raw_exception_mid_stream_still_emits_finish() -> None:
+    """An unexpected exception raised while iterating the event stream (not a graceful
+    terminal-failure result) must still drain to a `finish` frame, or a consumer waiting
+    on it hangs forever."""
+    parts = [
+        part
+        async for part in agent_stream_to_vercel_stream(
+            _events_then_raise([{"type": "message", "data": {"text": "partial"}}])
+        )
+    ]
+    types = [p["type"] for p in parts]
+    assert "error" in types
+    assert types[-2:] == ["finish-step", "finish"]
+    error = next(p for p in parts if p["type"] == "error")
+    assert "unexpected adapter bug" in error["errorText"]
