@@ -1,0 +1,222 @@
+/* ---------------------------------------------------------------------- *
+ * F4 - Load & scale simulator. Co-located with LoadSim.tsx per the P3
+ * boundary; reuses the shared custom properties from styles.css so this
+ * figure stays consistent in both light and dark mode.
+ * ---------------------------------------------------------------------- */
+
+.load-sim .figure-toolbar {
+  justify-content: space-between;
+}
+
+.load-play-toggle {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.load-play-toggle:hover {
+  border-color: var(--color-accent);
+}
+
+.load-disclaimer {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.load-mode-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+}
+
+.load-mode-row .load-preset-row {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.load-mode-row .load-preset-row button {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+}
+
+.load-mode-note {
+  flex: 1 1 260px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.load-contention-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--status-experimental);
+  background: color-mix(in srgb, var(--status-experimental) 12%, transparent);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.load-sliders {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+}
+
+@media (max-width: 900px) {
+  .load-sliders {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.load-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.load-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+
+.load-slider-value {
+  font-size: 0.7rem;
+}
+
+.load-preset-row {
+  display: flex;
+  gap: 4px;
+}
+
+.load-preset-row button {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 5px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.load-preset-row button[data-active="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.load-canvas-wrap {
+  position: relative;
+  background: var(--color-bg);
+}
+
+.load-canvas {
+  display: block;
+}
+
+.load-counters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.load-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2);
+  font-family: var(--font-sans);
+  border-right: 1px solid var(--color-border);
+}
+
+.load-counter:last-child {
+  border-right: none;
+}
+
+.load-counter-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.load-counter-value[data-warn="true"] {
+  color: var(--status-experimental);
+}
+
+.load-counter-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.load-relay-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.load-relay-note code {
+  color: var(--color-text);
+}
+
+.load-sim .field-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  padding: 0 var(--space-3);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.load-facts {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3);
+  list-style: none;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.load-facts li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.load-facts strong {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.load-fixed-costs {
+  padding: 0 var(--space-3) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}

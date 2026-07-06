@@ -1,0 +1,184 @@
+{
+  "browser": {
+    "x": 40,
+    "y": 386,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "gateway": {
+    "x": 450,
+    "y": 494,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "agent-service": {
+    "x": 860,
+    "y": 494,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "vercel-adapter": {
+    "x": 2456,
+    "y": 292,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "tool-resolution": {
+    "x": 2456,
+    "y": 440,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "agenta-harness": {
+    "x": 1598,
+    "y": 40,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "local-backend-stub": {
+    "x": 1598,
+    "y": 188,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "agenta-api": {
+    "x": 2986,
+    "y": 1131,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "composio": {
+    "x": 3396,
+    "y": 1131,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "harness-claude": {
+    "x": 2456,
+    "y": 588,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "daytona-sandbox": {
+    "x": 2456,
+    "y": 736,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "tracing-pipeline": {
+    "x": 2986,
+    "y": -149,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "triggers": {
+    "x": 40,
+    "y": -149,
+    "width": 190,
+    "height": 58,
+    "parentId": null
+  },
+  "grp-runner": {
+    "x": 1270,
+    "y": 562,
+    "width": 846,
+    "height": 420,
+    "parentId": null
+  },
+  "grp-pi-harness": {
+    "x": 2336,
+    "y": 884,
+    "width": 430,
+    "height": 116,
+    "parentId": null
+  },
+  "runner": {
+    "x": 16,
+    "y": 42,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "sandbox-agent-daemon": {
+    "x": 224,
+    "y": 42,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "acp-pi": {
+    "x": 432,
+    "y": 42,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "session-persistence": {
+    "x": 16,
+    "y": 118,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "acp-claude": {
+    "x": 432,
+    "y": 118,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "mcp-bridge": {
+    "x": 640,
+    "y": 194,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "tool-relay": {
+    "x": 640,
+    "y": 270,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "permission-plan": {
+    "x": 432,
+    "y": 346,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "acp-responder": {
+    "x": 640,
+    "y": 346,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-runner"
+  },
+  "harness-pi": {
+    "x": 16,
+    "y": 42,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-pi-harness"
+  },
+  "pi-extension": {
+    "x": 224,
+    "y": 42,
+    "width": 190,
+    "height": 58,
+    "parentId": "grp-pi-harness"
+  }
+}

@@ -1,0 +1,369 @@
+{
+  "$schema": "agent-workflows explorer node model",
+  "nodes": [
+    {
+      "id": "browser",
+      "label": "Browser / Playground",
+      "aliases": ["frontend", "web client", "embedded chat slice"],
+      "tier": "edge",
+      "role": "The playground UI and the embedded AgentChatSlice. Sends /invoke or /messages, renders the streamed reply, and owns conversation state client-side.",
+      "owns": [
+        "Building the WorkflowInvokeRequest / /messages request",
+        "Rendering Vercel UI Message Stream parts via useChat",
+        "Keeping full message history and resending it every turn (the runtime is cold)",
+        "Fulfilling client tools (e.g. request_connection) and returning results next turn"
+      ],
+      "codePath": "web/packages/agenta-playground/src/state/execution/agentRequest.ts; web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx",
+      "docPath": "documentation/protocol.md",
+      "status": "real",
+      "notes": "The browser is the only place client tools actually execute; the runner never runs them."
+    },
+    {
+      "id": "gateway",
+      "label": "Agenta Gateway / Workflow Route",
+      "aliases": ["workflow routing", "generic /invoke and /messages route"],
+      "tier": "edge",
+      "role": "The generic Agenta workflow HTTP surface. Negotiates batch vs. stream from the Accept header and dispatches to the agent workflow handler; shared by every workflow type, not agent-specific.",
+      "owns": [
+        "WorkflowInvokeRequest/WorkflowBatchResponse envelope",
+        "Accept-header negotiation (JSON vs text/event-stream)",
+        "Registering /messages only for agent routes (flags={\"is_agent\": true})"
+      ],
+      "codePath": "sdks/python/agenta/sdk/decorators/routing.py",
+      "docPath": "interfaces/public-edge/workflow-invoke.md",
+      "status": "real",
+      "notes": "A change here ripples to every workflow type, not just agents."
+    },
+    {
+      "id": "agent-service",
+      "label": "Agent Service (Python)",
+      "aliases": ["services/oss/src/agent", "_agent handler", "agent workflow handler"],
+      "tier": "service",
+      "role": "Owns what to run: parses AgentConfig, resolves tools/MCP/secrets, builds SessionConfig, selects a Backend and Harness, records usage on the workflow span.",
+      "owns": [
+        "AgentConfig.from_params parsing (harness, sandbox, agents_md, tools, mcp_servers, runner.permissions.default)",
+        "select_backend (always SandboxAgentBackend in the deployed stack)",
+        "Building SessionConfig and running one cold turn via a Harness over a Backend",
+        "Recording usage on the live workflow span"
+      ],
+      "codePath": "services/oss/src/agent/app.py",
+      "docPath": "documentation/architecture.md",
+      "status": "real",
+      "notes": "Runs inside the shared 'services' container as a normal Agenta workflow, not a separate process."
+    },
+    {
+      "id": "vercel-adapter",
+      "label": "Vercel Protocol Adapter",
+      "aliases": ["browser protocol adapter", "sdks/python/agenta/sdk/agents/adapters/vercel"],
+      "tier": "service",
+      "role": "Converts the browser chat contract to and from the neutral runtime: folds Vercel UIMessage input into neutral Message objects, mints/validates session_id, and projects live AgentEvent objects into Vercel UI Message Stream parts framed as SSE. Used only by /messages.",
+      "owns": [
+        "session_id minting (sess_ prefix) and validation (^[A-Za-z0-9._:-]{1,128}$)",
+        "UIMessage -> neutral ChatMessage[] conversion, incl. tool_call/tool_result and {approved} envelopes",
+        "AgentEvent -> Vercel stream-part mapping (text, reasoning, tool-input/-output, approval, data, file, usage, error, done)",
+        "SSE framing and the terminal data: [DONE]"
+      ],
+      "codePath": "sdks/python/agenta/sdk/agents/adapters/vercel/routing.py, messages.py, stream.py",
+      "docPath": "interfaces/public-edge/agent-messages.md",
+      "status": "real",
+      "notes": "/invoke never touches this adapter; it reads data.inputs.messages directly."
+    },
+    {
+      "id": "tool-resolution",
+      "label": "Tool & Secret Resolution (SDK)",
+      "aliases": ["resolve_tools", "resolve_mcp_servers", "ToolResolver", "platform/resolve.py"],
+      "tier": "service",
+      "role": "Turns declared tool/MCP config into resolved, per-run specs: builtin names pass through, gateway/reference/platform tools resolve to CallbackToolSpec, code tools get named secrets injected, MCP servers get secrets when the feature flag is on.",
+      "owns": [
+        "resolve_tools per type (builtin/gateway/code/client/reference/platform)",
+        "resolve_mcp_servers, gated by AGENTA_AGENT_ENABLE_MCP",
+        "resolve_connection: least-privilege single vault-key selection"
+      ],
+      "codePath": "sdks/python/agenta/sdk/agents/platform/resolve.py, gateway.py, secrets.py, workflow.py, platform_tools.py; sdks/python/agenta/sdk/agents/tools/resolver.py",
+      "docPath": "documentation/tools.md",
+      "status": "real",
+      "notes": "The SDK owns the generic algorithm; Agenta-specific HTTP calls are injected as platform adapters. The SDK never imports the service."
+    },
+    {
+      "id": "agenta-harness",
+      "label": "AgentaHarness (pi_agenta)",
+      "aliases": ["Harness adapter: pi_agenta", "adapters/harnesses.py::AgentaHarness"],
+      "tier": "service",
+      "role": "Maps neutral SessionConfig into Pi config plus Agenta's forced opinion: forced tools, forced skills (getting-started), a base AGENTS.md preamble, and a persona string.",
+      "owns": [
+        "Force-unioning the getting-started skill onto every pi_agenta run",
+        "Injecting a hardcoded append-system persona preamble"
+      ],
+      "codePath": "sdks/python/agenta/sdk/agents/adapters/harnesses.py; sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py",
+      "docPath": "documentation/architecture.md",
+      "status": "experimental",
+      "notes": "Runs on the same sandbox-agent/pi ACP path as pi_core; the runner treats it as plain 'pi' plus layered extras. Content (preamble/persona/skills) is still placeholder."
+    },
+    {
+      "id": "local-backend-stub",
+      "label": "LocalBackend (SDK stub)",
+      "aliases": ["adapters/local.py"],
+      "tier": "service",
+      "role": "A public Backend adapter shape intended to run a harness on the local machine without the sandbox-agent daemon. Not implemented.",
+      "owns": [],
+      "codePath": "sdks/python/agenta/sdk/agents/adapters/local.py",
+      "docPath": "documentation/architecture.md",
+      "status": "gap",
+      "notes": "create_sandbox and create_session raise NotImplementedError. select_backend never chooses it in the deployed stack; SandboxAgentBackend is used for every run regardless of harness."
+    },
+    {
+      "id": "agenta-api",
+      "label": "Agenta API: Tools & Secrets Endpoints",
+      "aliases": ["/tools/resolve", "/tools/call", "/tools/discover", "/secrets/resolve"],
+      "tier": "platform",
+      "role": "The API-side endpoints that validate connections, enrich gateway tool metadata, execute tool calls server-side, resolve named secrets, and run reference-workflow or platform-op tool calls.",
+      "owns": [
+        "POST /tools/resolve: connection validation + Composio catalog enrichment -> call_ref slug",
+        "POST /tools/call: routes by call_ref prefix (tools.* Composio, workflow.* reference, tools.agenta.* reserved handler)",
+        "POST /secrets/resolve: named-secret lookup for code tools and MCP servers",
+        "POST /tools/discover: Composio semantic search translated to Agenta capabilities"
+      ],
+      "codePath": "api/oss/src/core/tools/service.py; api/oss/src/apis/fastapi/tools/router.py; api/oss/src/core/tools/platform_handlers.py",
+      "docPath": "interfaces/cross-service/runner-to-tool-callback.md",
+      "status": "real",
+      "notes": "The Composio key and connection auth never leave this component."
+    },
+    {
+      "id": "composio",
+      "label": "Composio",
+      "aliases": ["gateway tool provider"],
+      "tier": "platform",
+      "role": "The external gateway tool provider. Agenta's API executes the resolved action against Composio's catalog on the connected account.",
+      "owns": ["Running the actual third-party integration action (e.g. github create_issue)"],
+      "codePath": "api/oss/src/core/tools/service.py (execute_tool)",
+      "docPath": "documentation/tools.md",
+      "status": "real",
+      "notes": "Only the composio provider is supported today; other gateway providers raise."
+    },
+    {
+      "id": "runner",
+      "label": "Agent Runner Sidecar",
+      "aliases": ["sandbox-agent (older docs)", "services/runner", "services/agent (older docs, same package)"],
+      "tier": "runner",
+      "role": "The Node package that runs the actual agent turn. Serves one /run contract over two entrypoints (HTTP server on :8765, or a CLI subprocess), and drives one engine: a harness over ACP through the sandbox-agent daemon.",
+      "owns": [
+        "AgentRunRequest/AgentRunResult wire contract (protocol.ts)",
+        "run-plan construction, harness selection remap (pi_core/pi_agenta -> pi, claude -> claude)",
+        "Capability probing and the fail-loud tool-delivery assertion",
+        "Tool dispatch (callback/code/client), the file-based relay, and the ACP approval responder",
+        "OTel span construction for non-self-instrumenting harnesses (Claude); usage writeback readback for Pi"
+      ],
+      "codePath": "services/runner/src/server.ts, cli.ts, protocol.ts, engines/sandbox_agent.ts",
+      "docPath": "documentation/architecture.md",
+      "status": "real",
+      "notes": "Standalone pnpm package, not part of the web workspace. Naming drift: current docs and code say 'runner' (services/runner/); older docs say 'sandbox-agent' (services/agent/); it is the SAME component. One HTTP server process, no worker pool; each /run spawns its own process tree."
+    },
+    {
+      "id": "sandbox-agent-daemon",
+      "label": "sandbox-agent daemon",
+      "aliases": ["the daemon", "@earendil-works sandbox-agent package"],
+      "tier": "runner",
+      "role": "The daemon process the runner starts per turn. Resolves a harness id to an ACP adapter, starts the harness CLI (local or inside a Daytona sandbox), and speaks ACP back to the runner.",
+      "owns": [
+        "Resolving 'pi' -> pi-acp adapter -> pi CLI; 'claude' -> claude-agent-acp adapter -> claude CLI",
+        "Local vs. Daytona sandbox provisioning"
+      ],
+      "codePath": "services/runner/src/engines/sandbox_agent/daemon.ts",
+      "docPath": "interfaces/cross-service/runner-to-harness.md",
+      "status": "real",
+      "notes": "One sandbox-agent process per /run; torn down in the finally path once the turn ends."
+    },
+    {
+      "id": "acp-pi",
+      "label": "ACP adapter: pi-acp",
+      "aliases": ["pi-acp"],
+      "tier": "runner",
+      "role": "The ACP adapter that speaks to the Pi CLI. Does not bundle Pi; spawns the pi binary from PATH (pinned via PI_ACP_PI_COMMAND).",
+      "owns": ["Starting the pi CLI as a subprocess", "Translating ACP calls to/from Pi's own protocol"],
+      "codePath": "services/runner (external pi-acp dependency)",
+      "docPath": "documentation/adapters/pi.md",
+      "status": "real",
+      "notes": "pi-acp forwards no MCP servers to Pi; Pi 0.79.4 does not support MCP."
+    },
+    {
+      "id": "acp-claude",
+      "label": "ACP adapter: claude-agent-acp",
+      "aliases": ["claude-agent-acp"],
+      "tier": "runner",
+      "role": "The ACP adapter that speaks to the Claude Code CLI. Downloads the claude CLI over HTTPS on first use rather than bundling it.",
+      "owns": ["Starting the claude CLI", "Relaying session/update notifications and permission requests over ACP"],
+      "codePath": "services/runner (external claude-agent-acp dependency)",
+      "docPath": "documentation/adapters/claude-code.md",
+      "status": "real",
+      "notes": "Requires ca-certificates in the sidecar image for the HTTPS download to verify."
+    },
+    {
+      "id": "harness-pi",
+      "label": "Harness CLI: Pi",
+      "aliases": ["pi_core", "pi_agenta (same CLI, forced extras)", "@earendil-works/pi-coding-agent"],
+      "tier": "sandbox",
+      "role": "The Pi coding-agent CLI. Runs the model loop, calls tools natively via the bundled extension, and self-instruments its own OTel spans.",
+      "owns": [
+        "The model loop and native tool execution",
+        "Building its own system prompt from AGENTS.md + SYSTEM/APPEND_SYSTEM overrides"
+      ],
+      "codePath": "external: @earendil-works/pi-coding-agent (MIT, baked into the image)",
+      "docPath": "documentation/adapters/pi.md",
+      "status": "real",
+      "notes": "Default harness. Per-request model override is not honored on this path; pi-acp accepts only its default model."
+    },
+    {
+      "id": "harness-claude",
+      "label": "Harness CLI: Claude Code",
+      "aliases": ["claude"],
+      "tier": "sandbox",
+      "role": "The Claude Code CLI. Takes tools over MCP, gates tool use behind its own permission prompt (checked first against a rendered settings.json, then the ACP responder), and does not self-instrument.",
+      "owns": [
+        "The model loop and MCP-delivered tool calls",
+        "Its own permission prompt / settings.json gate"
+      ],
+      "codePath": "external: Claude Code CLI (proprietary, installed at runtime from Anthropic, never baked into the image)",
+      "docPath": "documentation/adapters/claude-code.md",
+      "status": "real",
+      "notes": "Traced entirely from the runner's ACP event-stream reconstruction, since it brings no Agenta extension."
+    },
+    {
+      "id": "pi-extension",
+      "label": "Pi Extension (agenta.ts)",
+      "aliases": ["dist/extensions/agenta.js", "the bundled Pi extension"],
+      "tier": "sandbox",
+      "role": "A single esbuild-bundled extension installed into Pi's agent directory on every run. Delivers Agenta's resolved tools the Pi-native way and self-instruments tracing, both driven entirely by env vars.",
+      "owns": [
+        "pi.registerTool for each resolved public tool spec (from AGENTA_TOOL_PUBLIC_SPECS)",
+        "The tool_call hook that reports every Pi builtin call over the relay as a permission record",
+        "before_agent_start grant-list enforcement for builtin tool names",
+        "Self-instrumented OTel spans (invoke_agent > turn N > chat/execute_tool)",
+        "Usage writeback to AGENTA_USAGE_OUT on agent_end"
+      ],
+      "codePath": "services/runner/src/extensions/agenta.ts",
+      "docPath": "documentation/adapters/pi.md",
+      "status": "real",
+      "notes": "Inert (no-op) when none of its env vars are set, so it is safe to install globally."
+    },
+    {
+      "id": "mcp-bridge",
+      "label": "agenta-tools MCP Bridge",
+      "aliases": ["tool-mcp-http.ts", "the synthetic agenta-tools server"],
+      "tier": "runner",
+      "role": "A small MCP server the runner serves on a loopback HTTP endpoint, so non-Pi harnesses (Claude) can take resolved tools over MCP. It is a tool DELIVERY vehicle, not a user-declared MCP server.",
+      "owns": [
+        "Exposing public tool metadata (names, descriptions, schemas) only",
+        "Relaying each call back to the runner over the file relay for execution",
+        "Pausing client tools inside its tools/call handler for the cross-turn HITL flow"
+      ],
+      "codePath": "services/runner/src/tools/tool-mcp-http.ts, mcp-bridge.ts",
+      "docPath": "documentation/adapters/claude-code.md",
+      "status": "real",
+      "notes": "Local-only: unreachable on a remote (Daytona) sandbox, so a non-Pi run carrying any custom tool is refused up front there rather than silently dropped."
+    },
+    {
+      "id": "tool-relay",
+      "label": "Tool Relay (file-based)",
+      "aliases": ["tools/relay.ts", "the relay directory"],
+      "tier": "runner",
+      "role": "Executes tools and permission checks the runner (not the harness) is responsible for: gateway/code/reference/platform callback tools, and now Pi's own builtins, relayed through files rather than a direct call when the child process cannot reach the runner in-memory.",
+      "owns": [
+        "Polling the relay dir for *.req.json, executing against the private spec, writing *.res.json",
+        "Enforcing decide() for Pi (gateway, code, and builtins) since Pi has no harness-side settings gate",
+        "The permission-record protocol (kind:\"permission\") shared with execute requests"
+      ],
+      "codePath": "services/runner/src/tools/relay.ts",
+      "docPath": "documentation/tools.md",
+      "status": "real",
+      "notes": "The same loop backs both a local filesystem relay and a Daytona sandbox filesystem relay. Poll cadence starts at 300ms and backs off to 1500ms on an idle turn."
+    },
+    {
+      "id": "permission-plan",
+      "label": "Permission Decision Module",
+      "aliases": ["permission-plan.ts", "decide()", "effectivePermission()"],
+      "tier": "runner",
+      "role": "The one shared decision function both gates (the ACP responder and the tool relay) call, so a tool's effective permission can never disagree between the two enforcement points.",
+      "owns": [
+        "permissionsFromRequest: parsing the wire permissions block, applying the kill switch",
+        "effectivePermission: explicit tool permission -> MCP server permission -> rule match -> policy default",
+        "decide: deny/allow short-circuit, else consult stored decisions, else pendingApproval"
+      ],
+      "codePath": "services/runner/src/permission-plan.ts",
+      "docPath": "interfaces/in-service/permission-responder.md",
+      "status": "real",
+      "notes": "A pure decision function with no I/O; both the responder and the relay call it directly."
+    },
+    {
+      "id": "acp-responder",
+      "label": "ACP Approval Responder",
+      "aliases": ["ApprovalResponder", "responder.ts"],
+      "tier": "runner",
+      "role": "Answers permission gates that a harness raises itself over ACP (Claude Code today, via session.onPermissionRequest) and client-tool requests across the pause/resume boundary.",
+      "owns": [
+        "ConversationDecisions: recovering approvals/denials and client-tool outputs from replayed message history",
+        "approvedCallKey: the stable name+canonicalized-args resume anchor",
+        "decisionToReply: mapping allow/deny onto the harness's own ACP reply vocabulary (\"once\"/\"reject\")"
+      ],
+      "codePath": "services/runner/src/responder.ts",
+      "docPath": "interfaces/in-service/permission-responder.md",
+      "status": "real",
+      "notes": "Gate 2 for Claude: its own .claude/settings.json is Gate 1 and decides most calls before this responder is ever consulted."
+    },
+    {
+      "id": "session-persistence",
+      "label": "Session Persistence (cold, in-memory)",
+      "aliases": ["InMemorySessionPersistDriver"],
+      "tier": "runner",
+      "role": "An in-process session persistence driver the sandbox-agent engine keeps for the duration of one /run process only.",
+      "owns": [],
+      "codePath": "services/runner/src/engines/sandbox_agent.ts:150",
+      "docPath": "documentation/sessions.md",
+      "status": "gap",
+      "notes": "Does not survive across turns, so it does not make the runtime warm. There is no durable session store, no history-load endpoint, and no ACP session/load resume wired anywhere."
+    },
+    {
+      "id": "daytona-sandbox",
+      "label": "Daytona Sandbox VM",
+      "aliases": ["remote sandbox", "SANDBOX_AGENT_PROVIDER=daytona"],
+      "tier": "sandbox",
+      "role": "A remote Daytona VM the runner creates per turn when sandbox=daytona. The harness login, Pi extension, AGENTS.md, skills, and system-prompt files are pushed into it over the Daytona filesystem API.",
+      "owns": [
+        "Running the harness CLI remotely, isolated from the runner host",
+        "The remote side of the file relay (sandbox.runProcess for ls, readFsFile/writeFsFile for the relay files)"
+      ],
+      "codePath": "services/runner/src/engines/sandbox_agent/daytona.ts, provider.ts",
+      "docPath": "documentation/architecture.md",
+      "status": "real",
+      "notes": "One sandbox per turn, torn down after (ephemeral, paired with a non-zero SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES, default 15, as a leak backstop). Agenta ships a build recipe, not a built snapshot; the operator runs it in their own Daytona account. Cold VM start dominates end-to-end latency on this path."
+    },
+    {
+      "id": "tracing-pipeline",
+      "label": "Tracing / OTel Pipeline",
+      "aliases": ["services/oss/src/agent/tracing.py", "runner tracing/otel.ts"],
+      "tier": "platform",
+      "role": "Threads W3C trace context from the caller's /invoke span into the run and nests agent spans under it: invoke_agent (AGENT) > turn N (CHAIN) > chat (LLM) + execute_tool (TOOL). Rolls run usage back onto the workflow span.",
+      "owns": [
+        "trace_context() / run_context() in tracing.py: filling context.propagation and telemetry from the live workflow span",
+        "Pi: self-instrumented spans via the bundled extension, real per-call token counts",
+        "Claude (and any non-self-instrumenting harness): spans built by the runner from the ACP event stream",
+        "Usage rollup onto the workflow span from the /run result"
+      ],
+      "codePath": "services/oss/src/agent/tracing.py; services/runner/src/tracing/otel.ts; services/runner/src/extensions/agenta.ts",
+      "docPath": "documentation/architecture.md",
+      "status": "real",
+      "notes": "Pi's spans and the workflow span ship to Agenta in separate OTel batches; usage writeback (AGENTA_USAGE_OUT) is the extra hop that lets the workflow span show Pi's real tokens anyway."
+    },
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "aliases": ["Compose.io trigger integration", "trigger subscriptions"],
+      "tier": "platform",
+      "role": "Intended event-to-agent mapping: a provider port, a Compose.io adapter, Agenta-owned trigger state, so an agent can be invoked by an external event rather than a chat turn.",
+      "owns": [],
+      "codePath": "not implemented",
+      "docPath": "documentation/triggers.md",
+      "status": "gap",
+      "notes": "Trigger discovery (discover_triggers) exists as a read-only platform tool op, but trigger lifecycle, subscription, and event-to-agent invocation are not implemented in the agent workflow code."
+    }
+  ]
+}

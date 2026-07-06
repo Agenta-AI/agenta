@@ -1,0 +1,513 @@
+{
+  "$schema": "agent-workflows explorer scenario model",
+  "scenarios": [
+    {
+      "id": "invoke-batch",
+      "title": "POST /invoke, end to end",
+      "summary": "A generic workflow client calls the batch contract. Config is parsed, tools/MCP/secrets are resolved, the runner runs one cold turn through Pi, and the service returns one assistant message with usage recorded on the workflow span.",
+      "docPath": "documentation/protocol.md",
+      "steps": [
+        {
+          "nodeId": "browser",
+          "title": "Client sends the batch request",
+          "description": "A generic workflow client (not necessarily a browser) POSTs /invoke with chat history and the agent config, including the run-selection fields.",
+          "payload": {
+            "references": { "application_variant": { "id": "var_123" } },
+            "data": {
+              "inputs": { "messages": [{ "role": "user", "content": "What's the capital of Italy?" }] },
+              "parameters": {
+                "agent": {
+                  "agents_md": "You are a helpful research assistant.",
+                  "model": "gpt-5.5",
+                  "tools": [{ "type": "builtin", "name": "web_search" }],
+                  "harness": "pi_core",
+                  "sandbox": "local",
+                  "runner": { "permissions": { "default": "allow_reads" } }
+                }
+              }
+            }
+          },
+          "changedKeys": [],
+          "citations": [{ "docPath": "interfaces/public-edge/workflow-invoke.md" }]
+        },
+        {
+          "edgeId": "e-gateway-agent-service",
+          "title": "Route dispatches to the agent handler",
+          "description": "The generic workflow route negotiates batch vs. stream from the Accept header and calls _agent in services/oss/src/agent/app.py.",
+          "payload": { "route": "POST /invoke", "accept": "application/json" },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/protocol.md", "section": "/invoke" }]
+        },
+        {
+          "nodeId": "agent-service",
+          "title": "Parse one AgentConfig",
+          "description": "AgentConfig.from_params coerces the loose payload into the neutral runtime config, including harness, sandbox, and permission_default.",
+          "payload": {
+            "instructions": "You are a helpful research assistant.",
+            "model": "gpt-5.5",
+            "tools": [{ "type": "builtin", "name": "web_search" }],
+            "harness": "pi_core",
+            "sandbox": "local",
+            "permission_default": "allow_reads"
+          },
+          "changedKeys": ["instructions", "harness", "sandbox", "permission_default"],
+          "citations": [{ "docPath": "documentation/agent-configuration.md", "section": "Layer 3: the SDK runtime config" }]
+        },
+        {
+          "edgeId": "e-agent-service-tool-resolution",
+          "title": "Resolve tools and secrets",
+          "description": "The service calls resolve_tools and resolve_mcp_servers. The builtin web_search tool passes straight through with no network call; a code or gateway tool would trigger a resolver HTTP call here.",
+          "payload": { "builtin_names": ["web_search"], "customTools": [], "mcpServers": [] },
+          "changedKeys": ["tools -> builtin_names/customTools split"],
+          "citations": [{ "docPath": "documentation/tools.md", "section": "How tools get resolved" }]
+        },
+        {
+          "edgeId": "e-agent-service-runner",
+          "title": "Build the /run request and call the runner",
+          "description": "The service builds SessionConfig, resolves the model connection's secret, and sends one AgentRunRequest to the sidecar over HTTP (or CLI subprocess in a source checkout).",
+          "payload": {
+            "harness": "pi_core",
+            "sandbox": "local",
+            "sessionId": "sess_ab12cd34",
+            "agentsMd": "You are a helpful research assistant.",
+            "model": "openai/gpt-5.5",
+            "secrets": { "OPENAI_API_KEY": "sk-..." },
+            "messages": [{ "role": "user", "content": "What's the capital of Italy?" }],
+            "tools": ["web_search"],
+            "permissions": { "default": "allow_reads" },
+            "context": { "propagation": { "traceparent": "00-4bf9...-00f0...-01" } }
+          },
+          "changedKeys": ["harness", "sandbox", "sessionId", "agentsMd", "model", "secrets", "permissions", "context.propagation"],
+          "citations": [{ "docPath": "interfaces/cross-service/service-to-agent-runner.md", "section": "The request" }]
+        },
+        {
+          "edgeId": "e-runner-sandbox-agent-daemon",
+          "title": "Cold start: daemon + pi-acp + Pi CLI",
+          "description": "The runner has no warm process to reuse. It starts the sandbox-agent daemon, which resolves harness \"pi_core\" to the ACP agent \"pi\" and spawns pi-acp, which spawns the pi CLI. Pi loads the bundled extension.",
+          "payload": { "acpAgent": "pi", "sandboxProvider": "local" },
+          "changedKeys": ["harness -> acpAgent (pi_core -> pi)"],
+          "citations": [{ "docPath": "interfaces/cross-service/runner-to-harness.md" }]
+        },
+        {
+          "nodeId": "harness-pi",
+          "title": "Pi runs the turn",
+          "description": "Pi builds its system prompt (AGENTS.md wraps as <project_context>), runs the model loop, and (if it calls web_search) executes the tool through its extension's registered handler.",
+          "payload": { "acp_update": "agent_message_chunk", "text": "The capital of Italy is Rome." },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/adapters/pi.md" }]
+        },
+        {
+          "edgeId": "e-runner-agent-service-result",
+          "title": "Runner returns the result",
+          "description": "One JSON AgentRunResult comes back, including usage read from the Pi extension's writeback file.",
+          "payload": {
+            "ok": true,
+            "output": "The capital of Italy is Rome.",
+            "usage": { "input": 1297, "output": 8, "total": 1305, "cost": 0.0066 },
+            "stopReason": "end_turn",
+            "sessionId": "sess_ab12cd34",
+            "model": "openai/gpt-5.5"
+          },
+          "changedKeys": ["output", "usage", "stopReason"],
+          "citations": [{ "docPath": "interfaces/cross-service/service-to-agent-runner.md", "section": "The result" }]
+        },
+        {
+          "nodeId": "agent-service",
+          "title": "Teardown, usage rollup, and response",
+          "description": "The cold session is torn down. Usage is stamped on the live workflow span (not the response body), and the handler returns one assistant message.",
+          "payload": { "data": { "outputs": { "role": "assistant", "content": "The capital of Italy is Rome." } } },
+          "changedKeys": ["data.outputs"],
+          "citations": [{ "docPath": "documentation/sessions.md", "section": "Every turn is cold" }, { "docPath": "documentation/protocol.md", "section": "/invoke" }]
+        }
+      ]
+    },
+    {
+      "id": "messages-streaming",
+      "title": "POST /messages, browser chat streaming",
+      "summary": "The browser opens a streaming chat turn. session_id is minted, UIMessage history is folded into neutral messages, the runner streams NDJSON events internally, and the Vercel adapter projects them into an SSE-framed UI Message Stream.",
+      "docPath": "documentation/protocol.md",
+      "steps": [
+        {
+          "nodeId": "browser",
+          "title": "Browser sends a streaming chat turn",
+          "description": "useChat POSTs /messages with Accept: text/event-stream, no session_id yet (first turn), and Vercel UIMessage history.",
+          "payload": {
+            "data": {
+              "messages": [{ "id": "m1", "role": "user", "parts": [{ "type": "text", "text": "Summarize the last deploy." }] }],
+              "parameters": { "agent": { "model": "gpt-5.5", "harness": "pi_core", "sandbox": "local" } }
+            }
+          },
+          "changedKeys": [],
+          "citations": [{ "docPath": "interfaces/public-edge/agent-messages.md" }]
+        },
+        {
+          "nodeId": "vercel-adapter",
+          "title": "Mint session_id, validate, negotiate stream",
+          "description": "session_id is absent, so the route mints one with a sess_ prefix. data.stream is set from the Accept header, not a caller field.",
+          "payload": { "session_id": "sess_9f3a7b21", "data": { "stream": true } },
+          "changedKeys": ["session_id", "data.stream"],
+          "citations": [{ "docPath": "documentation/protocol.md", "section": "/messages" }]
+        },
+        {
+          "nodeId": "vercel-adapter",
+          "title": "Fold UIMessage[] into neutral messages",
+          "description": "Each UIMessage part becomes a neutral ContentBlock; a text part becomes {type:\"text\"}.",
+          "payload": { "messages": [{ "role": "user", "content": [{ "type": "text", "text": "Summarize the last deploy." }] }] },
+          "changedKeys": ["data.messages -> messages (neutral)"],
+          "citations": [{ "docPath": "documentation/protocol.md", "section": "/messages" }]
+        },
+        {
+          "edgeId": "e-agent-service-runner",
+          "title": "Runner call with NDJSON streaming",
+          "description": "The same /run request as the batch path, but sent with Accept: application/x-ndjson (or the CLI --stream flag).",
+          "payload": { "harness": "pi_core", "sandbox": "local", "sessionId": "sess_9f3a7b21", "messages": ["..."] },
+          "changedKeys": ["sessionId"],
+          "citations": [{ "docPath": "interfaces/cross-service/service-to-agent-runner.md", "section": "Streaming" }]
+        },
+        {
+          "edgeId": "e-runner-vercel-adapter-stream",
+          "title": "Runner emits live NDJSON records",
+          "description": "One JSON object per line, flushed as each event is built: message lifecycle, then a terminal result.",
+          "payload": [
+            { "kind": "event", "event": { "type": "message_start", "id": "msg1" } },
+            { "kind": "event", "event": { "type": "message_delta", "id": "msg1", "delta": "The last deploy " } },
+            { "kind": "event", "event": { "type": "message_delta", "id": "msg1", "delta": "shipped the runner fix." } },
+            { "kind": "event", "event": { "type": "message_end", "id": "msg1" } },
+            { "kind": "event", "event": { "type": "usage", "input": 812, "output": 42, "total": 854, "cost": 0.003 } },
+            { "kind": "event", "event": { "type": "done", "stopReason": "end_turn" } },
+            { "kind": "result", "result": { "ok": true, "output": "The last deploy shipped the runner fix.", "events": [] } }
+          ],
+          "changedKeys": ["kind", "event.type"],
+          "citations": [{ "docPath": "interfaces/cross-service/service-to-agent-runner.md", "section": "Streaming" }]
+        },
+        {
+          "nodeId": "vercel-adapter",
+          "title": "Project AgentEvent objects to Vercel stream parts",
+          "description": "message_start/delta/end map to text-start/text-delta/text-end; usage rides messageMetadata.usage on finish; done maps to finish-step then finish.",
+          "payload": [
+            { "type": "start", "messageMetadata": { "sessionId": "sess_9f3a7b21" } },
+            { "type": "text-start", "id": "msg1" },
+            { "type": "text-delta", "id": "msg1", "delta": "The last deploy " },
+            { "type": "text-delta", "id": "msg1", "delta": "shipped the runner fix." },
+            { "type": "text-end", "id": "msg1" },
+            { "type": "finish-step" },
+            { "type": "finish", "messageMetadata": { "usage": { "input": 812, "output": 42, "total": 854, "cost": 0.003 } } }
+          ],
+          "changedKeys": ["AgentEvent.type -> Vercel part.type"],
+          "citations": [{ "docPath": "documentation/protocol.md", "section": "Vercel Stream Parts" }]
+        },
+        {
+          "edgeId": "e-vercel-adapter-browser-sse",
+          "title": "Frame as SSE and terminate",
+          "description": "Each part is sent as an `data: {...}` SSE line; the stream ends with `data: [DONE]`.",
+          "payload": "data: {\"type\":\"finish\",\"messageMetadata\":{\"usage\":{...}}}\n\ndata: [DONE]\n\n",
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/protocol.md", "section": "Vercel Stream Parts" }]
+        }
+      ]
+    },
+    {
+      "id": "gateway-tool-call",
+      "title": "Gateway tool call (Composio, local sandbox)",
+      "summary": "An author-declared gateway tool (a Composio GitHub action) is resolved server-side, delivered to Pi natively through the bundled extension, and executed by posting back to Agenta's /tools/call so the connection's auth never enters the sandbox.",
+      "docPath": "documentation/tools.md",
+      "steps": [
+        {
+          "nodeId": "tool-resolution",
+          "title": "Resolve the declared gateway tool",
+          "description": "The author's config names a Composio action on a connected account. AgentaGatewayToolResolver posts the reference to POST /tools/resolve.",
+          "payload": { "type": "gateway", "provider": "composio", "integration": "github", "action": "create_issue", "connection": "my-gh" },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/tools.md", "section": "How tools get resolved" }]
+        },
+        {
+          "edgeId": "e-tool-resolution-agenta-api",
+          "title": "API validates the connection and enriches from the catalog",
+          "description": "The API checks the named connection exists, is active, and is authenticated, then returns a call_ref slug plus the tool's real description and input schema.",
+          "payload": { "call_ref": "tools.composio.github.create_issue.my-gh", "description": "Create a GitHub issue.", "input_schema": { "type": "object", "properties": { "title": { "type": "string" } } } },
+          "changedKeys": ["call_ref"],
+          "citations": [{ "docPath": "documentation/tools.md", "section": "How tools get resolved" }]
+        },
+        {
+          "edgeId": "e-agent-service-runner",
+          "title": "Resolved spec rides the /run wire",
+          "description": "customTools carries the CallbackToolSpec; toolCallback carries the shared callback endpoint and per-request authorization.",
+          "payload": {
+            "customTools": [{ "name": "github__create_issue", "kind": "callback", "callRef": "tools.composio.github.create_issue.my-gh", "inputSchema": { "type": "object", "properties": { "title": { "type": "string" } } } }],
+            "toolCallback": { "endpoint": "https://api.agenta.ai/api/tools/call", "authorization": "Bearer ..." }
+          },
+          "changedKeys": ["customTools", "toolCallback"],
+          "citations": [{ "docPath": "interfaces/cross-service/service-to-agent-runner.md", "section": "The request" }]
+        },
+        {
+          "nodeId": "pi-extension",
+          "title": "Extension registers the tool natively",
+          "description": "The extension reads public metadata from AGENTA_TOOL_PUBLIC_SPECS and registers github__create_issue with Pi via pi.registerTool. Pi sees it as a native tool.",
+          "payload": { "registeredTool": "github__create_issue" },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/adapters/pi.md", "section": "Tools, the Pi-native way" }]
+        },
+        {
+          "nodeId": "harness-pi",
+          "title": "Model calls the tool",
+          "description": "The model picks github__create_issue and supplies arguments; Pi emits an ACP tool_call update.",
+          "payload": { "type": "tool_call", "name": "github__create_issue", "input": { "title": "Bug: streaming duplicates text" } },
+          "changedKeys": [],
+          "citations": [{ "docPath": "interfaces/cross-service/runner-to-harness.md" }]
+        },
+        {
+          "edgeId": "e-pi-extension-agenta-api-direct",
+          "title": "Extension posts back to /tools/call",
+          "description": "On a local sandbox the extension runs on the runner host, so it reaches Agenta directly with the call_ref and the model's arguments in an OpenAI-style envelope.",
+          "payload": {
+            "data": {
+              "id": "call_zEoV9x",
+              "type": "function",
+              "function": { "name": "tools.composio.github.create_issue.my-gh", "arguments": { "title": "Bug: streaming duplicates text" } }
+            }
+          },
+          "changedKeys": [],
+          "citations": [{ "docPath": "interfaces/cross-service/runner-to-tool-callback.md" }]
+        },
+        {
+          "edgeId": "e-agenta-api-composio",
+          "title": "API executes the Composio action",
+          "description": "The router re-resolves the connection and runs the action through the Composio provider adapter.",
+          "payload": { "provider_action": "GITHUB_CREATE_AN_ISSUE", "connection": "my-gh" },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/tools.md", "section": "Gateway tools" }]
+        },
+        {
+          "nodeId": "agenta-api",
+          "title": "Result returned to the extension",
+          "description": "The result is already serialized as a JSON string in call.data.content; the runner hands it to the model verbatim.",
+          "payload": {
+            "call": {
+              "id": "uuid-1",
+              "status": { "code": "STATUS_CODE_OK" },
+              "data": { "role": "tool", "tool_call_id": "call_zEoV9x", "content": "{\"issue_url\":\"https://github.com/acme/repo/issues/42\"}" }
+            }
+          },
+          "changedKeys": ["call.data.content"],
+          "citations": [{ "docPath": "interfaces/cross-service/runner-to-tool-callback.md" }]
+        }
+      ]
+    },
+    {
+      "id": "daytona-tool-relay",
+      "title": "The same tool call, on a Daytona sandbox",
+      "summary": "With sandbox=daytona the in-sandbox process cannot reach Agenta directly. The runner creates a remote VM, pushes the login/extension/context files into it, and the same tool call is relayed through files instead of a direct HTTP call.",
+      "docPath": "documentation/architecture.md",
+      "steps": [
+        {
+          "edgeId": "e-runner-daytona-sandbox",
+          "title": "Cold VM creation and file push",
+          "description": "The runner creates a Daytona VM (from an operator-run snapshot or the -full base image) and pushes the harness login, the Pi extension bundle, AGENTS.md, skills, and SYSTEM/APPEND_SYSTEM files over the Daytona filesystem API.",
+          "payload": { "sandboxProvider": "daytona", "pushedPaths": ["/pi-agent/dist/extensions/agenta.js", "/pi-agent/AGENTS.md", "/pi-agent/auth.json"] },
+          "changedKeys": ["sandboxProvider"],
+          "citations": [{ "docPath": "documentation/architecture.md", "section": "Daytona sandbox" }]
+        },
+        {
+          "nodeId": "daytona-sandbox",
+          "title": "Pi runs remotely; model calls the same gateway tool",
+          "description": "Inside the VM, the extension registers github__create_issue exactly as on local, but this time it cannot reach Agenta over the network.",
+          "payload": { "type": "tool_call", "name": "github__create_issue", "input": { "title": "Bug: streaming duplicates text" } },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/adapters/pi.md", "section": "Daytona notes" }]
+        },
+        {
+          "edgeId": "e-daytona-sandbox-tool-relay",
+          "title": "In-sandbox child writes a request file",
+          "description": "The extension writes <id>.req.json to the relay directory on the sandbox filesystem instead of calling out.",
+          "payload": { "file": "AGENTA_TOOL_RELAY_DIR/call_zEoV9x.req.json", "contents": { "toolName": "github__create_issue", "toolCallId": "call_zEoV9x", "args": { "title": "Bug: streaming duplicates text" } } },
+          "changedKeys": [],
+          "citations": [{ "codePath": "services/runner/src/tools/relay.ts" }]
+        },
+        {
+          "nodeId": "tool-relay",
+          "title": "Runner polls the sandbox filesystem",
+          "description": "sandboxRelayHost lists the relay dir via a remote `ls` exec (sandbox.runProcess), starting at a 300ms poll interval and backing off to 1500ms on an idle turn. It reads the new *.req.json.",
+          "payload": { "list_call": "sandbox.runProcess({command:\"ls\", args:[\"-1\", relayDir]})", "pollMs": 300 },
+          "changedKeys": [],
+          "citations": [{ "codePath": "services/runner/src/tools/relay.ts" }]
+        },
+        {
+          "edgeId": "e-tool-relay-agenta-api",
+          "title": "Runner executes the private spec in memory",
+          "description": "Same callback envelope and POST /tools/call as the local path; the only thing that changed is the transport hop between the sandbox and the runner.",
+          "payload": {
+            "data": { "id": "call_zEoV9x", "type": "function", "function": { "name": "tools.composio.github.create_issue.my-gh", "arguments": { "title": "Bug: streaming duplicates text" } } }
+          },
+          "changedKeys": [],
+          "citations": [{ "docPath": "interfaces/cross-service/runner-to-tool-callback.md" }]
+        },
+        {
+          "nodeId": "tool-relay",
+          "title": "Runner writes the response file",
+          "description": "The runner writes <id>.res.json back to the sandbox filesystem (writeFsFile); the extension, which has been polling for it, reads the answer and hands it to Pi.",
+          "payload": { "file": "AGENTA_TOOL_RELAY_DIR/call_zEoV9x.res.json", "contents": { "ok": true, "text": "{\"issue_url\":\"https://github.com/acme/repo/issues/42\"}" } },
+          "changedKeys": [],
+          "citations": [{ "codePath": "services/runner/src/tools/relay.ts" }]
+        }
+      ]
+    },
+    {
+      "id": "permission-ask-hitl",
+      "title": "A write tool hits an ask verdict (human-in-the-loop)",
+      "summary": "A Pi builtin write call (edit) is gated under the default allow_reads policy. The turn pauses, the browser shows an approval prompt, the user approves, and the resumed call is matched to the stored decision by a stable name+args anchor and consumed exactly once.",
+      "docPath": "documentation/tools.md",
+      "steps": [
+        {
+          "nodeId": "harness-pi",
+          "title": "Model calls a write builtin",
+          "description": "The model calls edit on a file. The grant list allowed it into the active tool set, but the relay still has to decide its permission.",
+          "payload": { "type": "tool_call", "name": "edit", "input": { "path": "README.md", "old": "TODO", "new": "Done" } },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/tools.md", "section": "Built-in tools" }]
+        },
+        {
+          "edgeId": "e-pi-extension-tool-relay",
+          "title": "Extension hook reports a permission record",
+          "description": "The bundled extension's tool_call hook reports the builtin call over the relay as a permission record (kind: \"permission\"), because Pi has no separate harness-side settings gate.",
+          "payload": { "kind": "permission", "protocol": 1, "toolName": "Edit", "toolCallId": "call_e771", "args": { "path": "README.md", "old": "TODO", "new": "Done" } },
+          "changedKeys": ["kind", "protocol"],
+          "citations": [{ "docPath": "documentation/protocol.md", "section": "/run", "note": "permission record shape" }]
+        },
+        {
+          "edgeId": "e-tool-relay-permission-plan",
+          "title": "decide() resolves ask, no stored decision",
+          "description": "readOnlyHint for Edit is false. Under the run's allow_reads default, a non-read-hinted tool asks. No matching stored decision exists yet in this fresh conversation, so the verdict is pendingApproval.",
+          "payload": { "gate": { "toolName": "Edit", "readOnlyHint": false }, "plan": { "default": "allow_reads" }, "verdict": { "kind": "pendingApproval" } },
+          "changedKeys": ["verdict"],
+          "citations": [{ "codePath": "services/runner/src/permission-plan.ts" }]
+        },
+        {
+          "nodeId": "tool-relay",
+          "title": "Turn pauses; one interaction_request fires",
+          "description": "onPendingApproval emits exactly one interaction_request(user_approval) event and the run stops with stopReason: \"paused\". No JSON-RPC result is returned for this call.",
+          "payload": { "type": "interaction_request", "id": "call_e771", "kind": "user_approval", "payload": { "toolName": "Edit", "args": { "path": "README.md" } } },
+          "changedKeys": ["stopReason"],
+          "citations": [{ "docPath": "documentation/tools.md", "section": "Approval and rendering" }]
+        },
+        {
+          "edgeId": "e-runner-vercel-adapter-stream",
+          "title": "Projected to the browser as an approval request",
+          "description": "The Vercel adapter maps interaction_request(user_approval) to a tool-approval-request stream part.",
+          "payload": { "type": "tool-approval-request", "toolCallId": "call_e771", "toolName": "edit" },
+          "changedKeys": ["type"],
+          "citations": [{ "docPath": "documentation/protocol.md", "section": "Vercel Stream Parts" }]
+        },
+        {
+          "nodeId": "browser",
+          "title": "User approves; next turn resends history plus the decision",
+          "description": "The browser sends a new /messages turn whose UIMessage history includes a tool_result for call_e771 with an {approved: true} envelope.",
+          "payload": { "toolCallId": "call_e771", "output": { "approved": true } },
+          "changedKeys": [],
+          "citations": [{ "docPath": "interfaces/in-service/permission-responder.md", "section": "Resume matching" }]
+        },
+        {
+          "nodeId": "acp-responder",
+          "title": "Build the stored-decision map from replayed history",
+          "description": "extractApprovalDecisions scans tool_result blocks for the {approved} envelope and keys the decision by approvedCallKey(name, canonicalizedArgs), recovering name/args from the matching tool_call block.",
+          "payload": { "key": "Edit#{\"new\":\"Done\",\"old\":\"TODO\",\"path\":\"README.md\"}", "decision": "allow" },
+          "changedKeys": [],
+          "citations": [{ "codePath": "services/runner/src/responder.ts" }]
+        },
+        {
+          "nodeId": "harness-pi",
+          "title": "Harness re-issues the same call",
+          "description": "Pi (replaying the same conversation, cold) calls edit again with the identical arguments.",
+          "payload": { "type": "tool_call", "name": "edit", "input": { "path": "README.md", "old": "TODO", "new": "Done" } },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/tools.md", "section": "Approval and rendering" }]
+        },
+        {
+          "edgeId": "e-tool-relay-permission-plan",
+          "title": "Anchor match consumes the stored decision once",
+          "description": "The same name+canonicalized-args key matches. decide() returns allow from the stored decision and deletes it from the map, so a second identical call would ask again fresh.",
+          "payload": { "verdict": { "kind": "allow" }, "source": "storedDecision (consumed)" },
+          "changedKeys": ["verdict"],
+          "citations": [{ "docPath": "interfaces/in-service/permission-responder.md", "section": "Consume once" }]
+        }
+      ]
+    },
+    {
+      "id": "tracing",
+      "title": "Trace propagation and the span tree",
+      "summary": "The service threads its own /invoke span's trace context into the /run request. Pi self-instruments its own span tree and writes a usage totals file; Claude has no extension, so the runner builds the same span shape from the ACP event stream. Both roll usage back onto the workflow span.",
+      "docPath": "documentation/architecture.md",
+      "steps": [
+        {
+          "nodeId": "agent-service",
+          "title": "Capture trace context from the live workflow span",
+          "description": "tracing.py's trace_context() reads the current workflow span's W3C traceparent and the operator's OTLP exporter config.",
+          "payload": {
+            "context": { "propagation": { "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" } },
+            "telemetry": { "capture": { "content": { "enabled": true } }, "exporters": { "otlp": { "endpoint": "https://otel.agenta.ai/v1/traces" } } }
+          },
+          "changedKeys": ["context.propagation.traceparent", "telemetry"],
+          "citations": [{ "docPath": "interfaces/cross-service/service-to-agent-runner.md", "section": "The run's tracing inputs" }]
+        },
+        {
+          "edgeId": "e-agent-service-runner",
+          "title": "Both blocks ride the /run request",
+          "description": "context (per-call propagation) and telemetry (operator config) are distinct fields, both filled from one service-side capture.",
+          "payload": {
+            "context": { "propagation": { "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" } },
+            "telemetry": { "capture": { "content": { "enabled": true } }, "exporters": { "otlp": { "endpoint": "https://otel.agenta.ai/v1/traces" } } }
+          },
+          "changedKeys": [],
+          "citations": [{ "docPath": "interfaces/cross-service/service-to-agent-runner.md" }]
+        },
+        {
+          "nodeId": "pi-extension",
+          "title": "Pi path: self-instrument as a child span",
+          "description": "The runner passes the traceparent to the extension as AGENTA_TRACEPARENT. The extension starts invoke_agent as a child of that span, so the whole Pi run joins the caller's trace with real per-call token counts.",
+          "payload": { "span": "invoke_agent", "kind": "AGENT", "parentTraceparent": "00-4bf9...-00f0...-01", "children": ["turn 0 (CHAIN)"] },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/adapters/pi.md", "section": "Tracing: Pi instruments itself" }]
+        },
+        {
+          "nodeId": "pi-extension",
+          "title": "Span tree per turn",
+          "description": "Each turn nests a chat span (real provider usage) and one execute_tool span per tool call.",
+          "payload": { "spanTree": ["invoke_agent (AGENT)", "  turn 0 (CHAIN)", "    chat openai/gpt-5.5 (LLM)", "    execute_tool web_search (TOOL)"] },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/adapters/pi.md" }]
+        },
+        {
+          "nodeId": "pi-extension",
+          "title": "Usage writeback on agent_end",
+          "description": "Pi reports no usage over ACP; the extension writes the run's real token/cost totals to a file (AGENTA_USAGE_OUT) since Pi's spans and the workflow span ship in separate OTel batches.",
+          "payload": { "file": "AGENTA_USAGE_OUT", "contents": { "input": 1297, "output": 5, "total": 1302, "cost": 0.0066 } },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/adapters/pi.md", "section": "Usage writeback: the one extra hop" }]
+        },
+        {
+          "edgeId": "e-runner-agent-service-result",
+          "title": "Runner reads the file and returns usage on the result",
+          "description": "The runner reads AGENTA_USAGE_OUT after the prompt finishes and includes it on the /run result.",
+          "payload": { "usage": { "input": 1297, "output": 5, "total": 1302, "cost": 0.0066 } },
+          "changedKeys": ["usage"],
+          "citations": [{ "docPath": "documentation/adapters/pi.md" }]
+        },
+        {
+          "nodeId": "runner",
+          "title": "Claude path (contrast): no extension, event-stream tracing",
+          "description": "For a Claude run the runner has no in-process extension, so it subscribes to session/update ACP notifications and builds the identical span shape itself from the tool_call/tool_call_update/usage_update stream.",
+          "payload": { "spanTree": ["invoke_agent (AGENT)", "  turn 0 (CHAIN)", "    chat claude-... (LLM)", "    execute_tool <name> (TOOL)"], "source": "ACP event stream, not self-instrumentation" },
+          "changedKeys": [],
+          "citations": [{ "docPath": "documentation/adapters/claude-code.md", "section": "Tracing from the event stream" }]
+        },
+        {
+          "nodeId": "agent-service",
+          "title": "Stamp usage on the workflow span",
+          "description": "tracing.py rolls the returned usage back onto the live workflow span. This is not added to the /invoke response body; it is recorded on the span only.",
+          "payload": { "workflowSpan.usage": { "total": 1302, "cost": 0.0066 } },
+          "changedKeys": ["workflowSpan.usage"],
+          "citations": [{ "docPath": "documentation/architecture.md", "section": "Tracing" }, { "docPath": "documentation/protocol.md", "section": "/invoke" }]
+        }
+      ]
+    }
+  ]
+}
