@@ -1,4 +1,4 @@
-"""add sandbox credit meters to meters_type
+"""add sandbox + wallet debit meters to meters_type
 
 Revision ID: ee0000000005
 Revises: ee0000000004
@@ -18,18 +18,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.execute(
-        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_CPU_CORE_CREDITS'"
+        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_CPU_CORE_DEBITS'"
     )
     op.execute(
-        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_RAM_GIBI_CREDITS'"
+        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_RAM_GIBI_DEBITS'"
     )
     op.execute(
-        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_SSD_GIBI_CREDITS'"
+        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_SSD_GIBI_DEBITS'"
     )
     op.execute(
-        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_GPU_CORE_CREDITS'"
+        "ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_GPU_CORE_DEBITS'"
     )
-    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_CREDITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'SANDBOX_DEBITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'LLM_DEBITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'GATEWAY_DEBITS'")
+    op.execute("ALTER TYPE meters_type ADD VALUE IF NOT EXISTS 'WALLET_DEBITS'")
 
 
 def downgrade() -> None:

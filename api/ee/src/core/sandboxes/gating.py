@@ -1,12 +1,13 @@
 """Sandbox entitlement gating: create-time quota check (Layer 1) and
-post-hoc true-up (Layer 2), both against the single billed meter
-SANDBOX_CREDITS.
+post-hoc true-up (Layer 2), both against WALLET_DEBITS -- the cross-family
+grand total (LLM_DEBITS + SANDBOX_DEBITS + GATEWAY_DEBITS), since the wallet
+gate must block on total prepaid balance, not just the sandbox sub-total.
 
 Two-layer design mirrors the existing tracing entitlements pattern:
 
 Layer 1 (create-time soft pre-check)
     `check_sandbox_quota()` -- called before launching a sandbox. Uses the
-    Redis-cached SANDBOX_CREDITS value (`cache=True`) plus an in-flight
+    Redis-cached WALLET_DEBITS value (`cache=True`) plus an in-flight
     accrual estimate (converted via `credits.to_credits`) so the org does not
     exceed its quota the moment a new sandbox starts. Fails open: any
     infrastructure error allows the launch and logs a warning.
@@ -14,7 +15,7 @@ Layer 1 (create-time soft pre-check)
 Layer 2 (post-hoc true-up)
     `check_sandbox_credits_true_up()` -- called after
     `SandboxMeteringService.record_usage()` has adjusted the raw *_seconds
-    and *_credits meters (see sink.py). Re-checks SANDBOX_CREDITS
+    and *_debits meters (see sink.py). Re-checks WALLET_DEBITS
     (`cache=False`, delta=0 -- a read-only true-up, the write already
     happened in the sink) and returns whether the org is within quota.
 
@@ -49,7 +50,7 @@ async def check_sandbox_quota(
 ) -> tuple[bool, Optional[str]]:
     """Layer 1: create-time soft pre-check.
 
-    Fetches the cached meter value for `SANDBOX_CREDITS` and adds an
+    Fetches the cached meter value for `WALLET_DEBITS` and adds an
     estimated in-flight accrual (CPU-dimension credits for
     `env.sandbox.estimated_vcpu` vCPUs over `env.sandbox.estimated_run_seconds`
     seconds) before comparing against the plan quota.
@@ -112,7 +113,7 @@ async def _check_sandbox_quota_ee(
 
     try:
         allowed, _, _ = await check_entitlements(
-            key=Counter.SANDBOX_CREDITS,
+            key=Counter.WALLET_DEBITS,
             delta=estimated_millicredits,
             cache=True,
             scope=meter_scope,
@@ -134,7 +135,7 @@ async def check_sandbox_credits_true_up(
     *,
     organization_id: UUID,
 ) -> bool:
-    """Layer 2: post-hoc true-up against SANDBOX_CREDITS.
+    """Layer 2: post-hoc true-up against WALLET_DEBITS.
 
     Call after `SandboxMeteringService.record_usage()` (which already wrote
     the meters via sink.py) to check whether the org is now over quota.
@@ -174,7 +175,7 @@ async def _check_sandbox_credits_true_up_ee(
     meter_scope = MeterScope(organization_id=organization_id)
 
     allowed, _, _ = await check_entitlements(
-        key=Counter.SANDBOX_CREDITS,
+        key=Counter.WALLET_DEBITS,
         delta=0,
         cache=False,
         scope=meter_scope,
@@ -185,7 +186,7 @@ async def _check_sandbox_credits_true_up_ee(
             "[sandboxes] over-quota org=%s counter=%s "
             "-- kill endpoint not yet implemented; skipping sandbox termination",
             organization_id,
-            Counter.SANDBOX_CREDITS.value,
+            Counter.WALLET_DEBITS.value,
         )
 
     return allowed

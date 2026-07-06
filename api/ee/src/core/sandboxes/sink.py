@@ -1,11 +1,15 @@
-"""record_usage_credits() -- credits sink for sandbox resource-second events.
+"""record_usage_credits() -- wallet debit sink for sandbox resource-second events.
 
-Called by `SandboxMeteringService.record_usage()` after the raw *_seconds
-meters are adjusted. Per event it:
+Called by `SandboxMeteringService.record_usage()` with the raw resource
+seconds for one usage event (the raw *_seconds dimensions themselves are
+cost-explainer data, not billing meters, so they are not adjusted here).
+Per event it:
 
-  1. Computes per-dimension *_credits from the raw seconds via `to_credits()`.
-  2. Adjusts each per-dimension *_credits meter.
-  3. Sums per-dimension credits into sandbox_credits and adjusts that meter.
+  1. Computes per-dimension *_debits from the raw seconds via `to_credits()`.
+  2. Adjusts each per-dimension *_debits meter.
+  3. Sums per-dimension debits into sandbox_debits and adjusts that meter.
+  4. Adds the same sandbox_debits total into wallet_debits, the cross-family
+     grand total (LLM_DEBITS + SANDBOX_DEBITS + GATEWAY_DEBITS).
 
 Credit deltas are stored as millicredits (credits x 1000, truncated) to
 preserve sub-credit precision without changing the int-typed MeterDTO.delta
@@ -45,12 +49,11 @@ async def record_usage_credits(
     ssd_seconds: Decimal = Decimal("0"),
     gpu_seconds: Optional[Decimal] = None,
 ) -> None:
-    """Record per-dimension + total sandbox credits for one usage event.
+    """Record per-dimension + sandbox + wallet debits for one usage event.
 
-    Writes SANDBOX_{CPU,RAM,SSD,GPU}_CREDITS and SANDBOX_CREDITS in one call.
-    No-ops silently when is_ee() is False. Raw *_seconds meters are the
-    caller's responsibility (already adjusted by
-    `SandboxMeteringService.record_usage`).
+    Writes SANDBOX_{CPU,RAM,SSD,GPU}_DEBITS, SANDBOX_DEBITS, and accumulates
+    the sandbox total into WALLET_DEBITS in one call. No-ops silently when
+    is_ee() is False.
 
     Args:
         provider: Provider slug ("e2b", "daytona", "local", ...).
@@ -66,17 +69,17 @@ async def record_usage_credits(
     meter_scope = MeterScope(organization_id=organization_id)
 
     dimension_pairs: list[tuple[Counter, Dimension, Decimal]] = [
-        (Counter.SANDBOX_CPU_CORE_CREDITS, Dimension.CPU, cpu_seconds),
-        (Counter.SANDBOX_RAM_GIBI_CREDITS, Dimension.RAM, ram_seconds),
-        (Counter.SANDBOX_SSD_GIBI_CREDITS, Dimension.SSD, ssd_seconds),
+        (Counter.SANDBOX_CPU_CORE_DEBITS, Dimension.CPU, cpu_seconds),
+        (Counter.SANDBOX_RAM_GIBI_DEBITS, Dimension.RAM, ram_seconds),
+        (Counter.SANDBOX_SSD_GIBI_DEBITS, Dimension.SSD, ssd_seconds),
     ]
     if gpu_seconds is not None:
         dimension_pairs.append(
-            (Counter.SANDBOX_GPU_CORE_CREDITS, Dimension.GPU, gpu_seconds)
+            (Counter.SANDBOX_GPU_CORE_DEBITS, Dimension.GPU, gpu_seconds)
         )
 
     # The total is the sum of the per-dimension millicredits actually written,
-    # not a re-truncation of the exact credit sum. This keeps SANDBOX_CREDITS
+    # not a re-truncation of the exact credit sum. This keeps SANDBOX_DEBITS
     # exactly reconcilable against the per-dimension breakdown meters (a dim that
     # rounds to 0 millicredits contributes 0 to both the meter and the total).
     total_millicredits = 0
@@ -107,14 +110,28 @@ async def record_usage_credits(
 
     try:
         await check_entitlements(
-            key=Counter.SANDBOX_CREDITS,
+            key=Counter.SANDBOX_DEBITS,
             delta=total_millicredits,
             cache=False,
             scope=meter_scope,
         )
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning(
-            "[sandboxes] failed to record sandbox_credits for org=%s",
+            "[sandboxes] failed to record sandbox_debits for org=%s",
+            organization_id,
+            exc_info=True,
+        )
+
+    try:
+        await check_entitlements(
+            key=Counter.WALLET_DEBITS,
+            delta=total_millicredits,
+            cache=False,
+            scope=meter_scope,
+        )
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning(
+            "[sandboxes] failed to record wallet_debits for org=%s",
             organization_id,
             exc_info=True,
         )

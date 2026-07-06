@@ -5,10 +5,11 @@ needed. The goal is to pin the logic that:
 
 - `check_sandbox_quota` returns (False, reason) when the entitlements check
   is denied, and (True, None) when allowed.
-- `check_sandbox_credits_true_up` returns False when SANDBOX_CREDITS is
+- `check_sandbox_credits_true_up` returns False when WALLET_DEBITS is
   over-quota, True when within quota.
 - Both functions fail open (return allowed=True) on unexpected exceptions.
-- SANDBOX_CREDITS is the only sandbox meter reported to Stripe.
+- No sandbox/wallet debit meter is reported to Stripe (wallet debits are
+  prepaid, never reported in arrears).
 """
 
 import pytest
@@ -155,49 +156,45 @@ async def test_true_up_oss_passthrough():
     assert result is True
 
 
-def test_sandbox_credit_counter_values():
-    """Confirm the credit Counter slugs match the Meters enum values."""
+def test_sandbox_debit_counter_values():
+    """Confirm the debit Counter slugs match the Meters enum values."""
     from ee.src.core.access.entitlements.types import Counter
     from ee.src.core.meters.types import Meters
 
     assert (
-        Meters["SANDBOX_CPU_CORE_CREDITS"].value
-        == Counter.SANDBOX_CPU_CORE_CREDITS.value
+        Meters["SANDBOX_CPU_CORE_DEBITS"].value == Counter.SANDBOX_CPU_CORE_DEBITS.value
     )
     assert (
-        Meters["SANDBOX_RAM_GIBI_CREDITS"].value
-        == Counter.SANDBOX_RAM_GIBI_CREDITS.value
+        Meters["SANDBOX_RAM_GIBI_DEBITS"].value == Counter.SANDBOX_RAM_GIBI_DEBITS.value
     )
     assert (
-        Meters["SANDBOX_SSD_GIBI_CREDITS"].value
-        == Counter.SANDBOX_SSD_GIBI_CREDITS.value
+        Meters["SANDBOX_SSD_GIBI_DEBITS"].value == Counter.SANDBOX_SSD_GIBI_DEBITS.value
     )
     assert (
-        Meters["SANDBOX_GPU_CORE_CREDITS"].value
-        == Counter.SANDBOX_GPU_CORE_CREDITS.value
+        Meters["SANDBOX_GPU_CORE_DEBITS"].value == Counter.SANDBOX_GPU_CORE_DEBITS.value
     )
-    assert Meters["SANDBOX_CREDITS"].value == Counter.SANDBOX_CREDITS.value
+    assert Meters["SANDBOX_DEBITS"].value == Counter.SANDBOX_DEBITS.value
+    assert Meters["LLM_DEBITS"].value == Counter.LLM_DEBITS.value
+    assert Meters["GATEWAY_DEBITS"].value == Counter.GATEWAY_DEBITS.value
+    assert Meters["WALLET_DEBITS"].value == Counter.WALLET_DEBITS.value
 
 
-def test_sandbox_credits_in_reports():
-    """SANDBOX_CREDITS must be in REPORTS; nothing else sandbox-related is."""
+def test_no_sandbox_or_wallet_debit_meter_in_reports():
+    """Wallet debits are prepaid: no *_DEBITS meter is ever reported to Stripe."""
     from ee.src.core.access.entitlements.types import Counter, REPORTS
 
-    assert Counter.SANDBOX_CREDITS.value in REPORTS
-    assert REPORTS[Counter.SANDBOX_CREDITS.value] == "sandbox_credits"
-
-    assert Counter.SANDBOX_CPU_CORE_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_RAM_GIBI_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_SSD_GIBI_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_GPU_CORE_SECONDS.value not in REPORTS
-    assert Counter.SANDBOX_CPU_CORE_CREDITS.value not in REPORTS
-    assert Counter.SANDBOX_RAM_GIBI_CREDITS.value not in REPORTS
-    assert Counter.SANDBOX_SSD_GIBI_CREDITS.value not in REPORTS
-    assert Counter.SANDBOX_GPU_CORE_CREDITS.value not in REPORTS
+    assert Counter.SANDBOX_CPU_CORE_DEBITS.value not in REPORTS
+    assert Counter.SANDBOX_RAM_GIBI_DEBITS.value not in REPORTS
+    assert Counter.SANDBOX_SSD_GIBI_DEBITS.value not in REPORTS
+    assert Counter.SANDBOX_GPU_CORE_DEBITS.value not in REPORTS
+    assert Counter.SANDBOX_DEBITS.value not in REPORTS
+    assert Counter.LLM_DEBITS.value not in REPORTS
+    assert Counter.GATEWAY_DEBITS.value not in REPORTS
+    assert Counter.WALLET_DEBITS.value not in REPORTS
 
 
-def test_sandbox_credit_counters_in_read_only_constraint():
-    """All sandbox credit counters must be in CONSTRAINTS[READ_ONLY][COUNTERS]."""
+def test_sandbox_debit_counters_in_read_only_constraint():
+    """All sandbox/wallet debit counters must be in CONSTRAINTS[READ_ONLY][COUNTERS]."""
     from ee.src.core.access.entitlements.types import (
         Counter,
         CONSTRAINTS,
@@ -207,17 +204,20 @@ def test_sandbox_credit_counters_in_read_only_constraint():
 
     read_only_counters = CONSTRAINTS[Constraint.READ_ONLY][Tracker.COUNTERS]
     for counter in (
-        Counter.SANDBOX_CPU_CORE_CREDITS,
-        Counter.SANDBOX_RAM_GIBI_CREDITS,
-        Counter.SANDBOX_SSD_GIBI_CREDITS,
-        Counter.SANDBOX_GPU_CORE_CREDITS,
-        Counter.SANDBOX_CREDITS,
+        Counter.SANDBOX_CPU_CORE_DEBITS,
+        Counter.SANDBOX_RAM_GIBI_DEBITS,
+        Counter.SANDBOX_SSD_GIBI_DEBITS,
+        Counter.SANDBOX_GPU_CORE_DEBITS,
+        Counter.SANDBOX_DEBITS,
+        Counter.LLM_DEBITS,
+        Counter.GATEWAY_DEBITS,
+        Counter.WALLET_DEBITS,
     ):
         assert counter in read_only_counters, f"{counter} missing from READ_ONLY"
 
 
-def test_all_plans_have_sandbox_credit_quotas():
-    """Every default plan must carry a Quota for all 5 credit counters."""
+def test_all_plans_have_sandbox_and_wallet_debit_quotas():
+    """Every default plan must carry a Quota for all 8 debit counters."""
     from ee.src.core.access.entitlements.types import (
         Counter,
         DEFAULT_ENTITLEMENTS,
@@ -227,10 +227,13 @@ def test_all_plans_have_sandbox_credit_quotas():
     for plan, entitlements in DEFAULT_ENTITLEMENTS.items():
         counters = entitlements[Tracker.COUNTERS]
         for counter in (
-            Counter.SANDBOX_CPU_CORE_CREDITS,
-            Counter.SANDBOX_RAM_GIBI_CREDITS,
-            Counter.SANDBOX_SSD_GIBI_CREDITS,
-            Counter.SANDBOX_GPU_CORE_CREDITS,
-            Counter.SANDBOX_CREDITS,
+            Counter.SANDBOX_CPU_CORE_DEBITS,
+            Counter.SANDBOX_RAM_GIBI_DEBITS,
+            Counter.SANDBOX_SSD_GIBI_DEBITS,
+            Counter.SANDBOX_GPU_CORE_DEBITS,
+            Counter.SANDBOX_DEBITS,
+            Counter.LLM_DEBITS,
+            Counter.GATEWAY_DEBITS,
+            Counter.WALLET_DEBITS,
         ):
             assert counter in counters, f"{plan}: missing {counter}"
