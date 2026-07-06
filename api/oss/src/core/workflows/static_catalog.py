@@ -129,6 +129,64 @@ def _client_tool_revision() -> WorkflowRevision:
     )
 
 
+REQUEST_INPUT_WORKFLOW_SLUG = "__ag__request_input"
+REQUEST_INPUT_TOOL_NAME = "request_input"
+
+
+def _request_input_revision() -> WorkflowRevision:
+    """The elicitation client tool (interaction kinds M1): pause and collect typed input.
+
+    The payload contract ({message, requestedSchema} flat dialect, accept/decline/cancel result
+    envelope, secret-field refusal) is pinned by the shared golden fixtures at
+    ``web/packages/agenta-shared/tests/fixtures/elicitation_*.json`` and enforced by the
+    browser-side validator. Design: docs/design/agent-chat-interaction-kinds/decisions.md
+    """
+    return WorkflowRevision(
+        name="Request input",
+        description="Ask the user for structured input via an inline form.",
+        data=WorkflowRevisionData(
+            uri="client:tool:request_input:v0",
+            parameters={
+                "tool": {
+                    "type": "client",
+                    "name": REQUEST_INPUT_TOOL_NAME,
+                    "description": (
+                        "Pause the run and ask the user for typed input via an inline form. "
+                        "Use this instead of guessing values the user must confirm — for "
+                        "example, when wiring a provider tool, ask WHICH actions to enable "
+                        "(enum from find_capabilities results) or collect non-secret settings "
+                        "(subdomain, workspace) before request_connection; or collect schedule "
+                        "details (frequency, time of day, timezone) before create_schedule. "
+                        "`requestedSchema` must be a FLAT JSON object schema: top-level "
+                        "string/number/integer/boolean properties only (enum, format and title "
+                        "allowed) — no nested objects or arrays. NEVER request secrets "
+                        "(passwords, API keys, tokens); use request_connection for credentials. "
+                        "The result is {action: 'accept'|'decline'|'cancel', content?}: on "
+                        "accept, `content` holds the user's values; respect a decline or "
+                        "cancel — do not re-ask."
+                    ),
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "What you need and why, in one or two sentences shown above the form.",
+                            },
+                            "requestedSchema": {
+                                "type": "object",
+                                "description": "Flat JSON Schema (type 'object', primitive top-level properties only) describing the fields to collect.",
+                            },
+                        },
+                        "required": ["message", "requestedSchema"],
+                        "additionalProperties": False,
+                    },
+                    "render": {"kind": "elicitation"},
+                }
+            },
+        ),
+    )
+
+
 # Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision}}.
 _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
     GETTING_STARTED_WITH_AGENTA_SLUG: {
@@ -141,6 +199,12 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "latest": "v1",
         "versions": {
             "v1": _client_tool_revision(),
+        },
+    },
+    REQUEST_INPUT_WORKFLOW_SLUG: {
+        "latest": "v1",
+        "versions": {
+            "v1": _request_input_revision(),
         },
     },
     BUILD_YOUR_FIRST_APP_SLUG: {

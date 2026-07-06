@@ -186,7 +186,12 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
         tool for tool in template.tools if isinstance(tool, ClientToolConfig)
     ]
     assert any(tool.op == "find_capabilities" for tool in platform_ops)
-    # The request_connection embed must coerce to a client tool, not a builtin.
-    assert [tool.name for tool in client_tools] == ["request_connection"]
+    # The reserved static embeds must coerce to client tools, not builtins.
+    assert [tool.name for tool in client_tools] == [
+        "request_connection",
+        "request_input",
+    ]
     assert client_tools[0].render == {"kind": "connect"}
+    # The elicitation tool (interaction kinds M1) carries its REQUIRED render.kind.
+    assert client_tools[1].render == {"kind": "elicitation"}
     assert [skill.name for skill in template.skills] == ["agenta-getting-started"]
