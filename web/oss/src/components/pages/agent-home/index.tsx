@@ -8,9 +8,11 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {urlAtom} from "@/oss/state/url"
 
 import {HERO, TUTORIAL_VIDEO} from "./assets/constants"
+import {captureFirstAgentIntent} from "./assets/onboardingAnalytics"
 import type {AgentTemplate} from "./assets/templates"
 import AgentComposer from "./components/AgentComposer"
 import OnRamps from "./components/OnRamps"
@@ -39,6 +41,7 @@ const AgentHome: React.FC = () => {
     const router = useRouter()
     const {baseAppURL, projectURL} = useAtomValue(urlAtom)
     const createAgent = useCreateAgent()
+    const posthog = usePostHogAg()
 
     // "Bring an existing app" → the observability page (send traces from existing code). "Explore a
     // demo project" has no wired destination yet, so it's left off and OnRamps hides that card.
@@ -50,8 +53,9 @@ const AgentHome: React.FC = () => {
     useAtomValue(appTemplatesQueryAtom)
 
     const handleBrowseAll = useCallback(() => {
+        captureFirstAgentIntent(posthog, {source: "browse_templates"})
         if (baseAppURL) router.push(`${baseAppURL}/agent-templates`)
-    }, [baseAppURL, router])
+    }, [baseAppURL, posthog, router])
 
     // First-run vs returning is driven by agent count (0 → first-run); ?firstRun overrides it.
     const agents = useAtomValue(agentsWorkflowsAtom)
