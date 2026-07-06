@@ -97,10 +97,13 @@ const CustomWorkflowModalMount = dynamic(
 
 // EvaluatorDrawersWrapper replaced by WorkflowRevisionDrawerWrapper
 
-const OnboardingWidget = dynamic(
-    () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
-    {ssr: false},
-)
+// Hidden pending the new onboarding widget. Uncomment the dynamic import below and the
+// <OnboardingWidget /> mount to restore it. Keeping the import commented out (rather than
+// just not rendering) ensures its bundle never loads.
+// const OnboardingWidget = dynamic(
+//     () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
+//     {ssr: false},
+// )
 
 const getHashFromAsPath = (asPath: string) => {
     const hashIndex = asPath.indexOf("#")
@@ -217,7 +220,7 @@ const AppGlobalWrappers = () => {
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
             {/* EvaluatorDrawersWrapper merged into WorkflowRevisionDrawerWrapper */}
-            <OnboardingWidget />
+            {/* OnboardingWidget hidden pending the new onboarding widget; see import above */}
         </EntityModalsProvider>
     )
 }

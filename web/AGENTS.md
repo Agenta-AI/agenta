@@ -10,8 +10,11 @@ the detail this file only summarizes.
 ## Before committing
 
 - Run `pnpm lint-fix` within the `web` folder.
-- If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` and commit the
-  generated file.
+- Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
+  roles with `{light, dark}` values). To change any color, edit `palette.ts`, run
+  `pnpm generate:tailwind-tokens`, and commit the regenerated `theme-variables.css` +
+  `oss/src/styles/theme/antd-overrides.generated.ts`. Never hand-edit the generated files.
+  See the "Styling" section below and `docs/designs/dark-mode.md`.
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
   `dist/` automatically, so a fresh checkout works out of the box. If you regenerate the
@@ -313,6 +316,16 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 ## Styling
 
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
+
+**Theme colors.** All theme-aware colors flow from one source of truth,
+`oss/src/styles/theme/palette.ts` — semantic roles (surface / text / border / fill /
+accent / semantic / scales / feature families), each a `{light, dark}` pair. The generator
+(`pnpm generate:tailwind-tokens`) turns it into `theme-variables.css`, the antd dark
+overrides, and the `--ag-c-*` compatibility shim. In components, consume colors as antd
+semantic tokens (Tailwind `bg-colorBgContainer`, `text-colorText`, or `var(--ag-color*)`),
+not raw hex or `--ag-c-*` literals. To change a color, edit `palette.ts` and regenerate —
+never hand-edit `theme-variables.css` or `theme/antd-overrides.generated.ts`. Full model:
+`docs/designs/dark-mode.md`.
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 
