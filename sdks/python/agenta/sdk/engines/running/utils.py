@@ -421,19 +421,13 @@ def register_handler(
     of provider:kind:key:version. If no URI is provided, generates one automatically
     using the function's module and name (user:custom:module.name:latest).
 
-    Like :func:`register_interface`, this REPLACES any existing entry, so a service
-    process can bind its live handler under a builtin URI the SDK already seeds
-    (e.g. the agent service rebinds ``agenta:builtin:agent:v0`` over the seeded
-    composition-default ``agent_v0``). ``ag.workflow`` never re-registers an
-    already-bound URI (``Workflow.__call__`` skips when a handler resolved from
-    the registry), so replace semantics cannot clobber an instrumented handler.
-
     By default the registration is first-writer-wins (``setdefault``): a URI that is
     already bound — including the statically seeded builtins above — keeps its existing
     handler, SILENTLY. A service that owns a builtin URI in its own process (e.g. the
     agent service composing tracing/usage onto ``agenta:builtin:agent:v0``) must pass
     ``replace=True`` to actually take ownership; otherwise the SDK's bare seed keeps
-    running and the service's composition never executes.
+    running and the service's composition never executes. Last-writer-wins therefore
+    happens ONLY when explicitly requested via ``replace=True``.
 
     Args:
         fn: The callable function to register
