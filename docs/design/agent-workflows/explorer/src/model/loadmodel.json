@@ -1,0 +1,150 @@
+{
+  "$schema": "agent-workflows explorer load-sim model",
+  "disclaimer": "This file has NO measured or benchmarked latency numbers anywhere in this codebase or its docs. Every illustrativeLatencyMs range below is a rough, invented placeholder for the load simulator's UI only (empirical: false); do not present it as measured. The two poll-interval constants under toolRelayPolling are the only real numbers here (read directly from services/runner/src/tools/relay.ts), marked empirical: true.",
+  "structuralFacts": [
+    {
+      "id": "cold-sandbox-per-turn",
+      "fact": "Every /run starts a fresh sandbox-agent daemon and ACP harness process tree and tears it down in the finally path once the turn ends. Nothing warm is kept between turns.",
+      "citations": [{ "docPath": "documentation/sessions.md", "section": "Every turn is cold" }, { "docPath": "documentation/architecture.md", "section": "Lifecycle" }]
+    },
+    {
+      "id": "no-session-reuse",
+      "fact": "The runtime is cold: the client resends full message history on every turn. The InMemorySessionPersistDriver the sandbox-agent engine keeps exists only for the duration of one /run process and never survives across turns, so there is no warm daemon or persisted model session to reuse.",
+      "citations": [{ "docPath": "documentation/sessions.md" }, { "docPath": "documentation/architecture.md", "section": "Lifecycle" }]
+    },
+    {
+      "id": "daytona-vm-start-dominates",
+      "fact": "On the Daytona sandbox, the runner creates a remote VM and pushes the harness login, Pi extension, AGENTS.md, skills, and system-prompt files over the Daytona filesystem API before the harness can even start. Agenta ships a build recipe, not a pre-built snapshot, unless the operator builds one; a pre-baked snapshot avoids a slow per-run pi CLI install but VM creation itself is still a cold remote-provisioning step on every turn.",
+      "citations": [{ "docPath": "documentation/architecture.md", "section": "Daytona sandbox" }, { "docPath": "documentation/adapters/pi.md", "section": "Daytona notes" }]
+    },
+    {
+      "id": "runner-single-http-server",
+      "fact": "The runner sidecar is one long-lived Node HTTP server on :8765 with no worker pool. Each concurrent /run request is handled by the Node event loop and spawns its own process tree (daemon + ACP adapter + harness CLI); there is no per-request process reuse or queueing layer in front of it beyond what Node's async I/O provides.",
+      "citations": [{ "docPath": "documentation/architecture.md", "section": "The Sidecar" }, { "docPath": "documentation/tools.md" }]
+    },
+    {
+      "id": "teardown-on-finally",
+      "fact": "A client disconnect (streaming) or the end of a batch call tears the sandbox down in a finally block. An AbortSignal is wired into HTTP streaming specifically so a dropped browser connection still tears down the sandbox rather than leaking it.",
+      "citations": [{ "docPath": "interfaces/cross-service/runner-to-harness.md", "section": "Abort" }]
+    },
+    {
+      "id": "daytona-leak-backstop",
+      "fact": "Daytona sandboxes are created ephemeral (auto-delete on stop) paired with a non-zero SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES (default 15). If the runner process is killed and skips its own per-run teardown, the sandbox self-reaps after the idle window instead of burning credit indefinitely.",
+      "citations": [{ "docPath": "documentation/running-the-agent.md", "section": "Agent env vars" }]
+    },
+    {
+      "id": "tool-relay-idle-backoff",
+      "fact": "The tool relay poll loop grows its own delay under idle load: it starts at RELAY_POLL_MS and, after RELAY_POLL_IDLE_GROW_AFTER consecutive idle polls with no new request file, doubles geometrically up to RELAY_POLL_MAX_MS. Any new request file resets the delay immediately. This matters most on Daytona, where each poll is a remote `ls` exec, and for client-tool-only turns that wait on a browser response and produce no other tool traffic.",
+      "citations": [{ "codePath": "services/runner/src/tools/relay.ts" }]
+    },
+    {
+      "id": "no-runner-concurrency-limit",
+      "fact": "Today's runner enforces no concurrency limit and no queue anywhere: every POST /run (or /stream) starts executing immediately. The only bookkeeping is an in-memory Set of in-flight sandbox handles, kept solely so a shutdown signal can best-effort tear them down; it never gates or delays a new run. Under overload, local-sandbox runs degrade through CPU/RAM contention in the shared container rather than waiting in line; Daytona runs each get their own VM and fan out until the provider's own account quota is hit. The load simulator's 'runner concurrency' slider models a what-if bounded pool, not this system's actual behavior.",
+      "citations": [
+        { "codePath": "services/runner/src/server.ts" },
+        { "codePath": "services/runner/src/engines/sandbox_agent.ts:150" }
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "id": "browser-to-gateway",
+      "kind": "fixed",
+      "notes": "HTTP request/response over the public edge; batch or SSE-framed stream.",
+      "illustrativeLatencyMs": { "min": 5, "max": 50 },
+      "empirical": false
+    },
+    {
+      "id": "gateway-to-agent-service-parse",
+      "kind": "fixed",
+      "notes": "In-process dispatch and AgentConfig.from_params coercion inside the shared services container.",
+      "illustrativeLatencyMs": { "min": 1, "max": 15 },
+      "empirical": false
+    },
+    {
+      "id": "tool-secret-resolution",
+      "kind": "fixed",
+      "notes": "Zero or more sequential HTTP round trips to agenta-api (POST /tools/resolve per gateway tool, POST /secrets/resolve for named secrets). Scales with the number of declared gateway/code tools; builtin and client tools add nothing here.",
+      "illustrativeLatencyMs": { "min": 0, "max": 400 },
+      "empirical": false
+    },
+    {
+      "id": "agent-service-to-runner-transport",
+      "kind": "fixed",
+      "notes": "HTTP to the sidecar's single-process server, or a CLI subprocess spawn when AGENTA_RUNNER_INTERNAL_URL is unset (source checkout). No connection pool concerns beyond ordinary keep-alive HTTP.",
+      "illustrativeLatencyMs": { "min": 1, "max": 30 },
+      "empirical": false
+    },
+    {
+      "id": "runner-http-server",
+      "kind": "queue",
+      "notes": "Structural fact: runner-single-http-server. Node's event loop interleaves concurrent /run requests; there is no worker-pool boundary, so contention shows up as event-loop scheduling delay under many concurrent runs, not queueing at an explicit gate.",
+      "illustrativeLatencyMs": { "min": 0, "max": 200 },
+      "empirical": false
+    },
+    {
+      "id": "cold-sandbox-start-local",
+      "kind": "fixed",
+      "notes": "Structural fact: cold-sandbox-per-turn. Spawn the sandbox-agent daemon, the ACP adapter (pi-acp or claude-agent-acp), and the harness CLI, all on the runner host. Claude's first run per host also downloads the claude CLI over HTTPS.",
+      "illustrativeLatencyMs": { "min": 200, "max": 2000 },
+      "empirical": false
+    },
+    {
+      "id": "cold-sandbox-start-daytona",
+      "kind": "fixed",
+      "notes": "Structural fact: daytona-vm-start-dominates. Remote VM creation plus pushing login/extension/context files over the Daytona filesystem API. A pre-baked snapshot with pi installed avoids the per-run pi CLI install step but not VM creation itself.",
+      "illustrativeLatencyMs": { "min": 1500, "max": 15000 },
+      "empirical": false
+    },
+    {
+      "id": "acp-turn-execution",
+      "kind": "queue",
+      "notes": "The model-call / tool-call loop inside the harness. Dominated by LLM latency and however many tool round trips the model chooses to make; not a fixed runner-side cost.",
+      "illustrativeLatencyMs": { "min": 500, "max": 30000 },
+      "empirical": false
+    },
+    {
+      "id": "tool-relay-polling",
+      "kind": "queue",
+      "notes": "Structural fact: tool-relay-idle-backoff. Governs how quickly a relayed tool call (Daytona, or the non-Pi internal MCP channel even on local) is picked up by the runner.",
+      "illustrativeLatencyMs": { "min": 300, "max": 1500 },
+      "empirical": true,
+      "citations": [{ "codePath": "services/runner/src/tools/relay.ts", "constants": { "RELAY_POLL_MS": 300, "RELAY_POLL_MAX_MS": 1500, "RELAY_POLL_IDLE_GROW_AFTER": 5, "RELAY_TIMEOUT_MS": 60000 } }]
+    },
+    {
+      "id": "gateway-tool-execution",
+      "kind": "fixed",
+      "notes": "One POST /tools/call round trip (direct, or via the file relay) plus the Composio provider call itself.",
+      "illustrativeLatencyMs": { "min": 100, "max": 3000 },
+      "empirical": false
+    },
+    {
+      "id": "permission-pause",
+      "kind": "queue",
+      "notes": "Not a system-latency stage at all: an ask verdict pauses the turn for a human, which can be seconds or hours. Structural fact: the pause is a real turn boundary (stopReason: \"paused\"), not a retry loop.",
+      "illustrativeLatencyMs": { "min": 0, "max": null },
+      "empirical": false
+    },
+    {
+      "id": "teardown",
+      "kind": "fixed",
+      "notes": "Structural fact: teardown-on-finally. Process tree shutdown (local) or sandbox stop (Daytona, backstopped by daytona-leak-backstop if the runner is killed).",
+      "illustrativeLatencyMs": { "min": 20, "max": 500 },
+      "empirical": false
+    },
+    {
+      "id": "usage-and-trace-rollup",
+      "kind": "fixed",
+      "notes": "Pi: read the AGENTA_USAGE_OUT writeback file. Both harnesses: stamp usage on the live workflow span. Spans themselves export asynchronously to the OTel pipeline and do not block the response.",
+      "illustrativeLatencyMs": { "min": 1, "max": 50 },
+      "empirical": false
+    },
+    {
+      "id": "runner-to-browser-response",
+      "kind": "fixed",
+      "notes": "Batch: one JSON response. Streaming: the SSE stream has already been delivering parts live; this is just the final [DONE].",
+      "illustrativeLatencyMs": { "min": 1, "max": 20 },
+      "empirical": false
+    }
+  ]
+}

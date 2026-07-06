@@ -1,0 +1,103 @@
+{
+  "$schema": "agent-workflows explorer meta model",
+  "generatedAt": "2026-07-05T00:00:00Z",
+  "sourceCommit": "eb5ac261550e3bcc222ee787b71f7b95e5c46c77",
+  "sourceRepo": "agenta (this checkout, branch gitbutler/workspace)",
+  "authoritativeSources": {
+    "documentation": "docs/design/agent-workflows/documentation/",
+    "interfaces": "docs/design/agent-workflows/interfaces/",
+    "tieBreaker": "docs/design/agent-workflows/documentation/ground-truth.md",
+    "codeVerifiedDirectly": [
+      "services/runner/src/permission-plan.ts",
+      "services/runner/src/tools/relay.ts",
+      "services/runner/src/responder.ts",
+      "services/runner/src/protocol.ts",
+      "services/runner/src/engines/sandbox_agent/capabilities.ts",
+      "services/runner/src/engines/sandbox_agent/daytona.ts"
+    ]
+  },
+  "namingDrift": {
+    "note": "The runner/sidecar component has two names across doc generations, both referring to the SAME component. Current docs and the current code say 'runner' (package at services/runner/, compose service 'runner', port :8765). Older docs (and some cross-references inside currently-live docs, e.g. architecture.md's own ASCII diagram and tools.md's 'Where this lives' table) still say 'sandbox-agent' and cite paths under services/agent/. services/agent/ does not exist in this checkout; only services/runner/ does. This model uses 'runner' as the canonical id/label everywhere and records 'sandbox-agent' and 'services/agent/*' as aliases/legacy paths on the runner node, per ground-truth.md's own framing of this exact drift ('Runner wire' row: 'services/agent/src/protocol.ts' listed as the code surface, which the checkout resolves to services/runner/src/protocol.ts).",
+    "resolution": "Trusted the actual file tree (services/runner/src/*) over stale path citations embedded in otherwise-current docs, consistent with 'if a page disagrees with the code it cites, the code wins' (ground-truth.md's own stated policy)."
+  },
+  "resolvedAmbiguities": [
+    {
+      "topic": "SANDBOX_AGENT_DENY_PERMISSIONS kill-switch scope",
+      "docClaim": "tools.md describes it as forcing 'the effective policy to deny everywhere.'",
+      "codeFinding": "permission-plan.ts's permissionsFromRequest only forces the PLAN to {default: \"deny\", rules: []} before the wire permissions block is read. effectivePermission() still checks gate.specPermission and gate.serverPermission BEFORE consulting the plan default, so an explicit per-tool 'allow' still runs even with the kill-switch on.",
+      "resolution": "Modeled the code's narrower behavior in permissions.json (killSwitch.scopeNuance, testVectors TV13/TV14), since the task instructed reading permission-plan.ts directly for this logic. This is a precision gap in the prose doc, not a contradiction serious enough to file as a doc bug on its own, but worth flagging.",
+      "citations": [{ "docPath": "documentation/tools.md", "section": "Approval and rendering" }, { "codePath": "services/runner/src/permission-plan.ts" }]
+    },
+    {
+      "topic": "Which gate enforces on Claude for gateway/code tools",
+      "docClaim": "Multiple pages (tools.md, claude-code.md, permission-responder.md) describe this consistently once cross-read, but it takes three docs plus the relay code to see that RelayPermissions.enforce is literally false for Claude.",
+      "codeFinding": "relay.ts's executeRelayedTool only calls permissions.decide(...) when permissions.enforce is true. Confirmed both gates share one decide() so they cannot disagree, per permission-plan.ts.",
+      "resolution": "Modeled as three explicit gates in permissions.json (settings-file, acp-responder, relay) rather than collapsing Claude's two-layer gate into one, to make the enforcement matrix explicit for the explorer.",
+      "citations": [{ "codePath": "services/runner/src/tools/relay.ts" }, { "docPath": "interfaces/in-service/permission-responder.md" }]
+    },
+    {
+      "topic": "Illustrative load-sim latencies",
+      "docClaim": "No design doc gives measured latency numbers for any stage of the spine.",
+      "codeFinding": "The only real numeric constants found anywhere in the runner are the tool-relay poll intervals (services/runner/src/tools/relay.ts: RELAY_POLL_MS=300, RELAY_POLL_MAX_MS=1500, RELAY_POLL_IDLE_GROW_AFTER=5, RELAY_TIMEOUT_MS=60000).",
+      "resolution": "loadmodel.json marks every other stage's illustrativeLatencyMs as empirical:false with a top-level disclaimer, and marks only the relay poll interval as empirical:true, per the task's explicit 'NO invented numbers' instruction.",
+      "citations": [{ "codePath": "services/runner/src/tools/relay.ts" }]
+    }
+  ],
+  "gaps": [
+    { "id": "local-backend-stub", "summary": "LocalBackend is a public SDK adapter shape; create_sandbox/create_session raise NotImplementedError. Never selected in the deployed stack.", "docPath": "documentation/ground-truth.md" },
+    { "id": "no-durable-session-store", "summary": "No durable session store, no write path, no history-load endpoint. The runtime is cold; clients must resend full history every turn.", "docPath": "documentation/sessions.md" },
+    { "id": "agenta-harness-placeholder", "summary": "AgentaHarness (pi_agenta) ships placeholder preamble, persona, and skill content, though it does run end to end on sandbox-agent local and Daytona.", "docPath": "documentation/ground-truth.md" },
+    { "id": "model-override-ignored-on-pi", "summary": "Per-request model override is not honored on the Pi ACP path; pi-acp accepts only its default model and silently falls back.", "docPath": "documentation/ground-truth.md" },
+    { "id": "user-mcp-dead-by-default", "summary": "User-declared mcp_servers resolution is gated off by AGENTA_AGENT_ENABLE_MCP (default off); even when on, the runner drops user MCP for Pi, so it would reach Claude only.", "docPath": "documentation/tools.md" },
+    { "id": "capabilities-probed-not-consumed", "summary": "HarnessCapabilities are probed per run and returned on the /run result, but consumed only for the internal mcpTools delivery branch; no /inspect surface, frontend gate, or service check reads them.", "docPath": "documentation/tools.md" },
+    { "id": "triggers-unimplemented", "summary": "Trigger lifecycle, Compose.io integration, and event-to-agent mapping are not implemented; only the read-only discover_triggers platform op exists.", "docPath": "documentation/triggers.md" },
+    { "id": "sandbox-permission-filesystem-unenforced", "summary": "The filesystem boundary (on/readonly/off) travels on the wire and is versioned with the config, but no provider applies it anywhere.", "docPath": "interfaces/in-service/sandbox-permission.md" },
+    { "id": "sandbox-permission-network-local-unenforceable", "summary": "Network egress enforcement is a hard boundary only on Daytona; the local sidecar runs on the runner host with no egress control, so a restricted policy on local is rejected outright under enforcement:strict.", "docPath": "interfaces/in-service/sandbox-permission.md" },
+    { "id": "handler-mode-platform-ops-server-half-only", "summary": "Handler-mode platform ops (e.g. test_run) exist server-side behind AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS (default off); the runner does not yet dispatch reserved call_refs with spec-level context injection or timeoutMs.", "docPath": "documentation/tools.md" },
+    { "id": "code-tools-stdlib-only", "summary": "Code tools run with only the interpreter and their own declared secrets; no package install step and no module path to the runner's dependencies.", "docPath": "documentation/tools.md" }
+  ],
+  "docIndex": {
+    "documentation/README.md": "Agent workflows documentation index / reading order",
+    "documentation/architecture.md": "Architecture",
+    "documentation/ground-truth.md": "Ground Truth",
+    "documentation/protocol.md": "Protocol",
+    "documentation/running-the-agent.md": "Running the Agent",
+    "documentation/sessions.md": "Sessions",
+    "documentation/tools.md": "Tools",
+    "documentation/agent-configuration.md": "Agent Configuration",
+    "documentation/agent-template.md": "Agent template (intended shape)",
+    "documentation/ports-and-adapters.md": "Ports and adapters",
+    "documentation/skills.md": "Skills",
+    "documentation/triggers.md": "Triggers (unimplemented)",
+    "documentation/adapters/pi.md": "The Pi adapter",
+    "documentation/adapters/claude-code.md": "The Claude Code adapter",
+    "documentation/adapters/agenta.md": "The Agenta (pi_agenta) adapter",
+    "interfaces/README.md": "Interface inventory index",
+    "interfaces/architecture-followups.md": "Architecture follow-ups",
+    "interfaces/cross-service/README.md": "Cross-service interfaces index",
+    "interfaces/cross-service/service-to-agent-runner.md": "Service to agent runner (the /run wire spine)",
+    "interfaces/cross-service/runner-to-harness.md": "Runner to harness (ACP, capabilities)",
+    "interfaces/cross-service/runner-to-mcp-server.md": "Runner to MCP server",
+    "interfaces/cross-service/runner-to-tool-callback.md": "Runner to tool callback (/tools/call)",
+    "interfaces/cross-service/service-and-runner-trace-export.md": "Service and runner trace export",
+    "interfaces/cross-service/service-to-vault-and-tool-providers.md": "Service to vault and tool providers",
+    "interfaces/in-service/README.md": "In-service interfaces index",
+    "interfaces/in-service/agent-service-handler.md": "Agent service handler",
+    "interfaces/in-service/backend-adapter.md": "Backend adapter",
+    "interfaces/in-service/browser-protocol-adapter.md": "Browser protocol adapter",
+    "interfaces/in-service/harness-adapters.md": "Harness adapters",
+    "interfaces/in-service/mcp-models-and-resolution.md": "MCP models and resolution",
+    "interfaces/in-service/model-connection-resolution.md": "Model connection resolution",
+    "interfaces/in-service/neutral-runtime-dtos.md": "Neutral runtime DTOs",
+    "interfaces/in-service/permission-responder.md": "Permission responder",
+    "interfaces/in-service/runner-engine-internals.md": "Runner engine internals",
+    "interfaces/in-service/runtime-ports.md": "Runtime ports",
+    "interfaces/in-service/sandbox-permission.md": "Sandbox permission",
+    "interfaces/in-service/tool-models-and-resolution.md": "Tool models and resolution",
+    "interfaces/public-edge/README.md": "Public-edge interfaces index",
+    "interfaces/public-edge/agent-config-schema.md": "Agent config schema",
+    "interfaces/public-edge/agent-messages.md": "Agent messages (/messages)",
+    "interfaces/public-edge/workflow-inspect.md": "Workflow inspect (/inspect)",
+    "interfaces/public-edge/workflow-invoke.md": "Workflow invoke (/invoke)"
+  }
+}

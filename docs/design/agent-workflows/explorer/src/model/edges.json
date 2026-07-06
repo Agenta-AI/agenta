@@ -1,0 +1,302 @@
+{
+  "$schema": "agent-workflows explorer edge model",
+  "edges": [
+    {
+      "id": "e-browser-gateway",
+      "from": "browser",
+      "to": "gateway",
+      "label": "POST /invoke or POST /messages",
+      "protocol": "HTTP",
+      "docPath": "documentation/protocol.md",
+      "notes": "Accept: application/json (or absent) for /invoke; Accept: text/event-stream for streaming /messages."
+    },
+    {
+      "id": "e-gateway-agent-service",
+      "from": "gateway",
+      "to": "agent-service",
+      "label": "dispatch to the agent workflow handler (_agent)",
+      "protocol": "HTTP",
+      "docPath": "documentation/architecture.md",
+      "notes": "In-process dispatch inside the same 'services' container; not a network hop."
+    },
+    {
+      "id": "e-agent-service-vercel-adapter",
+      "from": "agent-service",
+      "to": "vercel-adapter",
+      "label": "/messages only: mint/validate session_id, fold UIMessage[] to neutral Message[]",
+      "protocol": "HTTP",
+      "docPath": "documentation/protocol.md",
+      "notes": "/invoke bypasses this adapter entirely and reads data.inputs.messages directly."
+    },
+    {
+      "id": "e-agent-service-tool-resolution",
+      "from": "agent-service",
+      "to": "tool-resolution",
+      "label": "resolve_tools(agent_config.tools), resolve_mcp_servers(...)",
+      "protocol": "HTTP",
+      "docPath": "documentation/tools.md",
+      "notes": "In-process SDK call (not a network hop by itself); resolution then makes its own HTTP calls out to agenta-api."
+    },
+    {
+      "id": "e-tool-resolution-agenta-api",
+      "from": "tool-resolution",
+      "to": "agenta-api",
+      "label": "POST /tools/resolve (gateway), POST /secrets/resolve (named secrets)",
+      "protocol": "HTTP",
+      "docPath": "interfaces/cross-service/service-to-vault-and-tool-providers.md",
+      "notes": "Gateway resolution validates the connection and enriches from the Composio catalog; reference/platform tools resolve with no HTTP round-trip."
+    },
+    {
+      "id": "e-agent-service-runner",
+      "from": "agent-service",
+      "to": "runner",
+      "label": "POST /run (HTTP to :8765) or CLI subprocess on stdin",
+      "protocol": "HTTP",
+      "docPath": "interfaces/cross-service/service-to-agent-runner.md",
+      "notes": "HTTP when AGENTA_RUNNER_INTERNAL_URL is set (deployed containers); CLI subprocess transport otherwise (source checkout). Same AgentRunRequest payload either way. Streaming uses Accept: application/x-ndjson / --stream."
+    },
+    {
+      "id": "e-runner-agent-service-result",
+      "from": "runner",
+      "to": "agent-service",
+      "label": "AgentRunResult (batch) or NDJSON stream terminated by one result record",
+      "protocol": "HTTP",
+      "docPath": "interfaces/cross-service/service-to-agent-runner.md",
+      "notes": "ok:false raises in Python. On the streaming path the terminal result's events array is empty; events already went out live."
+    },
+    {
+      "id": "e-runner-vercel-adapter-stream",
+      "from": "runner",
+      "to": "vercel-adapter",
+      "label": "live NDJSON events -> neutral AgentEvent objects",
+      "protocol": "NDJSON",
+      "docPath": "documentation/sessions.md",
+      "notes": "The Python AgentRun turns {\"kind\":\"event\"} records into live AgentEvent objects as they arrive."
+    },
+    {
+      "id": "e-vercel-adapter-browser-sse",
+      "from": "vercel-adapter",
+      "to": "browser",
+      "label": "Vercel UI Message Stream framed as SSE",
+      "protocol": "SSE",
+      "docPath": "documentation/protocol.md",
+      "notes": "First part carries messageMetadata.sessionId; stream ends with data: [DONE]."
+    },
+    {
+      "id": "e-runner-sandbox-agent-daemon",
+      "from": "runner",
+      "to": "sandbox-agent-daemon",
+      "label": "start the sandbox-agent daemon for this /run",
+      "protocol": "spawn",
+      "docPath": "interfaces/cross-service/runner-to-harness.md",
+      "notes": "Cold: one daemon process per turn, torn down in the finally path once the turn ends."
+    },
+    {
+      "id": "e-daemon-acp-pi",
+      "from": "sandbox-agent-daemon",
+      "to": "acp-pi",
+      "label": "resolve harness id 'pi' -> start pi-acp",
+      "protocol": "spawn",
+      "docPath": "documentation/adapters/pi.md",
+      "notes": "Chosen when the request's harness field is pi_core or pi_agenta."
+    },
+    {
+      "id": "e-daemon-acp-claude",
+      "from": "sandbox-agent-daemon",
+      "to": "acp-claude",
+      "label": "resolve harness id 'claude' -> start claude-agent-acp",
+      "protocol": "spawn",
+      "docPath": "documentation/adapters/claude-code.md",
+      "notes": "Chosen when the request's harness field is claude."
+    },
+    {
+      "id": "e-acp-pi-harness-pi",
+      "from": "acp-pi",
+      "to": "harness-pi",
+      "label": "spawn the pi CLI from PATH",
+      "protocol": "ACP/stdio",
+      "docPath": "documentation/adapters/pi.md",
+      "notes": "pi-acp does not bundle Pi; the runner points it at a pinned pi binary (PI_ACP_PI_COMMAND)."
+    },
+    {
+      "id": "e-acp-claude-harness-claude",
+      "from": "acp-claude",
+      "to": "harness-claude",
+      "label": "spawn the claude CLI (downloaded over HTTPS on first use)",
+      "protocol": "ACP/stdio",
+      "docPath": "documentation/adapters/claude-code.md",
+      "notes": "Requires ca-certificates in the sidecar image; auth via ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN."
+    },
+    {
+      "id": "e-harness-pi-extension",
+      "from": "harness-pi",
+      "to": "pi-extension",
+      "label": "load the bundled extension into Pi's agent directory",
+      "protocol": "spawn",
+      "docPath": "documentation/adapters/pi.md",
+      "notes": "Pi loads the extension every run; it registers tools and hooks tracing from inside the Pi process."
+    },
+    {
+      "id": "e-pi-extension-agenta-api-direct",
+      "from": "pi-extension",
+      "to": "agenta-api",
+      "label": "POST /tools/call directly (local sandbox only)",
+      "protocol": "HTTP",
+      "docPath": "documentation/adapters/pi.md",
+      "notes": "On a local sandbox the extension runs on the runner host, so each registered tool's body posts straight back to Agenta with the call_ref and the model's arguments."
+    },
+    {
+      "id": "e-pi-extension-tool-relay",
+      "from": "pi-extension",
+      "to": "tool-relay",
+      "label": "tool-call request file, and (pi-builtin-gating) permission record",
+      "protocol": "file-relay",
+      "docPath": "documentation/tools.md",
+      "notes": "Used for every Daytona tool call, and on any sandbox for the tool_call hook that reports each Pi builtin invocation as a permission record (kind: \"permission\")."
+    },
+    {
+      "id": "e-harness-claude-mcp-bridge",
+      "from": "harness-claude",
+      "to": "mcp-bridge",
+      "label": "call the agenta-tools MCP server over loopback HTTP",
+      "protocol": "HTTP",
+      "docPath": "documentation/adapters/claude-code.md",
+      "notes": "Attached to the ACP session as a type:\"http\" MCP server; reachable only from loopback."
+    },
+    {
+      "id": "e-mcp-bridge-tool-relay",
+      "from": "mcp-bridge",
+      "to": "tool-relay",
+      "label": "relay the call back to the runner (file relay, used even on local runs)",
+      "protocol": "file-relay",
+      "docPath": "documentation/adapters/claude-code.md",
+      "notes": "The bridge holds only public metadata; the runner executes the private spec from memory."
+    },
+    {
+      "id": "e-tool-relay-agenta-api",
+      "from": "tool-relay",
+      "to": "agenta-api",
+      "label": "POST /tools/call (callback/reference), or a direct call (platform ops)",
+      "protocol": "HTTP",
+      "docPath": "interfaces/cross-service/runner-to-tool-callback.md",
+      "notes": "A resolved spec carries call_ref (routes through /tools/call) XOR call (the runner calls the endpoint directly, reusing toolCallback.authorization)."
+    },
+    {
+      "id": "e-agenta-api-composio",
+      "from": "agenta-api",
+      "to": "composio",
+      "label": "execute the resolved Composio action",
+      "protocol": "HTTP",
+      "docPath": "documentation/tools.md",
+      "notes": "Only reached for gateway (type: \"gateway\") tools. The Composio key never leaves agenta-api."
+    },
+    {
+      "id": "e-tool-relay-permission-plan",
+      "from": "tool-relay",
+      "to": "permission-plan",
+      "label": "decide(gate, plan, storedDecisions) before executing",
+      "protocol": "spawn",
+      "docPath": "documentation/tools.md",
+      "notes": "In-process function call. Enforced for Pi (gateway, code, and now builtins); Claude's own gates decide before a call reaches the relay, so RelayPermissions.enforce is false there."
+    },
+    {
+      "id": "e-acp-claude-acp-responder",
+      "from": "acp-claude",
+      "to": "acp-responder",
+      "label": "session.onPermissionRequest (a gate Claude raises itself, undecided by its own settings.json)",
+      "protocol": "ACP/stdio",
+      "docPath": "interfaces/in-service/permission-responder.md",
+      "notes": "Claude checks its rendered .claude/settings.json first; only an undecided call reaches this responder."
+    },
+    {
+      "id": "e-acp-responder-permission-plan",
+      "from": "acp-responder",
+      "to": "permission-plan",
+      "label": "decide(gate, plan, storedDecisions)",
+      "protocol": "spawn",
+      "docPath": "interfaces/in-service/permission-responder.md",
+      "notes": "Same shared decision function the tool relay calls, so both gates can never disagree about a tool's permission."
+    },
+    {
+      "id": "e-acp-responder-harness-claude-reply",
+      "from": "acp-responder",
+      "to": "harness-claude",
+      "label": "reply \"once\" (allow this call only) or \"reject\"",
+      "protocol": "ACP/stdio",
+      "docPath": "interfaces/in-service/permission-responder.md",
+      "notes": "allow maps to \"once\", never \"always\" -- every call is gated individually, never broadly pre-approved."
+    },
+    {
+      "id": "e-runner-daytona-sandbox",
+      "from": "runner",
+      "to": "daytona-sandbox",
+      "label": "create a Daytona VM; push login, Pi extension, AGENTS.md, skills, system-prompt files",
+      "protocol": "HTTP",
+      "docPath": "documentation/architecture.md",
+      "notes": "Over the Daytona filesystem API. One sandbox per turn, ephemeral, auto-stopped after SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES (default 15) as a leak backstop."
+    },
+    {
+      "id": "e-daytona-sandbox-tool-relay",
+      "from": "daytona-sandbox",
+      "to": "tool-relay",
+      "label": "in-sandbox tool child writes *.req.json, polls for *.res.json over the sandbox filesystem API",
+      "protocol": "file-relay",
+      "docPath": "interfaces/in-service/sandbox-permission.md",
+      "notes": "The runner's list()/read()/write() use sandbox.runProcess(\"ls\") and readFsFile/writeFsFile on Daytona, vs. plain node:fs on local."
+    },
+    {
+      "id": "e-runner-tracing-pi",
+      "from": "pi-extension",
+      "to": "tracing-pipeline",
+      "label": "self-instrumented spans: invoke_agent (AGENT) > turn N (CHAIN) > chat (LLM) + execute_tool (TOOL)",
+      "protocol": "OTel",
+      "docPath": "documentation/adapters/pi.md",
+      "notes": "Started as a child of AGENTA_TRACEPARENT, so the whole Pi run joins the caller's /invoke trace. Also writes usage totals to AGENTA_USAGE_OUT on agent_end."
+    },
+    {
+      "id": "e-runner-tracing-claude",
+      "from": "runner",
+      "to": "tracing-pipeline",
+      "label": "spans built from the ACP event stream (Claude, and any non-self-instrumenting harness)",
+      "protocol": "OTel",
+      "docPath": "documentation/adapters/claude-code.md",
+      "notes": "Same span tree shape as Pi's, but built by the runner subscribing to session/update rather than an in-process extension."
+    },
+    {
+      "id": "e-agent-service-tracing",
+      "from": "agent-service",
+      "to": "tracing-pipeline",
+      "label": "fill context.propagation/telemetry from the live workflow span; roll usage back onto it",
+      "protocol": "OTel",
+      "docPath": "documentation/architecture.md",
+      "notes": "tracing.py's trace_context()/run_context() supply the /run request's context and runContext blocks; the same module stamps the returned usage on the workflow span."
+    },
+    {
+      "id": "e-runner-session-persistence",
+      "from": "runner",
+      "to": "session-persistence",
+      "label": "hold an InMemorySessionPersistDriver for the life of this /run process",
+      "protocol": "spawn",
+      "docPath": "documentation/sessions.md",
+      "notes": "Never survives past the one /run call; not a warm session store."
+    },
+    {
+      "id": "e-agent-service-agenta-harness",
+      "from": "agent-service",
+      "to": "agenta-harness",
+      "label": "select AgentaHarness for harness=pi_agenta",
+      "protocol": "spawn",
+      "docPath": "documentation/architecture.md",
+      "notes": "Runs on the same sandbox-agent/pi ACP path as pi_core; the runner has no separate engine for it."
+    },
+    {
+      "id": "e-agent-service-local-backend-stub",
+      "from": "agent-service",
+      "to": "local-backend-stub",
+      "label": "(not selected in the deployed stack) would create_sandbox/create_session",
+      "protocol": "spawn",
+      "docPath": "documentation/architecture.md",
+      "notes": "select_backend always constructs SandboxAgentBackend regardless of harness, so this edge is never actually exercised today; shown for completeness of the SDK's Backend port."
+    }
+  ]
+}

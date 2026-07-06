@@ -1,0 +1,860 @@
+/* ---------------------------------------------------------------------- *
+ * Design tokens. Light is the default; dark overrides via prefers-color-
+ * scheme. No Tailwind: this is the entire visual system for the article.
+ * ---------------------------------------------------------------------- */
+:root {
+  --color-bg: #fbfaf8;
+  --color-bg-raised: #ffffff;
+  --color-text: #1b1b1a;
+  --color-text-muted: #5b5a56;
+  --color-border: #e2ddd3;
+  --color-border-strong: #c9c2b4;
+  --color-accent: #a8493a;
+  --color-accent-soft: #f1e3df;
+  --color-link: #8a4a2c;
+
+  --tier-edge: #3b6ea5;
+  --tier-service: #3f8f6d;
+  --tier-runner: #a8493a;
+  --tier-sandbox: #8a5cb0;
+  --tier-platform: #b8862f;
+
+  --status-gap: #9c9891;
+  --status-experimental: #b8862f;
+
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --prose-width: 72ch;
+  --figure-width: 1100px;
+  /* Full-bleed breakout for .figure-break: the figure's own rendered width
+   * and half-width, capped so it never gets silly on ultra-wide monitors.
+   * --breakout-half is exactly half of --breakout-width (min() scales
+   * losslessly), which is what makes the margin math below center the
+   * breakout on the page regardless of the parent .article-section's own
+   * (much narrower) max-width. See the .figure-break rule for the proof. */
+  --breakout-width: min(96vw, 1800px);
+  --breakout-half: min(48vw, 900px);
+  /* Half of the >=1400px TOC column's grid track (see .article-body media
+   * query below): at that breakpoint <main> is no longer centered on the
+   * viewport, it is shifted right by half the sidebar column, so the
+   * breakout's centering math needs the same correction to stay centered
+   * on the viewport rather than on <main>. */
+  --toc-offset: 0px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.75rem;
+  --space-5: 3rem;
+  --space-6: 5rem;
+
+  color-scheme: light;
+
+  /* React Flow's Controls (zoom/fit-view/lock) read their own
+   * --xy-controls-button-* variables, not ours; left unset they keep
+   * @xyflow/react's hardcoded light-mode defaults (white background,
+   * dark-on-white icon) even after the rest of the page goes dark. Setting
+   * the plain-named variable (not the "-default" one the library's own CSS
+   * sets on .react-flow) is its documented override mechanism: it's checked
+   * first, before the library default. Pointed at our own theme tokens so it
+   * tracks light/dark automatically instead of needing its own dark rule.
+   */
+  --xy-controls-button-background-color: var(--color-bg-raised);
+  --xy-controls-button-background-color-hover: var(--color-accent-soft);
+  --xy-controls-button-color: var(--color-text);
+  --xy-controls-button-color-hover: var(--color-text);
+  --xy-controls-button-border-color: var(--color-border);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #161513;
+    --color-bg-raised: #201f1c;
+    --color-text: #ece8e1;
+    --color-text-muted: #a39d92;
+    --color-border: #38352f;
+    --color-border-strong: #4d493f;
+    --color-accent: #e08a76;
+    --color-accent-soft: #3a2b26;
+    --color-link: #e0a97e;
+
+    --tier-edge: #7fb0e0;
+    --tier-service: #7dc9a3;
+    --tier-runner: #e08a76;
+    --tier-sandbox: #c19bea;
+    --tier-platform: #e0bd6b;
+
+    --status-gap: #6f6b62;
+    --status-experimental: #e0bd6b;
+
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  /* .figure-break's full-bleed breakout is sized off vw units; clip
+   * (rather than hidden, which would also affect scroll containers) is a
+   * defensive backstop against a 1px horizontal scrollbar from vw/scrollbar
+   * rounding, not a way to hide real overflow bugs. */
+  overflow-x: clip;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: 19px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--color-link);
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Article layout
+ * ---------------------------------------------------------------------- */
+
+.article-header {
+  max-width: var(--prose-width);
+  margin: var(--space-6) auto var(--space-5);
+  padding: 0 var(--space-3);
+  font-family: var(--font-sans);
+}
+
+.article-header h1 {
+  font-family: var(--font-serif);
+  font-size: 2.4rem;
+  line-height: 1.15;
+  margin: 0 0 var(--space-3);
+}
+
+.article-header .kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-2);
+}
+
+.article-header .dek {
+  font-size: 1.15rem;
+  color: var(--color-text-muted);
+  max-width: 60ch;
+}
+
+.article-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+}
+
+.article-toc {
+  position: sticky;
+  top: var(--space-4);
+  align-self: start;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  width: 200px;
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.article-toc a {
+  display: block;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  padding: var(--space-1) 0;
+  border-left: 2px solid transparent;
+  padding-left: var(--space-2);
+}
+
+.article-toc a:hover,
+.article-toc a.active {
+  color: var(--color-text);
+  border-left-color: var(--color-accent);
+}
+
+/* .article-section itself is sized for FIGURES (~1100px, centered in <main>);
+ * every direct child except .figure-break gets re-narrowed to the 72ch prose
+ * column via the :not() rule below. This (rather than a viewport-relative
+ * breakout) is what lets figures read wider than the prose without the
+ * figure's actual container width depending on the viewport or the
+ * sticky-TOC column, which a 100vw-based breakout would fight with. */
+.article-section {
+  max-width: var(--figure-width);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.article-section:first-of-type {
+  border-top: none;
+}
+
+.article-section > :not(.figure-break) {
+  max-width: var(--prose-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.article-section h2 {
+  font-size: 1.7rem;
+  margin: 0 0 var(--space-3);
+}
+
+.article-section .section-index {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-2);
+}
+
+.article-section p {
+  margin: 0 0 var(--space-3);
+}
+
+.article-section ul {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.4em;
+}
+
+.prose-tk {
+  border-left: 3px dashed var(--color-border-strong);
+  padding-left: var(--space-3);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Full-bleed breakout, independent of .article-section's own (much
+ * narrower) max-width: fixed rendered width --breakout-width, centered by
+ * giving both margins "half the containing block's width, minus half the
+ * breakout's own width". Since --breakout-half is exactly half of
+ * --breakout-width, the containing block's width term cancels out of the
+ * arithmetic entirely, so this centers on the VIEWPORT (well, on whatever
+ * .article-section's own containing block is centered on) regardless of
+ * how much narrower that parent is. See --toc-offset for the one case
+ * (>=1400px, sidebar present) where that parent isn't viewport-centered,
+ * corrected for below. Prose siblings stay narrow via the :not() rule
+ * above, which explicitly excludes this class. */
+.figure-break {
+  width: var(--breakout-width);
+  margin: var(--space-4) calc(50% - var(--breakout-half) + var(--toc-offset));
+}
+
+.figure-caption {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-2);
+  /* The caption is a prose sibling narrowed by the :not(.figure-break) rule
+   * above; nothing extra needed here beyond the visual rhythm tweak. */
+}
+
+@media (min-width: 1400px) {
+  .article-body {
+    grid-template-columns: 220px minmax(0, 1fr);
+    max-width: calc(var(--figure-width) + 260px);
+    margin: 0 auto;
+  }
+
+  .article-toc {
+    display: block;
+  }
+
+  /* <main> (the grid's 2nd column) is shifted right by half the 220px
+   * sidebar column relative to the viewport's true center; shift the
+   * breakout left by the same amount so it still lands on the viewport
+   * center instead of <main>'s off-center middle. */
+  main {
+    --toc-offset: -110px;
+  }
+}
+
+@media (max-width: 1399px) {
+  .article-toc {
+    display: none;
+  }
+}
+
+.narrow-warning {
+  display: none;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  padding: var(--space-2) var(--space-3);
+  text-align: center;
+}
+
+@media (max-width: 1099px) {
+  .narrow-warning {
+    display: block;
+  }
+}
+
+/* ---------------------------------------------------------------------- *
+ * Figure frame: shared fullscreen wrapper (src/figures/shared/FigureFrame)
+ * ---------------------------------------------------------------------- */
+
+.figure-frame {
+  position: relative;
+}
+
+.figure-fullscreen-btn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 20;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-bg-raised);
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.figure-fullscreen-btn:hover {
+  opacity: 1;
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.figure-fullscreen-hint {
+  position: absolute;
+  top: var(--space-2);
+  right: calc(var(--space-2) + 38px);
+  z-index: 20;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+/* The native fullscreen element's default backdrop is opaque black; give
+ * the element itself the app background (both color schemes track the
+ * shared tokens automatically) so fullscreen reads as "this figure, big"
+ * rather than "a black box with a card floating in it". Also give the
+ * figure room to actually grow: normally .figure-canvas/.figure-sidepanel
+ * are fixed-height (560px) so the card reads well inline; in fullscreen
+ * they should fill the available height instead. */
+.figure-frame:fullscreen {
+  background: var(--color-bg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+}
+
+.figure-frame::backdrop {
+  background: var(--color-bg);
+}
+
+.figure-frame:fullscreen .figure-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.figure-frame:fullscreen .figure-canvas-row {
+  flex: 1;
+  min-height: 0;
+}
+
+.figure-frame:fullscreen .figure-canvas {
+  height: 100%;
+}
+
+.figure-frame:fullscreen .figure-sidepanel,
+.figure-frame:fullscreen .payload-inspector {
+  max-height: none;
+  height: 100%;
+}
+
+.figure-frame:fullscreen .load-canvas-wrap {
+  height: auto;
+  flex: 1;
+  min-height: 200px;
+}
+
+.figure-frame:fullscreen .load-canvas-wrap .load-canvas {
+  height: 100% !important;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Figures: shared chrome
+ * ---------------------------------------------------------------------- */
+
+.figure-shell {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-raised);
+  overflow: hidden;
+}
+
+.figure-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+}
+
+.figure-canvas-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+@media (max-width: 900px) {
+  .figure-canvas-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Scenario player: the payload inspector is a diff viewer, not a reference
+ * side panel, so it needs real room (>=40% of the row, floor 480px) rather
+ * than the topology figure's fixed 320px. Below ~1150px there isn't room
+ * for both at a readable width, so stack the inspector under the canvas at
+ * full figure width instead of squeezing it. */
+.scenario-figure .figure-canvas-row {
+  grid-template-columns: minmax(0, 1fr) minmax(480px, 40%);
+  align-items: stretch;
+}
+
+@media (max-width: 1150px) {
+  .scenario-figure .figure-canvas-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.figure-canvas {
+  height: 560px;
+  position: relative;
+  background: var(--color-bg);
+}
+
+.figure-sidepanel {
+  border-left: 1px solid var(--color-border);
+  padding: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  overflow-y: auto;
+  max-height: 560px;
+}
+
+.figure-sidepanel h3 {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  margin: 0 0 var(--space-2);
+}
+
+.figure-sidepanel .field-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.figure-sidepanel .field-label:first-of-type {
+  margin-top: 0;
+}
+
+.figure-sidepanel .code-path {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--color-accent-soft);
+  padding: var(--space-1) var(--space-2);
+  border-radius: 5px;
+  word-break: break-word;
+  display: inline-block;
+}
+
+.figure-sidepanel .empty-hint {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.citation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.citation-list li {
+  padding: 2px 0;
+  color: var(--color-text-muted);
+}
+
+.citation-list code {
+  font-size: 0.95em;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Topology node styling (rendered inside React Flow, so plain divs/classes)
+ * ---------------------------------------------------------------------- */
+
+.topo-node {
+  border-radius: 8px;
+  border: 1.5px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  min-width: 140px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.topo-node .topo-node-label {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.topo-node .topo-node-alias {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.topo-node[data-tier="edge"] {
+  border-top: 4px solid var(--tier-edge);
+}
+.topo-node[data-tier="service"] {
+  border-top: 4px solid var(--tier-service);
+}
+.topo-node[data-tier="runner"] {
+  border-top: 4px solid var(--tier-runner);
+}
+.topo-node[data-tier="sandbox"] {
+  border-top: 4px solid var(--tier-sandbox);
+}
+.topo-node[data-tier="platform"] {
+  border-top: 4px solid var(--tier-platform);
+}
+
+.topo-node[data-status="gap"] {
+  border-style: dashed;
+  opacity: 0.65;
+}
+
+.topo-node[data-status="experimental"] {
+  border-style: dotted;
+}
+
+.topo-node[data-selected="true"] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+
+.topo-node[data-dimmed="true"] {
+  opacity: 0.25;
+}
+
+.topo-node[data-spotlit="true"] {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+/* Hovering/selecting a node un-mutes its own secondary edges (see TopoEdge);
+ * this ring is the node-side half of that same "what does this talk to"
+ * affordance. Skipped when already selected/spotlit so the rings don't
+ * visually compete. */
+.topo-node[data-active="true"]:not([data-selected="true"]):not([data-spotlit="true"]) {
+  border-color: var(--color-text-muted);
+  box-shadow: 0 0 0 2px var(--color-border-strong);
+}
+
+/* Invisible anchor points (see TopoNode.tsx): four sides, each carrying
+ * both a source and a target handle, purely so edges can be told which
+ * side of a node to leave/enter from (buildFlow's pickHandles). Not
+ * interactive: nodesConnectable is off for this whole figure. */
+.topo-handle {
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
+}
+
+.topo-group-node {
+  border-radius: 12px;
+  border: 1.5px dashed var(--color-border-strong);
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+}
+
+.topo-group-node .topo-group-label {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+/* React Flow edge label chrome, kept minimal on purpose. */
+.react-flow__edge-path {
+  stroke: var(--color-border-strong);
+}
+
+.react-flow__edge[data-dimmed="true"] .react-flow__edge-path {
+  opacity: 0.2;
+}
+
+.react-flow__edge[data-spotlit="true"] .react-flow__edge-path {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+
+.react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+}
+
+/* ---------------------------------------------------------------------- *
+ * Scenario player
+ * ---------------------------------------------------------------------- */
+
+.scenario-figure .figure-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.step-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.step-controls button {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.step-controls button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.step-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.step-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.step-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.step-dot[data-active="true"] {
+  background: var(--color-accent);
+  transform: scale(1.3);
+}
+
+.step-caption {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+}
+
+.step-caption h4 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.step-caption p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.payload-inspector {
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.payload-inspector .field-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  margin-bottom: var(--space-2);
+}
+
+/* json-diff-kit's own table defaults to table-layout:fixed with
+ * white-space:pre-wrap/word-break:break-all inside each line's <pre> --
+ * exactly the "aggressive wrapping" this issue calls out. Override to a
+ * readable monospace size with one horizontal scrollbar for the whole
+ * panel instead: table-layout:auto + width:max-content lets the table grow
+ * to fit its longest (unwrapped) line, and .diff-scroll is what actually
+ * scrolls. json-diff-kit exposes no per-value title/tooltip hook, so long
+ * values are readable via that scroll rather than an ellipsis+title. */
+.payload-inspector .diff-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.payload-inspector .json-diff-viewer {
+  table-layout: auto;
+  width: max-content;
+  min-width: 100%;
+}
+
+.payload-inspector .json-diff-viewer pre {
+  white-space: pre;
+  word-break: normal;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.payload-inspector .json-diff-viewer td.line-number {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Stub figures (F3/F4, built by the next agent)
+ * ---------------------------------------------------------------------- */
+
+.figure-stub {
+  border: 2px dashed var(--color-border-strong);
+  border-radius: 10px;
+  padding: var(--space-5);
+  text-align: center;
+  font-family: var(--font-sans);
+  color: var(--color-text-muted);
+  background: var(--color-bg-raised);
+}
+
+.figure-stub strong {
+  color: var(--color-text);
+}
+
+/* ---------------------------------------------------------------------- *
+ * Sources appendix
+ * ---------------------------------------------------------------------- */
+
+.sources-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.sources-list li {
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.doc-title {
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+  font-size: 0.85em;
+}
+
+.sources-list .doc-title {
+  margin-left: var(--space-2);
+  display: inline;
+}
+
+/* Gap legend used in §1 and §7 */
+.legend-row {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 12px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 6px;
+  border: 1.5px solid var(--color-border-strong);
+}
