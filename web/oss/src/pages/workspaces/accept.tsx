@@ -109,12 +109,9 @@ const Accept: FC = () => {
                     const targetWorkspace = workspaceId || organizationId
                     cacheWorkspaceOrgPair(targetWorkspace, organizationId)
                     clearInvite()
-                    if (isSurvey) {
+                    if (isSurvey && isEE()) {
                         const redirect = encodeURIComponent(`/w/${targetWorkspace}`)
-                        const targetPath = isEE()
-                            ? `/post-signup?redirect=${redirect}`
-                            : `/get-started?redirect=${redirect}`
-                        await router.replace(targetPath)
+                        await router.replace(`/post-signup?redirect=${redirect}`)
                     } else if (targetWorkspace && projectId) {
                         const nextPath = buildPostLoginPath({
                             workspaceId: targetWorkspace,
@@ -194,12 +191,9 @@ const Accept: FC = () => {
                 }
 
                 clearInvite()
-                if (isSurvey) {
+                if (isSurvey && isEE()) {
                     const redirect = encodeURIComponent(`/w/${workspaceId || organizationId || ""}`)
-                    const targetPath = isEE()
-                        ? `/post-signup?redirect=${redirect}`
-                        : `/get-started?redirect=${redirect}`
-                    await router.replace(targetPath)
+                    await router.replace(`/post-signup?redirect=${redirect}`)
                 } else if (workspaceId || organizationId) {
                     const nextPath = buildPostLoginPath({
                         workspaceId: workspaceId || organizationId || null,

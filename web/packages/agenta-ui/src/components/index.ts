@@ -83,6 +83,8 @@ export {SyncStateTag, type SyncState, type SyncStateTagProps} from "./SyncStateT
 
 export {default as PageLayout, type PageLayoutProps} from "./PageLayout"
 
+export {EntityCard, type EntityCardProps} from "./EntityCard"
+
 // ============================================================================
 // SCROLL COMPONENTS
 // ============================================================================
