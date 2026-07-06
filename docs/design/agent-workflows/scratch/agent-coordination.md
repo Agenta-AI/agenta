@@ -353,7 +353,7 @@ is dated and ignorable.
 - 2026-07-03 ~14:15Z approval-boundary-session: INCIDENT + REPAIR. A commit subagent hit hunk-locking on op_catalog.py/test_op_catalog.py (locked to feat/annotate-trace-op-code's commit 2793d222d1), improvised ref surgery and an oplog RESTORE at 15:53 local that rewound other sessions' uncommitted files (apologies; recovered by the affected session). Subagent killed. Repair: restacking feat/annotate-trace-op-code INTO the approval-boundary stack (big-agents-work <- annotate <- docs/approval-boundary) because the approval-boundary phase-3 edits textually depend on the annotate commit. annotate lane has no remote/PR, so the move is local-only. Its owner: your lane now sits on big-agents-work instead of main; content unchanged; push/PR when ready with base big-agents-work. Subagent briefs now forbid oplog restore + raw ref surgery.
 
 ## BUT-LOCK
-FREE (released by post-merge-pull-session 2026-07-06T13:46Z)
+LOCKED onboarding-qa-session-merge 2026-07-06T14:11:07Z (merge #5076 + but pull)
 
 ## Lanes / PRs (date each row; rows older than 2 days are stale → ignore/clean)
 | date | agent | lane | PR | status |
