@@ -2,7 +2,7 @@ import {type RefObject} from "react"
 
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button, Tooltip} from "antd"
-import {ArrowRight, Bold, Code2, Italic, Paperclip} from "lucide-react"
+import {ArrowRight, Code2, Paperclip} from "lucide-react"
 
 import {COMPOSER, HERO} from "../../assets/constants"
 
@@ -31,14 +31,12 @@ const AgentComposer = ({composerRef, onCreate, onContinueInIde}: AgentComposerPr
             submitOnEnter={false}
             minHeightClassName="min-h-[112px]"
             textSizeClassName="text-sm"
-            className="!bg-[var(--ag-colorFillTertiary)]"
+            className="!rounded-[10px] !border-[var(--ag-composer-border)] !bg-[var(--ag-colorBgContainer)] !shadow-[0_1px_3px_0_rgb(0_0_0_/_0.1),0_1px_2px_-1px_rgb(0_0_0_/_0.1)] focus-within:!border-[var(--ag-composer-focus)]"
             prefix={
                 <div className="flex items-center gap-2 text-[var(--ag-colorTextTertiary)]">
                     <Tooltip title="Attach files coming soon">
                         <Paperclip size={15} className="cursor-not-allowed" />
                     </Tooltip>
-                    <Bold size={15} />
-                    <Italic size={15} />
                 </div>
             }
             trailing={
