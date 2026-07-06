@@ -6,7 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from oss.src.core.events.types import EventType
 from oss.src.core.webhooks.types import WebhookEventType
-from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
+from oss.src.tasks.asyncio.webhooks.dispatcher import (
+    WebhooksDispatcher,
+    WebhookDispatchError,
+)
 
 
 class FakeEvent:
@@ -151,7 +154,7 @@ async def test_dispatch_deterministic_delivery_id_stable_across_passes(anyio_bac
 
 
 @pytest.mark.anyio
-async def test_dispatch_one_failing_delivery_does_not_raise_and_others_still_enqueue(
+async def test_dispatch_one_failing_delivery_raises_after_others_enqueue(
     anyio_backend,
 ):
     assert anyio_backend == "asyncio"
@@ -190,10 +193,13 @@ async def test_dispatch_one_failing_delivery_does_not_raise_and_others_still_enq
         "oss.src.tasks.asyncio.webhooks.dispatcher.encrypt",
         side_effect=lambda secret: f"enc:{secret}",
     ):
-        # Must not raise: one bad delivery must never fail the whole batch.
-        await dispatcher.dispatch(
-            batches=[{"project_id": project_id, "events": [message]}]
-        )
+        # A failed enqueue must raise so the worker skips ACK/DEL and retries the whole batch
+        # (redelivery is deduped by the deterministic delivery_id). The good deliveries are
+        # still attempted before the batch-level raise.
+        with pytest.raises(WebhookDispatchError):
+            await dispatcher.dispatch(
+                batches=[{"project_id": project_id, "events": [message]}]
+            )
 
     enqueued_subscription_ids = {
         call.kwargs["subscription_id"] for call in deliver_task.kiq.await_args_list

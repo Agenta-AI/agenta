@@ -1530,10 +1530,12 @@ class TriggersService:
 
         webhook_id = headers.get("webhook-id") or ""
         timestamp = headers.get("webhook-timestamp") or ""
+        # webhook_id is untrusted header input; truncate + %r so it can't inject newlines or bloat logs.
+        safe_webhook_id = webhook_id[:64]
         if not webhook_id or not self._is_fresh(timestamp):
             log.warning(
-                "[TRIGGER SIGNATURE] stale or missing timestamp webhook_id=%s",
-                webhook_id,
+                "[TRIGGER SIGNATURE] stale or missing timestamp webhook_id=%r",
+                safe_webhook_id,
             )
             return False
 
@@ -1557,11 +1559,13 @@ class TriggersService:
                 break
 
         if not verified:
-            log.warning("[TRIGGER SIGNATURE] no match webhook_id=%s", webhook_id)
+            log.warning("[TRIGGER SIGNATURE] no match webhook_id=%r", safe_webhook_id)
             return False
 
         if not await self._claim_webhook_id(webhook_id):
-            log.warning("[TRIGGER SIGNATURE] replay rejected webhook_id=%s", webhook_id)
+            log.warning(
+                "[TRIGGER SIGNATURE] replay rejected webhook_id=%r", safe_webhook_id
+            )
             return False
 
         return True

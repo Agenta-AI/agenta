@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import func, select, update as sa_update
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.interactions.dtos import (
@@ -189,7 +189,7 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     stmt = stmt.where(
                         SessionInteractionDBE.status == "pending",
                         SessionInteractionDBE.created_at
-                        > datetime.now(timezone.utc) - PENDING_INTERACTION_TTL,
+                        > func.now() - PENDING_INTERACTION_TTL,
                     )
 
             if windowing:

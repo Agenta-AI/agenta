@@ -44,7 +44,7 @@ def redaction_mode() -> str:
     return mode
 
 
-_STACK_FRAME_RE = re.compile(r"\b(at\s+\S+\s*\(|File\s+\"|/[\w./-]+:\d+)")
+_STACK_FRAME_RE = re.compile(r"\bat\s+\S+\s*\(|\bFile\s+\"|/[\w./-]+:\d+")
 
 # Values never redacted even if a secret-named env var holds them: booleans/flags/common tokens
 # would poison the deny-set (redacting every "true"/"1" in output). Operators extend, never shrink.

@@ -79,7 +79,7 @@ function decompose(value: string): string[] {
   return [match[1], match[2]].filter((part): part is string => !!part);
 }
 
-const STACK_FRAME_RE = /\b(at\s+\S+\s*\(|File\s+"|\/[\w./-]+:\d+)/;
+const STACK_FRAME_RE = /\bat\s+\S+\s*\(|\bFile\s+"|\/[\w./-]+:\d+/;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -51,10 +51,12 @@ function ipv4ToInt(ip: string): number {
 
 function cidr4(base: string, prefix: number): IPv4Range {
   const start = ipv4ToInt(base);
-  const size = prefix >= 32 ? 0 : (1 << (32 - prefix)) >>> 0;
   const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
   const network = (start & mask) >>> 0;
-  return [network, prefix >= 32 ? network : (network + size - 1) >>> 0];
+  // Broadcast = network | ~mask. Works for /0 (mask 0 -> 0xffffffff) where a shift-based
+  // size overflows (JS shifts are mod 32, so `1 << 32` is `1`, not 2^32).
+  const broadcast = (network | (~mask >>> 0)) >>> 0;
+  return [network, broadcast];
 }
 
 /** IANA ipv4-special-registry "private" set — mirrors Python's `ipaddress._private_networks`. */

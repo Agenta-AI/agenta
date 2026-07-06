@@ -139,8 +139,8 @@ describe("session Redis contract: Lua script", () => {
   });
 });
 
-describe("session Redis contract: caps and validation", () => {
-  it("concurrency cap matches golden", () => {
+describe("session Redis contract: limits and validation", () => {
+  it("concurrency limit matches golden", () => {
     assert.equal(CONCURRENCY_LIMIT, fixture.concurrency_limit);
   });
   it("session id max length matches golden", () => {

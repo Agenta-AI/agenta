@@ -83,6 +83,11 @@ export async function validateUserMcpUrl(rawUrl: string): Promise<string | undef
   }
   const { error } = await resolveAndCheckHost(host);
   if (error) {
+    // Distinguish a resolution failure (config error) from an SSRF block, so a plain ENOTFOUND
+    // doesn't read as a security rejection to operators.
+    if (/could not be resolved/.test(error)) {
+      return `http MCP server url host could not be resolved (${host}): ${rawUrl}`;
+    }
     return `http MCP server url targets an internal/metadata host (${host}); not allowed: ${rawUrl}`;
   }
   return undefined;

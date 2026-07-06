@@ -57,8 +57,8 @@ const HOST = process.env.AGENTA_RUNNER_HOST ?? "127.0.0.1";
 // so co-located/loopback deployments are unaffected.
 const RUNNER_TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 
-// Per-box in-flight counter: gates `/invoke` and `/stream` at the process, independent of the
-// per-project DB count, so one hot replica can't saturate. Value from config, not a constant.
+// Per-box in-flight counter: gates `/stream` and the `/run` back-compat alias at the process,
+// independent of the per-project DB count, so one hot replica can't saturate. Value from config.
 const CONCURRENCY_LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
 const DEFAULT_CONCURRENCY_LIMIT = 1000;
 

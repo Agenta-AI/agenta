@@ -186,4 +186,12 @@ describe("insecureEgressAllowed + validateUserMcpUrl bypass", () => {
     assert.equal(await validateUserMcpUrl("http://example.com/sse"), undefined);
     assert.equal(await validateUserMcpUrl("http://127.0.0.1/sse"), undefined);
   });
+
+  it("surfaces a DNS-resolution failure distinctly from an SSRF block", async () => {
+    dnsLookupMock.mockRejectedValue(new Error("ENOTFOUND"));
+    const msg = (await validateUserMcpUrl("https://nope.invalid/sse")) ?? "";
+    assert.match(msg, /could not be resolved/);
+    assert.doesNotMatch(msg, /internal\/metadata host/);
+    dnsLookupMock.mockReset();
+  });
 });

@@ -26,6 +26,13 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+
+class WebhookDispatchError(Exception):
+    """Raised when one or more deliveries in a batch failed to enqueue, so the events worker
+    skips ACK/DEL and the whole batch is retried. Redelivery is deduped by the deterministic
+    delivery_id, so already-enqueued deliveries are not sent twice."""
+
+
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
 
 # Deterministic delivery_id: same (event_id, subscription_id) always derives the same id, so a
@@ -324,16 +331,14 @@ class WebhooksDispatcher:
                         enqueue_failures += 1
 
         if enqueue_failures > 0:
-            # A per-delivery enqueue failure must not fail the whole
-            # batch — the caller acks the batch regardless, so already-enqueued deliveries
-            # are never redelivered. delivery_id is deterministic, so a dropped delivery
-            # is not lost: the next event-driven pass re-derives the same id and retries it.
-            log.warning(
-                f"[WEBHOOKS DISPATCHER] {enqueue_failures} deliveries failed to enqueue "
-                "(not retried inline; batch is still acked)"
-            )
             log.tick(
                 "webhooks.enqueue_failures",
                 count=enqueue_failures,
                 dims={"queue": "webhooks"},
+            )
+            # Raise so the events worker skips ACK/DEL and retries the whole batch. Without this
+            # the batch is acked and the failed deliveries are dropped for good. Redelivery is
+            # safe: the deterministic delivery_id dedups already-enqueued deliveries.
+            raise WebhookDispatchError(
+                f"{enqueue_failures} deliveries failed to enqueue"
             )

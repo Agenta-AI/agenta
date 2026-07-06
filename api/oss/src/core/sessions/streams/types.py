@@ -37,11 +37,11 @@ class SessionTurnInUse(SessionStreamError):
 
 
 class ConcurrencyLimitExceeded(SessionStreamError):
-    """Raised when the per-replica concurrency limit is exceeded."""
+    """Raised when the per-project concurrent-run limit is exceeded."""
 
     def __init__(self, limit: int):
         self.limit = limit
         self.message = (
-            f"Concurrency limit of {limit} concurrent runs reached on this replica."
+            f"Concurrency limit of {limit} concurrent runs reached for this project."
         )
         super().__init__(self.message)

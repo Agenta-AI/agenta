@@ -51,10 +51,15 @@ async def test_actionable_only_filters_pending_and_binds_interval(monkeypatch):
         query=SessionInteractionQuery(actionable_only=True),
     )
 
-    compiled = str(
-        session.captured_stmt.compile(compile_kwargs={"literal_binds": False})
+    # Assert against the WHERE clause specifically: status/created_at also appear in the SELECT
+    # column list, so grepping the full statement can pass even when the filter is missing.
+    where = str(
+        session.captured_stmt.whereclause.compile(
+            compile_kwargs={"literal_binds": False}
+        )
     )
-    assert "status" in compiled
-    assert "created_at" in compiled
+    assert "status" in where
+    assert "created_at" in where
+    assert ">" in where  # created_at compared against the TTL cutoff
     # bound parameter, not an inline f-string interval literal
-    assert "INTERVAL" not in compiled.upper()
+    assert "INTERVAL" not in where.upper()
