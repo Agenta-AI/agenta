@@ -55,10 +55,15 @@ class Counter(str, Enum):
     CREDITS_CONSUMED = "credits_consumed"
     EVENTS_INGESTED = "events_ingested"
     RECORDS_INGESTED = "records_ingested"
+    SANDBOX_CPU_CORE_SECONDS = "sandbox_cpu_core_seconds"
+    SANDBOX_RAM_GIBI_SECONDS = "sandbox_ram_gibi_seconds"
+    SANDBOX_SSD_GIBI_SECONDS = "sandbox_ssd_gibi_seconds"
+    SANDBOX_GPU_CORE_SECONDS = "sandbox_gpu_core_seconds"
 
 
 class Gauge(str, Enum):
     USERS = "users"
+    BYTES = "bytes"
 
 
 class Constraint(str, Enum):
@@ -357,11 +362,28 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.WEEKLY,
                 period=Period.MONTHLY,
             ),
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
                 free=2,
                 limit=2,
+                strict=True,
+            ),
+            Gauge.BYTES: Quota(
+                free=1_073_741_824,
+                limit=1_073_741_824,
                 strict=True,
             ),
         },
@@ -449,9 +471,26 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
+                strict=True,
+            ),
+            Gauge.BYTES: Quota(
+                free=5_368_709_120,
+                limit=10_737_418_240,
                 strict=True,
             ),
         },
@@ -539,9 +578,25 @@ DEFAULT_ENTITLEMENTS = {
                 retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
+                strict=True,
+            ),
+            Gauge.BYTES: Quota(
+                free=53_687_091_200,
                 strict=True,
             ),
         },
@@ -625,6 +680,18 @@ DEFAULT_ENTITLEMENTS = {
             Counter.RECORDS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -663,6 +730,18 @@ DEFAULT_ENTITLEMENTS = {
             Counter.RECORDS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
+            Counter.SANDBOX_CPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_RAM_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_SSD_GIBI_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.SANDBOX_GPU_CORE_SECONDS: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -692,6 +771,7 @@ CONSTRAINTS = {
         ],
         Tracker.GAUGES: [
             Gauge.USERS,
+            Gauge.BYTES,
         ],
     },
     Constraint.READ_ONLY: {
@@ -702,6 +782,10 @@ CONSTRAINTS = {
             Counter.CREDITS_CONSUMED,
             Counter.EVENTS_INGESTED,
             Counter.RECORDS_INGESTED,
+            Counter.SANDBOX_CPU_CORE_SECONDS,
+            Counter.SANDBOX_RAM_GIBI_SECONDS,
+            Counter.SANDBOX_SSD_GIBI_SECONDS,
+            Counter.SANDBOX_GPU_CORE_SECONDS,
         ],
     },
 }
