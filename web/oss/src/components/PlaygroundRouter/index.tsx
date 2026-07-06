@@ -83,15 +83,6 @@ const PlaygroundRouter = () => {
     // Reuses the full Playground machinery; the app-scoped/evaluator routes and flag-off are unchanged.
     const onboardingActive =
         PLAYGROUND_NATIVE_ONBOARDING && router.pathname === PROJECT_PLAYGROUND_PATHNAME
-    if (PLAYGROUND_NATIVE_ONBOARDING && typeof window !== "undefined") {
-        console.log("%c[agent-onboarding]", "color:#84cc16;font-weight:bold", "PlaygroundRouter:", {
-            flag: PLAYGROUND_NATIVE_ONBOARDING,
-            pathname: router.pathname,
-            expected: PROJECT_PLAYGROUND_PATHNAME,
-            matches: router.pathname === PROJECT_PLAYGROUND_PATHNAME,
-            willRenderOnboarding: onboardingActive,
-        })
-    }
     if (onboardingActive) {
         // Key on the project so switching projects (a Next nav to the SAME `/playground` route) REMOUNTS
         // the onboarding: without this the mounted instance keeps the previous project's committed state

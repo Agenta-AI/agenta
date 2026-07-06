@@ -10,7 +10,7 @@ import {
     useState,
 } from "react"
 
-import {createEphemeralAppFromTemplate, workflowMolecule} from "@agenta/entities/workflow"
+import {createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
 import {
     hasPendingHydrationAtomFamily,
     isAgentModeAtomFamily,
@@ -28,10 +28,6 @@ import {useCreateAgent} from "../hooks/useCreateAgent"
 import OnboardingConfigPanel from "./OnboardingConfigPanel"
 import OnboardingConfigSettling from "./OnboardingConfigSettling"
 import {type OnboardingContextValue} from "./OnboardingContext"
-
-/** Filterable diagnostic log for the onboarding flow (search the console for "[agent-onboarding]"). */
-const log = (...args: unknown[]) =>
-    console.log("%c[agent-onboarding]", "color:#84cc16;font-weight:bold", ...args)
 
 export interface AgentOnboardingResult {
     /** True once the ephemeral has been minted (the playground can render it). */
@@ -84,10 +80,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // cheap and client-only; let it finish. The component instance survives the StrictMode cycle, so
     // setEntityId lands (and a genuine unmount mid-mint is a harmless no-op in React 18).
     useEffect(() => {
-        if (!active) {
-            log("hook inactive (onboarding off) — no-op")
-            return
-        }
+        if (!active) return
         if (startedRef.current) return
         startedRef.current = true
         // Wipe the onboarding scope BEFORE the ephemeral is minted (→ before AgentChatPanel mounts and
@@ -95,25 +88,15 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         // key, so a prior visit's persisted conversation (e.g. a failed run) would otherwise be restored
         // into this "fresh" session. Runs once per mount (ref-guarded above).
         resetOnboardingScope()
-        log(
-            "activate → reset onboarding scope; minting ephemeral agent via createEphemeralAppFromTemplate({type:'agent'})…",
-        )
         void createEphemeralAppFromTemplate({
             type: "agent",
             defaultName: "New agent",
             // Return as soon as the entity is seeded (flags → agent layout resolves at once); the schema
             // inspect round-trip resolves in the background (not needed for the pre-commit surface).
             deferInspect: true,
+        }).then((id) => {
+            if (id) setEntityId(id)
         })
-            .then((id) => {
-                if (id) {
-                    log("✅ mint OK — ephemeral entityId =", id)
-                    setEntityId(id)
-                } else {
-                    log("❌ mint returned NULL (no agent template / no projectId / fetch failed)")
-                }
-            })
-            .catch((err) => log("❌ mint THREW:", err))
     }, [active])
 
     // Point the playground at the ephemeral (until it's committed to a real revision). `setEntityIds`
@@ -123,29 +106,9 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // selected and lets the agent workflow type resolve, so `MainLayout` uses the agent layout.
     useEffect(() => {
         if (!active || !entityId || realEntityId) return
-        log("selecting ephemeral → setEntityIds + writePlaygroundSelectionToQuery:", entityId)
         setEntityIds([entityId])
         writePlaygroundSelectionToQuery([entityId])
     }, [active, entityId, realEntityId, setEntityIds])
-
-    // ── Live diagnostic: read back what the playground ACTUALLY has, so we can see whether the
-    // selection holds and whether the ephemeral resolves to the "agent" workflow type. Logs on change.
-    const selectedIds = useAtomValue(playgroundController.selectors.entityIds())
-    const ephemeralWorkflowType = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.workflowType(entityId ?? ""), [entityId]),
-    )
-    useEffect(() => {
-        if (!active) return
-        log("state snapshot →", {
-            entityId,
-            realEntityId,
-            committing,
-            "playground.selectedEntityIds": selectedIds,
-            "workflowType(entityId)": ephemeralWorkflowType,
-            isAgent: ephemeralWorkflowType === "agent",
-            "url.search": typeof window !== "undefined" ? window.location.search : "(ssr)",
-        })
-    }, [active, entityId, realEntityId, committing, selectedIds, ephemeralWorkflowType])
 
     // Commit the ephemeral into a real agent IN PLACE — reuse `useCreateAgent` with our existing
     // ephemeral + an `onCommitted` callback (no redirect): swap the entity, flip to the live chat, and
@@ -153,15 +116,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // Next page → would remount; a reload then lands on the app playground).
     const commit = useCallback(
         (seedMessage: string, name?: string) => {
-            if (!entityId || committing || realEntityId) {
-                log("commit ignored (no ephemeral / already committing / already committed)", {
-                    entityId,
-                    committing,
-                    realEntityId,
-                })
-                return
-            }
-            log("commit start → committing ephemeral in place:", {entityId, name, seedMessage})
+            if (!entityId || committing || realEntityId) return
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
             setCommittingSeed(seedMessage.trim() || null)
@@ -173,7 +128,6 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 // once the model is ready (no extra Start click), keeping the transition seamless.
                 autoSendSeed: true,
                 onCommitted: ({appId, revisionId}) => {
-                    log("✅ committed → real:", {appId, revisionId})
                     // Flip the onboarding state urgently — the settling skeleton, the `chromeRevealed`
                     // timer, and the commit-failure recovery all read `realEntityId` synchronously.
                     setRealEntityId(revisionId)

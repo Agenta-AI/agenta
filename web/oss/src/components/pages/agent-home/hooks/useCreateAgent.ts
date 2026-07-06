@@ -102,20 +102,8 @@ export function useCreateAgent() {
                 }
 
                 if (onCommitted) {
-                    console.log(
-                        "%c[agent-onboarding]",
-                        "color:#84cc16;font-weight:bold",
-                        "useCreateAgent → IN-PLACE (onCommitted present)",
-                        {appId, revisionId, name, seedMessage},
-                    )
                     onCommitted({appId, revisionId})
                 } else {
-                    console.log(
-                        "%c[agent-onboarding]",
-                        "color:#f59e0b;font-weight:bold",
-                        "useCreateAgent → REDIRECT (no onCommitted) router.push app playground",
-                        {appId, revisionId, name, seedMessage},
-                    )
                     void router.push(`${baseAppURL}/${appId}/playground?revisions=${revisionId}`)
                 }
             } catch (error) {
