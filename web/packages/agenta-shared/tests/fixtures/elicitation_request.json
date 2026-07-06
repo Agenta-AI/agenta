@@ -1,0 +1,36 @@
+{
+    "render": {"kind": "elicitation"},
+    "message": "When should this agent run? I need a schedule before I can set it up.",
+    "requestedSchema": {
+        "type": "object",
+        "properties": {
+            "frequency": {
+                "type": "string",
+                "title": "How often",
+                "enum": ["hourly", "daily", "weekdays", "weekly"]
+            },
+            "time_of_day": {
+                "type": "string",
+                "title": "At what time",
+                "format": "date-time",
+                "description": "Local time; the server converts to UTC cron."
+            },
+            "timezone": {
+                "type": "string",
+                "title": "Timezone",
+                "enum": ["Europe/Berlin", "Europe/Istanbul", "UTC", "America/New_York"]
+            },
+            "delivery_message": {
+                "type": "string",
+                "title": "Message to send on each run",
+                "format": "multiline",
+                "x-ag-placeholder": "Summarize new #support threads…"
+            },
+            "active": {
+                "type": "boolean",
+                "title": "Start active"
+            }
+        },
+        "required": ["frequency", "time_of_day", "timezone"]
+    }
+}

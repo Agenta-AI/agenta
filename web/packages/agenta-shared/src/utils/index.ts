@@ -205,8 +205,30 @@ export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./t
 export {
     buildFormFieldsFromData,
     buildFormFieldsFromSchema,
+    type BuildFormFieldsOptions,
     type FormFieldDescriptor,
 } from "./gatewayToolSchema"
+
+// Elicitation contract (chat interaction kinds, M1)
+export {
+    ELICITATION_RENDER_KIND,
+    KNOWN_STRING_FORMATS,
+    SECRET_FIELD_PATTERN,
+    buildAcceptResult,
+    buildCancelResult,
+    buildDeclineResult,
+    buildDegradationErrorText,
+    deriveElicitationPartState,
+    hasPriorElicitationDegradation,
+    parseElicitationPayload,
+    serializeElicitationContent,
+    type ElicitationAction,
+    type ElicitationFieldSchema,
+    type ElicitationParseResult,
+    type ElicitationPartState,
+    type ElicitationRequestPayload,
+    type ElicitationResult,
+} from "./elicitation"
 
 // Polling utilities
 export {shortPoll} from "./shortPoll"

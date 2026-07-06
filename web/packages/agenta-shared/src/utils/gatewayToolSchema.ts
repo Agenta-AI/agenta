@@ -1,3 +1,5 @@
+import {KNOWN_STRING_FORMATS} from "./elicitation"
+
 export interface FormFieldDescriptor {
     name: string // dot-path for nested: "parent.child"
     label: string
@@ -6,6 +8,8 @@ export interface FormFieldDescriptor {
     description?: string
     default?: unknown
     enumValues?: string[]
+    /** Known string format (date/date-time/email/uri/multiline) — set only under `{formats: true}` */
+    format?: string
     children?: FormFieldDescriptor[] // nested fields for object type
     /** For arrays: schema of each item (JSON Schema) */
     itemSchema?: Record<string, unknown>
@@ -15,14 +19,21 @@ export interface FormFieldDescriptor {
     freeform?: boolean
 }
 
+export interface BuildFormFieldsOptions {
+    /** Opt-in: surface known string formats so renderers can map them to dedicated controls. */
+    formats?: boolean
+}
+
 /**
  * Convert a JSON Schema `properties` object into a list of form field descriptors.
  * Objects with their own `properties` are expanded into nested children.
  * Arrays with `items` containing object schemas get itemChildren for dynamic Form.List rendering.
+ * `format` handling is opt-in so existing callers (gateway tool execution) render unchanged.
  */
 export function buildFormFieldsFromSchema(
     schema: Record<string, unknown> | null | undefined,
     prefix = "",
+    opts?: BuildFormFieldsOptions,
 ): FormFieldDescriptor[] {
     if (!schema) return []
 
@@ -52,7 +63,11 @@ export function buildFormFieldsFromSchema(
 
         if (fieldType === "object") {
             if (prop.properties) {
-                children = buildFormFieldsFromSchema(prop as Record<string, unknown>, fullName)
+                children = buildFormFieldsFromSchema(
+                    prop as Record<string, unknown>,
+                    fullName,
+                    opts,
+                )
             } else {
                 // Object without properties schema → free-form JSON editor
                 freeform = true
@@ -69,7 +84,7 @@ export function buildFormFieldsFromSchema(
 
             if (items.type === "object" && items.properties) {
                 // Array of objects with known properties → structured form list
-                itemChildren = buildFormFieldsFromSchema(items)
+                itemChildren = buildFormFieldsFromSchema(items, "", opts)
             } else if (items.type === "object" && !items.properties) {
                 // Array of free-form objects
                 freeform = true
@@ -83,6 +98,15 @@ export function buildFormFieldsFromSchema(
             freeform = true
         }
 
+        // Opt-in only: known formats on plain string fields; enum wins over format.
+        const format =
+            opts?.formats &&
+            fieldType === "string" &&
+            typeof prop.format === "string" &&
+            KNOWN_STRING_FORMATS.has(prop.format)
+                ? (prop.format as string)
+                : undefined
+
         return {
             name: fullName,
             label: (prop.title as string) ?? name,
@@ -91,6 +115,7 @@ export function buildFormFieldsFromSchema(
             description: prop.description as string | undefined,
             default: prop.default,
             enumValues: prop.enum as string[] | undefined,
+            ...(format !== undefined ? {format} : {}),
             children,
             itemSchema,
             itemChildren,
