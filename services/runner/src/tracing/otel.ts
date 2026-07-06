@@ -664,11 +664,6 @@ function acpBlockText(block: any): string {
   return "";
 }
 
-/**
- * Whether a tool's `rawInput` holds real, inspectable args. Pi announces a call with an absent
- * or empty `{}` input and fills the args in on a later `tool_call_update`; both placeholders
- * count as "no args yet" so we know to refresh the tool_call once the real args land.
- */
 /** Serialized form of real tool args, for change detection; undefined when absent/`{}`. */
 function toolInputJson(input: unknown): string | undefined {
   if (!hasToolArgs(input)) return undefined;
@@ -679,6 +674,12 @@ function toolInputJson(input: unknown): string | undefined {
   }
 }
 
+/**
+ * Whether a tool's `rawInput` holds real, inspectable args. A harness can announce a call with
+ * an absent or empty `{}` input and fill the args in on a later `tool_call_update` (Pi does);
+ * both placeholders count as "no args yet" so we know to refresh the tool_call once the real
+ * args land. Purely shape-based — no harness-specific logic.
+ */
 function hasToolArgs(input: unknown): boolean {
   if (input == null) return false;
   if (
@@ -1157,8 +1158,9 @@ export function createSandboxAgentOtel(
 
     if (kind === "tool_call_update") {
       // The real args often land here, not on the initial `tool_call` — and they can land
-      // INCREMENTALLY: Pi streams a growing partial parse of the args (`{}` -> `{x:[""]}` ->
-      // the full args), and the announcement itself may already carry an early partial delta.
+      // INCREMENTALLY: a harness may stream a growing partial parse of the args (Pi does:
+      // `{}` -> `{x:[""]}` -> the full args), and the announcement itself may already carry
+      // an early partial delta.
       // Refresh the recorded input whenever the update carries genuinely NEW args (serialized
       // compare against the last-recorded input), so the final recorded tool_call always has
       // the args the executor actually ran with — a refresh-once / had-args-at-announce gate
