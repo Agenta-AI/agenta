@@ -204,7 +204,12 @@ export function useModelHarness({
     // `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
     // flash a false "Connect key" warning on the section, rail item, and config-panel row.
     const vaultLoaded = Array.isArray(vaultQuery.data)
-    const providerNeedsKey = vaultLoaded && !!providerVaultEntry && !providerVaultEntry.key
+    // Self-managed agents never need a vault key — the harness signs itself in.
+    const providerNeedsKey =
+        connection.mode !== "self_managed" &&
+        vaultLoaded &&
+        !!providerVaultEntry &&
+        !providerVaultEntry.key
 
     // Model section sub-tabs (rail): pick the model vs connect its provider key. Lands on "key" when a
     // key is missing so the "Set up credentials" banner opens straight onto it; only re-forces on the
