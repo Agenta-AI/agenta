@@ -62,6 +62,7 @@ export {
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformSecret,
+    CUSTOM_PROVIDER_KIND_FAMILIES,
     PROVIDER_AUTH_REQUIREMENTS,
     PROVIDER_FIELDS,
 } from "./core"

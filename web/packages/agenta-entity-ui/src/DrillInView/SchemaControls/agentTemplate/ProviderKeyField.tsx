@@ -36,20 +36,22 @@ const ProviderKeyField = ({provider, disabled}: {provider: LlmProvider; disabled
     const hasKey = !!provider.key
 
     return (
-        <div className="flex flex-col gap-2 py-0.5">
-            <Typography.Text className="!text-[14.5px] !font-semibold">
-                {provider.title}
-            </Typography.Text>
-            <Typography.Text type="secondary" className="!text-xs !leading-snug">
-                Standard provider · add your key and we auto-list its models.
-            </Typography.Text>
-            {hasKey ? (
-                <Typography.Text className="!inline-flex !items-center !gap-1 !text-[11px] !text-[var(--ag-colorSuccess)]">
-                    <CheckCircle size={13} weight="fill" />
-                    Key configured · enter a new value to replace it.
+        <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-0.5">
+                <Typography.Text className="!text-[14.5px] !font-semibold">
+                    {provider.title}
                 </Typography.Text>
-            ) : null}
-            <div className="flex flex-col gap-1">
+                <Typography.Text type="secondary" className="!text-xs !leading-snug">
+                    Standard provider · add your key and we auto-list its models.
+                </Typography.Text>
+                {hasKey ? (
+                    <Typography.Text className="!mt-1 !inline-flex !items-center !gap-1 !text-[11px] !text-[var(--ag-colorSuccess)]">
+                        <CheckCircle size={13} weight="fill" />
+                        Key configured · enter a new value to replace it.
+                    </Typography.Text>
+                ) : null}
+            </div>
+            <div className="flex flex-col gap-1.5">
                 <Typography.Text className="!text-xs !font-medium">
                     API key <span className="text-[var(--ag-colorError)]">*</span>
                 </Typography.Text>
@@ -72,10 +74,10 @@ const ProviderKeyField = ({provider, disabled}: {provider: LlmProvider; disabled
                         {hasKey ? "Replace" : "Save"}
                     </Button>
                 </div>
+                <Typography.Text type="secondary" className="!text-[11px]">
+                    This secret is encrypted in transit and at rest.
+                </Typography.Text>
             </div>
-            <Typography.Text type="secondary" className="!text-[11px]">
-                This secret is encrypted in transit and at rest.
-            </Typography.Text>
         </div>
     )
 }

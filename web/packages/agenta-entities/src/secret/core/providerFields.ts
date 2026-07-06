@@ -27,6 +27,15 @@ export interface ProviderFieldConfig {
     attributes?: ProviderFieldAttributes
 }
 
+/** Model families each custom-provider kind can host ("*" = any) — pragmatic map, pending owner confirmation. */
+export const CUSTOM_PROVIDER_KIND_FAMILIES: Record<string, readonly string[] | "*"> = {
+    azure: ["openai"],
+    bedrock: ["anthropic", "meta", "amazon", "mistral"],
+    vertex_ai: ["google", "gemini", "anthropic"],
+    sagemaker: "*",
+    custom: "*",
+}
+
 export const PROVIDER_FIELDS: ProviderFieldConfig[] = [
     {
         key: "name",

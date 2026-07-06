@@ -2,7 +2,7 @@
  * useModelHarness — the Model & harness + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     customSecretsAtom,
@@ -275,6 +275,32 @@ export function useModelHarness({
         },
         [setAgentField, modelId, connection, llm, capabilities, harnessValue],
     )
+
+    // Adopt a custom provider created FROM this pane: after the user opens the Configure-provider
+    // drawer via an "Add provider" rail row, the first NEW vault connection that appears becomes the
+    // selection — its first model + its connection slug — so the pane reflects what was just added.
+    // Armed per click so a provider created elsewhere (e.g. Settings → Secrets) never steals the model.
+    const knownCustomSecretKeysRef = useRef<Set<string> | null>(null)
+    const adoptNextCustomProviderRef = useRef(false)
+    useEffect(() => {
+        const keys = new Set(customSecrets.map((secret) => secret.id ?? secret.name ?? ""))
+        const known = knownCustomSecretKeysRef.current
+        knownCustomSecretKeysRef.current = keys
+        if (!known || !adoptNextCustomProviderRef.current) return
+        const added = customSecrets.find((secret) => !known.has(secret.id ?? secret.name ?? ""))
+        if (!added) return
+        adoptNextCustomProviderRef.current = false
+        const firstModel = (added.models ?? []).find(Boolean)
+        if (firstModel && added.name) writeModel({modelId: firstModel, slug: added.name})
+    }, [customSecrets, writeModel])
+    const openConfigureProviderAdopting = useMemo(() => {
+        const open = llmProviderConfig?.openConfigureProvider
+        if (!open) return undefined
+        return (kind: string) => {
+            adoptNextCustomProviderRef.current = true
+            open(kind)
+        }
+    }, [llmProviderConfig?.openConfigureProvider])
 
     // Model is deliberately NOT cleared on a harness switch that can't reach it: the compatibility
     // panel flags it instead, so the user's choice survives (Arda's call; may error at run time).
@@ -578,11 +604,12 @@ export function useModelHarness({
                     mode={connection.mode}
                     onModeChange={(m) => writeModel({mode: m})}
                     selectedProviderFamily={selectedProviderFamily}
+                    selectedConnectionSlug={connection.slug ?? null}
                     modeOptions={modeOptions}
                     isCloud={isCloud}
                     selfHostingGuideUrl={deployment?.selfHostingGuideUrl}
                     providerNeedsKey={providerNeedsKey}
-                    openConfigureProvider={llmProviderConfig?.openConfigureProvider}
+                    openConfigureProvider={openConfigureProviderAdopting}
                     disabled={disabled}
                 />
             ) : null}
@@ -606,11 +633,12 @@ export function useModelHarness({
                     mode={connection.mode}
                     onModeChange={(m) => writeModel({mode: m})}
                     selectedProviderFamily={selectedProviderFamily}
+                    selectedConnectionSlug={connection.slug ?? null}
                     modeOptions={modeOptions}
                     isCloud={isCloud}
                     selfHostingGuideUrl={deployment?.selfHostingGuideUrl}
                     providerNeedsKey={providerNeedsKey}
-                    openConfigureProvider={llmProviderConfig?.openConfigureProvider}
+                    openConfigureProvider={openConfigureProviderAdopting}
                     disabled={disabled}
                 />
             ) : null}

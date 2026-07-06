@@ -1,14 +1,20 @@
 /**
  * ProviderCredentialsSection
  *
- * The "Provider credentials" pane: a segmented "Use API key" / "Use subscription" toggle over
- * either (a) a provider rail + key form, or (b) a self-managed info card. Vault reads/writes
+ * The "Provider credentials" pane, rendered as a `ConfigAccordionSection` so it reads as a peer of
+ * the Harness and Model sections: a segmented "Use API key" / "Use subscription" toggle (header
+ * right) over either (a) a provider rail + key form, or (b) a self-managed info card. Vault
+ * reads/writes
  * (standard keys) happen directly against the secret entity's atoms/hooks — only the agent draft's
  * mode flows through props, because key saves are immediate and independent of the drawer draft
  * (locked decision; design.md §3.1). Connections are always the project default: there is no named-
  * connection picker here (owner call, post-design-doc) — a picked model can still auto-fill a vault
  * connection's slug (the model picker threads a vault option's `connectionSlug` metadata into
  * `useModelHarness.writeModel`), just not through a Select.
+ *
+ * The rail is filtered to the selected model: its own standard provider, the configured vault
+ * custom providers whose kind can host that family (`CUSTOM_PROVIDER_KIND_FAMILIES`), and "Add …"
+ * rows for the remaining kinds that could. No model family = no filter (all rows show).
  *
  * Adding a new custom provider (Azure/Bedrock/Vertex AI/OpenAI-compatible) opens the host's
  * "Configure provider" drawer via `openConfigureProvider` (from `DrillInUIContext.llmProviderConfig`)
@@ -19,6 +25,7 @@
 import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
+    CUSTOM_PROVIDER_KIND_FAMILIES,
     customSecretsAtom,
     CustomProviderKind,
     PROVIDER_LABELS,
@@ -26,9 +33,10 @@ import {
 } from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Plus, Terminal} from "@phosphor-icons/react"
+import {Key, Plus, Terminal} from "@phosphor-icons/react"
 import {Segmented, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -43,8 +51,11 @@ export interface ProviderCredentialsSectionProps {
     mode: ConnectionMode
     onModeChange: (mode: ConnectionMode) => void
 
-    // routing/context — what the current model selection points at; auto-highlights the rail
+    // routing/context — what the current model selection points at; filters + auto-highlights the rail
     selectedProviderFamily: string | null
+    /** The model's named vault connection (config.llm.connection.slug), when it has one — that
+     * connection's rail row wins the auto-highlight over the standard-provider match. */
+    selectedConnectionSlug?: string | null
 
     // policy — what the environment allows
     modeOptions: ConnectionMode[]
@@ -70,16 +81,44 @@ const CUSTOM_PREFIX = "custom:"
 /** The four provider kinds the "Configure provider" drawer supports beyond the standard catalog
  * (verified against `PROVIDER_FIELDS`/`CustomProviderForm`'s `customProviders` list). */
 const CUSTOM_PROVIDER_ROWS: {kind: string; label: string}[] = [
-    {kind: CustomProviderKind.Azure, label: "Add Azure OpenAI"},
-    {kind: CustomProviderKind.Bedrock, label: "Add Bedrock"},
-    {kind: CustomProviderKind.VertexAi, label: "Add Vertex AI"},
-    {kind: CustomProviderKind.Custom, label: "Add OpenAI-compatible"},
+    {kind: CustomProviderKind.Azure, label: "Azure OpenAI"},
+    {kind: CustomProviderKind.Bedrock, label: "AWS Bedrock"},
+    {kind: CustomProviderKind.VertexAi, label: "Vertex AI"},
+    {kind: CustomProviderKind.Custom, label: "Custom provider"},
 ]
+
+/** Family spellings that must compare equal across catalog names, vault env names, and titles. */
+const FAMILY_ALIASES: Record<string, string[]> = {
+    google: ["gemini", "googlegemini"],
+    gemini: ["google", "googlegemini"],
+    googlegemini: ["google", "gemini"],
+    mistral: ["mistralai"],
+    mistralai: ["mistral"],
+}
+
+function familyCandidates(family: string): Set<string> {
+    return new Set([family, ...(FAMILY_ALIASES[family] ?? [])])
+}
 
 /** Same family match `useModelHarness`'s `providerVaultEntry` uses: env-var name minus the
  * `_API_KEY` suffix, or the title, case-insensitively. */
 function standardSecretFamily(secret: LlmProvider): string {
     return normalizeProviderFamily((secret.name ?? "").replace(/_api_key$/i, ""))
+}
+
+function standardSecretMatches(secret: LlmProvider, candidates: Set<string>): boolean {
+    return (
+        candidates.has(standardSecretFamily(secret)) ||
+        candidates.has(normalizeProviderFamily(secret.title))
+    )
+}
+
+/** Whether a custom-provider KIND (azure/bedrock/…) can host the selected model family. */
+function kindServesFamily(kind: string | null | undefined, candidates: Set<string>): boolean {
+    const families = CUSTOM_PROVIDER_KIND_FAMILIES[(kind ?? "").toLowerCase()]
+    if (families === "*") return true
+    if (!families) return false
+    return families.some((family) => candidates.has(normalizeProviderFamily(family)))
 }
 
 /** Icon renderer helper (not a component): keeps the icon lookup out of render so
@@ -92,26 +131,29 @@ function renderProviderIcon(family: string): ReactNode {
 function ProviderTile({family, label}: {family: string; label: string}) {
     const icon = renderProviderIcon(family)
     return (
-        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] bg-[var(--ag-colorFillTertiary)] text-[10px] font-semibold text-[var(--ag-colorTextSecondary)]">
+        // Fixed-light logo tile: brand glyphs are dark-filled and would vanish on dark fills.
+        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-white text-[10px] font-semibold text-[#586673]">
             {icon ?? (label.charAt(0).toUpperCase() || "?")}
         </span>
     )
 }
 
+/** One rail row shape for every entry (providers AND the add rows): fixed h-9, 22px logo tile,
+ * one flex pattern — unselected transparent, hover subtle fill, selected filled + semibold. */
 function RailRow({
     active,
     disabled,
     onClick,
     tile,
     label,
-    hasKey,
+    trailing,
 }: {
-    active: boolean
+    active?: boolean
     disabled?: boolean
     onClick: () => void
     tile: ReactNode
     label: string
-    hasKey?: boolean
+    trailing?: ReactNode
 }) {
     return (
         <button
@@ -119,7 +161,7 @@ function RailRow({
             disabled={disabled}
             onClick={onClick}
             className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13.5px] transition-colors",
+                "flex h-9 w-full shrink-0 cursor-pointer items-center gap-2.5 rounded-[7px] border-0 bg-transparent px-2.5 text-left text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                 active
                     ? "bg-[var(--ag-colorFillSecondary)] font-semibold text-[var(--ag-colorText)]"
                     : "text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)] hover:text-[var(--ag-colorText)]",
@@ -127,9 +169,7 @@ function RailRow({
         >
             {tile}
             <span className="min-w-0 flex-1 truncate">{label}</span>
-            {hasKey ? (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
-            ) : null}
+            {trailing}
         </button>
     )
 }
@@ -138,6 +178,7 @@ export function ProviderCredentialsSection({
     mode,
     onModeChange,
     selectedProviderFamily,
+    selectedConnectionSlug,
     modeOptions,
     isCloud,
     selfHostingGuideUrl,
@@ -148,29 +189,70 @@ export function ProviderCredentialsSection({
     const standardSecrets = useAtomValue(standardSecretsAtom)
     const customSecrets = useAtomValue(customSecretsAtom)
 
-    // The rail row matching the agent's current provider (auto-highlight); recomputed whenever the
-    // model pick changes the family. Falls back to the first standard provider so the pane always
-    // shows a key form.
+    // The model's own named vault connection, when it has one. It always gets a rail row and wins
+    // the auto-highlight — a vault model id often encodes no catalog family, so without this the
+    // rail would fall back to an unrelated standard provider.
+    const slugSecret = useMemo(
+        () =>
+            selectedConnectionSlug
+                ? (customSecrets.find((secret) => secret.name === selectedConnectionSlug) ?? null)
+                : null,
+        [customSecrets, selectedConnectionSlug],
+    )
+
+    // Filter the rail to the selected model's family (owner rule: only the providers that can
+    // serve the picked model). No family: a named vault connection narrows the rail to itself;
+    // otherwise there is nothing to filter by and everything shows.
+    const family = normalizeProviderFamily(selectedProviderFamily)
+    const candidates = useMemo(() => (family ? familyCandidates(family) : null), [family])
+    const visibleStandardSecrets = useMemo(() => {
+        if (candidates)
+            return standardSecrets.filter((secret) => standardSecretMatches(secret, candidates))
+        return slugSecret ? [] : standardSecrets
+    }, [standardSecrets, candidates, slugSecret])
+    const visibleCustomSecrets = useMemo(() => {
+        const base = candidates
+            ? customSecrets.filter((secret) => kindServesFamily(secret.provider, candidates))
+            : slugSecret
+              ? [slugSecret]
+              : customSecrets
+        return slugSecret && !base.some((secret) => secret.name === slugSecret.name)
+            ? [slugSecret, ...base]
+            : base
+    }, [customSecrets, candidates, slugSecret])
+    const visibleAddRows = useMemo(
+        () =>
+            candidates
+                ? CUSTOM_PROVIDER_ROWS.filter((row) => kindServesFamily(row.kind, candidates))
+                : CUSTOM_PROVIDER_ROWS,
+        [candidates],
+    )
+
+    // The rail row matching the agent's current provider (auto-highlight): its named vault
+    // connection first, else the first visible row — the filter already reduced the standard list
+    // to the selected family's entry when there is one.
     const autoKey = useMemo(() => {
-        const family = normalizeProviderFamily(selectedProviderFamily)
-        const match = family
-            ? standardSecrets.find(
-                  (s) =>
-                      standardSecretFamily(s) === family ||
-                      normalizeProviderFamily(s.title) === family,
-              )
-            : undefined
-        const fallback = match ?? standardSecrets[0]
-        return fallback ? `${STANDARD_PREFIX}${fallback.name}` : ""
-    }, [standardSecrets, selectedProviderFamily])
+        if (slugSecret?.name) return `${CUSTOM_PREFIX}${slugSecret.name}`
+        const standard = visibleStandardSecrets[0]
+        if (standard) return `${STANDARD_PREFIX}${standard.name}`
+        const custom = visibleCustomSecrets[0]
+        return custom ? `${CUSTOM_PREFIX}${custom.name}` : ""
+    }, [slugSecret, visibleStandardSecrets, visibleCustomSecrets])
 
     // `null` = follow `autoKey`; set once the user browses another provider so browsing doesn't
     // change the agent's model (design.md §3.2).
     const [manualKey, setManualKey] = useState<string | null>(null)
     useEffect(() => {
         setManualKey(null)
-    }, [selectedProviderFamily])
-    const activeKey = manualKey ?? autoKey
+    }, [selectedProviderFamily, selectedConnectionSlug])
+    // A manual pick that the filter no longer shows falls back to the auto row.
+    const visibleKeys = useMemo(() => {
+        const keys = new Set<string>()
+        for (const secret of visibleStandardSecrets) keys.add(`${STANDARD_PREFIX}${secret.name}`)
+        for (const secret of visibleCustomSecrets) keys.add(`${CUSTOM_PREFIX}${secret.name}`)
+        return keys
+    }, [visibleStandardSecrets, visibleCustomSecrets])
+    const activeKey = manualKey && visibleKeys.has(manualKey) ? manualKey : autoKey
 
     const selectedStandardSecret = activeKey.startsWith(STANDARD_PREFIX)
         ? (standardSecrets.find((s) => s.name === activeKey.slice(STANDARD_PREFIX.length)) ?? null)
@@ -200,28 +282,33 @@ export function ProviderCredentialsSection({
     const guideUrl = selfHostingGuideUrl || DEFAULT_SELF_HOSTING_GUIDE_URL
 
     return (
-        <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                    <Typography.Text className="!text-xs !font-medium !uppercase !tracking-wide !text-[var(--ag-colorTextTertiary)]">
-                        Provider credentials
-                    </Typography.Text>
-                    {providerNeedsKey ? (
-                        <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ag-colorWarningText)]">
-                            Connect key
-                        </span>
-                    ) : null}
-                </div>
-                {showToggle ? (
+        <ConfigAccordionSection
+            size="compact"
+            icon={<Key size={15} />}
+            title="Provider credentials"
+            status={providerNeedsKey ? "warning" : "complete"}
+            titleBadge={
+                providerNeedsKey ? (
+                    <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ag-colorWarningText)]">
+                        Connect key
+                    </span>
+                ) : null
+            }
+            summary={mode === "self_managed" ? "Subscription" : "API key"}
+            summaryCollapsedOnly
+            noDivider
+            extra={
+                showToggle ? (
                     <Segmented
+                        size="small"
                         value={mode}
                         disabled={disabled}
                         onChange={(value) => onModeChange(value as ConnectionMode)}
                         options={toggleOptions}
                     />
-                ) : null}
-            </div>
-
+                ) : undefined
+            }
+        >
             {mode === "self_managed" ? (
                 <div className="flex flex-col items-start gap-3 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] p-4">
                     <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)]">
@@ -258,7 +345,7 @@ export function ProviderCredentialsSection({
             ) : (
                 <div className="flex min-h-[236px] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
                     <div className="flex w-[190px] shrink-0 flex-col gap-0.5 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-2">
-                        {standardSecrets.map((secret) => (
+                        {visibleStandardSecrets.map((secret) => (
                             <RailRow
                                 key={secret.name}
                                 active={activeKey === `${STANDARD_PREFIX}${secret.name}`}
@@ -271,10 +358,14 @@ export function ProviderCredentialsSection({
                                     />
                                 }
                                 label={secret.title ?? secret.name ?? "Provider"}
-                                hasKey={!!secret.key}
+                                trailing={
+                                    secret.key ? (
+                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                    ) : undefined
+                                }
                             />
                         ))}
-                        {customSecrets.map((secret) => (
+                        {visibleCustomSecrets.map((secret) => (
                             <RailRow
                                 key={secret.id ?? secret.name}
                                 active={activeKey === `${CUSTOM_PREFIX}${secret.name}`}
@@ -287,68 +378,76 @@ export function ProviderCredentialsSection({
                                     />
                                 }
                                 label={secret.name ?? "Custom provider"}
-                                hasKey
+                                trailing={
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                                }
                             />
                         ))}
-                        {openConfigureProvider ? (
-                            <div className="mt-1 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1">
-                                {CUSTOM_PROVIDER_ROWS.map((row) => (
-                                    <button
+                        {openConfigureProvider && visibleAddRows.length ? (
+                            <div className="mt-1.5 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1.5">
+                                <span className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                    Add provider
+                                </span>
+                                {visibleAddRows.map((row) => (
+                                    <RailRow
                                         key={row.kind}
-                                        type="button"
                                         disabled={disabled}
                                         onClick={() => openConfigureProvider(row.kind)}
-                                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13.5px] font-medium text-[var(--ag-colorText)] transition-colors hover:bg-[var(--ag-colorFillTertiary)]"
-                                    >
-                                        <Plus size={14} />
-                                        {row.label}
-                                    </button>
+                                        tile={<ProviderTile family={row.kind} label={row.label} />}
+                                        label={row.label}
+                                        trailing={
+                                            <Plus
+                                                size={12}
+                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
+                                            />
+                                        }
+                                    />
                                 ))}
                             </div>
                         ) : null}
                     </div>
 
-                    <div className="flex min-w-0 flex-1 flex-col gap-3 p-3">
+                    <div className="flex min-w-0 flex-1 flex-col p-4">
                         {selectedStandardSecret ? (
                             <ProviderKeyField
                                 provider={selectedStandardSecret}
                                 disabled={disabled}
                             />
                         ) : selectedCustomProvider ? (
-                            <div className="flex flex-col gap-2">
-                                <Typography.Text className="!text-[14.5px] !font-semibold">
-                                    {selectedCustomProvider.name}
-                                </Typography.Text>
-                                <Typography.Text
-                                    type="secondary"
-                                    className="!text-xs !leading-snug"
-                                >
-                                    {PROVIDER_LABELS[selectedCustomProvider.provider ?? ""] ??
-                                        selectedCustomProvider.provider}
-                                    {" — manage this connection from Settings → Secrets."}
-                                </Typography.Text>
+                            <div className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-0.5">
+                                    <Typography.Text className="!text-[14.5px] !font-semibold">
+                                        {selectedCustomProvider.name}
+                                    </Typography.Text>
+                                    <Typography.Text
+                                        type="secondary"
+                                        className="!text-xs !leading-snug"
+                                    >
+                                        {PROVIDER_LABELS[selectedCustomProvider.provider ?? ""] ??
+                                            selectedCustomProvider.provider}
+                                        {" · manage this connection in Settings → Secrets."}
+                                    </Typography.Text>
+                                </div>
                                 {selectedCustomProvider.models?.length ? (
-                                    <div className="flex flex-wrap gap-1">
-                                        {selectedCustomProvider.models.map((m) => (
-                                            <span
-                                                key={m}
-                                                className="rounded-full bg-[var(--ag-colorFillTertiary)] px-2 py-0.5 text-[11px] text-[var(--ag-colorTextSecondary)]"
-                                            >
-                                                {m}
-                                            </span>
-                                        ))}
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                            Models
+                                        </span>
+                                        <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
+                                            {selectedCustomProvider.models.join(" · ")}
+                                        </span>
                                     </div>
                                 ) : null}
                             </div>
                         ) : (
                             <Typography.Text type="secondary" className="!text-xs !leading-snug">
-                                No provider selected.
+                                No provider configured for this model yet — add one from the list.
                             </Typography.Text>
                         )}
                     </div>
                 </div>
             )}
-        </div>
+        </ConfigAccordionSection>
     )
 }
 
