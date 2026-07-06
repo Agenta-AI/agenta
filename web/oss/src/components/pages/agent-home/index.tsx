@@ -37,8 +37,14 @@ const AgentHome: React.FC = () => {
     )
     const {firstRunOverride} = useAgentHomeVariants()
     const router = useRouter()
-    const {baseAppURL} = useAtomValue(urlAtom)
+    const {baseAppURL, projectURL} = useAtomValue(urlAtom)
     const createAgent = useCreateAgent()
+
+    // "Bring an existing app" → the observability page (send traces from existing code). "Explore a
+    // demo project" has no wired destination yet, so it's left off and OnRamps hides that card.
+    const onBringApp = useCallback(() => {
+        if (projectURL) router.push(`${projectURL}/observability`)
+    }, [projectURL, router])
 
     // Warm the app-templates cache so the ephemeral-create factory resolves the agent template.
     useAtomValue(appTemplatesQueryAtom)
@@ -125,7 +131,7 @@ const AgentHome: React.FC = () => {
                             onSelectTemplate={handleSelectTemplate}
                             onBrowseAll={handleBrowseAll}
                         />
-                        <OnRamps />
+                        <OnRamps onBringApp={onBringApp} />
                     </>
                 ) : (
                     <>
