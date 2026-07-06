@@ -1,7 +1,7 @@
 ---
 id: fix-fold-tool-args
 title: 'Fix: batch transcript records partial streamed tool-call args instead of final'
-status: in-review
+status: done
 owner: fable
 pr: https://github.com/Agenta-AI/agenta/pull/5072
 design_doc: ''
@@ -9,8 +9,9 @@ blocked_on: ''
 needs_reply: false
 hidden: false
 created: '2026-07-05T14:23:15Z'
-updated: '2026-07-05T16:08:11Z'
+updated: '2026-07-06T13:10:35Z'
 ---
+
 
 
 
@@ -33,3 +34,7 @@ Done. Root cause was two-layered: the runner's tool_call_update input refresh fi
 **Agent** · Jul 5, 16:08
 
 PR up: two-layer fix (runner event refresh + SDK fold merge-by-id), failing-first tests, live verified.
+
+**Agent** · Jul 6, 13:10
+
+MERGED (#5072, f0b0c13) after verifying Mahmoud's two conditions (harness-generic, live-tested).

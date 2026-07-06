@@ -2,13 +2,14 @@
 id: tools-cleanup
 code: CLE-1
 title: Clean up + standardize builder tools (inside Agenta vs build-agent skill)
-status: waiting
+status: resolved
 needs_reply: false
 promoted_to: ''
 hidden: false
 created: '2026-07-03T13:53:52Z'
-updated: '2026-07-05T16:08:20Z'
+updated: '2026-07-06T13:10:40Z'
 ---
+
 
 
 
@@ -23,7 +24,7 @@ updated: '2026-07-05T16:08:20Z'
 
 ## Summary
 
-**Three PRs awaiting Mahmoud: [#5074](https://github.com/Agenta-AI/agenta/pull/5074) (test_run 5b, arms the op end to end), [#5072](https://github.com/Agenta-AI/agenta/pull/5072) (transcript arg fidelity), [#5073](https://github.com/Agenta-AI/agenta/pull/5073) (handler registration / persist 401s).** All live-verified on the dev stack; 5b passed the full self-test loop including the real approval-resume path and both timeout proofs. Env follow-ups parked: sidecar startup lacks the extension build step (recipe note rides #5073), dev DB session-table schema drift needs a migration recreate.
+**Arc complete. Merged: #5060, #5068 (build-kit cleanup), #5074 (test_run end to end), #5072 (transcript args). Superseded: #5073 code (by JP's #5081); its remainder is a docs-only recipe PR awaiting a yes/no. Local tracing restored** (dead pre-#5061 workers + DB drift fixed, stack recreated, workers ingesting).
 
 ## Messages
 
@@ -62,3 +63,7 @@ Merged. Remaining follow-ups live in scratch/open-issues.md: slice 5b (runner ca
 **Agent** · Jul 5, 16:08
 
 All three PRs are up with review guides and CodeRabbit triggered. 5b was adversarially reviewed (injection confinement and the recursion loop traced in code) before the live matrix.
+
+**Agent** · Jul 6, 13:10
+
+Everything from the session is merged or awaiting one small yes/no (#5073 docs-only). Local stack is healthy: consolidated workers live, tracing verified end to end, sub-sidecar reconnected.

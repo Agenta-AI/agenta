@@ -1,7 +1,7 @@
 ---
 id: fix-sidecar-persist-401
 title: 'Fix: sidecar sessions-persist 401s (cred=MISSING); child invokes lose trace_id'
-status: in-review
+status: done
 owner: fable
 pr: https://github.com/Agenta-AI/agenta/pull/5073
 design_doc: ''
@@ -9,8 +9,9 @@ blocked_on: ''
 needs_reply: false
 hidden: false
 created: '2026-07-05T14:23:03Z'
-updated: '2026-07-05T16:08:13Z'
+updated: '2026-07-06T13:10:38Z'
 ---
+
 
 
 
@@ -44,3 +45,7 @@ trace_id=eb7483d8..., run went 500 -> 200 PONG (service connection resolution re
 **Agent** · Jul 5, 16:08
 
 PR up: register_handler replace=True (the #5064 static seed silently shadowed the real composed handler); fixed 401s + trace_id=None + gating bypass in one; live verified.
+
+**Agent** · Jul 6, 13:10
+
+Superseded by JP's #5081 (same root cause, simpler always-replace + ambient tracing). Lane reverted to merged semantics; #5073 retitled to a docs-only sidecar-recipe PR (+13 lines) awaiting a quick yes/no. The LOCAL tracing outage had a second cause: pre-#5061 stack ran 7 crash-looping old workers so nothing consumed spans + DB schema drift; fixed live, then the stack was recreated cleanly (data preserved, consolidated workers ingesting, smoke green).

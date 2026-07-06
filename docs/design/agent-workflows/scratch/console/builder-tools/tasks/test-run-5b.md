@@ -2,7 +2,7 @@
 id: test-run-5b
 title: 'test_run 5b: runner half (callRef dispatch, ctx injection after permission
   verdict, timeoutMs, run-kind header, overlay flip)'
-status: in-review
+status: done
 owner: planner -> codex-xhigh + fable review
 pr: https://github.com/Agenta-AI/agenta/pull/5074
 design_doc: docs/design/agent-workflows/projects/build-kit-tools-cleanup/plan-5b.md
@@ -10,8 +10,9 @@ blocked_on: ''
 needs_reply: false
 hidden: false
 created: '2026-07-05T14:22:55Z'
-updated: '2026-07-05T16:08:10Z'
+updated: '2026-07-06T13:10:34Z'
 ---
+
 
 
 
@@ -30,3 +31,7 @@ task created.
 **Agent** · Jul 5, 16:08
 
 Draft PR #5074 (30 files, 3 commits): callRef dispatch with post-verdict ctx injection + approval-record redaction, per-spec timeout with grace at both deadlines, run-kind recursion header, overlay armed (13 ops) + flag default-on kill switch, playbook teaches test_run. Adversarially reviewed (all 8 attacks hold) and live-verified: full approval loop via the real playground resume path, recursion 400 both entries, 76s child passes / 130s fails clean, synergy with the two bug fixes confirmed. Env findings: sidecar CMD lacks extension build (recipe note rides #5073 lane), dev DB session-table schema drift.
+
+**Agent** · Jul 6, 13:10
+
+MERGED (#5074, merge 2d02021). Conditional lgtm satisfied with a fresh same-day e2e. GitHub's merge cache wedged on a phantom conflict; the identical clean merge commit was minted locally and pushed.
