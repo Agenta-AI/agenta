@@ -303,10 +303,60 @@ describe("extractApprovalDecisions", () => {
     };
 
     const decisions = extractApprovalDecisions(request);
-    assert.equal(decisions.get(approvedCallKey("edit", { path: "a.txt" })!), "allow");
-    assert.equal(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), "deny");
+    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a.txt" })!), ["allow"]);
+    assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), ["deny"]);
     assert.equal(decisions.has("edit"), false);
     assert.equal(decisions.has("tc-1"), false);
+  });
+
+  it("keeps duplicate identical approval decisions in FIFO order", () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-duplicates",
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tc-1",
+              toolName: "edit",
+              input: { path: "a.txt" },
+            },
+            {
+              type: "tool_call",
+              toolCallId: "tc-2",
+              toolName: "edit",
+              input: { path: "a.txt" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-1",
+              output: { approved: true },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "tc-2",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+    const key = approvedCallKey("edit", { path: "a.txt" })!;
+    const decisions = extractApprovalDecisions(request);
+
+    assert.deepEqual(decisions.get(key), ["allow", "allow"]);
+
+    const stored = new ConversationDecisions(decisions);
+    const duplicateGate = gate({ toolName: "edit", args: { path: "a.txt" } });
+    assert.equal(stored.take(duplicateGate), "allow");
+    assert.equal(stored.take(duplicateGate), "allow");
+    assert.equal(stored.take(duplicateGate), undefined);
   });
 
   it("routes a correlated client-tool output to the CLIENT store, not the approval store", () => {
@@ -420,7 +470,7 @@ describe("client-tool output store (separate from approvals)", () => {
     assert.equal(outputs.has(approvedCallKey("edit", { path: "a" })!), false);
     // ...and lives only in the approval store.
     const decisions = extractApprovalDecisions(request);
-    assert.equal(decisions.get(approvedCallKey("edit", { path: "a" })!), "allow");
+    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), ["allow"]);
   });
 
   it("resolves two identical client calls from the FIFO store, in order", async () => {

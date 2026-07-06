@@ -11,7 +11,10 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
+import {
+  createSandboxAgentOtel,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../../src/tracing/otel.ts";
 import type { AgentEvent } from "../../src/protocol.ts";
 
 const textChunk = (text: string) => ({
@@ -184,6 +187,50 @@ describe("createSandboxAgentOtel state machine", () => {
     assert.equal(ofType(emitted, "tool_result").length, 1, "tool_result present");
     const seq = types(emitted);
     assert.ok(seq.indexOf("tool_call") < seq.indexOf("tool_result"), "tool_call precedes its result");
+  });
+
+  it("settleOpenToolCalls excludes paused calls and is idempotent per open sibling", () => {
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/x",
+      emit: (e) => emitted.push(e),
+      emitSpans: false,
+    });
+    run.start({ prompt: "x" });
+    run.handleUpdate(toolCall("call_1", "needsApproval", { a: 1 }));
+    run.handleUpdate(toolCall("call_2", "sibling", { b: 2 }));
+
+    run.settleOpenToolCalls(
+      (id) => id === "call_1",
+      TOOL_NOT_EXECUTED_PAUSED,
+    );
+
+    let results = ofType(emitted, "tool_result");
+    assert.equal(
+      results.some((event) => event.id === "call_1"),
+      false,
+      "excluded call remains pending",
+    );
+    assert.deepEqual(
+      results
+        .filter((event) => event.id === "call_2")
+        .map((event) => ({ output: event.output, isError: event.isError })),
+      [{ output: TOOL_NOT_EXECUTED_PAUSED, isError: true }],
+    );
+
+    run.settleOpenToolCalls(() => false, "second sweep");
+    results = ofType(emitted, "tool_result");
+    assert.equal(
+      results.filter((event) => event.id === "call_2").length,
+      1,
+      "already-settled sibling is not recorded twice",
+    );
+    assert.equal(
+      results.filter((event) => event.id === "call_1").length,
+      1,
+      "previously excluded call can settle on a later sweep",
+    );
   });
 
   it("scenario 7: growing arg deltas keep refreshing until the FINAL args are recorded", () => {
