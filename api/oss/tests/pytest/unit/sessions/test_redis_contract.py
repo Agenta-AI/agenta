@@ -19,7 +19,7 @@ import pytest
 from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
     ATTACHED_TTL_SECONDS,
-    CONCURRENCY_CAP,
+    CONCURRENCY_LIMIT,
     DISPLACEMENT_REASON_STOLEN,
     HEARTBEAT_INTERVAL_SECONDS,
     HEARTBEAT_WRITE_THRESHOLD_SECONDS,
@@ -144,8 +144,8 @@ def test_release_if_owner_lua(fixture):
 # ---------------------------------------------------------------------------
 
 
-def test_concurrency_cap(fixture):
-    assert CONCURRENCY_CAP == fixture["concurrency_cap"]
+def test_concurrency_limit(fixture):
+    assert CONCURRENCY_LIMIT == fixture["concurrency_limit"]
 
 
 def test_session_id_max_len(fixture):

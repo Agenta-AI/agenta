@@ -30,7 +30,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamQueryFlags,
 )
 from oss.src.core.sessions.streams.types import (
-    ConcurrencyCapExceeded,
+    ConcurrencyLimitExceeded,
     SessionIdInvalid,
     SessionTurnInUse,
     SessionStreamAlreadyExists,
@@ -132,7 +132,7 @@ def _handle_session_exceptions():
                         "liveness": e.liveness,
                     },
                 ) from e
-            except ConcurrencyCapExceeded as e:
+            except ConcurrencyLimitExceeded as e:
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail=e.message,
@@ -234,7 +234,7 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        await self._service.check_concurrency_cap(project_id=project_id)
+        await self._service.check_runner_concurrency_limit(project_id=project_id)
 
         result = await self._service.command(
             project_id=project_id,
@@ -824,6 +824,23 @@ class InteractionsRouter:
 
         answer = body.answer or {}
 
+        # CAS must flip first: the downstream enqueue fires only for the responder that wins
+        # the row, so two concurrent responds enqueue exactly once, not both.
+        try:
+            interaction = await self.interactions_service.transition_interaction(
+                transition=SessionInteractionTransition(
+                    project_id=project_id,
+                    session_id=interaction.session_id,
+                    token=interaction.token,
+                    status=SessionInteractionStatus.responded,
+                ),
+            )
+        except InteractionNotFound:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Interaction is no longer pending",
+            )
+
         # Respond is enqueued onto the interactions worker (detached, off the API request
         # thread): worker-interactions re-authorizes the stored refs at fire time and hands
         # the run to the runner without awaiting completion. Fall back to the inline blocking
@@ -863,22 +880,6 @@ class InteractionsRouter:
                 user_id=user_id,
                 request=invoke_request,
             )
-
-        # Mark it answered via the interactions API plane (distinct from a messages-plane
-        # resolution). transition_interaction only flips a still-pending row; if a concurrent
-        # messages-plane resolution already moved it off pending, the transition raises
-        # InteractionNotFound and we keep the fetched interaction.
-        try:
-            interaction = await self.interactions_service.transition_interaction(
-                transition=SessionInteractionTransition(
-                    project_id=project_id,
-                    session_id=interaction.session_id,
-                    token=interaction.token,
-                    status=SessionInteractionStatus.responded,
-                ),
-            )
-        except InteractionNotFound:
-            pass
 
         return SessionInteractionResponse(count=1, interaction=interaction)
 

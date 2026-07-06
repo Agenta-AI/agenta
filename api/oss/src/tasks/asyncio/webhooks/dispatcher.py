@@ -10,9 +10,7 @@ its own consumer process later without changing its internal logic.
 
 import asyncio
 from typing import Any, Dict, List, Optional
-from uuid import UUID
-
-import uuid_utils.compat as uuid_compat
+from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.events.types import EventType
@@ -29,6 +27,14 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
+
+# Deterministic delivery_id: same (event_id, subscription_id) always derives the same id, so a
+# Redis-Streams redelivery re-mints an identical id instead of a fresh one (dedup backstop).
+_DELIVERY_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "webhooks.delivery")
+
+
+def _delivery_id(*, event_id: UUID, subscription_id: UUID) -> UUID:
+    return uuid5(_DELIVERY_NAMESPACE, f"{event_id}:{subscription_id}")
 
 
 class WebhooksDispatcher:
@@ -268,7 +274,10 @@ class WebhooksDispatcher:
                         continue
 
                     try:
-                        delivery_id = uuid_compat.uuid7()
+                        delivery_id = _delivery_id(
+                            event_id=event.event_id,
+                            subscription_id=sub.id,
+                        )
 
                         await asyncio.wait_for(
                             self.deliver_task.kiq(
@@ -315,6 +324,16 @@ class WebhooksDispatcher:
                         enqueue_failures += 1
 
         if enqueue_failures > 0:
-            raise RuntimeError(
-                f"Webhook dispatch had {enqueue_failures} enqueue failures"
+            # A per-delivery enqueue failure must not fail the whole
+            # batch — the caller acks the batch regardless, so already-enqueued deliveries
+            # are never redelivered. delivery_id is deterministic, so a dropped delivery
+            # is not lost: the next event-driven pass re-derives the same id and retries it.
+            log.warning(
+                f"[WEBHOOKS DISPATCHER] {enqueue_failures} deliveries failed to enqueue "
+                "(not retried inline; batch is still acked)"
+            )
+            log.tick(
+                "webhooks.enqueue_failures",
+                count=enqueue_failures,
+                dims={"queue": "webhooks"},
             )

@@ -20,9 +20,14 @@ import {
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
 
+const LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
+const previousLimit = process.env[LIMIT_ENV];
+
 afterEach(() => {
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
   else process.env[TOKEN_ENV] = previousToken;
+  if (previousLimit === undefined) delete process.env[LIMIT_ENV];
+  else process.env[LIMIT_ENV] = previousLimit;
 });
 
 async function listen(
@@ -224,6 +229,59 @@ describe("createAgentServer", () => {
         [],
         "terminal result does not echo events",
       );
+    } finally {
+      await s.close();
+    }
+  });
+});
+
+describe("createAgentServer: per-box concurrency admission gate", () => {
+  it("rejects with 429 once the configured cap is reached", async () => {
+    process.env[LIMIT_ENV] = "1";
+    let release: (() => void) | undefined;
+    const holdingRun: RunAgent = () =>
+      new Promise((resolve) => {
+        release = () => resolve({ ok: true, output: "done", events: [] });
+      });
+    const s = await listen(holdingRun);
+    try {
+      const first = fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      // Give the first request a chance to reserve its slot before the second fires.
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const second = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      assert.equal(second.status, 429);
+      const body = (await second.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /capacity/i);
+
+      release?.();
+      const firstRes = await first;
+      assert.equal(firstRes.status, 200);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("proceeds normally below the cap", async () => {
+    process.env[LIMIT_ENV] = "2";
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      assert.equal(res.status, 200);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("releases the slot after the run completes, so a later request proceeds", async () => {
+    process.env[LIMIT_ENV] = "1";
+    const s = await listen(okRun);
+    try {
+      const first = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      assert.equal(first.status, 200);
+      const second = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      assert.equal(second.status, 200);
     } finally {
       await s.close();
     }
