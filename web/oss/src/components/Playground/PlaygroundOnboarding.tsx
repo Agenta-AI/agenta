@@ -15,13 +15,16 @@ import {
     registerFirstEvaluationTour,
 } from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import {
+    ONBOARDING_TOURS_ENABLED,
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 
-registerExplorePlaygroundTour()
-registerDeployPromptTour()
-registerFirstEvaluationTour()
+if (ONBOARDING_TOURS_ENABLED) {
+    registerExplorePlaygroundTour()
+    registerDeployPromptTour()
+    registerFirstEvaluationTour()
+}
 
 export const PlaygroundOnboarding = () => {
     const activationHint = useAtomValue(onboardingWidgetActivationAtom)

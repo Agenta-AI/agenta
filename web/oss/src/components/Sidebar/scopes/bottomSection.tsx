@@ -27,6 +27,9 @@ interface SidebarBottomSectionOptions {
     includeSettingsLink?: boolean
 }
 
+// Hidden pending the new onboarding widget; flip back to true to restore the sidebar entry.
+const SHOW_GET_STARTED_GUIDE = false
+
 export const useSidebarBottomSection = ({
     includeSettingsLink = true,
 }: SidebarBottomSectionOptions = {}): SidebarSection => {
@@ -86,7 +89,7 @@ export const useSidebarBottomSection = ({
                     </span>
                 ),
                 tooltip: "Open the onboarding guide",
-                isHidden: !doesSessionExist,
+                isHidden: !SHOW_GET_STARTED_GUIDE || !doesSessionExist,
                 onClick: handleOpenWidget,
             },
             {
