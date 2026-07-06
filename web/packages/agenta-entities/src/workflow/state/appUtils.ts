@@ -71,6 +71,13 @@ export interface CreateEphemeralAppFromTemplateParams {
     defaultName?: string
     /** Optional abort signal — superseded by a newer click cancels the inflight call */
     signal?: AbortSignal
+    /**
+     * Return as soon as the entity is seeded from catalog schemas (its flags → workflow type resolve
+     * immediately, with no network wait), and refine the schemas via `inspectWorkflow` in the
+     * BACKGROUND instead of awaiting it. Lets an onboarding UI render at once instead of after the
+     * inspect round-trip. @default false — await inspect, seed once, return null if the signal aborts.
+     */
+    deferInspect?: boolean
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
@@ -119,6 +126,7 @@ export async function createEphemeralAppFromTemplate({
     type,
     defaultName,
     signal,
+    deferInspect = false,
 }: CreateEphemeralAppFromTemplateParams): Promise<string | null> {
     if (signal?.aborted) return null
 
@@ -166,8 +174,87 @@ export async function createEphemeralAppFromTemplate({
         parameters: (catalogSchemas?.parameters as Record<string, unknown> | undefined) ?? null,
     }
 
-    // Resolve schemas from inspect — best-effort. If it fails or aborts,
-    // fall back to catalog schemas above.
+    const rawParameters: Record<string, unknown> = {
+        ...((template.data?.parameters as Record<string, unknown> | undefined) ?? {}),
+    }
+    const parameters =
+        (syncPromptInputKeysInParameters(rawParameters) as Record<string, unknown> | undefined) ??
+        rawParameters
+
+    // Build the seedable workflow for a given schema set. Flags are synchronous (no network), so
+    // seeding early lets the workflow type resolve (`workflowType`) before inspect returns.
+    const buildWorkflow = (resolvedSchemas: typeof schemas): Workflow =>
+        ({
+            id: localId,
+            name: resolvedName,
+            slug: null,
+            version: null,
+            flags: {
+                is_managed: false,
+                is_custom: false,
+                // Handler-key flag; must be false for agents (key "agent"), else workflowType() types it "llm".
+                is_llm: type !== "agent",
+                is_hook: false,
+                is_code: false,
+                is_match: false,
+                is_feedback: false,
+                is_agent: type === "agent",
+                is_skill: false,
+                // Agent takes messages-in / returns a final message, so it runs in
+                // chat mode like `chat` (backend infers is_chat from messages-in too).
+                is_chat: type === "chat" || type === "agent",
+                has_url: false,
+                has_script: false,
+                has_handler: false,
+                is_static: false,
+                is_application: true,
+                is_evaluator: false,
+                is_snippet: false,
+                is_base: false,
+            },
+            data: {
+                uri,
+                parameters,
+                schemas: resolvedSchemas,
+            },
+            meta: {
+                __ephemeral: true,
+                templateKey: template.key,
+                defaultName: resolvedName,
+            },
+        }) as Workflow
+
+    // `deferInspect` (opt-in): seed immediately from catalog schemas — flags (→ workflow type) resolve
+    // at once so the UI can render without waiting on the inspect round-trip — then refine schemas via
+    // inspect in the BACKGROUND. Used by playground-native onboarding (pre-commit surface = templates +
+    // a static composer, which don't need inspect schemas). Every other caller keeps the behavior below.
+    if (deferInspect) {
+        store.set(workflowLocalServerDataAtomFamily(localId), buildWorkflow(schemas))
+        void (async () => {
+            try {
+                const serviceUrl = buildServiceUrlFromUri(uri)
+                const inspectData = await inspectWorkflow(uri, projectId, serviceUrl)
+                if (signal?.aborted) return
+                const inspectSchemas = inspectData?.revision?.data?.schemas
+                if (inspectSchemas) {
+                    store.set(
+                        workflowLocalServerDataAtomFamily(localId),
+                        buildWorkflow({
+                            inputs: inspectSchemas.inputs ?? schemas.inputs,
+                            outputs: inspectSchemas.outputs ?? schemas.outputs,
+                            parameters: inspectSchemas.parameters ?? schemas.parameters,
+                        }),
+                    )
+                }
+            } catch {
+                // Inspect failed — keep the catalog schemas already seeded.
+            }
+        })()
+        return localId
+    }
+
+    // Default (unchanged): resolve schemas from inspect first (best-effort), then seed once — and return
+    // null if the signal aborts before seeding.
     try {
         const serviceUrl = buildServiceUrlFromUri(uri)
         const inspectData = await inspectWorkflow(uri, projectId, serviceUrl)
@@ -186,53 +273,7 @@ export async function createEphemeralAppFromTemplate({
 
     if (signal?.aborted) return null
 
-    const rawParameters: Record<string, unknown> = {
-        ...((template.data?.parameters as Record<string, unknown> | undefined) ?? {}),
-    }
-    const parameters =
-        (syncPromptInputKeysInParameters(rawParameters) as Record<string, unknown> | undefined) ??
-        rawParameters
-
-    const workflow: Workflow = {
-        id: localId,
-        name: resolvedName,
-        slug: null,
-        version: null,
-        flags: {
-            is_managed: false,
-            is_custom: false,
-            is_llm: true,
-            is_hook: false,
-            is_code: false,
-            is_match: false,
-            is_feedback: false,
-            is_agent: type === "agent",
-            is_skill: false,
-            // Agent takes messages-in / returns a final message, so it runs in
-            // chat mode like `chat` (backend infers is_chat from messages-in too).
-            is_chat: type === "chat" || type === "agent",
-            has_url: false,
-            has_script: false,
-            has_handler: false,
-            is_static: false,
-            is_application: true,
-            is_evaluator: false,
-            is_snippet: false,
-            is_base: false,
-        },
-        data: {
-            uri,
-            parameters,
-            schemas,
-        },
-        meta: {
-            __ephemeral: true,
-            templateKey: template.key,
-            defaultName: resolvedName,
-        },
-    } as Workflow
-
-    store.set(workflowLocalServerDataAtomFamily(localId), workflow)
+    store.set(workflowLocalServerDataAtomFamily(localId), buildWorkflow(schemas))
 
     return localId
 }

@@ -1,3 +1,6 @@
+// Kill switch
+export {ONBOARDING_TOURS_ENABLED} from "./constants"
+
 // Types
 export type {
     OnboardingStep,

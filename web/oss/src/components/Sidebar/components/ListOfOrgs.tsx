@@ -287,8 +287,7 @@ const ListOfOrgs = ({
     const organizationButtonLabel = organizationDisplayName
     const canOpenOrganizationMenu = interactive
 
-    const isPostSignupPage =
-        router.pathname === "/post-signup" || router.pathname === "/get-started"
+    const isPostSignupPage = router.pathname === "/post-signup"
     const canShow = Boolean(
         (project?.project_id || effectiveSelectedId || selectedOrganization?.id) &&
         user?.id &&
