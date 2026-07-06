@@ -10,7 +10,7 @@ interface PostSignupSubmittingProps {
 
 /**
  * Full-page state shown between the user clicking Submit and Next.js
- * completing the route change to /get-started. Replaces the form entirely
+ * completing the route change to the post-login path. Replaces the form entirely
  * (rather than overlaying it) so the transition is unambiguous and doesn't
  * depend on antd Spin's overlay positioning. Combined with router.prefetch
  * on the gate component, the navigation should land before the user wonders

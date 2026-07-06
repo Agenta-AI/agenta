@@ -10,7 +10,7 @@ interface PostSignupHeaderProps {
 
 /**
  * The header is the only piece of chrome shown on /post-signup. It's hoisted
- * out of the form so we can render it during the loading / fallback states
+ * out of the form so we can render it during the loading / skip states
  * as well — the user always sees the Agenta brand + org selector, never a
  * blank viewport.
  */
