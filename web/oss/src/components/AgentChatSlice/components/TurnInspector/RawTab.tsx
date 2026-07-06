@@ -1,13 +1,13 @@
 import {memo} from "react"
 
 import {type TurnRequestCapture} from "@agenta/playground"
-import {App, Button, Typography} from "antd"
+import {CopyButton} from "@agenta/ui"
+import {Typography} from "antd"
 
 const {Text} = Typography
 
 /** One capture's literal outgoing request body, copyable for repro / bug reports. */
 const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
-    const {message} = App.useApp()
     if (captures.length === 0) {
         return <div className="text-xs text-colorTextTertiary">No capture for this turn.</div>
     }
@@ -29,20 +29,14 @@ const RawTab = ({captures}: {captures: TurnRequestCapture[]}) => {
                             <Text className="!text-xs !font-medium whitespace-nowrap shrink-0">
                                 Request {i + 1} of {captures.length}
                             </Text>
-                            <Button
-                                type="link"
-                                className="!ml-auto !shrink-0 !px-0 !text-xs"
-                                onClick={() => {
-                                    navigator.clipboard
-                                        ?.writeText(json)
-                                        .then(() => message.success("Request body copied"))
-                                        .catch(() =>
-                                            message.error("Couldn't copy — clipboard unavailable"),
-                                        )
-                                }}
-                            >
-                                Copy JSON
-                            </Button>
+                            <CopyButton
+                                text={json}
+                                icon
+                                buttonText={null}
+                                type="text"
+                                size="small"
+                                className="!ml-auto !h-5 !w-5 !min-w-0 shrink-0 !p-0 !text-colorTextTertiary"
+                            />
                         </div>
                         <Text
                             type="secondary"

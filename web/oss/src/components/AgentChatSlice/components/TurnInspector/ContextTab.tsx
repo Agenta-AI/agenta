@@ -1,6 +1,7 @@
 import {memo} from "react"
 
 import {type TurnRequestCapture} from "@agenta/playground"
+import {CopyButton} from "@agenta/ui"
 import {Typography} from "antd"
 
 const {Text} = Typography
@@ -28,7 +29,17 @@ const agentModel = (parameters: unknown): string | null => {
 
 const Block = ({label, value}: {label: string; value: string}) => (
     <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-mono text-[10px] text-colorTextTertiary">{label}</span>
+        <span className="flex items-center justify-between font-mono text-[10px] text-colorTextTertiary">
+            {label}
+            <CopyButton
+                text={value}
+                icon
+                buttonText={null}
+                type="text"
+                size="small"
+                className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 !text-colorTextTertiary"
+            />
+        </span>
         <pre className="ag-surface-inset m-0 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
             {value}
         </pre>

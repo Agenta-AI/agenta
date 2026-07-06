@@ -138,9 +138,6 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
                         Kill
                     </Button>
                 </Popconfirm>
-                <Button type="text" onClick={refresh} loading={busy}>
-                    Refresh
-                </Button>
             </Space>
         </Space>
     )
