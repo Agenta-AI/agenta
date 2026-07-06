@@ -10,6 +10,9 @@
   "secrets": {"ANTHROPIC_API_KEY": "sk-ant"},
   "context": null,
   "telemetry": null,
+  "runContext": {
+    "run": {"kind": "test"}
+  },
   "tools": [],
   "customTools": [
     {
@@ -18,6 +21,8 @@
       "inputSchema": {"type": "object", "properties": {}},
       "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
       "kind": "callback",
+      "contextBindings": {"target.workflow_variant_id": "$ctx.workflow.variant.id"},
+      "timeoutMs": 120000,
       "readOnly": true
     }
   ],

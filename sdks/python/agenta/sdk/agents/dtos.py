@@ -446,13 +446,23 @@ class RunContextTrace(BaseModel):
     span_id: Optional[str] = None
 
 
+class RunContextRun(BaseModel):
+    """The current run's own identity inside ``runContext``.
+
+    ``kind`` is deliberately nested under ``run`` so ``$ctx.run.kind`` is protocol context, not a
+    new top-level command field. Reserved platform handlers use it to identify child test runs.
+    """
+
+    kind: Optional[str] = None
+
+
 class RunContext(BaseModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; see ``projects/direct-call-tools/run-context.md``).
 
     The service computes this from the invocation's own trace + workflow identity and sends it on
-    the ``/run`` request. It is consumed ONLY by a tool's ``call.context`` binding: the runner
-    fills bound request fields from this blob at dispatch, server-side and hidden from the model.
+    the ``/run`` request. It is consumed by tool context bindings: ``call.context`` on direct-call specs and
+    ``contextBindings`` on callRef specs. The runner fills bound request fields from this blob at dispatch, server-side and hidden from the model.
     The model never reads run context directly.
 
     The inner keys are deliberately snake_case (``workflow.variant.id``, ``trace.trace_id``): they
@@ -463,11 +473,20 @@ class RunContext(BaseModel):
     emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
     (and the serializer omits the key entirely)."""
 
+    run: Optional[RunContextRun] = None
     workflow: Optional[RunContextWorkflow] = None
     trace: Optional[RunContextTrace] = None
 
     def to_wire(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
+        if self.run is not None:
+            run = {
+                key: value
+                for key, value in self.run.model_dump().items()
+                if value is not None
+            }
+            if run:
+                out["run"] = run
         if self.workflow is not None:
             workflow: Dict[str, Any] = {}
             for entity in ("artifact", "variant", "revision"):

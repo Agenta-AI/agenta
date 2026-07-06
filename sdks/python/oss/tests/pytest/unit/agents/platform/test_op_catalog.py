@@ -13,6 +13,8 @@ error paths (unknown op, missing API base).
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from pydantic import ValidationError
 
@@ -228,18 +230,9 @@ async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     assert wire["call"]["path"] == "/api/tools/discover"
 
 
-async def test_test_run_handler_call_ref_requires_platform_handlers_flag(connection):
-    with pytest.raises(
-        GatewayToolResolutionError,
-        match="AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS",
-    ):
-        await _resolver(connection).resolve([PlatformToolConfig(op="test_run")])
-
-
-async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout(
-    connection, monkeypatch
+async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_default(
+    connection,
 ):
-    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "true")
     resolution = await _resolver(connection).resolve(
         [PlatformToolConfig(op="test_run")]
     )
@@ -271,6 +264,39 @@ async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout(
     }
     assert wire["timeoutMs"] == 120000
     assert "call" not in wire
+
+
+@pytest.mark.parametrize(
+    "disabled_value",
+    ["false", "0", "f", "n", "no", "off", "disable", "disabled", " OFF "],
+)
+async def test_platform_handlers_flag_off_skips_handler_ops_and_keeps_endpoint_ops(
+    connection, monkeypatch, caplog, disabled_value
+):
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", disabled_value)
+    caplog.set_level(logging.WARNING)
+
+    resolution = await _resolver(connection).resolve(
+        [
+            PlatformToolConfig(op="test_run"),
+            PlatformToolConfig(op="discover_tools"),
+        ]
+    )
+
+    assert [spec.name for spec in resolution.tool_specs] == ["discover_tools"]
+    assert resolution.tool_callback.endpoint == "https://api.x/api/tools/call"
+    assert "skipping platform handler-mode op 'test_run'" in caplog.text
+    assert "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS" in caplog.text
+
+
+async def test_platform_handlers_empty_flag_uses_default_on(connection, monkeypatch):
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "")
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="test_run")]
+    )
+
+    assert [spec.name for spec in resolution.tool_specs] == ["test_run"]
 
 
 async def test_query_spans_emits_project_scoped_read_call(connection):

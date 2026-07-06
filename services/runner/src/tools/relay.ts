@@ -26,6 +26,7 @@ import {
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
 import {
+  applyContextBindings,
   assembleBody,
   callDirect,
   deepDelete,
@@ -252,10 +253,12 @@ async function executeRelayedTool(
       return permissionPolicyDenyReason(spec.name);
     }
     if (verdict.kind === "pendingApproval") {
+      // Pi file-relay approvals are recorded here. Claude's approval card is
+      // harness-rendered before this point, so this relay cannot redact it.
       permissions.onPendingApproval({
         toolCallId: req.toolCallId,
         toolName: spec.name,
-        args: req.args,
+        args: pendingApprovalArgs(spec, req.args),
       });
       return PAUSED;
     }
@@ -291,15 +294,21 @@ async function executeAllowedRelayedTool(
     for (const name of pathParamNames(spec.call.path)) {
       deepDelete(body, name);
     }
-    return callDirect(spec.call.method, url, callback.authorization, body);
+    return callDirect(spec.call.method, url, callback.authorization, body, {
+      runKind: runContext?.run?.kind,
+    });
   }
   // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
+  const args = spec.contextBindings
+    ? applyContextBindings(req.args, spec.contextBindings, runContext)
+    : req.args;
   return callAgentaTool(
     callback.endpoint,
     callback.authorization,
     spec.callRef ?? "",
     req.toolCallId,
-    req.args,
+    args,
+    { timeoutMs: spec.timeoutMs, runKind: runContext?.run?.kind },
   );
 }
 
@@ -337,6 +346,47 @@ function isPermissionRelayVerdict(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cloneJsonish(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => cloneJsonish(item));
+  if (!isRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = cloneJsonish(item);
+  }
+  return out;
+}
+
+function pruneEmptyAncestors(target: Record<string, unknown>, path: string): void {
+  const parts = path.split(".");
+  const ancestors: Array<{ owner: Record<string, unknown>; key: string }> = [];
+  let cursor = target;
+  for (const part of parts.slice(0, -1)) {
+    const next = cursor[part];
+    if (!isRecord(next)) return;
+    ancestors.push({ owner: cursor, key: part });
+    cursor = next;
+  }
+  for (const { owner, key } of ancestors.reverse()) {
+    const value = owner[key];
+    if (!isRecord(value) || Object.keys(value).length > 0) return;
+    delete owner[key];
+  }
+}
+
+function pendingApprovalArgs(
+  spec: ResolvedToolSpec,
+  args: unknown,
+): unknown {
+  if (!spec.callRef || !spec.contextBindings || !isRecord(args)) return args;
+  const displayArgs = cloneJsonish(args);
+  if (!isRecord(displayArgs)) return displayArgs;
+  for (const path of Object.keys(spec.contextBindings)) {
+    deepDelete(displayArgs, path);
+    pruneEmptyAncestors(displayArgs, path);
+  }
+  return displayArgs;
 }
 
 async function handlePermissionRelayRequest(

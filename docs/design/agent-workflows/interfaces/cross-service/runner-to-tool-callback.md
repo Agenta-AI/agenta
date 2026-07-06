@@ -65,9 +65,12 @@ The same `POST /tools/call` serves three kinds of callback tool, routed by the `
   (`tools.agenta.find_capabilities` via `_call_agenta_tool`) is deleted; discovery is the
   `discover_tools` [platform tool](../in-service/tool-models-and-resolution.md), whose SDK
   resolution emits a direct `call` to `POST /api/tools/discover` (the `call` descriptor below),
-  bypassing `/tools/call`. Handler-mode resolution is flag-gated off
-  (`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`) until the runner dispatches reserved refs with
-  spec-level context injection.
+  bypassing `/tools/call`. Handler-mode resolution is default-on in the SDK, with
+  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` as a kill switch (`0`, `false`, `f`, `n`, `no`,
+  `off`, `disable`, or `disabled`). The runner dispatches reserved `callRef` specs through
+  `/tools/call`, applies spec-level `contextBindings` after the permission verdict, and
+  forwards `timeoutMs` end to end. Positive per-spec timeouts add a 10s grace window to the
+  host callback fetch and the child relay poll.
 
 The runner is unchanged for all three: it relays a `callback` spec with whatever `call_ref` the
 resolver put on it. Only the router's prefix dispatch is aware of the grammars.
@@ -95,9 +98,11 @@ platform-op resolver emits `call` (and `call.context` for self-targeting ops suc
 `commit_revision`); the runner dispatches it host-direct with the SSRF guardrails. Gateway and
 reference tools still route through `/tools/call`. Handler-mode platform ops add a second wire
 shape: a reserved `tools.agenta.{op}` `call_ref` plus spec-level `contextBindings` and
-`timeoutMs` (SDK side only so far: `tools/models.py` + `wire_models.py`); the resolver
-only emits it behind `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off) because the runner
-(`protocol.ts` included) does not yet carry or dispatch the new spec fields. Full spec:
+`timeoutMs`. The runner carries those fields, dispatches `callRef` specs through the host relay,
+applies `contextBindings` only after the permission verdict, forwards `runContext.run.kind` as
+`x-agenta-run-kind`, and honors `timeoutMs` on both the host callback fetch and the child relay
+poll. The SDK emits handler-mode ops by default; set `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` to a
+disabled value to turn them off. Full spec:
 `docs/design/agent-workflows/projects/direct-call-tools/` and
 `docs/design/agent-workflows/projects/build-kit-tools-cleanup/api-design.md`.
 
@@ -126,10 +131,12 @@ only emits it behind `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off) becau
   `$ctx.<key>` namespace, not camelCase. The runner dispatches `call` and fills `call.context`
   (`tools/direct.ts` `assembleBody`); the platform-op catalog emits them for endpoint-mode ops.
 - **Handler-mode spec fields.** A handler-mode op emits a reserved `call_ref` plus spec-level
-  `contextBindings` and `timeoutMs` (today only on the SDK side, `tools/models.py` +
-  `wire_models.py`). The runner does not carry or read them yet; keep the flag
-  (`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`) off until `protocol.ts` mirrors them and the relay
-  injects them, and move the mirrors and the goldens together when it does.
+  `contextBindings` and `timeoutMs`. Keep those fields mirrored across `protocol.ts`, the SDK
+  `CallbackToolSpec`, `wire_models.py`, and the golden fixtures. The relay applies
+  `contextBindings` after the permission verdict and redacts bound paths from the Pi pending
+  approval display. `timeoutMs` is honored by the host `/tools/call` fetch and the child file-relay
+  poll; positive per-spec timeouts get the same 10s grace in both places. The SDK flag is default
+  on with `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` as a kill switch.
 - **Tool result content.** `call.data.content` is a JSON string already; do not double-encode
   it on the way out.
 - **Argument normalization.** Keep accepting both string and object arguments.

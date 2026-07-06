@@ -34,14 +34,15 @@ from .op_catalog import get_platform_op
 log = get_module_logger(__name__)
 
 _ENABLE_PLATFORM_HANDLERS_ENV = "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS"
-_TRUTHY_ENV_VALUES = {"1", "true", "t", "y", "yes", "on", "enable", "enabled"}
+_DISABLED_ENV_VALUES = {"0", "false", "f", "n", "no", "off", "disable", "disabled"}
+# Empty string intentionally follows the default-on behavior. Unset now means enabled.
 
 
 def _platform_handlers_enabled() -> bool:
-    return (
-        os.getenv(_ENABLE_PLATFORM_HANDLERS_ENV, "").strip().lower()
-        in _TRUTHY_ENV_VALUES
-    )
+    value = os.getenv(_ENABLE_PLATFORM_HANDLERS_ENV)
+    if value is None:
+        return True
+    return value.strip().lower() not in _DISABLED_ENV_VALUES
 
 
 class AgentaPlatformToolResolver:
@@ -71,6 +72,15 @@ class AgentaPlatformToolResolver:
         tool_specs: list[CallbackToolSpec] = []
         for tool_config in tools:
             op = get_platform_op(tool_config.op)
+            if op.handler is not None and not _platform_handlers_enabled():
+                log.warning(
+                    "agent: skipping platform handler-mode op %r because "
+                    "%s is explicitly disabled",
+                    op.op,
+                    _ENABLE_PLATFORM_HANDLERS_ENV,
+                )
+                continue
+
             if op.op in seen:
                 error = GatewayToolResolutionError(
                     f"Duplicate platform tool: {op.op}",
@@ -84,14 +94,6 @@ class AgentaPlatformToolResolver:
             # gateway ``call_ref`` (with spec-level bindings the relay injects); endpoint-mode
             # ops carry a direct ``call`` descriptor (bindings ride inside ``call.context``).
             if op.handler is not None:
-                if not _platform_handlers_enabled():
-                    error = GatewayToolResolutionError(
-                        f"Platform handler-mode op '{op.op}' requires "
-                        f"{_ENABLE_PLATFORM_HANDLERS_ENV}=true before it can resolve.",
-                        reference=op.reserved_id,
-                    )
-                    log.warning("agent: %s", error)
-                    raise error
                 target: dict = {
                     "call_ref": op.to_call_ref(),
                     "context_bindings": dict(op.context_bindings) or None,

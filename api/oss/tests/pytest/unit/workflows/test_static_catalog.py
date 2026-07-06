@@ -126,6 +126,7 @@ def test_default_static_skill_catalog_replaces_old_authoring_skills():
     skill = playbook.data.parameters["skill"]
     assert skill["name"] == "build-an-agent"
     assert skill["body"].startswith("# Build an Agenta agent")
+    assert "test_run" in skill["body"]
     assert "query_spans" in skill["body"]
 
 

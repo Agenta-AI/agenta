@@ -62,6 +62,16 @@ contended; approval for new ops is expressed by the `read_only` hint under the m
 permission plan (write + no explicit permission → ask). The coordination constraint
 moved from `op_catalog.py` to the runner/wire surface; see plan.md.
 
+2026-07-05: Slice 5b PLANNED at [plan-5b.md](plan-5b.md). Contention re-checked: the
+runner surface is FREE (`claude-client-tools-recut` and pi-builtin-gating #5066 are
+merged; no lane or WIP owns `services/runner/`). Key code-truth corrections vs the old
+contract text: the SDK already emits `contextBindings`/`timeoutMs` (5a), so 5b's wire
+work is protocol.ts + goldens + run-kind only; the CHILD relay poll deadline (60s,
+`dispatch.ts:87`) must honor `timeoutMs` too, not just the host fetch; and the flip
+must change the flag's off-semantics from raise to skip, or the kill switch bricks
+every default build-kit agent once `test_run` joins `DEFAULT_BUILD_KIT_OPS`. Six
+slices on one lane, one PR; live-debug matrix per debug-local-deployment.
+
 ## Decided (do not relitigate)
 
 1. Hard-migrate renames, no aliases: `find_capabilities` -> `discover_tools`,

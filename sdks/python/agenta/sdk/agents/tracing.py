@@ -181,14 +181,15 @@ def _run_context_trace() -> Optional[RunContextTrace]:
 
 
 def run_context() -> Optional[RunContext]:
-    """Capture the run's own context for tool ``call.context`` binding (direct-call tools, Phase 3a).
+    """Capture the run's own context for tool bindings and run-kind propagation.
 
     Assembles the run's own trace + workflow identity into a :class:`RunContext` the service sends
-    on ``/run`` (refreshed per turn). It is consumed ONLY by a tool's ``call.context`` binding at
-    dispatch, server-side and hidden from the model (see
-    ``projects/direct-call-tools/run-context.md``). The conversation id is not part of this blob —
-    it rides the top-level ``sessionId`` field. Best-effort: any failure (or an entirely empty
-    context) returns ``None`` so the run proceeds and the ``runContext`` key is simply omitted.
+    on ``/run`` (refreshed per turn). The full ``runContext`` is consumed by direct-call
+    ``call.context`` bindings, callRef ``contextBindings``, and ``run.kind`` forwarding at dispatch,
+    server-side and hidden from the model (see ``projects/direct-call-tools/run-context.md``). The
+    conversation id is not part of this blob; it rides the top-level ``sessionId`` field.
+    Best-effort: any failure (or an entirely empty context) returns ``None`` so the run proceeds and
+    the ``runContext`` key is simply omitted.
 
     The workflow and the trace are captured as INDEPENDENT failure domains: a failure reading the
     workflow references must not drop an otherwise-valid ``trace`` (and vice versa), so a trace-only

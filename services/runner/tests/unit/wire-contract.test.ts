@@ -96,6 +96,10 @@ describe("wire contract: requests (vs Python golden)", () => {
       tool.callRef && tool.callRef.length > 0,
       "callback tool carries its callRef",
     );
+    assert.deepEqual(tool.contextBindings, {
+      "target.workflow_variant_id": "$ctx.workflow.variant.id",
+    });
+    assert.equal(tool.timeoutMs, 120000);
     // The Composio read-only hint reaches the runner as `readOnly`.
     assert.equal(tool.readOnly, true);
     // No explicit author permission is derived onto the tool spec; the plan decides it.
@@ -117,6 +121,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     // snake_case inner keys (the `$ctx.<key>` binding namespace) and the workflow grouped into the
     // platform's artifact / variant / revision entities. The runner fills a tool's `call.context`
     // from this blob at dispatch (see tools/direct.ts `assembleBody`); the model never reads it.
+    assert.equal(req.runContext!.run!.kind, "test");
     assert.equal(req.runContext!.workflow!.variant!.id, "var_abc");
     assert.equal(req.runContext!.workflow!.variant!.slug, "weather-agent");
     assert.equal(req.runContext!.workflow!.revision!.id, "rev_abc123");
@@ -185,7 +190,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     });
     assert.equal(req.systemPrompt, undefined); // Claude exposes no prompt overrides
     assert.equal(req.appendSystemPrompt, undefined);
-    assert.equal(req.runContext, undefined); // no run context threaded on this config
+    assert.equal(req.runContext!.run!.kind, "test");
     assert.equal(req.sandboxPermission, undefined); // no boundary declared on this config
     // The Claude harness's permission knobs are translated to a rendered file in Python: the
     // wire carries a generic `harnessFiles` entry the runner writes blind into the cwd.

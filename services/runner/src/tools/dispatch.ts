@@ -68,6 +68,7 @@ export async function relayToolCall(
   toolName: string,
   toolCallId: string,
   params: unknown,
+  timeoutMs?: number,
   signal?: AbortSignal,
 ): Promise<string> {
   const id = sanitizeRelayId(toolCallId);
@@ -84,7 +85,9 @@ export async function relayToolCall(
     "utf-8",
   );
 
-  const deadline = Date.now() + RELAY_TIMEOUT_MS;
+  const deadline =
+    Date.now() +
+    (timeoutMs && timeoutMs > 0 ? timeoutMs + 10_000 : RELAY_TIMEOUT_MS);
   while (Date.now() < deadline) {
     if (signal?.aborted) throw new Error("aborted");
     if (existsSync(resPath)) {
@@ -240,6 +243,7 @@ export async function runResolvedTool(
         spec.name,
         opts.toolCallId,
         params,
+        spec.timeoutMs,
         opts.signal,
       );
     }
@@ -254,6 +258,7 @@ export async function runResolvedTool(
       spec.name,
       opts.toolCallId,
       params,
+      spec.timeoutMs,
       opts.signal,
     );
   }
@@ -263,6 +268,6 @@ export async function runResolvedTool(
     spec.callRef ?? "",
     opts.toolCallId,
     params,
-    opts.signal,
+    { signal: opts.signal, timeoutMs: spec.timeoutMs },
   );
 }

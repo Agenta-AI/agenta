@@ -151,13 +151,16 @@ Do not discover tools or triggers for an ask that does not need them.
 5. Configure yourself. Put the chosen `capability.tool` entries and needed alternatives in
    `tools`, write `instructions.agents_md`, and call `commit_revision`. This is an approval stop.
    If the commit is denied or fails, earlier connections or triggers are not undone.
-6. Verify with `query_spans`. Ask the user to send the agreed test message in this chat. Then
-   call `query_spans` with `windowing.oldest` and `windowing.newest` bracketing the test, plus a
-   sensible `windowing.limit`; add `filtering.conditions` on `trace_id` if you know it. Find the
-   run's spans, read the tool-call spans in order, and pass only when the terminal tool span is
-   present, ordered correctly, and has no error status; a 200 response or empty assistant output is
-   not proof. If the terminal action is missing, rewrite the instructions as a blunter numbered
-   procedure and commit again.
+6. Verify with `test_run`. First warn the user that this is a real run: external write
+   tools may perform their action if approved. Then call `test_run` with
+   `inputs.messages` as a blunt instruction-framed test message and
+   `expectations.terminal_tool` set to the final tool that proves success. Read `verdict`,
+   `verdict_reason`, `tools`, and `approvals`; a 200 response is not proof. Pass only
+   when `verdict` is `pass`. If `approvals` is non-empty, this is an approval stop:
+   report the waiting gate and wait for the user. If `verdict` is `incomplete`, rewrite
+   `instructions.agents_md` as a blunter numbered procedure, call `commit_revision`, and
+   run `test_run` again. Use `query_spans` after schedules or subscriptions fire to read
+   back the SCHEDULED run spans.
 7. Add a trigger only if asked. For schedules, cron is UTC, five fields, with a one-minute floor;
    convert the user's timezone yourself, then stop for approval before `create_schedule`: say what
    you are about to create and wait for the gate. After approval, call `create_schedule`, then
@@ -189,14 +192,15 @@ Example:
 ## Prefer wired tools
 
 Prefer your wired tools (`discover_tools`, `request_connection`, `commit_revision`,
-`query_spans`, `create_schedule`, `list_schedules`, `discover_triggers`,
+`test_run`, `query_spans`, `create_schedule`, `list_schedules`, `discover_triggers`,
 `create_subscription`, `test_subscription`, `list_deliveries`, `remove_schedule`,
 `remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger, File tools, or raw
 HTTP only when your wired tools cannot do the job, and say so when you do.
 
 ## Footguns
 
-- Empty output with a healthy tool sequence is not failure; inspect the spans before judging.
+- Empty output is not enough to fail a run; read the `test_run` verdict, tools, approvals,
+  and verdict_reason before judging.
 - Never surface raw provider slugs such as `provider_action` to the user; speak in Agenta terms.
 - Re-run discovery after the user connects an integration so the committed tool gets the concrete
   connection id.
@@ -204,8 +208,6 @@ HTTP only when your wired tools cannot do the job, and say so when you do.
 - Trigger inputs must match what the instructions expect, or the run starts empty.
 """
 
-# Slice 5 seam: replace the query_spans verification paragraph above with the test_run paragraph
-# when that platform op ships.
 BUILD_AN_AGENT_SKILL = SkillTemplate(
     name="build-an-agent",
     description=(
