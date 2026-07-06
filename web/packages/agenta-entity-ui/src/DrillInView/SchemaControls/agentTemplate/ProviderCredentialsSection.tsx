@@ -248,7 +248,8 @@ export function ProviderCredentialsSection({
                             Read the self-hosting guide →
                         </a>
                         {isCloud ? (
-                            <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-2 py-0.5 text-[11px] text-[var(--ag-colorWarningText)]">
+                            // fallback until colorWarningBg token lands
+                            <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg,rgba(250,173,20,0.12))] px-2 py-0.5 text-[11px] text-[var(--ag-colorWarningText)]">
                                 Not on cloud
                             </span>
                         ) : null}
