@@ -1075,8 +1075,11 @@ async def auto_ai_critique_v0(
         _outputs = response.choices[0].message.content.strip()  # type: ignore
 
     except litellm.AuthenticationError as e:  # type: ignore
-        e.message = e.message.replace(
-            "litellm.AuthenticationError: AuthenticationError: ", ""
+        from agenta.sdk.redaction.context import get_active_redactor
+
+        e.message = get_active_redactor().redact_string(
+            e.message.replace("litellm.AuthenticationError: AuthenticationError: ", ""),
+            sink="error",
         )
         raise e
 

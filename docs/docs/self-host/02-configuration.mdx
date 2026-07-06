@@ -107,6 +107,42 @@ for how they behave. The plan and role variables are Enterprise-only; see
 |---|---|---|
 | `AGENTA_OTLP_MAX_BATCH_BYTES` | `agenta.otlp.max_batch_bytes` | `agenta.otlp.maxBatchBytes` |
 
+## Agenta — redaction
+
+The online redaction filter scrubs known credential/secret **values** out of error responses,
+persisted records, spans, and logs on the invoke path (detective control, not preventive — see
+[docs/designs/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/designs/online-redaction/specs.md)).
+Slice 1 ships the known-value pass only: it redacts a value only when it is a live secret the
+platform resolved for the request, never by guessing at shape or entropy.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_REDACTION_MODE` | `agenta.redaction.mode` | `agenta.redaction.mode` |
+| `AGENTA_REDACTED_PREFIXES` | `agenta.redaction.prefixes` | `agenta.redaction.prefixes` |
+| `AGENTA_REDACTED_SUFFIXES` | `agenta.redaction.suffixes` | `agenta.redaction.suffixes` |
+| `AGENTA_REDACTED_BLOCKLIST` | `agenta.redaction.blocklist` | `agenta.redaction.blocklist` |
+| `AGENTA_REDACTED_ALLOWLIST` | `agenta.redaction.allowlist` | `agenta.redaction.allowlist` |
+
+- `AGENTA_REDACTION_MODE` — `off` or `known` (default `known`). `pattern`/`full` are
+  declared-but-inert (Slice 2, not shipped yet): setting either logs a warning and behaves as
+  `known`.
+- `AGENTA_REDACTED_PREFIXES` / `_SUFFIXES` / `_BLOCKLIST` select env var **names**, not values:
+  any process env var whose name starts with a prefix, ends with a suffix, or equals/contains a
+  blocklist entry has its **value** seeded into the deny-set. Each is comma-separated and
+  **merges onto its built-in default** (concatenation, never a replace) — you only ever add
+  more names to catch, you can't narrow the defaults. The prefix default is **empty** (opt-in
+  only, since a broad service prefix over-seeds non-secret config like hostnames/regions); the
+  suffix default covers the common credential-shaped endings (`_KEY`, `_SECRET`, `_TOKEN`,
+  `_AUTHTOKEN`, `_PASSWORD`, `_CREDENTIALS`, `_KEY_ID`, `_SECRET_ID`, `_TOKEN_ID`); the
+  blocklist default is `AWS_BEARER_TOKEN_BEDROCK` (a real secret whose name matches no suffix).
+- `AGENTA_REDACTED_ALLOWLIST` is different: it's a list of literal **values** (booleans/flags
+  such as `true`/`false`/`1`/`0`) that are never redacted even if a secret-named env var holds
+  one — otherwise a flag like `SOME_FEATURE_KEY=true` would redact every "true" in output. It
+  also merges (union) onto its built-in default; add values here that your deployment uses as
+  flags but that also happen to sit in a secret-suffixed env var.
+- Safe default is unset — leaving all four unset keeps prefix empty, suffix/blocklist/allowlist
+  at their built-in defaults.
+
 ## Agenta — services
 
 | Env var | env.py path | values.yaml path |
