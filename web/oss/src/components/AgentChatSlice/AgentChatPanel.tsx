@@ -357,6 +357,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         id: sessionId,
         messages: initialMessages,
         transport,
+        // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
+        // render per token; caps commit frequency independently of the per-commit memo win.
+        experimental_throttle: 50,
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
         sendAutomaticallyWhen: agentShouldResumeAfterApproval,
@@ -1167,7 +1170,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     message={message}
                     isStreaming={busy && isLast}
                     isLastMessage={isLast}
-                    onRewind={() => handleRewind(message)}
+                    onRewind={handleRewind}
                     onClientToolOutput={handleClientToolOutput}
                     precededByEmptyAssistant={
                         index > 0 && isEmptyAssistantTurn(messages[index - 1])
