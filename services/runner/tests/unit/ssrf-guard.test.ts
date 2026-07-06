@@ -55,14 +55,25 @@ describe("isBlockedIpLiteral — IPv4", () => {
     const forms = ["0x7f000001", "017700000001", "2130706433", "0x7f.0.0.1"];
     for (const raw of forms) {
       const host = new URL(`http://${raw}/`).hostname;
-      assert.equal(isBlockedIpLiteral(host), true, `${raw} -> ${host} should be blocked`);
+      assert.equal(
+        isBlockedIpLiteral(host),
+        true,
+        `${raw} -> ${host} should be blocked`,
+      );
     }
   });
 });
 
 describe("isBlockedIpLiteral — IPv6", () => {
   it("blocks loopback, unspecified, link-local, unique-local, multicast", () => {
-    for (const ip of ["::1", "::", "fe80::1", "fc00::1", "fd00::1", "ff02::1"]) {
+    for (const ip of [
+      "::1",
+      "::",
+      "fe80::1",
+      "fc00::1",
+      "fd00::1",
+      "ff02::1",
+    ]) {
       assert.equal(isBlockedIpLiteral(ip), true, `${ip} should be blocked`);
     }
   });
@@ -75,7 +86,11 @@ describe("isBlockedIpLiteral — IPv6", () => {
       "0:0:0:0:0:ffff:127.0.0.1",
     ]) {
       const host = new URL(`http://[${raw}]/`).hostname.replace(/^\[|\]$/g, "");
-      assert.equal(isBlockedIpLiteral(host), true, `${raw} -> ${host} should be blocked`);
+      assert.equal(
+        isBlockedIpLiteral(host),
+        true,
+        `${raw} -> ${host} should be blocked`,
+      );
     }
   });
 
@@ -88,7 +103,10 @@ describe("isBlockedIpLiteral — IPv6", () => {
   });
 
   it("allows a public IPv6 address", () => {
-    assert.equal(isBlockedIpLiteral("2606:2800:220:1:248:1893:25c8:1946"), false);
+    assert.equal(
+      isBlockedIpLiteral("2606:2800:220:1:248:1893:25c8:1946"),
+      false,
+    );
   });
 });
 

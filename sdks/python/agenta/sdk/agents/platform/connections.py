@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 import httpx
 
 from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.utils.net import validate_endpoint_url
+from agenta.sdk.utils.net import assert_endpoint_url_allowed
 
 from ..capabilities import (
     CLAUDE_MODEL_ALIASES,
@@ -323,7 +323,7 @@ def _custom_provider_candidate(
     raw_url = _stripped(settings.get("url"))
     if raw_url:
         try:
-            validate_endpoint_url(raw_url)
+            assert_endpoint_url_allowed(raw_url)
         except ValueError:
             log.warning("agent: custom_provider url blocked by SSRF guard, dropping")
             raw_url = None

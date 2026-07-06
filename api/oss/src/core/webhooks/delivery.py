@@ -200,7 +200,14 @@ async def send_webhook_request(
     pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
     pinned_url = urlunparse(parsed._replace(netloc=pinned_netloc))
 
-    request_headers = {**headers, "Host": parsed.hostname or ""}
+    # Host header must mirror the original authority: bracket an IPv6 literal and keep an explicit
+    # port (RFC 9110 host grammar), not the bare hostname urlparse returns.
+    hostname = parsed.hostname or ""
+    host_header = f"[{hostname}]" if ":" in hostname else hostname
+    if parsed.port:
+        host_header = f"{host_header}:{parsed.port}"
+
+    request_headers = {**headers, "Host": host_header}
 
     async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT) as client:
         return await client.post(

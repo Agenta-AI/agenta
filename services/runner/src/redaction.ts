@@ -25,7 +25,9 @@ let warnedInertMode = false;
  * api/oss/src/utils/env.py's `RedactionConfig`).
  */
 export function redactionMode(): RedactionMode {
-  const raw = (process.env.AGENTA_REDACTION_MODE ?? "known").trim().toLowerCase();
+  const raw = (process.env.AGENTA_REDACTION_MODE ?? "known")
+    .trim()
+    .toLowerCase();
   if (INERT_MODES.has(raw)) {
     if (!warnedInertMode) {
       warnedInertMode = true;
@@ -126,7 +128,9 @@ export const DEFAULT_REDACTED_SUFFIXES: readonly string[] = [
 
 // Env NAMES to force-seed (equals/contains) — the escape hatch for a real secret whose name
 // matches no suffix. AWS_BEARER_TOKEN_BEDROCK is the one such catalog secret.
-export const DEFAULT_REDACTED_BLOCKLIST: readonly string[] = ["AWS_BEARER_TOKEN_BEDROCK"];
+export const DEFAULT_REDACTED_BLOCKLIST: readonly string[] = [
+  "AWS_BEARER_TOKEN_BEDROCK",
+];
 
 function csvOverride(name: string): string[] {
   const raw = process.env[name] ?? "";
@@ -175,10 +179,13 @@ export function effectiveAllowlist(): Set<string> {
 
 function looksSecret(name: string): boolean {
   const upper = name.toUpperCase();
-  if (effectivePrefixes().some((prefix) => upper.startsWith(prefix))) return true;
+  if (effectivePrefixes().some((prefix) => upper.startsWith(prefix)))
+    return true;
   if (effectiveSuffixes().some((suffix) => upper.endsWith(suffix))) return true;
   const blocklist = effectiveBlocklist();
-  return blocklist.length > 0 && blocklist.some((entry) => upper.includes(entry));
+  return (
+    blocklist.length > 0 && blocklist.some((entry) => upper.includes(entry))
+  );
 }
 
 /** The VALUES (never the names) of every process env var whose name is selected by the
@@ -231,7 +238,10 @@ export class Redactor {
     }
   }
 
-  withKnownSecrets(values: Array<string | null | undefined>, kind = "secret"): this {
+  withKnownSecrets(
+    values: Array<string | null | undefined>,
+    kind = "secret",
+  ): this {
     for (const value of values) {
       if (!value || typeof value !== "string") continue;
       if (this.allowlist.has(value.trim().toLowerCase())) continue; // worthless/common value
@@ -249,11 +259,16 @@ export class Redactor {
         }
       }
     }
-    this.sortedValues = [...this.known.keys()].sort((a, b) => b.length - a.length);
+    this.sortedValues = [...this.known.keys()].sort(
+      (a, b) => b.length - a.length,
+    );
     return this;
   }
 
-  redactString(value: string | null | undefined, sink = "unknown"): string | null | undefined {
+  redactString(
+    value: string | null | undefined,
+    sink = "unknown",
+  ): string | null | undefined {
     if (value === null || value === undefined) return value;
     try {
       return this.knownValuePass(value, sink);
@@ -271,7 +286,10 @@ export class Redactor {
     for (const variant of this.sortedValues) {
       const kind = this.known.get(variant)!;
       if (this.bounded.has(variant)) {
-        const pattern = new RegExp(`(?<!\\w)${escapeRegExp(variant)}(?!\\w)`, "g");
+        const pattern = new RegExp(
+          `(?<!\\w)${escapeRegExp(variant)}(?!\\w)`,
+          "g",
+        );
         if (pattern.test(out)) {
           pattern.lastIndex = 0;
           out = out.replace(pattern, placeholder(kind, variant));
@@ -301,11 +319,15 @@ export class Redactor {
       return this.knownValuePass(obj, sink) as unknown as T;
     }
     if (Array.isArray(obj)) {
-      return obj.map((item) => this.redactJsonInner(item, sink)) as unknown as T;
+      return obj.map((item) =>
+        this.redactJsonInner(item, sink),
+      ) as unknown as T;
     }
     if (obj && typeof obj === "object") {
       const out: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      for (const [key, value] of Object.entries(
+        obj as Record<string, unknown>,
+      )) {
         out[key] = this.redactJsonInner(value, sink);
       }
       return out as unknown as T;
@@ -353,7 +375,8 @@ export function seedFromEnv(options?: {
   extraValues?: Array<string | null | undefined>;
   redactor?: Redactor;
 }): Redactor {
-  const r = options?.redactor ?? new Redactor({ allowlist: effectiveAllowlist() });
+  const r =
+    options?.redactor ?? new Redactor({ allowlist: effectiveAllowlist() });
   const values: Array<string | null | undefined> = [
     ...(options?.resolvedSecrets ?? []),
     options?.runCredential,

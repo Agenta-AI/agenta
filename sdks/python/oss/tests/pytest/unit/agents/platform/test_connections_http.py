@@ -367,7 +367,9 @@ async def test_custom_provider_loopback_url_is_dropped_not_pinned(
 async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection):
     from agenta.sdk.agents.platform import connections as connections_module
 
-    assert connections_module.validate_endpoint_url.__module__.endswith("utils.net")
+    assert connections_module.assert_endpoint_url_allowed.__module__.endswith(
+        "utils.net"
+    )
 
     fake_http(
         connections,

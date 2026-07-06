@@ -245,12 +245,18 @@ async function runAndStream(
     const requestApiBase = apiBaseFromRequest(request);
     if (requestApiBase && !process.env.AGENTA_API_URL) {
       process.env.AGENTA_API_URL = requestApiBase;
-      process.stderr.write(`[sessions] inferred AGENTA_API_URL=${requestApiBase}\n`);
+      process.stderr.write(
+        `[sessions] inferred AGENTA_API_URL=${requestApiBase}\n`,
+      );
     }
     // The runner authenticates session calls AS the invoke caller (the run credential),
     // refreshing it for the turn's lifetime — never the admin key. Project scope is
     // resolved server-side from the credential, so no project_id rides the request.
-    const watchdog = startAliveWatchdog(sessionId, turnId, runCredential(request));
+    const watchdog = startAliveWatchdog(
+      sessionId,
+      turnId,
+      runCredential(request),
+    );
     aliveWatchdog = watchdog;
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own). Best-effort, never blocks the turn.
@@ -261,11 +267,11 @@ async function runAndStream(
       request.sandbox?.trim() || "local",
       watchdog.credential(),
     );
-    const { emit: persistingEmit, persist, flush } = buildPersistingEmitter(
-      sessionId,
-      watchdog.credential,
-      liveEmit,
-    );
+    const {
+      emit: persistingEmit,
+      persist,
+      flush,
+    } = buildPersistingEmitter(sessionId, watchdog.credential, liveEmit);
     // Record the inbound user turn first so the session record is the full conversation,
     // not just agent output. Interaction replies ride tool_result blocks (no text) and are
     // already recorded on the interaction, so an empty prompt persists nothing.

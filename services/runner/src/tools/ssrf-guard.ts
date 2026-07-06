@@ -102,8 +102,10 @@ function expandIPv6(ip: string): number[] {
  *  (`::a.b.c.d`) address, or `undefined` if this is not such an address. */
 function embeddedIPv4(hextets: number[]): string | undefined {
   const [h0, h1, h2, h3, h4, h5] = hextets;
-  const isMapped = h0 === 0 && h1 === 0 && h2 === 0 && h3 === 0 && h4 === 0 && h5 === 0xffff;
-  const isCompat = h0 === 0 && h1 === 0 && h2 === 0 && h3 === 0 && h4 === 0 && h5 === 0;
+  const isMapped =
+    h0 === 0 && h1 === 0 && h2 === 0 && h3 === 0 && h4 === 0 && h5 === 0xffff;
+  const isCompat =
+    h0 === 0 && h1 === 0 && h2 === 0 && h3 === 0 && h4 === 0 && h5 === 0;
   if (!isMapped && !isCompat) return undefined;
   const [a, b] = [hextets[6] >> 8, hextets[6] & 0xff];
   const [c, d] = [hextets[7] >> 8, hextets[7] & 0xff];
@@ -123,7 +125,12 @@ function isBlockedIPv6(ip: string): boolean {
   if ((hextets[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 (link-local)
   if ((hextets[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 (unique-local/private)
   if ((hextets[0] & 0xff00) === 0xff00) return true; // ff00::/8 (multicast)
-  if (hextets[0] === 0x0100 && hextets[1] === 0 && hextets[2] === 0 && hextets[3] === 0)
+  if (
+    hextets[0] === 0x0100 &&
+    hextets[1] === 0 &&
+    hextets[2] === 0 &&
+    hextets[3] === 0
+  )
     return true; // 100::/64 (discard-only)
   if (hextets[0] === 0x2001) {
     if (hextets[1] === 0 && (hextets[2] & 0xfe00) === 0) return true; // 2001::/23
@@ -154,7 +161,9 @@ export interface SsrfGuardResult {
  * host (already caught by `isBlockedIpLiteral` at the call site) does not need this — this
  * is the rebind-protection path for actual hostnames.
  */
-export async function resolveAndCheckHost(hostname: string): Promise<SsrfGuardResult> {
+export async function resolveAndCheckHost(
+  hostname: string,
+): Promise<SsrfGuardResult> {
   const bare = hostname.replace(/^\[|\]$/g, "");
   if (isIPv4(bare) || isIPv6(bare)) {
     return isBlockedIpLiteral(bare)

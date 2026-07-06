@@ -408,6 +408,9 @@ class WorkersConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_EGRESS_INSECURE_WARNED = False
+
+
 class WebhooksConfig(BaseModel):
     # AGENTA_WEBHOOKS_ALLOW_INSECURE / AGENTA_WEBHOOK_ALLOW_INSECURE are deprecated aliases; prefer AGENTA_INSECURE_EGRESS_ALLOWED.
     allow_insecure: bool = (
@@ -421,17 +424,12 @@ class WebhooksConfig(BaseModel):
 
     @model_validator(mode="after")
     def _warn_egress_mode(self) -> "WebhooksConfig":
-        if self.allow_insecure:
+        global _EGRESS_INSECURE_WARNED
+        if self.allow_insecure and not _EGRESS_INSECURE_WARNED:
+            _EGRESS_INSECURE_WARNED = True
             warnings.warn(
                 "AGENTA_INSECURE_EGRESS_ALLOWED is set: webhook/egress targets may include http "
                 "and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.",
-                stacklevel=2,
-            )
-        else:
-            warnings.warn(
-                "Outbound egress is in restricted mode: webhook/egress targets must use https and "
-                "public hosts (private/loopback/link-local/metadata are blocked). Set "
-                "AGENTA_INSECURE_EGRESS_ALLOWED=true to permit them.",
                 stacklevel=2,
             )
         return self

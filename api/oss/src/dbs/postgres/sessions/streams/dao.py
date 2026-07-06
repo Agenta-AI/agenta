@@ -50,7 +50,8 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                 await session.commit()
                 await session.refresh(dbe)
         except IntegrityError as e:
-            if "uq_session_streams_project_session_id" in str(e.orig):
+            error_str = str(e.orig) if e.orig else str(e)
+            if "uq_session_streams_project_session_id" in error_str:
                 raise SessionStreamAlreadyExists(session_id=stream.session_id) from e
             raise
         return map_stream_dbe_to_dto(stream_dbe=dbe)

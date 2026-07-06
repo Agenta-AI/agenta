@@ -2,7 +2,7 @@ import re
 from typing import Optional, Dict, Any, List
 
 from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.utils.net import validate_endpoint_url
+from agenta.sdk.utils.net import assert_endpoint_url_allowed
 from agenta.sdk.contexts.routing import RoutingContext
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.assets import model_to_provider_mapping as _standard_providers
@@ -18,7 +18,7 @@ def _safe_api_base(url: Optional[str]) -> Optional[str]:
     if not url:
         return None
     try:
-        validate_endpoint_url(url)
+        assert_endpoint_url_allowed(url)
     except ValueError:
         log.warning("custom_provider url blocked by SSRF guard, dropping api_base")
         return None

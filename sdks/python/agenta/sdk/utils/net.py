@@ -43,11 +43,27 @@ def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
     )
 
 
+def assert_endpoint_url_allowed(url: str) -> None:
+    """Validate `url` as a config-time gate, discarding the resolved IP.
+
+    For endpoints this process does NOT connect to directly — it hands the URL to an external
+    connector (e.g. litellm's `api_base`) that re-resolves the hostname itself. Pinning an IP
+    here would be useless (the connector needs the hostname for TLS/SNI and routing), so the
+    resolved IP is intentionally dropped; the value is the private/loopback/reserved block at
+    config time. Raises ValueError on a blocked target. In-process connect paths must instead
+    call `validate_endpoint_url` and connect to the IP it returns.
+    """
+    validate_endpoint_url(url)
+
+
 def validate_endpoint_url(url: str) -> str:
     """Validate `url` and resolve it to a blocked-range-checked literal IP.
 
-    Used for tenant-configured endpoints (e.g. custom_provider.url) that this process itself
-    connects to; raises ValueError on anything private/loopback/reserved by default.
+    For tenant-configured endpoints this process connects to directly: the caller MUST connect
+    to the returned literal IP (not re-resolve the hostname) so a DNS rebind between validation
+    and send cannot reach an internal host. Raises ValueError on anything private/loopback/
+    reserved by default. For a validate-only config gate (no in-process connect), use
+    `assert_endpoint_url_allowed` instead.
     """
     if not url:
         raise ValueError("URL is required.")

@@ -59,7 +59,9 @@ function mcpHostAllowlist(): Set<string> {
   );
 }
 
-export async function validateUserMcpUrl(rawUrl: string): Promise<string | undefined> {
+export async function validateUserMcpUrl(
+  rawUrl: string,
+): Promise<string | undefined> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
