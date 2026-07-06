@@ -361,16 +361,6 @@ class ServicesCodeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class ServicesHookConfig(BaseModel):
-    allow_insecure: bool = (
-        os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
-        or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-        or "true"
-    ).lower() in _TRUTHY
-
-    model_config = ConfigDict(extra="ignore")
-
-
 class ServicesMiddlewareConfig(BaseModel):
     caching_enabled: bool = (
         os.getenv("AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED")
@@ -383,7 +373,6 @@ class ServicesMiddlewareConfig(BaseModel):
 
 class ServicesConfig(BaseModel):
     code: ServicesCodeConfig = ServicesCodeConfig()
-    hook: ServicesHookConfig = ServicesHookConfig()
     middleware: ServicesMiddlewareConfig = ServicesMiddlewareConfig()
 
     model_config = ConfigDict(extra="ignore")
@@ -419,10 +408,12 @@ class WorkersConfig(BaseModel):
 
 
 class WebhooksConfig(BaseModel):
+    # AGENTA_WEBHOOKS_ALLOW_INSECURE / AGENTA_WEBHOOK_ALLOW_INSECURE are deprecated aliases; prefer AGENTA_INSECURE_EGRESS_ALLOWED.
     allow_insecure: bool = (
-        os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
+        os.getenv("AGENTA_INSECURE_EGRESS_ALLOWED")
+        or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
         or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-        or "true"
+        or "false"
     ).lower() in _TRUTHY
 
     model_config = ConfigDict(extra="ignore")
@@ -554,6 +545,11 @@ class ComposioConfig(BaseModel):
     # (http://localhost) the tunnel delivers over WebSocket, so this only needs to
     # be a valid public HTTPS placeholder to mint the subscription's secret.
     webhook_url: str | None = os.getenv("COMPOSIO_WEBHOOK_URL")
+    # Bounded replay/freshness window (seconds) for inbound webhook-timestamp; also
+    # the TTL for the webhook-id dedup entry.
+    webhook_replay_window_seconds: int = int(
+        os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
+    )
 
     @property
     def enabled(self) -> bool:

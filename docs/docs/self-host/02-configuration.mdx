@@ -112,7 +112,6 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
-| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `agenta.services.hook.allow_insecure` | `agenta.services.hook.allowInsecure` |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
@@ -234,11 +233,24 @@ reachable. Enable the `ngrok` tunnel (the compose `remote` profile) or point
 cross into a remote sandbox.
 :::
 
-## Agenta — webhooks
+## Agenta — egress
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `agenta.webhooks.allow_insecure` | `agenta.webhooks.allowInsecure` |
+| `AGENTA_INSECURE_EGRESS_ALLOWED` | `agenta.webhooks.allow_insecure` (API); read directly by the SDK for workflow hooks and custom model provider endpoints | `agenta.insecureEgressAllowed` |
+
+:::note SSRF protection
+`AGENTA_INSECURE_EGRESS_ALLOWED` defaults to **false** (secure). Outbound requests that
+Agenta itself makes to a tenant-configured endpoint (webhooks, workflow hooks, custom
+model provider URLs) are blocked if they resolve to a private, loopback, or otherwise
+reserved IP address. This holds regardless of who configured the URL. Public URLs are
+never affected.
+
+Set it to `true` only for local development against services on your private network.
+The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALLOW_INSECURE`,
+`AGENTA_SERVICES_HOOK_ALLOW_INSECURE`, `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE`) are
+deprecated aliases and still work, but new configuration should use the canonical name.
+:::
 
 ## alembic
 
@@ -461,7 +473,10 @@ future major release.
 | `AGENTA_SERVICES_SANDBOX_RUNNER` | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` |
 | `AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` |
 | `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` |
-| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_WEBHOOKS_ALLOW_INSECURE` (API), `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` (SDK) |
+| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
 | `AGENTA_AUTO_MIGRATIONS` | `ALEMBIC_AUTO_MIGRATIONS` |
 | `AGENTA_RUNTIME_PREFIX` | _(removed; no consumer in API)_ |
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` | `AZURE_AD_OAUTH_CLIENT_ID` |
