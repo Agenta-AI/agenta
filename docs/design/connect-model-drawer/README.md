@@ -6,7 +6,8 @@ owner's final decisions applied (three sections, a "Use API key" / "Use subscrip
 credentials toggle, inline custom providers, an unsaved-changes guard, and a readable
 selection style for the shared SectionRail).
 
-Status: **planned, not implemented**. See status.md for open decisions.
+Status: **implemented (slices 1-6), pending review and live verification**. See
+status.md for details.
 
 ## Files
 
