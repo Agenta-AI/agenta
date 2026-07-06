@@ -150,7 +150,7 @@ def _request_input_revision() -> WorkflowRevision:
                         "Pause the run and ask the user for typed input via an inline form. "
                         "Use this instead of guessing values the user must confirm — for "
                         "example, when wiring a provider tool, ask WHICH actions to enable "
-                        "(enum from find_capabilities results) or collect non-secret settings "
+                        "(enum from discover_tools results) or collect non-secret settings "
                         "(subdomain, workspace) before request_connection; or collect schedule "
                         "details (frequency, time of day, timezone) before create_schedule. "
                         "`requestedSchema` must be a FLAT JSON object schema: top-level "
