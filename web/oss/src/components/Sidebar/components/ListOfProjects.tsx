@@ -3,17 +3,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import {InitialsAvatar} from "@agenta/ui"
 import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
-import {
-    ButtonProps,
-    Dropdown,
-    DropdownProps,
-    Form,
-    Input,
-    MenuProps,
-    Modal,
-    Tag,
-    message,
-} from "antd"
+import {App, ButtonProps, Dropdown, DropdownProps, Form, Input, MenuProps, Modal, Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -58,6 +48,7 @@ const ListOfProjects = ({
     dropdownProps,
 }: ListOfProjectsProps) => {
     const router = useRouter()
+    const {message} = App.useApp()
     const {orgs} = useOrgData()
     const {project, projects, refetch} = useProjectData()
     const settingsTab = useAtomValue(settingsTabAtom)

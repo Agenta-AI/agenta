@@ -44,6 +44,7 @@ import dynamic from "next/dynamic"
 
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
+import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
@@ -222,6 +223,13 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // by MainLayout + the chat panel), surfaced here as a persistent, labeled mode switch.
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+
+    // Pre-commit onboarding: the playground is the "what do you want to build?" surface, so the
+    // Build/Chat mode switch + settings cog are noise (there's nothing to configure or chat yet). They
+    // return a beat after commit (`chromeRevealed`), eased in with the rest of the post-commit chrome
+    // rather than popping in during the first send.
+    const onboarding = useOptionalOnboardingContext()
+    const chromeHidden = !!onboarding && !onboarding.chromeRevealed
 
     // Agent playground settings (page-level): config-panel layout + stream/batch response channel.
     // These were previously buried in a config item's kebab; they're global, so they live here.
@@ -697,7 +705,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             )}
                         </>
                     )}
-                    {isAgentWorkflow && (
+                    {isAgentWorkflow && !chromeHidden && (
                         <>
                             <Segmented
                                 aria-label="Playground mode"
