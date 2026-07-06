@@ -1,8 +1,9 @@
 import {useCallback, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
-import {PageLayout} from "@agenta/ui"
+import {HeightCollapse, PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {CaretDown, CaretUp, SquaresFour} from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -13,7 +14,7 @@ import {urlAtom} from "@/oss/state/url"
 
 import {HERO, TUTORIAL_VIDEO} from "./assets/constants"
 import {captureFirstAgentIntent} from "./assets/onboardingAnalytics"
-import type {AgentTemplate} from "./assets/templates"
+import {AGENT_TEMPLATES, type AgentTemplate} from "./assets/templates"
 import AgentComposer from "./components/AgentComposer"
 import TemplateSetupDrawer, {type TemplateSetupResult} from "./components/TemplateSetupDrawer"
 import TemplatesSection from "./components/TemplatesSection"
@@ -62,6 +63,9 @@ const AgentHome: React.FC = () => {
     // drawer (review + connect before Create). Gated by NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER.
     const [setupTemplate, setSetupTemplate] = useState<AgentTemplate | null>(null)
     const handleSelectTemplate = useTemplateSelect(setSetupTemplate)
+
+    // Returning users: templates collapse behind a toggle instead of showing by default.
+    const [templatesOpen, setTemplatesOpen] = useState(false)
 
     // Create the agent from the template and land in its playground (no drawer). The template's
     // seed message pre-fills the playground composer; connect-a-model is handled there. The setup
@@ -131,6 +135,27 @@ const AgentHome: React.FC = () => {
                     />
                 ) : (
                     <>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setTemplatesOpen((open) => !open)}
+                                className="inline-flex w-fit items-center gap-[9px] rounded-lg border-0 bg-transparent px-3 py-[7px] text-left hover:bg-[var(--ag-colorFillTertiary)]"
+                            >
+                                <SquaresFour size={16} />
+                                <span className="text-base font-semibold">Browse templates</span>
+                                <span className="text-[12.5px] text-[var(--ag-colorTextTertiary)]">
+                                    {AGENT_TEMPLATES.length}
+                                </span>
+                                {templatesOpen ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                            </button>
+                            <HeightCollapse open={templatesOpen}>
+                                <TemplatesSection
+                                    hideHeader
+                                    onSelectTemplate={handleSelectTemplate}
+                                    onBrowseAll={handleBrowseAll}
+                                />
+                            </HeightCollapse>
+                        </div>
                         <UsageSummary />
                         <YourAgentsTable />
                     </>

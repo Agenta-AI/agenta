@@ -7,34 +7,29 @@ interface TemplateCardProps {
     onSelect: (template: AgentTemplate) => void
 }
 
-/** Info-rich starter-template tile: monogram + name, description, tools·trigger meta + provider logos. */
+/** Starter-template tile: monogram + provider chips row, then name and description. */
 const TemplateCard = ({template, onSelect}: TemplateCardProps) => {
     return (
         <button
             type="button"
             onClick={() => onSelect(template)}
-            className="group flex h-full min-h-[132px] cursor-pointer flex-col gap-3 rounded-lg border border-solid border-transparent bg-[var(--ag-colorFillQuaternary)] p-4 text-left transition-colors hover:border-[var(--ag-colorBorderSecondary)] hover:bg-[var(--ag-colorFillTertiary)]"
+            className="group flex h-full min-h-[132px] cursor-pointer flex-col rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] p-4 text-left transition-[border-color,box-shadow] duration-150 hover:border-[var(--ag-colorBorder)] hover:shadow-[0_2px_8px_-2px_rgba(28,44,61,0.12)]"
         >
-            <div className="flex items-center gap-3">
+            <div className="mb-3 flex items-start justify-between gap-2">
                 <span
-                    className="flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
+                    className="flex size-[34px] shrink-0 items-center justify-center rounded-[8px] text-sm font-semibold text-white"
                     style={{backgroundColor: template.color}}
                 >
                     {template.initials}
                 </span>
-                <span className="truncate text-sm font-medium">{template.name}</span>
-            </div>
-
-            <p className="m-0 line-clamp-2 text-[13px] leading-snug text-[var(--ag-colorTextSecondary)]">
-                {template.description}
-            </p>
-
-            <div className="mt-auto flex items-center justify-between gap-2">
-                <span className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
-                    {template.toolsSummary} · {template.trigger}
-                </span>
                 <ProviderMarks providers={templateProviderSlugs(template)} />
             </div>
+
+            <span className="mb-[5px] truncate text-[15px] font-semibold">{template.name}</span>
+
+            <p className="m-0 line-clamp-2 text-[13px] leading-[1.45] text-[var(--ag-colorTextSecondary)]">
+                {template.description}
+            </p>
         </button>
     )
 }
