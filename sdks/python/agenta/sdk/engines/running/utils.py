@@ -409,32 +409,24 @@ def parse_uri(
     return provider, kind, key, version
 
 
-def register_handler(
-    fn: Callable,
-    uri: Optional[str] = None,
-    *,
-    replace: bool = False,
-) -> str:
-    """Register a handler function in the global handler registry.
+def register_handler(fn: Callable, uri: Optional[str] = None) -> str:
+    """Register (or REPLACE) a handler function in the global handler registry.
 
     Stores a callable in the HANDLER_REGISTRY with a hierarchical URI structure
     of provider:kind:key:version. If no URI is provided, generates one automatically
     using the function's module and name (user:custom:module.name:latest).
 
-    By default the registration is first-writer-wins (``setdefault``): a URI that is
-    already bound — including the statically seeded builtins above — keeps its existing
-    handler, SILENTLY. A service that owns a builtin URI in its own process (e.g. the
-    agent service composing tracing/usage onto ``agenta:builtin:agent:v0``) must pass
-    ``replace=True`` to actually take ownership; otherwise the SDK's bare seed keeps
-    running and the service's composition never executes. Last-writer-wins therefore
-    happens ONLY when explicitly requested via ``replace=True``.
+    Like :func:`register_interface`, this REPLACES any existing entry, so a service
+    process can bind its live handler under a builtin URI the SDK already seeds
+    (e.g. the agent service rebinds ``agenta:builtin:agent:v0`` over the seeded
+    composition-default ``agent_v0``). ``ag.workflow`` never re-registers an
+    already-bound URI (``Workflow.__call__`` skips when a handler resolved from
+    the registry), so replace semantics cannot clobber an instrumented handler.
 
     Args:
         fn: The callable function to register
         uri: Optional URI string in format "provider:kind:key:version".
              If None, auto-generates "user:custom:{module}.{name}:latest"
-        replace: When True, overwrite any existing handler for the URI
-             (last-writer-wins). Default False keeps the existing entry.
 
     Returns:
         The URI string used for registration
@@ -457,15 +449,9 @@ def register_handler(
     if not provider or not kind or not key or not version:
         raise ValueError(f"Invalid URI: {uri}")
 
-    bucket = (
-        HANDLER_REGISTRY.setdefault(provider, {})
-        .setdefault(kind, {})
-        .setdefault(key, {})
-    )
-    if replace:
-        bucket[version] = fn
-    else:
-        bucket.setdefault(version, fn)
+    HANDLER_REGISTRY.setdefault(provider, {}).setdefault(kind, {}).setdefault(key, {})[
+        version
+    ] = fn
 
     return uri
 
