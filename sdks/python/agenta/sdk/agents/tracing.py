@@ -1,9 +1,13 @@
-"""OpenTelemetry glue: thread the workflow trace into the run, record the run's usage.
+"""Ambient tracing capture: thread the active workflow trace into the run, record its usage.
 
-The handler runs inside the instrumented ``/invoke`` span, so threading its trace context
-into the harness makes the agent's spans children of that span (same trace), and stamping
-the run's token/cost totals onto it shows the run's usage even though the harness exports
-its span tree in a separate OTLP batch.
+These are the runtime defaults of the ``AgentComposition`` seam (see ``handler.py``). Each
+reads ambient SDK-owned state at CALL time — the active OpenTelemetry span, the
+``TracingContext`` ContextVar (traceparent, baggage, credentials, references) — and degrades
+to ``None``/no-op when a run has no such state (the standalone case). The handler runs inside
+the instrumented ``/invoke`` span, so threading its trace context into the harness makes the
+agent's spans children of that span (same trace), and stamping the run's token/cost totals
+onto it shows the run's usage even though the harness exports its span tree in a separate
+OTLP batch.
 """
 
 import os
@@ -11,12 +15,11 @@ from typing import Any, Dict, Optional
 
 from opentelemetry import trace as otel_trace
 
-import agenta as ag
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.utils.logging import get_module_logger
 
-from agenta.sdk.agents import (
+from agenta.sdk.agents.dtos import (
     RunContext,
     RunContextReference,
     RunContextTrace,
@@ -40,8 +43,11 @@ def trace_context() -> Optional[TraceContext]:
 
     Threading the ``/invoke`` span's ``traceparent`` into the run makes the agent's spans
     children of that span, so the whole run shows up under the response's ``trace_id`` the
-    way completion/chat nest their LLM spans. Best-effort: any failure returns ``None`` and
-    the run is traced standalone (or not at all) using the runner's env config.
+    way completion/chat nest their LLM spans. The caller's credential rides along (via
+    ``inject``'s ``Authorization`` re-emit from ``TracingContext.credentials``) — the runner
+    authenticates its session-coordination calls AS the caller with it. Best-effort: any
+    failure returns ``None`` and the run is traced standalone (or not at all) using the
+    runner's env config.
     """
     try:
         headers = inject({})
@@ -52,6 +58,8 @@ def trace_context() -> Optional[TraceContext]:
 
         endpoint = None
         try:
+            import agenta as ag  # deferred: this module loads during `agenta` init
+
             endpoint = ag.tracing.otlp_url
         except Exception:  # pylint: disable=broad-except
             endpoint = None

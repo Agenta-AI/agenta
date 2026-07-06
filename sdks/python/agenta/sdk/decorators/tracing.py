@@ -114,6 +114,13 @@ class instrument:  # pylint: disable=invalid-name
 
                     agen = handler(*args, **kwargs)
 
+                    # Detach the baggage token HERE, in the frame that attached it — the
+                    # generator below re-attaches captured_ctx (snapshotted after the
+                    # attach, so it carries the baggage) with its own in-frame token.
+                    # Detaching endpoint-frame tokens inside the generator finalizer runs
+                    # in the ASGI streaming task -> otel "created in a different Context".
+                    self._detach_baggage(baggage_token)
+
                     async def wrapped_generator():
                         otel_token = otel_context.attach(captured_ctx)
                         try:
@@ -135,7 +142,6 @@ class instrument:  # pylint: disable=invalid-name
                         finally:
                             with suppress():
                                 otel_context.detach(otel_token)
-                            self._detach_baggage(baggage_token)
 
                     return wrapped_generator()
 
@@ -172,6 +178,10 @@ class instrument:  # pylint: disable=invalid-name
 
                     gen = handler(*args, **kwargs)
 
+                    # In-frame baggage detach (see astream_wrapper): captured_ctx carries
+                    # the baggage into the generator's own paired attach.
+                    self._detach_baggage(token)
+
                     def wrapped_generator():
                         otel_token = otel_context.attach(captured_ctx)
                         try:
@@ -198,7 +208,6 @@ class instrument:  # pylint: disable=invalid-name
                         finally:
                             with suppress():
                                 otel_context.detach(otel_token)
-                            self._detach_baggage(token)
 
                     return wrapped_generator()
 
@@ -252,7 +261,7 @@ class instrument:  # pylint: disable=invalid-name
                             if isasyncgen(result) or isgenerator(result):
                                 handed_off = True
                                 return self._wrap_returned_gen(
-                                    result, span, captured_ctx, token
+                                    result, span, captured_ctx
                                 )
 
                             self._post_instrument(span, result)
@@ -260,7 +269,10 @@ class instrument:  # pylint: disable=invalid-name
                     finally:
                         if not handed_off:
                             span.end()
-                            self._detach_baggage(token)
+                        # Baggage detaches in THIS frame even on hand-off (the wrapper
+                        # re-attaches captured_ctx, which carries it, in the consuming
+                        # task); detaching there hits a different Context and otel logs.
+                        self._detach_baggage(token)
 
             setattr(awrapper, "__has_instrument__", True)
             setattr(awrapper, "__original_handler__", handler)
@@ -303,20 +315,19 @@ class instrument:  # pylint: disable=invalid-name
                         if isgenerator(result):
                             handed_off = True
                             return self._wrap_returned_sync_gen(
-                                result, span, captured_ctx, token
+                                result, span, captured_ctx
                             )
                         if isasyncgen(result):
                             handed_off = True
-                            return self._wrap_returned_gen(
-                                result, span, captured_ctx, token
-                            )
+                            return self._wrap_returned_gen(result, span, captured_ctx)
 
                         self._post_instrument(span, result)
                         return result
                 finally:
                     if not handed_off:
                         span.end()
-                        self._detach_baggage(token)
+                    # In-frame baggage detach even on hand-off (see awrapper).
+                    self._detach_baggage(token)
 
         setattr(wrapper, "__has_instrument__", True)
         setattr(wrapper, "__original_handler__", handler)
@@ -338,20 +349,20 @@ class instrument:  # pylint: disable=invalid-name
             return b"".join(chunks)
         return chunks
 
-    def _wrap_returned_gen(self, gen, span, captured_ctx, baggage_token):
+    def _wrap_returned_gen(self, gen, span, captured_ctx):
         """Keep a batch-path span open across a RETURNED generator's consumption.
 
         A `def`/`async def` that RETURNS a generator (rather than `yield`ing) is not a
         generator function, so it lands in the batch wrapper — but its value is a stream.
         Recording that value would stamp the generator OBJECT's repr as outputs and end the
         span before the first item is consumed. Instead we take the (created, not-ended)
-        span and, inside this async generator, re-attach the captured otel context and
-        `use_span` it so the span is CURRENT during iteration — so nested spans created
-        mid-stream parent correctly, and it never leaks onto a sibling created after
-        invoke() returned. The span is ended (end_on_exit) and baggage detached in the
-        finally, after the drained content is recorded. Mirrors the yield-based
-        astream_wrapper contract; span currency lives in the consuming task, not the
-        (already-returned) batch wrapper's task.
+        span and, inside this async generator, re-attach the captured otel context (which
+        carries the baggage — no endpoint-frame token crosses tasks) and `use_span` it so
+        the span is CURRENT during iteration — so nested spans created mid-stream parent
+        correctly, and it never leaks onto a sibling created after invoke() returned. The
+        span is ended (end_on_exit) in the finally, after the drained content is recorded.
+        Mirrors the yield-based astream_wrapper contract; span currency lives in the
+        consuming task, not the (already-returned) batch wrapper's task.
         """
 
         async def wrapped():
@@ -385,11 +396,10 @@ class instrument:  # pylint: disable=invalid-name
                 # contextvar; this only cleans up THIS task's activation.)
                 with suppress():
                     otel_context.detach(otel_token)
-                self._detach_baggage(baggage_token)
 
         return wrapped()
 
-    def _wrap_returned_sync_gen(self, gen, span, captured_ctx, baggage_token):
+    def _wrap_returned_sync_gen(self, gen, span, captured_ctx):
         """Sync counterpart of `_wrap_returned_gen`: keep a batch-path span open across a
         RETURNED sync generator's consumption WITHOUT turning it into an async generator.
 
@@ -417,7 +427,6 @@ class instrument:  # pylint: disable=invalid-name
             finally:
                 with suppress():
                     otel_context.detach(otel_token)
-                self._detach_baggage(baggage_token)
 
         return wrapped()
 
