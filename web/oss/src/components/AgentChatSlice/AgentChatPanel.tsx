@@ -1186,7 +1186,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 enter={enter}
                 inspected={isInspected}
                 onInspect={onInspect}
-                offscreenSkip={index < activeStart}
+                // content-visibility off: rows rendering as they neared the bottom changed
+                // scrollHeight and snapped the follow logic to the last message.
+                offscreenSkip={false}
             >
                 <AgentMessage
                     message={message}
