@@ -35,6 +35,7 @@ import {
 } from "./engines/sandbox_agent.ts";
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
+import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
@@ -463,5 +464,16 @@ if (isEntrypoint(import.meta.url)) {
     process.stderr.write(
       `[sandbox-agent] http server listening on ${HOST}:${PORT}\n`,
     );
+    if (insecureEgressAllowed()) {
+      process.stderr.write(
+        "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCP servers may " +
+          "target http and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.\n",
+      );
+    } else {
+      process.stderr.write(
+        "[sandbox-agent] Outbound egress is in restricted mode: user MCP servers must use https and " +
+          "public hosts (private/loopback/link-local/metadata targets are blocked).\n",
+      );
+    }
   });
 }

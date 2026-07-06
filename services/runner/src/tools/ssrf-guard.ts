@@ -12,6 +12,33 @@
 import { isIPv4, isIPv6 } from "node:net";
 import { lookup as dnsLookup } from "node:dns/promises";
 
+const _TRUTHY = new Set([
+  "true",
+  "1",
+  "t",
+  "y",
+  "yes",
+  "on",
+  "enable",
+  "enabled",
+]);
+
+/**
+ * Whether outbound egress is unrestricted. Mirrors the Python SDK/API flag: reads
+ * `AGENTA_INSECURE_EGRESS_ALLOWED` (canonical) with the deprecated `AGENTA_WEBHOOKS_ALLOW_INSECURE`
+ * / `AGENTA_WEBHOOK_ALLOW_INSECURE` aliases. When true, http and private/loopback/link-local/
+ * metadata targets are permitted (trusted/single-tenant deployments only). Read per-call so tests
+ * and hot-reconfig see the current env.
+ */
+export function insecureEgressAllowed(): boolean {
+  const raw =
+    process.env.AGENTA_INSECURE_EGRESS_ALLOWED ??
+    process.env.AGENTA_WEBHOOKS_ALLOW_INSECURE ??
+    process.env.AGENTA_WEBHOOK_ALLOW_INSECURE ??
+    "false";
+  return _TRUTHY.has(raw.toLowerCase());
+}
+
 /** [start, end] inclusive, both as 32-bit unsigned ints. */
 type IPv4Range = [number, number];
 

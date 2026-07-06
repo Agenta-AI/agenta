@@ -81,6 +81,13 @@ _HOOK_ALLOW_INSECURE = (
     or "false"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 
+if not _HOOK_ALLOW_INSECURE:
+    log.info(
+        "Webhook egress is in restricted mode: http and private/loopback/link-local/"
+        "cloud-metadata targets are blocked. Set AGENTA_INSECURE_EGRESS_ALLOWED=true to "
+        "permit them (trusted/single-tenant deployments only)."
+    )
+
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
     if _HOOK_ALLOW_INSECURE:

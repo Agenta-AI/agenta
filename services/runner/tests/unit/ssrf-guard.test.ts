@@ -6,7 +6,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/ssrf-guard.test.ts)
  */
-import { afterEach, describe, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
 // `node:dns/promises` is ESM-native and not spy-able via vi.spyOn (non-configurable exports),
@@ -15,9 +15,11 @@ const dnsLookupMock = vi.hoisted(() => vi.fn());
 vi.mock("node:dns/promises", () => ({ lookup: dnsLookupMock }));
 
 import {
+  insecureEgressAllowed,
   isBlockedIpLiteral,
   resolveAndCheckHost,
 } from "../../src/tools/ssrf-guard.ts";
+import { validateUserMcpUrl } from "../../src/engines/sandbox_agent/mcp.ts";
 
 describe("isBlockedIpLiteral — IPv4", () => {
   it("blocks loopback, private, link-local, reserved, multicast, unspecified", () => {
@@ -136,5 +138,52 @@ describe("resolveAndCheckHost — DNS resolution path", () => {
 
     const result = await resolveAndCheckHost("this-does-not-exist.invalid");
     assert.match(result.error ?? "", /could not be resolved/);
+  });
+});
+
+describe("insecureEgressAllowed + validateUserMcpUrl bypass", () => {
+  const KEYS = [
+    "AGENTA_INSECURE_EGRESS_ALLOWED",
+    "AGENTA_WEBHOOKS_ALLOW_INSECURE",
+    "AGENTA_WEBHOOK_ALLOW_INSECURE",
+    "AGENTA_AGENT_MCPS_HOST_ALLOWLIST",
+  ];
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of KEYS) saved[k] = process.env[k];
+    for (const k of KEYS) delete process.env[k];
+  });
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("reads the canonical flag and its deprecated aliases", () => {
+    assert.equal(insecureEgressAllowed(), false, "unset -> false");
+    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "true";
+    assert.equal(insecureEgressAllowed(), true, "canonical true");
+    delete process.env.AGENTA_INSECURE_EGRESS_ALLOWED;
+    process.env.AGENTA_WEBHOOK_ALLOW_INSECURE = "yes";
+    assert.equal(insecureEgressAllowed(), true, "deprecated alias true");
+  });
+
+  it("blocks http and private MCP hosts when egress is restricted (default)", async () => {
+    assert.match(
+      (await validateUserMcpUrl("http://example.com/sse")) ?? "",
+      /must use https/,
+    );
+    assert.match(
+      (await validateUserMcpUrl("https://127.0.0.1/sse")) ?? "",
+      /internal\/metadata host/,
+    );
+  });
+
+  it("allows http and private MCP hosts when egress is unrestricted", async () => {
+    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "true";
+    assert.equal(await validateUserMcpUrl("http://example.com/sse"), undefined);
+    assert.equal(await validateUserMcpUrl("http://127.0.0.1/sse"), undefined);
   });
 });

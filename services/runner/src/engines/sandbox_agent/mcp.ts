@@ -9,7 +9,11 @@ import {
   type McpServerStdio,
 } from "../../tools/mcp-bridge.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import { isBlockedIpLiteral, resolveAndCheckHost } from "../../tools/ssrf-guard.ts";
+import {
+  insecureEgressAllowed,
+  isBlockedIpLiteral,
+  resolveAndCheckHost,
+} from "../../tools/ssrf-guard.ts";
 
 type Log = (message: string) => void;
 
@@ -62,6 +66,7 @@ export async function validateUserMcpUrl(rawUrl: string): Promise<string | undef
   } catch {
     return `http MCP server url is not a valid URL: ${rawUrl}`;
   }
+  if (insecureEgressAllowed()) return undefined;
   const allowlist = mcpHostAllowlist();
   const host = parsed.hostname.toLowerCase();
   const allowed = allowlist.has(host);

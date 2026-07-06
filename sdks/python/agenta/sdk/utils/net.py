@@ -9,6 +9,10 @@ import os
 import socket
 from urllib.parse import urlparse
 
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 # AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE / AGENTA_WEBHOOKS_ALLOW_INSECURE / AGENTA_WEBHOOK_ALLOW_INSECURE are deprecated aliases; prefer AGENTA_INSECURE_EGRESS_ALLOWED.
 _ALLOW_INSECURE = (
     os.getenv("AGENTA_INSECURE_EGRESS_ALLOWED")
@@ -17,6 +21,13 @@ _ALLOW_INSECURE = (
     or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
     or "false"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+
+if not _ALLOW_INSECURE:
+    log.info(
+        "Outbound egress is in restricted mode: http and private/loopback/link-local/"
+        "cloud-metadata targets are blocked. Set AGENTA_INSECURE_EGRESS_ALLOWED=true to "
+        "permit them (trusted/single-tenant deployments only)."
+    )
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
