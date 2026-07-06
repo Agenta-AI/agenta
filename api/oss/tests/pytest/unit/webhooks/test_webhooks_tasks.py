@@ -3,7 +3,9 @@
 Pure logic, no network or database involved.
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from agenta.sdk.utils.resolvers import (
     MAX_RESOLVE_DEPTH,
@@ -13,11 +15,18 @@ from agenta.sdk.utils.resolvers import (
 from oss.src.core.webhooks.delivery import (
     NON_OVERRIDABLE_HEADERS,
     _merge_headers,
+    send_webhook_request,
 )
 from oss.src.core.webhooks.types import (
     EVENT_CONTEXT_FIELDS,
     SUBSCRIPTION_CONTEXT_FIELDS,
 )
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
 
 _MOCK_CONTEXT = {
     "event": {
@@ -224,3 +233,72 @@ class TestContextAllowlists:
         assert "data" not in SUBSCRIPTION_CONTEXT_FIELDS
         assert "secret" not in SUBSCRIPTION_CONTEXT_FIELDS
         assert "secret_id" not in SUBSCRIPTION_CONTEXT_FIELDS
+
+
+# ---------------------------------------------------------------------------
+# send_webhook_request — connects to the pinned IP, not a re-resolved hostname
+# ---------------------------------------------------------------------------
+
+
+class TestSendWebhookRequestIpPin:
+    @pytest.mark.anyio
+    async def test_connects_to_resolved_ip_with_original_host_and_sni(self):
+        captured = {}
+
+        class _FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, *, content, headers, extensions):
+                captured["url"] = url
+                captured["headers"] = headers
+                captured["extensions"] = extensions
+                return AsyncMock(status_code=200)
+
+        with patch(
+            "oss.src.core.webhooks.delivery.httpx.AsyncClient",
+            return_value=_FakeClient(),
+        ):
+            await send_webhook_request(
+                url="https://example.com/hook",
+                resolved_ip="93.184.216.34",
+                payload_json="{}",
+                headers={"Content-Type": "application/json"},
+            )
+
+        assert captured["url"] == "https://93.184.216.34/hook"
+        assert captured["headers"]["Host"] == "example.com"
+        assert captured["extensions"] == {"sni_hostname": "example.com"}
+
+    @pytest.mark.anyio
+    async def test_pins_ipv6_literal_with_brackets(self):
+        captured = {}
+
+        class _FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, *, content, headers, extensions):
+                captured["url"] = url
+                return AsyncMock(status_code=200)
+
+        with patch(
+            "oss.src.core.webhooks.delivery.httpx.AsyncClient",
+            return_value=_FakeClient(),
+        ):
+            await send_webhook_request(
+                url="https://example.com:8443/hook",
+                resolved_ip="2606:2800:220:1:248:1893:25c8:1946",
+                payload_json="{}",
+                headers={},
+            )
+
+        assert (
+            captured["url"] == "https://[2606:2800:220:1:248:1893:25c8:1946]:8443/hook"
+        )

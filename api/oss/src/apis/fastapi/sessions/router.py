@@ -101,7 +101,7 @@ from oss.src.apis.fastapi.sessions.models import (
 
 log = get_module_logger(__name__)
 
-# SEC-8: allow letters, digits, hyphens, underscores, dots — no slashes or control chars
+# session_id charset: letters, digits, hyphens, underscores only
 _SESSION_ID_RE = re.compile(r"^[\w.\-]{1,256}$")
 
 

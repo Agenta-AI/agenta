@@ -17,6 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 import httpx
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.net import validate_endpoint_url
 
 from ..capabilities import (
     CLAUDE_MODEL_ALIASES,
@@ -319,8 +320,15 @@ def _custom_provider_candidate(
 
     env = _normalized_extra_env(extras)
     region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
+    raw_url = _stripped(settings.get("url"))
+    if raw_url:
+        try:
+            validate_endpoint_url(raw_url)
+        except ValueError:
+            log.warning("agent: custom_provider url blocked by SSRF guard, dropping")
+            raw_url = None
     endpoint = Endpoint(
-        base_url=_stripped(settings.get("url")),
+        base_url=raw_url,
         api_version=_stripped(settings.get("version")),
         region=region,
     )

@@ -9,6 +9,7 @@ import {
   type McpServerStdio,
 } from "../../tools/mcp-bridge.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
+import { isBlockedIpLiteral, resolveAndCheckHost } from "../../tools/ssrf-guard.ts";
 
 type Log = (message: string) => void;
 
@@ -34,13 +35,14 @@ export type McpServerEntry = McpServerStdio | McpServerHttp;
  * SSRF guard for a user HTTP MCP `url`. The runner emits the run's Agenta-resolved named secrets
  * as request headers to this author-supplied URL, so an attacker-controlled config could point it
  * at an internal/metadata endpoint and exfiltrate a credential (a classic server-side request
- * forgery). The capability is flag-gated (`AGENTA_AGENT_MCPS_ENABLED`, off by default) and
- * config-trust, so a scheme + host guard is enough rather than full DNS-resolution pinning:
+ * forgery). Reuses the shared resolve-and-range-block guard (`tools/ssrf-guard.ts`), mirrored with
+ * the webhook validator's block list — DNS-resolved, not literal-only:
  *
  *  - require `https` (the secret rides in a header; `http` would send it in clear text). Opt out
  *    for a known-safe non-https endpoint by listing its host in `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`.
- *  - reject loopback, link-local (incl. the `169.254.169.254` cloud metadata host), and private
- *    address literals unless the host is in `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` (comma-separated).
+ *  - reject loopback, link-local (incl. the `169.254.169.254` cloud metadata host), private, and
+ *    IPv4-mapped/compat IPv6 addresses, resolving hostnames via DNS, unless the host is in
+ *    `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` (comma-separated).
  *
  * Returns an error message string when the URL is rejected, or `undefined` when it is allowed.
  */
@@ -53,29 +55,7 @@ function mcpHostAllowlist(): Set<string> {
   );
 }
 
-/** True for a hostname/IP literal that must not receive a credentialed request (SSRF sinks). */
-function isInternalHost(host: string): boolean {
-  const h = host.toLowerCase();
-  if (h === "localhost" || h.endsWith(".localhost")) return true;
-  // IPv6 loopback / unspecified (URL host keeps the brackets, e.g. "[::1]").
-  if (h === "[::1]" || h === "[::]" || h === "::1" || h === "::") return true;
-  // Link-local IPv6 (fe80::/10) and unique-local IPv6 (fc00::/7) literals.
-  if (/^\[?f[cde]/.test(h)) return true;
-  // IPv4 dotted-quad literals: loopback, link-local (incl. 169.254.169.254 metadata), private.
-  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (m) {
-    const [a, b] = [Number(m[1]), Number(m[2])];
-    if (a === 127) return true; // loopback
-    if (a === 169 && b === 254) return true; // link-local + cloud metadata (169.254.169.254)
-    if (a === 10) return true; // private
-    if (a === 0) return true; // "this host"
-    if (a === 172 && b >= 16 && b <= 31) return true; // private
-    if (a === 192 && b === 168) return true; // private
-  }
-  return false;
-}
-
-export function validateUserMcpUrl(rawUrl: string): string | undefined {
+export async function validateUserMcpUrl(rawUrl: string): Promise<string | undefined> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -88,7 +68,16 @@ export function validateUserMcpUrl(rawUrl: string): string | undefined {
   if (parsed.protocol !== "https:" && !allowed) {
     return `http MCP server url must use https (got ${parsed.protocol.replace(":", "")}): ${rawUrl}`;
   }
-  if (isInternalHost(host) && !allowed) {
+  if (allowed) return undefined;
+
+  if (host === "localhost" || host.endsWith(".localhost")) {
+    return `http MCP server url targets an internal/metadata host (${host}); not allowed: ${rawUrl}`;
+  }
+  if (isBlockedIpLiteral(host)) {
+    return `http MCP server url targets an internal/metadata host (${host}); not allowed: ${rawUrl}`;
+  }
+  const { error } = await resolveAndCheckHost(host);
+  if (error) {
     return `http MCP server url targets an internal/metadata host (${host}); not allowed: ${rawUrl}`;
   }
   return undefined;
@@ -115,10 +104,10 @@ export function validateUserMcpUrl(rawUrl: string): string | undefined {
  * - An http `url` that fails the SSRF guard (`validateUserMcpUrl`: non-https, or an
  *   internal/metadata host) throws, so a credentialed request is never sent to an internal sink.
  */
-export function toAcpMcpServers(
+export async function toAcpMcpServers(
   servers: McpServerConfig[] | undefined,
   log: Log = () => {},
-): McpServerEntry[] {
+): Promise<McpServerEntry[]> {
   const out: McpServerEntry[] = [];
   for (const s of servers ?? []) {
     const transport = s.transport ?? "stdio";
@@ -130,7 +119,7 @@ export function toAcpMcpServers(
       }
       // SSRF guard: the resolved named secret rides as a header on this author-supplied URL, so
       // reject a non-https / internal / metadata target before any credential is attached.
-      const urlError = validateUserMcpUrl(s.url);
+      const urlError = await validateUserMcpUrl(s.url);
       if (urlError) throw new Error(urlError);
       out.push({
         type: "http",
@@ -263,7 +252,7 @@ export async function buildSessionMcpServers({
   }
   // Layer 2: USER MCP capability (stdio disabled, http delivered; do not merge with Layer 1).
   // A user http MCP is a remote url the harness dials directly, so it is delivered on Daytona too.
-  const user = toAcpMcpServers(userMcpServers, log);
+  const user = await toAcpMcpServers(userMcpServers, log);
 
   return {
     servers: [...internal.servers, ...user],

@@ -8,6 +8,8 @@ from uuid import UUID
 from croniter import croniter
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
+from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
@@ -1488,6 +1490,25 @@ class TriggersService:
         """Ensure Composio's delivery webhook exists (startup, herd-safe)."""
         await self.webhook_secret_resolver.resolve()
 
+    @staticmethod
+    def _is_fresh(timestamp: str) -> bool:
+        """Reject a webhook-timestamp outside the bounded replay window."""
+        try:
+            sent_at = int(timestamp)
+        except ValueError:
+            return False
+        age = abs(datetime.now(timezone.utc).timestamp() - sent_at)
+        return age <= env.composio.webhook_replay_window_seconds
+
+    async def _claim_webhook_id(self, webhook_id: str) -> bool:
+        """Atomically claim ``webhook_id`` for the replay window; False if already seen."""
+        engine = get_cache_engine()
+        key = f"triggers:composio:webhook-seen:{webhook_id}"
+        claimed = await engine.set(
+            key, b"1", nx=True, ex=env.composio.webhook_replay_window_seconds
+        )
+        return claimed is not None
+
     async def verify_signature(
         self, *, body: bytes, headers: Mapping[str, str]
     ) -> bool:
@@ -1496,7 +1517,10 @@ class TriggersService:
         Confirmed against live events: Composio sends a lowercase hex digest.
 
         On mismatch, refresh the secret once (it rotates if the subscription is
-        recreated) and retry before rejecting.
+        recreated) and retry before rejecting. Beyond the signature, rejects a
+        stale ``webhook-timestamp`` and dedups ``webhook-id`` in Redis (both
+        against the same bounded window) so a captured valid request cannot
+        replay.
         """
         signature = headers.get("webhook-signature") or headers.get(
             "x-composio-signature"
@@ -1506,10 +1530,18 @@ class TriggersService:
 
         webhook_id = headers.get("webhook-id") or ""
         timestamp = headers.get("webhook-timestamp") or ""
+        if not webhook_id or not self._is_fresh(timestamp):
+            log.warning(
+                "[TRIGGER SIGNATURE] stale or missing timestamp webhook_id=%s",
+                webhook_id,
+            )
+            return False
+
         # Byte-exact signing input: avoids the lossy utf-8 decode for non-utf-8 bodies.
         signed_bytes = f"{webhook_id}.{timestamp}.".encode("utf-8") + body
         provided = signature.split(",")[-1].strip()
 
+        verified = False
         for force_refresh in (False, True):
             secret = await self.webhook_secret_resolver.resolve(
                 force_refresh=force_refresh,
@@ -1521,7 +1553,15 @@ class TriggersService:
             ).hexdigest()
 
             if hmac.compare_digest(expected, provided):
-                return True
+                verified = True
+                break
 
-        log.warning("[TRIGGER SIGNATURE] no match webhook_id=%s", webhook_id)
-        return False
+        if not verified:
+            log.warning("[TRIGGER SIGNATURE] no match webhook_id=%s", webhook_id)
+            return False
+
+        if not await self._claim_webhook_id(webhook_id):
+            log.warning("[TRIGGER SIGNATURE] replay rejected webhook_id=%s", webhook_id)
+            return False
+
+        return True
