@@ -140,12 +140,16 @@ is thrown away.
    Measure with the existing `[HITL]` logs (`acp-interactions.ts:170-187`,
    `stream.py:486-494`).
 
-## Independent flag (out of scope, worth a follow-up issue)
+## Independent flag (pulled into this PR on Mahmoud's review)
 
 The frontend pattern of force-settling any unsettled part with a synthetic error
 (`UnhandledClientTool.tsx:17-21`) manufactures history that the model later trusts as
 a real tool failure. After Option A, only genuinely unknown client tools reach it,
 which is its intended job. Still, the settle text lies about agency ("this app can't
-handle X" for things that are not client requests). A follow-up could settle with a
-neutral "not handled by this client" and render it as informational, without any
-tool-name special-casing. Not part of this plan.
+handle X" for things that are not client requests). The fix: settle with a neutral
+"not handled by this client" output and render it as informational, without any
+tool-name special-casing. Mahmoud asked for this in this PR ("let's do that in this
+pr already"), so it ships here: the settle is now the structured output
+`{status: "not_handled", ...}` and `ToolActivity` renders that shape (and the
+runner's `DEFERRED_NOT_EXECUTED:` sentinel on deferred siblings) muted, not red.
+Both branches key on structured shape, never a tool name.

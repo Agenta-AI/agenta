@@ -1,55 +1,92 @@
 # Implementation plan
 
-Phased so each slice lands green on its own. Phase 1 is Option A; Phases 2-3 are
-Option B layered on top. Recommendation and rationale: [options.md](options.md).
+Phased so each slice lands green on its own. Phase 1 is Option A (IMPLEMENTED in this
+PR, together with three companions the review pass pulled in: the FIFO decision store,
+the honest replay transcript, and the FE neutral rendering); Phases 2-3 are Option B
+layered on top (follow-up). Recommendation and rationale: [options.md](options.md).
 
-## Phase 1: deterministic settle for latch losers (Option A)
+## Phase 1: deterministic settle for latch losers (Option A) — IMPLEMENTED
 
-### Code
+### Code (as landed)
 
 1. `services/runner/src/tracing/otel.ts`
-   - Add `settleOpenToolCalls(excludeIds: ReadonlySet<string>, message: string)` to the
-     run handle (near `maybeCloseTool`, `otel.ts:1202-1224`). It walks the recorded
-     events (`otel.ts:904`), finds `tool_call` ids with no `tool_result`, and for each:
-     ends the open span with error status and records
-     `{type: "tool_result", id, isError: true, output: message}`.
-   - Export the message as a named constant so tests and the transcript stay stable,
-     for example `TOOL_NOT_EXECUTED_PAUSED = "Not executed: the turn paused for
-     approval of another tool call. Call the tool again if it is still needed."`.
+   - `settleOpenToolCalls(isExcluded: (id: string) => boolean, message: string)` on the
+     run handle. It sweeps the open-tool-call map (`toolSpans`, which holds exactly the
+     announced calls with no terminal result), skips excluded ids, ends each open span
+     with error status, and records
+     `{type: "tool_result", id, isError: true, output: message}` through the shared
+     `record()` choke point (live sink + batch log). Idempotent: a settled id leaves the
+     map, so a second sweep is a no-op for it.
+   - The message is the exported constant `TOOL_NOT_EXECUTED_PAUSED =
+     "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still
+     required."`. The stable `DEFERRED_NOT_EXECUTED:` prefix is the structured sentinel
+     the frontend keys its muted rendering on (shape, not tool name), and the sentence
+     doubles as the model-visible retry instruction on replay.
 2. `services/runner/src/engines/sandbox_agent.ts`
-   - In the pause controller's destroy callback (`sandbox_agent.ts:710-715`), call
-     `run.settleOpenToolCalls(pause.pausedToolCallIds, ...)` before `mcpAbort.abort()`
-     and `destroySession`. Expose the paused-id set from
-     `PendingApprovalPauseController` (today it is private, `pause.ts:11`).
-   - Ordering note: `pause()` runs synchronously before the prompt race resolves
-     (`sandbox_agent.ts:858-871`), so the synthetic `tool_result` events reach the
-     live sink before the egress emits `finish`.
+   - The pause controller's destroy callback calls
+     `run.settleOpenToolCalls((id) => pause.isPausedToolCall(id), TOOL_NOT_EXECUTED_PAUSED)`
+     first, before `mcpAbort.abort()` and `destroySession`. The paused-id set stays
+     private in `PendingApprovalPauseController`; the sweep receives only the existing
+     narrow membership predicate (`isPausedToolCall`), per the review note that the
+     mutable set must not leak.
+   - Ordering (verified in the live-sink test): `interaction_request` first (it is
+     emitted before `pause()` runs), then the sibling's `tool_result` from the sweep,
+     then `done`. The client always holds the sibling's terminal state before the turn
+     finishes.
+3. `services/runner/src/responder.ts` (companion fix, was a review finding)
+   - `extractApprovalDecisions` and `ConversationDecisions.take()` now keep a FIFO list
+     per `approvedCallKey`, mirroring the client-tool output store next to them. Two
+     IDENTICAL gated calls (same tool, same canonical args) no longer collapse to one
+     stored decision; each re-raised gate consumes the next decision in order.
+4. `services/runner/src/engines/sandbox_agent/transcript.ts` (companion fix, from
+   [phantom-execution-findings.md](phantom-execution-findings.md))
+   - `messageTranscript` renders an `{approved: boolean}` envelope honestly:
+     approved-but-not-executed calls replay as "user APPROVED <tool>; the call has NOT
+     run yet. Call the tool again..." instead of `returned: {"approved":true}`, so the
+     model re-issues instead of claiming phantom success. Shape detection reuses the
+     now-exported `approvalDecisionOf` from `responder.ts`.
 
-No SDK, wire, or frontend change. The egress already maps `tool_result{isError}` to
+No SDK or wire change. The egress already maps `tool_result{isError}` to
 `tool-output-error` (`stream.py:376-381`), and a settled part never enters the FE's
-parked-unknown path (`meta.ts:64`).
+parked-unknown path (`meta.ts:64`). The frontend change in this PR (see "Frontend
+neutral settle" below) is presentation-only.
 
-### Tests
+### Frontend neutral settle (pulled into this PR per Mahmoud's options.md comment)
 
-- `services/runner/tests/unit/sandbox-agent-orchestration.test.ts`: extend the real
-  pause-wiring block (it already drives F-040 cases around lines 869-1093) with a fake
-  session that announces two gated tool calls and raises two permission requests. When
-  the run returns: `stopReason === "paused"`, exactly one `interaction_request`, and a
-  synthetic `tool_result` for the loser with the constant message; the paused id has
-  none.
-- `services/runner/tests/unit/stream-events.test.ts`: the live-sink ordering (the
-  loser's `tool_result` precedes `done`).
-- New unit for `settleOpenToolCalls` (span closed, idempotent, excludes paused ids;
-  place next to the otel tests).
-- Run `pnpm test` and `pnpm run typecheck` in `services/runner`.
+- `web/oss/src/components/AgentChatSlice/components/clientTools/UnhandledClientTool.tsx`:
+  a genuinely unhandled client tool now settles with a neutral output
+  (`{status: "not_handled", ...}`), not a fabricated error, and renders informational.
+- `web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx`: two settled
+  shapes render muted/informational instead of red "failed": an `output-error` whose
+  `errorText` starts with the `DEFERRED_NOT_EXECUTED:` sentinel ("waiting on another
+  approval", clock icon), and an `output-available` whose output is the
+  `{status: "not_handled"}` shape. Both branch on structured shape; there is no
+  tool-name list anywhere (the hard constraint holds).
+
+### Tests (as landed)
+
+- `sandbox-agent-orchestration.test.ts`: the primary serialized-write regression (two
+  announced calls, one gate, pause -> exactly one `interaction_request` for the winner
+  and one deterministic `tool_result` for the sibling, none for the winner); the
+  read-only concurrent-gates race (both gates arrive, latch drops one, sweep settles
+  it); the live-sink ordering test (sibling result before `done`).
+- `stream-events.test.ts`: `settleOpenToolCalls` exclusion + idempotency at the otel
+  level.
+- `responder.test.ts`: duplicate identical approvals stay FIFO (two takes succeed, the
+  third returns undefined).
+- `transcript.test.ts`: approval envelopes render as APPROVED/DENIED + not-run text;
+  genuine tool results keep the original rendering.
+- Run `pnpm test` and `pnpm run typecheck` in `services/runner`; `pnpm lint-fix` in
+  `web`.
 
 ### Verification on the live stack
 
 Reproduce the incident: agent playground, harness `claude`, prompt that calls
 `commit_revision` and `create_subscription` in one turn (the incident prompt works).
-Expect: gate for A, honest "Not executed" state on B, no "can't handle" text anywhere,
-second gate after approving A, both tools run. Use the `[HITL]` log lines to confirm
-gate B arrived and was dropped post-settle.
+Expect: gate for A, muted "waiting on another approval" state on B, no "can't handle"
+text anywhere, second gate after approving A, both tools run AND their side effects
+actually exist server-side (the phantom-execution check). Use the `[HITL]` log lines to
+confirm gate B arrived and was dropped post-settle.
 
 ## Phase 2: synthetic sibling gates (Option B, no drain)
 

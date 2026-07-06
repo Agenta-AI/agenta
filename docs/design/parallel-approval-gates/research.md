@@ -98,7 +98,8 @@ and on `pendingApproval` calls `pauseUserApproval`
   (`sandbox_agent.ts:858-871`) and the egress maps it to `finishReason: "other"`
   (`stream.py:35-40`).
 
-The loser hits the same `tryAcquire` and returns. No event, no reply, no record.
+The loser hits the same `tryAcquire` and returns. No approval interaction, no reply, and
+no terminal `tool_result` (the earlier `tool_call` announcement stays in the event log).
 That silent return is the bug.
 
 ### 2e. Teardown: every unanswered gate resolves as "cancelled"
@@ -184,7 +185,11 @@ indexes every such envelope by `approvedCallKey(name, args)` (name + canonical a
 recovered from the matching `tool_call` block by id):
 `extractApprovalDecisions` at `services/runner/src/responder.ts:247-259`,
 `coldReplayKey` at 322-332, key shape at 65-76. **The store is a Map. It already holds
-any number of decisions per turn.**
+any number of decisions per turn** — for distinct calls. Two IDENTICAL calls (same tool,
+same canonical args) collapse to one key, so the second stored approval used to overwrite
+the first and only one re-raised gate got answered from history. Fixed in this PR: the
+store keeps a FIFO list per key (mirroring the client-tool output store right below it),
+so each identical re-raised gate consumes the next stored decision in order.
 
 The resumed run cold-starts a fresh sandbox and replays prior turns as flattened text
 (`services/runner/src/engines/sandbox_agent/transcript.ts:43-81`; an approval envelope
