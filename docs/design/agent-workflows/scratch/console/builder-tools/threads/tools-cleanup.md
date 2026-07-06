@@ -7,8 +7,12 @@ needs_reply: false
 promoted_to: ''
 hidden: false
 created: '2026-07-03T13:53:52Z'
-updated: '2026-07-03T15:49:41Z'
+updated: '2026-07-05T16:08:20Z'
 ---
+
+
+
+
 
 
 
@@ -19,7 +23,7 @@ updated: '2026-07-03T15:49:41Z'
 
 ## Summary
 
-**Both deliverables are in review.** External: agenta-skills PR #1 updated and live-tested (extras demotion, create-subscription.sh, update-agent.sh, trigger-inputs docs). Internal: design draft PR [#5060](https://github.com/Agenta-AI/agenta/pull/5060) with the build-kit-tools-cleanup workspace; recommendation = Option C (PlatformOp handler mode on the tool-call plane) for logic-bearing tools like test_run; finding = 3 of 4 authoring skills likely never delivered by the overlay. Waiting on Mahmoud: review both PRs + re-answer the three lost decisions (overlay-scope, test-run-shape, spans-stopgap).
+**Three PRs awaiting Mahmoud: [#5074](https://github.com/Agenta-AI/agenta/pull/5074) (test_run 5b, arms the op end to end), [#5072](https://github.com/Agenta-AI/agenta/pull/5072) (transcript arg fidelity), [#5073](https://github.com/Agenta-AI/agenta/pull/5073) (handler registration / persist 401s).** All live-verified on the dev stack; 5b passed the full self-test loop including the real approval-resume path and both timeout proofs. Env follow-ups parked: sidecar startup lacks the extension build step (recipe note rides #5073), dev DB session-table schema drift needs a migration recreate.
 
 ## Messages
 
@@ -42,3 +46,19 @@ All [[comments]] folded into part 1 and part 2. External PR fix and the internal
 **Agent** · Jul 3, 15:49
 
 Draft PR #5060 is up (docs-only). Review focus: tool-home-options.md (Option C), plan.md slice ordering vs the approval-boundary lane, and the three open decisions in status.md. The external PR #1 in agenta-skills is also ready.
+
+**Agent** · Jul 4, 17:50
+
+Implementation kicked off 2026-07-04 after Mahmoud's go-ahead. Deliverable: one draft PR to big-agents with inline review-guide comments.
+
+**Agent** · Jul 4, 21:28
+
+PR #5068 is ready for review with inline review guides. The three assumed decisions (static-13 overlay, sync+delta test_run, query_spans now) are flagged in the body. The resolver seed fix is in the working tree but needs #5002 merged (or a restack) before it can commit; a correction comment on the PR marks it.
+
+**Agent** · Jul 5, 14:07
+
+Merged. Remaining follow-ups live in scratch/open-issues.md: slice 5b (runner callRef dispatch + overlay flip + flag default-on) and the gateway->server label rename. Two observations parked: sidecar sessions-persist 401s, transcript tool-call arg fidelity.
+
+**Agent** · Jul 5, 16:08
+
+All three PRs are up with review guides and CodeRabbit triggered. 5b was adversarially reviewed (injection confinement and the recursion loop traced in code) before the live matrix.

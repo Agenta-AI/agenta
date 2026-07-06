@@ -212,3 +212,69 @@ If turn 2 does NOT re-raise the gate (the model does not re-issue the call after
 the design needs a different resume mechanism (e.g. the runner replaying the approved tool's
 result directly into the transcript rather than relying on the harness to re-ask). Capture the
 finding either way.
+
+### Land the runner half of test_run (slice 5b) and default the flag on
+
+**Status:** open
+**Added:** 2026-07-04
+**Commit:** 61cf1751b9 (branch `feat/build-kit-tools-cleanup`)
+**Project:** [agent-workflows/build-kit-tools-cleanup](../projects/build-kit-tools-cleanup/)
+**Source:** build-kit-tools-cleanup implementation, slice 5 split into 5a (server) / 5b (runner)
+
+**The problem.** The builder agent cannot test the agent it builds. Slice 5a shipped the
+server half of `test_run`: a handler-mode `PlatformOp` (`handler` XOR `method`+`path`), a
+reserved-ref registry dispatch at `POST /tools/call`
+(`api/oss/src/core/tools/platform_handlers.py`), and the composite handler (hydrate the bound
+variant, apply an optional in-memory `delta` gated on `EDIT_WORKFLOWS`, invoke headless with a
+server-minted token, digest spans, return a terminal-result-wins verdict under a 120s
+ceiling). The runner half does not exist: the runner cannot dispatch a reserved
+`tools.agenta.*` `call_ref`, does not inject spec-level `contextBindings`, does not honor
+`timeoutMs`, and `protocol.ts` plus the golden wire fixtures do not carry the two new spec
+fields. Resolution of handler-mode ops is therefore gated off by
+`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off), and `test_run` is not in
+`DEFAULT_BUILD_KIT_OPS`.
+
+**Why it is deferred.** The runner/wire surface (`relay.ts`, `protocol.ts`, `responder.ts`)
+was doubly contended when 5a landed: the `feat/claude-client-tools-recut` lane owns recent
+commits on those files, and a second session held uncommitted pi-builtin-gating WIP on the
+same files. Editing over live WIP was ruled out (plan.md coordination constraint 2).
+
+**What to do.** In one slice, once the runner surface is free: mirror `contextBindings` and
+`timeoutMs` into `protocol.ts` and the golden fixtures (both wire contract tests move
+together); add the reserved-`call_ref` branch in the relay with `$ctx` injection strictly
+after the permission verdict (fail hard on an unresolvable binding, like `assembleBody`);
+honor per-spec `timeoutMs` over the relay default; make the recursion marker deny nested
+`test_run`; add `test_run` to `DEFAULT_BUILD_KIT_OPS` and flip the playbook's test step from
+the `query_spans` interim wording; then default the flag on and delete it. Acceptance: the
+lab capstone (build, `test_run`, read `pass`, schedule) runs inside the playground, and a
+gated write in the child run surfaces in `approvals` with verdict `unconfirmed`. Contract
+detail: [api-design.md](../projects/build-kit-tools-cleanup/api-design.md), "5a -> 5b
+contract".
+
+### Decide and execute the gateway -> server executor rename (or close it)
+
+**Status:** open
+**Added:** 2026-07-04
+**Commit:** 61cf1751b9 (branch `feat/build-kit-tools-cleanup`)
+**Project:** [agent-workflows/build-kit-tools-cleanup](../projects/build-kit-tools-cleanup/)
+**Source:** build-kit-tools-cleanup slice 6, deferred at implementation per the plan's default
+
+**The problem.** The `gateway` tool type name misleads. "Gateway" means "runs through the
+Agenta gateway", and Agenta-implemented actions (platform ops, handler ops) sit on that same
+server-side plane by design, so the name no longer carves the space at the right joint. The
+rename proposal (`server` as the executor vocabulary) is argued in
+[tool-home-options.md](../projects/build-kit-tools-cleanup/tool-home-options.md).
+
+**Why it is deferred.** Mahmoud proposed but did not decide the rename. The Codex design
+review scoped the safe version to docs and UI labels only: the persisted config literal
+(`type: "gateway"`) is a data migration (fold into the revision sweep script at
+`data.parameters.agent.tools[*].type`), plus the SDK discriminator, FE config forms, and the
+wire `kind` docs. That is too much surface to land unreviewed at the tail of a large PR, and
+slice 6 was defined as droppable.
+
+**What to decide or do.** At (or after) review of the build-kit-tools-cleanup PR: either
+(a) rename docs/comments/UI labels only and keep `type: "gateway"` as the stored literal, or
+(b) do the full rename including the sweep-script data migration and SDK/FE surfaces, or
+(c) close the proposal and keep the name. The `callRef` field keeps its name in every
+outcome. Scope inventory: plan.md slice 6 in the
+[project workspace](../projects/build-kit-tools-cleanup/plan.md).

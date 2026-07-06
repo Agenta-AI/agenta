@@ -10,8 +10,9 @@ answer: let's hard migrate. As I always keep telling you, we are still pre-produ
   list, since later we are going ot push many in one pr
 answered_by: user
 raised: '2026-07-03T13:56:09Z'
-updated: '2026-07-03T14:25:03Z'
+updated: '2026-07-04T17:50:15Z'
 ---
+
 
 
 
@@ -35,6 +36,6 @@ The op key is the config contract ({type: platform, op: ...}). Renaming aligns i
 
 **Locked:** let's hard migrate. As I always keep telling you, we are still pre-production we dont give a shit about backward compatibility. Let's add this to the decision list, since later we are going ot push many in one pr
 
-Hard migrate, no aliases (pre-production, no backward-compat concern). Recorded in the tools-review README under 'Agreed changes to batch into one PR'; will ship with the batched cleanup PR, not alone.
+Already locked earlier; no-op if this errors.
 
-_2026-07-03T14:25:03Z_
+_2026-07-04T17:50:15Z_
