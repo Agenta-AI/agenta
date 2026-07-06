@@ -422,6 +422,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // inside the onboarding playground — null everywhere else, so every other chat usage is unchanged.
     const onboarding = useOptionalOnboardingContext()
     const onboardingActive = !!onboarding && !onboarding.realEntityId
+    // Post-commit chrome (the connect-model banner) stays hidden through the commit + first send, then
+    // eases in a beat later (see `chromeRevealed`) so it doesn't move the composer during the send.
+    const chromeHidden = !!onboarding && !onboarding.chromeRevealed
 
     // Optimistic first turn: the description the user submitted with "Create agent", shown as a sent
     // user message + assistant loading placeholder DURING commit + until the real conversation takes
@@ -1359,7 +1362,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
                         committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
                     <div className={CHAT_COLUMN}>
-                        <ConnectModelBanner {...modelKey} suppressed={onboardingActive} />
+                        <ConnectModelBanner {...modelKey} suppressed={chromeHidden} />
                     </div>
                     <ApprovalDock
                         className={CHAT_COLUMN}
@@ -1472,9 +1475,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
 const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const scope = useChatScopeKey()
     // Pre-commit onboarding: one ephemeral session, no multi-session UX — hide the whole session bar
-    // (tabs / new / search / history). Once committed (realEntityId) it's the normal playground.
+    // (tabs / new / search / history). Stays hidden through the commit + first send, then eases in a beat
+    // later (`chromeRevealed`) so the bar doesn't push the transcript down mid-send.
     const onboarding = useOptionalOnboardingContext()
-    const onboardingActive = !!onboarding && !onboarding.realEntityId
+    const chromeHidden = !!onboarding && !onboarding.chromeRevealed
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const addSession = useSetAtom(addSessionAtomFamily(scope))
@@ -1535,7 +1539,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     // as the rail/config panes.
                     <div
                         className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                        style={{height: onboardingActive || chatMaximized ? 0 : 48}}
+                        style={{height: chromeHidden || chatMaximized ? 0 : 48}}
                     >
                         <SessionTagBar
                             sessions={sessions}

@@ -12,6 +12,12 @@ export interface OnboardingContextValue {
     realEntityId: string | null
     /** A commit is in flight (disable the composer / show progress). */
     committing: boolean
+    /**
+     * Post-commit chrome (session bar, connect-model banner, header mode switch) should be shown. Flips
+     * true a beat AFTER `realEntityId` is set, so this chrome eases in once the first message has landed
+     * instead of fighting the send + transcript scroll in the same frame. Always false pre-commit.
+     */
+    chromeRevealed: boolean
     /** The seed message of the in-flight (or just-finished) commit — the chat shows it as an
      * optimistic user turn so the switch from onboarding reads as one continuous conversation. */
     committingSeed: string | null

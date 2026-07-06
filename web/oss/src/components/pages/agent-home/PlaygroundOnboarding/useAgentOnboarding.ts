@@ -2,6 +2,7 @@ import {
     type ComponentType,
     type ReactNode,
     createElement,
+    startTransition,
     useCallback,
     useEffect,
     useMemo,
@@ -62,7 +63,19 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const [committing, setCommitting] = useState(false)
     const [committingSeed, setCommittingSeed] = useState<string | null>(null)
     const [browseAll, setBrowseAll] = useState(false)
+    const [chromeRevealed, setChromeRevealed] = useState(false)
     const startedRef = useRef(false)
+
+    // Post-commit chrome (session bar / connect-model banner / header mode switch) eases in a beat AFTER
+    // the commit, so the send + transcript scroll settle first instead of everything moving at once.
+    useEffect(() => {
+        if (!realEntityId) {
+            setChromeRevealed(false)
+            return
+        }
+        const id = window.setTimeout(() => setChromeRevealed(true), 500)
+        return () => window.clearTimeout(id)
+    }, [realEntityId])
 
     // Mint one ephemeral agent when onboarding activates. Ref-guarded so it runs exactly once.
     // NOTE: deliberately NO abort-on-cleanup. React StrictMode double-invokes effects (setup → cleanup
@@ -161,8 +174,15 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 autoSendSeed: true,
                 onCommitted: ({appId, revisionId}) => {
                     log("✅ committed → real:", {appId, revisionId})
-                    setEntityIds([revisionId])
+                    // Flip the onboarding state urgently — the settling skeleton, the `chromeRevealed`
+                    // timer, and the commit-failure recovery all read `realEntityId` synchronously.
                     setRealEntityId(revisionId)
+                    // Hand the heavy part (the playground re-rendering the real entity → config panel +
+                    // generation surface) to a transition, so React can yield to the browser and the
+                    // commit's CSS animations aren't starved by a blocking render.
+                    startTransition(() => {
+                        setEntityIds([revisionId])
+                    })
                     if (typeof window !== "undefined") {
                         window.history.replaceState(
                             window.history.state,
@@ -187,9 +207,19 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                       commit,
                       browseAll,
                       setBrowseAll,
+                      chromeRevealed,
                   }
                 : null,
-        [active, entityId, realEntityId, committing, committingSeed, commit, browseAll],
+        [
+            active,
+            entityId,
+            realEntityId,
+            committing,
+            committingSeed,
+            commit,
+            browseAll,
+            chromeRevealed,
+        ],
     )
 
     // After commit, the real config panel resolves its schema asynchronously — mounting it immediately
