@@ -27,11 +27,17 @@ import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {IDE_INSTALL_COMMAND} from "@/oss/components/pages/agent-home/assets/constants"
+import {
+    captureFirstAgentIntent,
+    classifyAgentIntent,
+    truncateForCapture,
+} from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
 import OnboardingBrowseTemplates from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingBrowseTemplates"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
@@ -425,6 +431,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // Post-commit chrome (the connect-model banner) stays hidden through the commit + first send, then
     // eases in a beat later (see `chromeRevealed`) so it doesn't move the composer during the send.
     const chromeHidden = !!onboarding && !onboarding.chromeRevealed
+    const onboardingPosthog = usePostHogAg()
 
     // Optimistic first turn: the description the user submitted with "Create agent", shown as a sent
     // user message + assistant loading placeholder DURING commit + until the real conversation takes
@@ -437,8 +444,17 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         setPendingFirstTurn(text || null)
         // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
         richInputRef.current?.setMarkdown("")
+        // Free-text submit (never a template — those go straight through `onboarding.commit` from the
+        // template pickers below, source "template"), so no double-fire with those call sites.
+        if (text) {
+            captureFirstAgentIntent(onboardingPosthog, {
+                source: "composer",
+                properties: {message: truncateForCapture(text)},
+                intentValue: classifyAgentIntent(text),
+            })
+        }
         onboarding.commit(text)
-    }, [onboarding])
+    }, [onboarding, onboardingPosthog])
 
     // Also cover the template-click commit path (which goes straight through `commit()`, not the
     // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear

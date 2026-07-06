@@ -1,6 +1,9 @@
 import {useCallback} from "react"
 
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+
 import {TEMPLATE_BUILDER_MODE} from "../assets/constants"
+import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 import {type AgentTemplate, templateBuilderMessage} from "../assets/templates"
 
 import {useCreateAgent} from "./useCreateAgent"
@@ -20,18 +23,39 @@ import {useCreateAgent} from "./useCreateAgent"
  */
 export function useTemplateSelect(openSetup: (template: AgentTemplate) => void) {
     const createAgent = useCreateAgent()
+    const posthog = usePostHogAg()
 
     return useCallback(
         (template: AgentTemplate) => {
             if (TEMPLATE_BUILDER_MODE) {
+                captureFirstAgentIntent(posthog, {
+                    source: "template",
+                    properties: {
+                        template: template.name,
+                        templateId: template.key,
+                        templateCategory: template.category,
+                        mode: "builder",
+                    },
+                    intentValue: template.category || template.name,
+                })
                 void createAgent({
                     name: template.name,
                     seedMessage: templateBuilderMessage(template),
                 })
                 return
             }
+            captureFirstAgentIntent(posthog, {
+                source: "template",
+                properties: {
+                    template: template.name,
+                    templateId: template.key,
+                    templateCategory: template.category,
+                    mode: "setup",
+                },
+                intentValue: template.category || template.name,
+            })
             openSetup(template)
         },
-        [createAgent, openSetup],
+        [createAgent, openSetup, posthog],
     )
 }

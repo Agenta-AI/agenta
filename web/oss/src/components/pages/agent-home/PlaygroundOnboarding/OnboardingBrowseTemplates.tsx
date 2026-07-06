@@ -1,7 +1,10 @@
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
-import {templateBuilderMessage} from "../assets/templates"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+
+import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
+import {templateBuilderMessage, type AgentTemplate} from "../assets/templates"
 import TemplatesSection from "../components/TemplatesSection"
 
 import {useOnboardingContext} from "./OnboardingContext"
@@ -15,6 +18,21 @@ import Reveal from "./Reveal"
  */
 const OnboardingBrowseTemplates = () => {
     const {commit, setBrowseAll} = useOnboardingContext()
+    const posthog = usePostHogAg()
+
+    const selectTemplate = (template: AgentTemplate) => {
+        captureFirstAgentIntent(posthog, {
+            source: "template",
+            properties: {
+                template: template.name,
+                templateId: template.key,
+                templateCategory: template.category,
+                mode: "playground_onboarding_gallery",
+            },
+            intentValue: template.category || template.name,
+        })
+        commit(templateBuilderMessage(template), template.name)
+    }
 
     return (
         <Reveal className="mx-auto flex w-full max-w-[880px] flex-col gap-4">
@@ -32,12 +50,7 @@ const OnboardingBrowseTemplates = () => {
                 </Button>
             </div>
 
-            <TemplatesSection
-                hideHeader
-                onSelectTemplate={(template) =>
-                    commit(templateBuilderMessage(template), template.name)
-                }
-            />
+            <TemplatesSection hideHeader onSelectTemplate={selectTemplate} />
         </Reveal>
     )
 }
