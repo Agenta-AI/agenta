@@ -1,0 +1,29 @@
+{
+  "knownSecrets": [
+    "ag-test-fake-secret-DO-NOT-USE-9f8e7d6c5b4a",
+    "postgres://admin:hunter2pass@db.internal:5432/agenta",
+    "ApiKey ag-run-cred-9f8e7d6c5b4a"
+  ],
+  "input": {
+    "string": "leaked secret: ag-test-fake-secret-DO-NOT-USE-9f8e7d6c5b4a end",
+    "urlEncoded": "token=ag-test-fake-secret-DO-NOT-USE-9f8e7d6c5b4a%20trailing",
+    "compoundDsnPass": "connecting with hunter2pass now",
+    "runCredential": "used ApiKey ag-run-cred-9f8e7d6c5b4a to call back",
+    "nested": {
+      "list": ["plain text", "ag-test-fake-secret-DO-NOT-USE-9f8e7d6c5b4a"],
+      "untouchedUserSecret": "sk-user-pasted-this-on-purpose-000"
+    },
+    "untouched": "this is ordinary prose with no secrets in it"
+  },
+  "expected": {
+    "string": "leaked secret: [ag:redacted:secret:5b4a] end",
+    "urlEncoded": "token=[ag:redacted:secret:5b4a]%20trailing",
+    "compoundDsnPass": "connecting with [ag:redacted:secret:pass] now",
+    "runCredential": "used [ag:redacted:secret:5b4a] to call back",
+    "nested": {
+      "list": ["plain text", "[ag:redacted:secret:5b4a]"],
+      "untouchedUserSecret": "sk-user-pasted-this-on-purpose-000"
+    },
+    "untouched": "this is ordinary prose with no secrets in it"
+  }
+}

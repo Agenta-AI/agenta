@@ -260,6 +260,7 @@ class WebhooksService:
         try:
             response = await send_webhook_request(
                 url=str(subscription.data.url),
+                resolved_ip=prepared.resolved_ip,
                 payload_json=prepared.payload_json,
                 headers=prepared.request_headers,
             )

@@ -16,6 +16,7 @@
         "apiInternalUrl": { "type": "string", "description": "Internal API URL (in-cluster). Emitted as AGENTA_API_INTERNAL_URL." },
         "authKey": { "type": "string", "minLength": 1, "description": "Authorization key. Emitted as AGENTA_AUTH_KEY via Secret." },
         "cryptKey": { "type": "string", "minLength": 1, "description": "Encryption key. Emitted as AGENTA_CRYPT_KEY via Secret." },
+        "insecureEgressAllowed": { "type": ["boolean", "string"], "description": "AGENTA_INSECURE_EGRESS_ALLOWED — default false (secure); true permits egress to private/loopback IPs — dev only." },
         "access": {
           "type": "object",
           "additionalProperties": false,
@@ -94,7 +95,7 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "allowInsecure": { "type": ["boolean", "string"], "description": "AGENTA_SERVICES_HOOK_ALLOW_INSECURE." }
+                "allowInsecure": { "type": ["boolean", "string"], "description": "Deprecated; use top-level agenta.insecureEgressAllowed. Still honored as a fallback for AGENTA_INSECURE_EGRESS_ALLOWED." }
               }
             },
             "code": {
@@ -118,7 +119,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "allowInsecure": { "type": ["boolean", "string"], "description": "AGENTA_WEBHOOKS_ALLOW_INSECURE." }
+            "allowInsecure": { "type": ["boolean", "string"], "description": "Deprecated; use top-level agenta.insecureEgressAllowed. Still honored as a fallback for AGENTA_INSECURE_EGRESS_ALLOWED." }
           }
         }
       }

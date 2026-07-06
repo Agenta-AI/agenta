@@ -220,6 +220,13 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
     if _wants_vercel_format(req) and request.data and request.data.inputs:
         _msgs = request.data.inputs.get("messages")
         if _msgs:
+            _last = _msgs[-1] if isinstance(_msgs, list) else None
+            # AI SDK resumes into a clone keyed by the trailing assistant message id.
+            if isinstance(_last, dict):
+                _last_role = _last.get("role")
+                _last_id = _last.get("id")
+                if _last_role == "assistant" and isinstance(_last_id, str) and _last_id:
+                    req.state.ag_continuation_message_id = _last_id
             request.data.inputs = {
                 **request.data.inputs,
                 "messages": [
@@ -304,6 +311,7 @@ def _make_json_response(
 
 def _make_vercel_json_response(
     response: WorkflowBatchResponse,
+    message_id: Optional[str] = None,
 ) -> JSONResponse:
     """Batch counterpart of the stream vercel projection (negotiation 2, batch direction).
 
@@ -320,6 +328,11 @@ def _make_vercel_json_response(
         ui_messages = agenta_messages_to_vercel_messages(
             [m for m in coerced if m is not None]
         )
+        if message_id:
+            for ui_message in reversed(ui_messages):
+                if ui_message.get("role") == "assistant":
+                    ui_message["id"] = message_id
+                    break
         projected = response.model_copy(deep=True)
         projected.data = WorkflowServiceResponseData(
             outputs={**outputs, "messages": ui_messages}
@@ -333,6 +346,7 @@ def _make_vercel_json_response(
 def _make_stream_response(
     response: WorkflowStreamingResponse,
     wire_format: str,
+    message_id: Optional[str] = None,
 ) -> StreamingResponse:
     aiter = response.iterator()
 
@@ -349,6 +363,7 @@ def _make_stream_response(
         parts = agent_stream_to_vercel_stream(
             aiter,
             session_id=response.session_id,
+            message_id=message_id,
             trace_id=response.trace_id,
         )
         res = StreamingResponse(
@@ -409,6 +424,7 @@ async def handle_invoke_success(
     is_stream = isinstance(response, WorkflowStreamingResponse)
 
     requested = _parse_accept(req)
+    continuation_message_id = getattr(req.state, "ag_continuation_message_id", None)
 
     # An errored handler always yields a batch error response, even when the caller
     # asked for a stream. Surface it as JSON (the real status) instead of 406ing on
@@ -428,7 +444,9 @@ async def handle_invoke_success(
     if requested is None:
         if is_batch:
             if _wants_vercel_format(req):
-                return _make_vercel_json_response(response)
+                return _make_vercel_json_response(
+                    response, message_id=continuation_message_id
+                )
             return _make_json_response(response)
         return _make_stream_response(response, "ndjson")
 
@@ -436,7 +454,9 @@ async def handle_invoke_success(
     if requested in BATCH_MEDIA_TYPES:
         if is_batch:
             if _wants_vercel_format(req):
-                return _make_vercel_json_response(response)
+                return _make_vercel_json_response(
+                    response, message_id=continuation_message_id
+                )
             return _make_json_response(response)
         return _make_not_acceptable_response(requested, response)
 
@@ -446,7 +466,9 @@ async def handle_invoke_success(
             # Negotiation 2: `x-ag-messages-format: vercel` selects the Vercel UI
             # message stream projection (SSE-framed), independently of `Accept`.
             if requested == "text/event-stream" and _wants_vercel_format(req):
-                res = _make_stream_response(response, "vercel")
+                res = _make_stream_response(
+                    response, "vercel", message_id=continuation_message_id
+                )
                 return set_vercel_message_protocol_headers(res)
             return _make_stream_response(response, _stream_wire_format(requested))
         return _make_not_acceptable_response(requested, response)

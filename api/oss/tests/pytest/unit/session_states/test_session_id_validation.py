@@ -1,4 +1,4 @@
-"""Unit tests for session_id shape validation (SEC-8)."""
+"""Unit tests for session_id shape validation."""
 
 import pytest
 from fastapi import HTTPException
@@ -15,8 +15,10 @@ class TestSessionIdValidation:
     def test_valid_slug(self):
         _validate_session_id("my-session_01")
 
-    def test_valid_dotted(self):
-        _validate_session_id("project.session.123")
+    def test_dotted_rejected(self):
+        with pytest.raises(HTTPException) as exc_info:
+            _validate_session_id("project.session.123")
+        assert exc_info.value.status_code == 400
 
     def test_empty_rejected(self):
         with pytest.raises(HTTPException) as exc_info:
@@ -35,8 +37,8 @@ class TestSessionIdValidation:
 
     def test_too_long_rejected(self):
         with pytest.raises(HTTPException) as exc_info:
-            _validate_session_id("a" * 257)
+            _validate_session_id("a" * 129)
         assert exc_info.value.status_code == 400
 
     def test_max_length_accepted(self):
-        _validate_session_id("a" * 256)
+        _validate_session_id("a" * 128)

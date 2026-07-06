@@ -88,7 +88,7 @@ end
 # Concurrency cap
 # ---------------------------------------------------------------------------
 
-CONCURRENCY_CAP: int = 1000  # per replica; over-limit → HTTP 429
+CONCURRENCY_LIMIT: int = 1000  # per replica; over-limit → HTTP 429
 
 # ---------------------------------------------------------------------------
 # Session id validation
