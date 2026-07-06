@@ -101,8 +101,8 @@ from oss.src.apis.fastapi.sessions.models import (
 
 log = get_module_logger(__name__)
 
-# SEC-8: allow letters, digits, hyphens, underscores, dots — no slashes or control chars
-_SESSION_ID_RE = re.compile(r"^[\w.\-]{1,256}$")
+# matches the streams contract allowlist (dbs/redis/sessions/contract.py)
+_SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 
 def _validate_session_id_http(session_id: str) -> None:
