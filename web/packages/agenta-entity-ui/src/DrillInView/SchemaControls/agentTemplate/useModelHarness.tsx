@@ -371,6 +371,7 @@ export function useModelHarness({
         hasInspectModels ? (
             <SelectLLMProviderBase
                 showGroup
+                providerDropdownWidth={425}
                 options={modelGroups}
                 value={modelId ?? undefined}
                 onChange={(v) => writeModel({modelId: (v as string) ?? null})}
