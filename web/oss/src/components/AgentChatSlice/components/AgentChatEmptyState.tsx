@@ -1,4 +1,4 @@
-import {useMemo, type ReactNode} from "react"
+import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
@@ -93,7 +93,6 @@ const AgentChatEmptyState = ({
     canStart = true,
     onboarding = false,
     onPrefill,
-    stripNode,
 }: {
     entityId: string
     onStart: (text: string) => void
@@ -109,14 +108,31 @@ const AgentChatEmptyState = ({
     onboarding?: boolean
     /** Prefill the composer with a quick-start prompt (onboarding "Try" chips). */
     onPrefill?: (text: string) => void
-    /** Strip-era (TEMPLATE_STRIP_MODE): the panel-built TemplateStrip, rendered below the hero. */
-    stripNode?: ReactNode
 }) => {
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
+
+    if (onboarding && TEMPLATE_STRIP_MODE) {
+        // Strip era: no tour video, no "Agent builder" eyebrow, no left-panel hint/starters — the
+        // strip (rendered by the caller, docked snugly below the composer) is the only browsing
+        // surface. Top-aligned (not vertically centered) so hero, composer, and strip read as one
+        // tight group instead of floating in the middle of the panel.
+        return (
+            <div className="relative flex w-full flex-col py-6">
+                <Reveal className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
+                    <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
+                        {ONBOARDING_COPY.title}
+                    </Typography.Title>
+                    <Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                        {ONBOARDING_COPY.subtitleStrip}
+                    </Text>
+                </Reveal>
+            </div>
+        )
+    }
 
     if (onboarding) {
         return (
@@ -170,36 +186,25 @@ const AgentChatEmptyState = ({
                         {ONBOARDING_COPY.title}
                     </Typography.Title>
                     <Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                        {TEMPLATE_STRIP_MODE
-                            ? ONBOARDING_COPY.subtitleStrip
-                            : ONBOARDING_COPY.subtitle}
+                        {ONBOARDING_COPY.subtitle}
                     </Text>
-                    {TEMPLATE_STRIP_MODE ? (
-                        // Strip era: the strip below replaces the left-panel hint + "Try" starters.
-                        <div className="mt-8">{stripNode}</div>
-                    ) : (
-                        <>
-                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                                {ONBOARDING_COPY.hint}
-                            </span>
+                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        {ONBOARDING_COPY.hint}
+                    </span>
 
-                            <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                                    Try
-                                </span>
-                                {ONBOARDING_STARTERS.map((starter) => (
-                                    <button
-                                        key={starter}
-                                        type="button"
-                                        onClick={() => onPrefill?.(starter)}
-                                        className="box-border cursor-pointer rounded-full border border-solid border-[var(--ag-colorBorder)] bg-transparent px-3 py-1 text-xs text-[var(--ag-colorTextSecondary)] transition-colors hover:border-[var(--ag-colorPrimary)] hover:text-[var(--ag-colorText)]"
-                                    >
-                                        {starter}
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">Try</span>
+                        {ONBOARDING_STARTERS.map((starter) => (
+                            <button
+                                key={starter}
+                                type="button"
+                                onClick={() => onPrefill?.(starter)}
+                                className="box-border cursor-pointer rounded-full border border-solid border-[var(--ag-colorBorder)] bg-transparent px-3 py-1 text-xs text-[var(--ag-colorTextSecondary)] transition-colors hover:border-[var(--ag-colorPrimary)] hover:text-[var(--ag-colorText)]"
+                            >
+                                {starter}
+                            </button>
+                        ))}
+                    </div>
                 </Reveal>
             </div>
         )

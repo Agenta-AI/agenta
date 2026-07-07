@@ -25,6 +25,7 @@ import {resetScopeAtomFamily} from "@/oss/components/AgentChatSlice/state/sessio
 import {urlAtom} from "@/oss/state/url"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
+import {TEMPLATE_STRIP_MODE} from "../assets/constants"
 import {useCreateAgent} from "../hooks/useCreateAgent"
 
 import OnboardingConfigPanel from "./OnboardingConfigPanel"
@@ -229,10 +230,15 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const realConfigReady =
         !!realEntityId && (settleTimedOut || (realIsAgent && !realPendingHydration))
 
+    // Strip era (TEMPLATE_STRIP_MODE): the chat-column strip is the only template-browsing surface, so
+    // the config slot is never overridden pre-commit — the ephemeral's real config panel (model &
+    // harness, instructions, tools) renders exactly like any agent playground's left panel.
     const renderConfigOverride = !active
         ? undefined
         : !realEntityId
-          ? createElement(OnboardingConfigPanel)
+          ? TEMPLATE_STRIP_MODE
+              ? undefined
+              : createElement(OnboardingConfigPanel)
           : !realConfigReady
             ? createElement(OnboardingConfigSettling)
             : undefined

@@ -5,7 +5,6 @@ import {Typography} from "antd"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
-import {TEMPLATE_STRIP_MODE} from "../assets/constants"
 import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 import {AGENT_TEMPLATES, templateBuilderMessage, type AgentTemplate} from "../assets/templates"
 
@@ -16,6 +15,9 @@ import {useOnboardingContext} from "./OnboardingContext"
  * panel slot (via MainLayout's `renderConfigOverride`) while the agent is still ephemeral. Picking a
  * template commits THIS mount's ephemeral in place (no redirect) and seeds the builder with the
  * template's instruction. Once the agent is real, MainLayout renders the normal config forms instead.
+ *
+ * Legacy (non-strip) onboarding only — under TEMPLATE_STRIP_MODE, `useAgentOnboarding` never
+ * overrides the config slot, so the ephemeral's real config panel renders here instead.
  */
 const OnboardingConfigPanel = () => {
     const {commit, committing, browseAll, setBrowseAll} = useOnboardingContext()
@@ -24,10 +26,6 @@ const OnboardingConfigPanel = () => {
     // the real config panel) — softens both ends of the left-panel handoff instead of hard cuts.
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
-
-    // Strip era (TEMPLATE_STRIP_MODE): the chat-column strip is the only browsing surface —
-    // the left panel keeps only its empty container until the real config forms swap in.
-    if (TEMPLATE_STRIP_MODE) return <div className="flex h-full flex-col gap-2 p-4" />
 
     const selectTemplate = (template: AgentTemplate) => {
         captureFirstAgentIntent(posthog, {
