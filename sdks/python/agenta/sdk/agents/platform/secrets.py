@@ -21,6 +21,7 @@ import httpx
 
 from agenta.sdk.utils.logging import get_module_logger
 
+from ..capabilities import PROVIDER_ENV_VARS
 from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
@@ -88,18 +89,8 @@ class AgentaNamedSecretProvider:
         return await resolve_named_secrets(names, connection=self._connection)
 
 
-# Map a vault standard-provider kind to the env var the harness (Pi/Claude/litellm) reads.
-# Only providers an agent harness can use are listed.
-_PROVIDER_ENV_VARS = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "gemini": "GEMINI_API_KEY",
-    "mistral": "MISTRAL_API_KEY",
-    "mistralai": "MISTRAL_API_KEY",
-    "groq": "GROQ_API_KEY",
-    "together_ai": "TOGETHERAI_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-}
+# Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
+_PROVIDER_ENV_VARS = PROVIDER_ENV_VARS
 
 
 async def resolve_provider_keys(
@@ -143,8 +134,11 @@ async def resolve_provider_keys(
         if not isinstance(secret, dict) or secret.get("kind") != "provider_key":
             continue
         data = secret.get("data") or {}
-        env_var = _PROVIDER_ENV_VARS.get(str(data.get("kind", "")).lower())
+        kind = str(data.get("kind", "")).lower()
+        env_var = _PROVIDER_ENV_VARS.get(kind)
         key = (data.get("provider") or {}).get("key")
         if env_var and key:
             env.setdefault(env_var, key)
+        elif kind and not env_var:
+            log.warning("agent: vault provider kind %r has no known env var", kind)
     return env

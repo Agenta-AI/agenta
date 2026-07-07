@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
+from ..capabilities import PROVIDER_ENV_VARS
 from .errors import UnsupportedProviderError
 from .models import (
     Endpoint,
@@ -25,19 +26,8 @@ from .models import (
     RuntimeAuthContext,
 )
 
-# Map a provider family to the env var the harness (Pi / Claude / litellm) reads for its api
-# key. Same shape and entries as ``platform/secrets.py``'s ``_PROVIDER_ENV_VARS`` so the two
-# offline and service readers agree on provider -> env-var.
-_PROVIDER_ENV_VARS: Dict[str, str] = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "gemini": "GEMINI_API_KEY",
-    "mistral": "MISTRAL_API_KEY",
-    "mistralai": "MISTRAL_API_KEY",
-    "groq": "GROQ_API_KEY",
-    "together_ai": "TOGETHERAI_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-}
+# Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
+_PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
 
 
 class EnvConnectionResolver:
