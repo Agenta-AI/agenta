@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-// services/agent/tests/utils -> repo root -> the shared Python golden fixtures.
+// services/runner/tests/utils -> repo root -> the shared Python golden fixtures.
 export const GOLDEN_DIR = join(
   here,
   "../../../../sdks/python/oss/tests/pytest/unit/agents/golden",

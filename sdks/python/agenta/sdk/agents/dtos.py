@@ -209,7 +209,7 @@ class ContentBlock(BaseModel):
     the ``/messages`` egress folds inbound UIMessage tool/approval parts into these so a
     cross-turn HITL reply replays as a real tool call plus its result, and the model resumes
     from the result instead of re-asking. Mirrors ``ContentBlock`` in
-    ``services/agent/src/protocol.ts``.
+    ``services/runner/src/protocol.ts``.
     """
 
     type: str  # "text" | "image" | "resource" | "tool_call" | "tool_result"

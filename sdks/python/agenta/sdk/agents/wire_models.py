@@ -2,7 +2,7 @@
 
 These models describe the EXACT camelCase JSON the Python producer emits and parses in
 ``utils/wire.py`` (``request_to_wire`` / ``result_from_wire``) and the TS runner mirrors in
-``services/agent/src/protocol.ts``. They are deliberately a SEPARATE set from the semantic
+``services/runner/src/protocol.ts``. They are deliberately a SEPARATE set from the semantic
 DTOs in ``dtos.py``: the DTOs are snake_case and intentionally loose (``Event`` is a free
 ``type: str`` + ``data`` bag), while the real wire is camelCase with a discriminated event
 union. Exporting ``model_json_schema()`` off the DTOs would produce the wrong schema, so the
