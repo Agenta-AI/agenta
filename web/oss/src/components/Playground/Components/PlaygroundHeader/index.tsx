@@ -43,6 +43,14 @@ import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
+import {
+    AGENT_CHAT_ITEM_ESTIMATE_OPTIONS,
+    AGENT_CHAT_OVERSCAN_OPTIONS,
+    agentChatItemEstimateAtom,
+    agentChatOverscanAtom,
+    agentChatVirtualizeAtom,
+    isAgentChatVirtualizationAvailable,
+} from "@/oss/components/AgentChatSlice/state/virtualization"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
@@ -237,6 +245,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const setLayout = useSetAtom(agentTemplateLayoutAtom)
     const channelMode = useAtomValue(agentChannelModeAtom)
     const setChannelMode = useSetAtom(agentChannelModeAtom)
+    // SPIKE(virtuoso): live-tunable virtualization knobs (enable + overscan + row estimate).
+    // The whole section is hidden unless the NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION env flag is set.
+    const virtualizationAvailable = isAgentChatVirtualizationAvailable()
+    const virtualize = useAtomValue(agentChatVirtualizeAtom)
+    const setVirtualize = useSetAtom(agentChatVirtualizeAtom)
+    const overscan = useAtomValue(agentChatOverscanAtom)
+    const setOverscan = useSetAtom(agentChatOverscanAtom)
+    const itemEstimate = useAtomValue(agentChatItemEstimateAtom)
+    const setItemEstimate = useSetAtom(agentChatItemEstimateAtom)
 
     const settingsMenuItems: MenuProps["items"] = useMemo(
         () => [
@@ -273,8 +290,76 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     onClick: () => setChannelMode(option.value),
                 })),
             },
+            ...(virtualizationAvailable
+                ? [
+                      {type: "divider" as const},
+                      {
+                          key: "virtualization",
+                          type: "group" as const,
+                          label: "Virtualization (spike)",
+                          children: [
+                              {
+                                  key: "virt-enable",
+                                  label: "Virtualize messages",
+                                  icon: virtualize ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                                  onClick: () => setVirtualize(!virtualize),
+                              },
+                          ],
+                      },
+                      {
+                          key: "virt-overscan",
+                          type: "group" as const,
+                          label: "Overscan",
+                          children: AGENT_CHAT_OVERSCAN_OPTIONS.map((option) => ({
+                              key: `overscan-${option.value}`,
+                              label: option.label,
+                              disabled: !virtualize,
+                              icon:
+                                  overscan === option.value ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                              onClick: () => setOverscan(option.value),
+                          })),
+                      },
+                      {
+                          key: "virt-estimate",
+                          type: "group" as const,
+                          label: "Row estimate",
+                          children: AGENT_CHAT_ITEM_ESTIMATE_OPTIONS.map((option) => ({
+                              key: `estimate-${option.value}`,
+                              label: option.label,
+                              disabled: !virtualize,
+                              icon:
+                                  itemEstimate === option.value ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                              onClick: () => setItemEstimate(option.value),
+                          })),
+                      },
+                  ]
+                : []),
         ],
-        [layout, setLayout, channelMode, setChannelMode],
+        [
+            virtualizationAvailable,
+            layout,
+            setLayout,
+            channelMode,
+            setChannelMode,
+            virtualize,
+            setVirtualize,
+            overscan,
+            setOverscan,
+            itemEstimate,
+            setItemEstimate,
+        ],
     )
 
     // Find all connected evaluator nodes
