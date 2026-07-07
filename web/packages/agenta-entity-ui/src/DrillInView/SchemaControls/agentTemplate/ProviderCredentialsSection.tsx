@@ -305,6 +305,15 @@ export function ProviderCredentialsSection({
                         disabled={disabled}
                         onChange={(value) => onModeChange(value as ConnectionMode)}
                         options={toggleOptions}
+                        className={cn(
+                            "rounded-md border border-solid border-[var(--ag-colorBorder)]",
+                            // antd's default selected-thumb bg/track bg both resolve to
+                            // near-white in light mode, so the "active" segment is invisible —
+                            // force a strong, theme-inverted fill instead (dark-navy-on-white
+                            // in light mode, near-white-on-near-black in dark mode).
+                            "[&_.ant-segmented-item-selected]:!bg-[var(--ag-colorText)] [&_.ant-segmented-item-selected]:!text-[var(--ag-colorBgContainer)] [&_.ant-segmented-item-selected]:!shadow-none",
+                            "[&_.ant-segmented-thumb]:!bg-[var(--ag-colorText)] [&_.ant-segmented-thumb]:!shadow-none",
+                        )}
                     />
                 ) : undefined
             }
@@ -318,12 +327,33 @@ export function ProviderCredentialsSection({
                         <Typography.Text className="!text-[14.5px] !font-semibold">
                             Self-managed
                         </Typography.Text>
-                        <Typography.Text type="secondary" className="!text-xs !leading-relaxed">
-                            The harness signs itself in. Use your Claude Code or Codex subscription,
-                            or any credentials the harness reads from its own environment, such as
-                            environment variables. Agenta stores and injects no key. Requires a
-                            self-hosted Agenta deployment.
-                        </Typography.Text>
+                        <ul className="m-0 flex list-disc flex-col gap-0.5 pl-4">
+                            <li>
+                                <Typography.Text
+                                    type="secondary"
+                                    className="!text-xs !leading-relaxed"
+                                >
+                                    Use a Claude Code or Codex subscription, or any credential the
+                                    harness reads from its own environment (env vars, prior logins).
+                                </Typography.Text>
+                            </li>
+                            <li>
+                                <Typography.Text
+                                    type="secondary"
+                                    className="!text-xs !leading-relaxed"
+                                >
+                                    Agenta stores and injects no key.
+                                </Typography.Text>
+                            </li>
+                            <li>
+                                <Typography.Text
+                                    type="secondary"
+                                    className="!text-xs !font-semibold !leading-relaxed"
+                                >
+                                    Requires a self-hosted Agenta deployment.
+                                </Typography.Text>
+                            </li>
+                        </ul>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <a
@@ -335,9 +365,9 @@ export function ProviderCredentialsSection({
                             Read the self-hosting guide →
                         </a>
                         {isCloud ? (
-                            // fallback until colorWarningBg token lands
-                            <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg,rgba(250,173,20,0.12))] px-2 py-0.5 text-[11px] text-[var(--ag-colorWarningText)]">
-                                Not on cloud
+                            // fallback until colorErrorBg token lands
+                            <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-[11px] text-[var(--ag-colorErrorText)]">
+                                Unavailable in the cloud
                             </span>
                         ) : null}
                     </div>
@@ -386,7 +416,7 @@ export function ProviderCredentialsSection({
                         {openConfigureProvider && visibleAddRows.length ? (
                             <div className="mt-1.5 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1.5">
                                 <span className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                    Add provider
+                                    Add custom provider
                                 </span>
                                 {visibleAddRows.map((row) => (
                                     <RailRow
