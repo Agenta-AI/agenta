@@ -129,3 +129,61 @@ def test_custom_secret_rejects_missing_content():
     }
     with pytest.raises(ValidationError, match="format, content"):
         CreateSecretDTO.model_validate(payload)
+
+
+def _custom_provider_payload(url):
+    return {
+        "header": {"name": "my-gw", "description": ""},
+        "secret": {
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "provider": {"url": url, "key": "sk-gw"},
+                "models": [{"slug": "gpt-4o-mini"}],
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://169.254.169.254/v1",
+        "https://127.0.0.1/v1",
+        "https://10.0.0.5/v1",
+        "https://192.168.1.1/v1",
+        "https://localhost/v1",
+        "ftp://93.184.216.34/v1",
+    ],
+)
+def test_create_secret_rejects_ssrf_custom_provider_url(url):
+    with pytest.raises(ValidationError, match="custom_provider.url is invalid"):
+        CreateSecretDTO.model_validate(_custom_provider_payload(url))
+
+
+def test_create_secret_accepts_public_custom_provider_url():
+    secret = CreateSecretDTO.model_validate(
+        _custom_provider_payload("https://93.184.216.34/v1")
+    )
+    assert secret.secret.data.provider.url == "https://93.184.216.34/v1"
+
+
+def test_create_secret_allows_missing_custom_provider_url():
+    payload = _custom_provider_payload(None)
+    secret = CreateSecretDTO.model_validate(payload)
+    assert secret.secret.data.provider.url is None
+
+
+def test_update_secret_rejects_ssrf_custom_provider_url():
+    payload = {
+        "secret": {
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "provider": {"url": "http://10.0.0.5/v1", "key": "sk-gw"},
+                "models": [{"slug": "gpt-4o-mini"}],
+            },
+        },
+    }
+    with pytest.raises(ValidationError, match="custom_provider.url is invalid"):
+        UpdateSecretDTO.model_validate(payload)

@@ -221,6 +221,9 @@ async def agent_run_to_vercel_parts(
                 if reason is not None:
                     stop_reason = reason
     except Exception as exc:
+        # A graceful terminal failure (the run's own AgentResult says ok=false) surfaces here
+        # as a plain exception from AgentStream iteration; that case intentionally ends the
+        # stream on the error part with no finish frame, so this path stays as-is.
         yield {"type": "error", "errorText": str(exc)}
         return
 
@@ -429,21 +432,22 @@ async def agent_stream_to_vercel_stream(
                     stop_reason = reason
     except Exception as exc:
         yield {"type": "error", "errorText": str(exc)}
-        return
-
-    yield {"type": "finish-step"}
-    finish: Dict[str, Any] = {"type": "finish"}
-    finish_reason = _map_finish_reason(stop_reason)
-    if finish_reason is not None:
-        finish["finishReason"] = finish_reason
-    metadata: Dict[str, Any] = {}
-    if usage:
-        metadata["usage"] = usage
-    if trace_id is not None:
-        metadata["traceId"] = trace_id
-    if metadata:
-        finish["messageMetadata"] = metadata
-    yield finish
+    finally:
+        # Every exit path — including the raw exception above — must still drain to a
+        # finish frame, or a consumer waiting on it hangs.
+        yield {"type": "finish-step"}
+        finish: Dict[str, Any] = {"type": "finish"}
+        finish_reason = _map_finish_reason(stop_reason)
+        if finish_reason is not None:
+            finish["finishReason"] = finish_reason
+        metadata: Dict[str, Any] = {}
+        if usage:
+            metadata["usage"] = usage
+        if trace_id is not None:
+            metadata["traceId"] = trace_id
+        if metadata:
+            finish["messageMetadata"] = metadata
+        yield finish
 
 
 def _interaction_parts(

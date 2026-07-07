@@ -6,9 +6,10 @@ from pydantic import BaseModel
 
 
 class SessionRecordEvent(BaseModel):
-    session_id: str
     project_id: UUID
+    session_id: str
 
+    record_id: Optional[UUID] = None
     record_index: Optional[int] = None
     timestamp: Optional[datetime] = None
     record_type: Optional[str] = None

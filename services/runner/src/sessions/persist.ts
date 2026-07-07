@@ -21,6 +21,7 @@
 
 import { apiBase } from "../apiBase.ts";
 import type { AgentEvent } from "../protocol.ts";
+import { stableRecordId } from "./record-id.ts";
 
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
@@ -41,6 +42,7 @@ async function postEvent(
   event: AgentEvent,
   eventIndex: number,
   sender: string,
+  recordId?: string,
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
   let lastErr: unknown;
@@ -54,6 +56,9 @@ async function postEvent(
         },
         body: JSON.stringify({
           session_id: sessionId,
+          // Present only for tool-family records (stable uuid5); the backend mints a
+          // uuid4 when omitted. A re-sent id upserts the same row.
+          ...(recordId ? { record_id: recordId } : {}),
           record_index: eventIndex,
           timestamp: new Date().toISOString(),
           record_source: sender,
@@ -85,9 +90,10 @@ export function persistEvent(
   event: AgentEvent,
   eventIndex: number,
   sender: string = "agent",
+  recordId?: string,
 ): void {
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
-    postEvent(sessionId, auth, event, eventIndex, sender),
+    postEvent(sessionId, auth, event, eventIndex, sender, recordId),
   );
   persistChains.set(sessionId, tail);
 }
@@ -108,13 +114,25 @@ export async function drainPersist(sessionId: string): Promise<void> {
 }
 
 /**
+ * A tool call streams as many `tool_call` events with a growing partial-args snapshot for
+ * one id. Idle window after which an open, un-closed tool call is flushed as-is — the
+ * substitute for a close signal the harness may never send (a call that streams then
+ * stalls without a `tool_result`).
+ */
+const OPEN_TOOL_TTL_MS = Number(process.env.AGENTA_RECORD_TOOL_TTL_MS ?? 3000);
+
+/**
  * Build an emitter that persists every event via the ingest chain AND calls the
  * original emitter (for live streaming). Returns a stateful counter so record_index
- * increments monotonically per session (a stable ordinal; the DB orders by record_id).
+ * increments per turn (the in-session ordering key; the DB tiebreaks with ingest time).
  *
- * The `stripReplay` filter coalesces the delta family (message_start / message_delta
- * / message_end) into a single `message` event for storage; the raw deltas are
- * forwarded to the live emitter unchanged. This mirrors the PoC's coalescing logic.
+ * Coalescing keeps one durable record per streamed family, while the live stream gets
+ * every raw event unchanged:
+ *  - message_start/delta/end and thought_* accumulate text, persisted once on *_end.
+ *  - tool_call snapshots for one id accumulate (latest args win) into a single open slot,
+ *    persisted once when a non-continuation event arrives, the TTL fires, or the turn
+ *    drains. The record carries a stable uuid5 id so a re-sent snapshot (or a resume)
+ *    upserts the same row rather than appending.
  */
 export function buildPersistingEmitter(
   sessionId: string,
@@ -134,9 +152,54 @@ export function buildPersistingEmitter(
     { id: string; text: string }
   >();
 
+  // At most one open tool call at a time: its index is claimed when the call first
+  // appears (so it sorts ahead of whatever flushes it), args are overwritten in place
+  // while snapshots for the same id keep arriving, and it is persisted exactly once.
+  let openTool:
+    | { id: string; index: number; event: AgentEvent; timer: NodeJS.Timeout }
+    | null = null;
+
+  const flushOpenTool = (): void => {
+    if (!openTool) return;
+    const { id, index, event, timer } = openTool;
+    clearTimeout(timer);
+    openTool = null;
+    persistEvent(
+      sessionId,
+      auth,
+      event,
+      index,
+      "agent",
+      stableRecordId(sessionId, id, "tool_call"),
+    );
+  };
+
   const emit = (event: AgentEvent): void => {
     // Always forward to the live stream (if any).
     liveEmit?.(event);
+
+    // Accumulate tool_call snapshots for one id; flush on any non-continuation below.
+    if (event.type === "tool_call" && event.id) {
+      if (openTool && openTool.id === event.id) {
+        // Continuation: latest args win, push the idle deadline out.
+        openTool.event = event;
+        clearTimeout(openTool.timer);
+        openTool.timer = setTimeout(flushOpenTool, OPEN_TOOL_TTL_MS);
+        return;
+      }
+      // A different call: flush the previous open slot, then open this one.
+      flushOpenTool();
+      openTool = {
+        id: event.id,
+        index: eventIndex++,
+        event,
+        timer: setTimeout(flushOpenTool, OPEN_TOOL_TTL_MS),
+      };
+      return;
+    }
+    // Any other event is a "different step": close the open tool call before it, so the
+    // tool_call record lands (with its earlier index) ahead of this event.
+    flushOpenTool();
 
     // Coalesce delta families: accumulate text; persist only on *_end.
     if (event.type === "message_start") {
@@ -190,15 +253,38 @@ export function buildPersistingEmitter(
       }
     }
 
+    // A tool_result / interaction_request carries the same tool-call id as its tool_call;
+    // give it its own stable id (keyed on the record type) so it lands on a distinct row.
+    if (
+      (event.type === "tool_result" || event.type === "interaction_request") &&
+      event.id
+    ) {
+      persistEvent(
+        sessionId,
+        auth,
+        event,
+        eventIndex++,
+        "agent",
+        stableRecordId(sessionId, event.id, event.type),
+      );
+      return;
+    }
+
     // All other events persist as-is.
     persistEvent(sessionId, auth, event, eventIndex++);
   };
 
   const persist = (event: AgentEvent, sender: string): void => {
+    // Out-of-band records (the inbound user turn) still respect open-tool ordering.
+    flushOpenTool();
     persistEvent(sessionId, auth, event, eventIndex++, sender);
   };
 
-  const flush = (): Promise<void> => drainPersist(sessionId);
+  const flush = (): Promise<void> => {
+    // A paused call ends the turn with its slot still open — persist it before draining.
+    flushOpenTool();
+    return drainPersist(sessionId);
+  };
 
   return { emit, persist, flush };
 }

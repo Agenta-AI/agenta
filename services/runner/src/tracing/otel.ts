@@ -54,6 +54,9 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 
+export const TOOL_NOT_EXECUTED_PAUSED =
+  "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still required.";
+
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
@@ -360,7 +363,9 @@ function lastAssistantText(messages: any): string {
 }
 
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
-function applyAssistant(span: Span, msg: any, capture: boolean): void {
+/** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
+ * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
+function applyAssistant(span: Span, msg: any, capture: boolean): string | undefined {
   if (msg.provider) span.setAttribute("gen_ai.system", msg.provider);
   if (msg.model) span.setAttribute("gen_ai.request.model", msg.model);
   if (msg.responseModel || msg.model)
@@ -398,7 +403,9 @@ function applyAssistant(span: Span, msg: any, capture: boolean): void {
   emitMessages(span, "llm.output_messages", [msg], capture);
   if (msg.stopReason === "error" || msg.errorMessage) {
     span.setStatus({ code: SpanStatusCode.ERROR, message: msg.errorMessage });
+    return String(msg.errorMessage || "agent run failed");
   }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -872,6 +879,11 @@ export interface SandboxAgentOtel {
   output(): string;
   /** The structured event log built from the ACP stream (tool calls, usage, final message). */
   events(): AgentEvent[];
+  /** Settle open tool calls except those intentionally left pending. */
+  settleOpenToolCalls(
+    isExcluded: (id: string) => boolean,
+    message: string,
+  ): void;
   /** Run token/cost totals from the stream, when the harness reported `usage_update`. */
   usage(): AgentUsage | undefined;
 }
@@ -1223,6 +1235,21 @@ export function createSandboxAgentOtel(
     });
   }
 
+  function settleOpenToolCalls(
+    isExcluded: (id: string) => boolean,
+    message: string,
+  ): void {
+    for (const [id, entry] of [...toolSpans.entries()]) {
+      if (isExcluded(id)) continue;
+      if (entry.span) {
+        entry.span.setStatus({ code: SpanStatusCode.ERROR });
+        entry.span.end();
+      }
+      toolSpans.delete(id);
+      record({ type: "tool_result", id, output: message, isError: true });
+    }
+  }
+
   /**
    * Stamp a run-level error (the user-facing message + the provider that failed) and an OTel
    * exception event so a trace carries the same diagnostic the HTTP response does (F-030).
@@ -1335,6 +1362,7 @@ export function createSandboxAgentOtel(
     traceId: () => runTraceId,
     output: () => accumulated,
     events: () => events,
+    settleOpenToolCalls,
     usage: () => usage,
   };
 }

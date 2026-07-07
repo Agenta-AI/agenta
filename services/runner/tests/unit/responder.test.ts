@@ -97,6 +97,65 @@ describe("approvedCallKey", () => {
     assert.equal(approvedCallKey("edit", { x: NaN }), undefined);
     assert.equal(approvedCallKey("edit", new Map()), undefined);
   });
+
+  it("matches object-valued args re-issued as JSON strings", () => {
+    const toolName = "mcp__agenta-tools__commit_revision";
+    const workflowRevision = { delta: { a: 1 } };
+
+    assert.equal(
+      approvedCallKey(toolName, {
+        workflow_revision: workflowRevision,
+      }),
+      approvedCallKey(toolName, {
+        workflow_revision: JSON.stringify(workflowRevision),
+      }),
+    );
+  });
+
+  it("keeps key ordering stable inside stringified JSON args", () => {
+    const toolName = "mcp__agenta-tools__commit_revision";
+
+    assert.equal(
+      approvedCallKey(toolName, {
+        workflow_revision: { delta: { a: 1, b: 2 } },
+      }),
+      approvedCallKey(toolName, {
+        workflow_revision: '{"delta":{"b":2,"a":1}}',
+      }),
+    );
+    assert.equal(
+      approvedCallKey(toolName, {
+        workflow_revision: '{"delta":{"a":1,"b":2}}',
+      }),
+      approvedCallKey(toolName, {
+        workflow_revision: '{"delta":{"b":2,"a":1}}',
+      }),
+    );
+  });
+
+  it("does not match semantically different args", () => {
+    const toolName = "mcp__agenta-tools__commit_revision";
+
+    assert.notEqual(
+      approvedCallKey(toolName, {
+        workflow_revision: { delta: { a: 1 } },
+      }),
+      approvedCallKey(toolName, {
+        workflow_revision: JSON.stringify({ delta: { a: 2 } }),
+      }),
+    );
+  });
+
+  it("keeps plain non-JSON strings canonicalizable", () => {
+    assert.equal(
+      approvedCallKey("echo", { message: "hello world" }),
+      approvedCallKey("echo", { message: "hello world" }),
+    );
+    assert.notEqual(
+      approvedCallKey("echo", { message: "hello world" }),
+      approvedCallKey("echo", { message: { text: "hello world" } }),
+    );
+  });
 });
 
 describe("ApprovalResponder", () => {
@@ -303,10 +362,100 @@ describe("extractApprovalDecisions", () => {
     };
 
     const decisions = extractApprovalDecisions(request);
-    assert.equal(decisions.get(approvedCallKey("edit", { path: "a.txt" })!), "allow");
-    assert.equal(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), "deny");
+    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a.txt" })!), ["allow"]);
+    assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), ["deny"]);
     assert.equal(decisions.has("edit"), false);
     assert.equal(decisions.has("tc-1"), false);
+  });
+
+  it("keeps duplicate identical approval decisions in FIFO order", () => {
+    const request: AgentRunRequest = {
+      sessionId: "s-duplicates",
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tc-1",
+              toolName: "edit",
+              input: { path: "a.txt" },
+            },
+            {
+              type: "tool_call",
+              toolCallId: "tc-2",
+              toolName: "edit",
+              input: { path: "a.txt" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-1",
+              output: { approved: true },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "tc-2",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+    const key = approvedCallKey("edit", { path: "a.txt" })!;
+    const decisions = extractApprovalDecisions(request);
+
+    assert.deepEqual(decisions.get(key), ["allow", "allow"]);
+
+    const stored = new ConversationDecisions(decisions);
+    const duplicateGate = gate({ toolName: "edit", args: { path: "a.txt" } });
+    assert.equal(stored.take(duplicateGate), "allow");
+    assert.equal(stored.take(duplicateGate), "allow");
+    assert.equal(stored.take(duplicateGate), undefined);
+  });
+
+  it("consumes an approval when the live gate re-issues an object arg as a JSON string", () => {
+    const workflowRevision = { delta: { a: 1 } };
+    const request: AgentRunRequest = {
+      sessionId: "s-jsonish",
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tc-jsonish",
+              toolName: "mcp__agenta-tools__commit_revision",
+              input: { workflow_revision: workflowRevision },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-jsonish",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+    const stored = new ConversationDecisions(extractApprovalDecisions(request));
+
+    assert.equal(
+      stored.take({
+        executor: "harness",
+        toolName: "mcp__agenta-tools__commit_revision",
+        args: { workflow_revision: JSON.stringify(workflowRevision) },
+      }),
+      "allow",
+    );
   });
 
   it("routes a correlated client-tool output to the CLIENT store, not the approval store", () => {
@@ -420,7 +569,7 @@ describe("client-tool output store (separate from approvals)", () => {
     assert.equal(outputs.has(approvedCallKey("edit", { path: "a" })!), false);
     // ...and lives only in the approval store.
     const decisions = extractApprovalDecisions(request);
-    assert.equal(decisions.get(approvedCallKey("edit", { path: "a" })!), "allow");
+    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), ["allow"]);
   });
 
   it("resolves two identical client calls from the FIFO store, in order", async () => {

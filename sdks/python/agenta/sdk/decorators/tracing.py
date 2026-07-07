@@ -20,6 +20,7 @@ from agenta.sdk.contexts.tracing import (
 )
 from agenta.sdk.engines.tracing.conventions import parse_span_kind
 from agenta.sdk.engines.tracing.spans import CustomSpan
+from agenta.sdk.redaction.context import get_active_redactor
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry import context as otel_context
@@ -700,6 +701,10 @@ class instrument:  # pylint: disable=invalid-name
                         mode="json",
                         exclude_none=True,
                     )
+
+        # Known-value credential/secret scrub, always on, after any user-defined redaction —
+        # capture stays on, but a live secret can't survive to the span.
+        io = get_active_redactor().redact_json(io, sink="span")
 
         return io
 

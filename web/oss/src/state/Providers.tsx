@@ -1,37 +1,20 @@
 import {PropsWithChildren} from "react"
 
-import {testsetSelectionConfig} from "@agenta/entities/testset"
-import {evaluatorSelectionConfig} from "@agenta/entities/workflow"
-import {
-    revisionModalAdapter,
-    simpleQueueModalAdapter,
-    testsetModalAdapter,
-    variantModalAdapter,
-} from "@agenta/entity-ui/adapters"
-import {initializeSelectionSystem} from "@agenta/entity-ui/selection"
 import {useQueryClient} from "@tanstack/react-query"
 import {Provider, getDefaultStore} from "jotai"
 import {useHydrateAtoms} from "jotai/react/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
+import dynamic from "next/dynamic"
 
-import WebWorkerProvider from "../components/Playground/Components/WebWorkerProvider"
 import AgSWRConfig from "../lib/api/SWRConfig"
 
 import UserListener from "./profile/UserListener"
 import {SessionListener} from "./session"
 
-// Initialize the selection system with all entity configs
-// This must be called before any selection components are rendered
-initializeSelectionSystem({
-    testset: testsetSelectionConfig,
-    evaluator: evaluatorSelectionConfig,
-})
-
-// Explicitly reference modal adapters so registration is not tree-shaken.
-void testsetModalAdapter
-void revisionModalAdapter
-void simpleQueueModalAdapter
-void variantModalAdapter
+// Defers the heavy playground/entity registration graph (selection adapters,
+// workflow commit/archive bridge, web worker) into an async chunk so it stays
+// out of the shared `_app` bundle. Mounted childless on first client paint.
+const DeferredAppBoot = dynamic(() => import("./boot/DeferredAppBoot"), {ssr: false})
 
 const HydrateAtoms = ({children}: PropsWithChildren) => {
     const queryClient = useQueryClient()
@@ -45,11 +28,10 @@ const GlobalStateProvider = ({children}: PropsWithChildren) => {
         <Provider store={sharedStore}>
             <AgSWRConfig>
                 <HydrateAtoms>
-                    <WebWorkerProvider>
-                        <SessionListener />
-                        <UserListener />
-                        {children}
-                    </WebWorkerProvider>
+                    <SessionListener />
+                    <UserListener />
+                    <DeferredAppBoot />
+                    {children}
                 </HydrateAtoms>
             </AgSWRConfig>
         </Provider>

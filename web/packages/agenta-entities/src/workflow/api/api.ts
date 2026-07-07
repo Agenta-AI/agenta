@@ -14,7 +14,7 @@
  * - Create/Update: workflow + revision commit endpoints
  */
 
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getWorkflowsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 import {z} from "zod"
@@ -317,8 +317,7 @@ export async function retrieveWorkflowRevision({
 
     // Use the Fern-generated client (single source of truth for the
     // request/response shape, kept in sync with the backend OpenAPI spec).
-    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
-    const data = await client.workflows.retrieveWorkflowRevision(
+    const data = await getWorkflowsClient().retrieveWorkflowRevision(
         {
             ...(workflowRef ? {workflow_ref: workflowRef} : {}),
             ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),

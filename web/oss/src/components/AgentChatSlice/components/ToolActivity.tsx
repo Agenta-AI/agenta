@@ -1,10 +1,12 @@
-import {memo, useState} from "react"
+import {memo} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
 import {
     ArrowSquareOut,
     CaretRight,
     CheckCircle,
+    Clock,
+    Info,
     Prohibit,
     Spinner,
     Warning,
@@ -12,8 +14,15 @@ import {
 } from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {Typography} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {formatToolValue, stripFence} from "../assets/toolFormat"
+import {
+    expandedValueAtomFamily,
+    setExpandedAtom,
+    toolGroupKey,
+    toolRowKey,
+} from "../state/expandState"
 
 const {Text} = Typography
 
@@ -33,6 +42,15 @@ const partToolName = (part: ToolUIPart): string => {
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const isSettled = (state: string) => SETTLED.has(state)
+
+const DEFERRED_PREFIX = "DEFERRED_NOT_EXECUTED:"
+const isDeferredError = (errorText: string | undefined): boolean =>
+    !!errorText && errorText.startsWith(DEFERRED_PREFIX)
+
+const isNotHandledOutput = (output: unknown): boolean =>
+    !!output &&
+    typeof output === "object" &&
+    (output as {status?: unknown}).status === "not_handled"
 
 /**
  * Derive a single human line from a tool's output. Output shape is arbitrary, so this stays
@@ -63,18 +81,31 @@ const summarizeOutput = (output: unknown): string | null => {
 }
 
 const rowSummary = (part: ToolUIPart): string | null => {
-    if (part.state === "output-available") return summarizeOutput(part.output)
-    if (part.state === "output-error") return "failed"
+    if (part.state === "output-available") {
+        if (isNotHandledOutput(part.output)) return "not handled by this client"
+        return summarizeOutput(part.output)
+    }
+    if (part.state === "output-error") {
+        const errorText = (part as {errorText?: string}).errorText
+        return isDeferredError(errorText) ? "waiting on another approval" : "failed"
+    }
     if (part.state === "output-denied") return "denied"
     return null
 }
 
 /** Per-tool status glyph, shared by the live gutter and the expanded list. */
-const StatusIcon = ({state}: {state: string}) => {
-    if (state === "output-available")
+const StatusIcon = ({part}: {part: ToolUIPart}) => {
+    const state = part.state as string
+    if (state === "output-available") {
+        if (isNotHandledOutput((part as {output?: unknown}).output))
+            return <Info size={13} className="shrink-0 text-colorTextTertiary" />
         return <CheckCircle size={13} weight="fill" className="shrink-0 text-colorSuccess" />
-    if (state === "output-error")
+    }
+    if (state === "output-error") {
+        if (isDeferredError((part as {errorText?: string}).errorText))
+            return <Clock size={13} className="shrink-0 text-colorTextTertiary" />
         return <Warning size={13} weight="fill" className="shrink-0 text-colorError" />
+    }
     if (state === "output-denied")
         return <Prohibit size={13} className="shrink-0 text-colorTextTertiary" />
     if (state === "approval-requested")
@@ -117,6 +148,11 @@ const ToolRow = ({
 }) => {
     const name = partToolName(part)
     const state = part.state as string
+    const input = (part as {input?: unknown}).input
+    const output = (part as {output?: unknown}).output
+    const errorText = (part as {errorText?: string}).errorText
+    const deferred = state === "output-error" && isDeferredError(errorText)
+    const notHandled = state === "output-available" && isNotHandledOutput(output)
     // `approval-responded` is resolved (the user answered) — not "running". Its execution shows on
     // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
     const running =
@@ -131,16 +167,17 @@ const ToolRow = ({
               : live && running
                 ? "running…"
                 : detailed
-                  ? state === "output-error"
-                      ? "failed"
-                      : state === "output-denied"
-                        ? "denied"
-                        : null
+                  ? deferred
+                      ? "waiting on another approval"
+                      : state === "output-error"
+                        ? "failed"
+                        : state === "output-denied"
+                          ? "denied"
+                          : notHandled
+                            ? "not handled by this client"
+                            : null
                   : rowSummary(part)
 
-    const input = (part as {input?: unknown}).input
-    const output = (part as {output?: unknown}).output
-    const errorText = (part as {errorText?: string}).errorText
     // Track presence explicitly: a legit `null` output is real (don't hide it), and
     // `output-available` with no `output` key must not open an empty expander.
     const hasInput = input !== undefined
@@ -149,17 +186,21 @@ const ToolRow = ({
     const hasIO = detailed && (hasInput || hasOutput || hasError)
     // Default COLLAPSED: the inline Build step log stays a compact name+status timeline; the full
     // per-tool input/output lives in the Turn Inspector. Click a row to expand its I/O in place.
-    const [open, setOpen] = useState(false)
+    // Persisted by tool-call id so the expanded state survives a Virtuoso unmount (scroll-off).
+    const rowKey = toolRowKey((part as {toolCallId?: string}).toolCallId ?? name)
+    const stored = useAtomValue(expandedValueAtomFamily(rowKey))
+    const setExpanded = useSetAtom(setExpandedAtom)
+    const open = stored ?? false
 
     const header = (
         <>
-            <StatusIcon state={state} />
+            <StatusIcon part={part} />
             <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
                 {name}
             </Text>
             {midText ? (
                 <Text
-                    type={state === "output-error" ? "danger" : "secondary"}
+                    type={state === "output-error" && !deferred ? "danger" : "secondary"}
                     className="!text-xs min-w-0 truncate"
                     title={typeof midText === "string" ? midText : undefined}
                 >
@@ -174,7 +215,7 @@ const ToolRow = ({
             {hasIO ? (
                 <button
                     type="button"
-                    onClick={() => setOpen((o) => !o)}
+                    onClick={() => setExpanded({key: rowKey, value: !open})}
                     aria-expanded={open}
                     className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
                 >
@@ -196,7 +237,11 @@ const ToolRow = ({
                     <div className="mt-1 flex min-w-0 flex-col gap-1.5 pl-[21px]">
                         {hasInput ? <IOBlock label="input" value={formatToolValue(input)} /> : null}
                         {hasError ? (
-                            <IOBlock label="error" value={stripFence(errorText)} danger />
+                            <IOBlock
+                                label={deferred ? "note" : "error"}
+                                value={stripFence(errorText)}
+                                danger={!deferred}
+                            />
                         ) : hasOutput ? (
                             <IOBlock label="output" value={formatToolValue(output)} />
                         ) : null}
@@ -240,7 +285,11 @@ const ToolActivity = ({
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
 
-    const [open, setOpen] = useState(false)
+    // Persisted by the group's first tool-call id so the expanded list survives a Virtuoso unmount.
+    const groupKey = toolGroupKey(parts[0]?.toolCallId ?? "grp")
+    const stored = useAtomValue(expandedValueAtomFamily(groupKey))
+    const setExpanded = useSetAtom(setExpandedAtom)
+    const open = stored ?? false
     // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
@@ -271,7 +320,11 @@ const ToolActivity = ({
     }
 
     // ---- Settled: the quiet "Used N tools" line + expandable list ----
-    const failed = parts.filter((p) => (p.state as string) === "output-error").length
+    const failed = parts.filter(
+        (p) =>
+            (p.state as string) === "output-error" &&
+            !isDeferredError((p as {errorText?: string}).errorText),
+    ).length
     const count = parts.length
     const label = count === 1 ? `Used ${partToolName(parts[0])}` : `Used ${count} tools`
     const SummaryIcon = failed > 0 ? Warning : CheckCircle
@@ -280,7 +333,7 @@ const ToolActivity = ({
         <div className="flex min-w-0 flex-col">
             <button
                 type="button"
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => setExpanded({key: groupKey, value: !open})}
                 aria-expanded={expanded}
                 className="-ml-1 flex w-fit max-w-full cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-left transition-colors hover:bg-colorFillQuaternary"
             >

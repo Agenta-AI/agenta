@@ -10,7 +10,7 @@ from inspect import isawaitable
 from difflib import SequenceMatcher
 from json import dumps, loads
 from typing import Any, Dict, List, Optional, Union, Tuple
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
@@ -72,12 +72,21 @@ from agenta.sdk.models.workflows import WorkflowInvokeRequestFlags
 log = get_module_logger(__name__)
 
 _WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
+# AGENTA_SERVICES_HOOK_ALLOW_INSECURE / AGENTA_WEBHOOKS_ALLOW_INSECURE / AGENTA_WEBHOOK_ALLOW_INSECURE are deprecated aliases; prefer AGENTA_INSECURE_EGRESS_ALLOWED.
 _HOOK_ALLOW_INSECURE = (
-    os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
+    os.getenv("AGENTA_INSECURE_EGRESS_ALLOWED")
+    or os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-    or "true"
+    or "false"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+
+if not _HOOK_ALLOW_INSECURE:
+    log.info(
+        "Webhook egress is in restricted mode: http and private/loopback/link-local/"
+        "cloud-metadata targets are blocked. Set AGENTA_INSECURE_EGRESS_ALLOWED=true to "
+        "permit them (trusted/single-tenant deployments only)."
+    )
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
@@ -93,7 +102,13 @@ def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
     )
 
 
-def _validate_webhook_url(url: str) -> None:
+def _validate_webhook_url(url: str) -> str:
+    """Validate `url` and resolve it to a single blocked-range-checked literal IP.
+
+    Resolves once here; callers must connect to the returned literal IP (not
+    re-resolve the hostname) so a DNS-rebind between validation and send cannot
+    reach an internal host.
+    """
     if not url:
         raise ValueError("Webhook URL is required.")
 
@@ -122,18 +137,28 @@ def _validate_webhook_url(url: str) -> None:
     if ip is not None:
         if _is_blocked_ip(ip):
             raise ValueError("Webhook URL resolves to a blocked IP range.")
-        return
+        return str(ip)
 
     try:
-        addresses = {
+        addresses = [
             ipaddress.ip_address(info[4][0])
             for info in socket.getaddrinfo(hostname, None)
-        }
+        ]
     except socket.gaierror as exc:
         raise ValueError("Webhook URL hostname could not be resolved.") from exc
 
-    if not addresses or any(_is_blocked_ip(ip) for ip in addresses):
+    if not addresses or any(_is_blocked_ip(addr) for addr in addresses):
         raise ValueError("Webhook URL resolves to a blocked IP range.")
+
+    return str(addresses[0])
+
+
+def _pin_webhook_url(url: str, resolved_ip: str) -> Tuple[str, str]:
+    """Swap the URL's host for the literal validated IP; keep hostname for Host/SNI."""
+    parsed = urlparse(url)
+    host_literal = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+    pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
+    return urlunparse(parsed._replace(netloc=pinned_netloc)), parsed.hostname or ""
 
 
 async def _compute_embedding(openai: Any, model: str, input: str) -> List[float]:
@@ -639,7 +664,7 @@ async def auto_webhook_test_v0(
 
     webhook_url = str(parameters["webhook_url"])
     try:
-        _validate_webhook_url(webhook_url)
+        resolved_ip = _validate_webhook_url(webhook_url)
     except ValueError as exc:
         raise InvalidConfigurationParameterV0Error(
             path="webhook_url",
@@ -679,12 +704,16 @@ async def auto_webhook_test_v0(
         "output": outputs_str,
     }
 
+    pinned_url, original_hostname = _pin_webhook_url(webhook_url, resolved_ip)
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
-                url=webhook_url,
+                url=pinned_url,
                 json=json_payload,
+                headers={"Host": original_hostname},
                 timeout=httpx.Timeout(10.0, connect=5.0),
+                extensions={"sni_hostname": original_hostname},
             )
         except Exception as e:
             raise WebhookClientV0Error(
@@ -1053,8 +1082,11 @@ async def auto_ai_critique_v0(
         _outputs = response.choices[0].message.content.strip()  # type: ignore
 
     except litellm.AuthenticationError as e:  # type: ignore
-        e.message = e.message.replace(
-            "litellm.AuthenticationError: AuthenticationError: ", ""
+        from agenta.sdk.redaction.context import get_active_redactor
+
+        e.message = get_active_redactor().redact_string(
+            e.message.replace("litellm.AuthenticationError: AuthenticationError: ", ""),
+            sink="error",
         )
         raise e
 
@@ -2269,7 +2301,7 @@ async def remote_forward_v0(
 
     webhook_url = str(webhook_url)
     try:
-        _validate_webhook_url(webhook_url)
+        resolved_ip = _validate_webhook_url(webhook_url)
     except ValueError as exc:
         raise InvalidConfigurationParameterV0Error(
             path="url",
@@ -2280,6 +2312,7 @@ async def remote_forward_v0(
     # The stored url is the service base (pre-/invoke); the invoke surface lives
     # at /invoke and is always appended.
     target_url = f"{webhook_url.rstrip('/')}/invoke"
+    pinned_url, original_hostname = _pin_webhook_url(target_url, resolved_ip)
 
     log.info("remote_forward_v0 POST", url=target_url)
 
@@ -2298,16 +2331,18 @@ async def remote_forward_v0(
     request_headers = (
         {str(k): str(v) for k, v in headers.items()}
         if isinstance(headers, dict)
-        else None
+        else {}
     )
+    request_headers["Host"] = original_hostname
 
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
-                url=target_url,
+                url=pinned_url,
                 json=json_payload,
                 headers=request_headers,
                 timeout=httpx.Timeout(30.0, connect=5.0),
+                extensions={"sni_hostname": original_hostname},
             )
         except Exception as e:
             raise WebhookClientV0Error(

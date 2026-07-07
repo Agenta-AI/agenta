@@ -4,9 +4,14 @@ Pure function, no network required for IP-based cases.
 DNS-dependent cases use a monkeypatched socket.getaddrinfo.
 """
 
+import importlib
+
 import pytest
 
-from oss.src.core.webhooks.utils import validate_webhook_url
+from oss.src.core.webhooks.utils import (
+    resolve_validated_webhook_ip,
+    validate_webhook_url,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -128,3 +133,90 @@ def test_hostname_resolving_to_public_ip_is_accepted(monkeypatch):
     )
     # Should not raise
     validate_webhook_url("https://example.com/hook")
+
+
+# ---------------------------------------------------------------------------
+# resolve_validated_webhook_ip — same validation, plus the literal IP to pin
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_returns_the_literal_ip_for_a_hostname(monkeypatch):
+    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    monkeypatch.setattr(
+        "oss.src.core.webhooks.utils.socket.getaddrinfo",
+        lambda *a, **kw: [(None, None, None, None, ("93.184.216.34", 0))],
+    )
+    assert resolve_validated_webhook_ip("https://example.com/hook") == "93.184.216.34"
+
+
+def test_resolve_returns_the_ip_itself_for_an_ip_literal_url(monkeypatch):
+    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    assert resolve_validated_webhook_ip("https://93.184.216.34/hook") == "93.184.216.34"
+
+
+def test_resolve_rejects_blocked_ip_before_pinning(monkeypatch):
+    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    monkeypatch.setattr(
+        "oss.src.core.webhooks.utils.socket.getaddrinfo",
+        lambda *a, **kw: [(None, None, None, None, ("10.0.0.5", 0))],
+    )
+    with pytest.raises(ValueError, match="blocked IP"):
+        resolve_validated_webhook_ip("https://internal.example.com/hook")
+
+
+# ---------------------------------------------------------------------------
+# Default posture — allow_insecure defaults to False
+# ---------------------------------------------------------------------------
+
+
+def test_allow_insecure_defaults_false(monkeypatch):
+    monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
+    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
+    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
+    from oss.src.utils.env import WebhooksConfig
+
+    assert WebhooksConfig().allow_insecure is False
+
+
+def test_allow_insecure_canonical_env_var(monkeypatch):
+    # allow_insecure is a class-level default evaluated at import time; reload to re-run it.
+    from oss.src.utils import env
+
+    monkeypatch.setenv("AGENTA_INSECURE_EGRESS_ALLOWED", "true")
+    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
+    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
+    try:
+        importlib.reload(env)
+        assert env.WebhooksConfig().allow_insecure is True
+    finally:
+        monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
+        importlib.reload(env)
+
+
+def test_allow_insecure_legacy_alias_still_honored(monkeypatch):
+    from oss.src.utils import env
+
+    monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
+    monkeypatch.setenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", "true")
+    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
+    try:
+        importlib.reload(env)
+        assert env.WebhooksConfig().allow_insecure is True
+    finally:
+        monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
+        importlib.reload(env)
+
+
+def test_allow_insecure_canonical_wins_over_legacy_alias(monkeypatch):
+    from oss.src.utils import env
+
+    monkeypatch.setenv("AGENTA_INSECURE_EGRESS_ALLOWED", "false")
+    monkeypatch.setenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", "true")
+    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
+    try:
+        importlib.reload(env)
+        assert env.WebhooksConfig().allow_insecure is False
+    finally:
+        monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
+        monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
+        importlib.reload(env)

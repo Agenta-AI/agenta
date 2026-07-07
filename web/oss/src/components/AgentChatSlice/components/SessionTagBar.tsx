@@ -1,3 +1,5 @@
+import {useEffect, useRef} from "react"
+
 import {Plus, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import clsx from "clsx"
@@ -61,8 +63,15 @@ const SessionTag = ({
 }: SessionTagProps) => {
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
+    const tabRef = useRef<HTMLDivElement>(null)
+    // Keep the active tab visible: a freshly-added session lands past the strip's overflow edge.
+    // Smooth vs instant comes from the strip's motion-safe:scroll-smooth, not JS.
+    useEffect(() => {
+        if (active) tabRef.current?.scrollIntoView({block: "nearest", inline: "nearest"})
+    }, [active])
     return (
         <div
+            ref={tabRef}
             role="tab"
             aria-selected={active}
             tabIndex={0}
@@ -138,7 +147,7 @@ const SessionTagBar = ({
     return (
         <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
             {showSessions ? (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {sessions.map((session, index) => (
                         <SessionTag
                             key={session.id}

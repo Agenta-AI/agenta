@@ -3,6 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
@@ -11,6 +12,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamQuery,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -42,10 +44,16 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             user_id=user_id,
             stream=stream,
         )
-        async with self.engine.session() as session:
-            session.add(dbe)
-            await session.commit()
-            await session.refresh(dbe)
+        try:
+            async with self.engine.session() as session:
+                session.add(dbe)
+                await session.commit()
+                await session.refresh(dbe)
+        except IntegrityError as e:
+            error_str = str(e.orig) if e.orig else str(e)
+            if "uq_session_streams_project_session_id" in error_str:
+                raise SessionStreamAlreadyExists(session_id=stream.session_id) from e
+            raise
         return map_stream_dbe_to_dto(stream_dbe=dbe)
 
     async def get_by_session_id(

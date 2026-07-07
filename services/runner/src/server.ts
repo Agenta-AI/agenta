@@ -35,6 +35,7 @@ import {
 } from "./engines/sandbox_agent.ts";
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
+import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
@@ -55,6 +56,21 @@ const HOST = process.env.AGENTA_RUNNER_HOST ?? "127.0.0.1";
 // isolation; a static shared secret is not a substitute for TLS (deferred). Unset = no check,
 // so co-located/loopback deployments are unaffected.
 const RUNNER_TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
+
+// Per-box in-flight counter: gates `/stream` and the `/run` back-compat alias at the process,
+// independent of the per-project DB count, so one hot replica can't saturate. Value from config.
+const CONCURRENCY_LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
+const DEFAULT_CONCURRENCY_LIMIT = 1000;
+
+function concurrencyLimit(): number {
+  const raw = process.env[CONCURRENCY_LIMIT_ENV];
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_CONCURRENCY_LIMIT;
+}
+
+let inFlight = 0;
 
 /** Constant-time string compare so the token check does not leak length/prefix via timing. */
 function tokensMatch(provided: string, expected: string): boolean {
@@ -223,18 +239,25 @@ async function runAndStream(
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
   let flushPersist: (() => Promise<void>) | undefined;
+  let persistError: ((message: string) => void) | undefined;
   let aliveWatchdog: { release: () => Promise<void> } | undefined;
 
   if (sessionOwned) {
     const requestApiBase = apiBaseFromRequest(request);
     if (requestApiBase && !process.env.AGENTA_API_URL) {
       process.env.AGENTA_API_URL = requestApiBase;
-      process.stderr.write(`[sessions] inferred AGENTA_API_URL=${requestApiBase}\n`);
+      process.stderr.write(
+        `[sessions] inferred AGENTA_API_URL=${requestApiBase}\n`,
+      );
     }
     // The runner authenticates session calls AS the invoke caller (the run credential),
     // refreshing it for the turn's lifetime — never the admin key. Project scope is
     // resolved server-side from the credential, so no project_id rides the request.
-    const watchdog = startAliveWatchdog(sessionId, turnId, runCredential(request));
+    const watchdog = startAliveWatchdog(
+      sessionId,
+      turnId,
+      runCredential(request),
+    );
     aliveWatchdog = watchdog;
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own). Best-effort, never blocks the turn.
@@ -245,11 +268,11 @@ async function runAndStream(
       request.sandbox?.trim() || "local",
       watchdog.credential(),
     );
-    const { emit: persistingEmit, persist, flush } = buildPersistingEmitter(
-      sessionId,
-      watchdog.credential,
-      liveEmit,
-    );
+    const {
+      emit: persistingEmit,
+      persist,
+      flush,
+    } = buildPersistingEmitter(sessionId, watchdog.credential, liveEmit);
     // Record the inbound user turn first so the session record is the full conversation,
     // not just agent output. Interaction replies ride tool_result blocks (no text) and are
     // already recorded on the interaction, so an empty prompt persists nothing.
@@ -257,17 +280,24 @@ async function runAndStream(
     if (promptText) persist({ type: "message", text: promptText }, "user");
     emitFn = persistingEmit;
     flushPersist = flush;
+    persistError = (message) => persist({ type: "error", message }, "agent");
   }
 
   let result: AgentRunResult;
   try {
     result = await run(request, emitFn, controller.signal);
+    // A failed engine run ({ok:false}) already emitted its own error EVENT through the
+    // persisting emitter (see sandbox_agent.ts), so no extra persist here (it would
+    // duplicate the record).
     // Drain all queued persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
-    if (flushPersist) await flushPersist().catch(() => {});
     const message =
       err instanceof Error ? err.stack ?? err.message : String(err);
+    // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
+    // event — persist it here as the backstop.
+    if (persistError) persistError(message);
+    if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
   } finally {
     // Release the alive lock and mark the stream row ended.
@@ -326,31 +356,47 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
-        const raw = await readBody(req);
-        let request: AgentRunRequest;
-        try {
-          request = raw.trim() ? (JSON.parse(raw) as AgentRunRequest) : {};
-        } catch (err) {
-          return send(res, 400, {
+
+        // Per-box admission gate: reject before doing any work when this replica
+        // is already at its in-flight limit. Reserve the slot for the whole run and release
+        // it in `finally`, whichever path (streaming or one-shot) is taken.
+        const limit = concurrencyLimit();
+        if (inFlight >= limit) {
+          return send(res, 429, {
             ok: false,
-            error: `Invalid JSON: ${String(err)}`,
+            error: `Runner at capacity (${limit} concurrent runs)`,
           });
         }
+        inFlight += 1;
+        try {
+          const raw = await readBody(req);
+          let request: AgentRunRequest;
+          try {
+            request = raw.trim() ? (JSON.parse(raw) as AgentRunRequest) : {};
+          } catch (err) {
+            return send(res, 400, {
+              ok: false,
+              error: `Invalid JSON: ${String(err)}`,
+            });
+          }
 
-        const wantsStream = (req.headers["accept"] ?? "").includes(
-          "application/x-ndjson",
-        );
-        if (wantsStream) {
-          await runAndStream(req, res, request, run);
-          return;
+          const wantsStream = (req.headers["accept"] ?? "").includes(
+            "application/x-ndjson",
+          );
+          if (wantsStream) {
+            await runAndStream(req, res, request, run);
+            return;
+          }
+
+          // DEVELOPMENT-ONLY: the one-shot JSON path. The live agent always requests NDJSON
+          // (Accept: application/x-ndjson) and the SDK coalesces the batch result from the
+          // stream. This coalesced JSON response is kept only for local debugging of /run; no
+          // live caller hits it. Do not build new behavior on this branch.
+          const result = await run(request);
+          return send(res, result.ok ? 200 : 500, result);
+        } finally {
+          inFlight -= 1;
         }
-
-        // DEVELOPMENT-ONLY: the one-shot JSON path. The live agent always requests NDJSON
-        // (Accept: application/x-ndjson) and the SDK coalesces the batch result from the
-        // stream. This coalesced JSON response is kept only for local debugging of /run; no
-        // live caller hits it. Do not build new behavior on this branch.
-        const result = await run(request);
-        return send(res, result.ok ? 200 : 500, result);
       }
 
       return send(res, 404, { ok: false, error: "Not found" });
@@ -432,5 +478,16 @@ if (isEntrypoint(import.meta.url)) {
     process.stderr.write(
       `[sandbox-agent] http server listening on ${HOST}:${PORT}\n`,
     );
+    if (insecureEgressAllowed()) {
+      process.stderr.write(
+        "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCP servers may " +
+          "target http and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.\n",
+      );
+    } else {
+      process.stderr.write(
+        "[sandbox-agent] Outbound egress is in restricted mode: user MCP servers must use https and " +
+          "public hosts (private/loopback/link-local/metadata targets are blocked).\n",
+      );
+    }
   });
 }
