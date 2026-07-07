@@ -1,8 +1,9 @@
 import {type RefObject} from "react"
 
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {Button, Tooltip} from "antd"
-import {ArrowLeftRight, ArrowRight, Paperclip} from "lucide-react"
+import {Terminal} from "@phosphor-icons/react"
+import {Button} from "antd"
+import {ArrowRight} from "lucide-react"
 
 import {HERO, COMPOSER} from "@/oss/components/pages/agent-home/assets/constants"
 
@@ -41,16 +42,9 @@ const StripComposer = ({
             minHeightClassName="min-h-[112px]"
             textSizeClassName="text-sm"
             className={`!bg-[var(--ag-colorBgContainer)] !shadow-[0_1px_3px_0_rgb(0_0_0_/_0.1),0_1px_2px_-1px_rgb(0_0_0_/_0.1)] ${composerClassName}`}
-            prefix={
-                <div className="flex items-center gap-2 text-[var(--ag-colorTextTertiary)]">
-                    <Tooltip title="Attach files coming soon">
-                        <Paperclip size={15} className="cursor-not-allowed" />
-                    </Tooltip>
-                </div>
-            }
             trailing={
                 <div className="flex items-center gap-2">
-                    <Button icon={<ArrowLeftRight size={14} />} onClick={onCodingAgentCopy}>
+                    <Button icon={<Terminal size={15} />} onClick={onCodingAgentCopy}>
                         {STRIP_COPY.useCodingAgent}
                     </Button>
                     <Button

@@ -84,7 +84,7 @@ export const templateToolCount = (template: AgentTemplate): number =>
  */
 export const templateBuilderMessage = (template: AgentTemplate): string =>
     template.builderMessage?.trim() ||
-    `I want to build a "${template.name}" agent. ${template.overview}`
+    `Create an agent that ${template.overview.charAt(0).toLowerCase()}${template.overview.slice(1)}`
 
 /** Canonical chip order; only categories present in the templates render. */
 export const TEMPLATE_CATEGORY_ORDER = ["Engineering", "Support", "Ops", "Docs"] as const
@@ -122,6 +122,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         trigger: "New message in #support",
         triggerDescription: "Runs whenever a new message is posted in #support.",
         seedMessage: "Triage the newest #support thread and route it to the right owner.",
+        builderMessage:
+            "Create an agent that watches our #support Slack channel, triages each new thread by urgency, and routes it to the right owner. It should ask me before closing anything.",
         model: DEFAULT_MODEL,
         requiredIntegrations: [
             {
@@ -156,6 +158,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         triggerDescription: "Runs when a pull request is opened.",
         seedMessage:
             "Review the latest open PR: comment inline on risky changes and post a summary for the author.",
+        builderMessage:
+            "Create an agent that reviews opened pull requests: comments inline on risky changes, flags missing tests, and posts a short summary for the author.",
         model: DEFAULT_MODEL,
         requiredIntegrations: [
             {
@@ -193,6 +197,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         trigger: "On release",
         triggerDescription: "Runs when a release is published.",
         seedMessage: "Draft release notes from the PRs merged since the last release.",
+        builderMessage:
+            "Create an agent that turns merged pull requests into clean release notes and publishes them to our docs page.",
         model: DEFAULT_MODEL,
         requiredIntegrations: [
             {
@@ -240,6 +246,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         trigger: "On alert",
         triggerDescription: "Runs when a new alert fires.",
         seedMessage: "Summarize the latest alert and identify the likely cause.",
+        builderMessage:
+            "Create an agent that watches alerts, gathers related context and logs, summarizes the likely cause, and pages the on-call engineer.",
         model: DEFAULT_MODEL,
         requiredIntegrations: [
             {
@@ -283,6 +291,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         trigger: "Daily at 09:00",
         triggerDescription: "Runs every day at 09:00.",
         seedMessage: "Summarize yesterday's activity into a standup digest.",
+        builderMessage:
+            "Create an agent that posts a daily digest of yesterday's channel activity every morning at 09:00.",
         model: DEFAULT_MODEL,
         requiredIntegrations: [
             {
@@ -316,6 +326,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         trigger: "On mention",
         triggerDescription: "Runs when the agent is @-mentioned.",
         seedMessage: "Answer: how do I get started? — using our docs.",
+        builderMessage:
+            "Create an agent that answers questions from our docs workspace with concise, cited answers.",
         model: DEFAULT_MODEL,
         requiredIntegrations: [
             {

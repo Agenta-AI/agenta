@@ -66,6 +66,10 @@ const StripHome: React.FC = () => {
         [provenance.pick, posthog],
     )
 
+    const handleCreate = useCallback(() => {
+        onCreate(provenance.selectedTemplate?.name)
+    }, [onCreate, provenance.selectedTemplate])
+
     const handleCodingAgentCopy = useCallback(async () => {
         const text = composerRef.current?.getMarkdown().trim() ?? ""
         try {
@@ -83,7 +87,7 @@ const StripHome: React.FC = () => {
 
     return (
         <PageLayout className="grow min-h-0">
-            <div className="mx-auto flex w-full max-w-[780px] flex-col pb-16 pt-8">
+            <div className="mx-auto flex w-full max-w-[960px] flex-col pb-16 pt-8">
                 <div className="flex flex-col gap-3">
                     <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
                         {HERO.title}
@@ -98,14 +102,14 @@ const StripHome: React.FC = () => {
                     {provenance.chipNode}
                     <StripComposer
                         composerRef={composerRef}
-                        onCreate={onCreate}
+                        onCreate={handleCreate}
                         onCodingAgentCopy={handleCodingAgentCopy}
                         composerClassName={provenance.composerClassName}
                     />
                 </div>
 
                 <TemplateStrip
-                    className="mt-3"
+                    className="mt-4"
                     surface="home"
                     selectedTemplateKey={provenance.selectedTemplateKey}
                     onPick={handlePick}

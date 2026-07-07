@@ -16,9 +16,9 @@ import {Bubble} from "@ant-design/x"
 import {
     ArrowDown,
     ArrowRight,
-    ArrowsLeftRight,
     Code,
     Paperclip,
+    Terminal,
     TreeStructure,
     UploadSimple,
 } from "@phosphor-icons/react"
@@ -503,9 +503,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 intentValue: classifyAgentIntent(text),
             })
         }
-        onboarding.commit(text)
+        onboarding.commit(text, stripProvenance.selectedTemplate?.name)
         if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
-    }, [onboarding, onboardingPosthog, stripProvenance.clear])
+    }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.selectedTemplate])
 
     // Also cover the template-click commit path (which goes straight through `commit()`, not the
     // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear
@@ -1557,7 +1557,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                         {TEMPLATE_STRIP_MODE ? (
                                             // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
                                             <Button
-                                                icon={<ArrowsLeftRight size={14} />}
+                                                icon={<Terminal size={15} />}
                                                 onClick={handleCodingAgentCopy}
                                                 className="!shadow-none"
                                             >

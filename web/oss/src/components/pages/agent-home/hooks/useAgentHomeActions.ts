@@ -34,17 +34,20 @@ export function useAgentHomeActions(
         [composerRef],
     )
 
-    const onCreate = useCallback(() => {
-        const message = readPrompt()
-        if (message) {
-            captureFirstAgentIntent(posthog, {
-                source: "composer",
-                properties: {message: truncateForCapture(message)},
-                intentValue: classifyAgentIntent(message),
-            })
-        }
-        void createAgent({seedMessage: message, autoSendSeed})
-    }, [createAgent, posthog, readPrompt, autoSendSeed])
+    const onCreate = useCallback(
+        (templateName?: string) => {
+            const message = readPrompt()
+            if (message) {
+                captureFirstAgentIntent(posthog, {
+                    source: "composer",
+                    properties: {message: truncateForCapture(message)},
+                    intentValue: classifyAgentIntent(message),
+                })
+            }
+            void createAgent({name: templateName, seedMessage: message, autoSendSeed})
+        },
+        [createAgent, posthog, readPrompt, autoSendSeed],
+    )
 
     return {onCreate}
 }
