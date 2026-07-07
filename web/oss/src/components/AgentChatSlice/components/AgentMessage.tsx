@@ -17,7 +17,7 @@ import {
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
 import {Avatar, Tooltip, Typography} from "antd"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
@@ -29,7 +29,12 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
-import {agentChatExpandedAtomFamily} from "../state/expandState"
+import {
+    errorKey,
+    expandedValueAtomFamily,
+    reasoningKey,
+    setExpandedAtom,
+} from "../state/expandState"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
@@ -119,16 +124,17 @@ const ReasoningPart = ({
     stateKey: string
 }) => {
     // Auto-expand while the thought streams live, then collapse to the "Thought" toggle when done. A
-    // manual toggle sticks. State is keyed + persisted (agentChatExpandedAtomFamily) so it survives a
-    // Virtuoso unmount when the row scrolls off: `undefined` follows `streaming`, a set value wins.
-    const [stored, setStored] = useAtom(agentChatExpandedAtomFamily(stateKey))
+    // manual toggle sticks. State is keyed + persisted (expandState) so it survives a Virtuoso unmount
+    // when the row scrolls off: `undefined` follows `streaming`, a set value wins.
+    const stored = useAtomValue(expandedValueAtomFamily(stateKey))
+    const setExpanded = useSetAtom(setExpandedAtom)
     const expanded = stored ?? streaming
 
     return (
         <div className="flex flex-col">
             <button
                 type="button"
-                onClick={() => setStored(!expanded)}
+                onClick={() => setExpanded({key: stateKey, value: !expanded})}
                 aria-expanded={expanded}
                 className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextSecondary transition-colors hover:bg-colorFillQuaternary hover:text-colorText"
             >
@@ -165,9 +171,10 @@ const ReasoningPart = ({
  * block so it stays readable.
  */
 const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
-    const [stored, setStored] = useAtom(agentChatExpandedAtomFamily(stateKey))
+    const stored = useAtomValue(expandedValueAtomFamily(stateKey))
+    const setAll = useSetAtom(setExpandedAtom)
     const expanded = stored ?? false
-    const setExpanded = (v: boolean) => setStored(v)
+    const setExpanded = (v: boolean) => setAll({key: stateKey, value: v})
     const isLong = text.length > 220 || text.includes("\n")
 
     return (
@@ -398,7 +405,7 @@ const AgentMessage = ({
             return (
                 <ReasoningPart
                     key={partKey}
-                    stateKey={partKey}
+                    stateKey={reasoningKey(message.id, i)}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
                 />
@@ -491,10 +498,7 @@ const AgentMessage = ({
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // RunErrorBody truncates a long reason so it can't drown the chat (expand to read it all).
     const errorBody = (
-        <RunErrorBody
-            text={errorText || "The agent run failed."}
-            stateKey={`${message.id}-error`}
-        />
+        <RunErrorBody text={errorText || "The agent run failed."} stateKey={errorKey(message.id)} />
     )
 
     // Partial output then failure: show the content AND the error. Answer-less failure: the

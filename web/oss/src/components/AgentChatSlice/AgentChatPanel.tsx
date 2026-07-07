@@ -57,6 +57,7 @@ import SessionTagBar from "./components/SessionTagBar"
 import TurnInspector from "./components/TurnInspector/TurnInspector"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
+import {expandedKeysForMessages, pruneExpandedAtom} from "./state/expandState"
 import {agentFirstRunSeedAtom} from "./state/firstRunSeed"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useChatScopeKey} from "./state/scope"
@@ -99,6 +100,13 @@ const EDGE_FADE_MASK = `linear-gradient(to bottom, transparent 0, #000 ${TOP_FAD
 /** Centered reading column for the chat body. Caps line length / bubble width so a wide (maximized)
  * panel doesn't sprawl into oversized bubbles and over-spaced turns; freed side space is whitespace. */
 const CHAT_COLUMN = "mx-auto w-full max-w-[880px]"
+
+/** Single source of truth for the (currently DISABLED) content-visibility optimization. Disabled in
+ * 5f0fa73d06 — it caused a scrollbar-shrink on first scroll-through — but the mechanism is kept so it
+ * can be re-enabled with a fix. Gates BOTH the CSS class and the SC-3 intrinsic-size measurement, so
+ * while off neither the styling nor the measurement runs. Typed `boolean` so the guards aren't
+ * flagged as always-false. Under Virtuoso it must stay off regardless (it corrupts item measurement). */
+const CONTENT_VISIBILITY_ENABLED = false as boolean
 /** Full-screen session rail width. The rail slides between this and 0 (rather than mounting) so the
  * Build/Chat transition stays cohesive with the config pane's animated collapse. */
 const RAIL_WIDTH = 248
@@ -712,6 +720,20 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         persistMessages({id: sessionId, messages})
     }, [messages, status, sessionId, persistMessages])
 
+    // Bound the in-message expand-state store: on settle, drop entries whose owning message is gone
+    // (rewound / evicted / closed). Live = every open session's persisted messages ∪ this active one.
+    // `store.get` reads without subscribing, so this never adds re-renders on the streaming hot path.
+    const pruneExpanded = useSetAtom(pruneExpandedAtom)
+    useEffect(() => {
+        if (status === "streaming") return
+        const persisted = store.get(sessionMessagesAtom)
+        const live = new Set<string>()
+        for (const sid in persisted)
+            for (const key of expandedKeysForMessages(persisted[sid])) live.add(key)
+        for (const key of expandedKeysForMessages(messages)) live.add(key)
+        pruneExpanded(live)
+    }, [messages, status, store, pruneExpanded])
+
     // Stamp a first-seen timestamp on any newly-appeared message (user + assistant).
     useEffect(() => {
         stampMessagesCreatedAt(messages.map((m) => m.id))
@@ -927,18 +949,19 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (!el) return
         const onResize = (entries: ResizeObserverEntry[]) => {
             // Pin each rendered row's REAL height as its own `content-visibility` placeholder, so it
-            // keeps the exact same box when it later scrolls off-screen. Heights span ~85–1022px
-            // (expanded tool/thought cards), so the generic fallback would make every first scroll-up
-            // re-correct each row → jump. Skip rows the browser has already collapsed to their
-            // placeholder (their measured height is the placeholder, not real content).
-            for (const e of entries) {
-                const node = e.target as HTMLElement
-                const check = node.checkVisibility as
-                    | ((o?: {contentVisibilityAuto?: boolean}) => boolean)
-                    | undefined
-                if (check && !check.call(node, {contentVisibilityAuto: true})) continue
-                const h = Math.round(node.getBoundingClientRect().height)
-                if (h > 0) node.style.containIntrinsicSize = `auto ${h}px`
+            // keeps the exact same box when it later scrolls off-screen. Only meaningful while
+            // content-visibility is enabled — otherwise `containIntrinsicSize` is inert, so skip the
+            // whole measurement to avoid a getBoundingClientRect + style write per row on every resize.
+            if (CONTENT_VISIBILITY_ENABLED) {
+                for (const e of entries) {
+                    const node = e.target as HTMLElement
+                    const check = node.checkVisibility as
+                        | ((o?: {contentVisibilityAuto?: boolean}) => boolean)
+                        | undefined
+                    if (check && !check.call(node, {contentVisibilityAuto: true})) continue
+                    const h = Math.round(node.getBoundingClientRect().height)
+                    if (h > 0) node.style.containIntrinsicSize = `auto ${h}px`
+                }
             }
             if (programmaticScrollRef.current) return
             if (stickRef.current) {
@@ -1287,9 +1310,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 enter={enter}
                 inspected={isInspected}
                 onInspect={onInspect}
-                // content-visibility stays OFF (disabled on the branch due to scroll artifacts); the
-                // non-virtualized path is plain Phase-1, and virtuoso owns windowing when enabled.
-                offscreenSkip={false}
+                // Content-visibility on settled rows — gated by CONTENT_VISIBILITY_ENABLED (currently
+                // off) and never under Virtuoso (it windows + would corrupt measurement).
+                offscreenSkip={CONTENT_VISIBILITY_ENABLED && !useVirtuoso && index < activeStart}
             >
                 <AgentMessage
                     message={message}
