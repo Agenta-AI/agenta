@@ -15,6 +15,9 @@ import {useOnboardingContext} from "./OnboardingContext"
  * panel slot (via MainLayout's `renderConfigOverride`) while the agent is still ephemeral. Picking a
  * template commits THIS mount's ephemeral in place (no redirect) and seeds the builder with the
  * template's instruction. Once the agent is real, MainLayout renders the normal config forms instead.
+ *
+ * Legacy (non-strip) onboarding only — under TEMPLATE_STRIP_MODE, `useAgentOnboarding` never
+ * overrides the config slot, so the ephemeral's real config panel renders here instead.
  */
 const OnboardingConfigPanel = () => {
     const {commit, committing, browseAll, setBrowseAll} = useOnboardingContext()

@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
+import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
@@ -18,26 +18,36 @@ import {
     ArrowRight,
     Code,
     Paperclip,
+    Terminal,
     TreeStructure,
     UploadSimple,
 } from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {Button, Modal, Tabs, Tag, Tooltip} from "antd"
+import {App, Button, Modal, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 
-import {IDE_INSTALL_COMMAND} from "@/oss/components/pages/agent-home/assets/constants"
+import {
+    IDE_INSTALL_COMMAND,
+    TEMPLATE_STRIP_MODE,
+} from "@/oss/components/pages/agent-home/assets/constants"
 import {
     captureFirstAgentIntent,
     classifyAgentIntent,
     truncateForCapture,
 } from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
+import {type AgentTemplate} from "@/oss/components/pages/agent-home/assets/templates"
 import OnboardingBrowseTemplates from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingBrowseTemplates"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
 import {SessionInspectorButton} from "@/oss/components/SessionInspector"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import TemplateStrip from "@/oss/components/TemplateStrip"
+import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
+import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
+import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
+import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
@@ -473,6 +483,61 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // eases in a beat later (see `chromeRevealed`) so it doesn't move the composer during the send.
     const chromeHidden = !!onboarding && !onboarding.chromeRevealed
     const onboardingPosthog = usePostHogAg()
+    const {message: appMessage} = App.useApp()
+
+    // ── Template strip (TEMPLATE_STRIP_MODE) ─────────────────────────────────
+    // One provenance instance per panel, shared by the onboarding hero strip (S5) and the
+    // agent empty-chat strip (S6): pick fills the composer + docks the chip above it.
+    const stripProvenance = useTemplateProvenance({
+        composerApi: {
+            setText: (text) => richInputRef.current?.setMarkdown(text),
+            getText: () => richInputRef.current?.getMarkdown() ?? "",
+        },
+    })
+    // Provenance is scoped to ONE agent revision. `AgentConversation` survives an `entityId`
+    // change in place (see the self-commit `switchEntity` above and a revision swap) — without
+    // this, a template picked against the old entity would leak its name into the new one.
+    useEffect(() => {
+        stripProvenance.clear()
+    }, [entityId, stripProvenance.clear])
+    // S6 gate: fresh agent only (`version` v0/v1 = creation, same seed-vs-history convention used
+    // elsewhere); unknown while loading counts as not-fresh so the strip never flashes in.
+    const revisionQuery = useAtomValue(workflowMolecule.selectors.query(entityId))
+    const revisionVersion = revisionQuery.data?.version
+    const isFreshAgentRevision =
+        !revisionQuery.isPending && typeof revisionVersion === "number" && revisionVersion <= 1
+    const [copiedToastOpen, setCopiedToastOpen] = useState(false)
+    const handleStripPick = useCallback(
+        (template: AgentTemplate) => {
+            stripProvenance.pick(template)
+            captureFirstAgentIntent(onboardingPosthog, {
+                source: "template",
+                properties: {
+                    template: template.name,
+                    templateId: template.key,
+                    templateCategory: template.category,
+                    mode: "strip",
+                    surface: onboardingActive ? "onboarding" : "agent-chat",
+                },
+                intentValue: template.category || template.name,
+            })
+        },
+        [stripProvenance.pick, onboardingPosthog, onboardingActive],
+    )
+    const handleCodingAgentCopy = useCallback(async () => {
+        const text = richInputRef.current?.getMarkdown().trim() ?? ""
+        try {
+            await navigator.clipboard.writeText(buildCodingAgentClipboard(text))
+            setCopiedToastOpen(true)
+        } catch {
+            appMessage.error("Couldn't copy — copy it manually")
+            return
+        }
+        captureFirstAgentIntent(onboardingPosthog, {
+            source: "composer",
+            properties: {action: "coding_agent_copy", message: truncateForCapture(text)},
+        })
+    }, [appMessage, onboardingPosthog])
 
     // Optimistic first turn: the description the user submitted with "Create agent", shown as a sent
     // user message + assistant loading placeholder DURING commit + until the real conversation takes
@@ -482,6 +547,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const handleCreateAgent = useCallback(() => {
         if (!onboarding || onboarding.committing) return
         const text = richInputRef.current?.getMarkdown().trim() ?? ""
+        // Resolve BEFORE clearing the composer below — `resolveTemplateName` compares against the
+        // live text, so reading it after the clear would always see "" and never match the seed.
+        const templateName = stripProvenance.resolveTemplateName(text)
         setPendingFirstTurn(text || null)
         // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
         richInputRef.current?.setMarkdown("")
@@ -494,8 +562,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 intentValue: classifyAgentIntent(text),
             })
         }
-        onboarding.commit(text)
-    }, [onboarding, onboardingPosthog])
+        onboarding.commit(text, templateName)
+        if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
+    }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.resolveTemplateName])
 
     // Also cover the template-click commit path (which goes straight through `commit()`, not the
     // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear
@@ -1231,6 +1300,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         setStopped(false)
         // One path: `submit` sends now or queues behind held messages via the shared release gate.
         submit({text: trimmed, fileParts})
+        // Sending consumes the template provenance along with the composer text.
+        if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
         setFiles([])
         setRejections([])
         setAttachmentsOpen(false)
@@ -1390,6 +1461,16 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             </MessageRow>
         )
     }
+
+    // Strip era (TEMPLATE_STRIP_MODE): the bare "what do you want to build?" hero (no messages yet,
+    // nothing pending, not browsing the template gallery) is when the onboarding TemplateStrip docks
+    // directly above the composer, mirroring the agent-chat strip's bottom-anchored rhythm.
+    const showBareOnboardingHero =
+        TEMPLATE_STRIP_MODE &&
+        onboardingActive &&
+        messages.length === 0 &&
+        !pendingFirstTurn &&
+        !onboarding?.browseAll
 
     return (
         <div
@@ -1590,6 +1671,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                     onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
                 <Reveal className="px-3">
+                    {/* Agent empty-chat strip (S6): docked above the composer, unmounts once a
+                        message exists or a first-run prompt is pending. Build-mode + fresh-agent
+                        only — never in maximized chat mode, and gone for good after any commit. */}
+                    {TEMPLATE_STRIP_MODE &&
+                    !onboardingActive &&
+                    buildMode &&
+                    isFreshAgentRevision &&
+                    messages.length === 0 &&
+                    !firstRunPrompt &&
+                    !pendingFirstTurn ? (
+                        <div className={`${CHAT_COLUMN} mb-3`}>
+                            <TemplateStrip
+                                surface="agent-chat"
+                                selectedTemplateKey={stripProvenance.selectedTemplateKey}
+                                onPick={handleStripPick}
+                                surfaceColorVar="--ag-surface-chat"
+                            />
+                        </div>
+                    ) : null}
                     {/* Always mounted so it animates in/out (RevealCollapse) instead of popping. Pre-commit
                         onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
                         committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
@@ -1603,6 +1703,22 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         onViewTrace={openPausedTurnTrace}
                         entityId={entityId}
                     />
+                    {/* Owner call: a template pick must not shift the composer, so no chip renders here
+                        (unlike the home surface) — the strip card's own selected state is the
+                        "which template" indicator; the composer text is the only other feedback. */}
+                    {/* Onboarding strip: docked directly above the composer (mb-3 gap), mirroring the
+                        agent-chat strip's rhythm — hero stays top-aligned above the flex space, and
+                        the strip + composer read as one bottom-anchored cluster. */}
+                    {showBareOnboardingHero ? (
+                        <div className={`${CHAT_COLUMN} mb-3`}>
+                            <TemplateStrip
+                                surface="onboarding"
+                                selectedTemplateKey={stripProvenance.selectedTemplateKey}
+                                onPick={handleStripPick}
+                                surfaceColorVar="--ag-surface-chat"
+                            />
+                        </div>
+                    ) : null}
                     <RichChatInput
                         ref={richInputRef}
                         className={`${CHAT_COLUMN} mb-3`}
@@ -1664,13 +1780,24 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                     </Button>
                                 ) : (
                                     <div className="flex items-center gap-2">
-                                        <Button
-                                            icon={<Code size={14} />}
-                                            onClick={streamIdeBubble}
-                                            className="!shadow-none"
-                                        >
-                                            Continue in IDE
-                                        </Button>
+                                        {TEMPLATE_STRIP_MODE ? (
+                                            // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
+                                            <Button
+                                                icon={<Terminal size={15} />}
+                                                onClick={handleCodingAgentCopy}
+                                                className="!shadow-none"
+                                            >
+                                                {STRIP_COPY.useCodingAgent}
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                icon={<Code size={14} />}
+                                                onClick={streamIdeBubble}
+                                                className="!shadow-none"
+                                            >
+                                                Continue in IDE
+                                            </Button>
+                                        )}
                                         <Button
                                             type="primary"
                                             icon={<ArrowRight size={14} />}
@@ -1689,6 +1816,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 </Reveal>
             </div>
             <TurnInspector sessionId={sessionId} messages={messages} />
+            {TEMPLATE_STRIP_MODE ? (
+                <CopiedToast
+                    open={copiedToastOpen}
+                    text={STRIP_COPY.copiedToast}
+                    onDone={() => setCopiedToastOpen(false)}
+                />
+            ) : null}
         </div>
     )
 }

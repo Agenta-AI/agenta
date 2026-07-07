@@ -50,7 +50,7 @@ const AgentComposer = ({composerRef, onCreate, onContinueInIde}: AgentComposerPr
                         type="primary"
                         icon={<ArrowRight size={14} />}
                         iconPosition="end"
-                        onClick={onCreate}
+                        onClick={() => onCreate()}
                         className="!shadow-none"
                     >
                         {COMPOSER.createAgent}

@@ -25,6 +25,11 @@ export const processEnv = {
     // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
     // so it's off everywhere unless explicitly enabled while the approach is evaluated.
     NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION: process.env.NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION,
+    // Template-strip onboarding: when "true", template presentation on Home, playground
+    // onboarding, and every agent's empty chat becomes one shared always-visible strip
+    // (card click fills the composer + chip instead of creating/opening a drawer). Unset/
+    // false keeps the current three separate template UIs untouched.
+    NEXT_PUBLIC_AGENT_TEMPLATE_STRIP: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_STRIP,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,
