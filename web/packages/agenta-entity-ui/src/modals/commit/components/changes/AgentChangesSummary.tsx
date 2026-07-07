@@ -47,7 +47,6 @@ const DEL_BG = "color-mix(in srgb, var(--ag-colorError) 13%, transparent)"
 // carry the structure. Avoids stacking two lightening fills (no "darker body" token in dark mode).
 const CARD =
     "overflow-hidden rounded-[10px] border border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]"
-const CARD_HEAD = "flex items-center gap-2.5 px-3 py-2.5"
 const LINK_BTN = cn(
     "inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-colors",
     textColors.secondary,
@@ -88,7 +87,7 @@ const kindStyle = (kind: string) => {
     return {color: "var(--ag-colorWarning)"}
 }
 
-function StatusTags({tags}: {tags: ChangeSection["tags"]}) {
+function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean}) {
     return (
         <>
             {tags.map((t, i) => (
@@ -96,7 +95,10 @@ function StatusTags({tags}: {tags: ChangeSection["tags"]}) {
                     key={i}
                     color={KIND_COLOR[t.kind]}
                     bordered={false}
-                    className="!m-0 rounded-full !px-2 !text-[10.5px]"
+                    className={cn(
+                        "!m-0 rounded-full",
+                        small ? "!px-1.5 !text-[10px] !leading-[18px]" : "!px-2 !text-[10.5px]",
+                    )}
                 >
                     {t.label}
                 </Tag>
@@ -238,6 +240,43 @@ function ScalarRows({changes}: {changes: ScalarChange[]}) {
     )
 }
 
+/** Detail-view card with a sticky header that collapses back to the summary on click.
+ * Split frame, not CARD: CARD's overflow-hidden clips sticky positioning. */
+function DetailCard({
+    head,
+    onCollapse,
+    small,
+    children,
+}: {
+    head: React.ReactNode
+    onCollapse: () => void
+    small?: boolean
+    children: React.ReactNode
+}) {
+    return (
+        <div>
+            {/* Solid underlay so scrolled rows don't ghost through the translucent fill. */}
+            <div className="sticky top-0 z-[1] rounded-t-[10px] bg-[var(--ag-colorBgContainer)]">
+                <div
+                    className={cn(
+                        "flex cursor-pointer items-center rounded-t-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] transition-colors",
+                        small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
+                    )}
+                    onClick={onCollapse}
+                >
+                    {head}
+                    <span className={textColors.tertiary}>
+                        <CaretDown />
+                    </span>
+                </div>
+            </div>
+            <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
+                {children}
+            </div>
+        </div>
+    )
+}
+
 function SectionCard({
     section,
     items,
@@ -245,6 +284,7 @@ function SectionCard({
     onToggle,
     onOpenInstructions,
     onOpenTool,
+    small,
 }: {
     section: ChangeSection
     items?: ChangeItem[]
@@ -252,26 +292,40 @@ function SectionCard({
     onToggle: () => void
     onOpenInstructions: () => void
     onOpenTool: (itemId: string) => void
+    small?: boolean
 }) {
     const toolItems = items ?? section.items
+    // Split frame per DetailCard; each header sticks only within its own card wrapper.
     return (
-        <div className={cn(CARD, "mb-2.5")}>
+        <div className={cn(small ? "mb-1.5" : "mb-2.5")}>
             <div
                 className={cn(
-                    CARD_HEAD,
-                    "cursor-pointer transition-colors hover:bg-[var(--ag-colorFillTertiary)]",
+                    "sticky top-0 z-[1] bg-[var(--ag-colorBgContainer)]",
+                    open ? "rounded-t-[10px]" : "rounded-[10px]",
                 )}
-                onClick={onToggle}
             >
-                <span className={cn("w-[18px] text-center", textColors.secondary)}>
-                    {SECTION_ICON[section.id]}
-                </span>
-                <span className="flex-1 text-[13px]">{section.title}</span>
-                <StatusTags tags={section.tags} />
-                <span className={textColors.tertiary}>{open ? <CaretDown /> : <CaretRight />}</span>
+                <div
+                    className={cn(
+                        "flex cursor-pointer items-center border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] transition-colors hover:bg-[var(--ag-colorFillTertiary)]",
+                        open ? "rounded-t-[10px]" : "rounded-[10px]",
+                        small ? "gap-2 px-2.5 py-1.5" : "gap-2.5 px-3 py-2.5",
+                    )}
+                    onClick={onToggle}
+                >
+                    <span className={cn("w-[18px] text-center", textColors.secondary)}>
+                        {SECTION_ICON[section.id]}
+                    </span>
+                    <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
+                        {section.title}
+                    </span>
+                    <StatusTags tags={section.tags} small={small} />
+                    <span className={textColors.tertiary}>
+                        {open ? <CaretDown /> : <CaretRight />}
+                    </span>
+                </div>
             </div>
             <HeightCollapse open={open}>
-                <div className="border-t border-[var(--ag-colorBorderSecondary)]">
+                <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">
                     {section.id === "tools" && toolItems ? (
                         <CappedItems items={toolItems} onOpenTool={onOpenTool} />
                     ) : null}
@@ -305,16 +359,23 @@ function SectionCard({
 
 export interface AgentChangesSummaryProps {
     sections: ChangeSection[]
-    original: string
-    modified: string
+    /** Raw config sides for the "View as JSON" diff; omit to drop that view (compact hides it). */
+    original?: string
+    modified?: string
     language?: "json" | "yaml"
+    /** Embedded rendering (e.g. the chat approval dock): no frame paddings, capped height, no JSON toggle. */
+    compact?: boolean
+    /** Accordion density: "small" tightens section-card paddings, titles, and tags. */
+    size?: "default" | "small"
 }
 
 export default function AgentChangesSummary({
     sections,
-    original,
-    modified,
+    original = "",
+    modified = "",
     language = "json",
+    compact = false,
+    size = "default",
 }: AgentChangesSummaryProps) {
     const [view, setView] = useState<View>({kind: "summary"})
     // Sections are collapsed by default; the user expands what they want to inspect.
@@ -339,11 +400,30 @@ export default function AgentChangesSummary({
         view.kind === "tool" ? activeSection?.items?.find((it) => it.id === view.itemId) : undefined
 
     const isDetail = view.kind !== "summary"
+    const small = size === "small"
+
+    // Detail-header click = collapse: return to summary AND close that section's accordion,
+    // so it lands fully folded (the "← Changes" back button keeps the open state instead).
+    const collapseDetail = () => {
+        if ("sectionId" in view) {
+            setOpenIds((prev) => {
+                const next = new Set(prev)
+                next.delete(view.sectionId)
+                return next
+            })
+        }
+        setView({kind: "summary"})
+    }
 
     return (
-        <div className="flex h-full flex-col">
+        <div className={cn(!compact && "flex h-full flex-col")}>
             {/* compact toolbar */}
-            <div className="flex shrink-0 items-center justify-between px-4 pb-2.5 pt-5">
+            <div
+                className={cn(
+                    "flex shrink-0 items-center justify-between",
+                    compact ? "pb-3" : "px-4 pb-2.5 pt-5",
+                )}
+            >
                 {isDetail ? (
                     <button
                         type="button"
@@ -354,14 +434,15 @@ export default function AgentChangesSummary({
                         Changes
                     </button>
                 ) : (
-                    <Text className="text-xs font-semibold">
+                    // Compact forces 12px (antd Text otherwise wins at 14px) to match its host pane.
+                    <Text className={cn("font-semibold", compact ? "!text-xs" : "text-xs")}>
                         What&apos;s changing
                         <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
                             {totalChanges} {totalChanges === 1 ? "change" : "changes"}
                         </span>
                     </Text>
                 )}
-                {view.kind === "summary" ? (
+                {view.kind === "summary" && !compact ? (
                     <button
                         type="button"
                         className={cn("text-[11.5px]", LINK_BTN)}
@@ -373,8 +454,14 @@ export default function AgentChangesSummary({
                 ) : null}
             </div>
 
-            {/* body — the only scroll area */}
-            <div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
+            {/* body — the only scroll area. Compact hosts have no fixed frame, so the cap is a
+                plain max-h, rounded like the cards so pinned-header scrolls clip at the same curve. */}
+            <div
+                className={cn(
+                    "overflow-auto",
+                    compact ? "max-h-80 rounded-[10px]" : "min-h-0 flex-1 px-4 pb-4",
+                )}
+            >
                 {view.kind === "summary"
                     ? sections.map((section) => (
                           <SectionCard
@@ -382,6 +469,7 @@ export default function AgentChangesSummary({
                               section={section}
                               items={section.items}
                               open={isOpen(section.id)}
+                              small={size === "small"}
                               onToggle={() => toggleSection(section.id)}
                               onOpenInstructions={() =>
                                   setView({kind: "instructions", sectionId: section.id})
@@ -394,30 +482,44 @@ export default function AgentChangesSummary({
                     : null}
 
                 {view.kind === "instructions" && activeSection?.textDiff ? (
-                    <div className={CARD}>
-                        <div className={CARD_HEAD}>
-                            <ChatText className={textColors.secondary} />
-                            <span className="flex-1 text-[13px]">Instructions</span>
-                            <StatusTags tags={activeSection.tags} />
-                        </div>
-                        <div className="border-t border-[var(--ag-colorBorderSecondary)]">
-                            <HunkRows hunks={activeSection.textDiff.hunks} />
-                        </div>
-                    </div>
+                    <DetailCard
+                        small={small}
+                        onCollapse={collapseDetail}
+                        head={
+                            <>
+                                <ChatText className={textColors.secondary} />
+                                <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
+                                    Instructions
+                                </span>
+                                <StatusTags tags={activeSection.tags} small={small} />
+                            </>
+                        }
+                    >
+                        <HunkRows hunks={activeSection.textDiff.hunks} />
+                    </DetailCard>
                 ) : null}
 
                 {view.kind === "tool" && activeTool ? (
-                    <div className={CARD}>
-                        <div className={CARD_HEAD}>
-                            <PencilSimple style={{color: "var(--ag-colorWarning)"}} />
-                            <span className="flex-1 text-[13px]">{activeTool.label}</span>
-                            {activeTool.rawKey ? (
-                                <span className={cn("font-mono text-[11px]", textColors.tertiary)}>
-                                    {activeTool.rawKey}
+                    <DetailCard
+                        small={small}
+                        onCollapse={collapseDetail}
+                        head={
+                            <>
+                                <PencilSimple style={{color: "var(--ag-colorWarning)"}} />
+                                <span className={cn("flex-1", small ? "text-xs" : "text-[13px]")}>
+                                    {activeTool.label}
                                 </span>
-                            ) : null}
-                        </div>
-                        <div className="border-t border-[var(--ag-colorBorderSecondary)] px-3.5 py-3">
+                                {activeTool.rawKey ? (
+                                    <span
+                                        className={cn("font-mono text-[11px]", textColors.tertiary)}
+                                    >
+                                        {activeTool.rawKey}
+                                    </span>
+                                ) : null}
+                            </>
+                        }
+                    >
+                        <div className="px-3.5 py-3">
                             {activeTool.descriptionDiff ? (
                                 <>
                                     <div
@@ -477,7 +579,7 @@ export default function AgentChangesSummary({
                                 </>
                             ) : null}
                         </div>
-                    </div>
+                    </DetailCard>
                 ) : null}
 
                 {view.kind === "json" ? (

@@ -8,6 +8,12 @@
 export {readAgentConfig, PARAM_KEYS, stableStringify} from "./accessors"
 export {agentItemIdentity, type AgentItemKind} from "./identity"
 export {classifyAgentChanges} from "./classify"
+export {
+    applyRevisionDelta,
+    classifyRevisionDeltaChanges,
+    type RevisionDelta,
+    type RevisionDeltaPreview,
+} from "./revisionDelta"
 export {buildCommitSummaryMessage} from "./summaryMessage"
 export {parseGatewayToolName, type ParsedToolName} from "./gatewayName"
 export type {
