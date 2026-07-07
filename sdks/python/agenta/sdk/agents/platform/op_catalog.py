@@ -237,6 +237,128 @@ def _is_empty_object_schema(node: Any) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Typed `delta.set` for the agent-template subtree (`parameters.agent`).
+# ---------------------------------------------------------------------------
+#
+# `commit_revision` / `test_run` carry a `delta.set` deep-partial that deep-merges onto the running
+# revision. Without a shape the tool schema advertised to the model (Claude via the runner's
+# tools/list, Pi via its extension) says nothing about `parameters.agent`. These helpers give it the
+# real `agent-template` shape — the same catalog type the playground renders — adapted for a delta.
+
+
+def _deep_partial_schema(node: Any) -> Any:
+    """Return ``node`` with every JSON-Schema ``required`` array recursively removed.
+
+    A delta is a DEEP PARTIAL: ``delta.set`` deep-merges onto the current config, so every field is
+    optional in a delta even when the source model marks it required. Embedding the strict
+    ``agent-template`` schema verbatim would tell the model that each ``required`` field must appear
+    in every delta (e.g. that a `skills` entry must carry ``name``/``description``/``body`` just to
+    tweak one field), which is wrong. So we drop the ``required`` constraint everywhere while keeping
+    the descriptive shape (``properties``, ``type``, ``enum``, ``additionalProperties``,
+    descriptions, ...). A ``required`` array is always a list of property names in JSON Schema; the
+    ``isinstance(value, list)`` guard means a property that happens to be *named* ``required`` (a
+    dict value) is preserved. Pure: the input is never mutated."""
+    if isinstance(node, list):
+        return [_deep_partial_schema(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    return {
+        key: _deep_partial_schema(value)
+        for key, value in node.items()
+        if not (key == "required" and isinstance(value, list))
+    }
+
+
+# One `tools`/`skills`/`mcps` list entry may be an ``@ag.embed`` reference (the default template's
+# build-kit embeds) rather than a fully-typed item. Because the model re-sends the WHOLE list when
+# editing (wholesale replacement, per the commit_revision description), the item schema must accept
+# the embed shape too, or a schema-following harness would drop or mangle the embed on the way back.
+_EMBED_ITEM_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": True,
+    "properties": {
+        "@ag.embed": {
+            "type": "object",
+            "additionalProperties": True,
+            "description": "The embed reference body (@ag.references / @ag.selector).",
+        }
+    },
+    "description": (
+        "an unresolved platform embed — copy it through unchanged when re-sending the list"
+    ),
+}
+
+
+def _is_embed_branch(branch: Any) -> bool:
+    return (
+        isinstance(branch, dict)
+        and isinstance(branch.get("properties"), dict)
+        and "@ag.embed" in branch["properties"]
+    )
+
+
+def _embed_tolerant_items(items: Any) -> Dict[str, Any]:
+    """Return a list-item schema that accepts the typed shape OR an ``@ag.embed`` object.
+
+    Adds the embed alternative to the item schema's ``anyOf`` (flattening rather than nesting when
+    the item is already a union), and is a no-op when an embed branch is already present, so the
+    tools/skills items — whose source models already include the embed arm — are not duplicated."""
+    embed = deepcopy(_EMBED_ITEM_SCHEMA)
+    if isinstance(items, dict) and isinstance(items.get("anyOf"), list):
+        branches = items["anyOf"]
+        if any(_is_embed_branch(branch) for branch in branches):
+            return items
+        merged = dict(items)
+        merged["anyOf"] = [*branches, embed]
+        return merged
+    return {"anyOf": [items, embed]}
+
+
+def _build_agent_template_delta_schema() -> Dict[str, Any]:
+    """The ``agent-template`` schema shaped for a delta: type-refs expanded, deep-partialed, and
+    with embed-tolerant ``tools``/``skills``/``mcps`` list items.
+
+    Type-refs (e.g. the inline ``skill-template`` arm) are expanded FIRST so the deep-partial pass
+    also strips the referenced types' ``required`` arrays; expanding again at
+    :meth:`PlatformOp.resolved_input_schema` time is then a no-op (idempotent)."""
+    schema = _deep_partial_schema(
+        expand_type_refs(deepcopy(CATALOG_TYPES["agent-template"]))
+    )
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        for field in ("tools", "skills", "mcps"):
+            field_schema = properties.get(field)
+            if isinstance(field_schema, dict) and "items" in field_schema:
+                field_schema["items"] = _embed_tolerant_items(field_schema["items"])
+    return schema
+
+
+# Built once at import from the catalog's `agent-template` type (the same source the playground
+# renders), so the tool schema and the editor never drift.
+_AGENT_TEMPLATE_DELTA_SCHEMA: Dict[str, Any] = _build_agent_template_delta_schema()
+
+
+def _delta_set_schema(description: str) -> Dict[str, Any]:
+    """A `delta.set` object schema: still an open object (other revision-data keys allowed), but
+    with a typed `parameters.agent` = the deep-partial, embed-tolerant agent-template shape."""
+    return {
+        "type": "object",
+        "additionalProperties": True,
+        "description": description,
+        "properties": {
+            "parameters": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": (
+                    "Workflow revision parameters. Put agent-template edits under `agent`."
+                ),
+                "properties": {"agent": deepcopy(_AGENT_TEMPLATE_DELTA_SCHEMA)},
+            }
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # The catalog — the first, minimal-useful set of ops (more are a data add).
 # ---------------------------------------------------------------------------
 
@@ -571,8 +693,12 @@ _COMMIT_REVISION_DESCRIPTION = (
     "Commit a new revision to your own workflow variant (update yourself). Send only the "
     "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
     "current config) and any field paths to drop under `delta.remove`. Put agent-template "
-    "edits under `delta.set.parameters.agent`. The variant you are running is targeted "
-    "automatically. This changes the agent and requires approval."
+    "edits under `delta.set.parameters.agent`. Lists such as `tools`, `skills`, and `mcps` "
+    "are replaced wholesale, not merged entry-by-entry: send the complete list (current "
+    "entries plus your change), or you wipe the rest, including your own build-kit tools. "
+    "The variant you are running is targeted automatically. The response returns the new "
+    "revision id; existing schedules and subscriptions keep pointing at the old revision "
+    "until you re-point them. This changes the agent and requires approval."
 )
 _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -600,15 +726,11 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                         "(omitted fields preserved); `remove` deletes the listed paths."
                     ),
                     "properties": {
-                        "set": {
-                            "type": "object",
-                            "additionalProperties": True,
-                            "description": (
-                                "Partial workflow revision data to merge. For agent-template "
-                                "updates, include parameters.agent with instructions, llm, tools, "
-                                "mcps, skills, harness, runner, or sandbox fields as needed."
-                            ),
-                        },
+                        "set": _delta_set_schema(
+                            "Partial workflow revision data to merge. For agent-template "
+                            "updates, include parameters.agent with instructions, llm, tools, "
+                            "mcps, skills, harness, runner, or sandbox fields as needed."
+                        ),
                         "remove": {
                             "type": "array",
                             "items": {"type": "string"},
@@ -720,7 +842,16 @@ _DISCOVER_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
-    "description": "Template that maps schedule or event context into run inputs.",
+    "description": (
+        "Template mapping the fire-time context into run inputs. A leaf string starting "
+        "with `$` resolves as a JSON Path against the fire context, one starting with `/` "
+        "resolves as a JSON Pointer, and any other leaf passes through literally — "
+        "selectors are never interpolated into a larger string, and an unmatched selector "
+        "resolves to null. Omit this field to pass the whole fire context through as-is. "
+        "Canonical pattern: include an explicit imperative `messages` entry and map the "
+        'event payload under a sibling key, e.g. `{"messages": [{"role": "user", '
+        '"content": "Handle this event."}], "payload": "$.event.attributes"}`.'
+    ),
     "anyOf": [
         {"type": "object", "additionalProperties": True},
         {"type": "string"},
@@ -729,7 +860,9 @@ _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
 
 _CREATE_SCHEDULE_DESCRIPTION = (
     "Create a cron schedule that runs this agent. The destination workflow is bound "
-    "from the current run context, so only this agent can be scheduled. Requires approval."
+    "from the current run context, so only this agent can be scheduled. When no revision "
+    "is specified, the schedule binds to the variant's latest revision at creation time "
+    "and does not follow later commits. Requires approval."
 )
 _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -771,7 +904,9 @@ _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
 
 _CREATE_SUBSCRIPTION_DESCRIPTION = (
     "Create an event subscription that runs this agent when a provider event occurs. "
-    "The destination workflow is bound from the current run context. Requires approval."
+    "The destination workflow is bound from the current run context. When no revision is "
+    "specified, the subscription binds to the variant's latest revision at creation time "
+    "and does not follow later commits. Requires approval."
 )
 _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -839,7 +974,13 @@ _TEST_RUN_DESCRIPTION = (
     "Run this agent headlessly once against test messages and return its output, tools, "
     "approval gates, resolved execution metadata, trace id, and verdict. The target workflow "
     "variant is filled automatically from the current run context and cannot be retargeted. "
-    "This is a real run: external write tools may perform their action if approved."
+    "This is a real run: external write tools may perform their action if approved. Verdict "
+    "is one of `pass` (the expected terminal tool ran and returned output), `incomplete` "
+    "(the run finished without ever invoking the expected terminal tool), `unconfirmed` "
+    "(no terminal tool was expected, or the terminal tool was dispatched but never returned "
+    "a result — most often a gated call stalled waiting for approval), or `failed` (a tool "
+    "returned an error, or the run itself failed to execute). A tool name appearing in the "
+    "executed list is not proof it completed."
 )
 _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -872,11 +1013,9 @@ _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
             "additionalProperties": False,
             "description": "Optional uncommitted revision delta to apply in memory before the test.",
             "properties": {
-                "set": {
-                    "type": "object",
-                    "additionalProperties": True,
-                    "description": "Partial revision data tree deep-merged onto the committed revision.",
-                },
+                "set": _delta_set_schema(
+                    "Partial revision data tree deep-merged onto the committed revision."
+                ),
                 "remove": {
                     "type": "array",
                     "items": {"type": "string"},

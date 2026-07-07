@@ -1,4 +1,4 @@
-import {memo, useState} from "react"
+import {memo} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
 import {
@@ -14,8 +14,15 @@ import {
 } from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {Typography} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {formatToolValue, stripFence} from "../assets/toolFormat"
+import {
+    expandedValueAtomFamily,
+    setExpandedAtom,
+    toolGroupKey,
+    toolRowKey,
+} from "../state/expandState"
 
 const {Text} = Typography
 
@@ -179,7 +186,11 @@ const ToolRow = ({
     const hasIO = detailed && (hasInput || hasOutput || hasError)
     // Default COLLAPSED: the inline Build step log stays a compact name+status timeline; the full
     // per-tool input/output lives in the Turn Inspector. Click a row to expand its I/O in place.
-    const [open, setOpen] = useState(false)
+    // Persisted by tool-call id so the expanded state survives a Virtuoso unmount (scroll-off).
+    const rowKey = toolRowKey((part as {toolCallId?: string}).toolCallId ?? name)
+    const stored = useAtomValue(expandedValueAtomFamily(rowKey))
+    const setExpanded = useSetAtom(setExpandedAtom)
+    const open = stored ?? false
 
     const header = (
         <>
@@ -204,7 +215,7 @@ const ToolRow = ({
             {hasIO ? (
                 <button
                     type="button"
-                    onClick={() => setOpen((o) => !o)}
+                    onClick={() => setExpanded({key: rowKey, value: !open})}
                     aria-expanded={open}
                     className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
                 >
@@ -274,7 +285,11 @@ const ToolActivity = ({
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
 
-    const [open, setOpen] = useState(false)
+    // Persisted by the group's first tool-call id so the expanded list survives a Virtuoso unmount.
+    const groupKey = toolGroupKey(parts[0]?.toolCallId ?? "grp")
+    const stored = useAtomValue(expandedValueAtomFamily(groupKey))
+    const setExpanded = useSetAtom(setExpandedAtom)
+    const open = stored ?? false
     // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
@@ -318,7 +333,7 @@ const ToolActivity = ({
         <div className="flex min-w-0 flex-col">
             <button
                 type="button"
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => setExpanded({key: groupKey, value: !open})}
                 aria-expanded={expanded}
                 className="-ml-1 flex w-fit max-w-full cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1 py-0.5 text-left transition-colors hover:bg-colorFillQuaternary"
             >
