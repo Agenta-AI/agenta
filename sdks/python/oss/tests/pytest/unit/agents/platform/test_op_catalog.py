@@ -256,6 +256,10 @@ async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_defa
     }
     assert spec.input_schema["required"] == ["inputs"]
     assert spec.input_schema["properties"]["inputs"]["required"] == ["messages"]
+    # The verdict enum is spelled out in the description so its meaning survives even when
+    # the skill is not loaded (see docs/design/.../part-3-agenta-skills-sync.md, B5).
+    for verdict_word in ("pass", "incomplete", "unconfirmed", "failed"):
+        assert verdict_word in spec.description
 
     wire = spec.to_wire()
     assert wire["callRef"] == "tools.agenta.test_run"
@@ -384,6 +388,10 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     delta = workflow_revision["properties"]["delta"]
     assert set(delta["properties"]) == {"set", "remove"}
     assert "parameters.agent" in delta["properties"]["set"]["description"]
+    # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must warn
+    # the model to resend the complete list or it wipes its own build-kit tools (B2).
+    assert "wholesale" in spec.description
+    assert "revision id" in spec.description
 
 
 async def test_commit_revision_is_not_read_only(connection):
@@ -483,8 +491,15 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     assert schedule.call.context == {
         "schedule.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
     }
-    assert "references" not in schedule.input_schema["properties"]["data"]["properties"]
-    assert "selector" not in schedule.input_schema["properties"]["data"]["properties"]
+    schedule_data_props = schedule.input_schema["properties"]["data"]["properties"]
+    assert "references" not in schedule_data_props
+    assert "selector" not in schedule_data_props
+    # Un-pinned triggers bind to the variant's latest revision at creation and do not follow
+    # later commits (A1/B2): the description must say so.
+    assert "latest revision" in schedule.description
+    inputs_fields_description = schedule_data_props["inputs_fields"]["description"]
+    assert "JSON Path" in inputs_fields_description
+    assert "JSON Pointer" in inputs_fields_description
 
     subscription = specs["create_subscription"]
     assert subscription.call.args_into == "subscription"
@@ -494,6 +509,8 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     data_props = subscription.input_schema["properties"]["data"]["properties"]
     assert "references" not in data_props
     assert "selector" not in data_props
+    assert "latest revision" in subscription.description
+    assert data_props["inputs_fields"]["description"] == inputs_fields_description
 
 
 async def test_config_permission_rides_with_catalog_read_only_hint(connection):

@@ -571,8 +571,12 @@ _COMMIT_REVISION_DESCRIPTION = (
     "Commit a new revision to your own workflow variant (update yourself). Send only the "
     "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
     "current config) and any field paths to drop under `delta.remove`. Put agent-template "
-    "edits under `delta.set.parameters.agent`. The variant you are running is targeted "
-    "automatically. This changes the agent and requires approval."
+    "edits under `delta.set.parameters.agent`. Lists such as `tools`, `skills`, and `mcps` "
+    "are replaced wholesale, not merged entry-by-entry: send the complete list (current "
+    "entries plus your change), or you wipe the rest, including your own build-kit tools. "
+    "The variant you are running is targeted automatically. The response returns the new "
+    "revision id; existing schedules and subscriptions keep pointing at the old revision "
+    "until you re-point them. This changes the agent and requires approval."
 )
 _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -720,7 +724,16 @@ _DISCOVER_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
-    "description": "Template that maps schedule or event context into run inputs.",
+    "description": (
+        "Template mapping the fire-time context into run inputs. A leaf string starting "
+        "with `$` resolves as a JSON Path against the fire context, one starting with `/` "
+        "resolves as a JSON Pointer, and any other leaf passes through literally — "
+        "selectors are never interpolated into a larger string, and an unmatched selector "
+        "resolves to null. Omit this field to pass the whole fire context through as-is. "
+        "Canonical pattern: include an explicit imperative `messages` entry and map the "
+        'event payload under a sibling key, e.g. `{"messages": [{"role": "user", '
+        '"content": "Handle this event."}], "payload": "$.event.attributes"}`.'
+    ),
     "anyOf": [
         {"type": "object", "additionalProperties": True},
         {"type": "string"},
@@ -729,7 +742,9 @@ _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
 
 _CREATE_SCHEDULE_DESCRIPTION = (
     "Create a cron schedule that runs this agent. The destination workflow is bound "
-    "from the current run context, so only this agent can be scheduled. Requires approval."
+    "from the current run context, so only this agent can be scheduled. When no revision "
+    "is specified, the schedule binds to the variant's latest revision at creation time "
+    "and does not follow later commits. Requires approval."
 )
 _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -771,7 +786,9 @@ _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
 
 _CREATE_SUBSCRIPTION_DESCRIPTION = (
     "Create an event subscription that runs this agent when a provider event occurs. "
-    "The destination workflow is bound from the current run context. Requires approval."
+    "The destination workflow is bound from the current run context. When no revision is "
+    "specified, the subscription binds to the variant's latest revision at creation time "
+    "and does not follow later commits. Requires approval."
 )
 _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -839,7 +856,13 @@ _TEST_RUN_DESCRIPTION = (
     "Run this agent headlessly once against test messages and return its output, tools, "
     "approval gates, resolved execution metadata, trace id, and verdict. The target workflow "
     "variant is filled automatically from the current run context and cannot be retargeted. "
-    "This is a real run: external write tools may perform their action if approved."
+    "This is a real run: external write tools may perform their action if approved. Verdict "
+    "is one of `pass` (the expected terminal tool ran and returned output), `incomplete` "
+    "(the run finished without ever invoking the expected terminal tool), `unconfirmed` "
+    "(no terminal tool was expected, or the terminal tool was dispatched but never returned "
+    "a result — most often a gated call stalled waiting for approval), or `failed` (a tool "
+    "returned an error, or the run itself failed to execute). A tool name appearing in the "
+    "executed list is not proof it completed."
 )
 _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
