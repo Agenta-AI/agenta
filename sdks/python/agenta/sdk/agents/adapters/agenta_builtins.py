@@ -138,7 +138,10 @@ Do not discover tools or triggers for an ask that does not need them.
 ## The loop
 
 1. Clarify the ask. Get the missing timezone, channel, repo, account, output style, and success
-   criteria. Do not guess concrete destinations.
+   criteria. Do not guess concrete destinations. When you need typed values the user must
+   confirm — which actions to enable, non-secret settings such as a subdomain or workspace,
+   schedule details — ask with `request_input` (renders an inline form) instead of prose.
+   Never request secrets through it; credentials go through `request_connection`.
 2. Decide from the table. Most agents need only instructions. If the ask needs outside actions,
    call `discover_tools` with one short fragment per capability, such as "list github issues" or
    "post a slack message".
@@ -191,7 +194,7 @@ Example:
 
 ## Prefer wired tools
 
-Prefer your wired tools (`discover_tools`, `request_connection`, `commit_revision`,
+Prefer your wired tools (`discover_tools`, `request_input`, `request_connection`, `commit_revision`,
 `test_run`, `query_spans`, `create_schedule`, `list_schedules`, `discover_triggers`,
 `create_subscription`, `test_subscription`, `list_deliveries`, `remove_schedule`,
 `remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger, File tools, or raw
