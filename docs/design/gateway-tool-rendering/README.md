@@ -34,10 +34,15 @@ tools.
 
 ## Status at a glance
 
-Design only. Two open questions are parked for Mahmoud (see
-[plan.md § Open questions](plan.md#open-questions-for-mahmoud)):
+Design only, approved with Mahmoud's review round folded in (2026-07-07). Both open
+questions are closed (see [plan.md § Decisions](plan.md#decisions-resolved-2026-07-07-mahmoud)
+and [context.md § Review round](context.md#review-round--2026-07-07-decider-mahmoud)):
 
-1. Drill-in richness: humanize-only vs. fetch the catalog action detail for a
-   description + schema preview.
-2. Convergence: should the drawer **start writing** the canonical shape on add and
-   retire the legacy encoding over time?
+1. **Drill-in: Option B.** Fetch the catalog action detail and populate the **existing**
+   gateway view — no new component. An unresolvable tool fails safe to raw JSON with a
+   warning. This is the only place a canonical tool may look different from a legacy one.
+2. **Convergence: deferred.** The drawer keeps writing the legacy shape on add; read-side
+   canonical support is unaffected.
+
+The governing product invariant: a connected-app tool looks the same regardless of who
+authored it.

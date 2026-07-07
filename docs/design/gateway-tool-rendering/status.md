@@ -1,11 +1,11 @@
 # Status
 
-**State:** Design complete. Awaiting Mahmoud's answers on two open questions before
-implementation. Design only — no code changes.
+**State:** Design approved with Mahmoud's review round folded in. Both open questions are
+closed. Ready to implement on Mahmoud's go. Design only — no code changes yet.
 
 **Date:** 2026-07-07
 **Session:** https://claude.ai/code/session_01EcGku1uKvh1Yo48ZU2xN5e
-**Branch / PR:** `docs/gateway-tool-rendering` → draft PR against `big-agents`.
+**Branch / PR:** `docs/gateway-tool-rendering` → draft PR #5140 against `big-agents`.
 
 ## What's decided
 
@@ -22,18 +22,31 @@ implementation. Design only — no code changes.
   overlap with `connectionUtils.ts` / `ProviderCredentialsSection.tsx` /
   `useModelHarness.tsx` etc.
 - **Phasing:** Phase 1 (rendering + grouping) fixes the reported symptom and ships alone;
-  Phases 2–3 (drill-in, add/remove/dedupe) follow; Phase 4 (write canonical) is gated on
-  Open question #2.
+  Phase 2 (drill-in through the existing view + fail-safe) and Phase 3 (add-path identity)
+  follow. Convergence (write canonical) is deferred, not phased.
 
-## Blocked on Mahmoud
+## Review round folded in (2026-07-07, Mahmoud)
 
-1. **Drill-in richness (Q2):** humanize-only vs. fetch catalog action detail for a
-   description + schema preview.
-2. **Convergence (Q4):** should the drawer start writing the canonical shape on add?
+Five decisions from PR #5140, now recorded in [context.md](context.md) and reflected in
+[plan.md](plan.md):
 
-## Next actions (post-answers)
+1. **Product invariant leads.** The tool UI looks identical before/after and across
+   authoring sources; the shared parser is a simplification, not a product change.
+2. **Drill-in = Option B (open question #1 CLOSED).** Fetch catalog detail and populate the
+   existing view. Same appearance for UI-created and agent-created tools, in the list and the
+   drill-in.
+3. **No frontend dedupe.** Identity serves only the drawer's add path (added-state,
+   double-add prevention, toggle-off of the matched entry).
+4. **Reuse the existing drill-in view; no new component.** Plus a new fail-safe: an
+   unresolvable canonical tool falls back to raw JSON with a warning.
+5. **Convergence deferred (open question #2 CLOSED).** The drawer keeps writing the legacy
+   shape on add; read-side canonical support is unaffected.
+
+## Next actions (on Mahmoud's go)
 
 - Implement Phase 1 behind the shared helper; add the `toolUtils` unit tests.
-- Build `GatewayToolDetailView` per the chosen Option A/B.
-- Switch the drawer dedupe/removal to identity keys.
+- Widen `itemKinds` routing so resolvable canonical tools open the existing gateway view via
+  the Option-B fetch; add the fail-safe (raw JSON + warning) with its own test.
+- Add identity-based `selectedGatewayIds` for the drawer's added-state / double-add /
+  toggle-off. No dedupe.
 - Verify on the `:8280` repro revision.
