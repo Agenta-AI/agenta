@@ -31,7 +31,10 @@ def _unresolved_embed_message(value: Any) -> str | None:
 
     Walks nested mappings and sequences so an embed buried in a field (e.g. ``{"body": "@{{...}}"}``
     or a bundled file's ``content``) is caught here and surfaces the clear, typed error rather than
-    slipping past into a confusing strict-model ``ValidationError``.
+    slipping past into a confusing strict-model ``ValidationError``. Strings are checked only for
+    the ``@{{`` snippet token: a structural embed is a mapping keyed ``@ag.embed``, and the literal
+    text "@ag.embed" legitimately appears in skill documentation (e.g. the build-an-agent
+    config-schema reference).
     """
     if isinstance(value, Mapping):
         if _AG_EMBED_MARKER in value:
@@ -49,9 +52,7 @@ def _unresolved_embed_message(value: Any) -> str | None:
             message = _unresolved_embed_message(nested)
             if message is not None:
                 return message
-    elif isinstance(value, str) and (
-        _AG_EMBED_MARKER in value or _AG_SNIPPET_MARKER in value
-    ):
+    elif isinstance(value, str) and _AG_SNIPPET_MARKER in value:
         return (
             "Skill entry contains an unresolved embed token. Embeds resolve server-side before "
             "parsing; this usually means resolution was opted out (flags.resolve=False) or no "
