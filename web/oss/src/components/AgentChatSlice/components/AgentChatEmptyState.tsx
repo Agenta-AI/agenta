@@ -5,6 +5,8 @@ import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+// Safe: assets/constants is a leaf (imports only dynamicEnv), unlike the agent-home components.
+import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
 
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
@@ -19,6 +21,9 @@ const ONBOARDING_COPY = {
     title: "What do you want to build?",
     subtitle:
         "Describe an agent in plain language below — I'll name it, wire up what it needs, and run it, all right here.",
+    // Strip-era subtitle (TEMPLATE_STRIP_MODE): templates live in the strip below, not the left panel.
+    subtitleStrip:
+        "Describe an agent in plain language — we'll create and name it, then run it right here.",
     hint: "← Not sure? Pick a template on the left",
     videoDuration: "2:04",
     videoLabel: "Watch 2-min tour",
@@ -109,6 +114,25 @@ const AgentChatEmptyState = ({
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
+
+    if (onboarding && TEMPLATE_STRIP_MODE) {
+        // Strip era: no tour video, no "Agent builder" eyebrow, no left-panel hint/starters — the
+        // strip (rendered by the caller, docked snugly below the composer) is the only browsing
+        // surface. Top-aligned (not vertically centered) so hero, composer, and strip read as one
+        // tight group instead of floating in the middle of the panel.
+        return (
+            <div className="relative flex w-full flex-col py-6">
+                <Reveal className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
+                    <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
+                        {ONBOARDING_COPY.title}
+                    </Typography.Title>
+                    <Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                        {ONBOARDING_COPY.subtitleStrip}
+                    </Text>
+                </Reveal>
+            </div>
+        )
+    }
 
     if (onboarding) {
         return (
@@ -261,7 +285,7 @@ const AgentChatEmptyState = ({
                             </Text>
                         )}
                     </div>
-                ) : (
+                ) : TEMPLATE_STRIP_MODE ? null : ( // Strip era: the composer-docked strip replaces the starter pills.
                     <div className="flex flex-col items-start gap-1.5">
                         <Text type="secondary" className="!text-[11px]">
                             Try

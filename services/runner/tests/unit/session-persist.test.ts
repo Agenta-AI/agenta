@@ -136,6 +136,91 @@ describe("buildPersistingEmitter", () => {
     );
     assert.deepEqual(indices, [0, 1, 2]);
   });
+
+  it("coalesces tool_call snapshots for one id into a single record with final args", async () => {
+    const live: unknown[] = [];
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-tc",
+      () => "Secret t",
+      (e) => live.push(e),
+    );
+
+    // A tool call streams a growing partial-args snapshot for one id.
+    emit({ type: "tool_call", id: "call_1", name: "bash", input: {} });
+    emit({ type: "tool_call", id: "call_1", name: "bash", input: { command: "fi" } });
+    emit({ type: "tool_call", id: "call_1", name: "bash", input: { command: "find ." } });
+    // A different step closes the open call.
+    emit({ type: "tool_result", id: "call_1", output: "ok" });
+    emit({ type: "done" });
+    await flush();
+
+    // Live stream sees every raw snapshot.
+    assert.equal(live.length, 5);
+    // Storage sees one tool_call (final args) + one tool_result + done.
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    const types = bodies.map(
+      (b) => (b["attributes"] as Record<string, unknown>)["type"],
+    );
+    assert.deepEqual(types, ["tool_call", "tool_result", "done"]);
+    const call = bodies[0]["attributes"] as Record<string, unknown>;
+    assert.deepEqual(call["input"], { command: "find ." });
+    // tool_call is stamped with a stable id and keeps the earlier index (ahead of result).
+    assert.ok(typeof bodies[0]["record_id"] === "string");
+    assert.equal(bodies[0]["record_index"], 0);
+    assert.equal(bodies[1]["record_index"], 1);
+    // tool_call and its tool_result get distinct stable ids (keyed on the record type).
+    assert.notEqual(bodies[0]["record_id"], bodies[1]["record_id"]);
+  });
+
+  it("a different tool id flushes the previous open call", async () => {
+    const { emit, flush } = buildPersistingEmitter("sess-tc2", () => "Secret t");
+
+    emit({ type: "tool_call", id: "call_a", name: "read", input: { path: "/x" } });
+    emit({ type: "tool_call", id: "call_b", name: "read", input: { path: "/y" } });
+    await flush();
+
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    const inputs = bodies.map(
+      (b) => (b["attributes"] as Record<string, unknown>)["input"],
+    );
+    assert.deepEqual(inputs, [{ path: "/x" }, { path: "/y" }]);
+    assert.deepEqual(bodies.map((b) => b["record_index"]), [0, 1]);
+  });
+
+  it("flushes an open (paused) tool_call on drain", async () => {
+    const { emit, flush } = buildPersistingEmitter("sess-tc3", () => "Secret t");
+
+    // A paused call ends the turn with its slot still open.
+    emit({ type: "tool_call", id: "call_p", name: "bash", input: { command: "ls" } });
+    await flush();
+
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    assert.equal(bodies.length, 1);
+    assert.equal(
+      (bodies[0]["attributes"] as Record<string, unknown>)["type"],
+      "tool_call",
+    );
+  });
+
+  it("flushes an open tool_call when the idle TTL fires", async () => {
+    vi.useFakeTimers();
+    try {
+      const { emit, flush } = buildPersistingEmitter("sess-tc4", () => "Secret t");
+
+      emit({ type: "tool_call", id: "call_ttl", name: "bash", input: { command: "x" } });
+      // Nothing follows; only the TTL can close it.
+      assert.equal(postedBodies.length, 0);
+      await vi.advanceTimersByTimeAsync(3000);
+      assert.equal(postedBodies.length, 1);
+      assert.equal(
+        ((postedBodies[0] as Record<string, unknown>)["attributes"] as Record<string, unknown>)["type"],
+        "tool_call",
+      );
+      await flush();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("drainPersist", () => {

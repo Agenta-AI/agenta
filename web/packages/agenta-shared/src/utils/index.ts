@@ -4,7 +4,13 @@
 
 export {createBatchFetcher} from "./createBatchFetcher"
 export type {BatchFetcher, BatchFetcherOptions, BatchFnResponse} from "./createBatchFetcher"
-export {isValidHttpUrl, isValidRegex, isValidUUID, validateUUID} from "./validators"
+export {
+    isSlugInputValid,
+    isValidHttpUrl,
+    isValidRegex,
+    isValidUUID,
+    validateUUID,
+} from "./validators"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"
@@ -240,7 +246,11 @@ export {removeTrailingSlash} from "./uriUtils"
 export {uuidToSpanId, uuidToTraceId} from "./traceIds"
 
 // LLM provider catalog (cross-cutting between secret entity and provider UI)
-export {llmAvailableProviders, llmAvailableProvidersToken} from "./llmProviders"
+export {
+    llmAvailableProviders,
+    llmAvailableProvidersToken,
+    normalizeProviderFamily,
+} from "./llmProviders"
 
 // Object cleanup utilities
 export {removeEmptyFromObjects} from "./objectUtils"

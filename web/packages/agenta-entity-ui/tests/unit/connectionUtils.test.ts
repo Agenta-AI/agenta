@@ -18,10 +18,12 @@ import {
     connectionFromConfig,
     harnessAllowsModel,
     harnessAllowsProvider,
+    isDeploymentProviderKind,
     modelIdFromConfig,
     modelSelectionMode,
-    namedConnectionOptions,
     providerForModel,
+    vaultModelGroups,
+    vaultPickedProviderFamily,
     type HarnessCapabilitiesMap,
 } from "../../src/DrillInView/SchemaControls/connectionUtils"
 
@@ -234,34 +236,130 @@ describe("connectionUtils: harness-filtered model picker", () => {
     })
 })
 
-describe("connectionUtils: named connection options (vault list)", () => {
-    const SECRETS = [
-        {type: "provider_key", title: "openai", name: "OPENAI_API_KEY"},
-        {type: "custom_provider", name: "openai-prod", provider: "openai"},
-        {type: "custom_provider", name: "openai-staging", provider: "openai"},
-        {type: "custom_provider", name: "anthropic-prod", provider: "anthropic"},
-    ]
-
-    it("lists custom-provider connections filtered to the chosen provider", () => {
-        const opts = namedConnectionOptions(SECRETS, CAPABILITIES, "pi_core", "openai")
-        expect(opts.map((o) => o.value)).toEqual(["openai-prod", "openai-staging"])
-        // value is the slug == header.name (what the resolver matches on).
-        expect(opts[0]).toEqual({label: "openai-prod", value: "openai-prod"})
+describe("connectionUtils: vaultModelGroups (custom_provider connections)", () => {
+    it("includes a connection whose kind is a plain provider family the harness reaches", () => {
+        // pi_core reaches "openai" directly — a second, differently-configured "openai"-kind
+        // connection (e.g. a self-hosted OpenAI-compatible gateway) must still surface its models.
+        const groups = vaultModelGroups(
+            [{name: "my-provider", provider: "openai", models: ["my-model-1"]}],
+            CAPABILITIES,
+            "pi_core",
+        )
+        expect(groups).toEqual([
+            {
+                label: "my-provider",
+                options: [
+                    {
+                        label: "my-model-1",
+                        value: "my-model-1",
+                        metadata: {connectionSlug: "my-provider", provider: "openai"},
+                    },
+                ],
+            },
+        ])
     })
 
-    it("excludes standard provider_key secrets (the implicit project default)", () => {
-        const opts = namedConnectionOptions(SECRETS, CAPABILITIES, "pi_core", "openai")
-        expect(opts.some((o) => o.value === "OPENAI_API_KEY")).toBe(false)
+    it("excludes a plain-provider-family connection the harness cannot reach", () => {
+        // claude only reaches anthropic — an "openai"-kind connection is not selectable there.
+        expect(
+            vaultModelGroups(
+                [{name: "my-provider", provider: "openai", models: ["my-model-1"]}],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toEqual([])
     })
 
-    it("with no provider chosen, keeps only connections the harness can reach", () => {
-        // claude reaches anthropic only -> openai connections dropped.
-        const opts = namedConnectionOptions(SECRETS, CAPABILITIES, "claude", null)
-        expect(opts.map((o) => o.value)).toEqual(["anthropic-prod"])
+    it("gates a deployment-kind connection (custom/bedrock/vertex_ai) against consumable deployments, not providers", () => {
+        // claude's capability entry declares "custom" as a consumable deployment.
+        expect(
+            vaultModelGroups(
+                [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toHaveLength(1)
+        // pi_core only consumes "direct" — a "custom" deployment connection stays hidden there
+        // (matches the runner: Pi ignores a resolved custom endpoint/base_url in v1).
+        expect(
+            vaultModelGroups(
+                [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
+                CAPABILITIES,
+                "pi_core",
+            ),
+        ).toEqual([])
     })
 
-    it("returns [] for an empty or missing vault list", () => {
-        expect(namedConnectionOptions([], CAPABILITIES, "pi_core", "openai")).toEqual([])
-        expect(namedConnectionOptions(null, CAPABILITIES, "pi_core", "openai")).toEqual([])
+    it("is permissive when the capability map is missing (no over-filtering a standalone control)", () => {
+        expect(
+            vaultModelGroups(
+                [{name: "my-provider", provider: "openai", models: ["my-model-1"]}],
+                null,
+                "pi_core",
+            ),
+        ).toHaveLength(1)
+    })
+
+    it("skips connections with no slug or no models", () => {
+        expect(
+            vaultModelGroups(
+                [
+                    {name: "", provider: "openai", models: ["m1"]},
+                    {name: "empty", provider: "openai", models: []},
+                ],
+                CAPABILITIES,
+                "pi_core",
+            ),
+        ).toEqual([])
+    })
+})
+
+describe("connectionUtils: isDeploymentProviderKind", () => {
+    it("names deployment surfaces (hosting mechanisms, not model families)", () => {
+        expect(isDeploymentProviderKind("bedrock")).toBe(true)
+        expect(isDeploymentProviderKind("azure")).toBe(true)
+        expect(isDeploymentProviderKind("vertex_ai")).toBe(true)
+        expect(isDeploymentProviderKind("custom")).toBe(true)
+        expect(isDeploymentProviderKind("sagemaker")).toBe(true)
+        expect(isDeploymentProviderKind("BEDROCK")).toBe(true)
+    })
+
+    it("does not treat a plain provider family as a deployment kind", () => {
+        expect(isDeploymentProviderKind("openai")).toBe(false)
+        expect(isDeploymentProviderKind("anthropic")).toBe(false)
+        expect(isDeploymentProviderKind(null)).toBe(false)
+        expect(isDeploymentProviderKind(undefined)).toBe(false)
+    })
+})
+
+describe("connectionUtils: vaultPickedProviderFamily (F1 — vault pick must persist a provider)", () => {
+    it("prefers the family the model id itself encodes over the connection's own kind", () => {
+        // A deployment-hosted id ("eu.anthropic...") already encodes anthropic — the connection's
+        // own "bedrock" kind (a hosting mechanism) must not override it.
+        expect(
+            vaultPickedProviderFamily("eu.anthropic.claude-haiku-4-5", "bedrock", CAPABILITIES),
+        ).toBe("anthropic")
+    })
+
+    it("falls back to the connection's own kind when it is already a plain family", () => {
+        // The regression case: a plain custom connection (kind "openai") whose own model id
+        // ("my-model-1") encodes no family. Before the fix this silently dropped the provider.
+        expect(vaultPickedProviderFamily("my-model-1", "openai", CAPABILITIES)).toBe("openai")
+    })
+
+    it("never falls back to a deployment kind as the provider (not itself a model family)", () => {
+        // No vendor-prefixed id AND the connection's own kind is a deployment surface: there is no
+        // safe family to derive, so the caller (useModelHarness.writeModel) falls back further to
+        // the prior provider rather than persisting an invalid one.
+        expect(vaultPickedProviderFamily("my-model-1", "bedrock", CAPABILITIES)).toBeNull()
+    })
+
+    it("returns null when neither the id nor the metadata provider resolve a family", () => {
+        expect(vaultPickedProviderFamily("my-model-1", null, CAPABILITIES)).toBeNull()
+        expect(vaultPickedProviderFamily(null, null, CAPABILITIES)).toBeNull()
+    })
+
+    it("still resolves the family from metadata alone when the id is absent", () => {
+        expect(vaultPickedProviderFamily(null, "openai", CAPABILITIES)).toBe("openai")
     })
 })

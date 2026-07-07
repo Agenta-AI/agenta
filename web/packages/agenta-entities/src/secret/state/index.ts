@@ -12,6 +12,7 @@ export {
     customNamedSecretsAtom,
     deleteSecretAtom,
     migrateVaultKeysAtom,
+    providerKeySetupDoneAtom,
 } from "./atoms"
 
 export {useVaultSecret} from "./useVaultSecret"

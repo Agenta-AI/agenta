@@ -72,6 +72,8 @@ export interface RichChatInputProps {
     hideShortcutHints?: boolean
     /** Whether plain Enter submits. Default true (chat); set false for description-style inputs. */
     submitOnEnter?: boolean
+    /** Reports the current plain text on every edit (e.g. to detect the composer going empty). */
+    onChange?: (text: string) => void
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -117,6 +119,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
             submitOnEnter = true,
+            onChange,
         },
         ref,
     ) {
@@ -261,7 +264,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
                     {submitOnEnter ? <SubmitPlugin onSubmit={onSubmit} /> : null}
-                    <CharacterCountPlugin onCountChange={setCount} />
+                    <CharacterCountPlugin onCountChange={setCount} onTextChange={onChange} />
                 </div>
             </LexicalExtensionComposer>
         )

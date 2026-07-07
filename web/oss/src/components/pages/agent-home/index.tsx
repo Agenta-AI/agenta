@@ -11,7 +11,7 @@ import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {urlAtom} from "@/oss/state/url"
 
-import {HERO, TUTORIAL_VIDEO} from "./assets/constants"
+import {HERO, TEMPLATE_STRIP_MODE, TUTORIAL_VIDEO} from "./assets/constants"
 import {captureFirstAgentIntent} from "./assets/onboardingAnalytics"
 import type {AgentTemplate} from "./assets/templates"
 import AgentComposer from "./components/AgentComposer"
@@ -26,8 +26,10 @@ import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
 import {useCreateAgent} from "./hooks/useCreateAgent"
 import {useIdeHandoffModal} from "./hooks/useIdeHandoffModal"
 import {useTemplateSelect} from "./hooks/useTemplateSelect"
+import StripHome from "./StripHome"
 
-const AgentHome: React.FC = () => {
+/** The pre-strip home experience (flag-off): grid/drawer/IDE-modal flows. */
+const ClassicAgentHome: React.FC = () => {
     const composerRef = useRef<RichChatInputHandle>(null)
     const {onCreate} = useAgentHomeActions(composerRef)
     // "Continue in IDE" opens the IDE-handoff modal with the current composer text (the default,
@@ -155,5 +157,8 @@ const AgentHome: React.FC = () => {
         </PageLayout>
     )
 }
+
+/** Flag switch only — the strip experience (TEMPLATE_STRIP_MODE) fully replaces the layout. */
+const AgentHome: React.FC = () => (TEMPLATE_STRIP_MODE ? <StripHome /> : <ClassicAgentHome />)
 
 export default AgentHome

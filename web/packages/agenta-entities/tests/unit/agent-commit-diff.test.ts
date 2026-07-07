@@ -267,7 +267,9 @@ describe("classifyAgentChanges", () => {
         })
     })
 
-    it("agent-template: llm auth/connection change lands in Advanced, not Model & harness", () => {
+    it("agent-template: llm connection-mode change lands in Model & harness, not Advanced", () => {
+        // Connection-mode selection lives in the Model & harness drawer now, so its diff must
+        // classify there — not in Advanced (which would show it under the wrong section).
         const remote = {
             agent: {llm: {model: "opus", provider: "anthropic", connection: {mode: "agenta"}}},
         }
@@ -277,10 +279,11 @@ describe("classifyAgentChanges", () => {
             },
         }
         const sections = classifyAgentChanges(local, remote)
-        // Model unchanged → no Model & harness section.
-        expect(sections.find((s) => s.id === "model")).toBeUndefined()
-        const advanced = sections.find((s) => s.id === "params")
-        expect(advanced?.scalarChanges).toContainEqual({
+        // No params changed → no Advanced section.
+        expect(sections.find((s) => s.id === "params")).toBeUndefined()
+        const modelHarness = sections.find((s) => s.id === "model")
+        expect(modelHarness?.title).toBe("Model & harness")
+        expect(modelHarness?.scalarChanges).toContainEqual({
             key: "llm.connection.mode",
             before: "agenta",
             after: "self_managed",

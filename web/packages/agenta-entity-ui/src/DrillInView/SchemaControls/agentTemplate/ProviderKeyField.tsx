@@ -6,13 +6,13 @@ import {CheckCircle} from "@phosphor-icons/react"
 import {App, Button, Input, Typography} from "antd"
 
 /**
- * "Provider key" content for the Model & credentials drawer — a key/value pair: a disabled input naming
- * the provider's vault key (e.g. `OPENAI_API_KEY`) beside the secret input for its value. Shows a
- * "connect your key" state when the selected model's provider has no vault key, or a "configured ·
- * replace" state when it does. Saves to the project vault (standard path) + refetches, so the key lands
- * without leaving the playground and the chat gate clears reactively.
+ * Right-pane "API key" form for a standard provider — the Provider credentials section's key form
+ * (evolved from the original Model & credentials drawer field, same immediate-save semantics): a
+ * heading + subtitle, "API key *" input, Save/Replace, a masked "configured" state when a key
+ * exists, and an encryption footnote. Saves to the project vault via `useVaultSecret`, which also
+ * arms `providerKeySetupDoneAtom` — no drawer Save step, so the "Connect key" gate clears reactively.
  */
-const ProviderKeyField = ({provider}: {provider: LlmProvider}) => {
+const ProviderKeyField = ({provider, disabled}: {provider: LlmProvider; disabled?: boolean}) => {
     const {message} = App.useApp()
     const {handleModifyVaultSecret} = useVaultSecret()
     const [key, setKey] = useState("")
@@ -20,7 +20,7 @@ const ProviderKeyField = ({provider}: {provider: LlmProvider}) => {
 
     const save = async () => {
         const trimmed = key.trim()
-        if (!trimmed || saving) return
+        if (!trimmed || saving || disabled) return
         setSaving(true)
         try {
             await handleModifyVaultSecret({...provider, key: trimmed})
@@ -34,37 +34,50 @@ const ProviderKeyField = ({provider}: {provider: LlmProvider}) => {
     }
 
     const hasKey = !!provider.key
-    const keyName = provider.name ?? provider.title ?? "PROVIDER_API_KEY"
 
     return (
-        <div className="flex flex-col gap-2 py-0.5">
-            {hasKey ? (
-                <Typography.Text className="!inline-flex !items-center !gap-1 !text-[11px] !text-[var(--ag-colorSuccess)]">
-                    <CheckCircle size={13} weight="fill" />
-                    Key configured · enter a new value to replace it.
+        <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-0.5">
+                <Typography.Text className="!text-[14.5px] !font-semibold">
+                    {provider.title}
                 </Typography.Text>
-            ) : (
-                <Typography.Text type="secondary" className="!text-[11px] !leading-snug">
-                    Standard provider · add your key and we'll run this agent with it.
+                <Typography.Text type="secondary" className="!text-xs !leading-snug">
+                    Standard provider · add your key and we auto-list its models.
                 </Typography.Text>
-            )}
-            <div className="flex items-center gap-2">
-                <Input disabled value={keyName} className="w-[42%] shrink-0" />
-                <Input.Password
-                    value={key}
-                    onChange={(e) => setKey(e.target.value)}
-                    onPressEnter={save}
-                    placeholder={hasKey ? "Enter a new API key" : "Enter your API key"}
-                    className="flex-1"
-                    autoFocus={!hasKey}
-                />
-                <Button type="primary" onClick={save} loading={saving} disabled={!key.trim()}>
-                    {hasKey ? "Replace" : "Save"}
-                </Button>
+                {hasKey ? (
+                    <Typography.Text className="!mt-1 !inline-flex !items-center !gap-1 !text-[11px] !text-[var(--ag-colorSuccess)]">
+                        <CheckCircle size={13} weight="fill" />
+                        Key configured · enter a new value to replace it.
+                    </Typography.Text>
+                ) : null}
             </div>
-            <Typography.Text type="secondary" className="!text-[11px]">
-                Encrypted in transit and at rest.
-            </Typography.Text>
+            <div className="flex flex-col gap-1.5">
+                <Typography.Text className="!text-xs !font-medium">
+                    API key <span className="text-[var(--ag-colorError)]">*</span>
+                </Typography.Text>
+                <div className="flex items-center gap-2">
+                    <Input.Password
+                        value={key}
+                        onChange={(e) => setKey(e.target.value)}
+                        onPressEnter={save}
+                        placeholder="sk-…"
+                        className="flex-1 font-mono"
+                        autoFocus={!hasKey}
+                        disabled={disabled}
+                    />
+                    <Button
+                        type="primary"
+                        onClick={save}
+                        loading={saving}
+                        disabled={disabled || !key.trim()}
+                    >
+                        {hasKey ? "Replace" : "Save"}
+                    </Button>
+                </div>
+                <Typography.Text type="secondary" className="!text-[11px]">
+                    This secret is encrypted in transit and at rest.
+                </Typography.Text>
+            </div>
         </div>
     )
 }

@@ -4,7 +4,8 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
-    // Feature flag for the agent chat streaming slice (contract v1) page.
+    // Feature flag for the agent chat streaming slice (contract v1) page. On by default; set to
+    // "false" to disable.
     NEXT_PUBLIC_AGENT_CHAT_SLICE: process.env.NEXT_PUBLIC_AGENT_CHAT_SLICE,
     // Streaming endpoint the agent chat slice points `useChat` at. Defaults to the
     // local RAG_QA contract mock when unset (see AgentChatSlice/assets/constants.ts).
@@ -12,19 +13,25 @@ export const processEnv = {
     // Default request-contract track for the agent chat slice: "uimessage" (Track A) or
     // "agenta" (Track B). The page also has a runtime toggle.
     NEXT_PUBLIC_AGENT_CHAT_TRACK: process.env.NEXT_PUBLIC_AGENT_CHAT_TRACK,
-    // Agent-home template behavior: when "true", clicking a template skips the config-review drawer
-    // and opens the playground seeded with the template's builder instruction (Mahmoud's agent-builder
-    // flow). Unset/false keeps the current config-definition drawer flow. Both are kept behind this
-    // flag to experiment while the agent builder is unreliable.
+    // Agent-home template behavior: off by default (config-definition drawer flow). Set to "true" to
+    // instead skip the drawer and open the playground seeded with the template's builder instruction
+    // (Mahmoud's agent-builder flow). Stays opt-in until the build-kit overlay fix lands
+    // (docs/design/build-kit-overlay-delivery/); that flow needs the build kit, which the new creation
+    // path can't deliver yet.
     NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER,
-    // Playground-native onboarding: when "true", the project-scoped `/playground` route lands on an
+    // Playground-native onboarding: on by default, the project-scoped `/playground` route lands on an
     // ephemeral agent (templates + "what do you want to build?" composer) and commits it in place on
-    // send — no redirect. Unset/false leaves the current agent-home + redirect onboarding untouched.
+    // send — no redirect. Set to "false" to keep the agent-home + redirect onboarding.
     NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING: process.env.NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING,
     // Agent chat message virtualization (react-virtuoso spike): when "true", the playground settings
     // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
     // so it's off everywhere unless explicitly enabled while the approach is evaluated.
     NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION: process.env.NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION,
+    // Template-strip onboarding: when "true", template presentation on Home, playground
+    // onboarding, and every agent's empty chat becomes one shared always-visible strip
+    // (card click fills the composer + chip instead of creating/opening a drawer). Unset/
+    // false keeps the current three separate template UIs untouched.
+    NEXT_PUBLIC_AGENT_TEMPLATE_STRIP: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_STRIP,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,

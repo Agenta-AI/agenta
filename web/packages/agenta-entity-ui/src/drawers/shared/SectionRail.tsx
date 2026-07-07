@@ -69,7 +69,7 @@ export function SectionRail({
                                     : "!justify-start"
                             } ${
                                 active
-                                    ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
+                                    ? "!bg-[var(--ag-colorFillSecondary)] !font-semibold !text-[var(--ag-colorText)]"
                                     : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
                             }`}
                         >

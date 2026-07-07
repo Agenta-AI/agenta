@@ -20,7 +20,7 @@ const StatItem = ({label, value}: {label: string; value: string}) => (
 )
 
 /** Collapsed 30-day usage strip; expands to the full observability charts. */
-const UsageSummary = () => {
+const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) => {
     const [expanded, setExpanded] = useState(false)
     const {data} = useObservabilityDashboard()
 
@@ -36,6 +36,54 @@ const UsageSummary = () => {
         ],
         [data],
     )
+
+    if (variant === "strip") {
+        // Strip-era restyle (TEMPLATE_STRIP_MODE): same behavior, redesigned one-liner.
+        return (
+            <section className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-[14px] rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] px-[22px] py-[14px]">
+                    <div className="flex items-center gap-2">
+                        <ChartLineIcon size={17} className="text-[var(--ag-colorTextSecondary)]" />
+                        <span className="text-[14.5px] font-semibold text-[var(--ag-colorText)]">
+                            Usage
+                        </span>
+                        <span className="text-[12.5px] text-[var(--ag-colorTextTertiary)]">
+                            last 30 days
+                        </span>
+                    </div>
+                    <div className="ml-2 flex flex-wrap items-center gap-[22px]">
+                        {stats.map((stat) => (
+                            <div
+                                key={stat.label}
+                                className="flex items-center gap-1.5 text-[13.5px]"
+                            >
+                                <span className="text-[var(--ag-colorTextSecondary)]">
+                                    {stat.label}
+                                </span>
+                                <span className="font-semibold text-[var(--ag-colorText)]">
+                                    {stat.value}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setExpanded((prev) => !prev)}
+                        className="ml-auto inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13.5px] text-[var(--ag-colorTextSecondary)]"
+                    >
+                        {expanded ? "Collapse" : "Expand"}
+                        {expanded ? (
+                            <CaretUp size={15} className="text-[var(--ag-colorTextQuaternary)]" />
+                        ) : (
+                            <CaretDown size={15} className="text-[var(--ag-colorTextQuaternary)]" />
+                        )}
+                    </button>
+                </div>
+
+                {expanded ? <AnalyticsDashboard layout="grid-4" /> : null}
+            </section>
+        )
+    }
 
     return (
         <section className="flex flex-col gap-3">

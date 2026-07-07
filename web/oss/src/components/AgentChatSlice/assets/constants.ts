@@ -24,6 +24,6 @@ export const DEFAULT_TRACK: AgentChatTrack =
         ? "agenta"
         : "uimessage"
 
-/** Whether the agent chat slice page is enabled. Feature-flagged, off by default. */
+/** Whether the agent chat slice page is enabled. On by default; opt out with `NEXT_PUBLIC_AGENT_CHAT_SLICE=false`. */
 export const isAgentChatSliceEnabled = (): boolean =>
-    (getEnv("NEXT_PUBLIC_AGENT_CHAT_SLICE") || "").toLowerCase() === "true"
+    (getEnv("NEXT_PUBLIC_AGENT_CHAT_SLICE") || "").toLowerCase() !== "false"

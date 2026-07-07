@@ -304,31 +304,10 @@ export function harnessAllowsModel(
 }
 
 // ---------------------------------------------------------------------------
-// Connection picker (Agenta-managed): named connections from the vault list.
-//
-// Fed by the existing `GET /secrets/` via vaultSecretsQueryAtom (read-only). The backend resolver
-// matches a named connection by the secret's `header.name` (the slug); the transformed vault list
-// surfaces custom-provider connections as `{type: "custom_provider", name, provider}`. We list
-// those, filtered to the selected provider and the harness's reachable providers.
+// Vault-hosted model options (Agenta-managed): a custom_provider connection's own models,
+// contributed to the model picker so they're selectable alongside the harness's static catalog.
+// Fed by the existing `GET /secrets/` via vaultSecretsQueryAtom (read-only).
 // ---------------------------------------------------------------------------
-
-/** A vault entry as surfaced by transformSecret (the in-app `LlmProvider` shape, loosely typed). */
-export interface VaultConnectionEntry {
-    /** The secret kind: "provider_key" (standard, no custom name) or "custom_provider". */
-    type?: string
-    /** For custom_provider: the connection name (== header.name == the slug to send). */
-    name?: string
-    /** For custom_provider: the provider family (data.kind). */
-    provider?: string
-    /** For standard provider_key: the provider title (the provider family). */
-    title?: string
-}
-
-/** A named-connection option for the picker: `{label: header.name, value: slug}`. */
-export interface ConnectionOption {
-    label: string
-    value: string
-}
 
 /** A vault custom_provider entry rich enough to contribute model options (its own models). */
 export interface VaultModelSource {
@@ -363,11 +342,72 @@ export function familyFromModelId(
 }
 
 /**
+ * The provider FAMILY to persist for a vault-hosted model pick (a picker option carrying a
+ * `connectionSlug`, per `vaultModelGroups`). Prefers the family the model id itself encodes
+ * (`familyFromModelId` — deployment-hosted ids like "eu.anthropic.claude-haiku-4-5" carry it
+ * structurally); when the id encodes none (e.g. a plain custom connection's own model,
+ * "gpt-4o-mini"), falls back to the option's `metadata.provider` — but ONLY when that IS already
+ * a plain family, never a deployment kind (bedrock/azure/... is a hosting mechanism, not itself a
+ * valid `llm.provider`). Returns null only when neither source resolves a family; the caller
+ * (`useModelHarness.writeModel`) falls back further to the prior provider so a vault pick never
+ * silently drops the field.
+ */
+export function vaultPickedProviderFamily(
+    modelId: string | null | undefined,
+    metadataProvider: string | null | undefined,
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+): string | null {
+    const family = familyFromModelId(modelId, capabilities)
+    if (family) return family
+    if (metadataProvider && !isDeploymentProviderKind(metadataProvider)) return metadataProvider
+    return null
+}
+
+// A custom_provider secret's `kind` (its `provider` field) is one of two flavors: a DEPLOYMENT
+// surface (azure/bedrock/vertex_ai/custom/sagemaker — a hosting mechanism, gated against what the
+// harness can *consume*) or a plain PROVIDER FAMILY (openai/anthropic/gemini/... — the "custom"
+// provider is really a second, differently-configured connection for a standard family, gated
+// against what the harness can *reach*). `CustomProviderForm` lets a connection be created under
+// either flavor (its provider Select offers both azure/bedrock/vertex_ai/custom AND every standard
+// provider), so both must be recognized here or one flavor's connections silently vanish.
+const DEPLOYMENT_KINDS = new Set(["direct", "custom", "azure", "bedrock", "vertex_ai", "sagemaker"])
+
+/**
+ * Whether a custom_provider `kind` names a DEPLOYMENT surface (a hosting mechanism, not itself a
+ * model family — e.g. "bedrock" hosts many families) rather than a plain provider family (e.g.
+ * "openai", where the kind IS the family). Shared by the two places that need the same two-flavor
+ * split: `harnessReachesCustomProviderKind` below and the vault-pick provider fallback in
+ * `useModelHarness` (a deployment kind is never a valid `llm.provider` value).
+ */
+export function isDeploymentProviderKind(kind: string | null | undefined): boolean {
+    return !!kind && DEPLOYMENT_KINDS.has(kind.toLowerCase())
+}
+
+/**
+ * Whether the harness can reach a custom_provider connection's kind — as a consumable deployment
+ * surface when the kind names one, otherwise as a plain provider family.
+ */
+function harnessReachesCustomProviderKind(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    kind: string,
+): boolean {
+    if (isDeploymentProviderKind(kind)) {
+        const consumable = allowedDeployments(capabilities, harness)
+        return consumable.includes("*") || consumable.some((d) => d.toLowerCase() === kind)
+    }
+    const providers = allowedProviders(capabilities, harness)
+    return providers.includes("*") || providers.some((p) => p.toLowerCase() === kind)
+}
+
+/**
  * Grouped model options contributed by the vault's custom_provider connections, so a connection's
- * own models (e.g. a Bedrock connection's `eu.anthropic.claude-haiku-4-5`) are selectable in the
- * model picker — not just the harness's static catalog. Filtered to connections whose provider the
- * harness can consume; each group carries its connection slug in option metadata so picking a model
- * can reunite it with its agenta-managed credential. Skips connections with no models.
+ * own models (e.g. a Bedrock connection's `eu.anthropic.claude-haiku-4-5`, or a second named
+ * `openai`-kind connection's own models) are selectable in the model picker — not just the
+ * harness's static catalog. Filtered to connections whose kind the harness can reach (see
+ * `harnessReachesCustomProviderKind`); each group carries its connection slug in option metadata so
+ * picking a model can reunite it with its agenta-managed credential. Skips connections with no
+ * models.
  */
 export function vaultModelGroups(
     secrets: VaultModelSource[] | null | undefined,
@@ -375,24 +415,14 @@ export function vaultModelGroups(
     harness: string | null | undefined,
 ): ModelOptionGroup[] {
     if (!secrets?.length) return []
-    // A custom_provider's `provider` field is its deployment kind (bedrock/vertex_ai/azure/custom),
-    // gated against the harness's consumable deployments — NOT its provider families.
-    const consumable = allowedDeployments(capabilities, harness)
-    const anyDeployment = consumable.includes("*")
 
     const groups: ModelOptionGroup[] = []
     for (const secret of secrets) {
         const slug = secret.name?.trim()
-        const deployment = secret.provider?.toLowerCase() || null
+        const kind = secret.provider?.toLowerCase() || null
         const models = (secret.models ?? []).filter(Boolean)
         if (!slug || !models.length) continue
-        if (
-            !anyDeployment &&
-            deployment &&
-            !consumable.some((d) => d.toLowerCase() === deployment)
-        ) {
-            continue
-        }
+        if (kind && !harnessReachesCustomProviderKind(capabilities, harness, kind)) continue
         groups.push({
             label: secret.name ?? slug,
             options: models.map((id) => ({
@@ -403,41 +433,4 @@ export function vaultModelGroups(
         })
     }
     return groups
-}
-
-/**
- * Named connections selectable for a provider under a harness, from the vault list. Only
- * custom-provider secrets carry a connection name (the slug the resolver matches on); standard
- * provider keys are the implicit project default and are not listed here. Filtered to the chosen
- * provider (case-insensitive) and, when no provider is chosen, to the harness's reachable
- * providers.
- */
-export function namedConnectionOptions(
-    secrets: VaultConnectionEntry[] | null | undefined,
-    capabilities: HarnessCapabilitiesMap | null | undefined,
-    harness: string | null | undefined,
-    provider: string | null | undefined,
-): ConnectionOption[] {
-    if (!secrets?.length) return []
-    const reachable = allowedProviders(capabilities, harness)
-    const anyProvider = reachable.includes("*")
-    const target = provider?.toLowerCase() || null
-
-    const out: ConnectionOption[] = []
-    const seen = new Set<string>()
-    for (const secret of secrets) {
-        if (secret.type !== "custom_provider") continue
-        const slug = secret.name?.trim()
-        if (!slug || seen.has(slug)) continue
-        const secretProvider = secret.provider?.toLowerCase() || null
-        if (target) {
-            if (secretProvider !== target) continue
-        } else if (!anyProvider && secretProvider) {
-            // No provider chosen yet: keep only connections the harness can reach.
-            if (!reachable.some((p) => p.toLowerCase() === secretProvider)) continue
-        }
-        seen.add(slug)
-        out.push({label: slug, value: slug})
-    }
-    return out
 }

@@ -18,20 +18,16 @@ import {
     AgentaApiTimeoutError,
 } from "@agentaai/api-client"
 
+import {type AgentaInitOptions, buildClientOptions} from "./config"
+
 export {AgentaApiClient, AgentaApiEnvironment, AgentaApiError, AgentaApiTimeoutError}
 export type * as AgentaApi from "@agentaai/api-client"
 
-export interface AgentaInitOptions {
-    /** Agenta backend host. Defaults to `AGENTA_HOST` env var or production. */
-    host?: string
-    /** API key. Defaults to `AGENTA_API_KEY` env var. */
-    apiKey?: string
-    /** Project ID scope. Defaults to `AGENTA_PROJECT_ID` env var. */
-    projectId?: string
-}
-
-const env = (key: string): string | undefined =>
-    typeof process !== "undefined" ? process.env?.[key] : undefined
+export type {AgentaInitOptions} from "./config"
+export {configureAgentaSdk, buildClientOptions} from "./config"
+// Per-resource accessors — prefer these over `getAgentaSdkClient()`; they let
+// webpack ship only the resource clients a page actually uses (see ./resources).
+export * from "./resources"
 
 /**
  * Construct an Agenta SDK client. Mirrors Python's `ag.init(host, api_key, project_id)`.
@@ -40,35 +36,14 @@ const env = (key: string): string | undefined =>
  *   const ag = init({apiKey: "..."});
  *   const apps = await ag.applications.queryApplications({});
  *
- * Header sanitization, withCredentials, and Node-built-in stubbing are now
- * baked into `@agentaai/api-client` via the Fern generator config (see
- * `clients/scripts/generate.sh`) — this wrapper only carries the auth
- * empty-string workaround because Fern's HeaderAuthProvider can't be
- * disabled per-call.
+ * NOTE: this returns the monolithic client, which statically bundles all Fern
+ * resource clients (~515 kB). Prefer the per-resource accessors from
+ * `@agenta/sdk/resources` (e.g. `getTracesClient()`) so only the resources a
+ * page uses are bundled. `init`/`getAgentaSdkClient` remain for compatibility
+ * and for code that genuinely needs many resources from one instance.
  */
 export function init(options: AgentaInitOptions = {}): AgentaApiClient {
-    const host = options.host ?? env("AGENTA_HOST") ?? "https://cloud.agenta.ai"
-    const apiKey = options.apiKey ?? env("AGENTA_API_KEY")
-
-    return new AgentaApiClient({
-        environment: host,
-        apiKey: apiKey ?? "",
-        // Drop the empty `Authorization` header Fern's HeaderAuthProvider sets
-        // when apiKey is "" (browser cookie-auth case). Empty strings aren't
-        // `== null`, so the auth provider runs and emits an empty Authorization
-        // that Agenta's CORS allowlist rejects. The fetch wrapper is the last
-        // point we control before the wire — `mergeHeaders` calls upstream
-        // re-add what we strip via the `headers` option.
-        fetch: !apiKey
-            ? (input, requestInit) => {
-                  const sanitized = new Headers(requestInit?.headers)
-                  if ((sanitized.get("authorization") ?? "") === "") {
-                      sanitized.delete("authorization")
-                  }
-                  return fetch(input, {...requestInit, headers: sanitized})
-              }
-            : undefined,
-    })
+    return new AgentaApiClient(buildClientOptions(options))
 }
 
 let _singleton: AgentaApiClient | undefined

@@ -89,6 +89,7 @@ export const semantic = {
     warning: {light: "#faad14", dark: "#faad14"}, // [override] (same tone)
     warningText: {light: "#faad14", dark: "#d89614"},
     warningBorder: {light: "#ffe58f", dark: "#594214"},
+    warningBg: {light: "#fffbe6", dark: "#2b2111"}, // antd's own colorWarningBg (gold-1 / dark gold-1)
     error: {light: "#d61010", dark: "#ff4d4f"}, // [override] [absorbs] --ag-c-FF4D4F
     errorText: {light: "#d61010", dark: "#dc4446"},
     errorBorder: {light: "#ef9f9f", dark: "#5b2526"},
@@ -425,6 +426,16 @@ export const editorChip = {
     redSoft: {light: "#f87171", dark: "#a8353a"},
 } satisfies Record<string, Pair>
 
+/** TemplateStrip feature family: colors with no existing semantic role. */
+export const templateStrip = {
+    inputBorder: {light: "#d6dee6", dark: "#2e3136"}, // mirrors drawerDark.fieldBorder
+    selectedBg: {light: "#f5f7fa", dark: "rgba(255, 255, 255, 0.06)"},
+    cardHoverShadow: {
+        light: "0 2px 8px -2px rgba(28, 44, 61, 0.12)",
+        dark: "0 2px 8px -2px rgba(0, 0, 0, 0.45)",
+    },
+} satisfies Record<string, Pair>
+
 export const palette = {
     surface,
     text,
@@ -446,6 +457,7 @@ export const palette = {
     status,
     appVariantCell,
     editorChip,
+    templateStrip,
 }
 
 export default palette
