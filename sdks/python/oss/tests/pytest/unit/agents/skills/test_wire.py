@@ -1,6 +1,6 @@
 """``skills_to_wire``: resolved ``SkillTemplate`` list -> the ``WireSkill[]`` runner contract.
 
-The wire is camelCase to match ``services/agent/src/protocol.ts``; optional flags and ``files``
+The wire is camelCase to match ``services/runner/src/protocol.ts``; optional flags and ``files``
 are omitted when unset so a minimal skill stays minimal.
 """
 

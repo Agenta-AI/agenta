@@ -10,6 +10,7 @@ from agenta.sdk.utils.logging import get_module_logger
 
 from ...dtos import AgentResult
 from ...streaming import AgentStream
+from ...utils.wire import sanitize_runner_error
 from .messages import TOOL_APPROVAL_REQUEST
 
 log = get_module_logger(__name__)
@@ -54,6 +55,36 @@ def _map_finish_reason(stop_reason: Optional[str]) -> Optional[str]:
     return _FINISH_REASON_MAP.get(normalized, "unknown")
 
 
+# Required-string chunk types per the `ai@6` uiMessageChunkSchema: a missing/None value in
+# any of these slots makes the strict client-side schema throw and kill the whole turn.
+_REQUIRES_TOOL_CALL_ID = {
+    "tool-input-start",
+    "tool-input-available",
+    "tool-output-available",
+    "tool-output-error",
+    "tool-output-denied",
+    TOOL_APPROVAL_REQUEST,
+}
+_REQUIRES_TOOL_NAME = {"tool-input-start", "tool-input-available"}
+
+
+def _conform(part: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Normalize a part at the yield boundary so it never violates the AI SDK's strict
+    ``uiMessageChunkSchema``. Returns ``None`` when the part is unsalvageable and must be
+    dropped rather than sent broken.
+    """
+    if part is None:
+        return None
+    ptype = part.get("type")
+    if ptype in _REQUIRES_TOOL_CALL_ID and part.get("toolCallId") is None:
+        return None
+    if ptype in _REQUIRES_TOOL_NAME and not part.get("toolName"):
+        part["toolName"] = "unknown_tool"
+    if ptype == "file" and (not part.get("url") or not part.get("mediaType")):
+        return None
+    return part
+
+
 async def agent_run_to_vercel_parts(
     run: AgentStream,
     *,
@@ -68,6 +99,24 @@ async def agent_run_to_vercel_parts(
     run-based variant pairs with the dev-only one-shot ``AgentStream`` debugging surface and is
     kept for that; it is not on any live request path.
     """
+    async for part in _agent_run_to_vercel_parts_impl(
+        run,
+        session_id=session_id,
+        message_id=message_id,
+        trace_id=trace_id,
+    ):
+        conformed = _conform(part)
+        if conformed is not None:
+            yield conformed
+
+
+async def _agent_run_to_vercel_parts_impl(
+    run: AgentStream,
+    *,
+    session_id: Optional[str] = None,
+    message_id: str = "msg-1",
+    trace_id: Optional[str] = None,
+) -> AsyncIterator[Dict[str, Any]]:
     start: Dict[str, Any] = {"type": "start", "messageId": message_id}
     if session_id is not None:
         start["messageMetadata"] = {"sessionId": session_id}
@@ -78,6 +127,7 @@ async def agent_run_to_vercel_parts(
     reasoning_seq = 0
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
+    content_parts_emitted = 0
     # Tool-call ids already surfaced as a tool part. An approval request attaches
     # to its tool part by id, so we synthesize one only when none preceded it.
     seen_tool_calls: set = set()
@@ -91,12 +141,14 @@ async def agent_run_to_vercel_parts(
             if etype == "message":
                 text_seq += 1
                 tid = f"text-{text_seq}"
+                content_parts_emitted += 1
                 yield {"type": "text-start", "id": tid}
                 yield {"type": "text-delta", "id": tid, "delta": data.get("text", "")}
                 yield {"type": "text-end", "id": tid}
             elif etype == "message_start":
                 yield {"type": "text-start", "id": data.get("id")}
             elif etype == "message_delta":
+                content_parts_emitted += 1
                 yield {
                     "type": "text-delta",
                     "id": data.get("id"),
@@ -141,6 +193,7 @@ async def agent_run_to_vercel_parts(
                 if first_seen:
                     tool_names_by_id[tool_call_id] = tool_name
                 tool_name = tool_names_by_id.get(tool_call_id) or tool_name
+                content_parts_emitted += 1
                 if first_seen:
                     yield {
                         "type": "tool-input-start",
@@ -165,25 +218,27 @@ async def agent_run_to_vercel_parts(
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                if data.get("denied"):
-                    yield {
-                        "type": "tool-output-denied",
-                        "toolCallId": tool_call_id,
-                    }
-                elif data.get("isError"):
+                content_parts_emitted += 1
+                # A tool part (-error/-available) only ever emits for a tool call this
+                # stream actually surfaced; an orphaned one has no tool part to attach to
+                # and the client throws. The commit-revision side-channel below is a plain
+                # data event, not a tool-result envelope, so it fires regardless.
+                has_tool_part = tool_call_id in seen_tool_calls
+                if has_tool_part and data.get("isError"):
                     yield {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
-                else:
+                elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
-                    yield {
-                        "type": "tool-output-available",
-                        "toolCallId": tool_call_id,
-                        "output": out,
-                    }
+                    if has_tool_part:
+                        yield {
+                            "type": "tool-output-available",
+                            "toolCallId": tool_call_id,
+                            "output": out,
+                        }
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -192,10 +247,11 @@ async def agent_run_to_vercel_parts(
                             "type": "data-committed-revision",
                             "data": committed,
                         }
-                    if data.get("render") is not None:
+                    if has_tool_part and data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
                 for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
+                    content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -204,8 +260,10 @@ async def agent_run_to_vercel_parts(
                 }
                 if data.get("transient"):
                     part["transient"] = True
+                content_parts_emitted += 1
                 yield part
             elif etype == "file":
+                content_parts_emitted += 1
                 yield {
                     "type": "file",
                     "url": data.get("url"),
@@ -223,8 +281,10 @@ async def agent_run_to_vercel_parts(
     except Exception as exc:
         # A graceful terminal failure (the run's own AgentResult says ok=false) surfaces here
         # as a plain exception from AgentStream iteration; that case intentionally ends the
-        # stream on the error part with no finish frame, so this path stays as-is.
-        yield {"type": "error", "errorText": str(exc)}
+        # stream on the error part with no finish frame, so this path stays as-is. Sanitize
+        # either way — an unexpected exception's raw str() can carry a stack/path dump.
+        log.error("agent_run_to_vercel_parts: error mid-stream", exc_info=True)
+        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
         return
 
     # The terminal AgentResult is authoritative. Its stop_reason wins over the `done` event's,
@@ -240,6 +300,9 @@ async def agent_run_to_vercel_parts(
             trace_id = result.trace_id
 
     yield {"type": "finish-step"}
+    if content_parts_emitted == 0:
+        # An ok:true run with zero content parts would otherwise render as a blank bubble.
+        yield {"type": "error", "errorText": "The agent produced no output."}
     finish: Dict[str, Any] = {"type": "finish"}
     finish_reason = _map_finish_reason(stop_reason)
     if finish_reason is not None:
@@ -270,6 +333,24 @@ async def agent_stream_to_vercel_stream(
     ``done`` events; ``trace_id`` is passed in by routing (off the response), since there is no
     run to fall back to here.
     """
+    async for part in _agent_stream_to_vercel_stream_impl(
+        events,
+        session_id=session_id,
+        message_id=message_id,
+        trace_id=trace_id,
+    ):
+        conformed = _conform(part)
+        if conformed is not None:
+            yield conformed
+
+
+async def _agent_stream_to_vercel_stream_impl(
+    events: AsyncIterator[Dict[str, Any]],
+    *,
+    session_id: Optional[str] = None,
+    message_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+) -> AsyncIterator[Dict[str, Any]]:
     # Every turn needs a UNIQUE messageId — the client keys messages by it, so a shared constant
     # collides across turns (duplicate React keys, dropped turns). Prefer the run's trace_id (stable,
     # correlatable), else a fresh uuid.
@@ -286,6 +367,7 @@ async def agent_stream_to_vercel_stream(
     reasoning_seq = 0
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
+    content_parts_emitted = 0
     seen_tool_calls: set = set()
     tool_names_by_id: Dict[Any, Any] = {}
 
@@ -297,12 +379,14 @@ async def agent_stream_to_vercel_stream(
             if etype == "message":
                 text_seq += 1
                 tid = f"text-{text_seq}"
+                content_parts_emitted += 1
                 yield {"type": "text-start", "id": tid}
                 yield {"type": "text-delta", "id": tid, "delta": data.get("text", "")}
                 yield {"type": "text-end", "id": tid}
             elif etype == "message_start":
                 yield {"type": "text-start", "id": data.get("id")}
             elif etype == "message_delta":
+                content_parts_emitted += 1
                 yield {
                     "type": "text-delta",
                     "id": data.get("id"),
@@ -347,6 +431,7 @@ async def agent_stream_to_vercel_stream(
                 if first_seen:
                     tool_names_by_id[tool_call_id] = tool_name
                 tool_name = tool_names_by_id.get(tool_call_id) or tool_name
+                content_parts_emitted += 1
                 if first_seen:
                     yield {
                         "type": "tool-input-start",
@@ -371,25 +456,27 @@ async def agent_stream_to_vercel_stream(
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                if data.get("denied"):
-                    yield {
-                        "type": "tool-output-denied",
-                        "toolCallId": tool_call_id,
-                    }
-                elif data.get("isError"):
+                content_parts_emitted += 1
+                # A tool part (-error/-available) only ever emits for a tool call this
+                # stream actually surfaced; an orphaned one has no tool part to attach to
+                # and the client throws. The commit-revision side-channel below is a plain
+                # data event, not a tool-result envelope, so it fires regardless.
+                has_tool_part = tool_call_id in seen_tool_calls
+                if has_tool_part and data.get("isError"):
                     yield {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
-                else:
+                elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
-                    yield {
-                        "type": "tool-output-available",
-                        "toolCallId": tool_call_id,
-                        "output": out,
-                    }
+                    if has_tool_part:
+                        yield {
+                            "type": "tool-output-available",
+                            "toolCallId": tool_call_id,
+                            "output": out,
+                        }
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -398,10 +485,11 @@ async def agent_stream_to_vercel_stream(
                             "type": "data-committed-revision",
                             "data": committed,
                         }
-                    if data.get("render") is not None:
+                    if has_tool_part and data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
                 for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
+                    content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -410,8 +498,10 @@ async def agent_stream_to_vercel_stream(
                 }
                 if data.get("transient"):
                     part["transient"] = True
+                content_parts_emitted += 1
                 yield part
             elif etype == "file":
+                content_parts_emitted += 1
                 yield {
                     "type": "file",
                     "url": data.get("url"),
@@ -431,11 +521,15 @@ async def agent_stream_to_vercel_stream(
                 if reason is not None:
                     stop_reason = reason
     except Exception as exc:
-        yield {"type": "error", "errorText": str(exc)}
+        log.error("agent_stream_to_vercel_stream: error mid-stream", exc_info=True)
+        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
     finally:
         # Every exit path — including the raw exception above — must still drain to a
         # finish frame, or a consumer waiting on it hangs.
         yield {"type": "finish-step"}
+        if content_parts_emitted == 0:
+            # An ok:true run with zero content parts would otherwise render as a blank bubble.
+            yield {"type": "error", "errorText": "The agent produced no output."}
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)
         if finish_reason is not None:

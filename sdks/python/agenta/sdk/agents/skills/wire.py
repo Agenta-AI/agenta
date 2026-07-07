@@ -2,7 +2,7 @@
 
 By the time the wire is built every entry is a concrete :class:`SkillTemplate` (references
 resolved server-side via ``@ag.embed``), so there is one shape to emit: ``WireSkill`` (see
-``services/agent/src/protocol.ts``).
+``services/runner/src/protocol.ts``).
 """
 
 from __future__ import annotations

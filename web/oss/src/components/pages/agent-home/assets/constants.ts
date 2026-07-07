@@ -1,24 +1,25 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
- * Template behavior toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`). When true, clicking a template
- * (Home or the gallery) skips the config-review drawer and instead opens the playground seeded with
- * the template's builder instruction — Mahmoud's agent-builder flow (no direct config write). When
- * false/unset (default), the current config-definition drawer flow is used. Both are kept so we can
- * A/B them while the agent builder is unreliable.
+ * Template behavior toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`). Off by default: clicking a template
+ * (Home or the gallery) uses the config-definition drawer flow. Opt in with `true` to instead open the
+ * playground seeded with the template's builder instruction — Mahmoud's agent-builder flow (no direct
+ * config write). Both are kept so we can A/B them while the agent builder is unreliable.
+ * Flips to default-on once the build-kit overlay fix lands (docs/design/build-kit-overlay-delivery/) —
+ * that flow needs the build kit, which the new creation path can't deliver yet.
  */
 export const TEMPLATE_BUILDER_MODE =
     (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER") || "").toLowerCase() === "true"
 
 /**
- * Playground-native onboarding toggle (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). When true, the
+ * Playground-native onboarding toggle (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). On by default: the
  * project-scoped `/playground` route lands on an ephemeral agent (onboarding lives INSIDE the
- * playground) and commits it in place on send — no redirect. When false/unset (default), onboarding
- * stays on the agent-home page and navigates to the app playground after create. Additive: both flows
- * coexist so we can A/B the seamless single-page experience against the current redirect flow.
+ * playground) and commits it in place on send — no redirect. Set to `false` to keep onboarding on the
+ * agent-home page, navigating to the app playground after create. Additive: both flows coexist so we
+ * can A/B the seamless single-page experience against the redirect flow.
  */
 export const PLAYGROUND_NATIVE_ONBOARDING =
-    (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() === "true"
+    (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() !== "false"
 
 /**
  * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). When true, Home,

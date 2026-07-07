@@ -17,6 +17,8 @@ from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.core.sessions.streams.dtos import (
     SessionStreamFlags,
 )
+from oss.src.dbs.redis.shared.engine import LockEngine
+from oss.src.dbs.redis.sessions.locks import force_cancel_alive, clear_running
 
 from sqlalchemy import select
 
@@ -29,7 +31,7 @@ ORPHAN_THRESHOLD_SECONDS: int = 300  # 5 minutes
 SWEEP_INTERVAL_SECONDS: int = 60
 
 
-async def run_orphan_sweep(engine: TransactionsEngine) -> None:
+async def run_orphan_sweep(engine: TransactionsEngine, lock_engine: LockEngine) -> None:
     """Single sweep pass: mark stale is_alive rows as ended."""
     threshold = datetime.now(timezone.utc) - timedelta(seconds=ORPHAN_THRESHOLD_SECONDS)
 
@@ -57,14 +59,22 @@ async def run_orphan_sweep(engine: TransactionsEngine) -> None:
             )
 
         await session.commit()
+
+        # Bring the Redis locks the SEND gate reads in sync with the rows just written.
+        for row in orphans:
+            await force_cancel_alive(lock_engine, session_id=row.session_id)
+            await clear_running(lock_engine, session_id=row.session_id)
+
         log.info("orphan_sweep: marked %d orphans ended", len(orphans))
 
 
-async def orphan_sweep_loop(engine: TransactionsEngine) -> None:
+async def orphan_sweep_loop(
+    engine: TransactionsEngine, lock_engine: LockEngine
+) -> None:
     """Infinite loop; runs as a background asyncio task during app lifespan."""
     while True:
         try:
-            await run_orphan_sweep(engine)
+            await run_orphan_sweep(engine, lock_engine)
         except Exception:
             log.exception("orphan_sweep: error during sweep pass")
         await asyncio.sleep(SWEEP_INTERVAL_SECONDS)

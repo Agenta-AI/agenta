@@ -176,14 +176,15 @@ async def _events_then_raise(
 ) -> AsyncIterator[Dict[str, Any]]:
     for item in items:
         yield item
-    raise ValueError("unexpected adapter bug")
+    raise ValueError('File "/internal/adapter/module.py", line 42, in _run\nboom')
 
 
 @pytest.mark.asyncio
 async def test_raw_exception_mid_stream_still_emits_finish() -> None:
     """An unexpected exception raised while iterating the event stream (not a graceful
     terminal-failure result) must still drain to a `finish` frame, or a consumer waiting
-    on it hangs forever."""
+    on it hangs forever. The exception's raw text must NOT reach the client verbatim --
+    a stack/path dump is sanitized to a generic message; the detail is only logged."""
     parts = [
         part
         async for part in agent_stream_to_vercel_stream(
@@ -194,4 +195,5 @@ async def test_raw_exception_mid_stream_still_emits_finish() -> None:
     assert "error" in types
     assert types[-2:] == ["finish-step", "finish"]
     error = next(p for p in parts if p["type"] == "error")
-    assert "unexpected adapter bug" in error["errorText"]
+    assert "/internal/adapter/module.py" not in error["errorText"]
+    assert error["errorText"]
