@@ -320,7 +320,7 @@ async def test_test_run_applies_delta_in_memory(monkeypatch):
     workflows = FakeWorkflowsService(
         delta_data={
             "url": "https://agent.internal",
-            "parameters": {"agent": {"model": "changed"}},
+            "parameters": {"agent": {"llm": {"model": "changed"}}},
         }
     )
 
@@ -328,7 +328,7 @@ async def test_test_run_applies_delta_in_memory(monkeypatch):
         arguments=_args(
             terminal_tool=None,
             delta={
-                "set": {"parameters": {"agent": {"model": "changed"}}},
+                "set": {"parameters": {"agent": {"llm": {"model": "changed"}}}},
                 "remove": ["parameters.agent.old"],
             },
         ),
@@ -343,7 +343,38 @@ async def test_test_run_applies_delta_in_memory(monkeypatch):
     assert workflows.ensure_calls
     assert workflows.delta_calls
     revision = http.calls[0]["json"]["data"]["revision"]["data"]
-    assert revision["parameters"]["agent"]["model"] == "changed"
+    assert revision["parameters"]["agent"]["llm"]["model"] == "changed"
+
+
+async def test_test_run_delta_with_invalid_agent_template_is_refused(monkeypatch):
+    http = HttpxController(monkeypatch)
+    workflows = FakeWorkflowsService(
+        delta_data={
+            "url": "https://agent.internal",
+            "parameters": {
+                "agent": {
+                    "llm": {"model": "gpt-4o"},
+                    "skills": [{"slug": "my-skill", "content": "oops"}],
+                }
+            },
+        }
+    )
+
+    with pytest.raises(PlatformToolHandlerRefused) as exc_info:
+        await handle_test_run(
+            arguments=_args(
+                terminal_tool=None,
+                delta={"set": {"parameters": {"agent": {"llm": {"model": "gpt-4o"}}}}},
+            ),
+            headers={},
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=workflows,
+            tracing_service=FakeTracingService(),
+        )
+
+    assert "parameters.agent.skills.0" in str(exc_info.value)
+    assert http.calls == []
 
 
 async def test_test_run_delta_requires_existing_project_scoped_variant(monkeypatch):
@@ -479,7 +510,7 @@ async def test_test_run_delta_with_edit_workflows_permission_invokes(monkeypatch
     workflows = FakeWorkflowsService(
         delta_data={
             "url": "https://agent.internal",
-            "parameters": {"agent": {"model": "changed"}},
+            "parameters": {"agent": {"llm": {"model": "changed"}}},
         }
     )
     router = ToolsRouter(

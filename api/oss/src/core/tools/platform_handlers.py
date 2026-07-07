@@ -63,6 +63,12 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequestData,
 )
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.types import AgentTemplateInvalid
+from oss.src.core.workflows.agent_validation import (
+    format_agent_template_errors,
+    validate_agent_template,
+)
+from oss.src.utils.env import env
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
@@ -227,6 +233,17 @@ async def _build_test_workflow_request(
             raise PlatformToolHandlerError(
                 "test_run could not resolve the revision delta."
             )
+        # Same strict agent-template validation as the commit path, on the in-memory
+        # delta-resolved data — a malformed override must fail loud (with the offending field
+        # paths) rather than run a broken agent.
+        if env.agenta.agent_template.commit_validation:
+            try:
+                validate_agent_template(resolved.data)
+            except AgentTemplateInvalid as e:
+                raise PlatformToolHandlerRefused(
+                    "test_run delta produced an invalid agent template: "
+                    f"{format_agent_template_errors(e.errors)}"
+                ) from e
         workflow_request.data.revision = {"data": resolved.data.model_dump(mode="json")}
 
     return workflow_request

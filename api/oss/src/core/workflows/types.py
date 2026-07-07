@@ -5,7 +5,7 @@ These are raised by the workflows service and translated to HTTP responses at th
 never raise ``HTTPException`` directly.
 """
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 # Reserved-slug detection is canonical in the SDK (it also drives is_static inference there). The
 # API re-exports it so every write path can reject a reserved slug and every read path can
@@ -41,6 +41,27 @@ class StaticWorkflowSlug(WorkflowError):
                 f"The slug prefix '__ag__' is reserved for static workflows. "
                 f"Choose a different slug than '{slug}'."
             )
+        )
+
+
+class AgentTemplateInvalid(WorkflowError):
+    """Raised when a committed (or test_run delta-resolved) ``parameters.agent`` value fails the
+    strict agent-template schema or a cross-field rule (e.g. a ``claude`` harness paired with a
+    non-Anthropic provider).
+
+    ``errors`` is a list of ``{"loc", "msg", "type"}`` entries naming the offending field paths
+    (rooted at ``parameters.agent``) so a self-remediating caller can fix the exact fields.
+    Translated to HTTP 400 at the router.
+    """
+
+    def __init__(
+        self,
+        errors: List[Dict[str, Any]],
+        message: Optional[str] = None,
+    ):
+        self.errors = errors
+        super().__init__(
+            message or "The agent template configuration failed validation."
         )
 
 

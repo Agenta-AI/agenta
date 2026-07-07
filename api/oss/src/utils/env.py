@@ -261,6 +261,23 @@ class ApiConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.agent_template
+# ---------------------------------------------------------------------------
+
+
+class AgentTemplateConfig(BaseModel):
+    """Agent-template server-side validation feature flags."""
+
+    # Kill switch for the strict agent-template validation on the commit / test_run paths.
+    # Enabled by default; set falsy to skip validation entirely.
+    commit_validation: bool = (
+        os.getenv("AGENTA_AGENT_TEMPLATE_COMMIT_VALIDATION") or "true"
+    ).lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta.extras
 # ---------------------------------------------------------------------------
 
@@ -447,6 +464,7 @@ class AgentaConfig(BaseModel):
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
 
     access: AccessConfig = AccessConfig()
+    agent_template: AgentTemplateConfig = AgentTemplateConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     api: ApiConfig = ApiConfig()
     billing: BillingConfig = BillingConfig()

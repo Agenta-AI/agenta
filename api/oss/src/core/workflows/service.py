@@ -101,6 +101,7 @@ from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     is_static_workflow_slug,
 )
+from oss.src.core.workflows.agent_validation import validate_agent_template
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import (
@@ -1799,6 +1800,12 @@ class WorkflowsService:
         # A snippet (skill) is non-runnable content: strip every execution-surface field, only uri +
         # parameters survive. Holds even if a caller posts the skill uri under a normal slug.
         data = normalize_snippet_data(workflow_revision_commit.data)
+
+        # Validate the delta-resolved agent template before it is persisted, so a malformed
+        # parameters.agent (bad schema, malformed skill, claude+non-anthropic) fails loud with the
+        # offending field paths instead of committing silently and never running.
+        if env.agenta.agent_template.commit_validation:
+            validate_agent_template(data)
         if data and data.uri and not data.url:
             _, kind, _, _ = parse_uri(data.uri)
             if kind != "builtin":
