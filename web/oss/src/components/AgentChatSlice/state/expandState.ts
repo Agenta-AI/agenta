@@ -61,16 +61,16 @@ export const expandedKeysForMessages = (messages: UIMessage[]): Set<string> => {
 /** Drop entries (and their cached selector atoms) whose key isn't in `liveKeys` — call on settle with
  * the union of all open sessions' messages, so evicted/rewound widgets are cleaned up. */
 export const pruneExpandedAtom = atom(null, (get, set, liveKeys: Set<string>) => {
+    // Prune the family by its OWN key set — a widget's mere read caches a selector, even if never toggled.
+    for (const key of expandedValueAtomFamily.getParams()) {
+        if (!liveKeys.has(key)) expandedValueAtomFamily.remove(key)
+    }
     const cur = get(expandedMapAtom)
     let changed = false
     const next: Record<string, boolean> = {}
     for (const key in cur) {
-        if (liveKeys.has(key)) {
-            next[key] = cur[key]
-        } else {
-            changed = true
-            expandedValueAtomFamily.remove(key)
-        }
+        if (liveKeys.has(key)) next[key] = cur[key]
+        else changed = true
     }
     if (changed) set(expandedMapAtom, next)
 })
