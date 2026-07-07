@@ -9,7 +9,7 @@ Two layers:
 
 A final integration test drives the real ``cli.ts --stream`` when ``pnpm`` is available.
 
-Run: ``uv run pytest agenta/tests/agents/test_streaming.py`` from ``sdks/python``.
+Run: ``uv run pytest oss/tests/pytest/unit/agents/test_streaming.py`` from ``sdks/python``.
 """
 
 from __future__ import annotations
@@ -149,7 +149,7 @@ async def test_subprocess_stream_cancellation_kills_child() -> None:
 
 @pytest.mark.skipif(shutil.which("pnpm") is None, reason="pnpm not available")
 async def test_cli_stream_terminal_only_on_empty_request() -> None:
-    agent_dir = Path(__file__).resolve().parents[5] / "services" / "agent"
+    agent_dir = Path(__file__).resolve().parents[7] / "services" / "runner"
     cmd = ["pnpm", "exec", "tsx", "src/cli.ts"]
     records = []
     async for record in deliver_subprocess_stream(cmd, {}, cwd=str(agent_dir)):

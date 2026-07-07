@@ -1,7 +1,7 @@
 """The ``/run`` wire contract: ``request_to_wire`` / ``result_from_wire``.
 
 This is the highest-value regression guard in the agent runtime. ``wire.py`` (the Python
-producer) and ``services/agent/src/protocol.ts`` (the TS consumer) are hand-mirrored, so the
+producer) and ``services/runner/src/protocol.ts`` (the TS consumer) are hand-mirrored, so the
 two can drift silently. The golden fixtures in ``golden/`` are the shared anchor: this file
 asserts the Python side against them, and the TS side asserts the same files (a later PR).
 

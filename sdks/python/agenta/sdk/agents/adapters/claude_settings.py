@@ -53,9 +53,9 @@ SETTINGS_PATH = ".claude/settings.json"
 # ``mcp__<server>__<tool>``, so a per-tool permission rule for a resolved tool is
 # ``mcp__agenta-tools__<tool>``. This name COUPLES to the runner constant and MUST stay in sync
 # with the TypeScript runner, which advertises the same server name in:
-#   - ``services/agent/src/tools/mcp-bridge.ts`` (``name: "agenta-tools"``)
-#   - ``services/agent/src/tools/relay-mcp-stdio.ts`` and ``tool-mcp-http.ts`` (``serverInfo.name``)
-#   - ``services/agent/src/engines/sandbox_agent/mcp.ts``
+#   - ``services/runner/src/tools/mcp-bridge.ts`` (``name: "agenta-tools"``)
+#   - ``services/runner/src/tools/relay.ts`` and ``tool-mcp-http.ts`` (``serverInfo.name``)
+#   - ``services/runner/src/engines/sandbox_agent/mcp.ts``
 # If the runner renames this server, this constant must change with it.
 INTERNAL_TOOL_MCP_SERVER = "agenta-tools"
 
