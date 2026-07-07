@@ -55,11 +55,13 @@ PI_VAULT_PROVIDERS: List[str] = [
 
 # Subscription/OAuth-only providers Pi also reaches. ``openai-codex`` is OpenAI's ChatGPT/Codex
 # subscription: Pi authenticates it with an OAuth login (``~/.pi/agent/auth.json``, ``pi`` then
-# ``/login``), NOT an Agenta vault ``provider_key`` (no vault secret kind maps to it). It is
-# reachable under ``self_managed`` (the subscription OAuth) and under the ``agenta`` default's
-# ``runtime_provided`` fallback, so it belongs in Pi's reachable providers even though it carries
-# no vault key. Its model ids are carried explicitly below because they are not in the
-# litellm-derived ``supported_llm_models`` catalog. See
+# ``/login``), NOT an Agenta vault ``provider_key`` (no vault secret kind maps to it). ``self_managed``
+# is broader than this one provider: it covers any way a harness signs itself in without an
+# Agenta-stored key, including machine credentials such as environment variables. This provider's
+# on-ramp under ``self_managed`` happens to be the subscription OAuth. It is also reachable under
+# the ``agenta`` default's ``runtime_provided`` fallback, so it belongs in Pi's reachable providers
+# even though it carries no vault key. Its model ids are carried explicitly below because they are
+# not in the litellm-derived ``supported_llm_models`` catalog. See
 # ``docs/design/agent-workflows/projects/provider-model-auth/harness-provider-matrix.md`` and the
 # subscription-sidecar recipe.
 PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
