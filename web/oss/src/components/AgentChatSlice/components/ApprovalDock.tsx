@@ -1,9 +1,15 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {parseGatewayToolName, type ParsedToolName} from "@agenta/entities/workflow/commitDiff"
 import {HeightCollapse} from "@agenta/ui"
 import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
 import {Button, Typography} from "antd"
+import {useAtomValue} from "jotai"
+
+import {chatPanelMaximizedAtom} from "../state/panelLayout"
+
+import {resolveApprovalRenderer} from "./approvals/registry"
 
 const {Text} = Typography
 
@@ -52,6 +58,22 @@ const sourceLabel = (name: string): string | null => {
     return null
 }
 
+/** Chat-mode display name: raw "scary" names stay Build-only; here we humanize gateway/MCP/plain
+ * names (`mcp__linear__create_issue` → "Create issue" from Linear · MCP). Raw name stays reachable
+ * via the tooltip and the payload expander. */
+const friendlyToolName = (name: string): ParsedToolName => {
+    if (name.startsWith("mcp__")) {
+        const parts = name.split("__").filter(Boolean)
+        const tool = parts[parts.length - 1]
+        const server = parts.length >= 3 ? parts[1] : undefined
+        return {
+            label: parseGatewayToolName(tool).label,
+            source: server ? `${parseGatewayToolName(server).label} · MCP` : "MCP",
+        }
+    }
+    return parseGatewayToolName(name)
+}
+
 const formatInput = (input: unknown): string => {
     if (input == null) return ""
     // Keep the exact string — the user must approve the payload the tool actually receives. The
@@ -64,12 +86,55 @@ const formatInput = (input: unknown): string => {
     }
 }
 
+/** Collapsible exact-payload viewer — the generic approval body, and the fallback (plus the
+ * Build-mode raw view) for specialized renderers. Owns its expand state so a specialized body
+ * can render it anywhere; hosts key it by approval id to recollapse when the gate changes. */
+const PayloadBlock = ({input, label = "Payload"}: {input: unknown; label?: string}) => {
+    const [showPayload, setShowPayload] = useState(false)
+    const payload = useMemo(() => formatInput(input), [input])
+    const payloadPreview = payload.replace(/\s+/g, " ").trim()
+    if (!payload) return null
+    return (
+        <div className="ag-surface-inset overflow-hidden rounded">
+            <button
+                type="button"
+                onClick={() => setShowPayload((s) => !s)}
+                aria-expanded={showPayload}
+                className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-2.5 py-1.5 text-left"
+            >
+                <CaretRight
+                    size={11}
+                    weight="bold"
+                    className={`shrink-0 text-colorTextTertiary transition-transform ${
+                        showPayload ? "rotate-90" : ""
+                    }`}
+                />
+                <span className="shrink-0 text-[11px] font-medium text-colorTextSecondary">
+                    {label}
+                </span>
+                {!showPayload ? (
+                    <span className="min-w-0 truncate font-mono text-[11px] text-colorTextTertiary">
+                        {payloadPreview}
+                    </span>
+                ) : null}
+            </button>
+            <HeightCollapse open={showPayload}>
+                <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-all px-2.5 pb-2.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
+                    {payload}
+                </pre>
+            </HeightCollapse>
+        </div>
+    )
+}
+
 interface ApprovalDockProps {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
     onApprovalResponse: (args: {id: string; approved: boolean}) => void
     /** Open the paused turn's trace drawer (full tool input/output). */
     onViewTrace?: () => void
+    /** Selected agent revision — enables per-tool friendly bodies (approvals/registry). */
+    entityId?: string
     className?: string
 }
 
@@ -86,6 +151,7 @@ const ApprovalDock = ({
     approvals,
     onApprovalResponse,
     onViewTrace,
+    entityId,
     className,
 }: ApprovalDockProps) => {
     const open = approvals.length > 0
@@ -98,18 +164,20 @@ const ApprovalDock = ({
     const count = shown.length
 
     const [responding, setResponding] = useState(false)
-    const [showPayload, setShowPayload] = useState(false)
 
-    // The current gate changed (we answered one, the next slid in) — re-enable + recollapse.
+    // The current gate changed (we answered one, the next slid in) — re-enable.
     useEffect(() => {
         setResponding(false)
-        setShowPayload(false)
     }, [current?.approvalId])
 
-    const payload = useMemo(() => (current ? formatInput(current.input) : ""), [current])
-    const payloadPreview = payload.replace(/\s+/g, " ").trim()
+    // Friendly bodies are Chat-mode (maximized) sugar and need a revision to diff against;
+    // Build and the entityId-less host keep the exact-payload card.
+    const chatMode = useAtomValue(chatPanelMaximizedAtom)
+    const renderer =
+        current && entityId && chatMode ? resolveApprovalRenderer(current.toolName) : null
 
     const source = current ? sourceLabel(current.toolName) : null
+    const friendly: ParsedToolName = current ? friendlyToolName(current.toolName) : {label: ""}
 
     const respond = (approved: boolean) => {
         if (responding || !current) return
@@ -134,7 +202,12 @@ const ApprovalDock = ({
         >
             <div className="min-h-0 overflow-hidden">
                 {current ? (
-                    <div className="ag-surface-chat mb-2 flex flex-col gap-2.5 rounded-lg p-3">
+                    // The friendly two-pane body needs more air than the one-line payload card.
+                    <div
+                        className={`ag-surface-chat mb-2 flex flex-col rounded-lg ${
+                            renderer ? "gap-4 p-4" : "gap-2.5 p-3"
+                        }`}
+                    >
                         {/* Header: a quiet primary cue (not an error tint) + the ask + a count when batched. */}
                         <div className="flex items-center gap-2">
                             <ShieldCheck
@@ -155,61 +228,69 @@ const ApprovalDock = ({
                             ) : null}
                         </div>
 
-                        {/* Identity: which tool, plus a factual source tag when we can name one. */}
-                        <div className="flex min-w-0 items-center gap-2">
-                            <Text
-                                className="!text-xs !font-medium min-w-0 truncate"
-                                title={current.toolName}
-                            >
-                                {current.toolName}
-                            </Text>
-                            {source ? (
-                                <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-[11px] text-colorTextSecondary">
-                                    {source}
-                                </span>
-                            ) : null}
-                        </div>
-
-                        <Text type="secondary" className="!text-xs">
-                            The agent wants to run this tool before it can keep going.
-                        </Text>
-
-                        {/* The payload — collapsed to a one-line preview, expandable to the full request. */}
-                        {payload ? (
-                            <div className="ag-surface-inset overflow-hidden rounded">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPayload((s) => !s)}
-                                    aria-expanded={showPayload}
-                                    className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-2.5 py-1.5 text-left"
+                        {/* Identity + ask. Build keeps the raw tool name (debuggers steer by it);
+                            Chat folds a humanized name into one sentence — the raw name stays
+                            reachable via the tooltip and the payload expander. A friendly body
+                            (headline: null) already says what's happening — nothing extra. */}
+                        {!renderer && !chatMode ? (
+                            <div className="flex min-w-0 items-center gap-2">
+                                <Text
+                                    className="!text-xs !font-medium min-w-0 truncate"
+                                    title={current.toolName}
                                 >
-                                    <CaretRight
-                                        size={11}
-                                        weight="bold"
-                                        className={`shrink-0 text-colorTextTertiary transition-transform ${
-                                            showPayload ? "rotate-90" : ""
-                                        }`}
-                                    />
-                                    <span className="shrink-0 text-[11px] font-medium text-colorTextSecondary">
-                                        Payload
+                                    {current.toolName}
+                                </Text>
+                                {source ? (
+                                    <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-[11px] text-colorTextSecondary">
+                                        {source}
                                     </span>
-                                    {!showPayload ? (
-                                        <span className="min-w-0 truncate font-mono text-[11px] text-colorTextTertiary">
-                                            {payloadPreview}
-                                        </span>
-                                    ) : null}
-                                </button>
-                                <HeightCollapse open={showPayload}>
-                                    <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-all px-2.5 pb-2.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
-                                        {payload}
-                                    </pre>
-                                </HeightCollapse>
+                                ) : null}
                             </div>
                         ) : null}
 
-                        {/* Actions: trace on the left, decision on the right. Approve is the single primary. */}
+                        {renderer?.headline !== null ? (
+                            !renderer && chatMode ? (
+                                <Text
+                                    type="secondary"
+                                    className="!text-xs"
+                                    title={current.toolName}
+                                >
+                                    The agent wants to use{" "}
+                                    <span className="font-medium text-colorText">
+                                        {friendly.label}
+                                    </span>
+                                    {friendly.source ? ` from ${friendly.source}` : ""} before it
+                                    can keep going.
+                                </Text>
+                            ) : (
+                                <Text type="secondary" className="!text-xs">
+                                    {renderer?.headline ??
+                                        "The agent wants to run this tool before it can keep going."}
+                                </Text>
+                            )
+                        ) : null}
+
+                        {/* Body: friendly per-tool preview when registered, else the exact payload.
+                            Keyed by approval id so expand state recollapses when the gate changes. */}
+                        {renderer && entityId ? (
+                            <renderer.Body
+                                key={current.approvalId}
+                                input={current.input}
+                                entityId={entityId}
+                                fallback={<PayloadBlock input={current.input} />}
+                            />
+                        ) : (
+                            <PayloadBlock
+                                key={current.approvalId}
+                                input={current.input}
+                                label={chatMode ? "Details" : "Payload"}
+                            />
+                        )}
+
+                        {/* Actions: trace on the left, decision on the right. Approve is the single primary.
+                            The trace link is Build-only chrome — Chat keeps the payload expander instead. */}
                         <div className="flex items-center gap-2">
-                            {onViewTrace ? (
+                            {onViewTrace && !chatMode ? (
                                 <button
                                     type="button"
                                     onClick={onViewTrace}
@@ -233,7 +314,7 @@ const ApprovalDock = ({
                                     loading={responding}
                                     onClick={() => respond(true)}
                                 >
-                                    Approve
+                                    {renderer?.approveLabel ?? "Approve"}
                                 </Button>
                             </div>
                         </div>

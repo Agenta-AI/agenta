@@ -10,6 +10,7 @@ export {
     EntityCommitTitle,
     EntityCommitContent,
     EntityCommitFooter,
+    AgentChangesSummary,
 } from "./components"
 export type {
     EntityCommitModalProps,
@@ -18,6 +19,7 @@ export type {
     CommitModeOption,
     CommitCreateFieldsConfig,
     EntityCommitContentProps,
+    AgentChangesSummaryProps,
 } from "./components"
 
 // Hooks
