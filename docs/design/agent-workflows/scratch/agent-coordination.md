@@ -1004,3 +1004,206 @@ clock (wrote ~Europe/Berlin evening times during the afternoon) — use the sequ
 **BUT-LOCK TAKEN**: #5123 (agents table) merged into big-agents; running the Rule-7 base advance
 (snapshot -> park unassigned -> but pull -> unpark -> cleanup). Other sessions: your unassigned
 WIP will round-trip through the parking lane again; re-staging needed afterwards as before.
+
+### 2026-07-07 ~16:35 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** #5123 (agents table) merged; Rule-7 base advance complete: base at the
+big-agents tip, feat/agents-table-improvements correctly integrated+removed, Archive/Created-by
+columns verified in the tree from the BASE. Unassigned WIP round-tripped through the parking lane
+again (re-stage as needed). The env-template opt-out hunks and board edits were amended into
+their owning commits (chore/agent-flags-default-on and the scratch-sync carry) instead of
+parking, per the hunk-lock routing pattern.
+
+### 2026-07-07 ~17:30 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: committing the unbundled defaults (chat-slice + onboarding default-on,
+template-builder opt-in) to chore/agent-flags-default-on and force-pushing; PR #5121 updated in
+place.
+
+### 2026-07-07 ~17:40 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** 4d481c1 (unbundled defaults) on chore/agent-flags-default-on, force-pushed;
+PR #5121 retitled/rebodied for the unbundled scope. Template-builder stays opt-in pending the
+build-kit overlay fix.
+
+### 2026-07-07 ~17:55 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: parking the built build-kit implementation (BE option-A route + FE global
+atom) on lane feat/build-kit-overlay-impl-draft (committed, UNAPPLIED, unpushed — tracked here
+and in the design workspace status.md per the parked-lane rule), then committing the design
+workspace docs/build-kit-overlay-delivery to its own lane + draft PR for Mahmoud's door decision.
+
+### 2026-07-07 ~18:15 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Build-kit implementation parked on feat/build-kit-overlay-impl-draft
+(7da032b, UNAPPLIED, unpushed — re-apply with `but apply`); design workspace committed on
+docs/build-kit-overlay-delivery (048f415) + draft PR opened for the delivery-door decision.
+PR #5121 updated: unbundled defaults committed (4d481c1) + env-template flag blocks REMOVED
+(9a38bee — internal flags stay out of user-facing config); local .env.ee.dev/.env.oss.gh flag
+blocks stripped too (defaults now come from code).
+
+### 2026-07-07 ~18:30 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: #5121 (defaults) merged; running the Rule-7 base advance.
+
+### 2026-07-07 ~18:50 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** #5121 merged; base advanced to the big-agents tip (defaults verified in the
+tree from the base: chat-slice + onboarding default-on, entrypoint injection synced).
+chore/agent-flags-default-on unapplied-as-merged; empty parking lanes wip-parking-r3 and
+scratch-sync-2026-07-07 deleted. Note for the record: the park-everything sweep hit workspace
+re-merge conflicts this round; the working sequence was unapply-the-merged-lane -> `but pull`
+directly (its preflight passed once the but-visible unassigned M files had been routed). The
+design-handoff scratch dirs remain as index-A entries GitButler manages; they don't block pulls.
+
+### 2026-07-07 ~19:20 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: amending the Option-F rewrite into docs/build-kit-overlay-delivery and
+force-pushing; draft PR #5124 updates in place.
+
+### 2026-07-07 ~19:25 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Option-F rewrite amended into docs/build-kit-overlay-delivery and pushed;
+draft PR #5124 retitled/rebodied. Awaiting Mahmoud's review; implementation (catalog entry + FE
+fetch swap + rider retirement) starts on his approval.
+
+### 2026-07-07 ~21:05 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: assembling the build-kit stack — amend design-doc updates into
+docs/build-kit-overlay-delivery, new lane feat/build-kit-static-workflow stacked on it
+(implementation), new lane chore/template-builder-default-on stacked on that (flip), push,
+PRs. Also deleting the served parked lane feat/build-kit-overlay-impl-draft.
+
+### 2026-07-07 ~21:30 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Build-kit stack assembled and pushed: docs/build-kit-overlay-delivery
+(#5124, design) -> feat/build-kit-static-workflow (#5130, implementation) ->
+chore/template-builder-default-on (#5131, flip). All SHAs verified. The served parked lane
+feat/build-kit-overlay-impl-draft is deleted (its FE half was adapted into #5130; the option-A
+BE route was discarded per the design decision). Note: tools.md committed into #5130 —
+test-run-5b's stale tools.md carry commit still holds an older copy (that session's cleanup).
+Merge order: #5124 -> #5130 -> #5131, Rule-7 base advance after each.
+
+### 2026-07-07 ~21:55 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: #5124/#5130/#5131 merged into big-agents; running the Rule-7 base advance
+(unapply merged lanes -> snapshot -> pull -> verify).
+
+### 2026-07-07 ~22:00 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Base advanced to the big-agents tip after the build-kit stack merge
+(#5124 design, #5130 __ag__build_kit static workflow, #5131 template-builder default-on).
+Verified from the base: build_kit.py present, both flags default-on, FE slug atom in tree, dev
+web clean. Remote branches deleted. The zero-config new experience is now the base state:
+home + strip, playground onboarding, chat slice, template builder, working build kit on all
+creation paths. Reminder: api container needs a restart to serve new modules (bind-mount reload
+gap) — done earlier for this stack.
+
+### 2026-07-07 ~22:55 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: new lane feat/build-an-agent-skill-read-first over big-agents (one-file SDK
+change: build-an-agent skill description tells the agent to read the skill at conversation
+start), commit + push + PR.
+
+### 2026-07-07 ~23:00 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Lane feat/build-an-agent-skill-read-first committed (ecdb36f, one file:
+agenta_builtins.py skill description) and pushed, SHAs verified. PR #5138 (base big-agents)
+awaits Mahmoud's review.
+
+### 2026-07-07 ~23:10 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: new lane chore/template-strip-default-on over big-agents (one file:
+agent-home constants.ts, TEMPLATE_STRIP flips to code-default ON per Mahmoud — the dev
+deployment's flag state is the intended default state), commit + push + PR.
+
+### 2026-07-07 ~23:15 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Lane chore/template-strip-default-on committed (52c1b01, one file) and
+pushed, SHAs verified, PR opened (base big-agents). Awaits Mahmoud's review; env-var removal
+from the dev box env file is listed for his confirmation before touching anything.
+
+### 2026-07-07 ~23:10 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: #5139 (template-strip default-on) merged into big-agents; Rule-7 base
+advance (unapply merged lane chore/template-strip-default-on -> snapshot -> pull -> verify).
+
+### 2026-07-07 ~23:12 CEST - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Base advanced to f3cde39a23 (#5139 merge). Verified: TEMPLATE_STRIP_MODE
+default-on in the base tree. All four agent-experience flags are now code-default ON.
+
+### 2026-07-07 ~17:16 UTC - gateway-tool-rendering-plan
+
+**BUT-LOCK TAKEN**: new lane docs/gateway-tool-rendering over big-agents (design-only:
+docs/design/gateway-tool-rendering/** — canonical type:"gateway" tool rendering in the
+playground read path). Snapshot -> branch new -> assign only that dir via cliIds -> commit
+--only -> push -> draft PR. No code files touched.
+
+### 2026-07-07 ~17:20 UTC - gateway-tool-rendering-plan
+
+**BUT-LOCK RELEASED.** Lane docs/gateway-tool-rendering committed (f80aedbcc5, 5 docs files
+only — verified via git show --stat, no leaks) and pushed; local == remote SHA
+f80aedbcc5. Draft PR #5140 opened (base big-agents). Design-only workspace for canonical
+type:"gateway" tool rendering in the playground read path; two open questions parked for
+Mahmoud. No code files touched.
+
+### 2026-07-07 ~17:47 UTC - chat-demo-cleanup
+
+**BUT-LOCK TAKEN**: new lane chore/remove-agent-chat-demo over big-agents (retire the
+standalone /agent-chat demo page + its two env knobs NEXT_PUBLIC_AGENT_CHAT_API /
+NEXT_PUBLIC_AGENT_CHAT_TRACK). Files: the two agent-chat page routes (oss+ee), 6 demo-only
+AgentChatSlice files (index.tsx, AgentChatConversation.tsx, assets/{transport,agConfig,
+loadSession,toAgentaMessage}.ts), constants.ts trim, dynamicEnv.ts, entrypoint.sh,
+SessionDrawer SessionHeader (dead "Open in agent chat" button). AgentChatPanel / playground
+chat untouched. Snapshot -> branch new -> rub by cliId -> commit --only -> push -> PR.
+
+### 2026-07-07 ~17:40 UTC - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: two lanes — chore/remove-agent-chat-demo (demo page + env knobs removal,
+11 files) and fix/entrypoint-env-injection (the uncommitted __env.js key-sync hunk in
+web/entrypoint.sh). Commit, push, PRs. gateway-tool-rendering-revision agent: wait for my
+release before your docs commit.
+
+### 2026-07-07 ~17:52 UTC - chat-demo-cleanup
+
+**BUT-LOCK RELEASED.** Lane chore/remove-agent-chat-demo committed (a77dc02, exactly the 12
+intended files — verified via git show --stat and merge-base diff, no leaks) and pushed;
+local == remote SHA a77dc029882e. PR next (base big-agents). Demo /agent-chat page + the two
+CHAT_API/CHAT_TRACK env knobs are gone; AgentChatPanel / playground chat untouched; lint
+clean, dev web container compiles clean.
+
+### 2026-07-07 ~17:52 UTC - gateway-tool-rendering-revision
+
+**BUT-LOCK TAKEN** (expires 18:10 or on my release note): folding Mahmoud's PR #5140 review
+round into `docs/design/gateway-tool-rendering/**` (4 docs: plan, context, status, README).
+Snapshot -> assign only those 4 files to the existing lane docs/gateway-tool-rendering via
+cliIds -> commit --only -> verify -> push. Design-only, no code files.
+
+### 2026-07-07 ~17:55 UTC - gateway-tool-rendering-revision
+
+**BUT-LOCK RELEASED.** Mahmoud's PR #5140 review round folded into
+docs/design/gateway-tool-rendering/** (commit f1dc65df41, exactly the 4 intended docs —
+plan/context/status/README, verified via git show --stat, no leaks) and pushed; local ==
+remote SHA f1dc65df41. Changes: product invariant leads the rendering plan; drill-in = Option
+B into the EXISTING gateway view (open question #1 closed); add-path-only identity, no FE
+dedupe; unresolvable-tool fail-safe added as its own slice + test; convergence deferred (open
+question #2 closed). Design-only, no code files touched. Replying inline to the 5 review
+comments next.
+
+### 2026-07-07 ~18:20 UTC - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Full sequence done: (1) split web/entrypoint.sh out of the chat-demo
+cleanup commit — a77dc02 amended to 11 files, force-pushed (PR #5143 body updated); the 10-key
+__env.js injection sync landed on its own lane fix/entrypoint-env-injection = PR #5144.
+(2) Deleted-file resurrection residue removed (8 files, each verified byte-identical to base).
+(3) but pull: base advanced to 79906d56d8 (#5132-#5136 runner stack + #5138 skill-read-first
+integrated, lane auto-retired). (4) All three remaining lanes rebased and force-pushed, SHAs
+verified. Open PRs: #5140 (design, revised per Mahmoud's review + inline replies), #5143
+(chat-demo cleanup), #5144 (env-injection sync).
+
+### 2026-07-07 ~18:07 UTC - settings-shortlink-session
+
+**BUT-LOCK TAKEN** (expires in 15min or on my release note): merging PR #5141
+(feat/settings-short-link) and #5142 (feat/hide-demo-workspaces) into big-agents,
+then `but pull` to advance the base and retire the two lanes.
