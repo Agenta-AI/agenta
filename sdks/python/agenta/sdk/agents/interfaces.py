@@ -236,7 +236,7 @@ class Harness(ABC):
         """Files this harness needs laid into the sandbox before the run.
 
         The instructions filename is harness-aware, mirroring the runner's workspace
-        materialization (``services/agent/.../workspace.ts``): Claude runs through
+        materialization (``services/runner/.../workspace.ts``): Claude runs through
         ``claude-agent-sdk``, whose memory loader auto-loads ``CLAUDE.md`` only and never reads
         ``AGENTS.md``, so the claude harness's instructions must land in ``CLAUDE.md``. Pi (and
         any other harness) reads ``AGENTS.md``.

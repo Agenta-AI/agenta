@@ -11,10 +11,10 @@ import {useCreateAgent} from "./useCreateAgent"
 /**
  * What happens when a template card is clicked, gated by `NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`
  * ({@link TEMPLATE_BUILDER_MODE}):
- *  - Builder mode ON (opt-in, `true`) → create a blank agent and open its playground seeded with the
+ *  - Builder mode ON (default) → create a blank agent and open its playground seeded with the
  *    template's builder instruction (Mahmoud's agent-builder flow — no config-review drawer, no
  *    direct config write). Reuses the same first-run seed path as the Home composer.
- *  - Builder mode OFF (default) → the existing config-definition flow: hand the template to
+ *  - Builder mode OFF (explicit `"false"`) → the existing config-definition flow: hand the template to
  *    `openSetup` so the caller opens the `TemplateSetupDrawer`.
  *
  * Both behaviors are retained so they can be A/B'd while the agent builder is unreliable.

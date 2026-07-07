@@ -22,6 +22,7 @@ from agenta.sdk.utils.net import assert_endpoint_url_allowed
 from ..capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
+    PROVIDER_ENV_VARS,
 )
 from ..connections import (
     AmbiguousConnectionError,
@@ -39,17 +40,8 @@ from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
 
-_PROVIDER_ENV_VARS: Dict[str, str] = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "gemini": "GEMINI_API_KEY",
-    "mistral": "MISTRAL_API_KEY",
-    "mistralai": "MISTRAL_API_KEY",
-    "minimax": "MINIMAX_API_KEY",
-    "groq": "GROQ_API_KEY",
-    "together_ai": "TOGETHERAI_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-}
+# Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
+_PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
 
 # The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
 # or by a dated id (``claude-opus-4-8``), never with a ``provider/`` prefix. Those bare ids are

@@ -3,7 +3,7 @@
 This is the backend a standalone SDK user gets. It is two mechanisms, one per harness, which
 is exactly a backend's "plumbing per harness" job:
 
-- Pi   -> the Node agent runner (``services/agent``), driven over the subprocess transport.
+- Pi   -> the Node agent runner (``services/runner``), driven over the subprocess transport.
 - Claude -> the pure-Python ``claude-agent-sdk``, in-process, no TS bridge.
 
 NOTE on packaging: the Node runner is NOT part of this Python wheel (``pip install agenta``

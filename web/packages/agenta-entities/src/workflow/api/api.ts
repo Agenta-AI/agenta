@@ -14,6 +14,7 @@
  * - Create/Update: workflow + revision commit endpoints
  */
 
+import {getAgentaSdkClient} from "@agenta/sdk"
 import {getWorkflowsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
@@ -335,6 +336,44 @@ export async function retrieveWorkflowRevision({
         "[retrieveWorkflowRevision]",
     )
     return validated?.workflow_revision ?? null
+}
+
+// ============================================================================
+// AGENT BUILD-KIT OVERLAY (reserved static workflow)
+// ============================================================================
+
+export const AGENT_BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
+
+const agentBuildKitOverlaySchema = z
+    .object({
+        tools: z.array(z.unknown()).optional(),
+        skills: z.array(z.unknown()).optional(),
+        sandbox: z.record(z.string(), z.unknown()).optional(),
+    })
+    .passthrough()
+
+export type AgentBuildKitOverlay = z.infer<typeof agentBuildKitOverlaySchema>
+
+export async function fetchAgentBuildKitOverlay(
+    projectId: string,
+): Promise<AgentBuildKitOverlay | null> {
+    if (!projectId) return null
+
+    const revision = await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {slug: AGENT_BUILD_KIT_WORKFLOW_SLUG},
+    })
+    const overlay = revision?.data?.parameters?.agent
+    if (overlay == null) return null
+
+    const validated = safeParseWithLogging(
+        agentBuildKitOverlaySchema,
+        overlay,
+        "[fetchAgentBuildKitOverlay]",
+    )
+    if (!validated || Object.keys(validated).length === 0) return null
+
+    return validated
 }
 
 /**

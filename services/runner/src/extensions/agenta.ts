@@ -13,7 +13,9 @@
  * remain in memory:
  *   TRACEPARENT                       W3C traceparent of the caller's /invoke span
  *   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  OTLP traces URL (e.g. https://host/api/otlp/v1/traces)
- *   OTEL_EXPORTER_OTLP_HEADERS        key=value list for export headers (e.g. Authorization=...)
+ *   AGENTA_AGENT_OTLP_AUTH_FILE       path to a runner-written, 0600, read-once file holding
+ *                                     the OTLP Authorization bearer (never a plain env
+ *                                     var — read once here, then deleted, see readOtlpAuthFile)
  *   AGENTA_AGENT_CONTENT_CAPTURE_ENABLED "false" to drop prompt/completion/tool I/O from spans
  *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS   JSON [{ name, description, inputSchema }]
  *   AGENTA_AGENT_TOOLS_RELAY_DIR      relay tool calls through the runner via files here
@@ -23,7 +25,7 @@
  * it (local, the docker sidecar, a Daytona snapshot). Default export is the Pi
  * ExtensionFactory.
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 import {
   isToolCallEventType,
@@ -37,17 +39,22 @@ import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
 import { requiredFields, specInputSchema } from "../tools/spec-schema.ts";
 
-/** Pull the Authorization value out of an OTEL_EXPORTER_OTLP_HEADERS key=value list. */
-function authorizationFromOtlpHeaders(raw?: string): string | undefined {
-  if (!raw) return undefined;
-  for (const pair of raw.split(",")) {
-    const eq = pair.indexOf("=");
-    if (eq === -1) continue;
-    if (pair.slice(0, eq).trim().toLowerCase() === "authorization") {
-      return pair.slice(eq + 1).trim();
-    }
+/** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
+export function readOtlpAuthFile(path?: string): string | undefined {
+  if (!path) return undefined;
+  let value: string;
+  try {
+    value = readFileSync(path, "utf-8").trim();
+  } catch {
+    return undefined;
   }
-  return undefined;
+  // Delete is best-effort and must not drop a bearer we already read (runner cleanup also removes it).
+  try {
+    unlinkSync(path);
+  } catch {
+    /* ignore */
+  }
+  return value || undefined;
 }
 import { relayPermissionCheck, runResolvedTool } from "../tools/dispatch.ts";
 
@@ -309,9 +316,7 @@ const factory = (pi: ExtensionAPI): void => {
   const otel = createAgentaOtel({
     traceparent: process.env.TRACEPARENT,
     endpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-    authorization: authorizationFromOtlpHeaders(
-      process.env.OTEL_EXPORTER_OTLP_HEADERS,
-    ),
+    authorization: readOtlpAuthFile(process.env.AGENTA_AGENT_OTLP_AUTH_FILE),
     captureContent:
       process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
     // The skills that loaded for this run (author + forced `_agenta.*`), stamped on the agent

@@ -196,6 +196,19 @@ async def deliver_http_stream(
         raise RuntimeError("Agent runner stream ended without a terminal result record")
 
 
+_STDERR_TAIL_BYTES = 2000
+
+
+async def _drain_stderr(stream: asyncio.StreamReader) -> bytes:
+    """Read stderr to EOF as it arrives so a full pipe never blocks the child; keep only the tail."""
+    tail = b""
+    while True:
+        chunk = await stream.read(65536)
+        if not chunk:
+            return tail
+        tail = (tail + chunk)[-_STDERR_TAIL_BYTES:]
+
+
 async def deliver_subprocess_stream(
     command: Sequence[str],
     payload: Dict[str, Any],
@@ -218,10 +231,15 @@ async def deliver_subprocess_stream(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    assert proc.stdin is not None and proc.stdout is not None
+    assert (
+        proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
+    )
     proc.stdin.write(json.dumps(payload).encode("utf-8"))
     proc.stdin.close()
-    loop = asyncio.get_event_loop()
+    # Drain stderr concurrently (mirrors communicate()'s sibling behavior) so a chatty child
+    # never blocks on a full pipe while we're only reading stdout below.
+    stderr_task = asyncio.create_task(_drain_stderr(proc.stderr))
+    loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     saw_result = False
     try:
@@ -244,15 +262,18 @@ async def deliver_subprocess_stream(
         # A clean drain that never produced a terminal result means the runner exited or
         # disconnected early; fail loud rather than leaving the consumer without a result.
         if not saw_result:
-            err = b""
-            if proc.stderr is not None:
-                err = await proc.stderr.read()
+            err = await stderr_task
             raise _transport_error(
                 "Agent runner stream ended without a terminal result record",
                 detail=f"exit={proc.returncode} "
-                f"stderr={err.decode('utf-8', 'replace')[-2000:]}",
+                f"stderr={err.decode('utf-8', 'replace')[-_STDERR_TAIL_BYTES:]}",
             )
     finally:
         if proc.returncode is None:
             proc.kill()
             await proc.wait()
+        if not stderr_task.done():
+            stderr_task.cancel()
+        # Await the drain task so an early consumer break doesn't leave it pending or drop
+        # its exception ("Task exception was never retrieved").
+        await asyncio.gather(stderr_task, return_exceptions=True)

@@ -710,8 +710,10 @@ HTTP only when your wired tools cannot do the job, and say so when you do.
 BUILD_AN_AGENT_SKILL = SkillTemplate(
     name="build-an-agent",
     description=(
-        "Build or configure an Agenta agent end to end. Use when the user asks to set up, "
-        "automate, connect tools for, schedule, or subscribe an agent."
+        "Build or configure an Agenta agent end to end. ALWAYS read this skill at the start "
+        "of the conversation, before your first reply, to load context on what you are and "
+        "how you configure yourself. Then follow it when the user asks to set up, automate, "
+        "connect tools for, schedule, or subscribe an agent."
     ),
     body=_BUILD_AN_AGENT_BODY,
     files=[

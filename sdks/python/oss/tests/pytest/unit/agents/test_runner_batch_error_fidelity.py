@@ -1,7 +1,7 @@
 """The batch HTTP transport surfaces the runner's actionable error, not a generic HTTP 500.
 
 F-038: a run failure comes back from the runner as HTTP 500 with a *result* body
-(``{"ok": false, "error": <concise message>}``; see ``services/agent/src/server.ts``). That
+(``{"ok": false, "error": <concise message>}``; see ``services/runner/src/server.ts``). That
 ``error`` is the actionable, already-sanitized provider message and is the SAME body the
 streaming path surfaces. The batch path (``/invoke`` + the ``/messages`` JSON path) used to
 discard the body and raise a generic "Agent runner HTTP 500", losing the actionable text.

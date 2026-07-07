@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
   buildDaytonaCreate,
+  buildSandboxProvider,
   daytonaAutoStopMinutes,
   daytonaNetworkFields,
 } from "../../src/engines/sandbox_agent/provider.ts";
@@ -124,5 +125,30 @@ describe("buildDaytonaCreate (leak backstop on the create object)", () => {
     const create = buildDaytonaCreate({}, {}, undefined);
     assert.equal(create.autoStopInterval, 42);
     assert.equal(create.ephemeral, true);
+  });
+});
+
+describe("buildSandboxProvider (unknown sandbox id must refuse, not run local)", () => {
+  it("throws for an unrecognized sandbox id instead of falling back to local", () => {
+    assert.throws(
+      () => buildSandboxProvider("typo-sandbox", {}, undefined, {}, {}),
+      /Unknown sandbox id 'typo-sandbox'/,
+    );
+  });
+
+  it("still resolves 'local' without refusing (no widening/narrowing of the known set)", () => {
+    assert.doesNotThrow(() =>
+      buildSandboxProvider("local", {}, undefined, {}, {}),
+    );
+  });
+
+  it("'daytona' reaches the daytona() constructor, not the unknown-id refusal", () => {
+    // No DAYTONA_* credentials in this test env, so daytona() itself throws — proving the
+    // known-id branch was taken (the unknown-id error is never a credential error).
+    assert.throws(
+      () => buildSandboxProvider("daytona", {}, undefined, {}, {}),
+      (err: unknown) =>
+        err instanceof Error && !/Unknown sandbox id/.test(err.message),
+    );
   });
 });

@@ -1354,7 +1354,7 @@ class _PermissionsSchema(BaseModel):
 
 
 class _RunnerSchema(BaseModel):
-    """The engine that drives the harness loop (the ``services/agent`` sidecar).
+    """The engine that drives the harness loop (the ``services/runner`` sidecar).
 
     ``kind`` names the engine; ``permissions`` is the runner-enforced tool execution policy.
     ``extras`` is the per-runner escape hatch. The rest of the runner surface (delivery channel,

@@ -58,6 +58,16 @@ export async function prepareWorkspace({
       log(`workspace mkdir skipped: ${err.message}`);
     });
     if (plan.useToolRelay) {
+      // Clear stale .req.json/.res.json from a prior turn before recreating: the relay
+      // dir is keyed on the durable cwd and a fresh per-turn `seen` set would otherwise re-execute it.
+      if (typeof sandbox.runProcess === "function") {
+        // Direct argv, no shell, so an arbitrary path can't break or inject.
+        await sandbox
+          .runProcess({ command: "rm", args: ["-rf", "--", plan.relayDir] })
+          .catch((err: Error) => {
+            log(`tool relay dir clear skipped: ${err.message}`);
+          });
+      }
       await sandbox.mkdirFs({ path: plan.relayDir }).catch((err: Error) => {
         log(`tool relay dir mkdir skipped: ${err.message}`);
       });
@@ -92,7 +102,12 @@ export async function prepareWorkspace({
     return { cleanup: async () => {} };
   }
 
-  if (plan.useToolRelay) mkdirSync(plan.relayDir, { recursive: true });
+  if (plan.useToolRelay) {
+    // Clear stale .req.json from a prior turn: relayDir is keyed on the durable cwd and
+    // is never otherwise cleared, so an old request would be re-picked-up by the fresh `seen` set.
+    rmSync(plan.relayDir, { recursive: true, force: true });
+    mkdirSync(plan.relayDir, { recursive: true });
+  }
   if (plan.agentsMd)
     writeFileSync(join(plan.cwd, instructionsFile), plan.agentsMd, "utf-8");
   for (const file of harnessFiles) {
