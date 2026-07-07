@@ -27,6 +27,26 @@ const FIELD_TYPES = new Set(["string", "number", "integer", "boolean"])
 /** `format` values the renderer maps to dedicated controls; unknown formats fall back to text. */
 export const KNOWN_STRING_FORMATS = new Set(["date", "date-time", "email", "uri", "multiline"])
 
+/** Natural aliases an author (often an LLM) emits for a known format. */
+const STRING_FORMAT_ALIASES: Record<string, string> = {
+    textarea: "multiline",
+    "multi-line": "multiline",
+    multi_line: "multiline",
+    longtext: "multiline",
+    "long-text": "multiline",
+    long_text: "multiline",
+    datetime: "date-time",
+    url: "uri",
+}
+
+/** Resolve a schema `format` to a renderer-known format (aliases → canonical), or undefined. */
+export function normalizeStringFormat(format: unknown): string | undefined {
+    if (typeof format !== "string") return undefined
+    const lower = format.trim().toLowerCase()
+    const canonical = STRING_FORMAT_ALIASES[lower] ?? lower
+    return KNOWN_STRING_FORMATS.has(canonical) ? canonical : undefined
+}
+
 export interface ElicitationFieldSchema {
     type: "string" | "number" | "integer" | "boolean"
     title?: string

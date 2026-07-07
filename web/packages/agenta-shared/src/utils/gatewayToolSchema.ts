@@ -1,4 +1,4 @@
-import {KNOWN_STRING_FORMATS} from "./elicitation"
+import {normalizeStringFormat} from "./elicitation"
 
 export interface FormFieldDescriptor {
     name: string // dot-path for nested: "parent.child"
@@ -98,14 +98,9 @@ export function buildFormFieldsFromSchema(
             freeform = true
         }
 
-        // Opt-in only: known formats on plain string fields; enum wins over format.
+        // Opt-in only: known formats (aliases normalized) on plain string fields; enum wins.
         const format =
-            opts?.formats &&
-            fieldType === "string" &&
-            typeof prop.format === "string" &&
-            KNOWN_STRING_FORMATS.has(prop.format)
-                ? (prop.format as string)
-                : undefined
+            opts?.formats && fieldType === "string" ? normalizeStringFormat(prop.format) : undefined
 
         return {
             name: fullName,

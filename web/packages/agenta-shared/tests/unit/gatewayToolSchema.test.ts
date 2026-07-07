@@ -73,6 +73,25 @@ describe("buildFormFieldsFromSchema — formats flag", () => {
         expect(odd && "format" in odd).toBe(false)
     })
 
+    it("flag on: format aliases normalize to canonical", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                a: {type: "string", format: "textarea"},
+                b: {type: "string", format: "multi-line"},
+                c: {type: "string", format: "MULTILINE"},
+                d: {type: "string", format: "url"},
+            },
+        }
+        const byName = Object.fromEntries(
+            buildFormFieldsFromSchema(schema, "", {formats: true}).map((f) => [f.name, f]),
+        )
+        expect(byName.a.format).toBe("multiline")
+        expect(byName.b.format).toBe("multiline")
+        expect(byName.c.format).toBe("multiline")
+        expect(byName.d.format).toBe("uri")
+    })
+
     it("flag on: enum wins over format; non-string types never get a format", () => {
         const fields = buildFormFieldsFromSchema(schemaWithFormats(), "", {formats: true})
         const byName = Object.fromEntries(fields.map((f) => [f.name, f]))

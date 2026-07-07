@@ -12,6 +12,7 @@ import {
     buildDegradationErrorText,
     deriveElicitationPartState,
     hasPriorElicitationDegradation,
+    normalizeStringFormat,
     parseElicitationPayload,
     serializeElicitationContent,
 } from "../../src/utils/elicitation"
@@ -175,6 +176,37 @@ describe("SECRET_FIELD_PATTERN", () => {
     it.each(["name", "timezone", "frequency", "message"])("does not match %s", (name) =>
         expect(SECRET_FIELD_PATTERN.test(name)).toBe(false),
     )
+})
+
+describe("normalizeStringFormat", () => {
+    it.each(["date", "date-time", "email", "uri", "multiline"])(
+        "passes through canonical format %s",
+        (f) => expect(normalizeStringFormat(f)).toBe(f),
+    )
+
+    it.each([
+        ["textarea", "multiline"],
+        ["multi-line", "multiline"],
+        ["multi_line", "multiline"],
+        ["long-text", "multiline"],
+        ["long_text", "multiline"],
+        ["longtext", "multiline"],
+        ["datetime", "date-time"],
+        ["url", "uri"],
+    ])("maps alias %s -> %s", (alias, canonical) =>
+        expect(normalizeStringFormat(alias)).toBe(canonical),
+    )
+
+    it("is case- and whitespace-insensitive", () => {
+        expect(normalizeStringFormat("  TextArea ")).toBe("multiline")
+        expect(normalizeStringFormat("Date-Time")).toBe("date-time")
+    })
+
+    it("returns undefined for unknown or non-string formats", () => {
+        expect(normalizeStringFormat("hologram")).toBeUndefined()
+        expect(normalizeStringFormat(undefined)).toBeUndefined()
+        expect(normalizeStringFormat(42)).toBeUndefined()
+    })
 })
 
 describe("result envelopes", () => {
