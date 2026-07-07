@@ -22,15 +22,15 @@ export const PLAYGROUND_NATIVE_ONBOARDING =
     (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() !== "false"
 
 /**
- * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). When true, Home,
+ * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). On by default: Home,
  * playground onboarding, and every agent's empty chat render the shared `<TemplateStrip />`:
  * always visible, filterable in place, card click fills the composer + shows a provenance
- * chip (no drawer, no direct create). When false/unset (default), the current per-surface
- * template UIs (grid, quick-pick list, gallery) are unchanged. Both are kept so the new
- * experience can be A/B'd before the old flows are removed.
+ * chip (no drawer, no direct create). Set to "false" to fall back to the per-surface
+ * template UIs (grid, quick-pick list, gallery), kept so the experiences can still be
+ * compared before the old flows are removed.
  */
 export const TEMPLATE_STRIP_MODE =
-    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() === "true"
+    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() !== "false"
 
 export const HERO = {
     eyebrowNew: "New",
