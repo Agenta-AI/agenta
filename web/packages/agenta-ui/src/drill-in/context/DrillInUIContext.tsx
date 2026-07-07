@@ -315,12 +315,14 @@ export interface DrillInUIComponents {
 
     /**
      * Deployment (host app) facts the package can't determine itself. Today: whether this
-     * deployment is Agenta cloud, which gates the Provider credentials section's "Use
-     * subscription" connection mode (design.md D6, docs/design/connect-model-drawer).
-     * Absent (older hosts) reads as not-cloud, i.e. ungated.
+     * deployment is Agenta cloud, which gates the Provider credentials section's self-managed
+     * card badge (design.md D6, docs/design/connect-model-drawer) — the "Use subscription" mode
+     * itself stays clickable regardless. Absent (older hosts) reads as not-cloud, i.e. ungated.
      */
     deployment?: {
-        /** Policy: gates the self_managed connection mode in the UI. Never changes at runtime. */
+        /** Policy: gates the self-managed card's "Not on cloud" badge, NOT the connection mode's
+         * clickability (the toggle is always clickable when capability-allowed). Never changes at
+         * runtime. */
         isCloud: boolean
         /** Link target for the self-managed info card's "Read the self-hosting guide" pill. */
         selfHostingGuideUrl?: string

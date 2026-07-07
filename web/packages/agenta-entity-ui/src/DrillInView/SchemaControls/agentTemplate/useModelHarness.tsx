@@ -28,11 +28,11 @@ import {
     buildModelOptionGroups,
     composeModelValue,
     connectionFromConfig,
-    familyFromModelId,
     harnessAllowsModel,
     modelIdFromConfig,
     providerForModel,
     vaultModelGroups,
+    vaultPickedProviderFamily,
     type ConnectionMode,
 } from "../connectionUtils"
 import {EnumSelectControl} from "../EnumSelectControl"
@@ -236,6 +236,9 @@ export function useModelHarness({
             provider?: string | null
             mode?: ConnectionMode
             slug?: string | null
+            /** A vault-hosted option's own connection kind (`metadata.provider` from
+             * `vaultModelGroups`) — a fallback family source, see `vaultPickedProviderFamily`. */
+            metadataProvider?: string | null
         }) => {
             const nextModelId = patch.modelId !== undefined ? patch.modelId : modelId
             // Explicit slug wins — the picker threads a vault option's own connection slug through
@@ -250,13 +253,21 @@ export function useModelHarness({
                       ? null
                       : connection.slug
             // Provider is always the model FAMILY — a vault connection's own `provider` is its
-            // DEPLOYMENT kind (bedrock/…), which would fail the harness provider check.
+            // DEPLOYMENT kind (bedrock/…), which would fail the harness provider check. For a vault
+            // pick, `vaultPickedProviderFamily` prefers the id-encoded family and only falls back to
+            // the connection's own kind when that kind is ALREADY a plain family (not a deployment
+            // kind); either way, never drop to null while a prior provider exists (guarantees a
+            // model pick never silently clears `llm.provider`).
             let nextProvider: string | null
             if (patch.provider !== undefined) {
                 nextProvider = patch.provider
             } else if (patch.modelId !== undefined) {
                 nextProvider = patch.slug
-                    ? familyFromModelId(nextModelId, capabilities)
+                    ? (vaultPickedProviderFamily(
+                          nextModelId,
+                          patch.metadataProvider,
+                          capabilities,
+                      ) ?? connection.provider)
                     : (providerForModel(capabilities, harnessValue, nextModelId) ??
                       connection.provider)
             } else {
@@ -390,17 +401,22 @@ export function useModelHarness({
                 options={modelGroups}
                 value={modelId ?? undefined}
                 onChange={(v, option) => {
-                    // A vault-hosted model option carries its own connection slug in `metadata`
-                    // (set by `vaultModelGroups`); a catalog option carries none. Read it straight
-                    // off the picked option instead of re-guessing the connection by model id —
-                    // duplicate ids across providers/connections would resolve to the wrong one.
+                    // A vault-hosted model option carries its own connection slug + kind in
+                    // `metadata` (set by `vaultModelGroups`); a catalog option carries neither.
+                    // Read them straight off the picked option instead of re-guessing the
+                    // connection by model id — duplicate ids across providers/connections would
+                    // resolve to the wrong one. The kind is a fallback provider source only (see
+                    // `vaultPickedProviderFamily`) for ids that encode no family themselves.
                     const picked = Array.isArray(option) ? option[0] : option
-                    const connectionSlug = (
-                        picked as {metadata?: {connectionSlug?: string}} | undefined
-                    )?.metadata?.connectionSlug
+                    const metadata = (
+                        picked as
+                            | {metadata?: {connectionSlug?: string; provider?: string}}
+                            | undefined
+                    )?.metadata
                     writeModel({
                         modelId: (v as string) ?? null,
-                        slug: connectionSlug ?? null,
+                        slug: metadata?.connectionSlug ?? null,
+                        metadataProvider: metadata?.provider ?? null,
                     })
                 }}
                 disabled={disabled}
@@ -553,6 +569,23 @@ export function useModelHarness({
         </SectionRail>
     )
 
+    // Provider credentials section: identical in both the capability-aware and flat layouts below,
+    // rendered once and reused so the two branches don't carry a duplicate prop list.
+    const providerCredentialsSection = props.llm ? (
+        <ProviderCredentialsSection
+            mode={connection.mode}
+            onModeChange={(m) => writeModel({mode: m})}
+            selectedProviderFamily={selectedProviderFamily}
+            selectedConnectionSlug={connection.slug ?? null}
+            modeOptions={modeOptions}
+            isCloud={isCloud}
+            selfHostingGuideUrl={deployment?.selfHostingGuideUrl}
+            providerNeedsKey={providerNeedsKey}
+            openConfigureProvider={openConfigureProviderAdopting}
+            disabled={disabled}
+        />
+    ) : null
+
     // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
     // left (each card owns its model-compat state), version history on the right — same two-panel
     // shape as the Advanced drawer. Without capabilities: the plain harness select, single column.
@@ -599,20 +632,7 @@ export function useModelHarness({
                 </div>
             </ConfigAccordionSection>
 
-            {props.llm ? (
-                <ProviderCredentialsSection
-                    mode={connection.mode}
-                    onModeChange={(m) => writeModel({mode: m})}
-                    selectedProviderFamily={selectedProviderFamily}
-                    selectedConnectionSlug={connection.slug ?? null}
-                    modeOptions={modeOptions}
-                    isCloud={isCloud}
-                    selfHostingGuideUrl={deployment?.selfHostingGuideUrl}
-                    providerNeedsKey={providerNeedsKey}
-                    openConfigureProvider={openConfigureProviderAdopting}
-                    disabled={disabled}
-                />
-            ) : null}
+            {providerCredentialsSection}
         </>
     ) : (
         <>
@@ -628,20 +648,7 @@ export function useModelHarness({
                 </RailField>
             )}
             {modelPicker}
-            {props.llm ? (
-                <ProviderCredentialsSection
-                    mode={connection.mode}
-                    onModeChange={(m) => writeModel({mode: m})}
-                    selectedProviderFamily={selectedProviderFamily}
-                    selectedConnectionSlug={connection.slug ?? null}
-                    modeOptions={modeOptions}
-                    isCloud={isCloud}
-                    selfHostingGuideUrl={deployment?.selfHostingGuideUrl}
-                    providerNeedsKey={providerNeedsKey}
-                    openConfigureProvider={openConfigureProviderAdopting}
-                    disabled={disabled}
-                />
-            ) : null}
+            {providerCredentialsSection}
         </>
     )
 

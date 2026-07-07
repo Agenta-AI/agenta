@@ -18,10 +18,12 @@ import {
     connectionFromConfig,
     harnessAllowsModel,
     harnessAllowsProvider,
+    isDeploymentProviderKind,
     modelIdFromConfig,
     modelSelectionMode,
     providerForModel,
     vaultModelGroups,
+    vaultPickedProviderFamily,
     type HarnessCapabilitiesMap,
 } from "../../src/DrillInView/SchemaControls/connectionUtils"
 
@@ -309,5 +311,55 @@ describe("connectionUtils: vaultModelGroups (custom_provider connections)", () =
                 "pi_core",
             ),
         ).toEqual([])
+    })
+})
+
+describe("connectionUtils: isDeploymentProviderKind", () => {
+    it("names deployment surfaces (hosting mechanisms, not model families)", () => {
+        expect(isDeploymentProviderKind("bedrock")).toBe(true)
+        expect(isDeploymentProviderKind("azure")).toBe(true)
+        expect(isDeploymentProviderKind("vertex_ai")).toBe(true)
+        expect(isDeploymentProviderKind("custom")).toBe(true)
+        expect(isDeploymentProviderKind("sagemaker")).toBe(true)
+        expect(isDeploymentProviderKind("BEDROCK")).toBe(true)
+    })
+
+    it("does not treat a plain provider family as a deployment kind", () => {
+        expect(isDeploymentProviderKind("openai")).toBe(false)
+        expect(isDeploymentProviderKind("anthropic")).toBe(false)
+        expect(isDeploymentProviderKind(null)).toBe(false)
+        expect(isDeploymentProviderKind(undefined)).toBe(false)
+    })
+})
+
+describe("connectionUtils: vaultPickedProviderFamily (F1 — vault pick must persist a provider)", () => {
+    it("prefers the family the model id itself encodes over the connection's own kind", () => {
+        // A deployment-hosted id ("eu.anthropic...") already encodes anthropic — the connection's
+        // own "bedrock" kind (a hosting mechanism) must not override it.
+        expect(
+            vaultPickedProviderFamily("eu.anthropic.claude-haiku-4-5", "bedrock", CAPABILITIES),
+        ).toBe("anthropic")
+    })
+
+    it("falls back to the connection's own kind when it is already a plain family", () => {
+        // The regression case: a plain custom connection (kind "openai") whose own model id
+        // ("my-model-1") encodes no family. Before the fix this silently dropped the provider.
+        expect(vaultPickedProviderFamily("my-model-1", "openai", CAPABILITIES)).toBe("openai")
+    })
+
+    it("never falls back to a deployment kind as the provider (not itself a model family)", () => {
+        // No vendor-prefixed id AND the connection's own kind is a deployment surface: there is no
+        // safe family to derive, so the caller (useModelHarness.writeModel) falls back further to
+        // the prior provider rather than persisting an invalid one.
+        expect(vaultPickedProviderFamily("my-model-1", "bedrock", CAPABILITIES)).toBeNull()
+    })
+
+    it("returns null when neither the id nor the metadata provider resolve a family", () => {
+        expect(vaultPickedProviderFamily("my-model-1", null, CAPABILITIES)).toBeNull()
+        expect(vaultPickedProviderFamily(null, null, CAPABILITIES)).toBeNull()
+    })
+
+    it("still resolves the family from metadata alone when the id is absent", () => {
+        expect(vaultPickedProviderFamily(null, "openai", CAPABILITIES)).toBe("openai")
     })
 })

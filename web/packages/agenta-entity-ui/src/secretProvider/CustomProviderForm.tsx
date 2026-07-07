@@ -160,7 +160,8 @@ const CustomProviderForm = ({
 
     const onSubmit = async (values: LlmProvider) => {
         try {
-            if (form.getFieldValue("models").length === 0 || !form.getFieldValue("models")[0]) {
+            const models = form.getFieldValue("models") as string[] | undefined
+            if (!models?.length || !models[0]) {
                 setErrorMessage("Please add a model name before submitting")
                 return
             }

@@ -341,6 +341,28 @@ export function familyFromModelId(
     return null
 }
 
+/**
+ * The provider FAMILY to persist for a vault-hosted model pick (a picker option carrying a
+ * `connectionSlug`, per `vaultModelGroups`). Prefers the family the model id itself encodes
+ * (`familyFromModelId` — deployment-hosted ids like "eu.anthropic.claude-haiku-4-5" carry it
+ * structurally); when the id encodes none (e.g. a plain custom connection's own model,
+ * "gpt-4o-mini"), falls back to the option's `metadata.provider` — but ONLY when that IS already
+ * a plain family, never a deployment kind (bedrock/azure/... is a hosting mechanism, not itself a
+ * valid `llm.provider`). Returns null only when neither source resolves a family; the caller
+ * (`useModelHarness.writeModel`) falls back further to the prior provider so a vault pick never
+ * silently drops the field.
+ */
+export function vaultPickedProviderFamily(
+    modelId: string | null | undefined,
+    metadataProvider: string | null | undefined,
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+): string | null {
+    const family = familyFromModelId(modelId, capabilities)
+    if (family) return family
+    if (metadataProvider && !isDeploymentProviderKind(metadataProvider)) return metadataProvider
+    return null
+}
+
 // A custom_provider secret's `kind` (its `provider` field) is one of two flavors: a DEPLOYMENT
 // surface (azure/bedrock/vertex_ai/custom/sagemaker — a hosting mechanism, gated against what the
 // harness can *consume*) or a plain PROVIDER FAMILY (openai/anthropic/gemini/... — the "custom"
@@ -351,6 +373,17 @@ export function familyFromModelId(
 const DEPLOYMENT_KINDS = new Set(["direct", "custom", "azure", "bedrock", "vertex_ai", "sagemaker"])
 
 /**
+ * Whether a custom_provider `kind` names a DEPLOYMENT surface (a hosting mechanism, not itself a
+ * model family — e.g. "bedrock" hosts many families) rather than a plain provider family (e.g.
+ * "openai", where the kind IS the family). Shared by the two places that need the same two-flavor
+ * split: `harnessReachesCustomProviderKind` below and the vault-pick provider fallback in
+ * `useModelHarness` (a deployment kind is never a valid `llm.provider` value).
+ */
+export function isDeploymentProviderKind(kind: string | null | undefined): boolean {
+    return !!kind && DEPLOYMENT_KINDS.has(kind.toLowerCase())
+}
+
+/**
  * Whether the harness can reach a custom_provider connection's kind — as a consumable deployment
  * surface when the kind names one, otherwise as a plain provider family.
  */
@@ -359,7 +392,7 @@ function harnessReachesCustomProviderKind(
     harness: string | null | undefined,
     kind: string,
 ): boolean {
-    if (DEPLOYMENT_KINDS.has(kind)) {
+    if (isDeploymentProviderKind(kind)) {
         const consumable = allowedDeployments(capabilities, harness)
         return consumable.includes("*") || consumable.some((d) => d.toLowerCase() === kind)
     }

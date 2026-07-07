@@ -11,7 +11,12 @@ export interface ModelNameInputProps extends InputProps {
 const ModelNameInput = ({onDelete, disabled, ...props}: ModelNameInputProps) => {
     return (
         <div className="w-full relative">
-            <Input placeholder="Enter model name" className="w-full" {...props} />
+            <Input
+                placeholder="Enter model name"
+                className="w-full"
+                disabled={disabled}
+                {...props}
+            />
             <Button
                 icon={<Trash size={14} />}
                 type="link"

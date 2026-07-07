@@ -113,12 +113,18 @@ function standardSecretMatches(secret: LlmProvider, candidates: Set<string>): bo
     )
 }
 
-/** Whether a custom-provider KIND (azure/bedrock/…) can host the selected model family. */
+/** Whether a custom-provider KIND (azure/bedrock/…) can host the selected model family. Mirrors
+ * connectionUtils' `harnessReachesCustomProviderKind` two-flavor split: a DEPLOYMENT kind
+ * (azure/bedrock/vertex_ai/sagemaker/custom) is gated by `CUSTOM_PROVIDER_KIND_FAMILIES`, but a
+ * kind absent from that map is a plain PROVIDER FAMILY (e.g. a second "openai"-kind connection) —
+ * the kind itself IS the family, so it serves the selected model whenever the kind matches. Without
+ * this branch the rail hides plain-family custom connections that the model dropdown still shows. */
 function kindServesFamily(kind: string | null | undefined, candidates: Set<string>): boolean {
-    const families = CUSTOM_PROVIDER_KIND_FAMILIES[(kind ?? "").toLowerCase()]
+    const normalizedKind = (kind ?? "").toLowerCase()
+    const families = CUSTOM_PROVIDER_KIND_FAMILIES[normalizedKind]
     if (families === "*") return true
-    if (!families) return false
-    return families.some((family) => candidates.has(normalizeProviderFamily(family)))
+    if (families) return families.some((family) => candidates.has(normalizeProviderFamily(family)))
+    return candidates.has(normalizeProviderFamily(normalizedKind))
 }
 
 /** Icon renderer helper (not a component): keeps the icon lookup out of render so
@@ -439,7 +445,11 @@ export function ProviderCredentialsSection({
 
                     <div className="flex min-w-0 flex-1 flex-col p-4">
                         {selectedStandardSecret ? (
+                            // Keyed by provider name: ProviderKeyField's internal draft-key
+                            // useState otherwise survives a rail switch, letting provider A's
+                            // half-typed key get saved under provider B.
                             <ProviderKeyField
+                                key={selectedStandardSecret.name}
                                 provider={selectedStandardSecret}
                                 disabled={disabled}
                             />
