@@ -119,6 +119,10 @@ const CodeBlock = ({
 /** Unwrap the markdown `<pre>` — the highlighted block owns its own container. */
 const PreUnwrap = ({children}: {children?: ReactNode}) => <>{children}</>
 
+/** Stable `components` map: a fresh object literal per render churns XMarkdown's prop identity, and
+ * this renderer re-renders on every throttled streaming token — so hoist it to a module constant. */
+const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
+
 /** Shared markdown renderer for the slice — used by message bubbles and the composer live
  * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
  * size/color (e.g. the muted reasoning block) without forking the renderer.
@@ -132,7 +136,7 @@ const Markdown = ({content, className}: {content: string; className?: string}) =
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
         config={LATEX_CONFIG}
-        components={{code: CodeBlock, pre: PreUnwrap}}
+        components={MD_COMPONENTS}
     />
 )
 
