@@ -13,6 +13,7 @@ error paths (unknown op, missing API base).
 
 from __future__ import annotations
 
+import json
 import logging
 
 import pytest
@@ -401,6 +402,108 @@ async def test_commit_revision_is_not_read_only(connection):
     spec = resolution.tool_specs[0]
     assert spec.read_only is False
     assert spec.effective_permission() is None
+
+
+# --- delta.set carries the typed agent-template shape -------------------------
+
+
+def _iter_required_lists(node):
+    """Yield every JSON-Schema `required` array reachable under `node`."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "required" and isinstance(value, list):
+                yield value
+            else:
+                yield from _iter_required_lists(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _iter_required_lists(item)
+
+
+def _has_embed_branch(items):
+    """True when a list-item schema accepts the `@ag.embed` object alternative."""
+    branches = items.get("anyOf") if isinstance(items, dict) else None
+    if not isinstance(branches, list):
+        return False
+    return any(
+        isinstance(branch, dict)
+        and isinstance(branch.get("properties"), dict)
+        and "@ag.embed" in branch["properties"]
+        for branch in branches
+    )
+
+
+def _commit_agent_subtree():
+    schema = get_platform_op("commit_revision").resolved_input_schema()
+    delta = schema["properties"]["workflow_revision"]["properties"]["delta"]
+    return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
+
+
+def _test_run_agent_subtree():
+    schema = get_platform_op("test_run").resolved_input_schema()
+    delta = schema["properties"]["delta"]
+    return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
+
+
+def test_commit_revision_delta_set_carries_agent_template_shape():
+    # (a) The agent-template shape is reachable under delta.set.parameters.agent, so the tool schema
+    # itself (not just prose) tells the model what a `parameters.agent` payload looks like. The
+    # harness `kind` enum is a concrete, low-drift landmark inside it.
+    agent = _commit_agent_subtree()
+    assert agent["type"] == "object"
+    assert set(agent["properties"]) >= {
+        "instructions",
+        "llm",
+        "tools",
+        "mcps",
+        "skills",
+        "harness",
+        "runner",
+        "sandbox",
+    }
+    harness_kind = agent["properties"]["harness"]["properties"]["kind"]
+    assert "pi_core" in harness_kind["enum"]
+    assert "claude" in harness_kind["enum"]
+    # The inline skill-template ref was expanded (its typed fields are present), not left as a marker.
+    skills_items = agent["properties"]["skills"]["items"]
+    assert "x-ag-type-ref" not in json.dumps(agent)
+    assert _has_embed_branch(skills_items)
+
+
+def test_commit_revision_delta_set_agent_subtree_has_no_required():
+    # (b) A delta is a deep partial: EVERY field is optional, so no `required` array may survive
+    # anywhere under the agent subtree, or a schema-following harness would think it must resend
+    # every required field just to change one.
+    agent = _commit_agent_subtree()
+    assert list(_iter_required_lists(agent)) == []
+
+
+def test_commit_revision_delta_set_list_items_accept_embeds():
+    # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries; since the model re-sends the
+    # whole list, each item schema must accept the embed shape or the embeds get mangled.
+    agent = _commit_agent_subtree()
+    for field in ("tools", "skills", "mcps"):
+        items = agent["properties"][field]["items"]
+        assert "anyOf" in items, field
+        assert _has_embed_branch(items), field
+
+
+def test_test_run_delta_set_matches_commit_revision():
+    # (d) test_run's uncommitted delta gets the same typed, deep-partial, embed-tolerant shape.
+    agent = _test_run_agent_subtree()
+    assert set(agent["properties"]) >= {"instructions", "llm", "harness", "sandbox"}
+    assert "pi_core" in agent["properties"]["harness"]["properties"]["kind"]["enum"]
+    assert list(_iter_required_lists(agent)) == []
+    for field in ("tools", "skills", "mcps"):
+        assert _has_embed_branch(agent["properties"][field]["items"]), field
+
+
+def test_commit_revision_resolved_schema_size_is_bounded():
+    # (e) Guard against runaway expansion (a self-referential or duplicated type-ref could blow the
+    # schema up and the tools/list payload with it). A generous cap still catches an explosion.
+    schema = get_platform_op("commit_revision").resolved_input_schema()
+    size = len(json.dumps(schema))
+    assert size < 200_000, size
 
 
 # --- resolver: annotate_trace self-targets its own trace/span -----------------
