@@ -1,14 +1,32 @@
 # Status
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Where things stand
 
 - Design workspace created (this folder). Research done against the design handoff
   (`design_handoff_template_strip/`) and the live tree, including the uncommitted
   in-flight work (connect-gate, agentCreationPrefs, home-ux lane).
-- No product code written yet. Implementation starts at `plan.md` S1 after the owner
-  resolves (or accepts the recommendations for) the decisions below.
+- IMPLEMENTED (uncommitted; plan LGTM'd on PR #5098): S1-S6 landed in the working tree
+  on the recorded recommendations for D1-D9. S1 flag + `templateStrip` palette family +
+  generated `--ag-strip-*` vars (note: the generator's FEATURES list needed manual
+  entries — palette families are not auto-emitted). S2/S3 the
+  `web/oss/src/components/TemplateStrip/` module (strip, chip, toast, provenance hook,
+  pager math + clipboard builder with 11 vitest tests). S4 home via a new
+  `StripHome.tsx` (index.tsx switches on the flag; `AgentComposer` / `UsageSummary` /
+  `useAgentHomeActions` got additive optional props). S5/S6 in `AgentChatPanel.tsx` +
+  `AgentChatEmptyState.tsx` + `OnboardingConfigPanel.tsx`, all behind
+  `TEMPLATE_STRIP_MODE`.
+- Verified: prettier + eslint clean on every touched file; `tsc` shows the same 596
+  pre-existing errors as before the change (zero new); unit tests 11/11. NOT yet done
+  from S7: live dev-stack QA, pixel pass, and dark-mode visual check (orchestrator owns
+  the flag flip and browser work).
+- Implementation deviations to review:
+  - Chat panel: the strip-era composer border/radius applies only while a chip is
+    docked; unchipped chats keep today's composer look (a full strip-era restyle of the
+    shared chat composer felt too invasive). Home always uses the strip-era border.
+  - The chat-mode (maximized) empty state also shows the strip above the composer, not
+    only build mode ("every agent's empty chat" read literally).
 
 ## Open decisions for the owner
 
@@ -69,6 +87,8 @@ adjust if the owner overrides.
 
 ## Next steps
 
-1. Owner reviews the decisions above (and the flag matrix in `context.md`).
-2. Run `plan.md` S1 (flag + tokens), then S2/S3 (component + chip/copy/toast), then
-   surfaces S4-S6, then the S7 sweep.
+1. Orchestrator: flip `NEXT_PUBLIC_AGENT_TEMPLATE_STRIP=true` on the dev stack and run
+   the S7 live matrix (plan.md "Verification plan"), including dark mode and the
+   flag-off regression cells.
+2. Owner review of the deviations noted above alongside the D1-D9 recommendations.
+3. Commit/lane/PR handling (orchestrator; nothing is committed yet).
