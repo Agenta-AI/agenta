@@ -540,23 +540,28 @@ class TestUIMessageStream:
         approval = next(p for p in parts if p["type"] == "tool-approval-request")
         assert approval["toolCallId"] == "call_1"
 
-    async def test_tool_denial_becomes_output_denied(self):
-        # A human denied the tool: it never ran, so emit tool-output-denied (not -available).
+    async def test_tool_denial_rides_iserror_not_a_denied_field(self):
+        # No runner path ever sets a `denied` field on a tool_result — a human deny rides
+        # `isError: True` like any other tool failure, so it becomes tool-output-error.
         run = _run(
             events=[
                 {"type": "tool_call", "id": "c1", "name": "deleteFile", "input": {}},
-                {"type": "tool_result", "id": "c1", "denied": True},
+                {
+                    "type": "tool_result",
+                    "id": "c1",
+                    "output": "denied by user",
+                    "isError": True,
+                },
                 {"type": "done"},
             ],
             result={"output": ""},
         )
         parts = await _collect(run, session_id="s1")
-        denied = next(p for p in parts if p["type"] == "tool-output-denied")
-        assert denied["toolCallId"] == "c1"
-        # A denied result is neither output-available nor output-error.
+        error = next(p for p in parts if p["type"] == "tool-output-error")
+        assert error["toolCallId"] == "c1"
         types = [p["type"] for p in parts]
         assert "tool-output-available" not in types
-        assert "tool-output-error" not in types
+        assert "tool-output-denied" not in types
 
     async def test_finish_carries_trace_id_from_param(self):
         run = _run(
