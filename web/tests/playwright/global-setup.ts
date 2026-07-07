@@ -18,6 +18,21 @@ import {
 type AuthMode = "auto" | "password" | "otp"
 type TestmailClient = ReturnType<typeof getTestmailClient>
 
+/**
+ * Read the auth method the backend serves from the `/auth/discover` response.
+ * The payload is `{exists, methods: {"email:password"?: true, "email:otp"?: true, ...}}`
+ * — only available methods are present. Prefer password (local dev / no SMTP does a
+ * direct signup with no email verification); fall back to otp only when password is
+ * absent. Returns null when discovery was missing/unparseable so the caller keeps `auto`.
+ */
+function resolveDiscoveredAuthMode(discovery: unknown): AuthMode | null {
+    const methods = (discovery as {methods?: Record<string, unknown>} | null)?.methods
+    if (!methods || typeof methods !== "object") return null
+    if (methods["email:password"]) return "password"
+    if (methods["email:otp"]) return "otp"
+    return null
+}
+
 function getApiURL(webURL: string): string {
     if (process.env.AGENTA_API_URL) return process.env.AGENTA_API_URL
     try {
@@ -536,7 +551,9 @@ async function authenticateUserImpl({
         const continueButton = page.getByRole("button", {name: "Continue", exact: true})
 
         // Wait for and intercept the discovery API call when clicking Continue
-        const discoveryTimeout = new Promise((resolve) => setTimeout(resolve, 15000))
+        const discoveryTimeout = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 15000),
+        )
         const discoveryPromise = Promise.race([
             waitForApiResponse(page, {
                 route: /\/api\/auth\/discover(?:\?|$)/,
@@ -555,8 +572,19 @@ async function authenticateUserImpl({
 
         // Wait for discovery to complete so the auth method UI is fully rendered
         console.log("[global-setup] Waiting for auth discovery to complete")
-        await discoveryPromise
+        const discovery = await discoveryPromise
         console.log("[global-setup] Auth discovery completed")
+
+        // The backend authoritatively tells us which email method it serves:
+        // `email:password` (local dev / no SMTP — direct signup, no verification)
+        // vs `email:otp` (SMTP/SendGrid enabled). Promote `auto` to the concrete
+        // method the deployment actually offers so we don't demand Testmail/OTP on
+        // a stack that only does password.
+        const discovered = resolveDiscoveredAuthMode(discovery)
+        if (authMode === "auto" && discovered) {
+            authMode = discovered
+            console.log(`[global-setup] Discovery resolved auth mode: ${authMode}`)
+        }
     }
 
     const verifyEmailLocator = page.getByText("Verify your email")

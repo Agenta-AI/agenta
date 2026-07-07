@@ -24,13 +24,16 @@ INFRA_SETTLE_SECONDS="${RAILWAY_INFRA_SETTLE_SECONDS:-40}"
 APP_SETTLE_SECONDS="${RAILWAY_APP_SETTLE_SECONDS:-60}"
 ALEMBIC_MAX_ATTEMPTS="${RAILWAY_ALEMBIC_MAX_ATTEMPTS:-3}"
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
+# Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
+AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"
 
-if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ]; then
-    printf "AGENTA_API_IMAGE, AGENTA_WEB_IMAGE, and AGENTA_SERVICES_IMAGE are required\n" >&2
+if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ] || [ -z "$AGENTA_RUNNER_IMAGE" ]; then
+    printf "AGENTA_API_IMAGE, AGENTA_WEB_IMAGE, AGENTA_SERVICES_IMAGE, and AGENTA_RUNNER_IMAGE are required\n" >&2
     exit 1
 fi
 
@@ -144,6 +147,18 @@ CMD ["gunicorn", "entrypoints.main:app", "--bind", "0.0.0.0:8080", "--worker-cla
 EOF
 }
 
+render_runner_wrapper() {
+    local dir="$TMP_DIR/runner"
+    mkdir -p "$dir"
+    cat > "$dir/Dockerfile" <<EOF
+FROM ${AGENTA_RUNNER_IMAGE}
+
+ENV AGENTA_RUNNER_PORT=8765
+
+CMD ["node_modules/.bin/tsx", "src/server.ts"]
+EOF
+}
+
 render_web_wrapper() {
     local dir="$TMP_DIR/web"
     mkdir -p "$dir"
@@ -190,15 +205,29 @@ CMD ["redis-server"]
 EOF
 }
 
+render_seaweedfs_wrapper() {
+    local dir="$TMP_DIR/seaweedfs"
+    mkdir -p "$dir"
+    cp "$ROOT_DIR/hosting/railway/oss/seaweedfs/entrypoint.sh" "$dir/entrypoint.sh"
+    cat > "$dir/Dockerfile" <<EOF
+FROM ${SEAWEEDFS_IMAGE}
+
+COPY entrypoint.sh /usr/local/bin/railway-seaweedfs-entrypoint.sh
+RUN chmod +x /usr/local/bin/railway-seaweedfs-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/railway-seaweedfs-entrypoint.sh"]
+EOF
+}
+
 render_api_wrapper
 render_services_wrapper
+render_runner_wrapper
 render_web_wrapper
 render_alembic_wrapper
 render_redis_wrapper
-render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tracing"]'
-render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
-render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
-render_api_like_wrapper worker-events '["python", "-m", "entrypoints.worker_events"]'
+render_seaweedfs_wrapper
+render_api_like_wrapper worker-streams '["python", "-m", "entrypoints.worker_streams"]'
+render_api_like_wrapper worker-queues '["python", "-m", "entrypoints.worker_queues"]'
 render_api_like_wrapper cron '["/usr/local/bin/supercronic", "/app/crontab"]'
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
@@ -216,16 +245,20 @@ redeploy_service_if_exists "$POSTGRES_SERVICE"
 if railway_call service "$REDIS_SERVICE" >/dev/null 2>&1; then
     railway_call up "$TMP_DIR/redis" --path-as-root --service "$REDIS_SERVICE" --detach
 fi
+# Bring up the bundled store (IAM-aware wrapper) before the API so its bucket-ensure
+# at startup can reach it. The API also serves the JWKS the store's OIDC IAM verifies.
+if railway_call service seaweedfs >/dev/null 2>&1; then
+    railway_call up "$TMP_DIR/seaweedfs" --path-as-root --service seaweedfs --detach
+fi
 sleep "$INFRA_SETTLE_SECONDS"
 
 # Alembic first. This also creates required databases.
 run_alembic_with_retries
 
 railway_call up "$TMP_DIR/api" --path-as-root --service api --detach
-railway_call up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracing --detach
-railway_call up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
-railway_call up "$TMP_DIR/worker-webhooks" --path-as-root --service worker-webhooks --detach
-railway_call up "$TMP_DIR/worker-events" --path-as-root --service worker-events --detach
+railway_call up "$TMP_DIR/worker-streams" --path-as-root --service worker-streams --detach
+railway_call up "$TMP_DIR/worker-queues" --path-as-root --service worker-queues --detach
+railway_call up "$TMP_DIR/runner" --path-as-root --service runner --detach
 railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
 railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
 railway_call up "$TMP_DIR/web" --path-as-root --service web --detach

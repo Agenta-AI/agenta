@@ -18,7 +18,7 @@ from ee.src.core.access import controls
 from ee.src.core.access.entitlements import controls as entitlement_controls
 from ee.src.core.access.permissions import role_overrides as permission_controls
 from ee.src.core.access.entitlements.types import DefaultPlan, Tracker
-from ee.src.core.access.permissions.types import Permission, DefaultRole, RequiredRole
+from oss.src.core.access.permissions.types import Permission, DefaultRole, RequiredRole
 
 
 # ---------------------------------------------------------------------------

@@ -150,7 +150,11 @@ export {generateId} from "./generateId"
 export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
-export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
+export {
+    stripAgentaMetadataDeep,
+    stripEmptyCollectionsDeep,
+    stripEnhancedWrappers,
+} from "./valueExtraction"
 
 // Slug utilities
 export {

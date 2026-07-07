@@ -1,5 +1,4 @@
 import asyncio
-import os
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -10,6 +9,7 @@ from oss.src.core.events.service import EventsService
 from oss.src.core.events.streaming import deserialize_event
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
 
 
-class EventsWorker:
+class EventsWorker(StreamConsumer):
     """
     Worker for events ingestion via Redis Streams.
 
@@ -29,7 +29,7 @@ class EventsWorker:
     Consumer group: worker-events
 
     Flow:
-    1. Read batch from Redis Streams (XREADGROUP)
+    1. Read batch from Redis Streams (XREADGROUP) — StreamConsumer
     2. Deserialize events from bytes
     3. Group by project_id
     4. Authoritative L2 quota per org (EE only):
@@ -37,9 +37,12 @@ class EventsWorker:
        per-org delta. Mirrors the tracing worker's
        `Counter.TRACES_INGESTED` pattern. Over-quota orgs are dropped.
     5. Ingest events per project if the org is within quota
-    6. Dispatch to webhooks (if configured)
-    7. ACK + DEL messages
+    6. Dispatch to webhooks (if configured) — overridden `run()`, can skip ack
+       to force redelivery on dispatch failure
+    7. ACK + DEL messages — StreamConsumer
     """
+
+    log_prefix = "[EVENTS]"
 
     def __init__(
         self,
@@ -55,102 +58,18 @@ class EventsWorker:
         #
         webhooks_dispatcher: Optional["WebhooksDispatcher"] = None,
     ):
+        super().__init__(
+            redis_client=redis_client,
+            stream_name=stream_name,
+            consumer_group=consumer_group,
+            consumer_name=consumer_name,
+            max_batch_size=max_batch_size,
+            max_block_ms=max_block_ms,
+            max_delay_ms=max_delay_ms,
+            max_batch_mb=max_batch_mb,
+        )
         self.service = service
-        self.redis = redis_client
-        self.stream_name = stream_name
-        self.consumer_group = consumer_group
-        self.consumer_name = consumer_name or f"worker-{os.getpid()}"
-        self.max_batch_size = max_batch_size
-        self.max_block_ms = max_block_ms
-        self.max_batch_mb = max_batch_mb
-        self.max_delay_ms = max_delay_ms
         self.webhooks_dispatcher = webhooks_dispatcher
-
-    async def create_consumer_group(self):
-        """Create consumer group if it doesn't exist. Safe to call multiple times (idempotent)."""
-        try:
-            await self.redis.xgroup_create(
-                name=self.stream_name,
-                groupname=self.consumer_group,
-                id="0",
-                mkstream=True,
-            )
-            log.info(
-                "[EVENTS] Created consumer group",
-                stream=self.stream_name,
-                group=self.consumer_group,
-            )
-        except Exception as e:
-            if "BUSYGROUP" not in str(e):
-                log.error("[EVENTS] Failed to create consumer group", exc_info=True)
-                raise
-
-    async def read_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
-        """
-        Read batch from stream using XREADGROUP with time-based accumulation.
-
-        Strategy:
-        1. Read up to max_batch_size messages with max_block_ms timeout
-        2. If batch is smaller than max_batch_size, accumulate more within max_delay_ms window
-        3. Return combined batch once full or time window expires
-
-        Returns:
-            List of (message_id, {field: value}) tuples
-        """
-        try:
-            messages = await self.redis.xreadgroup(
-                groupname=self.consumer_group,
-                consumername=self.consumer_name,
-                streams={self.stream_name: ">"},
-                count=self.max_batch_size,
-                block=self.max_block_ms,
-            )
-
-            if not messages:
-                return []
-
-            batch = messages[0][1]
-
-            if len(batch) < self.max_batch_size:
-                start_time = time.time()
-
-                while True:
-                    elapsed = (time.time() - start_time) * 1000
-                    remaining_ms = self.max_delay_ms - elapsed
-
-                    if remaining_ms <= 0:
-                        break
-
-                    accumulated_messages = await self.redis.xreadgroup(
-                        groupname=self.consumer_group,
-                        consumername=self.consumer_name,
-                        streams={self.stream_name: ">"},
-                        count=self.max_batch_size,
-                        block=max(10, int(remaining_ms)),
-                    )
-
-                    if accumulated_messages:
-                        batch.extend(accumulated_messages[0][1])
-                        if len(batch) >= self.max_batch_size:
-                            break
-
-            return batch
-
-        except Exception:
-            log.error("[EVENTS] Failed to read batch", exc_info=True)
-            return []
-
-    async def ack_and_delete(self, message_ids: List[bytes]):
-        """ACK and DELETE messages after successful processing."""
-        if not message_ids:
-            return
-
-        try:
-            await self.redis.xack(self.stream_name, self.consumer_group, *message_ids)
-            await self.redis.xdel(self.stream_name, *message_ids)
-        except Exception:
-            log.error("[EVENTS] Failed to ACK/DEL messages", exc_info=True)
-            # Don't raise — messages will remain pending and can be claimed later
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
@@ -278,7 +197,8 @@ class EventsWorker:
 
     async def run(self):
         """
-        Main worker loop.
+        Main worker loop — overrides StreamConsumer.run to add the webhook-dispatch
+        stage (the one asymmetry the base loop doesn't have).
 
         Flow:
         1. Read batch via XREADGROUP
@@ -298,10 +218,14 @@ class EventsWorker:
 
         while True:
             try:
-                # 1. Read batch from stream
+                # 1. Read batch from stream (idle blocks return empty, never tick)
+                read_started = time.perf_counter()
                 batch = await self.read_batch()
                 if not batch:
                     continue
+
+                read_ms = (time.perf_counter() - read_started) * 1000
+                started = time.perf_counter()
 
                 # 2. Process batch
                 ingested, processed_ids, batches = await self.process_batch(batch)
@@ -321,6 +245,10 @@ class EventsWorker:
                             "[EVENTS] Skipping ACK/DEL due to webhook dispatch failure",
                             batch_size=len(batch),
                         )
+                        log.tick(
+                            f"{self.metric_stream}.errors",
+                            dims={"stream": self.metric_stream},
+                        )
                         continue
                 else:
                     log.info(
@@ -336,6 +264,16 @@ class EventsWorker:
                     batch_size=len(batch),
                     ingested=ingested,
                 )
+                log.tick(
+                    f"{self.metric_stream}.processed",
+                    count=len(processed_ids),
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                    read_ms=read_ms,
+                    dims={"stream": self.metric_stream},
+                )
             except Exception:
                 log.error("[EVENTS] Worker loop error", exc_info=True)
+                log.tick(
+                    f"{self.metric_stream}.errors", dims={"stream": self.metric_stream}
+                )
                 await asyncio.sleep(1)

@@ -107,14 +107,70 @@ for how they behave. The plan and role variables are Enterprise-only; see
 |---|---|---|
 | `AGENTA_OTLP_MAX_BATCH_BYTES` | `agenta.otlp.max_batch_bytes` | `agenta.otlp.maxBatchBytes` |
 
+## Agenta — redaction
+
+The online redaction filter scrubs known credential/secret **values** out of error responses,
+persisted records, spans, and logs on the invoke path (detective control, not preventive — see
+[docs/designs/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/designs/online-redaction/specs.md)).
+Slice 1 ships the known-value pass only: it redacts a value only when it is a live secret the
+platform resolved for the request, never by guessing at shape or entropy.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_REDACTION_MODE` | `agenta.redaction.mode` | `agenta.redaction.mode` |
+| `AGENTA_REDACTED_PREFIXES` | `agenta.redaction.prefixes` | `agenta.redaction.prefixes` |
+| `AGENTA_REDACTED_SUFFIXES` | `agenta.redaction.suffixes` | `agenta.redaction.suffixes` |
+| `AGENTA_REDACTED_BLOCKLIST` | `agenta.redaction.blocklist` | `agenta.redaction.blocklist` |
+| `AGENTA_REDACTED_ALLOWLIST` | `agenta.redaction.allowlist` | `agenta.redaction.allowlist` |
+
+- `AGENTA_REDACTION_MODE` — `off` or `known` (default `known`). `pattern`/`full` are
+  declared-but-inert (Slice 2, not shipped yet): setting either logs a warning and behaves as
+  `known`.
+- `AGENTA_REDACTED_PREFIXES` / `_SUFFIXES` / `_BLOCKLIST` select env var **names**, not values:
+  any process env var whose name starts with a prefix, ends with a suffix, or equals/contains a
+  blocklist entry has its **value** seeded into the deny-set. Each is comma-separated and
+  **merges onto its built-in default** (concatenation, never a replace) — you only ever add
+  more names to catch, you can't narrow the defaults. The prefix default is **empty** (opt-in
+  only, since a broad service prefix over-seeds non-secret config like hostnames/regions); the
+  suffix default covers the common credential-shaped endings (`_KEY`, `_SECRET`, `_TOKEN`,
+  `_AUTHTOKEN`, `_PASSWORD`, `_CREDENTIALS`, `_KEY_ID`, `_SECRET_ID`, `_TOKEN_ID`); the
+  blocklist default is `AWS_BEARER_TOKEN_BEDROCK` (a real secret whose name matches no suffix).
+- `AGENTA_REDACTED_ALLOWLIST` is different: it's a list of literal **values** (booleans/flags
+  such as `true`/`false`/`1`/`0`) that are never redacted even if a secret-named env var holds
+  one — otherwise a flag like `SOME_FEATURE_KEY=true` would redact every "true" in output. It
+  also merges (union) onto its built-in default; add values here that your deployment uses as
+  flags but that also happen to sit in a secret-suffixed env var.
+- Safe default is unset — leaving all four unset keeps prefix empty, suffix/blocklist/allowlist
+  at their built-in defaults.
+
 ## Agenta — services
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
-| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `agenta.services.hook.allow_insecure` | `agenta.services.hook.allowInsecure` |
+| `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
+## Agent runner
+
+These variables configure agent workflows. `AGENTA_RUNNER_*` variables are read by the
+Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` service. See
+[Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
+
+| Env var | Component | values.yaml path |
+|---|---|---|
+| `AGENTA_RUNNER_INTERNAL_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
+| `AGENTA_AGENT_MCPS_ENABLED` | Services API | `agentRunner.enableMcp` |
+| `SANDBOX_AGENT_PROVIDER` | `runner` | `agentRunner.provider` |
+| `SANDBOX_AGENT_LOG_LEVEL` | `runner` | `agentRunner.logLevel` |
+| `DAYTONA_API_KEY` | `runner` | `agentRunner.daytona.apiKey` |
+| `DAYTONA_API_URL` | `runner` | `agentRunner.daytona.apiUrl` |
+| `DAYTONA_TARGET` | `runner` | `agentRunner.daytona.target` |
+| `DAYTONA_SNAPSHOT` | `runner` | `agentRunner.daytona.snapshot` |
+| `DAYTONA_IMAGE` | `runner` | `agentRunner.daytona.image` |
+| `DAYTONA_AUTOSTOP` | `runner` | `agentRunner.daytona.autostopDelay` |
+| `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `runner` | `agentRunner.daytona.installPi` |
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
 
@@ -125,11 +181,112 @@ for how they behave. The plan and role variables are Enterprise-only; see
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
 :::
 
-## Agenta — webhooks
+## Store (durable object store) {#store-durable-object-store}
+
+Backs the durable working directory for sessions and agents. Files written by an agent run
+survive sandbox teardown and reappear in the next turn. The store is disabled until `ACCESS_KEY`
+and `SECRET_KEY` are set. Point these at any S3-compatible store: the bundled SeaweedFS, AWS S3,
+or MinIO. `ENDPOINT_URL` is always explicit (SeaweedFS defaults it to `http://seaweedfs:8333`; a
+remote store must set it).
+
+The API holds the master credentials and never passes them to the runner. At run start it mints
+short-lived, prefix-scoped credentials and only those reach the sandbox, which mounts the durable
+prefix as its working directory. The STS mechanism depends on the backend (see the two-backend
+note below): bundled SeaweedFS uses `AssumeRoleWithWebIdentity`; a remote S3 store uses
+`GetFederationToken`.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `agenta.webhooks.allow_insecure` | `agenta.webhooks.allowInsecure` |
+| `AGENTA_STORE_ENDPOINT_URL` | `store.endpoint_url` | `store.endpointUrl` (auto-populated when `store.seaweedfs.enabled=true`) |
+| `AGENTA_STORE_STS_ENDPOINT_URL` | `store.sts_endpoint_url` | `store.stsEndpointUrl` |
+| `AGENTA_STORE_ACCESS_KEY` | `store.access_key` | `store.accessKey` |
+| `AGENTA_STORE_SECRET_KEY` | `store.secret_key` | `store.secretKey` |
+| `AGENTA_STORE_REGION` | `store.region` | `store.region` |
+| `AGENTA_STORE_BUCKET` | `store.bucket` | `store.bucket` |
+| `AGENTA_STORE_NAMESPACE` | `store.namespace` | `store.namespace` |
+| `AGENTA_STORE_SIGNING_KEY` | `store.signing_key` | `store.signingKey` |
+| `AGENTA_STORE_JWT_ISSUER` | `store.jwt_issuer` | `store.jwtIssuer` |
+| `AGENTA_STORE_JWT_PRIVATE_KEY` | `store.jwt_private_key` | `store.jwtPrivateKey` |
+| — | — | `store.seaweedfs.enabled` |
+
+`store.seaweedfs.enabled=true` bundles a SeaweedFS StatefulSet and auto-populates
+`store.endpointUrl`. Set it to `false` and supply `store.endpointUrl` to use an external
+S3-compatible store. This toggle mirrors `postgresql.enabled`.
+
+:::note `AGENTA_STORE_NAMESPACE` — sharing one bucket across environments
+The key layout treats the store as a small database: the **bucket** is the cluster, an optional
+**namespace** is the database, the entity prefix (`mounts/`) is the table, and `<project>/<mount>`
+is the row — so a full key is `<bucket>/[<namespace>/]mounts/<project_id>/<mount_id>/...`.
+
+Leave `NAMESPACE` unset for a dedicated bucket; the key layout is then identical to a single-tenant
+store (no empty leading segment). Set it — typically to a deployment or environment id — when
+several **ephemeral environments share one bucket**. Each environment's keys are prefixed with its
+namespace, and the short-lived credentials the API signs are scoped to that namespace, so one
+environment can never read or write another's objects even though they live in the same bucket.
+The namespace narrows the credential scope; it never widens it, and it is orthogonal to the store
+backend (it works on remote S3 and on bundled SeaweedFS alike).
+:::
+
+:::note Two STS backends (selected by `SIGNING_KEY` presence)
+The API narrows the master credentials to one mount prefix per run with an inline session policy.
+How it signs that scoped credential depends on the backend, and the backend is chosen by whether
+`AGENTA_STORE_SIGNING_KEY` is set — not by the endpoint:
+
+- **`SIGNING_KEY` set → bundled SeaweedFS.** SeaweedFS authorizes scoped credentials only through
+  its OIDC IAM engine: the API acts as the OIDC issuer, mints a short-lived RS256 *web-identity*
+  token, and serves the matching public JWKS at `/.well-known/jwks.json`; SeaweedFS fetches that
+  JWKS to verify the token on each `AssumeRoleWithWebIdentity` call.
+- **`SIGNING_KEY` unset → remote S3-compatible store (AWS S3, MinIO).** The API already holds S3
+  credentials, so it signs a `GetFederationToken` request (SigV4) with them — no OIDC provider, no
+  role. Cloudflare R2 is **not** supported: it does not implement AWS STS `GetFederationToken`.
+
+`AGENTA_STORE_STS_ENDPOINT_URL` is the STS endpoint for the remote-S3 path. It defaults to the S3
+endpoint (MinIO co-locates STS there); set it only when the store splits STS onto another host —
+AWS: `https://sts.<region>.amazonaws.com`. It is ignored on the SeaweedFS path.
+
+The SeaweedFS-only settings (`SIGNING_KEY`, `JWT_ISSUER`, `JWT_PRIVATE_KEY`):
+
+- `AGENTA_STORE_SIGNING_KEY` — base64 of exactly 32 bytes; the HMAC key SeaweedFS signs its own STS
+  session tokens with (`head -c 32 /dev/urandom | base64`). Its presence also selects the SeaweedFS
+  backend, so leave it unset for a remote S3 store.
+- `AGENTA_STORE_JWT_ISSUER` — the in-network API URL SeaweedFS fetches the JWKS from (e.g.
+  `http://api:8000`).
+- `AGENTA_STORE_JWT_PRIVATE_KEY` — a stable RSA private key (PKCS#8 PEM) the API signs the
+  web-identity token with. **Required in production:** every API replica must share one key, or
+  SeaweedFS's cached JWKS desyncs and token validation fails intermittently. Generate with
+  `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Local dev falls back to a
+  built-in key when unset.
+
+The bundled store and the API must agree on `ACCESS_KEY` and `SECRET_KEY`; in the Helm chart and
+docker-compose this is wired automatically.
+:::
+
+:::warning Remote sandboxes (Daytona) need a reachable store endpoint
+A local sandbox mounts durable storage on the runner host against the in-network store. A
+**remote** sandbox mounts from inside the cloud sandbox, so the store endpoint must be publicly
+reachable. Enable the `ngrok` tunnel (the compose `remote` profile) or point
+`AGENTA_STORE_ENDPOINT_URL` at a public S3 URL. Only the scoped, short-lived credentials ever
+cross into a remote sandbox.
+:::
+
+## Agenta — egress
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_INSECURE_EGRESS_ALLOWED` | `agenta.webhooks.allow_insecure` (API); read directly by the SDK for workflow hooks and custom model provider endpoints | `agenta.insecureEgressAllowed` |
+
+:::note SSRF protection
+`AGENTA_INSECURE_EGRESS_ALLOWED` defaults to **false** (secure). Outbound requests that
+Agenta itself makes to a tenant-configured endpoint (webhooks, workflow hooks, custom
+model provider URLs) are blocked if they resolve to a private, loopback, or otherwise
+reserved IP address. This holds regardless of who configured the URL. Public URLs are
+never affected.
+
+Set it to `true` only for local development against services on your private network.
+The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALLOW_INSECURE`,
+`AGENTA_SERVICES_HOOK_ALLOW_INSECURE`, `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE`) are
+deprecated aliases and still work, but new configuration should use the canonical name.
+:::
 
 ## alembic
 
@@ -352,7 +509,10 @@ future major release.
 | `AGENTA_SERVICES_SANDBOX_RUNNER` | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` |
 | `AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` |
 | `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` |
-| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_WEBHOOKS_ALLOW_INSECURE` (API), `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` (SDK) |
+| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
 | `AGENTA_AUTO_MIGRATIONS` | `ALEMBIC_AUTO_MIGRATIONS` |
 | `AGENTA_RUNTIME_PREFIX` | _(removed; no consumer in API)_ |
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` | `AZURE_AD_OAUTH_CLIENT_ID` |

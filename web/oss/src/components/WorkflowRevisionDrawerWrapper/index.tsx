@@ -70,6 +70,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {AgentChatScopeProvider, drawerScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {
@@ -81,6 +82,7 @@ import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/Co
 import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
 import {useEvaluatorRunControls} from "@/oss/components/Evaluators/components/ConfigureEvaluator/useEvaluatorRunControls"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {invalidateAgentsWorkflowQueries} from "@/oss/components/pages/agents/store"
 import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
 import {invalidatePromptsWorkflowQueries} from "@/oss/components/pages/prompts/store"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -97,6 +99,24 @@ import {EVALUATOR_FULL_PAGE_NAV_ENABLED} from "@/oss/state/workflow"
 const PlaygroundMainView = dynamic(
     () => import("@/oss/components/Playground/Components/MainLayout"),
     {ssr: false},
+)
+
+// Agent generation arm, same surface the full playground injects. Without this the app drawer
+// renders nothing for an agent entity (the generations panel does `AgentGenerationPanel ?? null`),
+// so a freshly-created agent can't be invoked from the create/edit drawer the way chat and
+// completion can. Lazy — pulls in the AI SDK only when an agent workflow is open.
+const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/AgentChatPanel"), {
+    ssr: false,
+})
+
+// Drawer agent chat runs in its OWN session scope so it never inherits or overwrites the main
+// playground's tabs/history. The drawer mounts over the playground, so both AgentChatPanels are
+// live at once; a shared (app) scope would have them share conversations. See
+// AgentChatSlice/state/scope.
+const ScopedDrawerAgentChat = (props: {entityId: string}) => (
+    <AgentChatScopeProvider scopeKey={drawerScopeKey(props.entityId)}>
+        <AgentChatPanel {...props} />
+    </AgentChatScopeProvider>
 )
 
 const TestsetDropdown = dynamic(
@@ -175,6 +195,9 @@ const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
                 SimpleSharedEditor,
                 SharedGenerationResultUtils,
                 TestcaseEditor: PlaygroundTestcaseEditor,
+                // Agent entities render the agent-chat surface here too, so the create/edit drawer
+                // can invoke an agent the same way it invokes chat/completion.
+                AgentGenerationPanel: ScopedDrawerAgentChat,
             }) as unknown as PlaygroundUIProviders,
         [],
     )
@@ -621,6 +644,7 @@ const useDrawerCreateCommitCallback = () => {
                     // (commit.ts:590) doesn't cover the app-management
                     // paginated store.
                     void invalidateAppManagementWorkflowQueries()
+                    void invalidateAgentsWorkflowQueries()
 
                     // Same problem on the Prompts page: it reads its own
                     // ["prompts-workflows"] query, which neither the shared

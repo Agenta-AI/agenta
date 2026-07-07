@@ -12,13 +12,12 @@ from ..core.pydantic_utilities import parse_obj_as
 from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
-from ..types.ee_src_models_api_organization_models_organization import EeSrcModelsApiOrganizationModelsOrganization
 from ..types.http_validation_error import HttpValidationError
 from ..types.invite_request import InviteRequest
+from ..types.organization import Organization
 from ..types.organization_details import OrganizationDetails
 from ..types.organization_domain_response import OrganizationDomainResponse
 from ..types.organization_provider_response import OrganizationProviderResponse
-from ..types.oss_src_models_api_organization_models_organization import OssSrcModelsApiOrganizationModelsOrganization
 from ..types.workspace_response import WorkspaceResponse
 
 # this is used as the default value for optional parameters
@@ -538,6 +537,98 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[Organization]]:
+        """
+        Returns a list of organizations associated with the user's session.
+        
+        Returns:
+            list[Organization]: A list of organizations associated with the user's session.
+        
+        Raises:
+            HTTPException: If there is an error retrieving the organizations from the database.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.List[Organization]]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "organizations",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.List[Organization],
+                    parse_obj_as(
+                        type_ =typing.List[Organization],  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Create a new organization.
+        
+        Parameters
+        ----------
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "organizations",method="POST",
+            json={
+                "name": name,
+                "description": description,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def fetch_organization_details(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[OrganizationDetails]:
         """
         Return the details of the organization.
@@ -580,7 +671,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EeSrcModelsApiOrganizationModelsOrganization]:
+    def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -601,7 +692,7 @@ class RawOrganizationsClient:
         
         Returns
         -------
-        HttpResponse[EeSrcModelsApiOrganizationModelsOrganization]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -619,11 +710,13 @@ class RawOrganizationsClient:
             request_options=request_options,omit=OMIT,
         )
         try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    EeSrcModelsApiOrganizationModelsOrganization,
+                    typing.Any,
                     parse_obj_as(
-                        type_ =EeSrcModelsApiOrganizationModelsOrganization,  # type: ignore
+                        type_ =typing.Any,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -685,7 +778,7 @@ class RawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[EeSrcModelsApiOrganizationModelsOrganization]:
+    def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -706,7 +799,7 @@ class RawOrganizationsClient:
         
         Returns
         -------
-        HttpResponse[EeSrcModelsApiOrganizationModelsOrganization]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -717,254 +810,6 @@ class RawOrganizationsClient:
                 "description": description,
                 "flags": flags,
                 "updated_at": updated_at,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EeSrcModelsApiOrganizationModelsOrganization,
-                    parse_obj_as(
-                        type_ =EeSrcModelsApiOrganizationModelsOrganization,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def create_workspace(self, organization_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkspaceResponse]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        type : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[WorkspaceResponse]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces",method="POST",
-            json={
-                "name": name,
-                "description": description,
-                "type": type,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    WorkspaceResponse,
-                    parse_obj_as(
-                        type_ =WorkspaceResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkspaceResponse]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        workspace_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        updated_at : typing.Optional[dt.datetime]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[WorkspaceResponse]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",method="PUT",
-            json={
-                "name": name,
-                "description": description,
-                "updated_at": updated_at,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    WorkspaceResponse,
-                    parse_obj_as(
-                        type_ =WorkspaceResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Transfer organization ownership to another member.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        new_owner_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/transfer/{jsonable_encoder(new_owner_id)}",method="POST",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]:
-        """
-        Returns a list of organizations associated with the user's session.
-        
-        Returns:
-            list[Organization]: A list of organizations associated with the user's session.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the organizations from the database.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "organizations",method="GET",
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.List[OssSrcModelsApiOrganizationModelsOrganization],
-                    parse_obj_as(
-                        type_ =typing.List[OssSrcModelsApiOrganizationModelsOrganization],  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Create a new organization.
-        
-        Parameters
-        ----------
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "organizations",method="POST",
-            json={
-                "name": name,
-                "description": description,
             }
             ,
             headers={"content-type": "application/json", }
@@ -1176,6 +1021,168 @@ class RawOrganizationsClient:
                     typing.Any,
                     parse_obj_as(
                         type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Transfer organization ownership to another member.
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        new_owner_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"organizations/{jsonable_encoder(organization_id)}/transfer/{jsonable_encoder(new_owner_id)}",method="POST",
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def create_workspace(self, organization_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkspaceResponse]:
+        """
+        Create a new workspace in an organization (owner only).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        name : str
+        
+        description : typing.Optional[str]
+        
+        type : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[WorkspaceResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"organizations/{jsonable_encoder(organization_id)}/workspaces",method="POST",
+            json={
+                "name": name,
+                "description": description,
+                "type": type,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkspaceResponse,
+                    parse_obj_as(
+                        type_ =WorkspaceResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkspaceResponse]:
+        """
+        Update a workspace's details (requires EDIT_WORKSPACE permission).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        workspace_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        updated_at : typing.Optional[dt.datetime]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[WorkspaceResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",method="PUT",
+            json={
+                "name": name,
+                "description": description,
+                "updated_at": updated_at,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkspaceResponse,
+                    parse_obj_as(
+                        type_ =WorkspaceResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1707,6 +1714,98 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    async def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[Organization]]:
+        """
+        Returns a list of organizations associated with the user's session.
+        
+        Returns:
+            list[Organization]: A list of organizations associated with the user's session.
+        
+        Raises:
+            HTTPException: If there is an error retrieving the organizations from the database.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.List[Organization]]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "organizations",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.List[Organization],
+                    parse_obj_as(
+                        type_ =typing.List[Organization],  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+        """
+        Create a new organization.
+        
+        Parameters
+        ----------
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "organizations",method="POST",
+            json={
+                "name": name,
+                "description": description,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     async def fetch_organization_details(self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[OrganizationDetails]:
         """
         Return the details of the organization.
@@ -1749,7 +1848,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EeSrcModelsApiOrganizationModelsOrganization]:
+    async def update_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -1770,7 +1869,7 @@ class AsyncRawOrganizationsClient:
         
         Returns
         -------
-        AsyncHttpResponse[EeSrcModelsApiOrganizationModelsOrganization]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1788,11 +1887,13 @@ class AsyncRawOrganizationsClient:
             request_options=request_options,omit=OMIT,
         )
         try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    EeSrcModelsApiOrganizationModelsOrganization,
+                    typing.Any,
                     parse_obj_as(
-                        type_ =EeSrcModelsApiOrganizationModelsOrganization,  # type: ignore
+                        type_ =typing.Any,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1854,7 +1955,7 @@ class AsyncRawOrganizationsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[EeSrcModelsApiOrganizationModelsOrganization]:
+    async def patch_organization(self, organization_id: str, *, slug: typing.Optional[str] = OMIT, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, flags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, updated_at: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -1875,7 +1976,7 @@ class AsyncRawOrganizationsClient:
         
         Returns
         -------
-        AsyncHttpResponse[EeSrcModelsApiOrganizationModelsOrganization]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1886,254 +1987,6 @@ class AsyncRawOrganizationsClient:
                 "description": description,
                 "flags": flags,
                 "updated_at": updated_at,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    EeSrcModelsApiOrganizationModelsOrganization,
-                    parse_obj_as(
-                        type_ =EeSrcModelsApiOrganizationModelsOrganization,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def create_workspace(self, organization_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkspaceResponse]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        type : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[WorkspaceResponse]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces",method="POST",
-            json={
-                "name": name,
-                "description": description,
-                "type": type,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    WorkspaceResponse,
-                    parse_obj_as(
-                        type_ =WorkspaceResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkspaceResponse]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-        
-        workspace_id : str
-        
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        updated_at : typing.Optional[dt.datetime]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[WorkspaceResponse]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",method="PUT",
-            json={
-                "name": name,
-                "description": description,
-                "updated_at": updated_at,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    WorkspaceResponse,
-                    parse_obj_as(
-                        type_ =WorkspaceResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Transfer organization ownership to another member.
-        
-        Parameters
-        ----------
-        organization_id : str
-        
-        new_owner_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/transfer/{jsonable_encoder(new_owner_id)}",method="POST",
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def list_organizations(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]:
-        """
-        Returns a list of organizations associated with the user's session.
-        
-        Returns:
-            list[Organization]: A list of organizations associated with the user's session.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the organizations from the database.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "organizations",method="GET",
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.List[OssSrcModelsApiOrganizationModelsOrganization],
-                    parse_obj_as(
-                        type_ =typing.List[OssSrcModelsApiOrganizationModelsOrganization],  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def create_organization(self, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Create a new organization.
-        
-        Parameters
-        ----------
-        name : typing.Optional[str]
-        
-        description : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "organizations",method="POST",
-            json={
-                "name": name,
-                "description": description,
             }
             ,
             headers={"content-type": "application/json", }
@@ -2345,6 +2198,168 @@ class AsyncRawOrganizationsClient:
                     typing.Any,
                     parse_obj_as(
                         type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def transfer_organization_ownership(self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+        """
+        Transfer organization ownership to another member.
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        new_owner_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"organizations/{jsonable_encoder(organization_id)}/transfer/{jsonable_encoder(new_owner_id)}",method="POST",
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def create_workspace(self, organization_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkspaceResponse]:
+        """
+        Create a new workspace in an organization (owner only).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        name : str
+        
+        description : typing.Optional[str]
+        
+        type : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[WorkspaceResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"organizations/{jsonable_encoder(organization_id)}/workspaces",method="POST",
+            json={
+                "name": name,
+                "description": description,
+                "type": type,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkspaceResponse,
+                    parse_obj_as(
+                        type_ =WorkspaceResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def update_workspace(self, organization_id: str, workspace_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, updated_at: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkspaceResponse]:
+        """
+        Update a workspace's details (requires EDIT_WORKSPACE permission).
+        
+        Parameters
+        ----------
+        organization_id : str
+        
+        workspace_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        updated_at : typing.Optional[dt.datetime]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[WorkspaceResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",method="PUT",
+            json={
+                "name": name,
+                "description": description,
+                "updated_at": updated_at,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WorkspaceResponse,
+                    parse_obj_as(
+                        type_ =WorkspaceResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )

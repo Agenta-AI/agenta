@@ -170,9 +170,9 @@ export const redirectIfNoLLMKeys = async ({secrets: providerKeys}: {secrets: Llm
             description: "Please provide at least one LLM key to access this feature.",
             duration: 5,
         })
-        // Ensure project-scoped URL is ready, then redirect to project settings (secrets tab)
+        // Ensure project-scoped URL is ready, then redirect to project settings (LLMs tab)
         const {projectURL} = await waitForValidURL({requireProject: true})
-        Router.push(`${projectURL}/settings?tab=secrets`)
+        Router.push(`${projectURL}/settings?tab=llms`)
         return true
     }
     return false

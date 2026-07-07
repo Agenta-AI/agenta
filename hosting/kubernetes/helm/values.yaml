@@ -103,3 +103,42 @@ global:
 redisDurable:
   persistence:
     size: "5Gi"
+
+# ================================================================== #
+# store — object store (AGENTA_STORE_*).
+# Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
+# ================================================================== #
+# store:
+#   endpointUrl:
+#   stsEndpointUrl:
+#   accessKey:
+#   secretKey:
+#   region:
+#   bucket:
+#   namespace:  # optional key prefix ("database") to share one bucket across ephemeral envs; unset for a dedicated bucket
+#   signingKey:
+#   jwtIssuer:
+#   jwtPrivateKey:
+#   seaweedfs:
+#     enabled: false
+#     port: 8333
+#     image:
+#       repository: chrislusf/seaweedfs
+#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
+#       pullPolicy: IfNotPresent
+#     persistence:
+#       enabled: true
+#       size: 20Gi
+
+# ================================================================== #
+# workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
+# `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
+# ================================================================== #
+workerStreams:
+  enabled: true
+  replicas: 1
+  # streams: "tracing"
+workerQueues:
+  enabled: true
+  replicas: 1
+  # queues: "evaluations"

@@ -1,5 +1,5 @@
 import uuid_utils.compat as uuid
-from sqlalchemy import Column, Enum as SQLEnum, UUID
+from sqlalchemy import Column, Enum as SQLEnum, String, UUID
 
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.dbs.postgres.shared.dbas import (
@@ -19,6 +19,7 @@ class SecretsDBA(LifecycleDBA, HeaderDBA):
         unique=True,
         nullable=False,
     )
+    slug = Column(String, nullable=True)
     kind = Column(SQLEnum(SecretKind, name="secretkind_enum"))  # type: ignore
     data = Column(PGPString())  # type: ignore
     project_id = Column(

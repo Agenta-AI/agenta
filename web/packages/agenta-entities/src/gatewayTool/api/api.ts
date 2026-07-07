@@ -7,11 +7,18 @@
  * parallel set of DTOs.
  */
 
+import {getAgentaApiUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
+
+import {safeParseWithLogging} from "../../shared"
+import {toolCatalogCategoriesResponseSchema} from "../core"
 import type {
     ToolCall,
     ToolCallResponse,
     ToolCatalogActionResponse,
     ToolCatalogActionsResponse,
+    ToolCatalogCategoriesResponse,
     ToolCatalogIntegrationResponse,
     ToolCatalogIntegrationsResponse,
     ToolCatalogProvidersResponse,
@@ -24,14 +31,27 @@ import {getToolsClient, projectScopedRequest} from "./client"
 
 // --- Catalog browse ---
 
-export const fetchProviders = async (): Promise<ToolCatalogProvidersResponse> => {
+export const fetchToolProviders = async (): Promise<ToolCatalogProvidersResponse> => {
     return getToolsClient().listToolProviders({}, projectScopedRequest())
 }
 
-export const fetchIntegrations = async (
+export const fetchToolIntegrations = async (
     providerKey: string,
-    params?: {search?: string; sort_by?: string; limit?: number; cursor?: string},
+    params?: {
+        search?: string
+        sort_by?: string
+        category?: string
+        limit?: number
+        cursor?: string
+    },
 ): Promise<ToolCatalogIntegrationsResponse> => {
+    // `category` isn't modelled on Fern's ListToolIntegrationsRequest yet (the
+    // OpenAPI spec hasn't been regenerated) but the backend honours it as a query
+    // param — pass it through alongside the `project_id` scope.
+    const scope = projectScopedRequest()
+    const requestOptions = params?.category
+        ? {queryParams: {...(scope?.queryParams ?? {}), category: params.category}}
+        : scope
     return getToolsClient().listToolIntegrations(
         {
             provider_key: providerKey,
@@ -40,11 +60,38 @@ export const fetchIntegrations = async (
             limit: params?.limit,
             cursor: params?.cursor,
         },
-        projectScopedRequest(),
+        requestOptions,
     )
 }
 
-export const fetchIntegrationDetail = async (
+export const fetchToolCategories = async (
+    providerKey: string,
+): Promise<ToolCatalogCategoriesResponse> => {
+    // New catalog endpoint not yet in the Fern client — call it directly with the
+    // same cookie-auth + project scope the SDK uses. Move to the Fern client on regen.
+    const projectId = getDefaultStore().get(projectIdAtom)
+    const url = new URL(
+        `${getAgentaApiUrl()}/tools/catalog/providers/${encodeURIComponent(
+            providerKey,
+        )}/categories/`,
+    )
+    if (projectId) url.searchParams.set("project_id", projectId)
+
+    const res = await fetch(url.toString(), {credentials: "include"})
+    if (!res.ok) {
+        throw new Error(`fetchToolCategories failed: HTTP ${res.status}`)
+    }
+    // Boundary validation: this endpoint isn't Fern-typed, so the local schema is the
+    // only drift check. On a shape mismatch we log and fall back to an empty list.
+    const data = safeParseWithLogging(
+        toolCatalogCategoriesResponseSchema,
+        await res.json(),
+        "[fetchToolCategories]",
+    )
+    return {count: data?.count ?? 0, categories: data?.categories ?? []}
+}
+
+export const fetchToolIntegrationDetail = async (
     providerKey: string,
     integrationKey: string,
 ): Promise<ToolCatalogIntegrationResponse> => {
@@ -54,7 +101,7 @@ export const fetchIntegrationDetail = async (
     )
 }
 
-export const fetchActions = async (
+export const fetchToolActions = async (
     providerKey: string,
     integrationKey: string,
     params?: {
@@ -87,7 +134,7 @@ export const fetchActions = async (
     )
 }
 
-export const fetchActionDetail = async (
+export const fetchToolActionDetail = async (
     providerKey: string,
     integrationKey: string,
     actionKey: string,
@@ -104,7 +151,7 @@ export const fetchActionDetail = async (
 
 // --- Connections ---
 
-export const queryConnections = async (params?: {
+export const queryToolConnections = async (params?: {
     provider_key?: string
     integration_key?: string
 }): Promise<ToolConnectionsResponse> => {
@@ -117,18 +164,18 @@ export const queryConnections = async (params?: {
     )
 }
 
-export const fetchConnection = async (connectionId: string): Promise<ToolConnectionResponse> => {
+export const fetchToolConnection = async (
+    connectionId: string,
+): Promise<ToolConnectionResponse> => {
     return getToolsClient().fetchToolConnection(
         {connection_id: connectionId},
         projectScopedRequest(),
     )
 }
 
-export const createConnection = async (
+export const createToolConnection = async (
     payload: ToolConnectionCreatePayload,
 ): Promise<ToolConnectionResponse> => {
-    // Cast through Parameters<...> because Fern's typed payload doesn't
-    // model the legacy `credentials` field that the backend still accepts.
     return getToolsClient().createToolConnection(
         payload as Parameters<ReturnType<typeof getToolsClient>["createToolConnection"]>[0],
         projectScopedRequest(),

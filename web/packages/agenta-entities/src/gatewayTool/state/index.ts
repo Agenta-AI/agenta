@@ -1,10 +1,10 @@
 export {
     actionSearchAtom,
-    catalogDrawerOpenAtom,
     catalogSearchAtom,
     connectionDrawerAtom,
-    executionDrawerAtom,
     selectedCatalogActionAtom,
     selectedCatalogIntegrationAtom,
+    toolCatalogDrawerOpenAtom,
+    toolExecutionDrawerAtom,
 } from "./atoms"
 export type {ConnectionDrawerState, ExecutionDrawerState} from "./atoms"

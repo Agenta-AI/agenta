@@ -174,6 +174,24 @@ export {inputVariableNamesAtom} from "./execution"
 
 // App-level mode selectors
 export {appTypeAtom, isChatModeAtom, type AppType} from "./execution"
+export {isAgentModeAtomFamily} from "./execution"
+export {
+    applyBuildKitOverlay,
+    buildAgentRequest,
+    buildAgentReferences,
+    type AgentRequest,
+} from "./execution"
+export {agentChannelModeAtom, type AgentChannelMode} from "./execution"
+export {createNegotiatingFetch, type NegotiatingFetch} from "./execution"
+export {agentShouldResumeAfterApproval} from "./execution"
+export {canReleaseQueuedMessage, isHitlPending} from "./execution"
+export {
+    appendCapped,
+    buildTurnCapture,
+    capturesForTrigger,
+    triggerUserMessageId,
+    type TurnRequestCapture,
+} from "./execution"
 
 export {filterUnreferencedColumnsForSource} from "./execution"
 

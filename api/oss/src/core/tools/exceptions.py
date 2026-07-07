@@ -40,6 +40,24 @@ class ConnectionNotFoundError(ToolsError):
         super().__init__(msg)
 
 
+class ActionNotFoundError(ToolsError):
+    """Raised when a catalog action cannot be found for an integration."""
+
+    def __init__(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+        action_key: str,
+    ):
+        self.provider_key = provider_key
+        self.integration_key = integration_key
+        self.action_key = action_key
+        super().__init__(
+            f"Action not found: {provider_key}/{integration_key}/{action_key}"
+        )
+
+
 class ConnectionSlugConflictError(ToolsError):
     """Raised when a connection slug already exists for the integration."""
 
@@ -129,6 +147,14 @@ class ToolAmbiguousError(ToolsError):
         )
 
 
+class DiscoveryUnsupportedError(ToolsError):
+    """Raised when a provider has no semantic tool-discovery (search) capability."""
+
+    def __init__(self, provider_key: str):
+        self.provider_key = provider_key
+        super().__init__(f"Tool discovery is not supported by provider: {provider_key}")
+
+
 class AdapterError(ToolsError):
     """Raised when an adapter operation fails."""
 
@@ -146,3 +172,31 @@ class AdapterError(ToolsError):
         if detail:
             msg += f": {detail}"
         super().__init__(msg)
+
+
+class PlatformToolHandlerError(ToolsError):
+    """Base for reserved ``tools.agenta.*`` handler failures.
+
+    ``status_code`` is the HTTP status the API boundary maps the error to; subclasses
+    override it instead of raising ``HTTPException`` from the core layer.
+    """
+
+    status_code = 400
+
+
+class PlatformToolHandlerNotFound(PlatformToolHandlerError):
+    """Raised when a reserved call_ref has no registered handler."""
+
+    status_code = 404
+
+
+class PlatformToolHandlerUnavailable(PlatformToolHandlerError):
+    """Raised when a handler exists but its backing service is not wired on this deployment."""
+
+    status_code = 501
+
+
+class PlatformToolHandlerRefused(PlatformToolHandlerError):
+    """Raised when a request is well-formed but violates a handler policy (e.g. recursion)."""
+
+    status_code = 400

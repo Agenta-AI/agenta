@@ -1,5 +1,4 @@
 import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 import {
     sessionCostAtomFamily,
@@ -7,10 +6,11 @@ import {
 } from "@/oss/state/newObservability/atoms/queries"
 
 import CostCellDisplay from "../../../CostCell"
+import {useSessionAtomValue} from "../../assets/sessionCellStore"
 
 export const TotalCostCell = ({sessionId}: {sessionId: string}) => {
-    const isLoading = useAtomValue(sessionsLoadingAtom)
-    const totalCost = useAtomValue(sessionCostAtomFamily(sessionId))
+    const isLoading = useSessionAtomValue(sessionsLoadingAtom)
+    const totalCost = useSessionAtomValue(sessionCostAtomFamily(sessionId))
 
     if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
 

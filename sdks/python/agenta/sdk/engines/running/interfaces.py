@@ -1,4 +1,5 @@
 from agenta.sdk.models.workflows import WorkflowRevisionData
+from agenta.sdk.utils.types import build_agent_v0_default
 
 
 JSON_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
@@ -178,11 +179,6 @@ code_v0_interface = WorkflowRevisionData(
 
 mock_v0_interface = WorkflowRevisionData(
     uri="agenta:custom:mock:v0",
-    schemas=None,
-)
-
-config_v0_interface = WorkflowRevisionData(
-    uri="agenta:custom:config:v0",
     schemas=None,
 )
 
@@ -519,6 +515,39 @@ chat_v0_interface = WorkflowRevisionData(
                 x_ag_type_ref="message",
                 jtype="object",
                 description="Final chat message returned by the workflow.",
+            ),
+        },
+    ),
+)
+
+agent_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:agent:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                # One composite control for the whole agent config. The field shape lives in
+                # `AgentTemplateSchema` (agenta.sdk.utils.types), registered as the `agent-template`
+                # catalog type; the playground resolves this ref and renders the AgentTemplateControl.
+                "agent": semantic_field(
+                    x_ag_type_ref="agent-template",
+                    jtype="object",
+                    description="The agent's instructions, model, tools, MCP servers, and runtime.",
+                    # The minimal builtin default: no platform skill, no sandbox_permission. The
+                    # agent service adds both via the same builder (see schemas.py).
+                    default=build_agent_v0_default(),
+                ),
+            },
+            additional_properties=True,
+        ),
+        inputs=llm_inputs_schema(
+            include_messages=True,
+        ),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            **semantic_field(
+                x_ag_type_ref="message",
+                jtype="object",
+                description="Final assistant message returned by the agent.",
             ),
         },
     ),

@@ -72,10 +72,13 @@ Update each service individually to maintain availability:
 ```bash
 # Update core services one by one
 docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh api
-docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh worker
+docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh services
 docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh web
-docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh completion
-docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh chat
+# Background workers run as two consolidated kinds by default:
+#   worker-streams = records + events + spans
+#   worker-queues  = webhooks + triggers + interactions + evaluations
+docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh worker-streams
+docker rollout -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh worker-queues
 ```
 
 Each command will:
@@ -122,17 +125,17 @@ For full details, see the [Deploy on Kubernetes](/self-host/guides/deploy-to-kub
 
 ## Database Schema Migrations
 
-### PostgreSQL 17 to 18
+### PostgreSQL major-version upgrade
 
-Agenta's Docker Compose and Helm deployments pin PostgreSQL to major version 18. If your existing Docker Compose deployment was created with `postgres:17`, do not upgrade by only changing the image tag while reusing the same Postgres data volume.
+Agenta's Docker Compose and Helm deployments pin PostgreSQL to major version 17. If your existing Docker Compose deployment was created with an older major version, do not upgrade by only changing the image tag while reusing the same Postgres data volume.
 
-PostgreSQL data directories are tied to the major version that created them. A Postgres 18 container can fail to start against a Postgres 17 data directory. Use a backup and restore flow instead.
+PostgreSQL data directories are tied to the major version that created them. A newer major version container cannot start against an older major version data directory. Use a backup and restore flow instead.
 
 #### Docker Compose
 
 These commands use the default OSS Compose files from the self-host quick start.
 
-Check the current Postgres version and continue only if it shows PostgreSQL 17:
+Check the current Postgres version:
 
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh exec postgres \
@@ -153,7 +156,7 @@ Stop the stack:
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh down
 ```
 
-Find the existing Postgres volume, keep a copy, then remove the original so Compose can create a fresh Postgres 18 volume:
+Find the existing Postgres volume, keep a copy, then remove the original so Compose can create a fresh volume for the new version:
 
 ```bash
 docker volume ls | grep postgres
@@ -170,7 +173,7 @@ docker run --rm \
 docker volume rm "$POSTGRES_VOLUME"
 ```
 
-Do not remove the backup volume until the upgrade is verified. Start Postgres 18 and restore the dump:
+Do not remove the backup volume until the upgrade is verified. Start the new Postgres version and restore the dump:
 
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh up -d postgres
@@ -230,7 +233,7 @@ helm -n agenta get values agenta -o yaml > agenta-values-before-pg18.yaml
 kubectl -n agenta get pvc
 ```
 
-Create a fresh PostgreSQL 18 data volume. The exact storage operation depends on your cluster: use your storage provider's snapshot/restore workflow, restore into a new release, or delete the old bundled PostgreSQL PVC only after you have verified the logical backup. For a disposable local cluster, that last option looks like this:
+Create a fresh PostgreSQL data volume for the new major version. The exact storage operation depends on your cluster: use your storage provider's snapshot/restore workflow, restore into a new release, or delete the old bundled PostgreSQL PVC only after you have verified the logical backup. For a disposable local cluster, that last option looks like this:
 
 ```bash
 kubectl -n agenta scale deploy --all --replicas=0

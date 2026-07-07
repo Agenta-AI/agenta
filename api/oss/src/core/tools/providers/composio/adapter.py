@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 import httpx
+from pydantic import ValidationError
 
 from oss.src.utils.logging import get_module_logger
 
@@ -9,37 +10,39 @@ from agenta.sdk.models.workflows import JsonSchemas
 from oss.src.core.tools.dtos import (
     ToolCatalogActionDetails,
     ToolCatalogProvider,
-    ToolConnectionRequest,
-    ToolConnectionResponse,
     ToolExecutionRequest,
     ToolExecutionResponse,
 )
 from oss.src.core.tools.interfaces import ToolsGatewayInterface
 from oss.src.core.tools.exceptions import AdapterError
-from oss.src.core.tools.providers.composio.catalog import ComposioCatalogClient
+from oss.src.core.tools.providers.composio.catalog import (
+    ComposioCatalogClient,
+    _derive_read_only,
+)
+from oss.src.core.tools.providers.composio.dtos import ComposioSearchResult
+from oss.src.core.gateway.providers.composio.errors import composio_error_detail
+from oss.src.utils.env import env
 
 
 log = get_module_logger(__name__)
-
-COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3"
 
 
 class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
     """Composio V3 API adapter — uses httpx directly (no SDK).
 
     Catalog operations (list/get integrations and actions) are provided by
-    ``ComposioCatalogClient``. Connection management and tool execution are
-    implemented here.
+    ``ComposioCatalogClient``. Tool execution is implemented here. Connection
+    auth lives in ``ComposioConnectionsAdapter``.
     """
 
     def __init__(
         self,
         *,
         api_key: str,
-        api_url: str = COMPOSIO_DEFAULT_API_URL,
+        api_url: Optional[str] = None,
     ):
         self.api_key = api_key
-        self.api_url = api_url.rstrip("/")
+        self.api_url = (api_url or env.composio.api_url).rstrip("/")
         # Shared client — one connection pool for the adapter's lifetime.
         # Call close() on shutdown (wired in entrypoints/routers.py lifespan).
         self._client = httpx.AsyncClient(timeout=30.0)
@@ -89,14 +92,6 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         resp.raise_for_status()
         return resp.json()
 
-    async def _delete(self, path: str) -> bool:
-        resp = await self._client.delete(
-            f"{self.api_url}{path}",
-            headers=self._headers(),
-        )
-        resp.raise_for_status()
-        return True
-
     # -----------------------------------------------------------------------
     # Catalog — provider listing
     # -----------------------------------------------------------------------
@@ -138,13 +133,13 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             raise AdapterError(
                 provider_key="composio",
                 operation="get_action",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
                 operation="get_action",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
 
         input_params = item.get("input_parameters")
@@ -161,218 +156,8 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             if input_params or output_params
             else None,
             scopes=item.get("scopes") or None,
+            read_only=_derive_read_only(item.get("tags")),
         )
-
-    # -----------------------------------------------------------------------
-    # Connections
-    # -----------------------------------------------------------------------
-
-    async def initiate_connection(
-        self,
-        *,
-        request: ToolConnectionRequest,
-    ) -> ToolConnectionResponse:
-        user_id = request.user_id
-        integration_key = request.integration_key
-        auth_scheme = request.auth_scheme
-        callback_url = request.callback_url
-
-        # Step 1: validate the toolkit exists and get its auth scheme info.
-        try:
-            toolkit = await self._get(f"/toolkits/{integration_key}")
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                raise AdapterError(
-                    provider_key="composio",
-                    operation="initiate_connection.validate_toolkit",
-                    detail=f"Integration '{integration_key}' not found",
-                ) from e
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.validate_toolkit",
-                detail=str(e),
-            ) from e
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.validate_toolkit",
-                detail=str(e),
-            ) from e
-
-        # Step 2: create an auth config for this integration.
-        # api_key → use_custom_auth; Composio's redirect UI collects the credentials.
-        # oauth / None → use_composio_managed_auth.
-        log.info(
-            "initiate_connection: integration_key=%s auth_scheme=%r",
-            integration_key,
-            auth_scheme,
-        )
-
-        if auth_scheme == "api_key":
-            # Derive Composio authScheme from toolkit's auth_config_details.
-            # Fall back to "API_KEY" as the common default.
-            composio_auth_scheme = "API_KEY"
-            for detail in toolkit.get("auth_config_details") or []:
-                mode = detail.get("mode", "")
-                if mode and "oauth" not in mode.lower():
-                    composio_auth_scheme = mode
-                    break
-
-            auth_config_body: Dict[str, Any] = {
-                "type": "use_custom_auth",
-                "authScheme": composio_auth_scheme,
-            }
-        else:
-            auth_config_body = {"type": "use_composio_managed_auth"}
-
-        auth_configs_payload = {
-            "toolkit": {"slug": integration_key},
-            "auth_config": auth_config_body,
-        }
-        log.info(
-            "initiate_connection: POST /auth_configs payload=%s", auth_configs_payload
-        )
-
-        try:
-            auth_config_result = await self._post(
-                "/auth_configs",
-                json=auth_configs_payload,
-            )
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.create_auth_config",
-                detail=str(e),
-            ) from e
-
-        auth_config_id = (auth_config_result.get("auth_config") or {}).get("id")
-        if not auth_config_id:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection.create_auth_config",
-                detail=f"No auth_config_id in response for integration '{integration_key}'",
-            )
-
-        log.info(
-            "initiate_connection: integration_key=%s auth_config_id=%s",
-            integration_key,
-            auth_config_id,
-        )
-
-        # Step 3: initiate connected account link.
-        payload: Dict[str, Any] = {
-            "user_id": user_id,
-            "auth_config_id": auth_config_id,
-        }
-        if callback_url:
-            payload["callback_url"] = callback_url
-
-        try:
-            result = await self._post("/connected_accounts/link", json=payload)
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="initiate_connection",
-                detail=str(e),
-            ) from e
-
-        provider_connection_id = result.get("connected_account_id", "")
-        redirect_url = result.get("redirect_url")
-
-        connection_data: Dict[str, Any] = {
-            "connected_account_id": provider_connection_id,
-            "auth_config_id": auth_config_id,
-        }
-        if redirect_url:
-            connection_data["redirect_url"] = redirect_url
-
-        return ToolConnectionResponse(
-            provider_connection_id=provider_connection_id,
-            redirect_url=redirect_url,
-            connection_data=connection_data,
-        )
-
-    async def get_connection_status(
-        self,
-        *,
-        provider_connection_id: str,
-    ) -> Dict[str, Any]:
-        try:
-            result = await self._get(f"/connected_accounts/{provider_connection_id}")
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="get_connection_status",
-                detail=str(e),
-            ) from e
-
-        return {
-            "status": result.get("status"),
-            "is_valid": result.get("status") == "ACTIVE",
-        }
-
-    async def refresh_connection(
-        self,
-        *,
-        provider_connection_id: str,
-        force: bool = False,
-        callback_url: Optional[str] = None,
-        integration_key: Optional[str] = None,
-        user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        # For Composio OAuth flows, "refresh" means re-initiating the auth link.
-        # The provider does not expose a token-refresh endpoint for OAuth connections,
-        # so we create a new connected_accounts/link which the user must re-authorize.
-        if integration_key and user_id:
-            result = await self.initiate_connection(
-                request=ToolConnectionRequest(
-                    user_id=user_id,
-                    integration_key=integration_key,
-                    callback_url=callback_url,
-                ),
-            )
-            return {
-                "id": result.provider_connection_id,
-                "redirect_url": result.redirect_url,
-                "auth_config_id": result.connection_data.get("auth_config_id"),
-                "is_valid": False,  # Re-auth pending until callback fires
-            }
-
-        payload: Dict[str, Any] = {}
-        if callback_url:
-            payload["callback_url"] = callback_url
-
-        try:
-            result = await self._post(
-                f"/connected_accounts/{provider_connection_id}/refresh",
-                json=payload,
-            )
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="refresh_connection",
-                detail=str(e),
-            ) from e
-
-        return {
-            "status": result.get("status"),
-            "is_valid": result.get("status") == "ACTIVE",
-            "redirect_url": result.get("redirect_url"),
-        }
-
-    async def revoke_connection(
-        self,
-        *,
-        provider_connection_id: str,
-    ) -> bool:
-        try:
-            return await self._delete(f"/connected_accounts/{provider_connection_id}")
-        except httpx.HTTPError as e:
-            raise AdapterError(
-                provider_key="composio",
-                operation="revoke_connection",
-                detail=str(e),
-            ) from e
 
     # -----------------------------------------------------------------------
     # Execution
@@ -388,12 +173,19 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
             action_key=request.action_key,
         )
 
-        payload: Dict[str, Any] = {
-            "arguments": request.arguments,
-            "connected_account_id": request.provider_connection_id,
-        }
+        payload: Dict[str, Any] = {"arguments": request.arguments}
+        # No-auth toolkits run without a connected account; only send the id when set.
+        if request.provider_connection_id:
+            payload["connected_account_id"] = request.provider_connection_id
         if request.user_id:
             payload["user_id"] = request.user_id
+
+        log.debug(
+            "[composio.execute] slug=%s connected_account=%s user_id=%s",
+            composio_slug,
+            request.provider_connection_id or "(none)",
+            request.user_id or "(none)",
+        )
 
         try:
             result = await self._post(
@@ -401,24 +193,109 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 json=payload,
             )
         except httpx.HTTPStatusError as e:
-            body = e.response.text if e.response is not None else ""
             raise AdapterError(
                 provider_key="composio",
                 operation="execute",
-                detail=f"{e} — response: {body}",
+                detail=composio_error_detail(e),
             ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
                 operation="execute",
-                detail=str(e),
+                detail=composio_error_detail(e),
             ) from e
+
+        log.debug(
+            "[composio.execute] slug=%s successful=%s error=%s",
+            composio_slug,
+            result.get("successful", False),
+            str(result.get("error"))[:300],
+        )
 
         return ToolExecutionResponse(
             data=result.get("data"),
             error=result.get("error"),
             successful=result.get("successful", False),
         )
+
+    # -----------------------------------------------------------------------
+    # Discovery — semantic tool search (COMPOSIO_SEARCH_TOOLS)
+    # -----------------------------------------------------------------------
+
+    async def search_capabilities(
+        self,
+        *,
+        use_cases: List[str],
+        user_id: str,
+    ) -> ComposioSearchResult:
+        """Semantic tool search via the COMPOSIO_SEARCH_TOOLS meta-tool.
+
+        One call returns matched tools + alternatives + inline schemas + plan +
+        pitfalls + per-user connection state. ``user_id`` is the Composio user the
+        connection state is read for; Agenta passes ``str(project_id)`` so the
+        result reflects the calling project's connections.
+        """
+        payload: Dict[str, Any] = {
+            "user_id": user_id,
+            "arguments": {
+                "queries": [{"use_case": use_case} for use_case in use_cases],
+                "session": {"generate_id": True},
+            },
+        }
+
+        try:
+            result = await self._post(
+                "/tools/execute/COMPOSIO_SEARCH_TOOLS",
+                json=payload,
+            )
+        except httpx.HTTPStatusError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=composio_error_detail(e),
+            ) from e
+        except httpx.HTTPError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=composio_error_detail(e),
+            ) from e
+
+        # A non-object JSON body would make ``.get`` below raise AttributeError and leak
+        # a 500; treat it as a malformed envelope instead.
+        if not isinstance(result, dict):
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail="tool search returned a malformed envelope",
+            )
+
+        # Composio returns HTTP 200 with successful=false on a tool-level failure, so
+        # the HTTP guards above never catch it. Treat an unsuccessful or malformed
+        # envelope as an adapter error rather than silently reporting no capabilities.
+        if not result.get("successful", False):
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=str(result.get("error") or "tool search was unsuccessful"),
+            )
+
+        data = result.get("data")
+        if not isinstance(data, dict):
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail="tool search returned no data",
+            )
+
+        try:
+            return ComposioSearchResult.model_validate(data)
+        except ValidationError as e:
+            raise AdapterError(
+                provider_key="composio",
+                operation="search_capabilities",
+                detail=f"malformed tool search response: {e}",
+            ) from e
 
     # -----------------------------------------------------------------------
     # Slug mapping helpers

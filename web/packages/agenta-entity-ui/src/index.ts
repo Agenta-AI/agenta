@@ -290,6 +290,7 @@ export {
     type CommitSubmitResult,
     type CommitModeOption,
     type CommitCreateFieldsConfig,
+    type CommitDeployOption,
     // Commit modal state atoms
     commitModalOpenAtom,
     commitModalEntityAtom,
@@ -540,3 +541,13 @@ export {
     WorkflowKindTag,
     type WorkflowKindTagProps,
 } from "./workflow"
+
+// ============================================================================
+// SHARED DRAWER PRIMITIVES
+// ============================================================================
+
+export {
+    SectionRail,
+    type SectionRailProps,
+    type SectionRailItem,
+} from "./drawers/shared/SectionRail"

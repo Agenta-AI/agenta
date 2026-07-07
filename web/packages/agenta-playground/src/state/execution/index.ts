@@ -120,6 +120,7 @@ export {
     sessionsAtomFamily,
     activeSessionsAtomFamily,
     sessionAtomFamily,
+    backendSessionIdAtomFamily,
     // Step atoms
     stepsByIdAtomFamily,
     stepIdsAtomFamily,
@@ -261,6 +262,8 @@ export {
     outputPortSchemaMapAtom,
     // App-level mode selectors
     isChatModeAtom,
+    // Per-entity agent-mode flag
+    isAgentModeAtomFamily,
     appTypeAtom,
     type AppType,
     // Row run status
@@ -347,3 +350,27 @@ export {
     // Schema input keys
     schemaInputKeysAtom,
 } from "./displayedEntities"
+
+// Agent-lane request builder (bypasses buffered-fetch execution; useChat streams).
+export {
+    applyBuildKitOverlay,
+    buildAgentRequest,
+    buildAgentReferences,
+    type AgentRequest,
+} from "./agentRequest"
+// Stream vs batch response channel for the agent lane (read by buildAgentRequest's Accept header).
+export {agentChannelModeAtom, type AgentChannelMode} from "./channelMode"
+// Transport negotiation: try stream, fall back to batch on 406, error gracefully otherwise.
+export {createNegotiatingFetch, type NegotiatingFetch} from "./agentNegotiation"
+// Agent-lane HITL resume predicate (approve AND deny both resume the conversation).
+export {agentShouldResumeAfterApproval} from "./agentApprovalResume"
+// Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).
+export {canReleaseQueuedMessage, isHitlPending} from "./agentMessageQueue"
+// Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
+export {
+    appendCapped,
+    buildTurnCapture,
+    capturesForTrigger,
+    triggerUserMessageId,
+    type TurnRequestCapture,
+} from "./turnCapture"

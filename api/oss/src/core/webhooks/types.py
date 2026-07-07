@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl
 
 from oss.src.core.events.types import EventType
 from oss.src.core.shared.dtos import (
@@ -113,6 +113,11 @@ class WebhookEventType(str, Enum):
 # --- WEBHOOK SUBSCRIPTIONS -------------------------------------------------- #
 
 
+class WebhookSubscriptionFlags(BaseModel):
+    # No is_valid: a webhook has no external connection validity concept.
+    is_active: bool = True
+
+
 class WebhookSubscriptionData(BaseModel):
     url: HttpUrl
     headers: Optional[Dict[str, str]] = None
@@ -124,6 +129,8 @@ class WebhookSubscriptionData(BaseModel):
 
 class WebhookSubscription(Identifier, Lifecycle, Header, Metadata):
     data: WebhookSubscriptionData
+
+    flags: WebhookSubscriptionFlags = Field(default_factory=WebhookSubscriptionFlags)
 
     secret_id: Optional[UUID] = None
     secret: Optional[str] = None
@@ -137,6 +144,8 @@ class WebhookSubscriptionCreate(Header, Metadata):
 
 class WebhookSubscriptionEdit(Identifier, Lifecycle, Header, Metadata):
     data: WebhookSubscriptionData
+
+    flags: WebhookSubscriptionFlags = Field(default_factory=WebhookSubscriptionFlags)
 
     secret: Optional[str] = None
 

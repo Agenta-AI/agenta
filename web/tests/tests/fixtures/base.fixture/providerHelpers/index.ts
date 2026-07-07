@@ -137,7 +137,7 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                 const pathname = new URL(page.url()).pathname
                 const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
                 const headingVisible = await page
-                    .getByRole("heading", {name: "Providers & Models"})
+                    .getByRole("heading", {name: "LLMs"})
                     .isVisible()
                     .catch(() => false)
                 const sectionVisible = await customProvidersSection.isVisible().catch(() => false)
@@ -178,10 +178,10 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
         throw new Error(`Could not derive project scoped path from current URL: ${page.url()}`)
     }
 
-    await page.goto(`${projectBasePath}/settings?tab=secrets`, {waitUntil: "domcontentloaded"})
+    await page.goto(`${projectBasePath}/settings?tab=llms`, {waitUntil: "domcontentloaded"})
 
     await uiHelpers.expectPath("/settings")
-    await expect(page.getByRole("heading", {name: "Providers & Models"})).toBeVisible({
+    await expect(page.getByRole("heading", {name: "LLMs"})).toBeVisible({
         timeout: 15000,
     })
     await expect(getCustomProvidersSection(page)).toBeVisible({timeout: 15000})

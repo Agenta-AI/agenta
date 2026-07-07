@@ -74,7 +74,19 @@ export {defaultFieldBehaviors} from "./context"
 
 // UI Injection Context (for OSS component injection)
 export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "./context"
-export type {DrillInUIComponents, DrillInUIProviderProps, GatewayToolsBridge} from "./context"
+export type {
+    DrillInUIComponents,
+    DrillInUIProviderProps,
+    GatewayToolsBridge,
+    WorkflowReferenceBridge,
+    WorkflowReferenceUI,
+    WorkflowReferenceType,
+    WorkflowRevisionUI,
+    WorkflowEnvironmentUI,
+    WorkflowReferencePayload,
+    WorkflowConfigPart,
+    WorkflowConfigPayload,
+} from "./context"
 
 // ============================================================================
 // CORE COMPONENTS

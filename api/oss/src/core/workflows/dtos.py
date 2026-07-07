@@ -117,6 +117,7 @@ class WorkflowVariantSlugAlias(AliasConfig):
 
 
 class WorkflowArtifactFlags(BaseModel):
+    # role / intent (user-declared, persisted)
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
@@ -138,6 +139,8 @@ class WorkflowRevisionFlags(WorkflowArtifactFlags):
     is_code: bool = False
     is_match: bool = False
     is_feedback: bool = False
+    is_agent: bool = False
+    is_skill: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -147,6 +150,8 @@ class WorkflowRevisionFlags(WorkflowArtifactFlags):
     has_script: bool = False
     ## function
     has_handler: bool = False
+    # slug-derived
+    is_static: bool = False
 
 
 class WorkflowArtifactQueryFlags(BaseModel):
@@ -171,6 +176,8 @@ class WorkflowRevisionQueryFlags(WorkflowArtifactQueryFlags):
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
+    is_agent: Optional[bool] = None
+    is_skill: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -180,6 +187,8 @@ class WorkflowRevisionQueryFlags(WorkflowArtifactQueryFlags):
     has_script: Optional[bool] = None
     ## function
     has_handler: Optional[bool] = None
+    # slug-derived
+    is_static: Optional[bool] = None
 
 
 class WorkflowFlags(WorkflowRevisionFlags):
@@ -190,13 +199,10 @@ class WorkflowQueryFlags(WorkflowRevisionQueryFlags):
     """Legacy full workflow query flag set."""
 
 
-class WorkflowCatalogFlags(BaseModel):
+class WorkflowCatalogFlags(WorkflowArtifactFlags):
     is_archived: bool = False
     is_recommended: bool = False
-    #
-    is_application: bool = False
-    is_evaluator: bool = False
-    is_snippet: bool = False
+    # + is_application, is_evaluator, is_snippet
 
 
 # workflows --------------------------------------------------------------------
@@ -292,6 +298,19 @@ class WorkflowRevisionQuery(RevisionQuery):
     flags: Optional[WorkflowRevisionQueryFlags] = None
 
 
+class WorkflowRevisionDelta(BaseModel):
+    """Delta operations on a workflow revision's data tree.
+
+    - ``set``: a partial data tree deep-merged onto the base revision's data
+      (nested dicts merge; scalars and lists replace).
+    - ``remove``: dotted key paths to delete from the data tree (e.g.
+      ``parameters.agent.tools``).
+    """
+
+    set: Optional[Dict[str, Any]] = None
+    remove: Optional[List[str]] = None
+
+
 class WorkflowRevisionCommit(
     RevisionCommit,
     WorkflowIdAlias,
@@ -300,6 +319,7 @@ class WorkflowRevisionCommit(
     flags: Optional[WorkflowFlags] = None
 
     data: Optional[WorkflowRevisionData] = None
+    delta: Optional[WorkflowRevisionDelta] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
@@ -442,8 +462,18 @@ class WorkflowCatalogType(WorkflowCatalogMappingMixin, Header):
     json_schema: Schema
 
 
+class WorkflowCatalogHarness(WorkflowCatalogMappingMixin, Header):
+    # One harness record in the `harnesses` catalog, resolved by `x-ag-harness-ref`. `capabilities`
+    # is a field (not the whole record) so a record can grow other harness facts later.
+    key: str
+
+    capabilities: Optional[dict] = None
+
+
 class WorkflowCatalogTemplate(WorkflowCatalogMappingMixin, Header):
     key: str
+
+    slug: Optional[str] = None
 
     categories: Optional[list[str]] = None
 
@@ -458,3 +488,15 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
 
     flags: Optional[WorkflowCatalogFlags] = None
     data: Optional[WorkflowRevisionData] = None
+
+
+class WorkflowServiceDetachedResponse(BaseModel):
+    """Result of a detached (fire-and-forget) workflow invoke.
+
+    The run is owned by the runner once accepted; the caller never awaits completion.
+    """
+
+    run_id: str
+    accepted: bool = True
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None

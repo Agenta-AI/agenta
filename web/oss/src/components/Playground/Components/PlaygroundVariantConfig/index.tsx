@@ -12,7 +12,7 @@ import {
     type EvaluatorPresetConfig,
     type ConfigViewMode,
 } from "@agenta/entity-ui"
-import {hasPendingHydrationAtomFamily} from "@agenta/playground"
+import {hasPendingHydrationAtomFamily, isAgentModeAtomFamily} from "@agenta/playground"
 import {Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -55,6 +55,10 @@ const PlaygroundVariantConfig: React.FC<
     // Gate rendering until pending draft hydrations are applied.
     // Prevents flash of unedited content when reloading with draft patches in the URL.
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
+
+    // The agent config panel is a read-only summary that edits via section drawers, so the
+    // form/JSON/YAML view switch doesn't apply — hide it for agents (kept for prompt/eval variants).
+    const isAgent = useAtomValue(isAgentModeAtomFamily(variantId))
 
     // Refine prompt modal state
     const [refineModalOpen, setRefineModalOpen] = useState(false)
@@ -195,7 +199,7 @@ const PlaygroundVariantConfig: React.FC<
                 evaluatorLabel={evaluatorInfo?.label}
                 hasPresets={hasPresets}
                 onLoadPreset={() => setIsPresetModalOpen(true)}
-                extraActions={viewModeSelector}
+                extraActions={isAgent ? undefined : viewModeSelector}
             />
             {hasPendingHydration ? (
                 <div className="p-4 flex flex-col gap-3">

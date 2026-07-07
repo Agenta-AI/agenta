@@ -16,6 +16,7 @@
         "apiInternalUrl": { "type": "string", "description": "Internal API URL (in-cluster). Emitted as AGENTA_API_INTERNAL_URL." },
         "authKey": { "type": "string", "minLength": 1, "description": "Authorization key. Emitted as AGENTA_AUTH_KEY via Secret." },
         "cryptKey": { "type": "string", "minLength": 1, "description": "Encryption key. Emitted as AGENTA_CRYPT_KEY via Secret." },
+        "insecureEgressAllowed": { "type": ["boolean", "string"], "description": "AGENTA_INSECURE_EGRESS_ALLOWED — default false (secure); true permits egress to private/loopback IPs — dev only." },
         "access": {
           "type": "object",
           "additionalProperties": false,
@@ -94,7 +95,7 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "allowInsecure": { "type": ["boolean", "string"], "description": "AGENTA_SERVICES_HOOK_ALLOW_INSECURE." }
+                "allowInsecure": { "type": ["boolean", "string"], "description": "Deprecated; use top-level agenta.insecureEgressAllowed. Still honored as a fallback for AGENTA_INSECURE_EGRESS_ALLOWED." }
               }
             },
             "code": {
@@ -118,7 +119,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "allowInsecure": { "type": ["boolean", "string"], "description": "AGENTA_WEBHOOKS_ALLOW_INSECURE." }
+            "allowInsecure": { "type": ["boolean", "string"], "description": "Deprecated; use top-level agenta.insecureEgressAllowed. Still honored as a fallback for AGENTA_INSECURE_EGRESS_ALLOWED." }
           }
         }
       }
@@ -258,6 +259,56 @@
         "apiKey": { "type": "string", "description": "LOOPS_API_KEY via Secret." }
       }
     },
+    "store": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Object-storage config (AGENTA_STORE_*). Used for file mounts, session artifacts, etc.",
+      "properties": {
+        "enabled":     { "type": "boolean", "description": "Enable the durable object store (emits AGENTA_STORE_* into pods)." },
+        "endpointUrl": { "type": "string", "description": "AGENTA_STORE_ENDPOINT_URL." },
+        "stsEndpointUrl": { "type": "string", "description": "AGENTA_STORE_STS_ENDPOINT_URL. Remote-S3 STS endpoint; defaults to the S3 endpoint (MinIO). Set for AWS: https://sts.<region>.amazonaws.com." },
+        "accessKey":   { "type": "string", "description": "AGENTA_STORE_ACCESS_KEY via Secret." },
+        "secretKey":   { "type": "string", "description": "AGENTA_STORE_SECRET_KEY via Secret." },
+        "region":      { "type": "string", "description": "AGENTA_STORE_REGION." },
+        "bucket":      { "type": "string", "description": "AGENTA_STORE_BUCKET." },
+        "namespace":   { "type": "string", "description": "AGENTA_STORE_NAMESPACE. Optional global key prefix (\"database\") to share one bucket across ephemeral environments; unset for a dedicated bucket." },
+        "signingKey":  { "type": "string", "description": "AGENTA_STORE_SIGNING_KEY via Secret. Base64 of 32 bytes. Its presence selects the SeaweedFS backend (web-identity STS); leave unset for a remote S3 store (GetFederationToken)." },
+        "jwtIssuer":   { "type": "string", "description": "AGENTA_STORE_JWT_ISSUER. SeaweedFS-only: in-cluster API URL SeaweedFS fetches the JWKS from. Defaults to http://<release>-api:<api.port>." },
+        "jwtPrivateKey": { "type": "string", "description": "AGENTA_STORE_JWT_PRIVATE_KEY via Secret. SeaweedFS-only: stable RSA PEM (PKCS#8) the API signs its web-identity token with; required so all API replicas share one key." },
+        "seaweedfs": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Bundled SeaweedFS deployment knobs.",
+          "properties": {
+            "enabled":     { "type": "boolean", "description": "Deploy the bundled SeaweedFS StatefulSet." },
+            "port":        { "type": ["integer", "string"], "description": "SeaweedFS S3 gateway port (default 8333)." },
+            "image": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "repository": { "type": "string" },
+                "tag":        { "type": "string" },
+                "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+              }
+            },
+            "persistence": { "type": "object", "additionalProperties": true }
+          }
+        }
+      }
+    },
+    "agentRunner": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Agent runner sidecar config. AGENTA_RUNNER_* are read by the Services API; SANDBOX_AGENT_* by the runner service.",
+      "properties": {
+        "enabled":     { "type": "boolean", "description": "Deploy the runner sidecar; the Services API derives AGENTA_RUNNER_INTERNAL_URL from it unless externalUrl is set." },
+        "externalUrl": { "type": "string", "description": "AGENTA_RUNNER_INTERNAL_URL override pointing at an external runner." },
+        "enableMcp":   { "type": "boolean", "description": "AGENTA_AGENT_MCPS_ENABLED." },
+        "provider":    { "type": "string", "description": "SANDBOX_AGENT_PROVIDER (e.g. local, daytona) read by the runner service." },
+        "logLevel":    { "type": "string", "description": "SANDBOX_AGENT_LOG_LEVEL read by the runner service." },
+        "daytona":     { "type": "object", "additionalProperties": true, "description": "Daytona sandbox knobs (DAYTONA_* env on the runner service)." }
+      }
+    },
     "newrelic": {
       "type": "object",
       "additionalProperties": false,
@@ -341,11 +392,9 @@
     "api":               { "$ref": "#/$defs/component" },
     "web":               { "$ref": "#/$defs/component" },
     "services":          { "$ref": "#/$defs/component" },
-    "workerEvaluations": { "$ref": "#/$defs/component" },
-    "workerTracing":     { "$ref": "#/$defs/component" },
-    "workerWebhooks":    { "$ref": "#/$defs/component" },
-    "workerEvents":      { "$ref": "#/$defs/component" },
-    "cron":              { "$ref": "#/$defs/component" },
+    "workerStreams":      { "$ref": "#/$defs/component" },
+    "workerQueues":       { "$ref": "#/$defs/component" },
+    "cron":               { "$ref": "#/$defs/component" },
     "nameOverride":     { "type": "string" },
     "fullnameOverride": { "type": "string" }
   },

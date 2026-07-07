@@ -44,7 +44,25 @@ import "./snapshotAdapter"
 
 export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
-export {deriveWorkflowTypeFromRevision} from "./state/helpers"
+export {
+    deriveWorkflowTypeFromRevision,
+    fetchAndClassifyWorkflows,
+    filterAgentWorkflows,
+    filterNonAgentWorkflows,
+} from "./state/helpers"
+
+// Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
+export {
+    harnessCapabilitiesAtomFamily,
+    type HarnessCapabilities,
+    type HarnessCapabilitiesMap,
+} from "./state/inspectMeta"
+
+export {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type AgentTemplate,
+} from "./state"
 
 // ============================================================================
 // SCHEMAS & TYPES
@@ -196,6 +214,8 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+    agentWorkflowsListQueryStateAtom,
     // Union atoms (app + evaluator combined)
     workflowsListDataAtom,
     nonArchivedWorkflowsAtom,
@@ -223,6 +243,7 @@ export {
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateAgentCommittedRevisionCache,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
@@ -293,8 +314,10 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    llmEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
+    nonDeterministicEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

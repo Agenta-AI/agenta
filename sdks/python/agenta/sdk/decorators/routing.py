@@ -14,11 +14,27 @@ from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
     WorkflowInvokeRequest,
     WorkflowInspectRequest,
+    WorkflowInspectResponse,
     WorkflowServiceStatus,
     WorkflowBatchResponse,
     WorkflowStreamingResponse,
     WorkflowBaseResponse,
     WorkflowServiceResponseData,
+)
+from agenta.sdk.agents.adapters.vercel.routing import (
+    set_vercel_message_protocol_headers,
+)
+from agenta.sdk.agents.adapters.vercel.messages import (
+    vercel_messages_to_agenta_messages,
+    agenta_messages_to_vercel_messages,
+)
+from agenta.sdk.agents.adapters.vercel.stream import (
+    agent_stream_to_vercel_stream,
+)
+from agenta.sdk.middlewares.routing.otel import baggage_value
+from agenta.sdk.agents.adapters.vercel.sse import (
+    VERCEL_UI_MESSAGE_STREAM_HEADERS as _VERCEL_UI_MESSAGE_STREAM_HEADERS,
+    vercel_sse_stream as _vercel_sse_stream,
 )
 from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
@@ -34,7 +50,7 @@ from agenta.sdk.engines.running.errors import ErrorStatus
 # These names are used by the per-route namespace triple itself.
 # ---------------------------------------------------------------------------
 
-_RESERVED_PATHS = {"invoke", "inspect"}
+_RESERVED_PATHS = {"invoke", "inspect", "messages"}
 
 
 def _validate_path(path: str) -> None:
@@ -118,11 +134,105 @@ def _parse_accept(request: Request) -> Optional[str]:
     return None  # */* or absent — server picks
 
 
+def _wants_vercel_format(request: Request) -> bool:
+    """Negotiation 2: the `x-ag-messages-format` header selects the message wire
+    representation, separately from `Accept` (a Vercel UI message stream and a
+    plain SSE stream share `text/event-stream`). Default/absent/agenta = canonical.
+    """
+    return request.headers.get("x-ag-messages-format", "").lower() == "vercel"
+
+
+def _parse_transcript_header(request: Request) -> Optional[bool]:
+    """Negotiation 3: the `x-ag-messages-transcript` header is HTTP sugar over the
+    canonical `flags.trim` command. ``last`` -> True (trim to the trailing unit),
+    ``full`` -> False (full message list). Absent/unrecognized -> None (unset, so
+    the body flag or the handler-level default decides). Mirrors `Accept`->`stream`.
+    """
+    value = request.headers.get("x-ag-messages-transcript", "").strip().lower()
+    if value == "last":
+        return True
+    if value == "full":
+        return False
+    return None
+
+
+def _parse_session_control_header(request: Request) -> Optional[bool]:
+    """New negotiation: the `x-ag-session-control` header is HTTP sugar over the
+    canonical `flags.force` command. ``force`` -> True (take over / attach to an
+    existing run). Absent/unrecognized -> None (unset -> False, no take-over).
+    """
+    value = request.headers.get("x-ag-session-control", "").strip().lower()
+    if value == "force":
+        return True
+    return None
+
+
+def _parse_workflow_embeds_header(request: Request) -> Optional[bool]:
+    """New negotiation: the `x-ag-workflow-embeds` header is HTTP sugar over the
+    middleware-owned `flags.resolve` command. ``resolve`` -> True. Absent/
+    unrecognized -> None (unset) — the ResolverMiddleware's own default (True)
+    decides, NOT this parser; do not default this to False.
+    """
+    value = request.headers.get("x-ag-workflow-embeds", "").strip().lower()
+    if value == "resolve":
+        return True
+    return None
+
+
 def _stream_wire_format(media_type: str) -> str:
     """Map a streaming Accept media type to its wire format name."""
     if media_type == "text/event-stream":
         return "sse"
     return "ndjson"  # application/x-ndjson, application/jsonl
+
+
+def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
+    """Shared endpoint prelude for both invoke surfaces (route mounts + root dispatch):
+    header->flag fills (body wins), session_id extraction, vercel input projection.
+    Mutates `request` in place.
+    """
+    _accept = _parse_accept(req)
+    _flags = dict(request.flags or {})
+    if "stream" not in _flags:
+        _flags["stream"] = _accept in STREAM_MEDIA_TYPES
+    if "trim" not in _flags:
+        _trim = _parse_transcript_header(req)
+        if _trim is not None:
+            _flags["trim"] = _trim
+    if "force" not in _flags:
+        _force = _parse_session_control_header(req)
+        if _force is not None:
+            _flags["force"] = _force
+    if "resolve" not in _flags:
+        _resolve = _parse_workflow_embeds_header(req)
+        if _resolve is not None:
+            _flags["resolve"] = _resolve
+    request.flags = _flags
+
+    if request.session_id is None:
+        _otel = getattr(req.state, "otel", None) or {}
+        _bag = _otel.get("baggage") or {}
+        _bag_sid = _bag.get("ag.session.id") or baggage_value(
+            req.headers.get("baggage"), "ag.session.id"
+        )
+        request.session_id = req.headers.get("x-ag-session-id") or _bag_sid
+
+    if _wants_vercel_format(req) and request.data and request.data.inputs:
+        _msgs = request.data.inputs.get("messages")
+        if _msgs:
+            _last = _msgs[-1] if isinstance(_msgs, list) else None
+            # AI SDK resumes into a clone keyed by the trailing assistant message id.
+            if isinstance(_last, dict):
+                _last_role = _last.get("role")
+                _last_id = _last.get("id")
+                if _last_role == "assistant" and isinstance(_last_id, str) and _last_id:
+                    req.state.ag_continuation_message_id = _last_id
+            request.data.inputs = {
+                **request.data.inputs,
+                "messages": [
+                    m.to_wire() for m in vercel_messages_to_agenta_messages(_msgs)
+                ],
+            }
 
 
 def _get_request_tracing_context(req: Request) -> TracingContext:
@@ -171,6 +281,16 @@ def _set_common_headers(
     if response.span_id:
         res.headers.setdefault("x-ag-span-id", response.span_id)
 
+    if response.session_id:
+        res.headers.setdefault("x-ag-session-id", response.session_id)
+        # session_id also rides W3C baggage as `ag.session.id` — mirroring the
+        # `session.id` span attribute (namespace `session`), with the `ag.` prefix.
+        _existing_bag = res.headers.get("baggage")
+        _sid_bag = f"ag.session.id={response.session_id}"
+        res.headers["baggage"] = (
+            f"{_existing_bag},{_sid_bag}" if _existing_bag else _sid_bag
+        )
+
     if response.trace_id and response.span_id:
         traceparent = f"00-{response.trace_id}-{response.span_id}-01"
         res.headers.setdefault("traceparent", traceparent)
@@ -189,21 +309,78 @@ def _make_json_response(
     return _set_common_headers(res, response)  # type: ignore
 
 
+def _make_vercel_json_response(
+    response: WorkflowBatchResponse,
+    message_id: Optional[str] = None,
+) -> JSONResponse:
+    """Batch counterpart of the stream vercel projection (negotiation 2, batch direction).
+
+    The handler's agenta batch output is the ``{"messages": [...]}`` envelope. When the caller
+    asked for vercel (``x-ag-messages-format: vercel``), project that message list into Vercel
+    ``UIMessage`` objects here in routing — the handler never emits vercel. A non-envelope batch
+    output (chat/completion/evaluators) is passed through unprojected.
+    """
+    from agenta.sdk.agents.dtos import Message
+
+    outputs = response.data.outputs if response.data else None
+    if isinstance(outputs, dict) and isinstance(outputs.get("messages"), list):
+        coerced = [Message.from_raw(m) for m in outputs["messages"]]
+        ui_messages = agenta_messages_to_vercel_messages(
+            [m for m in coerced if m is not None]
+        )
+        if message_id:
+            for ui_message in reversed(ui_messages):
+                if ui_message.get("role") == "assistant":
+                    ui_message["id"] = message_id
+                    break
+        projected = response.model_copy(deep=True)
+        projected.data = WorkflowServiceResponseData(
+            outputs={**outputs, "messages": ui_messages}
+        )
+        res = _make_json_response(projected)
+    else:
+        res = _make_json_response(response)
+    return set_vercel_message_protocol_headers(res)  # type: ignore
+
+
 def _make_stream_response(
     response: WorkflowStreamingResponse,
     wire_format: str,
+    message_id: Optional[str] = None,
 ) -> StreamingResponse:
     aiter = response.iterator()
 
-    if wire_format == "sse":
-        media_type = "text/event-stream"
-        res = StreamingResponse(_sse_stream(aiter), media_type=media_type)
+    if wire_format == "vercel":
+        # The Vercel UI Message Stream: SSE framing terminated by `data: [DONE]`, plus the
+        # headers the AI SDK client and proxies require. Selected by the
+        # `x-ag-messages-format: vercel` header, not derived from Accept — a Vercel UI message
+        # stream and a plain SSE stream share the `text/event-stream` media type, so the
+        # choice cannot come from the Accept header alone.
+        #
+        # The handler yields AGENTA events; the agenta->vercel projection happens HERE, in the
+        # routing layer (never in the handler). `trace_id` is sourced from the response (there is
+        # no run to read it off), so the vercel `finish` frame still carries it.
+        parts = agent_stream_to_vercel_stream(
+            aiter,
+            session_id=response.session_id,
+            message_id=message_id,
+            trace_id=response.trace_id,
+        )
+        res = StreamingResponse(
+            _vercel_sse_stream(parts), media_type="text/event-stream"
+        )
+        for key, value in _VERCEL_UI_MESSAGE_STREAM_HEADERS.items():
+            res.headers.setdefault(key, value)
+    elif wire_format == "sse":
+        res = StreamingResponse(_sse_stream(aiter), media_type="text/event-stream")
     elif wire_format == "ndjson":
-        media_type = "application/x-ndjson"
-        res = StreamingResponse(_ndjson_stream(aiter), media_type=media_type)
+        res = StreamingResponse(
+            _ndjson_stream(aiter), media_type="application/x-ndjson"
+        )
     else:
-        media_type = "application/x-ndjson"
-        res = StreamingResponse(_ndjson_stream(aiter), media_type=media_type)
+        res = StreamingResponse(
+            _ndjson_stream(aiter), media_type="application/x-ndjson"
+        )
 
     return _set_common_headers(res, response)  # type: ignore
 
@@ -247,22 +424,52 @@ async def handle_invoke_success(
     is_stream = isinstance(response, WorkflowStreamingResponse)
 
     requested = _parse_accept(req)
+    continuation_message_id = getattr(req.state, "ag_continuation_message_id", None)
+
+    # An errored handler always yields a batch error response, even when the caller
+    # asked for a stream. Surface it as JSON (the real status) instead of 406ing on
+    # the format mismatch — a 406 would mask the actual error from the client.
+    if (
+        is_batch
+        and response.status
+        and response.status.code is not None
+        and response.status.code >= 400
+    ):
+        res = _make_json_response(response)
+        if requested == "text/event-stream" and _wants_vercel_format(req):
+            res = set_vercel_message_protocol_headers(res)
+        return res
 
     # No preference — server picks the natural format for what the handler returned
     if requested is None:
         if is_batch:
+            if _wants_vercel_format(req):
+                return _make_vercel_json_response(
+                    response, message_id=continuation_message_id
+                )
             return _make_json_response(response)
         return _make_stream_response(response, "ndjson")
 
     # Caller wants JSON — only satisfiable by a batch response
     if requested in BATCH_MEDIA_TYPES:
         if is_batch:
+            if _wants_vercel_format(req):
+                return _make_vercel_json_response(
+                    response, message_id=continuation_message_id
+                )
             return _make_json_response(response)
         return _make_not_acceptable_response(requested, response)
 
     # Caller wants a stream format — only satisfiable by a stream response
     if requested in STREAM_MEDIA_TYPES:
         if is_stream:
+            # Negotiation 2: `x-ag-messages-format: vercel` selects the Vercel UI
+            # message stream projection (SSE-framed), independently of `Accept`.
+            if requested == "text/event-stream" and _wants_vercel_format(req):
+                res = _make_stream_response(
+                    response, "vercel", message_id=continuation_message_id
+                )
+                return set_vercel_message_protocol_headers(res)
             return _make_stream_response(response, _stream_wire_format(requested))
         return _make_not_acceptable_response(requested, response)
 
@@ -333,11 +540,32 @@ async def handle_invoke_failure(exception: Exception) -> Response:
     return _make_json_response(error)
 
 
+def _to_inspect_response(
+    request: WorkflowInvokeRequest,
+) -> WorkflowInspectResponse:
+    """Wrap the internally-built ``WorkflowInvokeRequest`` as the ``/inspect`` response.
+
+    ``workflow.inspect()`` builds its result as a ``WorkflowInvokeRequest`` (the REQUEST model),
+    which carries a ``WorkflowRevision`` shape at ``data.revision`` (so schemas live at
+    ``data.revision.data.schemas``). The response keeps that revision UNMODIFIED at
+    ``response.revision`` (schemas stay at ``revision.data.schemas``) and also exposes the whole
+    ready-made request at ``response.request`` — neither is reshaped or derived from the other.
+    """
+    revision = (request.data.revision or None) if request.data else None
+    return WorkflowInspectResponse(
+        version=request.version,
+        revision=revision,
+        request=request.model_dump(mode="json", exclude_none=True),
+        meta=request.meta,
+    )
+
+
 async def handle_inspect_success(
     request: Optional[WorkflowInvokeRequest],
 ):
     if request:
-        return JSONResponse(request.model_dump(mode="json", exclude_none=True))
+        response = _to_inspect_response(request)
+        return JSONResponse(response.model_dump(mode="json", exclude_none=True))
 
     return JSONResponse({"details": {"message": "Workflow not found"}}, status_code=404)
 
@@ -400,6 +628,8 @@ class route:
 
         async def invoke_endpoint(req: Request, request: WorkflowInvokeRequest):
             credentials = req.state.auth.get("credentials")
+
+            apply_invoke_prelude(req, request)
 
             try:
                 with tracing_context_manager(_get_request_tracing_context(req)):
@@ -504,7 +734,7 @@ class route:
                 self.path + "/inspect",
                 inspect_endpoint,
                 methods=["POST"],
-                response_model=WorkflowInvokeRequest,
+                response_model=WorkflowInspectResponse,
             )
             return foo
 
@@ -526,7 +756,7 @@ class route:
                 "/inspect",
                 inspect_endpoint,
                 methods=["POST"],
-                response_model=WorkflowInvokeRequest,
+                response_model=WorkflowInspectResponse,
             )
 
             return foo
@@ -543,7 +773,7 @@ class route:
             "/inspect",
             inspect_endpoint,
             methods=["POST"],
-            response_model=WorkflowInvokeRequest,
+            response_model=WorkflowInspectResponse,
         )
 
         self.mount_root.mount(self.path, sub_app)

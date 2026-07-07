@@ -1,5 +1,6 @@
 import os
 import hashlib
+import warnings
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -319,6 +320,15 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # EMF metric lines (`log.tick(...)`) to stdout — the CloudWatch agent already
+    # ships container stdout, so this needs no new port/infra to light up.
+    metrics_enabled: bool = (
+        os.getenv("AGENTA_LOGGING_METRICS_ENABLED") or "true"
+    ).lower() in _TRUTHY
+    metrics_namespace: str = (
+        os.getenv("AGENTA_LOGGING_METRICS_NAMESPACE") or "Agenta/Workers"
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -352,16 +362,6 @@ class ServicesCodeConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class ServicesHookConfig(BaseModel):
-    allow_insecure: bool = (
-        os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
-        or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-        or "true"
-    ).lower() in _TRUTHY
-
-    model_config = ConfigDict(extra="ignore")
-
-
 class ServicesMiddlewareConfig(BaseModel):
     caching_enabled: bool = (
         os.getenv("AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED")
@@ -374,8 +374,31 @@ class ServicesMiddlewareConfig(BaseModel):
 
 class ServicesConfig(BaseModel):
     code: ServicesCodeConfig = ServicesCodeConfig()
-    hook: ServicesHookConfig = ServicesHookConfig()
     middleware: ServicesMiddlewareConfig = ServicesMiddlewareConfig()
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# agenta.workers
+# ---------------------------------------------------------------------------
+
+
+def _load_csv_env_list(name: str) -> list[str]:
+    """Parse `name` as a comma-separated list, trimming blanks. Empty/unset -> []."""
+    raw = os.getenv(name) or ""
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+class WorkersConfig(BaseModel):
+    """Topology selectors for the merged `worker-streams`/`worker-queues` entrypoints.
+
+    Empty list means "all loops in that family" — see
+    docs/designs/workers-sprawl/specs.md.
+    """
+
+    streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
+    queues: list[str] = _load_csv_env_list("AGENTA_WORKER_QUEUES")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -385,14 +408,73 @@ class ServicesConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_EGRESS_INSECURE_WARNED = False
+
+
 class WebhooksConfig(BaseModel):
+    # AGENTA_WEBHOOKS_ALLOW_INSECURE / AGENTA_WEBHOOK_ALLOW_INSECURE are deprecated aliases; prefer AGENTA_INSECURE_EGRESS_ALLOWED.
     allow_insecure: bool = (
-        os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
+        os.getenv("AGENTA_INSECURE_EGRESS_ALLOWED")
+        or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
         or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-        or "true"
+        or "false"
     ).lower() in _TRUTHY
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _warn_egress_mode(self) -> "WebhooksConfig":
+        global _EGRESS_INSECURE_WARNED
+        if self.allow_insecure and not _EGRESS_INSECURE_WARNED:
+            _EGRESS_INSECURE_WARNED = True
+            warnings.warn(
+                "AGENTA_INSECURE_EGRESS_ALLOWED is set: webhook/egress targets may include http "
+                "and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.",
+                stacklevel=2,
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# agenta.redaction
+# ---------------------------------------------------------------------------
+
+_REDACTION_LIVE_MODES = {"off", "known"}
+_REDACTION_INERT_MODES = {"pattern", "full"}
+
+
+class RedactionConfig(BaseModel):
+    """Online redaction filter mode. Only `off`/`known` are live in Slice 1; `pattern`/`full`
+    are declared-but-inert (Slice 2) and behave as `known` with a warning."""
+
+    mode: str = os.getenv("AGENTA_REDACTION_MODE") or "known"
+
+    # Operator additions to the SDK's name/value matchers; the SDK (seed.py) owns the
+    # defaults and the merge-onto-default semantics — these are the raw overrides only.
+    prefixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_PREFIXES")
+    suffixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_SUFFIXES")
+    blocklist: list[str] = _load_csv_env_list("AGENTA_REDACTED_BLOCKLIST")
+    allowlist: list[str] = _load_csv_env_list("AGENTA_REDACTED_ALLOWLIST")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _validate_mode(self) -> "RedactionConfig":
+        mode = (self.mode or "known").strip().lower()
+        if mode in _REDACTION_INERT_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode} is declared but inert (Slice 2 not shipped); behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        elif mode not in _REDACTION_LIVE_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode!r} is not recognized; behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        self.mode = mode
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -420,8 +502,10 @@ class AgentaConfig(BaseModel):
     extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
+    redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
+    workers: WorkersConfig = WorkersConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -514,6 +598,17 @@ class ComposioConfig(BaseModel):
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
     api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
+    webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
+    # Override the registered webhook URL. Composio requires public HTTPS; in dev
+    # (http://localhost) the tunnel delivers over WebSocket, so this only needs to
+    # be a valid public HTTPS placeholder to mint the subscription's secret.
+    webhook_url: str | None = os.getenv("COMPOSIO_WEBHOOK_URL")
+    # Bounded replay/freshness window (seconds) for inbound webhook-timestamp; also
+    # the TTL for the webhook-id dedup entry.
+    webhook_replay_window_seconds: int = int(
+        os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
+    )
 
     @property
     def enabled(self) -> bool:
@@ -836,6 +931,78 @@ class LoopsConfig(BaseModel):
     def enabled(self) -> bool:
         """Loops enabled if API key present"""
         return bool(self.api_key)
+
+
+# ---------------------------------------------------------------------------
+# runner — agent runner sidecar (services/runner). Node-process config; documented
+# here for the canonical env-var mapping even though the runner reads process.env
+# directly (it is a separate Node process, not this Python process).
+# ---------------------------------------------------------------------------
+
+
+class RunnerConfig(BaseModel):
+    """Agent runner (services/runner) sidecar configuration."""
+
+    concurrency_limit: int = int(os.getenv("AGENTA_RUNNER_CONCURRENCY_LIMIT") or "1000")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# store — shared S3-compatible object store
+# ---------------------------------------------------------------------------
+
+
+class StoreConfig(BaseModel):
+    """Shared S3-compatible object store credentials.
+
+    Dev points at SeaweedFS; prod points at real S3 / R2 — same code path.
+    """
+
+    # Everything except the keys/secrets carries a dev default in code (mirrors RedisConfig):
+    # the bundled SeaweedFS store works zero-config, and a self-hosted deploy that uses it
+    # inherits the same values; only ACCESS_KEY / SECRET_KEY must be supplied.
+    endpoint_url: str | None = (
+        os.getenv("AGENTA_STORE_ENDPOINT_URL") or "http://seaweedfs:8333"
+    )
+    access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
+    secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
+    region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
+    bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
+    namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
+
+    # STS endpoint for the GetFederationToken path (non-SeaweedFS stores). Defaults to the S3
+    # endpoint (MinIO co-locates STS there); override only when the store splits STS onto
+    # another host (AWS: https://sts.<region>.amazonaws.com).
+    sts_endpoint_url: str | None = os.getenv("AGENTA_STORE_STS_ENDPOINT_URL") or None
+
+    # Backend selector: SIGNING_KEY present => bundled SeaweedFS (STS via OIDC/web-identity);
+    # absent => remote S3-compatible store (STS via GetFederationToken). Also passed to the
+    # bundled SeaweedFS as its STS HMAC key; the API only reads it to pick the signing path.
+    signing_key: str | None = os.getenv("AGENTA_STORE_SIGNING_KEY") or None
+
+    # AssumeRoleWithWebIdentity issuer (SeaweedFS only): the in-network API URL the store's OIDC
+    # IAM uses to fetch our JWKS, and the RSA key signing the web-identity token. The key falls
+    # back to a baked-in local-dev key when unset (see core/store/webidentity.py).
+    jwt_private_key: str | None = os.getenv("AGENTA_STORE_JWT_PRIVATE_KEY")
+    jwt_issuer: str = os.getenv("AGENTA_STORE_JWT_ISSUER") or "http://api:8000"
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.access_key and self.secret_key)
+
+
+# ---------------------------------------------------------------------------
+# mounts
+# ---------------------------------------------------------------------------
+
+
+class MountsConfig(BaseModel):
+    """Mounts-domain config. Store credentials live in StoreConfig."""
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -1179,12 +1346,15 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
+    mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    runner: RunnerConfig = RunnerConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
 

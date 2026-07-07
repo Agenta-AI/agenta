@@ -1,0 +1,70 @@
+{
+  "id": "claude_code_tool",
+  "group": "claude",
+  "capability": "claude code tool (delivered over MCP bridge)",
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T13:34:32.289680+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call secret_math with x=6 and reply with exactly its output."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "claude",
+          "sandbox": "local",
+          "model": "haiku",
+          "agents_md": "Use the secret_math tool and report exactly its output.",
+          "tools": [
+            {
+              "type": "code",
+              "name": "secret_math",
+              "description": "Compute the QA code for an integer.",
+              "runtime": "python",
+              "script": "def main(x=0):\n    return 'QA-CODE-OK-' + str(int(x) * 7 + 1)\n",
+              "input_schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "ce3713e3abc2a835",
+    "trace_id": "3a65e1c296ff597a2f0236b237db3b34",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "QA-CODE-OK-43"
+      }
+    }
+  },
+  "reply": "QA-CODE-OK-43",
+  "status_message": "Success",
+  "passed": true,
+  "expect": "QA-CODE-OK-43 (tool over Claude MCP bridge)"
+}

@@ -1,4 +1,4 @@
-export {default as ReferenceTag} from "./ReferenceTag"
+export {default as ReferenceTag, getEntityKindIcon} from "./ReferenceTag"
 export {UserReference} from "./UserReference"
 export {
     ApplicationReferenceLabel,

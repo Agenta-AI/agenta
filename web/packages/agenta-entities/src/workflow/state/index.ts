@@ -11,10 +11,25 @@
 export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 
 // ============================================================================
+// INSPECT META (per-harness capability map from `/inspect` meta)
+// ============================================================================
+
+export {
+    harnessCapabilitiesAtomFamily,
+    type HarnessCapabilities,
+    type HarnessCapabilitiesMap,
+} from "./inspectMeta"
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 
-export {deriveWorkflowTypeFromRevision} from "./helpers"
+export {
+    deriveWorkflowTypeFromRevision,
+    fetchAndClassifyWorkflows,
+    filterAgentWorkflows,
+    filterNonAgentWorkflows,
+} from "./helpers"
 
 // ============================================================================
 // STORE ATOMS
@@ -28,6 +43,8 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+    agentWorkflowsListQueryStateAtom,
     // Variant/Revision list queries (for 3-level hierarchy)
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
@@ -46,12 +63,16 @@ export {
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
     workflowIsEphemeralAtomFamily,
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateAgentCommittedRevisionCache,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
@@ -163,8 +184,10 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    llmEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
+    nonDeterministicEvaluatorsAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

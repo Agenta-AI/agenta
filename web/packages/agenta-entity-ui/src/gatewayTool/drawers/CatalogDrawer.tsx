@@ -1,14 +1,14 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
 import {
-    actionsSearchAtom,
-    catalogDrawerOpenAtom,
-    executionDrawerAtom,
-    integrationsSearchAtom,
     isConnectionActive,
-    useCatalogActions,
-    useCatalogIntegrations,
-    useIntegrationConnections,
+    toolActionsSearchAtom,
+    toolCatalogDrawerOpenAtom,
+    toolExecutionDrawerAtom,
+    toolIntegrationsSearchAtom,
+    useToolCatalogActions,
+    useToolCatalogIntegrations,
+    useToolIntegrationConnections,
     type ToolCatalogIntegration,
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
@@ -66,7 +66,7 @@ interface Props {
 }
 
 export default function CatalogDrawer({onConnectionCreated}: Props) {
-    const [open, setOpen] = useAtom(catalogDrawerOpenAtom)
+    const [open, setOpen] = useAtom(toolCatalogDrawerOpenAtom)
     const [selectedIntegration, setSelectedIntegration] = useState<CatalogIntegrationItem | null>(
         null,
     )
@@ -74,8 +74,8 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
         null,
     )
 
-    const setIntegrationsSearch = useSetAtom(integrationsSearchAtom)
-    const setActionsSearch = useSetAtom(actionsSearchAtom)
+    const setIntegrationsSearch = useSetAtom(toolIntegrationsSearchAtom)
+    const setActionsSearch = useSetAtom(toolActionsSearchAtom)
 
     const handleClose = useCallback(() => {
         setOpen(false)
@@ -148,7 +148,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
 // ---------------------------------------------------------------------------
 
 function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegrationItem) => void}) {
-    const setAtom = useSetAtom(integrationsSearchAtom)
+    const setAtom = useSetAtom(toolIntegrationsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -160,20 +160,12 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
         hasNextPage,
         isFetchingNextPage,
         requestMore,
-    } = useCatalogIntegrations()
+    } = useToolCatalogIntegrations()
 
     const sentinelIndex = useMemo(
         () => Math.max(0, integrations.length - prefetchThreshold),
         [integrations.length, prefetchThreshold],
     )
-
-    if (isLoading && integrations.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spin />
-            </div>
-        )
-    }
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -199,7 +191,11 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                 ref={scrollRef}
                 className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
             >
-                {integrations.length === 0 ? (
+                {isLoading && integrations.length === 0 ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Spin />
+                    </div>
+                ) : integrations.length === 0 ? (
                     <Empty description="No integrations found" />
                 ) : (
                     <div className="flex flex-col gap-2">
@@ -290,11 +286,11 @@ function ActionsView({
     onBack: () => void
     onConnect: () => void
 }) {
-    const setAtom = useSetAtom(actionsSearchAtom)
+    const setAtom = useSetAtom(toolActionsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
-    const setExecutionDrawer = useSetAtom(executionDrawerAtom)
-    const {connections} = useIntegrationConnections(integration.key)
+    const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
+    const {connections} = useToolIntegrationConnections(integration.key)
 
     const handleOpenConnection = useCallback(
         (conn: ToolConnection) => {
@@ -334,7 +330,7 @@ function ActionsView({
         hasNextPage,
         isFetchingNextPage,
         requestMore,
-    } = useCatalogActions(integration.key)
+    } = useToolCatalogActions(integration.key)
 
     const sentinelIndex = useMemo(
         () => Math.max(0, actions.length - prefetchThreshold),

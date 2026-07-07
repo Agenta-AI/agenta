@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "output": "Hello!",
+  "messages": [
+    {"role": "assistant", "content": "Hello!"}
+  ],
+  "events": [
+    {"type": "message", "text": "Hello!"},
+    {"type": "usage", "input": 10, "output": 5, "total": 15, "cost": 0.001},
+    {"type": "done", "stopReason": "end_turn"},
+    {"text": "an event with no type, dropped on parse"}
+  ],
+  "usage": {"input": 10, "output": 5, "total": 15, "cost": 0.001},
+  "stopReason": "end_turn",
+  "capabilities": {
+    "textMessages": true,
+    "images": false,
+    "fileAttachments": false,
+    "mcpTools": true,
+    "toolCalls": true,
+    "reasoning": true,
+    "planMode": false,
+    "permissions": false,
+    "usage": true,
+    "streamingDeltas": false,
+    "sessionLifecycle": false
+  },
+  "sessionId": "sess-42",
+  "model": "gpt-5.5",
+  "traceId": "trace-abc"
+}

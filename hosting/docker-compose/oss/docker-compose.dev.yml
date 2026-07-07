@@ -31,6 +31,15 @@ services:
         # === EXECUTION ============================================ #
         command: ["true"]
 
+    .runner:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-runner:latest
+        build:
+            context: ../../../services/runner
+            dockerfile: docker/Dockerfile.dev
+        # === EXECUTION ============================================ #
+        command: ["true"]
+
     web:
         # === ACTIVATION =========================================== #
         profiles:
@@ -128,6 +137,8 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
+            seaweedfs:
+                condition: service_healthy
         # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
@@ -140,17 +151,20 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
-    worker-evaluations:
+    worker-streams:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
+        init: true
         command: >
-            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
-            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_evaluations
+            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
+            --signal SIGTERM --kill-after 5 --
+            python -m entrypoints.worker_streams
         # === STORAGE ============================================== #
         volumes:
-            #
+            - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdks/python:/sdks/python
@@ -160,82 +174,8 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-
-    worker-tracing:
-        # === IMAGE ================================================ #
-        image: agenta-oss-dev-api:latest
-        # === EXECUTION ============================================ #
-        command: >
-            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
-            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_tracing
-        # === STORAGE ============================================== #
-        volumes:
-            #
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdks/python:/sdks/python
-            - ../../../clients/python:/clients/python
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-
-    worker-webhooks:
-        # === IMAGE ================================================ #
-        image: agenta-oss-dev-api:latest
-        # === EXECUTION ============================================ #
-        command: >
-            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
-            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_webhooks
-        # === STORAGE ============================================== #
-        volumes:
-            #
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdks/python:/sdks/python
-            - ../../../clients/python:/clients/python
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.dev}
-        environment:
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
+            AGENTA_WORKER_STREAMS: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -254,23 +194,26 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_webhooks' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_streams' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
             start_period: 20s
 
-    worker-events:
+    worker-queues:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
+        init: true
         command: >
-            watchmedo auto-restart --directory=/app/oss/src --directory=/app/oss/databases --directory=/app/entrypoints
-            --directory=/sdks/python/agenta --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/* --
-            python -m entrypoints.worker_events
+            watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
+            --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
+            --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
+            --signal SIGTERM --kill-after 5 --
+            python -m entrypoints.worker_queues
         # === STORAGE ============================================== #
         volumes:
-            #
+            - ../../../api/ee:/app/ee
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdks/python:/sdks/python
@@ -280,6 +223,8 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            AGENTA_WORKER_QUEUES: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -298,7 +243,7 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_events' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_queues' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -314,6 +259,7 @@ services:
         volumes:
             #
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
+            - ../../../api/oss/src/crons/triggers.sh:/triggers.sh
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -398,11 +344,17 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
+            AGENTA_AGENT_MCPS_ENABLED: ${AGENTA_AGENT_MCPS_ENABLED:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            runner:
+                condition: service_healthy
         # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.services.rule=PathPrefix(`/services/`)"
@@ -414,6 +366,64 @@ services:
             - "traefik.http.routers.services.service=services"
         # === LIFECYCLE ============================================ #
         restart: always
+
+    runner:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-runner:latest
+        # === EXECUTION ============================================ #
+        command: >
+            sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
+            node scripts/build-extension.mjs &&
+            exec node_modules/.bin/tsx watch src/server.ts"
+        # === CONFIGURATION ======================================== #
+        # Deliberately no env_file: harness processes must not inherit the full stack
+        # secret set. Tools run server-side through /tools/call; the runner only needs
+        # its own port plus optional runner-scoped provider credentials.
+        environment:
+            AGENTA_RUNNER_PORT: "8765"
+            # Bind on all interfaces: the co-located Python `services` container reaches the
+            # sidecar over the compose network at `runner:8765`, so the trust-model
+            # default of `127.0.0.1` (same-host only) is unreachable cross-container.
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
+            PI_CODING_AGENT_DIR: /pi-agent
+            # API as reached FROM this container: the compose service name over the network
+            # (http://api:8000, as the workers use), NOT the public http://localhost/api
+            # which does not resolve inside a container. Used by the OTLP tracing-export
+            # fallback AND the session heartbeat/record-persist calls.
+            AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
+            AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+            SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
+            DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
+            DAYTONA_API_URL: ${DAYTONA_API_URL:-}
+            DAYTONA_TARGET: ${DAYTONA_TARGET:-}
+            DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-agenta-sandbox-pi}
+            DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
+            AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../services/runner/src:/app/src
+            - ../../../services/runner/skills:/app/skills
+            - ${HOME}/.pi/agent:/pi-agent-ro:ro
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # === RUNTIME ============================================== #
+        # FUSE for the durable session cwd (geesefs mounts the mount prefix on-host for local
+        # sandboxes). Needs the fuse device + SYS_ADMIN; apparmor unconfined so mount(2) is allowed.
+        cap_add:
+            - SYS_ADMIN
+        devices:
+            - /dev/fuse
+        security_opt:
+            - apparmor:unconfined
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
 
     postgres:
         # === IMAGE ================================================ #
@@ -475,6 +485,7 @@ services:
             redis-server
             --appendonly yes
             --appendfsync no
+            --aof-load-corrupt-tail-max-size 1048576
             --save ""
             --maxmemory 512mb
             --maxmemory-policy noeviction
@@ -493,6 +504,92 @@ services:
             timeout: 5s
             retries: 5
             start_period: 5s
+
+    seaweedfs:
+        # === IMAGE ================================================ #
+        # Pinned (not :latest) so the IAM/STS subsystem stays on a known-good build — it has
+        # regressed across releases (e.g. 4.13). 4.37 verified working with the config below.
+        image: chrislusf/seaweedfs:4.37
+        # === EXECUTION ============================================ #
+        # ONLY FOR SEAWEEDFS (the bundled dev store). Real S3/R2/MinIO ship their own STS/IAM
+        # and ignore all of this. Two configs, both generated from env (no committed files):
+        #  - s3.json: the master identity only (admin; the API holds these creds, never the runner).
+        #  - iam.json: the ADVANCED IAM config — the only path SeaweedFS authorizes STS credentials.
+        #    An OIDC provider points at the API's self-served JWKS; the API mints a short-lived
+        #    RS256 web-identity token and calls AssumeRoleWithWebIdentity to assume `agenta-store`,
+        #    whose policy grants the whole bucket; the API's per-request inline session policy
+        #    narrows each credential to one mount prefix (effective = role ∩ session).
+        #    GetFederationToken is NOT modelled by SeaweedFS IAM and yields actionless (denied) tokens.
+        entrypoint:
+            - sh
+            - -c
+            - |
+              cat > /etc/seaweedfs/s3.json <<EOF
+              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_STORE_ACCESS_KEY}","secretKey":"$${AGENTA_STORE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+              EOF
+              cat > /etc/seaweedfs/iam.json <<EOF
+              {"sts":{"tokenDuration":"1h","maxSessionLength":"12h","issuer":"seaweedfs-sts","signingKey":"$${AGENTA_STORE_SIGNING_KEY}"},"providers":[{"name":"agenta","type":"oidc","enabled":true,"config":{"issuer":"$${AGENTA_STORE_JWT_ISSUER}","clientId":"agenta-store","jwksUri":"$${AGENTA_STORE_JWT_ISSUER}/.well-known/jwks.json"}}],"policies":[{"name":"store-rw","document":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::$${AGENTA_STORE_BUCKET}","arn:aws:s3:::$${AGENTA_STORE_BUCKET}/*"]}]}}],"roles":[{"roleName":"agenta-store","roleArn":"arn:aws:iam::role/agenta-store","attachedPolicies":["store-rw"],"trustPolicy":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"agenta"},"Action":["sts:AssumeRoleWithWebIdentity"]}]}}]}
+              EOF
+              exec weed server -dir=/data -ip=seaweedfs -volume.max=64 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -s3.iam.config=/etc/seaweedfs/iam.json
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so unlike
+            # the API (which reads code defaults from env.py) they must be present in this service's
+            # env. Defaults live here for the bundled store the same way supertokens carries its own
+            # connection URI — a service configuring itself. Override via the env file to use S3/R2.
+            # Keys come from the env file — secrets never get a baked-in default.
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY}
+            # Non-secret store config: defaults live here for the bundled store (override via env).
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-store}
+            AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY:-dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=}
+            AGENTA_STORE_JWT_ISSUER: ${AGENTA_STORE_JWT_ISSUER:-http://api:8000}
+        # === STORAGE ============================================== #
+        volumes:
+            - seaweed-data:/data
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # ports:
+        #     - "8333:8333"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD-SHELL", "curl -sf http://localhost:9333/cluster/healthz >/dev/null || exit 1"]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+            start_period: 5s
+
+    ngrok:
+        # === ACTIVATION =========================================== #
+        # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
+        # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
+        # public URL the runner discovers via the ngrok agent API (:4040/api/tunnels). Local
+        # sandboxes never tunnel — keep this profile off by default.
+        profiles:
+            - remote
+        # === IMAGE ================================================ #
+        image: ngrok/ngrok:latest
+        # === EXECUTION ============================================ #
+        # Tunnel the SeaweedFS S3 port. NGROK_AUTHTOKEN must be set in the env file.
+        command: ["http", "seaweedfs:8333", "--log", "stdout"]
+        # === CONFIGURATION ======================================== #
+        environment:
+            NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # The agent runner reads the public URL from this API (host:4040 inside the network).
+        # ports:
+        #     - "4040:4040"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        depends_on:
+            seaweedfs:
+                condition: service_healthy
 
     traefik:
         # === IMAGE ================================================ #
@@ -568,6 +665,37 @@ services:
     #
     #
 
+    # Dev tunnel for Composio trigger events (disable: run.sh --no-tunnel).
+    composio:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-tunnel
+        # === IMAGE ================================================ #
+        image: python:3.13-slim-trixie
+        # === EXECUTION ============================================ #
+        command:
+            - bash
+            - -c
+            - "pip install --quiet --root-user-action=ignore composio httpx && python /app/dispatcher_composio.py"
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/entrypoints/dispatcher_composio.py:/app/dispatcher_composio.py:ro
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.dev}
+        environment:
+            AGENTA_INGRESS_URL: http://api:8000/triggers/composio/events/
+            PYTHONUNBUFFERED: "1"
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            api:
+                condition: service_started
+        # === LIFECYCLE ============================================ #
+        restart: always
+
 networks:
     agenta-network:
 
@@ -575,5 +703,6 @@ volumes:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:
+    seaweed-data:
     nextjs-oss-cache:
     turbo-oss-cache:

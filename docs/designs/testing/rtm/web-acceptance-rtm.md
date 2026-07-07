@@ -1336,4 +1336,223 @@ For every RTM entry below:
 - License: `ee`
 - Status: active
 
+### WEB-ACC-SCHEDULE-001 - Create a cron schedule (happy path)
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: create > creates a new schedule and it appears active in the table`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-002 - Invalid cron expression is rejected with inline error
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: validation > rejects an invalid cron expression with an inline error`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `grumpy`
+- Case: `edge`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-003 - Pause and resume a schedule
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: lifecycle > pauses an active schedule then resumes it`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-004 - Edit a schedule's cron expression
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: lifecycle > edits the cron expression and the table reflects the change`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-005 - Delete a schedule
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: lifecycle > deletes a schedule and it disappears from the table`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-SCHEDULE-006 - Deliveries appear after schedule fires
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/triggers-schedules.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/triggers/schedules.spec.ts` (not yet created)
+- Playwright title: `Trigger Schedules: dispatch > deliveries appear in the drawer after the schedule fires`
+
+#### Markers
+
+- Scope: `triggers`, `schedules`
+- Coverage: `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MCP-001 - MCP server form: switching transport renders the correct fields
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: form > switching transport between stdio and http shows the correct fields`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MCP-002 - stdio MCP server is blocked at runtime with a clear error message
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: runtime > stdio MCP server is refused with USER_MCP_UNSUPPORTED_MESSAGE`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `light`
+- Path: `grumpy`
+- Case: `edge`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `paid`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MCP-003 - HTTP MCP server injects external tools into the Claude Code harness
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: runtime > HTTP MCP server tools appear in the Claude Code harness tool list`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `paid`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MCP-004 - Internal gateway-tool MCP delivers Agenta platform tools to the Claude Code harness
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
+- Playwright title: `MCP Servers: gateway tools > mcp__agenta-tools__* appear in the Claude Code harness tool list`
+
+#### Markers
+
+- Scope: `playground`, `mcp`
+- Coverage: `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `paid`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 

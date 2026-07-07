@@ -54,6 +54,12 @@ services:
         environment:
             - SCRIPT_NAME=/api
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -73,15 +79,14 @@ services:
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.api.entrypoints=web"
-            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.api.middlewares=api-strip"
+            # Do NOT strip /api: the app is mounted at /api (SCRIPT_NAME + FastAPI root_path).
+            # Forward /api/* unchanged so app-generated redirects keep the prefix.
             - "traefik.http.services.api.loadbalancer.server.port=8000"
             - "traefik.http.routers.api.service=api"
         # === LIFECYCLE ============================================ #
         restart: always
 
-    worker-evaluations:
+    worker-streams:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
@@ -94,89 +99,15 @@ services:
                 "run-program",
                 "python",
                 "-m",
-                "entrypoints.worker_evaluations",
+                "entrypoints.worker_streams",
             ]
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-oss-gh-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-
-    worker-tracing:
-        # === IMAGE ================================================ #
-        # build:
-        #     context: ../../..
-        #     dockerfile: api/oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
-        # === EXECUTION ============================================ #
-        command:
-            [
-                "newrelic-admin",
-                "run-program",
-                "python",
-                "-m",
-                "entrypoints.worker_tracing",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-        environment:
-            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-oss-gh-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        # === ORCHESTRATION ======================================== #
-        depends_on:
-            postgres:
-                condition: service_healthy
-            alembic:
-                condition: service_completed_successfully
-            redis-volatile:
-                condition: service_healthy
-            redis-durable:
-                condition: service_healthy
-        # === LIFECYCLE ============================================ #
-        restart: always
-
-    worker-webhooks:
-        # === IMAGE ================================================ #
-        # build:
-        #     context: ../../..
-        #     dockerfile: api/oss/docker/Dockerfile.gh
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
-        # === EXECUTION ============================================ #
-        command:
-            [
-                "newrelic-admin",
-                "run-program",
-                "python",
-                "-m",
-                "entrypoints.worker_webhooks",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-        environment:
-            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
+            # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
+            - AGENTA_WORKER_STREAMS=
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -195,13 +126,13 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_webhooks' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_streams' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
             start_period: 20s
 
-    worker-events:
+    worker-queues:
         # === IMAGE ================================================ #
         # build:
         #     context: ../../..
@@ -214,13 +145,15 @@ services:
                 "run-program",
                 "python",
                 "-m",
-                "entrypoints.worker_events",
+                "entrypoints.worker_queues",
             ]
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
+            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            - AGENTA_WORKER_QUEUES=
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -239,7 +172,7 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
-            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_events' in cmd else 1)"]
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_queues' in cmd else 1)"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -318,11 +251,23 @@ services:
         environment:
             - SCRIPT_NAME=/services
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
+            - AGENTA_RUNNER_INTERNAL_URL=${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
+            - AGENTA_AGENT_MCPS_ENABLED=${AGENTA_AGENT_MCPS_ENABLED:-false}
+            - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
+            - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
+            - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
+            - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            runner:
+                condition: service_healthy
         # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.services.rule=PathPrefix(`/services/`)"
@@ -334,6 +279,52 @@ services:
             - "traefik.http.routers.services.service=services"
         # === LIFECYCLE ============================================ #
         restart: always
+
+    runner:
+        # === IMAGE ================================================ #
+        image: ghcr.io/agenta-ai/${AGENTA_RUNNER_IMAGE_NAME:-agenta-runner}:${AGENTA_RUNNER_IMAGE_TAG:-latest}
+        # === CONFIGURATION ======================================== #
+        environment:
+            AGENTA_RUNNER_PORT: "8765"
+            # Bind on all interfaces: the co-located Python `services` container reaches the
+            # sidecar over the compose network at `runner:8765`, so the trust-model
+            # default of `127.0.0.1` (same-host only) is unreachable cross-container.
+            AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
+            # API as reached FROM this container: the compose service name over the network
+            # (http://api:8000, as the workers use), NOT the public http://localhost/api
+            # which does not resolve inside a container. Used by the OTLP tracing-export
+            # fallback AND the session heartbeat/record-persist calls.
+            AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
+            AGENTA_API_KEY: ${AGENTA_API_KEY:-}
+            SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
+            DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
+            DAYTONA_API_URL: ${DAYTONA_API_URL:-}
+            DAYTONA_TARGET: ${DAYTONA_TARGET:-}
+            DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-}
+            DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
+            AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-oss-gh-network
+        # === RUNTIME ============================================== #
+        # FUSE for geesefs mounts (local sandbox cwd). Mirrors docker-compose.dev.yml.
+        cap_add:
+            - SYS_ADMIN
+        devices:
+            - /dev/fuse
+        security_opt:
+            - apparmor:unconfined
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.enable=false"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 20s
 
     postgres:
         # === IMAGE ================================================ #
@@ -398,6 +389,7 @@ services:
             redis-server
             --appendonly yes
             --appendfsync no
+            --aof-load-corrupt-tail-max-size 1048576
             --save ""
             --maxmemory 512mb
             --maxmemory-policy noeviction
@@ -496,6 +488,37 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+
+    # Dev tunnel for Composio trigger events (disable: run.sh --no-tunnel).
+    composio:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-tunnel
+        # === IMAGE ================================================ #
+        image: python:3.13-slim-trixie
+        # === EXECUTION ============================================ #
+        command:
+            - bash
+            - -c
+            - "pip install --quiet --root-user-action=ignore composio httpx && python /app/dispatcher_composio.py"
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/entrypoints/dispatcher_composio.py:/app/dispatcher_composio.py:ro
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            AGENTA_INGRESS_URL: http://api:8000/triggers/composio/events/
+            PYTHONUNBUFFERED: "1"
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-oss-gh-network
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            api:
+                condition: service_started
+        # === LIFECYCLE ============================================ #
+        restart: always
 
 networks:
     agenta-oss-gh-network:

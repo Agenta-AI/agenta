@@ -43,6 +43,7 @@ from agenta.sdk.engines.running.utils import (
     retrieve_handler,
     retrieve_interface,
     retrieve_configuration,
+    retrieve_meta,
     parse_uri,
 )
 from agenta.sdk.engines.running.handlers import remote_forward_v0
@@ -455,6 +456,16 @@ class workflow:
                 running_ctx.parameters = self.parameters
 
                 if self.default_request is None:
+                    # The request-driven inspect path builds a fresh workflow from the request
+                    # (no `meta`), so the routed instance's `meta` (e.g. the agent's
+                    # `harness_capabilities`) is unreachable. Fall back to the URI's registered
+                    # interface meta, with the request/decorator meta winning per key.
+                    registered_meta = retrieve_meta(self.uri)
+                    inspect_meta = (
+                        {**registered_meta, **(self.meta or {})}
+                        if registered_meta
+                        else self.meta
+                    )
                     self.default_request = WorkflowInvokeRequest(
                         #
                         references=self.references,
@@ -464,7 +475,7 @@ class workflow:
                         #
                         flags=self.flags,
                         tags=self.tags,
-                        meta=self.meta,
+                        meta=inspect_meta,
                         #
                         data=WorkflowRequestData(
                             revision=WorkflowRevision(

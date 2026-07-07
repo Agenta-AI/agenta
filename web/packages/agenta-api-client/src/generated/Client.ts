@@ -12,15 +12,18 @@ import { FoldersClient } from "./api/resources/folders/client/Client.js";
 import { InvocationsClient } from "./api/resources/invocations/client/Client.js";
 import { KeysClient } from "./api/resources/keys/client/Client.js";
 import { LegacyClient } from "./api/resources/legacy/client/Client.js";
+import { MountsClient } from "./api/resources/mounts/client/Client.js";
 import { OrganizationsClient } from "./api/resources/organizations/client/Client.js";
 import { ProjectsClient } from "./api/resources/projects/client/Client.js";
 import { QueriesClient } from "./api/resources/queries/client/Client.js";
 import { SecretsClient } from "./api/resources/secrets/client/Client.js";
+import { SessionsClient } from "./api/resources/sessions/client/Client.js";
 import { StatusClient } from "./api/resources/status/client/Client.js";
 import { TestcasesClient } from "./api/resources/testcases/client/Client.js";
 import { TestsetsClient } from "./api/resources/testsets/client/Client.js";
 import { ToolsClient } from "./api/resources/tools/client/Client.js";
 import { TracesClient } from "./api/resources/traces/client/Client.js";
+import { TriggersClient } from "./api/resources/triggers/client/Client.js";
 import { UsersClient } from "./api/resources/users/client/Client.js";
 import { WebhooksClient } from "./api/resources/webhooks/client/Client.js";
 import { WorkflowsClient } from "./api/resources/workflows/client/Client.js";
@@ -41,7 +44,6 @@ export class AgentaApiClient {
     protected _billing: BillingClient | undefined;
     protected _events: EventsClient | undefined;
     protected _organizations: OrganizationsClient | undefined;
-    protected _workspaces: WorkspacesClient | undefined;
     protected _secrets: SecretsClient | undefined;
     protected _webhooks: WebhooksClient | undefined;
     protected _legacy: LegacyClient | undefined;
@@ -52,16 +54,20 @@ export class AgentaApiClient {
     protected _testsets: TestsetsClient | undefined;
     protected _queries: QueriesClient | undefined;
     protected _folders: FoldersClient | undefined;
+    protected _sessions: SessionsClient | undefined;
     protected _applications: ApplicationsClient | undefined;
     protected _workflows: WorkflowsClient | undefined;
     protected _evaluators: EvaluatorsClient | undefined;
     protected _environments: EnvironmentsClient | undefined;
     protected _tools: ToolsClient | undefined;
+    protected _triggers: TriggersClient | undefined;
     protected _evaluations: EvaluationsClient | undefined;
+    protected _mounts: MountsClient | undefined;
     protected _status: StatusClient | undefined;
     protected _projects: ProjectsClient | undefined;
     protected _users: UsersClient | undefined;
     protected _keys: KeysClient | undefined;
+    protected _workspaces: WorkspacesClient | undefined;
 
     constructor(options: AgentaApiClient.Options) {
         this._options = normalizeClientOptionsWithAuth(options);
@@ -81,10 +87,6 @@ export class AgentaApiClient {
 
     public get organizations(): OrganizationsClient {
         return (this._organizations ??= new OrganizationsClient(this._options));
-    }
-
-    public get workspaces(): WorkspacesClient {
-        return (this._workspaces ??= new WorkspacesClient(this._options));
     }
 
     public get secrets(): SecretsClient {
@@ -127,6 +129,10 @@ export class AgentaApiClient {
         return (this._folders ??= new FoldersClient(this._options));
     }
 
+    public get sessions(): SessionsClient {
+        return (this._sessions ??= new SessionsClient(this._options));
+    }
+
     public get applications(): ApplicationsClient {
         return (this._applications ??= new ApplicationsClient(this._options));
     }
@@ -147,8 +153,16 @@ export class AgentaApiClient {
         return (this._tools ??= new ToolsClient(this._options));
     }
 
+    public get triggers(): TriggersClient {
+        return (this._triggers ??= new TriggersClient(this._options));
+    }
+
     public get evaluations(): EvaluationsClient {
         return (this._evaluations ??= new EvaluationsClient(this._options));
+    }
+
+    public get mounts(): MountsClient {
+        return (this._mounts ??= new MountsClient(this._options));
     }
 
     public get status(): StatusClient {
@@ -165,6 +179,10 @@ export class AgentaApiClient {
 
     public get keys(): KeysClient {
         return (this._keys ??= new KeysClient(this._options));
+    }
+
+    public get workspaces(): WorkspacesClient {
+        return (this._workspaces ??= new WorkspacesClient(this._options));
     }
 
     /**

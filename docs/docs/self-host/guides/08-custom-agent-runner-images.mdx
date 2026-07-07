@@ -1,0 +1,52 @@
+---
+title: Custom Agent Runner Images
+sidebar_label: Custom Runner Images
+description: Build and configure custom runner images for self-hosted Agenta
+---
+
+The default runner image is:
+
+```bash
+ghcr.io/agenta-ai/agenta-runner:latest
+```
+
+Build a custom image when you need extra system packages, custom certificates, or a pinned
+runner build.
+
+## Build
+
+From the repository root:
+
+```bash
+docker build \
+  -f services/runner/docker/Dockerfile \
+  -t ghcr.io/<org>/agenta-runner:<tag> \
+  services/runner
+```
+
+The published image does not bundle Claude Code. If a harness needs Claude Code, the runner
+installs it from Anthropic at runtime.
+
+## Configure Compose
+
+```bash
+AGENTA_RUNNER_IMAGE_NAME=<org>/agenta-runner
+AGENTA_RUNNER_IMAGE_TAG=<tag>
+```
+
+## Configure Helm
+
+```yaml
+agentRunner:
+  image:
+    repository: ghcr.io/<org>/agenta-runner
+    tag: <tag>
+```
+
+## Configure Railway
+
+```bash
+export AGENTA_RUNNER_IMAGE="ghcr.io/<org>/agenta-runner:<tag>"
+```
+
+Then run the normal Railway deploy flow.

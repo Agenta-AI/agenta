@@ -125,38 +125,43 @@ supported_llm_models = {
         "gpt-3.5-turbo-1106",
         "gpt-3.5-turbo",
     ],
+    # OpenRouter's ~20 most-used models as of 2026-07-01, from the public usage
+    # rankings (openrouter.ai/rankings and third-party token/spend leaderboards).
+    # Every id below is also a valid key in Pi's vendored OpenRouter catalog
+    # (drop the "openrouter/" prefix), so it is settable by the Pi harness picker.
     "openrouter": [
         # Anthropic via OpenRouter
-        "openrouter/anthropic/claude-opus-4.5",
-        "openrouter/anthropic/claude-opus-4.1",
+        "openrouter/anthropic/claude-opus-4.8",
+        "openrouter/anthropic/claude-opus-4.7",
+        "openrouter/anthropic/claude-sonnet-4.6",
         "openrouter/anthropic/claude-sonnet-4.5",
-        "openrouter/anthropic/claude-haiku-4.5",
-        "openrouter/anthropic/claude-3.7-sonnet",
-        "openrouter/anthropic/claude-3.5-sonnet",
         # DeepSeek via OpenRouter
-        "openrouter/deepseek/deepseek-chat",
-        "openrouter/deepseek/deepseek-r1",
-        "openrouter/deepseek/deepseek-r1-0528",
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/deepseek/deepseek-v4-pro",
         "openrouter/deepseek/deepseek-v3.2",
         # Google via OpenRouter
-        "openrouter/google/gemini-2.5-pro",
-        "openrouter/google/gemini-2.5-flash",
-        "openrouter/google/gemini-2.0-flash-001",
-        # Meta-Llama via OpenRouter
-        "openrouter/meta-llama/llama-3-70b-instruct",
-        # Mistral via OpenRouter
-        "openrouter/mistralai/mistral-large",
-        "openrouter/mistralai/mistral-small-3.2-24b-instruct",
-        "openrouter/mistralai/mixtral-8x22b-instruct",
+        "openrouter/google/gemini-3.5-flash",
+        "openrouter/google/gemini-3-flash-preview",
+        "openrouter/google/gemini-3.1-pro-preview",
+        # MiniMax via OpenRouter
+        "openrouter/minimax/minimax-m3",
+        # MoonshotAI via OpenRouter
+        "openrouter/moonshotai/kimi-k2.6",
+        # Nvidia via OpenRouter
+        "openrouter/nvidia/nemotron-3-super-120b-a12b",
         # OpenAI via OpenRouter
-        "openrouter/openai/gpt-4o",
-        "openrouter/openai/gpt-4.1",
-        "openrouter/openai/gpt-5",
+        "openrouter/openai/gpt-5.5",
+        "openrouter/openai/gpt-5.4",
         # Qwen via OpenRouter
-        "openrouter/qwen/qwen-2.5-coder-32b-instruct",
-        "openrouter/qwen/qwen3-235b-a22b-2507",
+        "openrouter/qwen/qwen3.7-max",
+        # Tencent via OpenRouter
+        "openrouter/tencent/hy3-preview",
+        # Xiaomi via OpenRouter
+        "openrouter/xiaomi/mimo-v2.5-pro",
         # xAI via OpenRouter
-        "openrouter/x-ai/grok-4",
+        "openrouter/x-ai/grok-4.3",
+        # Z.ai via OpenRouter
+        "openrouter/z-ai/glm-5",
     ],
     # NOTE: provider kind must match Secrets API enums ("perplexityai").
     # Models remain "perplexity/..." but the provider key is used to match secrets.

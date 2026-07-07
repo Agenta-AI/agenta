@@ -19,6 +19,9 @@ export {
     // Inspect (resolve full schema including inputs)
     inspectWorkflow,
     type InspectWorkflowResponse,
+    // Simple application fetch (carries the playground build-kit overlay)
+    fetchSimpleApplication,
+    type SimpleApplicationFetchResponse,
     // Interface schemas fetch (builtin workflow fallback)
     fetchInterfaceSchemas,
     type InterfaceSchemasResponse,
@@ -49,6 +52,8 @@ export {
     fetchWorkflowRevisionsByIdsBatch,
     // Schema
     fetchAgTypeSchema,
+    // Harness capabilities catalog
+    fetchHarnessCapabilities,
     // Catalog
     fetchWorkflowCatalogTemplates,
     type WorkflowCatalogTemplate,

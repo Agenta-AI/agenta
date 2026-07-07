@@ -14,6 +14,7 @@
  */
 
 import type {AgentaApi} from "@agentaai/api-client"
+import {z} from "zod"
 
 // ---------------------------------------------------------------------------
 // Catalog browse
@@ -36,6 +37,28 @@ export type ToolCatalogAction = AgentaApi.ToolCatalogAction
 export type ToolCatalogActionDetails = AgentaApi.ToolCatalogActionDetails
 export type ToolCatalogActionResponse = AgentaApi.ToolCatalogActionResponse
 export type ToolCatalogActionsResponse = AgentaApi.ToolCatalogActionsResponse
+
+// Categories are a new catalog endpoint not yet in the Fern client, so — unlike every
+// other call in this domain — nothing types its wire shape at the boundary. The zod
+// schema below is that missing drift check; `fetchToolCategories` validates against it.
+// `.passthrough()` tolerates backend `extra="allow"` fields; defaults keep a malformed
+// payload from crashing the drawer (spec §7: a categories failure must not break browse).
+export const toolCatalogCategorySchema = z
+    .object({
+        id: z.string(),
+        name: z.string(),
+    })
+    .passthrough()
+
+export const toolCatalogCategoriesResponseSchema = z
+    .object({
+        count: z.number().optional().default(0),
+        categories: z.array(toolCatalogCategorySchema).optional().default([]),
+    })
+    .passthrough()
+
+export type ToolCatalogCategory = z.infer<typeof toolCatalogCategorySchema>
+export type ToolCatalogCategoriesResponse = z.infer<typeof toolCatalogCategoriesResponseSchema>
 
 // ---------------------------------------------------------------------------
 // Connections
@@ -60,19 +83,7 @@ export type ToolResult = AgentaApi.ToolResult
 export type ToolResultData = AgentaApi.ToolResultData
 export type Status = AgentaApi.Status
 
-// ---------------------------------------------------------------------------
-// Legacy API extension
-//
-// The backend accepts an additional `credentials` field inside the create-
-// connection payload's `data` object (used by the API-key auth path), but
-// the OpenAPI spec used by Fern doesn't model it yet. We extend the Fern
-// type so existing flows compile; when the spec is updated this alias can
-// be removed.
-// ---------------------------------------------------------------------------
-
-export type ToolConnectionCreatePayloadData = ToolConnectionCreateData & {
-    credentials?: Record<string, string>
-}
+export type ToolConnectionCreatePayloadData = ToolConnectionCreateData
 
 export interface ToolConnectionCreatePayload {
     connection: Omit<ToolConnectionCreate, "data"> & {

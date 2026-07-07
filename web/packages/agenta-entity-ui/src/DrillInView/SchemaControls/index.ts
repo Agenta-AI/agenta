@@ -70,6 +70,43 @@ export type {ToolSelectorPopoverProps} from "./ToolSelectorPopover"
 export {TOOL_PROVIDERS_META, TOOL_SPECS} from "./toolUtils"
 export type {ToolObj, ToolFunction} from "./toolUtils"
 
+export {McpServerItemControl} from "./McpServerItemControl"
+export type {McpServerItemControlProps} from "./McpServerItemControl"
+
+export {SkillTemplateControl} from "./SkillTemplateControl"
+export type {SkillTemplateControlProps} from "./SkillTemplateControl"
+
+export {SandboxPermissionControl} from "./SandboxPermissionControl"
+export type {SandboxPermissionControlProps} from "./SandboxPermissionControl"
+
+export {ClaudePermissionsControl} from "./ClaudePermissionsControl"
+export type {ClaudePermissionsControlProps} from "./ClaudePermissionsControl"
+export {PiSettingsControl} from "./PiSettingsControl"
+export type {PiSettingsControlProps} from "./PiSettingsControl"
+
+export {AgentTemplateControl} from "./AgentTemplateControl"
+export type {AgentTemplateControlProps} from "./AgentTemplateControl"
+
+// Agent config redesign (drawer/accordion config view + ported backend-aligned controls).
+export {HarnessSelectControl} from "./HarnessSelectControl"
+export type {HarnessSelectControlProps} from "./HarnessSelectControl"
+export {ConfigItemDrawer} from "./ConfigItemDrawer"
+export type {ConfigItemDrawerProps, ConfigItemView} from "./ConfigItemDrawer"
+export {JsonObjectEditor} from "./JsonObjectEditor"
+export type {JsonObjectEditorProps} from "./JsonObjectEditor"
+export {MarkdownEditor} from "./MarkdownEditor"
+export type {MarkdownEditorProps} from "./MarkdownEditor"
+export {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
+export type {CodeEditorProps, CodeEditorLanguage} from "./CodeEditor"
+export {ToolFormView} from "./ToolFormView"
+export type {ToolFormViewProps} from "./ToolFormView"
+export {McpServerFormView} from "./McpServerFormView"
+export type {McpServerFormViewProps} from "./McpServerFormView"
+export {SkillFormView} from "./SkillFormView"
+export type {SkillFormViewProps} from "./SkillFormView"
+export {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "./agentTemplateLayout"
+export type {AgentTemplateLayout} from "./agentTemplateLayout"
+
 // ============================================================================
 // COMPOSITE CONTROLS
 // ============================================================================

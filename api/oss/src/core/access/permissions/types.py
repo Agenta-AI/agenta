@@ -160,6 +160,16 @@ class Permission(str, Enum):
     EDIT_TOOLS = "edit_tools"
     RUN_TOOLS = "run_tools"
 
+    # Triggers
+    VIEW_TRIGGERS = "view_triggers"
+    EDIT_TRIGGERS = "edit_triggers"
+    RUN_TRIGGERS = "run_triggers"
+
+    # Sessions
+    VIEW_SESSIONS = "view_sessions"
+    EDIT_SESSIONS = "edit_sessions"
+    RUN_SESSIONS = "run_sessions"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
@@ -169,6 +179,7 @@ class Permission(str, Enum):
             cls.RUN_SERVICE,
             cls.VIEW_BILLING,
             cls.VIEW_WORKFLOWS,
+            cls.VIEW_SESSIONS,
             cls.VIEW_EVALUATORS,
             cls.VIEW_QUERIES,
             cls.VIEW_TESTSETS,
@@ -183,6 +194,7 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION_METRICS,
             cls.VIEW_EVALUATION_QUEUES,
             cls.VIEW_TOOLS,
+            cls.VIEW_TRIGGERS,
         ]
         ANNOTATOR_PERMISSIONS = VIEWER_PERMISSIONS + [
             cls.EDIT_ANNOTATIONS,
@@ -193,6 +205,7 @@ class Permission(str, Enum):
             cls.EDIT_EVALUATION_QUEUES,
             cls.EDIT_SPANS,
             cls.RUN_TOOLS,
+            cls.RUN_TRIGGERS,
         ]
         EDITOR_PERMISSIONS = ANNOTATOR_PERMISSIONS + [
             cls.EDIT_APPLICATIONS,
@@ -201,11 +214,14 @@ class Permission(str, Enum):
             cls.EDIT_FOLDERS,
             cls.EDIT_WORKFLOWS,
             cls.RUN_WORKFLOWS,
+            cls.EDIT_SESSIONS,
+            cls.RUN_SESSIONS,
             cls.EDIT_EVALUATORS,
             cls.EDIT_QUERIES,
             cls.EDIT_TESTSETS,
             cls.EDIT_INVOCATIONS,
             cls.EDIT_TOOLS,
+            cls.EDIT_TRIGGERS,
         ]
         DEVELOPER_PERMISSIONS = EDITOR_PERMISSIONS + [
             cls.VIEW_API_KEYS,

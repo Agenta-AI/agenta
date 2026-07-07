@@ -9,6 +9,7 @@ from oss.src.core.webhooks.types import (
     WebhookSubscriptionCreate,
     WebhookSubscriptionData,
     WebhookSubscriptionEdit,
+    WebhookSubscriptionFlags,
 )
 
 from oss.src.dbs.postgres.webhooks.dbes import (
@@ -46,6 +47,8 @@ def map_subscription_dto_to_dbe_create(
         if subscription.data
         else None,
         #
+        flags=WebhookSubscriptionFlags().model_dump(),
+        #
         secret_id=secret_id,
     )
 
@@ -73,6 +76,8 @@ def map_subscription_dbe_to_dto(
         data=WebhookSubscriptionData.model_validate(subscription_dbe.data)
         if subscription_dbe.data
         else None,
+        #
+        flags=WebhookSubscriptionFlags(**(subscription_dbe.flags or {})),
         #
         secret_id=subscription_dbe.secret_id,
     )
@@ -104,6 +109,8 @@ def map_subscription_dto_to_dbe_edit(
         if subscription.data
         else None
     )
+
+    subscription_dbe.flags = subscription.flags.model_dump()
 
     if secret_id is not None:
         subscription_dbe.secret_id = secret_id

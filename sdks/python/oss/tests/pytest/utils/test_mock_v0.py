@@ -162,6 +162,8 @@ def test_registry_covers_documented_selectors():
     assert set(MOCK_V0_BEHAVIORS) == {
         "echo",
         "static",
+        "messages",
+        "events",
         "pass",
         "fail",
         "score",
@@ -169,3 +171,50 @@ def test_registry_covers_documented_selectors():
         "error",
         "delay",
     }
+
+
+# --- agent-role selectors (big-agents `/invoke` shapes) ---------------------
+
+
+def test_messages_returns_agent_envelope():
+    # batch agent shape: the canonical {messages:[{role,content}]} envelope.
+    assert call("messages", kwargs={"text": "hi"}) == {
+        "messages": [{"role": "assistant", "content": "hi"}]
+    }
+
+
+def test_events_yields_agenta_event_stream():
+    # stream agent shape: mock_v0 returns an async generator of {type, data}
+    # agenta events (NOT a batch value). Drain it and assert the canonical types.
+    async def _drain():
+        gen = await _mock_v0(parameters={"key": "events", "kwargs": {"text": "a b"}})
+        return [e async for e in gen]
+
+    events = run(_drain())
+    types = [e["type"] for e in events]
+    assert types[0] == "message_start"
+    assert "message_delta" in types
+    assert types[-1] == "done"
+    # deltas reconstruct the text
+    deltas = [e["data"]["delta"] for e in events if e["type"] == "message_delta"]
+    assert "".join(deltas).strip() == "a b"
+    # every event is the {type, data} wire shape
+    assert all(set(e) == {"type", "data"} for e in events)
+
+
+def test_events_with_thought_and_tool():
+    async def _drain():
+        gen = await _mock_v0(
+            parameters={
+                "key": "events",
+                "kwargs": {"text": "done", "thought": "thinking", "tool": "search"},
+            }
+        )
+        return [e async for e in gen]
+
+    types = [e["type"] for e in run(_drain())]
+    assert "thought_start" in types and "thought_end" in types
+    assert "tool_call" in types and "tool_result" in types
+    # ordering: thought + tool precede the message, done is terminal
+    assert types.index("tool_call") < types.index("message_start")
+    assert types[-1] == "done"

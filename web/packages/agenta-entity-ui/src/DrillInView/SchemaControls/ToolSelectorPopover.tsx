@@ -22,7 +22,15 @@ import {
 import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
-import {CaretRight, Check, Code, MagnifyingGlass, Plus, Sparkle} from "@phosphor-icons/react"
+import {
+    CaretRight,
+    Check,
+    Code,
+    GraphIcon,
+    MagnifyingGlass,
+    Plus,
+    Sparkle,
+} from "@phosphor-icons/react"
 import {Button, Dropdown, Empty, Input, Spin, Typography} from "antd"
 import clsx from "clsx"
 
@@ -59,6 +67,12 @@ export interface ToolSelectionMeta {
     toolLabel?: string
     integrationKey?: string
     connectionSlug?: string
+    /**
+     * Open the tool config editor instead of adding immediately (append on Save). Set when a
+     * gateway action's input schema couldn't be resolved, so the user defines the parameters in
+     * the editor rather than getting a silent schema-less tool. Transient — not persisted.
+     */
+    needsConfig?: boolean
 }
 
 export interface ToolSelectorPopoverProps {
@@ -80,6 +94,12 @@ export interface ToolSelectorPopoverProps {
     existingToolCount?: number
     /** Optional gateway tools bridge (typically from DrillInUIContext) */
     gatewayTools?: GatewayToolsBridge
+    /** Custom trigger element. Defaults to an outlined "Tool" button (e.g. a compact icon button
+     * when hosted in a section header). */
+    trigger?: ReactNode
+    /** When provided, the "Reference a workflow" section shows and its `+` calls this (the host opens
+     * a workflow-selector drawer). Without it the section is hidden. */
+    onReferenceWorkflow?: () => void
 }
 
 // ============================================================================
@@ -188,6 +208,10 @@ function buildInlineFunctionTool(_existingToolCount: number): ToolObj {
             },
         },
     }
+}
+
+export function shouldCloseToolSelectorAfterAdd(meta?: ToolSelectionMeta): boolean {
+    return meta?.source !== "gateway"
 }
 
 const ALL_PROVIDER_TOOLS = buildProviderToolList()
@@ -438,7 +462,7 @@ function BuiltinToolsPane({
                 />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-1">
+            <div className="flex-1 min-h-0 overflow-y-auto p-1">
                 {filteredTools.map((tool) => {
                     const selected = isSelected(tool)
                     return (
@@ -629,7 +653,7 @@ function GatewayActionsPane({
                 <div className="mt-1 text-[10px] text-zinc-400">{total} actions</div>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-1">
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-1">
                 {isLoading && actions.length === 0 ? (
                     <div className="flex items-center justify-center py-6">
                         <Spin size="small" />
@@ -723,8 +747,10 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     renderProviderIcon,
     existingToolCount = 0,
     gatewayTools: gatewayToolsProp,
+    trigger,
+    onReferenceWorkflow,
 }: ToolSelectorPopoverProps) {
-    const {showMessage, gatewayTools: gatewayToolsFromContext} = useDrillInUI()
+    const {showMessage, gatewayTools: gatewayToolsFromContext, workflowReference} = useDrillInUI()
 
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
     const gatewayTools = gatewayToolsProp ?? gatewayToolsFromContext
@@ -735,25 +761,6 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     const [leftSearch, setLeftSearch] = useState("")
     const [rightSearch, setRightSearch] = useState("")
     const [activePane, setActivePane] = useState<ActivePane>(null)
-    const [leftPanelHeight, setLeftPanelHeight] = useState<number | null>(null)
-    const leftPanelRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        const el = leftPanelRef.current
-        if (!el) return
-
-        const updateHeight = () => setLeftPanelHeight(el.offsetHeight)
-        updateHeight()
-
-        if (typeof ResizeObserver !== "undefined") {
-            const observer = new ResizeObserver(() => updateHeight())
-            observer.observe(el)
-            return () => observer.disconnect()
-        }
-
-        window.addEventListener("resize", updateHeight)
-        return () => window.removeEventListener("resize", updateHeight)
-    }, [open, leftSearch, gatewayTools?.enabled, gatewayTools?.connections.length])
 
     useEffect(() => {
         setRightSearch("")
@@ -808,10 +815,10 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         resetAndClose()
     }, [existingToolCount, onAddTool, resetAndClose])
 
-    const handleAddToolAndClose = useCallback(
+    const handleAddToolSelection = useCallback(
         (tool: ToolObj, meta?: ToolSelectionMeta) => {
             onAddTool(tool, meta)
-            resetAndClose()
+            if (shouldCloseToolSelectorAfterAdd(meta)) resetAndClose()
         },
         [onAddTool, resetAndClose],
     )
@@ -821,13 +828,17 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         gatewayTools?.onOpenCatalog()
     }, [gatewayTools, resetAndClose])
 
+    // The "Reference a workflow" section closes the popover and hands off to the host's
+    // workflow-selector drawer (which lists/searches workflows and adds the reference).
+    const handleOpenReferenceSelector = useCallback(() => {
+        resetAndClose()
+        onReferenceWorkflow?.()
+    }, [resetAndClose, onReferenceWorkflow])
+
     const content = (
-        <div className="flex min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
-            <div
-                ref={leftPanelRef}
-                className="w-[232px] border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]"
-            >
-                <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+        <div className="flex h-[360px] min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
+            <div className="flex w-[232px] flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]">
+                <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                     <Input
                         variant="borderless"
                         value={leftSearch}
@@ -838,7 +849,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     />
                 </div>
 
-                <div className="max-h-[360px] overflow-y-auto p-1 flex flex-col gap-1">
+                <div className="flex-1 min-h-0 overflow-y-auto p-1 flex flex-col gap-1">
                     <div>
                         <SectionHeader icon={<Sparkle size={12} />} title="Built-in tools" />
                         <div className="flex flex-col gap-0.5">
@@ -969,20 +980,38 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                             Create in-line function tool
                         </div>
                     </div>
+
+                    {workflowReference?.enabled && onReferenceWorkflow && (
+                        <div>
+                            <SectionHeader
+                                icon={<GraphIcon size={12} />}
+                                title="Reference a workflow"
+                                right={
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<Plus size={12} />}
+                                        onClick={handleOpenReferenceSelector}
+                                        className="!h-5 !px-1"
+                                    />
+                                }
+                            />
+                            <div className="px-2 pb-1 text-[11px] text-zinc-400">
+                                Run a workflow as a tool
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            <div
-                className="w-[232px] bg-[var(--ag-c-FFFFFF)]"
-                style={leftPanelHeight ? {height: leftPanelHeight} : undefined}
-            >
+            <div className="w-[232px] h-full bg-[var(--ag-c-FFFFFF)]">
                 {activeBuiltinProvider ? (
                     <BuiltinToolsPane
                         provider={activeBuiltinProvider}
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedTools={effectiveSelectedTools}
-                        onAddTool={handleAddToolAndClose}
+                        onAddTool={handleAddToolSelection}
                         onRemoveBuiltinTool={onRemoveBuiltinTool}
                     />
                 ) : gatewayTools?.enabled && activeGatewayConnection ? (
@@ -992,7 +1021,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedToolNames={effectiveSelectedToolNames}
-                        onAddTool={handleAddToolAndClose}
+                        onAddTool={handleAddToolSelection}
                         onRemoveTool={onRemoveTool}
                         showMessage={showMessage}
                     />
@@ -1025,15 +1054,17 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             popupRender={() => content}
             classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            <Button
-                variant="outlined"
-                color="default"
-                size="small"
-                icon={<Plus size={14} />}
-                disabled={disabled}
-            >
-                Tool
-            </Button>
+            {trigger ?? (
+                <Button
+                    variant="outlined"
+                    color="default"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    disabled={disabled}
+                >
+                    Tool
+                </Button>
+            )}
         </Dropdown>
     )
 })

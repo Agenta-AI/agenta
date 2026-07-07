@@ -67,6 +67,30 @@ export {loadTestsetNormalizedMutationAtom} from "./state"
 
 export {filterUnreferencedColumnsForSource} from "./state"
 
+// Agent generation lane (consumed by OSS AgentChatPanel): per-entity mode flag
+// + the request builder that reuses the playground pipeline but bypasses
+// buffered-fetch execution (useChat streams the v6 conversation).
+export {
+    isAgentModeAtomFamily,
+    buildAgentRequest,
+    buildAgentReferences,
+    agentChannelModeAtom,
+    createNegotiatingFetch,
+} from "./state"
+export type {AgentRequest, AgentChannelMode, NegotiatingFetch} from "./state"
+// HITL resume predicate for `useChat`'s `sendAutomaticallyWhen` (approve AND deny resume).
+export {agentShouldResumeAfterApproval} from "./state"
+// Queued-message release gate for the agent chat composer (HITL-safe, one-by-one).
+export {canReleaseQueuedMessage, isHitlPending} from "./state"
+// Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
+export {
+    appendCapped,
+    buildTurnCapture,
+    capturesForTrigger,
+    triggerUserMessageId,
+    type TurnRequestCapture,
+} from "./state"
+
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
 // ============================================================================

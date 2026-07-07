@@ -18,6 +18,13 @@ paths = [
   '''^.*/\.next/.*''',
   # -------------------------------------------------------------- ALL ENV FILES
   '''^.*\.env.*$''',
+  # -------------------------------------------------- LOCAL-DEV STORE FALLBACK KEY
+  # webidentity.py ships a hardcoded RSA key used ONLY as the local-dev fallback for
+  # signing the object-store's web-identity token (production setups must set
+  # AGENTA_STORE_JWT_PRIVATE_KEY or must not use it).
+  # IT IS NOT A REAL SECRET — it only signs throwaway dev store creds.
+  # See the comment there.
+  '''^api/oss/src/core/store/webidentity\.py$''',
   # ----------------------------------------------------------------------------
 ]
 regexes = [
@@ -32,6 +39,10 @@ regexes = [
   '''phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp''',  # POSTHOG
   '''phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H''',  # POSTHOG
   '''18ab633e81d706cbda7c78d25d0fe763''',                 # ALGOLIA
+  # ------------------------------------------------- LOCAL-DEV STORE SIGNING KEY
+  # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev
+  # env examples. Decodes to "this-is-a-signing-key-for-mounts" — not a real secret.
+  '''dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=''',
   # ----------------------------------------------------------------------------
 ]
 
