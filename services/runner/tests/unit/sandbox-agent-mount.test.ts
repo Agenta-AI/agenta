@@ -218,15 +218,46 @@ describe("unmountStorage", () => {
     assert.equal(target, "/work/cwd");
   });
 
-  it("swallows unmount errors (data lives in the store)", async () => {
-    await unmountStorage("/work/cwd", {
+  it("swallows unmount errors (data lives in the store) and reports NOT confirmed", async () => {
+    const ok = await unmountStorage("/work/cwd", {
       runUnmount: async () => {
         throw new Error("not mounted");
       },
       log: SILENT,
     });
-    // No throw == pass.
-    assert.ok(true);
+    // No throw == pass, but callers must not treat this as safe to delete the cwd.
+    assert.equal(ok, false);
+  });
+});
+
+describe("unmountStorage confirmation", () => {
+  // A caller (workspace cleanup) must gate rmSync on this return value, not merely on
+  // fusermount not throwing — a lazy unmount (-uz) can leave the node attached.
+  it("returns true only when the mountpoint check confirms it is gone", async () => {
+    const gone = await unmountStorage("/work/cwd", {
+      runUnmount: async () => {},
+      checkMountpoint: async () => "gone",
+      log: SILENT,
+    });
+    assert.equal(gone, true);
+  });
+
+  it("returns false when the mountpoint is still mounted after detach", async () => {
+    const ok = await unmountStorage("/work/cwd", {
+      runUnmount: async () => {},
+      checkMountpoint: async () => "mounted",
+      log: SILENT,
+    });
+    assert.equal(ok, false);
+  });
+
+  it("returns false when the mountpoint check is inconclusive (never delete on doubt)", async () => {
+    const ok = await unmountStorage("/work/cwd", {
+      runUnmount: async () => {},
+      checkMountpoint: async () => "inconclusive",
+      log: SILENT,
+    });
+    assert.equal(ok, false);
   });
 });
 
