@@ -1601,6 +1601,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         approvals={pendingApprovals}
                         onApprovalResponse={addToolApprovalResponse}
                         onViewTrace={openPausedTurnTrace}
+                        entityId={entityId}
                     />
                     <RichChatInput
                         ref={richInputRef}
