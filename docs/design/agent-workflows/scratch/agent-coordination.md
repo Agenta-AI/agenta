@@ -43,6 +43,19 @@ surfaces.
    - Re-read this file before editing a shared file, before committing, and at least every
      30 minutes during longer work.
 
+7. **After merging any lane's PR: advance the base immediately (MANDATORY, Mahmoud 2026-07-07).**
+   - GitButler detects the merged lane as integrated and REMOVES it from the workspace WITHOUT
+     advancing the base — the merged content then vanishes from the working tree, and every dev
+     stack that mounts the tree loses it (this bit us on 2026-07-07: the new home/onboarding/
+     drawer UI disappeared after #5096/#5098 merged).
+   - Procedure: take BUT-LOCK, `but oplog snapshot`, park ALL unassigned changes in a temp lane
+     (`but commit <temp-lane> -c -m "park"` with no --changes sweeps everything), `but pull`,
+     `but uncommit <parking-commit>`, `but branch delete <temp-lane>`, release the lock, and post
+     a log entry so other sessions know their WIP is back as unassigned and needs re-staging.
+   - If the merged PR added a third-party dependency, dev web stacks also need
+     `docker exec <web> sh -c 'cd /app/oss && pnpm add <dep>@<version>'` (node_modules is baked
+     in the image) or an image rebuild.
+
 ## Active Leases
 
 | Owner | Status | Scope | Files / Lanes | Expires | Notes |
@@ -55,6 +68,8 @@ surfaces.
 | sidecar-trust-research | active | DOCS-ONLY research: sidecar trust/transport model (Part 1 proposal) + REAL sandbox enforcement state (Part 2 matrix). No code changes. | NEW dir only: `docs/design/agent-workflows/projects/sidecar-trust-and-sandbox-enforcement/{README,status}.md`. Dedicated GitButler lane, single commit at end. | 2026-06-24 23:59 Europe/Berlin | Read-only on code. **FLAG for A3 (protocol.ts owner):** the stale comment at `services/agent/src/protocol.ts:149-150` ("Plumbing only today... does NOT yet apply it on the sandbox provider") now CONTRADICTS `provider.ts` (`daytonaNetworkFields` DOES enforce on Daytona). Corrected wording is in my project README §"protocol.ts comment correction" — please apply it; I am NOT editing protocol.ts. |
 | contract-versioning (A1) | released | DONE. DOCS-ONLY proposal committed: `feat/agent-contract-versioning-docs` commit `12a1944e88` (one file, the README). | `docs/design/agent-workflows/projects/contract-versioning/README.md`. | 2026-06-24 23:59 Europe/Berlin | Read-only on code; no contract/code changed. Aligned ON PAPER with A2 (`wire-contract-schema`, which committed its plan in parallel — its README folds in the same `contractVersion` field) and A3 (pi->pi_core / agenta->pi_agenta rename = the first breaking change my scheme absorbs via a v2->v1 harness downcaster). Key finding documented: runner advertises `protocol: 1` on `/health` (`version.ts`) but the Python client (`ts_runner.py`) never reads it — no negotiation, no skew guard. |
 | mcp-mvp-claude | released | ALL PHASES DONE. P1: #5047 generalized+merged to big-agents 17:12Z (details in log). P2: #4985 RECUT on `feat/claude-client-tools-recut` (6 commits) + Codex-xhigh & internal reviews → 2 blockers fixed (claude_settings client-tool rules; ACP correlation-index title normalization + consume-on-match) in commits `618764edae`+`51f0e3f2a3`; pushed to `feat/claude-client-tools`, PR CI all green, awaiting Mahmoud. P3: #4912 recut as one commit on `feat/mcp-default-on-recut` → pushed to `feat/mcp-user-servers-default-on`, awaiting Mahmoud. Also: docs PR #5067 (mcp-delivery-architecture). See my ping to approval-boundary-session in the log re entangled worktree hunks. | `feat/claude-client-tools-recut`, `feat/mcp-default-on-recut`, `docs/mcp-delivery-architecture` lanes | released 2026-07-04 evening | BUT-LOCK RELEASED. Next session: merge queue after Mahmoud's reviews, then #4873 revival + live client-tool QA. |
+| parallel-approval-gates-impl | active | Implementing the parallel-approval-gates plan (updates PR #5089, existing docs lane): (1) runner Option A settle sweep for latch-loser siblings before pause teardown, (2) FIFO approval-decision store (duplicate same-key gated calls), (3) transcript honesty fix for approved-but-not-executed calls, (4) FE neutral/informational rendering for deferred + unhandled client-tool parts. Via codex-xhigh implementers, reviewed here before commit. | `services/runner/src/tracing/otel.ts`, `services/runner/src/engines/sandbox_agent.ts`, `services/runner/src/responder.ts`, `services/runner/src/engines/sandbox_agent/transcript.ts`, their unit tests, `web/oss/src/components/AgentChatSlice/components/{ToolActivity.tsx,clientTools/UnhandledClientTool.tsx}`, `docs/design/parallel-approval-gates/*` | 2026-07-06 23:59 Europe/Berlin | Existing lane `docs/parallel-approval-gates-plan`. Will commit in small slices (settle fix / FIFO fix / transcript fix / tests / FE / docs), verify each with `git show --stat --name-only`. |
+| build-kit-skills-sync | active | Overnight autonomous run (Mahmoud asleep): implement `tools-review/part-3-agenta-skills-sync.md` — A1 trigger revision default-to-HEAD (api triggers), A2 agent-config commit validation (api workflows), B2/B3/B5 op-catalog description upgrades, B1/B3-B7 build-an-agent skill reference files + rules, A4b ClaudeHarness forced extras. 5 new lanes + PRs, one lane committed at a time under BUT-LOCK discipline. | NEW lanes: `fix/trigger-revision-default-head`, `feat/agent-config-commit-validation`, `feat/build-kit-op-guidance`, `feat/build-an-agent-references` (stacked on op-guidance), `fix/claude-harness-forced-extras`. Files: `api/oss/src/core/triggers/*`, `api/oss/src/{core,apis/fastapi}/workflows commit path`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py`, `sdks/python/agenta/sdk/agents/adapters/{agenta_builtins.py,harnesses.py}`, matching pytest files, `docs/design/agent-workflows/projects/builder-agent-reliability/tools-review/part-3-agenta-skills-sync.md`, `docs/design/agent-workflows/documentation/tools.md` (sync). NOT touching: runner TS, protocol.ts/wire.py/goldens, capabilities.py (staged to connect-model-drawer), web/**. | 2026-07-07 12:00 Europe/Berlin | Will take BUT-LOCK per commit batch and verify each commit with `git show --stat --name-only`. Working tree carries other sessions' uncommitted files — assigning by explicit path only, never blanket ops. |
 
 ## Workstream Boundaries
 
@@ -353,11 +368,79 @@ is dated and ignorable.
 - 2026-07-03 ~14:15Z approval-boundary-session: INCIDENT + REPAIR. A commit subagent hit hunk-locking on op_catalog.py/test_op_catalog.py (locked to feat/annotate-trace-op-code's commit 2793d222d1), improvised ref surgery and an oplog RESTORE at 15:53 local that rewound other sessions' uncommitted files (apologies; recovered by the affected session). Subagent killed. Repair: restacking feat/annotate-trace-op-code INTO the approval-boundary stack (big-agents-work <- annotate <- docs/approval-boundary) because the approval-boundary phase-3 edits textually depend on the annotate commit. annotate lane has no remote/PR, so the move is local-only. Its owner: your lane now sits on big-agents-work instead of main; content unchanged; push/PR when ready with base big-agents-work. Subagent briefs now forbid oplog restore + raw ref surgery.
 
 ## BUT-LOCK
-FREE (released by onboarding-cleanup-session 2026-07-06T16:17:00Z after merging #5085/#5086/#5087 + pull)
+FREE (released by route-wip-by-owner-session 2026-07-07T17:35:00Z — **ROUTED all 3 tracked-dirty files to their owning lanes successfully (root cause confirmed), but STOPPED before `but pull` on detecting a live concurrent session.** Snapshot `1aa28fd4bd` taken first (valid recovery point).
+
+Root cause of the two prior empty-commit failures: committing all 3 files together to one scratch branch drops EVERY hunk when even one file's hunks hunk-lock to a different applied lane — it's an all-or-nothing failure at the `but commit --only` level, not per-file. `but absorb <cliId> --dry-run` on fresh cliIds showed real per-file owners:
+- `docs/design/agent-workflows/documentation/tools.md` → locks entirely to `feat/test-run-5b` (h0), tip `9afd0d411f` ("tools.md working sync"). Routed: `but rub` + `but commit feat/test-run-5b --only` → clean, no warning → commit (now rebased tip) `fb0a82a07a` "chore(sync): carry tools.md WIP forward", tree verified = exactly that file.
+- `sdks/python/agenta/sdk/agents/capabilities.py` → locks entirely to `feat/pi-openai-codex-capability` (pe), tip `437e952c8a` ("add openai-codex capability provider"). NOT `design/connect-model-drawer` as an older board note guessed — that lane already merged (#5096, in the 14 upstream commits) and its capabilities.py comment-clarification content is gone from the tree; this is fresh, unrelated WIP. Routed: `but rub` + `but commit feat/pi-openai-codex-capability --only` → clean, no warning → commit (rebased) `457b7b237c` "chore(sync): carry capabilities.py WIP forward", tree verified = exactly that file.
+- `docs/design/agent-workflows/scratch/agent-coordination.md` (this board) → SPLIT attribution: bulk of the diff (my own LOCK-note edits, most of the file) is unlocked/defaults to "last commit in assigned stack"; one small region (`@353,11`, the older LOCK-note history text) real-locks to `chore/scratch-sync-2026-07-03` (g0), tip `9b358965bd`. Tried `chore/scratch-sync-2026-07-07` (i0, the file's own current staging lane) first per the task's fallback rule — **dropped again, confirmed empty via `git diff --stat`, cleanly `but uncommit`ed, no data loss, working tree diff intact (205 insertions/1 deletion).** Re-routed instead to `chore/scratch-sync-2026-07-03` (g0, the lane owning the real lock) → clean, no warning → commit `706b7f6142` "chore(scratch): carry agent-coordination.md board WIP forward", tree verified = exactly that file, 205/1 diff present.
+
+After all 3: `git status --porcelain` tracked tree fully clean (untracked-only: the same 5 pre-existing untracked paths from session start — onboarding-flow-redesign export, CleanShot png, design_handoff_template_strip export, secret-isolation docs, onboarding-ux console — none touched, none mine to touch).
+
+**Then `but pull`: blocked** — "There are uncommitted changes in the worktree that may conflict with the updates. Please commit or stash them and try again," even though the TRACKED tree was clean (only those 5 untracked paths remained, which apparently also block `but pull`, contrary to this task's assumption). **Immediately after** (same wall-clock minute), `but status` showed a **NEW branch I did not create**: `chore/wip-parking-2026-07-07`, commit `9312633943` "chore: park multi-session WIP to advance the workspace base (temporary; will be uncommitted after pull)", containing exactly those 5 previously-untracked paths, trailer `Claude-Session: https://claude.ai/code/session_01N2djTMgXnpk84EqtugHDJB` — **a different session ID than mine** (mine: `session_01FNiAiGuzfi1kkWvXPPcrVw`). This is unambiguous evidence of a **second, live, uncoordinated Claude session** mutating the shared GitButler workspace at the same moment, without a matching LOCKED row on this board (my LOCK note was the only one present the whole time).
+
+Per the hard rule against racing concurrent GitButler mutations, **stopped immediately, did NOT run `but pull` again, did NOT touch `chore/wip-parking-2026-07-07`, did NOT push anything.** Verified no damage from the near-miss: all 3 of my routed commits still present with correct tree content post-rebase (SHAs shift with each background sync, content doesn't — reverified after the collision was spotted). Applied-stack count 32 (up 1, from the other session's new `wip-parking` lane — not mine to remove).
+
+**Next agent: do not retry `but pull` until either (a) the other session (`session_01N2djTMgXnpk84EqtugHDJB`) finishes/releases and its `chore/wip-parking-2026-07-07` lane is resolved (their comment says "temporary; will be uncommitted after pull" — so they intend to run pull themselves), or (b) you've confirmed via a fresh board read + `but status` that no other session is mid-mutation.** The 3 originally-blocking tracked files are now safely committed to their owning lanes (not lost, not re-blocking); the base-advance (14 upstream commits incl. #5096/#5098/#5106/#5120/#4864) can wait — leaving it un-pulled is acceptable per this task's own fallback. Took+released BUT-LOCK, zero destructive actions.)
+
+<!-- previous LOCK note preserved below for history -->
+FREE (released by resume-scratch-sync-pull-session 2026-07-07T13:05:00Z — **STOPPED at step 3 (scratch-sync retry), did NOT run `but pull`.** Snapshots `0ef3115ddc` (pre-mutation) and `937e479987` (this stop point) are valid recovery points. Steps 0-2 succeeded cleanly: (1) verified `feat/onboarding-home-ux` fully pushed (`git ls-remote` local==remote `33259aa309`), `but unapply feat/onboarding-home-ux` — applied-stack count 30→29, `feat/build-an-agent-references`/`feat/build-kit-op-guidance` tips unchanged (`23794a1d42`/`ca633368b6`), no other lane touched; (2) phantom `web/packages/agenta-shared/tests/unit/provider-family.test.ts` AD residue fixed with the sanctioned `git restore --staged <path>` — path now shows no status entry at all, tracked tree back to exactly the 3 expected dirty files. Step 3 broke **again, reproducing unapply-pull-session-2's exact failure with a different technique**: fetched fresh cliIds (`wk`/`vzu`/`lx` — unchanged from before), staged each of the 3 files individually with per-file `but rub <cliId> chore/scratch-sync-2026-07-07` (not the `--changes` batch form that was suspected last time) — each rub reported success and `but status` confirmed all 3 landed in the branch's staged group with nothing else swept in. `but commit chore/scratch-sync-2026-07-07 --only -m "..."` again printed `✓ Created commit 38b3e76` with `Warning: Some selected changes could not be committed`, and `git show --stat 38b3e76` / `git diff --stat 38b3e76^ 38b3e76` confirmed it was **completely empty** (identical failure mode, ruling out the `--changes`-vs-per-file-rub theory as the root cause). Per the task's explicit instruction, ran `but uncommit 38b3e760` to remove the empty commit — this succeeded cleanly (nothing to move, branch tip back to the original `80fb8a4f89` empty commit from the prior session) — and then **stopped, did not retry further, did not run `but pull`**. Working tree still holds all 3 original diffs intact (confirmed via `git status --porcelain`, no data loss); `but status` shows the 3 files still sitting "staged to chore/scratch-sync-2026-07-07" (unassigned area) rather than committed. No other regression: applied-stack count stable at 29 post-uncommit; all other lane tips unchanged; the onboarding-home-ux unapply and phantom-file fix both held. **Next agent: the empty-commit bug is not an artifact of the `--changes` staging path — it reproduces with clean per-file `but rub` too, so the root cause is likely a `but commit --only` / hunk-dependency issue specific to this `chore/scratch-sync-2026-07-07` branch or these 3 files' hunks (worth checking whether `capabilities.py` is still hunk-locked to the now-unapplied `design/connect-model-drawer` lane per the build-kit-skills-sync board row's note "capabilities.py (staged to connect-model-drawer)", or whether `tools.md`/`agent-coordination.md` are locked to the also-active `build-kit-skills-sync` lane which explicitly lists `tools.md` as one of its files).** Consider abandoning `chore/scratch-sync-2026-07-07` for a **fresh** branch name instead of retrying the same one, or committing these 3 files onto an existing lane that already owns adjacent hunks in each file. Do not run `but pull` until the scratch-sync commit lands with real content, per the original task's stop-on-anomaly rule. Took+released BUT-LOCK, no destructive recovery action taken beyond the sanctioned `git restore --staged` and the clean `but uncommit` of an already-empty commit.)
+
+<!-- previous FREE note preserved below for history -->
+LOCKED resume-scratch-sync-pull-session 2026-07-07T13:00:32Z — resuming the interrupted post-merge pull sequence from unapply-pull-session-2's stop point (empty scratch commit + phantom AD residue on `web/packages/agenta-shared/tests/unit/provider-family.test.ts`). Plan: also unapply `feat/onboarding-home-ux` (parked, ref preserved remotely), fix the phantom index entry (`git restore --staged` only), retry the scratch-sync commit with per-file `but rub` instead of `--changes`, then `but pull`, then post-verify. Snapshot taken before any mutation.
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by unapply-pull-session-2 2026-07-07T12:58:04Z — **STOPPED mid-task at step 4 (scratch-sync), did NOT run `but pull`.** Snapshot `457a5e1f48` taken first (valid recovery point). Steps 0-3 succeeded cleanly: proved integration (merge-base --is-ancestor) of `fix/runner-acp-orphan-leak`, `design/connect-model-drawer`, `design/template-strip-onboarding` into `origin/big-agents` (the third via the two-hop check: `origin/design/template-strip-onboarding`→`origin/big-agents` ancestor, and local tip `03a96f41dd`→`origin/design/template-strip-onboarding` ancestor); unapplied all three one at a time via `but unapply <lane>`, verifying stack count -1 and `feat/build-an-agent-references`+`feat/build-kit-op-guidance` tips unchanged (`23794a1d42`/`ca633368b6`) after each. Stack count went 26→23 applied stacks (target ~23, hit exactly). Step 4 broke: created `chore/scratch-sync-2026-07-07` (`but branch new`), then `but commit chore/scratch-sync-2026-07-07 -m "..." --changes wk,vzu,lx --status-after` (CLI IDs for `tools.md`/`agent-coordination.md`/`capabilities.py`) printed `✓ Created commit 80fb8a4` but with `Warning: Some selected changes could not be committed`. Verified via `git show --stat 80fb8a4` and `but status` (which itself labels it `80fb8a4f89 ... (no changes)`) that the commit is **completely empty** — none of the 3 target files landed. Working tree still holds all 3 original diffs intact (194 insertions/8 deletions unchanged, confirmed via `git diff --stat`), so no data loss. But a **new, previously-absent index anomaly** appeared as a side effect: `web/packages/agenta-shared/tests/unit/provider-family.test.ts` shows in `git status` as staged-`new file` + worktree-`deleted` (`AD`), and in `but status` as an unassigned `D` (cli id `szk`) in the zz bucket — `git log -- <that path>` returns zero history, so this file has never existed in any reachable commit; it's phantom index residue, not a real file anywhere on disk. This did not exist in the `git status --porcelain` inventory taken immediately before this step. Per the task's explicit stop-on-anomaly rule, did NOT attempt any fix (no `git reset`, no `but uncommit`, no stacking-on-dependency workaround) and did NOT proceed to `but pull`. Confirmed no other regression: all three unapplied lanes remain gone from the applied list; `feat/build-an-agent-references`/`feat/build-kit-op-guidance` tips still `23794a1d42`/`ca633368b6`; applied-stack count now 24 (23 + the new empty `chore/scratch-sync-2026-07-07`). **Next agent: recovery point is oplog snapshot `457a5e1f48` (pre-unapply state) — do not restore it blindly, since it would also undo the 3 clean, verified unapplies; investigate the empty-commit/phantom-file anomaly first** (likely a hunk-dependency mis-route in the `but commit --changes` path, possibly related to unrelated in-flight work touching `web/packages/agenta-shared`), decide whether to retry the scratch-sync commit with a different technique (e.g. per-file `but rub` instead of `--changes`, or stacking on whichever lane owns the phantom file) before resuming with `but pull`. Took+released BUT-LOCK, no destructive recovery action taken.)
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by post-merge-pull-session-2026-07-07T16:45:00Z
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by post-merge-pull-session-2026-07-07T16:45:00Z — **STOPPED at pre-flight per protocol, did NOT pull.** Task was to sync the workspace after #5102/#5098/#5096 merged into big-agents. Took oplog snapshot `56cc6a5d98` first (valid recovery point, nothing mutated since). `but status` pre-flight count: **26 top-level stacks / 27 distinct branches** (one stack, `feat/build-an-agent-references`, carries 2 stacked branches with `feat/build-kit-op-guidance`), plus the unassigned-changes bucket. This exceeds the task's `~24 lanes` soft-stop threshold and sits right at the documented `~28 goals` but-graph cap (see the prior "but pull goals limit" incident) — rebasing this many lanes on pull risks the same saturation/corruption class of failure. Per instruction, did NOT create the `chore/scratch-sync-2026-07-07` lane (that would itself add a 27th/28th stack right before the risky operation) and did NOT run `but pull`. Dirty tracked files inventoried but left as-is: `docs/design/agent-workflows/documentation/tools.md` (real 2-line diff, unrelated session's WIP), `sdks/python/agenta/sdk/agents/capabilities.py` (real 7ins/5del diff, comment clarification, unrelated session's WIP), `docs/design/agent-workflows/scratch/agent-coordination.md` (this board, my own lock take/release edits only). Untracked dirs (onboarding exports, secret-isolation docs, onboarding-ux console) untouched — moot, no pull happened. **Next agent: before retrying, get some of the long-idle lanes reviewed/merged/archived by Mahmoud to bring the count safely under ~24** — candidates: the 25-commit `chore/scratch-sync-2026-07-03` (mostly historical board-only commits), or any of `feat/annotate-trace-op` / `docs/agent-skill-packaging` / `docs/agent-streaming-invoke` / `custom-providers-in-pi-plan` / `docs/mcp-delivery-architecture` (each shows only an `(upstream: on origin/...)` marker with no recent activity — likely stale/awaiting-review PRs). Then redo this protocol from step 0. Took+released BUT-LOCK, no mutations made beyond this board note.)
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by connect-model-drawer-fix-session 2026-07-07T16:20:00Z — committed the verified pre-merge review-gate fix batch onto the existing `design/connect-model-drawer` lane (#5096): `3b83185a73` fix(frontend) — review-gate fixes: `vaultPickedProviderFamily` threads option metadata's provider through `writeModel` so `config.llm` never loses its provider on family-less vault models (9 new unit tests); `ProviderKeyField` gets a per-provider key so typed secrets can't leak across rail switches; `kindServesFamily` now understands both kind flavors, matching the model dropdown; plus a models null-guard in `CustomProviderForm`, `disabled` applied on `ModelNameInput`, an `isCloud` doc-comment correction, and deduped JSX in `ProviderCredentialsSection`. Exactly 7 files: `ProviderCredentialsSection.tsx`, `useModelHarness.tsx`, `connectionUtils.ts` + its test, `CustomProviderForm.tsx`, `ModelNameInput.tsx` (all under `web/packages/agenta-entity-ui/**`), and `web/packages/agenta-ui/src/drill-in/context/DrillInUIContext.tsx`. Each `but rub` staged cleanly (no hunk-locks); commit tip verified via `git show --stat --name-only` = exactly those 7 files, no leakage. Pushed, local==remote `3b83185a73`. Did not touch any other unassigned working-tree file (onboarding export dirs, secret-isolation docs, onboarding-ux console, `capabilities.py`, `documentation/tools.md`). Took+released BUT-LOCK.)
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by provenance-fix-commit-session 2026-07-07T15:52:00Z — committed the verified provenance-fix batch
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by provenance-fix-commit-session 2026-07-07T15:52:00Z — committed the verified provenance-fix batch onto the existing `design/template-strip-onboarding` lane (#5098): `03a96f41dd` fix(frontend) — agent naming from a template now requires the composer text to exactly match the seeded text at create time (any edit or replacement falls back to default naming); emptying Home's composer clears the provenance chip (new optional `onChange` on `RichChatInput` threaded through `CharacterCountPlugin`, additive, no consumer changes); provenance resets when the chat panel's `entityId` changes; also fixed a non-repo-relative docs path. Review-gate blocker from the pre-merge pass. Exactly 7 files: `docs/design/template-strip-onboarding/README.md`, `web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx`, `web/oss/src/components/TemplateStrip/components/StripComposer.tsx`, `web/oss/src/components/TemplateStrip/hooks/useTemplateProvenance.tsx`, `web/oss/src/components/pages/agent-home/StripHome.tsx`, `web/packages/agenta-ui/src/RichChatInput/RichChatInput.tsx`, `web/packages/agenta-ui/src/RichChatInput/plugins/CharacterCountPlugin.tsx`. Each staged cleanly (no hunk-locks) onto the lane; commit tip verified via `git show --stat --name-only` = exactly those 7 files, no leakage. Pushed, local==remote `03a96f41dd`. Did NOT touch the parallel agent's `agenta-entity-ui` SchemaControls/secretProvider/drill-in-context files (still unassigned in the tree), nor `capabilities.py`/`documentation/tools.md`/other unassigned working-tree noise. Took+released BUT-LOCK.)
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by home-strip-rhythm-session 2026-07-07T15:26:00Z — committed one verified fix onto the existing `design/template-strip-onboarding` lane (#5098): `3d3cc490d6` fix(frontend) — home strip: composer→templates gap joins the page's 30px section rhythm; the provenance chip's slot is always rendered (invisible+inert sizing reference when empty) so picking/clearing a template moves nothing (composer position verified bit-identical); the chip's X now clears the template text along with the chip; playground surfaces unaffected (they render no chip). Exactly 2 files: `web/oss/src/components/pages/agent-home/StripHome.tsx`, `web/oss/src/components/TemplateStrip/hooks/useTemplateProvenance.tsx`. Commit tip verified via `git show --stat --name-only` = exactly those 2 files, no leakage. Pushed, local==remote `3d3cc490d6`. Left all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, `capabilities.py`, `documentation/tools.md`) untouched. Took+released BUT-LOCK.)
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by strip-gate-fix-session 2026-07-07T11:56:00Z — committed one verified fix onto the existing `design/template-strip-onboarding` lane (#5098): `f91046eda6` fix(frontend) — template strip only shows for fresh agents (current revision `version` <= 1, the hidden-v0-seed convention) and only in build mode; a committed agent's sessions and the maximized chat mode never show the strip, and there is no flash while the revision query is pending (`!revisionQuery.isPending` gates it). Exactly 1 file: `web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx`. Commit tip verified via `git show --stat --name-only` = exactly that file, no leakage. Pushed, local==remote `f91046eda6`. Left the parallel session's other strip files (`StripHome.tsx`, `StripComposer.tsx`, `TemplateChip.tsx`, `useTemplateProvenance.tsx`) untouched, still unassigned in the tree, and all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, `capabilities.py`, `documentation/tools.md`) untouched. Took+released BUT-LOCK.)
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by home-polish-batch-session 2026-07-07T14:50:00Z — committed the home-polish batch onto the existing `design/template-strip-onboarding` lane (#5098): `cd5a4e2c56` fix(frontend) — StripHome widens to 960px (was 780); 16px composer-strip gap; paperclip dropped from the strip composer, Terminal icon on Use-my-coding-agent; template-picked creates are named after the template (home + onboarding); all six templates get explicit "Create an agent that ..." builder messages + updated fallback derivation; classic composer's onClick now calls `onCreate()` instead of passing the click event as the name param. All 6 files landed in one commit, incl. `AgentComposer/index.tsx`'s one-line onClick fix — the earlier hunk-lock to `feat/onboarding-home-ux` (noted in the 07-07 template-strip-commit-session row) had already resolved itself; this commit confirms it stayed resolved (clean `but rub` + `but commit --only`, no drops, no warnings). Commit tip verified via `git show --stat --name-only` = exactly the 6 intended files. Pushed, local==remote `cd5a4e2c56`. Left all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, trigger-latest-binding docs, `capabilities.py`) untouched. Took+released BUT-LOCK.)
+
+<!-- previous FREE note preserved below for history -->
+FREE (released by strip-fix-batch-session 2026-07-07T13:10:00Z — committed 2 verified fixes onto the existing `design/template-strip-onboarding` lane (#5098): `473eb6a3e1` fix(frontend) — onboarding config slot no longer overrides to an empty panel under the strip flag (renders standard config sections); drops the 2-min tour button and NEW/Agent-builder eyebrow from strip-mode surfaces (3 files: `useAgentOnboarding.ts`, `OnboardingConfigPanel.tsx`, `AgentChatEmptyState.tsx`); `58a25d9e31` fix(frontend) — strip docks ~12px above the pinned composer (bottom-anchored cluster matching agent-chat rhythm); template picks on chat surfaces fill the composer only with zero layout shift and no provenance chip/border swap, strip card's selected state marks the pick, home keeps its chip (2 files: `AgentChatPanel.tsx`, `StripHome.tsx`). Each commit tip verified via `git show --stat --name-only`, no leakage. Pushed, local==remote `58a25d9e31`. Left the drawer track (`web/packages/**`, already committed by another agent and absent from the tree) and all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, `capabilities.py`) untouched. Took+released BUT-LOCK.)
 
 ## Lanes / PRs (date each row; rows older than 2 days are stale → ignore/clean)
 | date | agent | lane | PR | status |
 | --- | --- | --- | --- | --- |
+| 2026-07-07 | provenance-fix-commit-session | `design/template-strip-onboarding` | #5098 | Committed the verified provenance-fix batch onto the existing lane, stacked on `3d3cc490d6`: `03a96f41dd` fix(frontend) — agent naming from a template requires the composer text to exactly match the seeded text at create time (any edit/replacement → default naming); emptying Home's composer clears the provenance chip (new optional `onChange` on `RichChatInput` via `CharacterCountPlugin`, additive, no consumer changes); provenance resets when the chat panel's `entityId` changes; repo-relative docs path fix (7 files: `docs/design/template-strip-onboarding/README.md`, `AgentChatPanel.tsx`, `StripComposer.tsx`, `useTemplateProvenance.tsx`, `StripHome.tsx`, `RichChatInput.tsx`, `CharacterCountPlugin.tsx`). Review-gate blocker from the pre-merge pass. Each file staged cleanly, no hunk-locks. Commit tip verified via `git show --stat --name-only` = exactly those 7 files, no leakage. Pushed, local==remote `03a96f41dd`. Left the parallel agent's `agenta-entity-ui` SchemaControls/secretProvider/drill-in-context files and all other unassigned working-tree noise untouched. Took+released BUT-LOCK. |
+| 2026-07-07 | home-strip-rhythm-session | `design/template-strip-onboarding` | #5098 | Committed 1 verified fix onto the existing lane, stacked on `f91046eda6`: `3d3cc490d6` fix(frontend) — home strip: composer→templates gap joins the page's 30px section rhythm; the provenance chip's slot is always rendered (invisible+inert sizing reference when empty) so picking/clearing a template moves nothing (composer position verified bit-identical); the chip's X now clears the template text along with the chip; playground surfaces unaffected (2 files: `StripHome.tsx`, `useTemplateProvenance.tsx`). Commit tip verified via `git show --stat --name-only` = exactly those 2 files, no leakage. Pushed, local==remote `3d3cc490d6`. Left all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, `capabilities.py`, `documentation/tools.md`) untouched. Took+released BUT-LOCK. |
+| 2026-07-07 | strip-gate-fix-session | `design/template-strip-onboarding` | #5098 | Committed 1 verified fix onto the existing lane, stacked on `cd5a4e2c56`: `f91046eda6` fix(frontend) — template strip only shows for fresh agents (current revision `version` <= 1, hidden-v0-seed convention) and only in build mode; committed-agent sessions and maximized chat mode never show the strip; no flash while the revision query is pending (1 file: `AgentChatPanel.tsx`). Commit tip verified via `git show --stat --name-only` = exactly that file, no leakage. Pushed, local==remote `f91046eda6`. Left the parallel session's other strip files (`StripHome.tsx`, `StripComposer.tsx`, `TemplateChip.tsx`, `useTemplateProvenance.tsx`) and all other unassigned working-tree noise untouched. Took+released BUT-LOCK. |
+| 2026-07-07 | home-polish-batch-session | `design/template-strip-onboarding` | #5098 | Committed the verified home-polish batch onto the existing lane, 1 commit stacked on `58a25d9e31`: `cd5a4e2c56` fix(frontend) — StripHome widens to the app's 960px rhythm (was the prototype's 780px); 16px gap between composer and strip; paperclip removed from the strip composer, Terminal icon added to Use-my-coding-agent; creating from a picked template names the agent after it (home + onboarding); all six templates get explicit "Create an agent that ..." builder messages (skill-triggering, workable) with an updated fallback derivation; classic composer's button now calls `onCreate()` instead of passing the click event as the new optional name param (6 files: `StripHome.tsx`, `StripComposer.tsx`, `AgentChatPanel.tsx`, `useAgentHomeActions.ts`, `assets/templates.ts`, `AgentComposer/index.tsx`). SPECIAL CAUTION resolved: `AgentComposer/index.tsx`'s one-line onClick change was flagged as a possible hunk-lock risk against `feat/onboarding-home-ux`'s prior restyle commit `6b40cf060d`; in practice it attributed cleanly with no drop/warning (confirms the 07-07 template-strip-finish-session note that the earlier lock had already self-resolved). Commit tip verified via `git show --stat --name-only` = exactly the 6 intended files, no leakage. Pushed, local==remote `cd5a4e2c56`. Left all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, trigger-latest-binding docs, `capabilities.py`) untouched. Took+released BUT-LOCK. |
+| 2026-07-07 | strip-fix-batch-session | `design/template-strip-onboarding` | #5098 | Committed the verified strip fix batch, 2 commits stacked on `219b1208f9`: `473eb6a3e1` fix(frontend) — onboarding config slot no longer overrides to an empty panel under the strip flag (renders standard config sections like any playground); drops the 2-min tour button and NEW/Agent-builder eyebrow from strip-mode surfaces, legacy flag-off surfaces unchanged (3 files: `useAgentOnboarding.ts`, `OnboardingConfigPanel.tsx`, `AgentChatEmptyState.tsx`); `58a25d9e31` fix(frontend) — strip docks ~12px above the pinned composer (bottom-anchored cluster: hero top, flexible middle, strip near the bottom, matching the agent-chat surface's rhythm); template picks on chat surfaces fill the composer only, zero layout shift, no provenance chip or composer border/radius swap, strip card's selected state marks the pick; home keeps its chip (2 files: `AgentChatPanel.tsx`, `StripHome.tsx`). Each commit tip verified via `git show --stat --name-only` = exactly its intended file list, no leakage. Pushed, local==remote `58a25d9e31`. Drawer track (`web/packages/**`) was already committed by another agent and absent from the tree, as expected. Left all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, `sdks/python/agenta/sdk/agents/capabilities.py`) untouched. Took+released BUT-LOCK. |
+| 2026-07-07 | template-strip-commit-session | `design/template-strip-onboarding` | #5098 | PARTIAL, not pushed. Committed `0d7c931c99` (25 files: new `TemplateStrip/**` + `StripHome.tsx`, agent-home + AgentChatSlice wiring, palette/tailwind-token changes). STOPPED on a real hunk-lock: `AgentComposer/index.tsx`'s override-props hunk is locked to `feat/onboarding-home-ux`'s tip commit `6b40cf060d` (separate active lane/PR). Left that file staged to this lane, uncommitted, for a human call (rebase order vs. wait-and-retry vs. manual split); **lane is currently type-broken** (`StripHome.tsx` passes props `AgentComposer` doesn't declare yet) so do not merge as-is. Docs commit (status.md + HANDOFF.md) intentionally deferred until commit 1 is complete. Full diagnosis in the Communication Log. Took+released BUT-LOCK. |
+| 2026-07-07 | template-strip-finish-session | `design/template-strip-onboarding` | #5098 | FINISHED the 2 commits left pending by template-strip-commit-session. Between sessions, `AgentComposer/index.tsx` was refactored away on `feat/onboarding-home-ux` and came back byte-identical to that lane's tip — no diff, no entry in `but status`, nothing to unassign (the earlier hunk-lock resolved itself). Committed `95dc832c4f` refactor(frontend) — `StripHome.tsx` + new `StripComposer.tsx` (StripHome now owns its own composer, dropping the cross-lane `AgentComposer` coupling; lane is type-clean again). Committed `219b1208f9` docs(design) — `status.md` + `HANDOFF.md`. Each tip verified via `git show --stat --name-only` = exactly its 2 intended files, no leakage. Pushed with a plain (non-force) push; local `219b1208f9` == remote via `git ls-remote --heads origin`. Left all other unassigned working-tree files (marketing export dirs, secret-isolation docs, onboarding-ux console, python-agent-review scratch, capabilities.py, etc.) untouched. Took+released BUT-LOCK. |
+| 2026-07-07 | python-agent-review-session | `docs/python-agent-review-2026-07-06` | #5100 (draft) | New parallel docs-only lane, exactly 11 new files under `docs/design/agent-workflows/scratch/python-agent-review-2026-07-06/` (REVIEW-PROMPT, PLAN, 8 lane findings files, executive summary). Eight-lane map-reduce review of the Python agent side (service + SDK), reconciled with the runner review. Totals 0 blocker / 21 high / 42 medium / 33 low; suite green 540+4. Commit `0f84e1282b` (amended once via `but absorb` for the PLAN status; tree re-verified 11 files, no leakage), pushed `-f`, local==remote. PR base big-agents, files verified via `gh api .../pulls/5100/files`. Left all other unassigned working-tree files untouched. Took+released BUT-LOCK. |
+| 2026-07-07 | provider-rail-commit-session | `design/connect-model-drawer` | #5096 | Committed the provider-rail UI rethink onto the existing lane: `d2c50bdbcd` (6 files) — `ProviderCredentialsSection.tsx`, `ProviderKeyField.tsx`, `useModelHarness.tsx` (agenta-entity-ui), `secret/core/providerFields.ts` + barrels `secret/core/index.ts`, `secret/index.ts` (agenta-entities). Rail now filters providers to those that can serve the selected model (`CUSTOM_PROVIDER_KIND_FAMILIES`), unifies provider/Add rows into one `RailRow` anatomy, wraps the pane in a `ConfigAccordionSection` with Connect-key status, and makes a provider added via an Add row adopt its first model + slug. Found an unrelated leftover-assigned hunk (`sdks/python/agenta/sdk/agents/capabilities.py`, stack-assigned from a prior session per this board's 07-06 note) sitting staged to this branch; unassigned it back to unassigned (`but rub nl zz`) before committing so it wouldn't sweep in. Commit tip verified via `git show --stat --name-only` = exactly the 6 intended files, no leakage. Pushed, local==remote `d2c50bdbcd`. Left untouched: the template-strip track (`web/oss/src/**`, `palette.ts`, generated theme files) and all other unassigned noise (onboarding exports, secret-isolation docs, python-agent-review scratch, etc.). Took+released BUT-LOCK. |
+| 2026-07-06 | merge-session-5088-5089 | `docs/agent-chat-turn-continuation-plan`, `docs/parallel-approval-gates-plan` | #5088, #5089 | **BOTH MERGED to big-agents** on Mahmoud's approval, real merge commits (matching recent convention, 2 parents each): #5088 → `313446e06f` (base was clean/mergeable, review APPROVED, required checks green — some jobs `skipping` by path-filter, not failing), #5089 → `0fea9932a4` (clean/mergeable after a ~10s recompute delay post-#5088 merge, ALL checks green incl. runner acceptance/integration/unit + API/SDK/web/services unit). Local lane tips verified == remote before merging (`c39d248421`, `749a841b1b`). **`but pull` then BLOCKED**: "There are uncommitted changes in the worktree that may conflict with the updates. Please commit or stash them and try again." Per hard rule, did NOT stash/commit/touch any of the dirty files (another session's web refactor: `sdks/python/agenta/sdk/agents/capabilities.py`, `services/runner/src/engines/sandbox_agent.ts`, ~20 files under `web/oss`+`web/packages` incl. a deletion of `ConfigureProviderDrawer/assets/constants.ts`; plus untracked design dirs: `secret-isolation`, `onboarding-ux` console, onboarding-revamp handoff, two `Agenta onboarding flow redesign`/`design_handoff_template_strip` export dirs). `but status` confirms NO damage: both merged lanes (`ha`/`docs/agent-chat-turn-continuation-plan`, `le`/`docs/parallel-approval-gates-plan`) still present locally with their full commit history intact, target shows `0fea9932a4 (upstream) ⏫ 2 commits` un-integrated — pull simply never ran. Took+released BUT-LOCK. **Next agent: resolve the dirty worktree (get its owner to commit/hand off, or use the git-stash-isolation technique in AGENTS.md) before retrying `but pull`.** |
+| 2026-07-06 | approval-loop-hotfix-session | `docs/parallel-approval-gates-plan` | #5089 | HOTFIX for the approval loop Mahmoud hit live-testing the honest-replay fix (re-issued args drifted to a JSON string, key missed, new gate; stale "NOT run yet" envelopes compounded each resume). 3 commits stacked on `af7240d49e`: `d27e740acb` fix(runner) — responder.ts normalizeJsonish canonicalization (JSON-string args parse to objects before the stable hash, both sides, no name-only fallback) + transcript.ts approvalRenderHints (executed-below / one-nudge-on-last / neutral "approved earlier", deny unchanged); `0130593a90` tests (responder.test.ts jsonish-key + end-to-end take; transcript.test.ts buildTurnText hint cases); `749a841b1b` docs (hotfix-round note in phantom-execution-findings.md + status.md). Runner 556 tests + tsc green. Live E2E on :8280 via sub-sidecar (claude+sonnet self_managed): ONE approval, model re-issued once, gate outcome=allow from the store, revision v3 in DB 22:15:45Z, follow-up turn plain answer with no gate/nudge. Each commit tree verified. Pushed, local==remote `749a841b1b`. Took+released BUT-LOCK. |
+| 2026-07-06 | parallel-approval-gates-impl | `docs/parallel-approval-gates-plan` | #5089 | IMPLEMENTED the approved plan on the existing docs lane: 5 commits stacked on `abb346271a` — `03f122c195` runner sibling settle (otel.ts settleOpenToolCalls + DEFERRED_NOT_EXECUTED sentinel, sandbox_agent.ts pause-time sweep + post-pause announcement re-sweep, pause.ts header note); `8956cf47ee` FIFO approval-decision store (responder.ts) + honest approval replay transcript (transcript.ts, approvalDecisionOf exported); `291738a8eb` runner tests (orchestration x4 + otel idempotency + responder FIFO + transcript.test.ts NEW); `bb847e0e5c` FE neutral rendering (ToolActivity.tsx shape-keyed muted deferred/not-handled states, UnhandledClientTool.tsx settles {status:"not_handled"} instead of the fabricated error); `af7240d49e` design-docs sync (incl. phantom-execution-findings.md NEW). Runner 46 files/547 tests + tsc green; web lint-fix clean. Live E2E on :8280 via sub-sidecar (claude+sonnet self_managed): sibling shows muted "waiting on another approval", no phantom failure, turn resumes in place, commit_revision executed for real (revision v2 in DB 21:40:33Z). Each commit tree verified, no leakage. Pushed, local==remote `af7240d49e`. Took+released BUT-LOCK. |
+| 2026-07-06 | connect-model-drawer-commit-session | `design/connect-model-drawer` | #5096 | Committed 3 verified change-sets from unassigned working-tree files onto the existing lane: `5052156379` connect-a-model gate (7 files: `AgentChatPanel.tsx`, `ConnectModelBanner.tsx`, `useAgentModelKeyStatus.ts`, `secret/index.ts`, `secret/state/{atoms,index}.ts`, `secret/state/useVaultSecret.ts`); `2ea0fbbcb0` browser-remembered model/harness/connection prefs (6 files incl. `agentCreationPrefs.ts` new + `agent-creation-prefs.test.ts` new + `AgentTemplateControl.tsx`); `2b0a3a776d` fix — no Connect-key pill / key-tab auto-select for self-managed agents (1 file: `useModelHarness.tsx`). Each commit's tip tree verified via `git show --stat --name-only` = exactly its intended file list, no leakage between commits. Pushed, local==remote `2b0a3a776d`. Left all other unassigned files (onboarding-flow-redesign export, design_handoff_template_strip export, secret-isolation docs, agent-chat-turn-continuation docs, onboarding-ux console dir, onboarding-revamp handoff) untouched. Took+released BUT-LOCK. |
+| 2026-07-06 | colorwarningbg-fallback-session | `design/connect-model-drawer` | #5096 | One-line fix on top of the existing lane: commit `017fcbdf17` — `ProviderCredentialsSection.tsx`'s "Not on cloud" badge falls back to `var(--ag-colorWarningBg, rgba(250,173,20,0.12))` until the `colorWarningBg` token (excluded from `connect-model-drawer-commit-session-2`'s commit below, still sitting unassigned in `palette.ts`) ships; without it the badge background resolves transparent. prettier + eslint clean on the file. Commit tip verified to contain exactly this one file. Pushed, local==remote `017fcbdf17`. Took+released BUT-LOCK. |
+| 2026-07-06 | connect-model-drawer-commit-session-2 | `design/connect-model-drawer` | #5096 | Committed the drawer IMPLEMENTATION (the large parallel work-stream) onto the same existing lane, 3 commits stacked on `2b0a3a776d`: `e462ca1a4b` feat — three-section redesign + provider-credentials pane (33 changes across `agenta-entity-ui`/`agenta-entities`/`agenta-ui`/`agenta-shared`/`web/oss`; incl. `secretProvider/**` NEW, `ProviderCredentialsSection.tsx` NEW, `LabelInput.tsx` NEW, `provider-family.test.ts` NEW; git's own rename-detector paired the `ConfigureProviderDrawer/assets/constants.ts` deletion with the new `secret/core/providerFields.ts` addition as `R082` — same net effect, verified via `git show --stat --name-status`); `7cfa0f94fc` follow-up docs-comment commit for `sdks/python/agenta/sdk/agents/capabilities.py` (the prose-only self_managed clarification — `but commit --only` silently dropped this one file from the first commit despite it being staged; re-staged + committed separately, tree verified); `6e82c052de` docs sync (4 files: `docs/design/connect-model-drawer/{README,plan,status}.md` + `docs/design/agent-workflows/documentation/agent-configuration.md`). **Excluded from the commit, left unassigned:** `web/oss/src/styles/theme/palette.ts` (mixed in an unrelated `templateStrip` color family alongside the intended `colorWarningBg` token — per the task's own instruction, excluded together with its two clean-but-coupled siblings `theme-variables.css` and `generate-tailwind-tokens.ts` since they'd reference a token that wouldn't exist in this lane's tree); `web/oss/src/lib/helpers/dynamicEnv.ts` (adds the unrelated `NEXT_PUBLIC_AGENT_TEMPLATE_STRIP` flag); `web/oss/src/components/pages/agent-home/assets/constants.ts` (other track, per instructions). Each commit's tip tree verified via `git show --stat --name-status`, no leakage. Pushed, local==remote `6e82c052de`. Took+released BUT-LOCK. |
+| 2026-07-06 | turn-continuation-impl-session | `docs/agent-chat-turn-continuation-plan` | #5088 (draft) | IMPLEMENTED slice 1+2 of the turn-continuation plan on the existing docs lane: 2 commits stacked on `6d4212955f` — `09ac162db3` fix (exactly `sdks/python/agenta/sdk/decorators/routing.py`: prelude captures the trailing assistant message id, vercel stream start frame + vercel batch last-assistant message echo it; fresh turns still mint `msg-{trace_id}`) + `348756db16` tests (exactly `test_vercel_stream_continuation.py` new + `test_routing_negotiation.py` extended). Codex-xhigh implemented + Codex-xhigh review + code-review pass; batch stamp targets the LAST ASSISTANT message (matches `AgentChatTransport.ts` replay pick). SDK suite 2184 green incl. acceptance vs :8280; live before/after captured (before on :8290 baked image minted `msg-f8467f09...`; after echoes `msg-continuation-test-42`, batch too). Pushed, local==remote `348756db16`. Did NOT touch `docs/design/**` (docs agent mid-edit) or PR #5088 metadata (orchestrator finalizes). Took+released BUT-LOCK. |
+| 2026-07-06 | parallel-approval-gates-session | `docs/parallel-approval-gates-plan` | #5089 (draft) | New parallel lane, exactly 7 files (all new, docs-only): `docs/design/parallel-approval-gates/{README,context,research,flows,options,plan,status}.md`. Design workspace for issue 2 of the 2026-07-06 approval-flow investigation: two approval-gated tools in one turn, the runner's one-pause latch drops the second gate, frontend fabricates a fake failure for it. Recommendation: Option A now (runner settles losing sibling gates deterministically, no wire/FE change), Option B follow-up (runner synthesizes batched approval requests; dock + replay already support N approvals). Per Mahmoud's decision, no FE tool-name special-casing; fix lives in the runner. Commit `abb346271a` verified (7 files only), pushed, local==remote. Left all other untracked/modified files (onboarding-flow-redesign export, secret-isolation docs, console dirs, onboarding-revamp, this coordination file's own edit) untouched. Took+released BUT-LOCK.
+| 2026-07-06 | turn-continuation-docs-session | `docs/agent-chat-turn-continuation-plan` | #5088 (draft) | New parallel lane, exactly 7 files (all new, docs-only): `docs/design/agent-chat-turn-continuation/{README,context,research,fix-options,plan,status}.md` + `docs/design/agent-workflows/scratch/approval-turn-duplication-findings.md`. Fix for the agent-playground turn-duplication-after-approval bug (root cause: server mints a fresh `msg-{trace_id}` per request instead of echoing the continuation id). Commit `6d4212955f` verified (7 files only), pushed, local==remote. Left all other untracked/modified files (onboarding-flow-redesign export, secret-isolation docs, console dirs, this coordination file's own edit, and another session's in-progress dir) untouched. Took+released BUT-LOCK. |
+| 2026-07-06 | agent-home-ux-session | `feat/onboarding-home-ux` | no PR yet | New parallel lane, exactly 2 files: `web/oss/src/components/pages/agent-home/assets/constants.ts` + `index.tsx` (hide tutorial video, drop OnRamps "Other ways to start" section, widen first-run layout to 960px). Commit `c62b2d796c` verified (2 files only), pushed, local==remote. Took+released BUT-LOCK. |
 | 2026-07-06 | onboarding-cleanup-session | `feat/onboarding-survey-v2`, `feat/onboarding-intent-analytics`, `chore/retire-legacy-onboarding` | #5085, #5086, #5087 (all MERGED) | **Split the onboarding cleanup working tree into 3 disjoint-file lanes over `big-agents`, pushed, PR'd, merged, pulled.** B=survey v2 (Signup 3 - Agents, id-based mapping, v2 props, fallback dropped, 3s watchdog) `0d0abd5900` 6 files #5085; C=implicit first_agent_intent analytics `ee3a71250b` 7 files #5086; A=retire legacy get-started/welcome-cards/widget/tours (removals + kill switches, reroute new users to /apps) `9c4879a823` 30 files #5087. Files disjoint across groups, so parallel lanes (not stacked); merged B+C then A (A deletes /get-started, B stops post-signup redirecting there). Left the 2 secret-isolation design docs (another session's untracked new files) unassigned — untouched. Took+released BUT-LOCK. |
 | 2026-07-06 | onboarding-qa-session-merge | `fe-feat/agent-onboarding` (archived) | #5076 MERGED | **Merged #5076 into `big-agents` (merge commit `472295c1be`) and ran `but pull`.** Target advanced `2c0ac23ee8` -> `472295c1be`; `fe-feat/agent-onboarding` was detected as integrated upstream and auto-removed from the local stack; the other 15 lanes rebased clean with no new conflicts. Snapshot `d68ca99f89` (pre-pull). Verified post-pull: `default_target` sha matches `origin/big-agents`, `git status` clean, `agent-home/index.tsx` + `OnboardingEntry.tsx` present in the tree, lane gone from `but status`. Took+released BUT-LOCK. |
 | 2026-07-06 | post-merge-pull-session | (workspace-wide) | — | **Post-merge `but pull` done, base at `2c0ac23ee8` (origin/big-agents tip, #5073 merge), merged lanes integrated, stack verified healthy.** Committed the 5 stray console files + this board to `chore/scratch-sync-2026-07-03` (`79f8378c9b`, exactly 6 files) first. Pull integrated+removed `fix/invoke-fold-tool-args` (#5072) and `feat/runner-sessions-persist-auth` (#5073); all 16 other lanes rebased clean, no conflicts, `git status` clean after. NOTE: `feat/test-run-5b` survived on purpose — #5074 merged but the lane still carries one post-merge commit `f7a0227bcf` (documentation/tools.md working sync, 12+/14-, hunk-locked there by onboarding-qa on 07-06); needs a decision (push + tiny PR, or fold elsewhere). Stack health on :8280 after the reload: /api/health ok, all containers up (no crash loops), sidecar logs clean (no restart needed); smoke = non-streaming /services/agent/v0/invoke (pi/local/gpt-4o-mini) → 200 + trace_id `7d27fae13b45...` + spans/query count 4. Snapshot `54b134cc59` (pre-pull). Took+released BUT-LOCK. |
@@ -685,3 +768,239 @@ _(add a dated line; remove when resolved)_
   skills hunks or the auth agent's `model_ref`/`Connection` regions — only the claude-config region.
   (@auth: your earlier zero-drift diff predates this; the shared files moved, but only in the claude
   region, not yours.)
+
+### 2026-07-07 ~01:40 Europe/Berlin - build-kit-skills-sync
+
+Claimed a lease (see Active Leases) for an overnight autonomous run implementing
+`docs/design/agent-workflows/projects/builder-agent-reliability/tools-review/part-3-agenta-skills-sync.md`
+(the internal build-kit sync with the agenta-skills repo lessons). Five new lanes, PRs to main
+(stacked where dependent). Shared-surface note: I touch `adapters/harnesses.py` (ClaudeHarness
+only — the forced-extras parity change) and SDK `platform/op_catalog.py` + `adapters/agenta_builtins.py`;
+I do NOT touch protocol.ts, wire.py, goldens, runner TS, or `capabilities.py` (staged to
+design/connect-model-drawer). Committing one lane at a time with per-commit verification; the many
+unassigned working-tree files from other sessions stay untouched.
+
+### 2026-07-07 ~00:20-00:35 Europe/Berlin - template-strip-commit-session
+
+Committed the template-strip implementation onto the existing `design/template-strip-onboarding`
+lane (backs PR #5098). 25 of 26 planned files landed cleanly as `0d7c931c99` (feat commit: new
+`TemplateStrip/**` + `StripHome.tsx`, agent-home/AgentChatSlice wiring, palette/tailwind-token
+changes). **STOPPED before committing the 26th file**,
+`web/oss/src/components/pages/agent-home/components/AgentComposer/index.tsx` — genuine
+hunk-lock, not a mistake in my commit steps. Diagnosis: `but absorb <fileCliId> --dry-run` showed
+GitButler attributes 4 of the file's 5 hunks to my lane fine, but the trailing-button-render hunk
+(`@31,7 +41,13`, the `trailingOverride ?? (...)` swap) is hunk-range-locked to `6b40cf060d`
+("restyle agent-home composer — white card, soft shadow, drop decorative Bold/Italic"), which is
+the **current tip of the separately-applied `feat/onboarding-home-ux` lane** (7 commits, agents
+table + template category + composer restyle work, pushed to `origin/feat/onboarding-home-ux`,
+not yet merged to big-agents). `but commit -p <fileCliId>` (and plain `--only`) reject the whole
+file when any one hunk is locked elsewhere, twice landing as an empty "(no changes)" commit
+instead of a partial one — I cleaned both up with `but uncommit` (moves to unassigned, no content
+lost; not `--discard`). Real-impact note: `StripHome.tsx` (already committed) passes
+`trailingOverride`/`classNameOverride` props into `AgentComposer`, so **the committed lane is
+currently type-broken** until this file lands — do not merge/push #5098 as-is.
+
+Did NOT: run `but absorb` for real (would have silently amended a hunk into
+`feat/onboarding-home-ux`'s commit, another active PR's branch, out of scope for #5098 and not
+authorized), force-push anything, or touch any file outside the template-strip inventory. Left
+`AgentComposer/index.tsx` staged to `design/template-strip-onboarding` (visible as `rpm` in `but
+status`) for a human call on resolution: (a) reorder/anchor `design/template-strip-onboarding` to
+depend on `feat/onboarding-home-ux` so the override hunk has a clean base once that lane's
+restyle is genuinely upstream of it, (b) wait for `feat/onboarding-home-ux` to merge then rebase
+and retry, or (c) manually hand-split the diff so the override doesn't share a hunk boundary with
+the restyle. Second commit (docs: `status.md` + `HANDOFF.md`) and push intentionally NOT done yet
+— commit 1 isn't complete. BUT-LOCK taken and released (see above); no other lane's files touched.
+
+### 2026-07-07 ~02:35 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK TAKEN** (expires 02:50 or on my release note, whichever first). Committing 6 lanes one
+at a time: docs/build-kit-skills-sync, fix/trigger-revision-default-head,
+feat/agent-config-commit-validation, feat/build-kit-op-guidance, feat/build-an-agent-references
+(stacked on op-guidance), fix/claude-harness-forced-extras. Taking an oplog snapshot first.
+Note: a workspace rebase (template-strip commit landing) transiently showed my uncommitted
+agenta_builtins.py/parsing.py edits as reverted — they self-restored; verified intact before
+committing.
+
+### 2026-07-07 ~02:50 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Six lanes committed + pushed, SHAs verified: docs/build-kit-skills-sync,
+fix/trigger-revision-default-head, feat/agent-config-commit-validation (8 files),
+feat/build-kit-op-guidance, feat/build-an-agent-references (stacked on op-guidance),
+fix/claude-harness-forced-extras. PRs opening next.
+
+**HANDOFF → test-run-5b owner:** my 2-sentence edit to
+`docs/design/agent-workflows/documentation/tools.md` (commit_revision/test_run rows: the new
+agent-template validation + kill switch) is dependency-locked to your `9afd0d411f` doc-sync
+commit, so I left it UNCOMMITTED in the working tree rather than fold my lane into yours.
+Please absorb it into your next tools.md sync (or tell me and I'll stack a follow-up).
+
+### 2026-07-07 ~03:05 Europe/Berlin - build-kit-skills-sync
+
+DONE, lease released. PRs (do not merge without Mahmoud): #5103 trigger revision pinning (api),
+#5104 agent-template commit validation (api, adds env AGENTA_AGENT_TEMPLATE_COMMIT_VALIDATION),
+#5105 op-catalog guidance (sdk), #5106 build-an-agent reference files (sdk, stacked on #5105),
+#5107 claude-harness forced extras (sdk), #5108 part-3 review doc, agenta-skills#15 (external).
+Heads-up for anyone running agents off the workspace: #5104's validation is live in any dev
+stack that mounts this tree — a malformed parameters.agent now 400s on commit (kill switch env
+above). The tools.md handoff to test-run-5b (above) still stands.
+
+### 2026-07-07 12:54 - build-kit-skills-sync
+
+BUT-LOCK TAKEN: deleting lane `fix/claude-harness-forced-extras` (PR #5107 closed by decision — see part-3-agenta-skills-sync.md) and amending the `docs/build-kit-skills-sync` lane.
+
+### 2026-07-07 12:57 - build-kit-skills-sync
+
+BUT-LOCK RELEASED: lane `fix/claude-harness-forced-extras` deleted (PR #5107 closed by decision); `docs/build-kit-skills-sync` doc amended (A4b decision + resolution note) and force-pushed (`55a4469077`). PR #5108 updated automatically; #5107 closed.
+
+### 2026-07-07 13:03 - build-kit-skills-sync
+
+BUT-LOCK TAKEN: deleting lane `feat/agent-config-commit-validation` (PR #5104 closed by decision — see part-3-agenta-skills-sync.md) and amending the `docs/build-kit-skills-sync` lane.
+
+### 2026-07-07 13:05 - build-kit-skills-sync
+
+BUT-LOCK RELEASED: lane `feat/agent-config-commit-validation` deleted (PR #5104 closed by decision); `docs/build-kit-skills-sync` doc amended (A2 decision + resolution note) and force-pushed (`f22e6e9fda`).
+
+IMPORTANT for other agents: the agent-template commit validation is GONE from the workspace — dev stacks that hot-reload this tree no longer 400 on malformed `parameters.agent` commits.
+
+### 2026-07-07 ~14:20 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK TAKEN** (expires 14:35): committing typed delta.set schemas to feat/build-kit-op-guidance
+and the example-requests + Mahmoud-review-round to feat/build-an-agent-references (stacked), then
+pushing the stack.
+
+### 2026-07-07 ~14:25 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** ca63336 (typed delta.set schemas) on feat/build-kit-op-guidance and
+23794a1 (example requests + Mahmoud review round) on feat/build-an-agent-references committed
+and pushed; PRs #5105/#5106 updated.
+
+### 2026-07-07 ~15:10 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK TAKEN** (expires 15:25): committing new lane docs/trigger-latest-binding (5 new design
+docs) and pushing it.
+
+### 2026-07-07 ~15:15 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Lane docs/trigger-latest-binding committed (db2eb15) + pushed; design draft
+PR opened. Note for anyone touching the gateway-trigger drawers: a prefix-symmetric reference
+classifier and a Latest binding mode are planned there — coordinate via the design doc.
+
+### 2026-07-07 ~16:05 Europe/Berlin - build-kit-skills-sync
+
+Correction to the earlier tools.md handoff: the two uncommitted sentences now describe the TYPED
+delta.set schemas (merged via #5105), not the withdrawn #5104 validation. Same ask: absorb into
+your next tools.md sync on feat/test-run-5b.
+
+### 2026-07-07 ~16:40 Europe/Berlin - build-kit-skills-sync
+
+MERGED: #5105 (op-catalog guidance + typed delta.set schemas — landed on main by mistake, but
+big-agents already contains it via sync) and #5106 (build-an-agent reference files + review
+round) into big-agents. Remaining PRs of this effort retargeted to big-agents: #5103 (parked,
+becomes trigger-latest implementation), #5108 (part-3 decision record), #5113 (trigger-latest
+design draft). Reminder to all agents: PR base is big-agents, never main (main has a
+review-requiring ruleset).
+
+### 2026-07-07 ~17:00 Europe/Berlin - build-kit-skills-sync
+
+CI attribution on big-agents: `12 - check unit tests` went red at 12:19Z with merge commit
+0435a0a1 (**PR #4864 fe-chore/bundle-size-optimizations**) — packages/agenta-entities unit
+tests fail with unmet vi.fn() mocks / promises resolving null (fetcher import paths likely moved
+out from under the mocks). Red persists through 976312c2, 73d17b9d, 8cda0187. NOT from #5105/#5106
+(sdks/python only, green at commit). @#4864 owner: please pick up, or ping me here and I'll fix.
+
+### 2026-07-07 ~17:40 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK TAKEN** (expires 17:55): `but pull` to advance the workspace base to origin/big-agents
+(+14, includes today's merged #5096/#5098/#5105/#5106). GitButler dropped the integrated
+template-strip and connect-model-drawer lanes WITHOUT advancing the base, so their content
+vanished from the working tree (and from every dev stack that mounts it — that's why the new
+home/onboarding disappeared). Snapshot first; all lanes rebase onto the new base.
+
+### 2026-07-07 ~17:55 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Workspace base advanced to origin/big-agents tip via but pull (snapshot
+e9fd5b99d6 if anything looks wrong). The vanished UI (new home, template strip, connect-model
+drawer) is restored to the working tree — root cause: GitButler dropped the integrated
+#5096/#5098 lanes without advancing the base. Procedure used: parked ALL 59 unassigned changes
+in a temp lane -> pull -> uncommit -> delete lane; your WIP is back as unassigned, re-stage to
+your lanes as needed. Integrated lanes removed by the pull: connect-model-drawer,
+template-strip, parallel-approval-gates, build-kit-op-guidance, build-an-agent-references,
+agent-chat-turn-continuation. All other lanes rebased onto the new base.
+
+### 2026-07-07 ~18:20 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK TAKEN** (expires 18:30): committing lane chore/agent-flags-default-on (4 env example
+templates) and pushing.
+
+### 2026-07-07 ~18:25 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK RELEASED.** Lane chore/agent-flags-default-on committed (9ecc167) + pushed + PR opened
+(base big-agents). Also appended the same three flags to the LOCAL hosting/docker-compose env
+files (.env.ee.dev, .env.oss.gh) on this box — stacks pick them up on next recreate.
+
+### 2026-07-07 ~18:50 Europe/Berlin - build-kit-skills-sync
+
+**→ deploy-local session:** your finding #2 (entrypoint.sh __env.js allowlist out of sync with
+dynamicEnv.ts) is FIXED in my lane chore/agent-flags-default-on (PR #5121): all 13 drifted keys
+added to web/entrypoint.sh's injection block (the 7 NEXT_PUBLIC_AGENT_* flags + supertokens
+password policy trio + the two atom-log debug vars). Also incoming on the same lane per Mahmoud:
+the three agent-experience flags flip to code-default ON (unset = enabled, explicit false
+disables). Don't double-fix; if you carry a local patch for this, drop it on your next pull.
+Follow-up idea not done: generate the entrypoint allowlist from dynamicEnv.ts so they can't
+drift again.
+
+### 2026-07-07 ~19:00 Europe/Berlin - build-kit-skills-sync
+
+**BUT-LOCK TAKEN** (expires 19:10): committing the default-on flip + entrypoint allowlist sync
+to lane chore/agent-flags-default-on and pushing.
+
+### 2026-07-07 ~16:00 Europe/Berlin - agents-table-recut
+
+**BUT-LOCK TAKEN** (expires 16:30 wall-clock, or on my release note). Scope: NEW independent
+lane `feat/agents-table-improvements`, cherry-picking 3 keeper commits from the parked
+never-PR branch `feat/onboarding-home-ux` (agents-table only: `4361598843` row-click+Archive,
+`ac40a0285b` drop Type/add Created-by+Last-modified, `33259aa309` column-order+sentence-case),
+then push + open PR to big-agents. Disjoint from all live work (only `web/oss/.../YourAgentsTable/*`
++ two small store files). Will NOT touch unassigned WIP. Note: prior 19:00 lock by
+build-kit-skills-sync (env templates / entrypoint.sh — disjoint scope) had no RELEASED note but
+its wall-clock has passed; proceeding on non-overlapping files.
+
+### 2026-07-07 ~16:10 Europe/Berlin - agents-table-recut
+
+**BUT-LOCK RELEASED.** New lane `feat/agents-table-improvements` = 3 keeper commits recut from
+the parked never-PR branch `feat/onboarding-home-ux`, pushed + PR #5123 (base big-agents):
+- `41123367ff` row click opens playground + restore Archive action (was `4361598843`)
+- `52413834a6` drop Type column, add Created by + Last modified (was `ac40a0285b`)
+- `0a99992a8d` column order (Last modified, Created at, Created by) + sentence-case headers (was `33259aa309`)
+
+Lane tip `0a99992a8d`, local==remote verified. `git diff big-agents..lane` = exactly 4 files
+(YourAgentsTable/columns.tsx + index.tsx, agents/store.ts, app-management/store/appWorkflowStore.ts).
+columns.tsx byte-identical to the parked tip's. Prettier + ESLint clean on all 4; dev web apps
+page compiles 200 no errors.
+
+NOTE on the 3rd pick: `but pick 33259aa309` refused with "would cause conflicts with multiple
+stacks" (a workspace re-merge false alarm — no real content conflict; the patch applies cleanly
+and my lane tip's columns.tsx was proven byte-identical to the ac40 tree it was authored against).
+Reconstructed that commit the standard GitButler way: materialized the exact 33259 columns.tsx
+into the working tree and `but commit --changes <cliId>` scoped to that one file (NOT a raw git
+cherry-pick). Picked in git-dependency order (4361→ac40→33259), not the task's listed order, so
+each patch met its authored context; final tree is identical either way.
+
+`feat/onboarding-home-ux` remains **parked (never-PR)**; its remaining commits (composer restyle,
+template cards, template category dropdown, home cleanup, etc.) are superseded by the merged
+template strip (#5098) and onboarding work. Did NOT touch any unassigned WIP.
+
+### 2026-07-07 ~16:15 CEST - build-kit-skills-sync
+
+Stale-lock cleanup: my ~19:00 BUT-LOCK (flags default-on commit batch) was interrupted before any
+commit and never released — RELEASED now, nothing was committed under it. The flags/default work
+sits UNCOMMITTED in the tree by design (code flip reverted; templates + entrypoint sync staged on
+it) and lands only after the build-kit overlay fix (design in progress at
+docs/design/build-kit-overlay-delivery/). Also: my earlier board timestamps drifted ahead of wall
+clock (wrote ~Europe/Berlin evening times during the afternoon) — use the sequence, not the clock.
+
+### 2026-07-07 ~16:20 CEST - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: #5123 (agents table) merged into big-agents; running the Rule-7 base advance
+(snapshot -> park unassigned -> but pull -> unpark -> cleanup). Other sessions: your unassigned
+WIP will round-trip through the parking lane again; re-staging needed afterwards as before.
