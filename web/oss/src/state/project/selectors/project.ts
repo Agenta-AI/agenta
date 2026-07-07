@@ -119,9 +119,22 @@ const _debugProjectSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true
 logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
 
 const EmptyProjects: ProjectsResponse[] = []
+
+/**
+ * Filters demo projects out of the list. Falls back to the full list when
+ * every project is a demo one, so the user is not left with an empty UI.
+ * Exported for unit-test access (projectsDemoFilter.test.ts).
+ */
+export const filterOutDemoProjects = (projects: ProjectsResponse[]): ProjectsResponse[] => {
+    const nonDemoProjects = projects.filter((project) => !project.is_demo)
+    return nonDemoProjects.length ? nonDemoProjects : projects
+}
+
 export const projectsAtom = atom((get) => {
     const res = get(projectsQueryAtom)
-    return (res as any)?.data ?? EmptyProjects
+    const projects = ((res as any)?.data ?? EmptyProjects) as ProjectsResponse[]
+    // Hide demo projects from the UI unless they are the user's only projects
+    return filterOutDemoProjects(projects)
 })
 
 const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
