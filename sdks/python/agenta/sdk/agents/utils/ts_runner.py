@@ -13,6 +13,13 @@ from typing import Any, AsyncIterator, Dict, Optional, Sequence
 
 from agenta.sdk.utils.logging import get_module_logger
 
+# AGENTA_RUNNER_TIMEOUT_SECONDS is an IDLE timeout on the streaming transports: it bounds the
+# gap between successive records, not the whole run. The runner now owns the true end-to-end run
+# deadline server-side (it aborts a wedged run and returns a terminal record), so a long-but-
+# progressing run must not be killed here just for running long — only a stalled connection
+# (no records flowing) should trip. The HTTP transport's httpx read timeout is already per-read
+# (idle); the subprocess transport resets its deadline on each received line to match. On the
+# one-shot (dev-only) result transports there is a single request, so idle and total coincide.
 _DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180"))
 
 log = get_module_logger(__name__)
@@ -175,6 +182,8 @@ async def deliver_http_stream(
     url = base_url.rstrip("/") + "/run"
     headers = {"Accept": "application/x-ndjson", **_runner_auth_headers()}
     saw_result = False
+    # httpx applies `timeout` as a per-read timeout on a stream — i.e. an idle (between-record)
+    # bound, not a total wall-clock cap — matching the subprocess transport's per-line reset.
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream(
             "POST", url, json=payload, headers=headers
@@ -239,17 +248,17 @@ async def deliver_subprocess_stream(
     # Drain stderr concurrently (mirrors communicate()'s sibling behavior) so a chatty child
     # never blocks on a full pipe while we're only reading stdout below.
     stderr_task = asyncio.create_task(_drain_stderr(proc.stderr))
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
     saw_result = False
     try:
         while True:
-            remaining = deadline - loop.time()
-            if remaining <= 0:
+            # Idle timeout: bound the gap until the NEXT record, resetting on each line, so a
+            # long-but-progressing run is never killed here (the runner owns the total deadline).
+            try:
+                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=timeout)
+            except asyncio.TimeoutError:
                 raise RuntimeError(
-                    f"Agent runner stream timed out after {timeout}s: {' '.join(command)}"
+                    f"Agent runner stream stalled: no record for {timeout}s: {' '.join(command)}"
                 )
-            raw = await asyncio.wait_for(proc.stdout.readline(), timeout=remaining)
             if not raw:  # EOF
                 break
             line = raw.decode("utf-8", "replace").strip()

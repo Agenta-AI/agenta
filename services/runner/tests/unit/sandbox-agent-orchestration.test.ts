@@ -48,6 +48,11 @@ interface FakeOptions {
   // Make the managed cancel reject (and NOT resolve the hung prompt), so the only thing that
   // ends the turn is the local park signal — proves the run still terminates if cancel fails.
   destroySessionError?: Error;
+  // Mirrors what the real sandbox-agent package does when the caller's AbortSignal fires mid-
+  // prompt: resolve the in-flight prompt with a cancelled stop reason. Lets a hung-prompt fixture
+  // stand in for a wedged harness that a run-limits deadline (which aborts `startOptions.signal`)
+  // must be able to unstick.
+  abortSignalCancelsHungPrompt?: boolean;
 }
 
 function fakeHarness(options: FakeOptions = {}) {
@@ -220,6 +225,11 @@ function fakeHarness(options: FakeOptions = {}) {
     createPersist: () => ({}) as any,
     startSandboxAgent: (async (opts: any) => {
       calls.startOptions = opts;
+      if (options.abortSignalCancelsHungPrompt && opts.signal) {
+        opts.signal.addEventListener("abort", () => {
+          resolveHungPrompt?.({ stopReason: "cancelled" });
+        });
+      }
       return sandbox;
     }) as any,
     prepareWorkspace: (async ({ plan }: any) => {
@@ -925,7 +935,12 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.equal(calls.startOptions.signal, controller.signal);
+    // The signal handed to the harness is merged with the run-limits deadline signal
+    // (AbortSignal.any), so it is no longer the identical object — but aborting the caller's
+    // controller must still abort the merged signal the harness observes.
+    assert.equal(calls.startOptions.signal.aborted, false);
+    controller.abort();
+    assert.equal(calls.startOptions.signal.aborted, true);
   });
 
   it("clears inherited provider env on a managed run and applies ANTHROPIC_BASE_URL for claude", async () => {
@@ -1668,5 +1683,77 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     assert.deepEqual(calls.permissionReplies, [
       { id: "perm-1", reply: "once" },
     ]);
+  });
+});
+
+describe("runSandboxAgent run-limits deadline", () => {
+  // Tiny real-ms limits: the run-limits DI seam overrides the whole resolve step, and the
+  // integration path needs the real createRunLimits (timers + abort wiring) rather than a fake
+  // clock, so the windows are set to a few ms and driven by real timers here.
+  const fastLimits = {
+    resolveRunLimits: () => ({
+      totalMs: 5,
+      idleMs: 5,
+      ttfbMs: 5,
+      toolCallMs: 5,
+    }),
+  };
+
+  it("aborts a wedged never-responding run so the existing finally reclaims the sandbox", async () => {
+    const { calls, deps } = fakeHarness({
+      // The harness comes up but the prompt never resolves on its own — a wedged run. Only an
+      // abort of the run signal (which a tripped deadline fires) can unstick it.
+      hangPrompt: true,
+      abortSignalCancelsHungPrompt: true,
+    });
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      { ...deps, ...fastLimits },
+    );
+
+    // The run RETURNED (did not hang) and the teardown finally ran: sandbox destroyed + disposed.
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
+    assert.equal(calls.runFinished, 1);
+    // The prompt resolved via the deadline-driven abort, so the turn ends cancelled, not a hang.
+    if (result.ok) assert.equal(result.stopReason, "cancelled");
+  });
+
+  it("does NOT abort a turn that paused for human input, even past every deadline window", async () => {
+    // A gated tool call parks the turn (pause path), which retires the deadlines. With tiny
+    // limits, a wedged turn WOULD trip almost immediately — so a clean `paused` finish (never a
+    // deadline `cancelled`) proves the pause exemption held. The prompt hangs; only the local
+    // park signal ends the turn. Setup mirrors the F-040 park test above (real ApprovalResponder).
+    const { calls, deps } = (() => {
+      const { calls, deps } = fakeHarness({
+        emitPermission: true,
+        hangPrompt: true,
+      });
+      delete deps.responderFactory; // engine ApprovalResponder -> pauses (effective ask, no decision)
+      return { calls, deps };
+    })();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-paused",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      { ...deps, ...fastLimits },
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // Paused, not cancelled: the pause path — not a deadline abort — ended the turn.
+    assert.equal(result.stopReason, "paused");
+    // The finally still reclaimed the sandbox on the pause path.
+    assert.equal(calls.sandboxDestroyed, 1);
   });
 });
