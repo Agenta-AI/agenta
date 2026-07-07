@@ -239,6 +239,7 @@ async function runAndStream(
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
   let flushPersist: (() => Promise<void>) | undefined;
+  let persistError: ((message: string) => void) | undefined;
   let aliveWatchdog: { release: () => Promise<void> } | undefined;
 
   if (sessionOwned) {
@@ -279,17 +280,24 @@ async function runAndStream(
     if (promptText) persist({ type: "message", text: promptText }, "user");
     emitFn = persistingEmit;
     flushPersist = flush;
+    persistError = (message) => persist({ type: "error", message }, "agent");
   }
 
   let result: AgentRunResult;
   try {
     result = await run(request, emitFn, controller.signal);
+    // A failed engine run ({ok:false}) already emitted its own error EVENT through the
+    // persisting emitter (see sandbox_agent.ts), so no extra persist here (it would
+    // duplicate the record).
     // Drain all queued persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
-    if (flushPersist) await flushPersist().catch(() => {});
     const message =
       err instanceof Error ? err.stack ?? err.message : String(err);
+    // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
+    // event — persist it here as the backstop.
+    if (persistError) persistError(message);
+    if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
   } finally {
     // Release the alive lock and mark the stream row ended.

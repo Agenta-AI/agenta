@@ -576,8 +576,9 @@ class RecordsRouter:
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
             record_event=SessionRecordEvent(
-                session_id=body.session_id,
                 project_id=UUID(project_id),
+                session_id=body.session_id,
+                record_id=body.record_id,
                 record_index=body.record_index,
                 timestamp=body.timestamp,
                 record_type=body.record_type,

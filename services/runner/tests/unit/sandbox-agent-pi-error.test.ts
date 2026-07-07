@@ -121,4 +121,30 @@ describe("findSwallowedPiError", () => {
     const piAgentDir = tempDir();
     assert.equal(findSwallowedPiError(piAgentDir, "/tmp/whatever"), undefined);
   });
+
+  it("finds the error in the per-run agent dir Pi was actually pointed at, not the static source dir", () => {
+    // Regression: a run that materializes skills/system-prompt gets a throwaway per-run Pi
+    // agent dir (prepareLocalAgentDir's return value) — the engine must read the swallowed
+    // error from THAT dir (where Pi, pointed there via PI_CODING_AGENT_DIR, wrote its
+    // transcript), not from the static source login dir, which never has the transcript.
+    const sourceAgentDir = tempDir(); // e.g. ~/.pi/agent — never receives transcripts
+    const runAgentDir = tempDir(); // the throwaway dir prepareLocalAgentDir returns
+    const cwd = "/tmp/agenta-sandbox-agent-run1";
+    writeTranscript(runAgentDir, "--tmp-agenta-sandbox-agent-run1--", cwd, [
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "insufficient credit",
+        },
+      },
+    ]);
+
+    // The bug: passing the static source dir finds nothing.
+    assert.equal(findSwallowedPiError(sourceAgentDir, cwd), undefined);
+    // The fix: passing the actual per-run dir Pi wrote to finds the error.
+    assert.equal(findSwallowedPiError(runAgentDir, cwd), "insufficient credit");
+  });
 });
