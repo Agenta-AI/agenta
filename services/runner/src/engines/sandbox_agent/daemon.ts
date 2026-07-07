@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 // services/runner/src/engines/sandbox_agent/daemon.ts -> services/runner
-export const PKG_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+export const PKG_ROOT = dirname(
+  dirname(dirname(dirname(fileURLToPath(import.meta.url)))),
+);
 export const ADAPTER_BIN_DIR = join(PKG_ROOT, "node_modules", ".bin");
 
 /** Map node platform/arch to the @sandbox-agent CLI binary package. */
@@ -27,7 +29,8 @@ export function resolveDaemonBinary(): string | undefined {
 
   const pkg = CLI_PACKAGES[`${process.platform}-${process.arch}`];
   if (!pkg) return undefined;
-  const bin = process.platform === "win32" ? "sandbox-agent.exe" : "sandbox-agent";
+  const bin =
+    process.platform === "win32" ? "sandbox-agent.exe" : "sandbox-agent";
   try {
     const sdkRequire = createRequire(require.resolve("sandbox-agent"));
     const pkgJson = sdkRequire.resolve(`${pkg}/package.json`);
@@ -107,6 +110,14 @@ export const KNOWN_PROVIDER_ENV_VARS = [
   "AZURE_OPENAI_API_KEY",
 ] as const;
 
+// Sandbox-provider infra creds (never a harness concern): cleared on EVERY run, not just managed
+// ones. sandbox-agent's local() spawns `{...process.env, ...options.env}` (inherit-then-apply), so
+// an absent key here doesn't stop the leak — must be forced to "" to override the inherited value.
+export const KNOWN_SANDBOX_ENV_VARS = [
+  "DAYTONA_API_KEY",
+  "E2B_API_KEY",
+] as const;
+
 export interface BuildDaemonEnvOptions {
   /**
    * Clear-then-apply (Security rule 5): on a MANAGED run (`credentialMode === "env"`) the
@@ -136,7 +147,9 @@ export function buildDaemonEnv(
   const env: Record<string, string> = {};
 
   const extra = process.env.SANDBOX_AGENT_ADAPTER_PATH;
-  env.PATH = [ADAPTER_BIN_DIR, extra, process.env.PATH].filter(Boolean).join(":");
+  env.PATH = [ADAPTER_BIN_DIR, extra, process.env.PATH]
+    .filter(Boolean)
+    .join(":");
 
   env.PI_ACP_PI_COMMAND =
     process.env.SANDBOX_AGENT_PI_COMMAND ?? join(ADAPTER_BIN_DIR, "pi");
@@ -148,6 +161,10 @@ export function buildDaemonEnv(
     env.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
 
   if (process.env.HOME) env.HOME = process.env.HOME;
+
+  // Force-blank sandbox infra creds on every run (see KNOWN_SANDBOX_ENV_VARS doc): the underlying
+  // spawn inherits process.env first, so an absent key here would NOT stop the leak.
+  for (const key of KNOWN_SANDBOX_ENV_VARS) env[key] = "";
 
   // Managed run: clear (inherit no provider keys); the caller applies only the resolved
   // `plan.secrets`. Non-managed run: keep the sidecar's own keys so its login works.
