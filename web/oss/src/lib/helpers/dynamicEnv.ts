@@ -7,12 +7,6 @@ export const processEnv = {
     // Feature flag for the agent chat streaming slice (contract v1) page. On by default; set to
     // "false" to disable.
     NEXT_PUBLIC_AGENT_CHAT_SLICE: process.env.NEXT_PUBLIC_AGENT_CHAT_SLICE,
-    // Streaming endpoint the agent chat slice points `useChat` at. Defaults to the
-    // local RAG_QA contract mock when unset (see AgentChatSlice/assets/constants.ts).
-    NEXT_PUBLIC_AGENT_CHAT_API: process.env.NEXT_PUBLIC_AGENT_CHAT_API,
-    // Default request-contract track for the agent chat slice: "uimessage" (Track A) or
-    // "agenta" (Track B). The page also has a runtime toggle.
-    NEXT_PUBLIC_AGENT_CHAT_TRACK: process.env.NEXT_PUBLIC_AGENT_CHAT_TRACK,
     // Agent-home template behavior: off by default (config-definition drawer flow). Set to "true" to
     // instead skip the drawer and open the playground seeded with the template's builder instruction
     // (Mahmoud's agent-builder flow). On by default since the build-kit overlay ships as the __ag__build_kit static workflow
