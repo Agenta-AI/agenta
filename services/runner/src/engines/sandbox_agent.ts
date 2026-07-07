@@ -906,16 +906,18 @@ export async function runSandboxAgent(
     // (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge reports the
     // turn as a plain `end_turn` with NO content, so without this the run would return an
     // `ok:true` empty turn and the user would see a silent "No response" instead of the real
-    // failure. On the LOCAL Pi path the error is recoverable from Pi's own session transcript.
-    // Only checked when the turn produced no output and ran no tools (a real tool-only turn
-    // legitimately has empty text), and never on Daytona (the transcript lives in the remote
-    // sandbox).
+    // failure. On the LOCAL Pi path the error is recoverable from Pi's own session transcript —
+    // which lives under `runAgentDir` (the per-run throwaway dir Pi was actually pointed at via
+    // PI_CODING_AGENT_DIR), NOT `plan.sourcePiAgentDir` (the static source login dir, which has
+    // no transcripts). Only checked when the turn produced no output and ran no tools (a real
+    // tool-only turn legitimately has empty text), and never on Daytona (the transcript lives in
+    // the remote sandbox).
     const swallowedPiError =
       plan.isPi &&
       !plan.isDaytona &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
-        ? findSwallowedPiError(plan.sourcePiAgentDir, plan.cwd)
+        ? findSwallowedPiError(runAgentDir ?? plan.sourcePiAgentDir, plan.cwd)
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
@@ -925,12 +927,15 @@ export async function runSandboxAgent(
         request.provider,
       );
       run.recordError(swallowedError, request.provider);
+      // Emit it as an event too (before finish() flushes the sink), so it reaches the live
+      // stream and the durable record, not only the trace span.
+      run.emitEvent({ type: "error", message: swallowedError });
     }
 
     const output = run.finish();
     await run.flush();
 
-    // Fail loud on the swallowed error detected above (A7 / "fail loud, not silent").
+    // Fail loud on the error detected above (A7 / "fail loud, not silent").
     if (swallowedError) {
       return { ok: false, error: swallowedError };
     }
@@ -959,6 +964,9 @@ export async function runSandboxAgent(
     // Stamp the error message + provider on the agent span before finishing it (F-030), so a
     // trace carries the same diagnostic the response does (it previously held only a count).
     otel?.recordError(error, request.provider);
+    // Also surface it as an event (before finish flushes the sink) so the error reaches the
+    // live stream and the durable record, not only the trace.
+    otel?.emitEvent({ type: "error", message: error });
     otel?.finish();
     await otel?.flush().catch(() => {});
     return {

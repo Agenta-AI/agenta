@@ -363,7 +363,9 @@ function lastAssistantText(messages: any): string {
 }
 
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
-function applyAssistant(span: Span, msg: any, capture: boolean): void {
+/** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
+ * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
+function applyAssistant(span: Span, msg: any, capture: boolean): string | undefined {
   if (msg.provider) span.setAttribute("gen_ai.system", msg.provider);
   if (msg.model) span.setAttribute("gen_ai.request.model", msg.model);
   if (msg.responseModel || msg.model)
@@ -401,7 +403,9 @@ function applyAssistant(span: Span, msg: any, capture: boolean): void {
   emitMessages(span, "llm.output_messages", [msg], capture);
   if (msg.stopReason === "error" || msg.errorMessage) {
     span.setStatus({ code: SpanStatusCode.ERROR, message: msg.errorMessage });
+    return String(msg.errorMessage || "agent run failed");
   }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------

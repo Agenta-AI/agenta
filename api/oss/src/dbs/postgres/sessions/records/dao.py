@@ -37,7 +37,16 @@ class RecordsDAO(RecordsDAOInterface):
                 if not (getattr(dbe, c.name) is None and c.server_default is not None)
             }
 
-            stmt = insert(RecordDBE).values(**values).returning(RecordDBE)
+            stmt = insert(RecordDBE).values(**values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["project_id", "record_id"],
+                set_={
+                    "record_type": stmt.excluded.record_type,
+                    "record_source": stmt.excluded.record_source,
+                    "timestamp": stmt.excluded.timestamp,
+                    "attributes": stmt.excluded.attributes,
+                },
+            ).returning(RecordDBE)
             result = await session.execute(stmt)
             await session.commit()
 
@@ -59,7 +68,7 @@ class RecordsDAO(RecordsDAOInterface):
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
                 )
-                .order_by(RecordDBE.record_id.asc())
+                .order_by(RecordDBE.created_at.asc(), RecordDBE.record_index.asc())
             )
 
             dbes = (await session.execute(stmt)).scalars().all()

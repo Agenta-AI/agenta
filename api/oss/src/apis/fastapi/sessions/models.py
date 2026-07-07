@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -186,6 +187,8 @@ class SessionMountsResponse(BaseModel):
 class SessionRecordIngestRequest(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
+    # Optional stable id (uuid5) from the producer; absent when it has no stable key.
+    record_id: Optional[UUID] = None
     record_index: Optional[int] = None
     timestamp: Optional[datetime] = None
     record_type: Optional[str] = None
