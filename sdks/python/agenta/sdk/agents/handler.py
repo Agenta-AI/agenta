@@ -27,6 +27,11 @@ from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
 
 from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
+from agenta.sdk.agents.tracing import (
+    record_usage as ambient_record_usage,
+    run_context as ambient_run_context,
+    trace_context as ambient_trace_context,
+)
 
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.models.workflows import (
@@ -71,21 +76,15 @@ async def _default_resolve_connection(*, model, context) -> ResolvedConnection:
     return await _platform_resolve_connection(model=model, context=context)
 
 
-def _noop_trace_context():
-    return None
-
-
-def _noop_run_context():
-    return None
-
-
-def _noop_record_usage(_usage: Optional[Dict[str, Any]]) -> None:
-    return None
-
-
 @dataclass
 class AgentComposition:
-    """Injectable composition seam; every field defaults to env-driven SDK behavior."""
+    """Injectable composition seam; every field defaults to env/ambient-driven SDK behavior.
+
+    The tracing-shaped fields (``trace_context`` / ``run_context`` / ``record_usage``) default
+    to the ambient runtime captures in ``agents/tracing.py``: they read SDK-owned per-request
+    state (the active span, the ``TracingContext`` ContextVar) at CALL time and degrade to
+    ``None``/no-op when a run has no such state, so a bare ``agent_v0`` behaves correctly in
+    any process without composition."""
 
     default_template: DefaultTemplateFn = field(default=_default_template)
     resolve_tools: ResolveToolsFn = field(default=_default_resolve_tools)
@@ -94,9 +93,9 @@ class AgentComposition:
     # override for capability gating (pre/post-resolve harness checks); bare resolve by default.
     resolve_session_connection: Optional[ResolveSessionConnectionFn] = None
     select_backend: SelectBackendFn = field(default=_default_select_backend)
-    trace_context: TraceContextFn = field(default=_noop_trace_context)
-    run_context: RunContextFn = field(default=_noop_run_context)
-    record_usage: RecordUsageFn = field(default=_noop_record_usage)
+    trace_context: TraceContextFn = field(default=ambient_trace_context)
+    run_context: RunContextFn = field(default=ambient_run_context)
+    record_usage: RecordUsageFn = field(default=ambient_record_usage)
 
 
 def _agent_model_ref(agent_template: AgentTemplate) -> Optional[ModelRef]:
@@ -180,7 +179,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
 
 
 async def agent_event_stream(
-    harness, session_config, msgs, *, record_usage: RecordUsageFn = _noop_record_usage
+    harness, session_config, msgs, *, record_usage: RecordUsageFn = ambient_record_usage
 ):
     """Run one streaming turn, yielding the live `{type, data}` agenta event wire."""
     await harness.setup()
@@ -219,7 +218,7 @@ async def agent_batch(
     msgs,
     *,
     trim: Optional[bool] = None,
-    record_usage: RecordUsageFn = _noop_record_usage,
+    record_usage: RecordUsageFn = ambient_record_usage,
 ) -> Dict[str, Any]:
     """Drain the same stream, fold it into the real turn, trim when asked."""
     await harness.setup()

@@ -64,6 +64,8 @@ describe("buildPiExtensionEnv", () => {
             properties: { x: { type: "string" } },
           },
           callRef: "server-secret-ref",
+          contextBindings: { "target.workflow_variant_id": "$ctx.workflow.variant.id" },
+          timeoutMs: 120000,
           env: { SECRET: "do-not-expose" },
           kind: "callback",
         },
@@ -105,6 +107,7 @@ describe("buildPiExtensionEnv", () => {
         description: "safe",
         inputSchema: { type: "object", properties: { x: { type: "string" } } },
         kind: "callback",
+        timeoutMs: 120000,
       },
       {
         name: "client_only",
@@ -118,6 +121,7 @@ describe("buildPiExtensionEnv", () => {
       },
     ]);
     assert.equal(JSON.stringify(specs).includes("server-secret-ref"), false);
+    assert.equal(JSON.stringify(specs).includes("contextBindings"), false);
     assert.equal(JSON.stringify(specs).includes("do-not-expose"), false);
   });
 

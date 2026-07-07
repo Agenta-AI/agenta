@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse, urlunparse
 from uuid import UUID
 
 import httpx
@@ -17,7 +18,7 @@ from oss.src.core.webhooks.types import (
     WebhookDeliveryData,
     WebhookEventType,
 )
-from oss.src.core.webhooks.utils import validate_webhook_url
+from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.utils.crypting import decrypt
 from oss.src.utils.logging import get_module_logger
 
@@ -50,6 +51,7 @@ class PreparedWebhookRequest:
     data: WebhookDeliveryData
     payload_json: str
     request_headers: dict[str, str]
+    resolved_ip: str
 
 
 class PreparedWebhookRequestError(ValueError):
@@ -131,7 +133,7 @@ def prepare_webhook_request(
     )
 
     try:
-        validate_webhook_url(url)
+        resolved_ip = resolve_validated_webhook_ip(url)
     except ValueError as exc:
         raise PreparedWebhookRequestError(str(exc), data=base_data) from exc
 
@@ -177,18 +179,40 @@ def prepare_webhook_request(
         data=base_data.model_copy(update={"headers": _redact_headers(request_headers)}),
         payload_json=payload_json,
         request_headers=request_headers,
+        resolved_ip=resolved_ip,
     )
 
 
 async def send_webhook_request(
     *,
     url: str,
+    resolved_ip: str,
     payload_json: str,
     headers: dict[str, str],
 ) -> httpx.Response:
+    """POST to the validated IP pinned at prepare-time, not a re-resolved hostname.
+
+    Closes the validate/send TOCTOU: the URL's host is swapped for the literal IP
+    (SNI + Host header keep the original hostname for TLS and routing).
+    """
+    parsed = urlparse(url)
+    host_literal = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+    pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
+    pinned_url = urlunparse(parsed._replace(netloc=pinned_netloc))
+
+    # Host header must mirror the original authority: bracket an IPv6 literal and keep an explicit
+    # port (RFC 9110 host grammar), not the bare hostname urlparse returns.
+    hostname = parsed.hostname or ""
+    host_header = f"[{hostname}]" if ":" in hostname else hostname
+    if parsed.port:
+        host_header = f"{host_header}:{parsed.port}"
+
+    request_headers = {**headers, "Host": host_header}
+
     async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT) as client:
         return await client.post(
-            url,
+            pinned_url,
             content=payload_json,
-            headers=headers,
+            headers=request_headers,
+            extensions={"sni_hostname": parsed.hostname},
         )

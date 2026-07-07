@@ -369,6 +369,7 @@ services:
             redis-server
             --appendonly yes
             --appendfsync no
+            --aof-load-corrupt-tail-max-size 1048576
             --save ""
             --maxmemory 512mb
             --maxmemory-policy noeviction

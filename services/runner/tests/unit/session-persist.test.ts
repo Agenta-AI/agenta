@@ -53,6 +53,36 @@ describe("buildPersistingEmitter", () => {
     const body = postedBodies[0] as Record<string, unknown>;
     assert.equal(body["record_type"], "message");
     assert.equal(body["record_index"], 0);
+    assert.equal(body["record_source"], "agent");
+  });
+
+  it("persist() records an out-of-band user turn through the same index counter", async () => {
+    const live: unknown[] = [];
+    const { emit, persist, flush } = buildPersistingEmitter(
+      "sess-user",
+      () => "Secret t",
+      (e) => live.push(e),
+    );
+
+    persist({ type: "message", text: "what time is it?" }, "user");
+    emit({ type: "message", text: "it is noon" });
+    emit({ type: "done" });
+    await flush();
+
+    // The user record never hits the live stream.
+    assert.equal(live.length, 2);
+    assert.equal(postedBodies.length, 3);
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    assert.deepEqual(
+      bodies.map((b) => [b["record_index"], b["record_source"]]),
+      [
+        [0, "user"],
+        [1, "agent"],
+        [2, "agent"],
+      ],
+    );
+    const userPayload = bodies[0]["attributes"] as Record<string, unknown>;
+    assert.equal(userPayload["text"], "what time is it?");
   });
 
   it("coalesces message_start/delta/end into a single persisted message", async () => {

@@ -20,6 +20,7 @@ import asyncio
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from unittest.mock import patch
 import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
@@ -185,7 +186,10 @@ class TestHookV0Acceptance:
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
-                result = run(_hook_v0(inputs={"question": "Paris?"}, outputs="Paris"))
+                with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", True):
+                    result = run(
+                        _hook_v0(inputs={"question": "Paris?"}, outputs="Paris")
+                    )
         finally:
             server.shutdown()
 
@@ -227,7 +231,8 @@ class TestHookV0Acceptance:
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
-                run(_hook_v0(inputs={"city": "Paris"}, outputs="correct"))
+                with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", True):
+                    run(_hook_v0(inputs={"city": "Paris"}, outputs="correct"))
 
             ready.wait(timeout=2)
         finally:
@@ -268,13 +273,14 @@ class TestHookV0Acceptance:
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
-                run(
-                    _hook_v0(
-                        inputs={"q": "What is 2+2?"},
-                        outputs="4",
-                        testcase={"correct_answer": "4"},
+                with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", True):
+                    run(
+                        _hook_v0(
+                            inputs={"q": "What is 2+2?"},
+                            outputs="4",
+                            testcase={"correct_answer": "4"},
+                        )
                     )
-                )
         finally:
             server.shutdown()
 

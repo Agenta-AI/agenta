@@ -99,15 +99,12 @@ agenta:
 # ================================================================== #
 # === agenta.services ===
 # Consumed by the agenta SDK running inside services pods:
-#   - hook.allowInsecure   → AGENTA_SERVICES_HOOK_ALLOW_INSECURE
 #   - code.sandboxRunner   → AGENTA_SERVICES_CODE_SANDBOX_RUNNER (restricted|local|daytona; default restricted. local = no sandbox, trusted only)
 #   - middleware.authEnabled    → AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED
 #   - middleware.cachingEnabled → AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
 # ================================================================== #
 # agenta:
 #   services:
-#     hook:
-#       allowInsecure: false
 #     code:
 #       sandboxRunner: restricted
 #     middleware:
@@ -115,11 +112,11 @@ agenta:
 #       cachingEnabled: true
 
 # ================================================================== #
-# === agenta.webhooks ===
+# === agenta.insecureEgressAllowed ===
+# default false (secure); true permits egress to private/loopback IPs — dev only.
 # ================================================================== #
 # agenta:
-#   webhooks:
-#     allowInsecure: false
+#   insecureEgressAllowed: false
 
 # ================================================================== #
 # === alembic ===

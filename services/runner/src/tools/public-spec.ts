@@ -2,8 +2,9 @@
  * Public tool metadata safe to expose to harness child processes.
  *
  * ResolvedToolSpec also carries executor-private fields (`callRef`, `code`, scoped `env`,
- * runtime). Those must stay in runner memory. Child processes only need the advertisement
- * shape so the model can choose a tool; every execution is relayed back to the runner.
+ * runtime, contextBindings). Those must stay in runner memory. Child processes only need the
+ * advertisement shape so the model can choose a tool; every execution is relayed back to the
+ * runner. `timeoutMs` is public because the child relay wait needs the same per-tool budget.
  */
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { specInputSchema } from "./spec-schema.ts";
@@ -14,6 +15,7 @@ export interface AdvertisedToolSpec {
   inputSchema?: Record<string, unknown> | null;
   kind?: ResolvedToolSpec["kind"];
   render?: ResolvedToolSpec["render"];
+  timeoutMs?: ResolvedToolSpec["timeoutMs"];
 }
 
 /** `client` tools are browser-fulfilled and are not executable by a runner child process. */
@@ -29,6 +31,7 @@ export function advertisedToolSpec(spec: ResolvedToolSpec): AdvertisedToolSpec {
   };
   if (spec.kind) out.kind = spec.kind;
   if (spec.render) out.render = spec.render;
+  if (spec.timeoutMs !== undefined) out.timeoutMs = spec.timeoutMs;
   return out;
 }
 

@@ -11,7 +11,10 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
+import {
+  createSandboxAgentOtel,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../../src/tracing/otel.ts";
 import type { AgentEvent } from "../../src/protocol.ts";
 
 const textChunk = (text: string) => ({
@@ -184,6 +187,87 @@ describe("createSandboxAgentOtel state machine", () => {
     assert.equal(ofType(emitted, "tool_result").length, 1, "tool_result present");
     const seq = types(emitted);
     assert.ok(seq.indexOf("tool_call") < seq.indexOf("tool_result"), "tool_call precedes its result");
+  });
+
+  it("settleOpenToolCalls excludes paused calls and is idempotent per open sibling", () => {
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/x",
+      emit: (e) => emitted.push(e),
+      emitSpans: false,
+    });
+    run.start({ prompt: "x" });
+    run.handleUpdate(toolCall("call_1", "needsApproval", { a: 1 }));
+    run.handleUpdate(toolCall("call_2", "sibling", { b: 2 }));
+
+    run.settleOpenToolCalls(
+      (id) => id === "call_1",
+      TOOL_NOT_EXECUTED_PAUSED,
+    );
+
+    let results = ofType(emitted, "tool_result");
+    assert.equal(
+      results.some((event) => event.id === "call_1"),
+      false,
+      "excluded call remains pending",
+    );
+    assert.deepEqual(
+      results
+        .filter((event) => event.id === "call_2")
+        .map((event) => ({ output: event.output, isError: event.isError })),
+      [{ output: TOOL_NOT_EXECUTED_PAUSED, isError: true }],
+    );
+
+    run.settleOpenToolCalls(() => false, "second sweep");
+    results = ofType(emitted, "tool_result");
+    assert.equal(
+      results.filter((event) => event.id === "call_2").length,
+      1,
+      "already-settled sibling is not recorded twice",
+    );
+    assert.equal(
+      results.filter((event) => event.id === "call_1").length,
+      1,
+      "previously excluded call can settle on a later sweep",
+    );
+  });
+
+  it("scenario 7: growing arg deltas keep refreshing until the FINAL args are recorded", () => {
+    // The real Pi wire for streamed args: the initial `tool_call` announces with `{}`, then
+    // tool_call_update frames carry a GROWING partial parse of the args (e.g. {use_cases:[""]}),
+    // and the final update has the complete args. The last recorded tool_call input MUST be the
+    // final args — a refresh-once gate that stops at the first partial delta records a lie
+    // (the executor demonstrably ran with the full args).
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "pi", model: "openai-codex/x", emit: (e) => emitted.push(e), emitSpans: false });
+    run.start({ prompt: "x" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "compare", rawInput: {} });
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", rawInput: { use_cases: [""] } }); // early partial delta
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", rawInput: { use_cases: ["a", "b"], limit: 5 } }); // final args
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "completed", content: [{ content: { type: "text", text: "ok" } }] });
+    run.finish();
+
+    const calls = ofType(emitted, "tool_call");
+    assert.deepEqual(calls[calls.length - 1].input, { use_cases: ["a", "b"], limit: 5 }, "the LAST refresh carries the final args");
+    const seq = types(emitted);
+    assert.ok(seq.lastIndexOf("tool_call") < seq.indexOf("tool_result"), "every refresh precedes the result");
+  });
+
+  it("scenario 8: a call announced with PARTIAL args still refreshes when the full args arrive", () => {
+    // The initial notification itself can carry an early partial parse (non-empty), so a
+    // has-args-at-announce gate must not suppress the refresh with the real args.
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "pi", model: "openai-codex/x", emit: (e) => emitted.push(e), emitSpans: false });
+    run.start({ prompt: "x" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "read", rawInput: { path: "/" } }); // partial
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", rawInput: { path: "/etc/hosts" } }); // real args
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "completed", content: [{ content: { type: "text", text: "ok" } }] });
+    run.finish();
+
+    const calls = ofType(emitted, "tool_call");
+    assert.equal(calls.length, 2, "one initial surface + one input refresh");
+    assert.deepEqual(calls[calls.length - 1].input, { path: "/etc/hosts" }, "the refresh carries the real args");
   });
 
   it("scenario 6: a call announced WITH args refreshes only on genuinely new args", () => {

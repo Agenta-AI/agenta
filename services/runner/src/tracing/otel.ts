@@ -54,6 +54,9 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 
+export const TOOL_NOT_EXECUTED_PAUSED =
+  "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still required.";
+
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
@@ -664,10 +667,21 @@ function acpBlockText(block: any): string {
   return "";
 }
 
+/** Serialized form of real tool args, for change detection; undefined when absent/`{}`. */
+function toolInputJson(input: unknown): string | undefined {
+  if (!hasToolArgs(input)) return undefined;
+  try {
+    return JSON.stringify(input);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * Whether a tool's `rawInput` holds real, inspectable args. Pi announces a call with an absent
- * or empty `{}` input and fills the args in on a later `tool_call_update`; both placeholders
- * count as "no args yet" so we know to refresh the tool_call once the real args land.
+ * Whether a tool's `rawInput` holds real, inspectable args. A harness can announce a call with
+ * an absent or empty `{}` input and fill the args in on a later `tool_call_update` (Pi does);
+ * both placeholders count as "no args yet" so we know to refresh the tool_call once the real
+ * args land. Purely shape-based — no harness-specific logic.
  */
 function hasToolArgs(input: unknown): boolean {
   if (input == null) return false;
@@ -861,6 +875,11 @@ export interface SandboxAgentOtel {
   output(): string;
   /** The structured event log built from the ACP stream (tool calls, usage, final message). */
   events(): AgentEvent[];
+  /** Settle open tool calls except those intentionally left pending. */
+  settleOpenToolCalls(
+    isExcluded: (id: string) => boolean,
+    message: string,
+  ): void;
   /** Run token/cost totals from the stream, when the harness reported `usage_update`. */
   usage(): AgentUsage | undefined;
 }
@@ -891,7 +910,12 @@ export function createSandboxAgentOtel(
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
   const events: AgentEvent[] = [];
-  const toolSpans = new Map<string, { span?: Span; name: string; hasArgs: boolean }>();
+  // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
+  // `tool_call_update` can refresh the recorded args whenever they genuinely change.
+  const toolSpans = new Map<
+    string,
+    { span?: Span; name: string; inputJson?: string }
+  >();
 
   // Live emission. `record` is the single choke point for every event: it appends to the
   // result log and, on the streaming path, flushes the event the moment it is built — so
@@ -1134,24 +1158,33 @@ export function createSandboxAgentOtel(
         name: String(name),
         input: update.rawInput,
       });
-      toolSpans.set(id, { span, name: String(name), hasArgs: hasToolArgs(update.rawInput) });
+      toolSpans.set(id, { span, name: String(name), inputJson: toolInputJson(update.rawInput) });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
     }
 
     if (kind === "tool_call_update") {
-      // The real args often land here, not on the initial `tool_call`. Refresh the input ONCE,
-      // by re-recording the tool_call with the real args, so a non-gated tool shows them instead
-      // of the placeholder `{}`. The egress projects a repeat tool_call for a seen id as an
-      // input refresh (no new tool-input-start), mirroring the gated approval-refresh path.
+      // The real args often land here, not on the initial `tool_call` — and they can land
+      // INCREMENTALLY: a harness may stream a growing partial parse of the args (Pi does:
+      // `{}` -> `{x:[""]}` -> the full args), and the announcement itself may already carry
+      // an early partial delta.
+      // Refresh the recorded input whenever the update carries genuinely NEW args (serialized
+      // compare against the last-recorded input), so the final recorded tool_call always has
+      // the args the executor actually ran with — a refresh-once / had-args-at-announce gate
+      // records an early partial delta as the call's input (the #5064 fold-path bug). The
+      // egress projects a repeat tool_call for a seen id as an input refresh (no new
+      // tool-input-start), mirroring the gated approval-refresh path.
       const id = update.toolCallId;
       const entry = id ? toolSpans.get(id) : undefined;
-      if (entry && !entry.hasArgs && hasToolArgs(update.rawInput)) {
-        if (entry.span)
-          setInputs(entry.span, update.rawInput as Record<string, unknown>, capture);
-        record({ type: "tool_call", id: String(id), name: entry.name, input: update.rawInput });
-        entry.hasArgs = true;
+      if (entry && hasToolArgs(update.rawInput)) {
+        const nextJson = toolInputJson(update.rawInput);
+        if (nextJson !== entry.inputJson) {
+          if (entry.span)
+            setInputs(entry.span, update.rawInput as Record<string, unknown>, capture);
+          record({ type: "tool_call", id: String(id), name: entry.name, input: update.rawInput });
+          entry.inputJson = nextJson;
+        }
       }
       maybeCloseTool(id, update);
       return;
@@ -1196,6 +1229,21 @@ export function createSandboxAgentOtel(
       output: out,
       isError: status === "failed",
     });
+  }
+
+  function settleOpenToolCalls(
+    isExcluded: (id: string) => boolean,
+    message: string,
+  ): void {
+    for (const [id, entry] of [...toolSpans.entries()]) {
+      if (isExcluded(id)) continue;
+      if (entry.span) {
+        entry.span.setStatus({ code: SpanStatusCode.ERROR });
+        entry.span.end();
+      }
+      toolSpans.delete(id);
+      record({ type: "tool_result", id, output: message, isError: true });
+    }
   }
 
   /**
@@ -1310,6 +1358,7 @@ export function createSandboxAgentOtel(
     traceId: () => runTraceId,
     output: () => accumulated,
     events: () => events,
+    settleOpenToolCalls,
     usage: () => usage,
   };
 }

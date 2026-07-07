@@ -7,7 +7,7 @@ interface OnRampCardProps {
     icon: ReactNode
     title: string
     description: string
-    onClick?: () => void
+    onClick: () => void
 }
 
 const OnRampCard = ({icon, title, description, onClick}: OnRampCardProps) => (
@@ -33,26 +33,35 @@ interface OnRampsProps {
     onExploreDemo?: () => void
 }
 
-/** Secondary first-run entry points: bring an existing app (tracing) / explore a demo. */
+/**
+ * Secondary first-run entry points: bring an existing app (tracing) / explore a demo. Each card renders
+ * only when its handler is wired — an unwired action is hidden rather than shown as a dead button, and
+ * the whole section drops out if neither is available.
+ */
 const OnRamps = ({onBringApp, onExploreDemo}: OnRampsProps) => {
+    if (!onBringApp && !onExploreDemo) return null
     return (
         <section className="flex flex-col gap-3">
             <Typography.Title level={5} className="!m-0">
                 Other ways to start
             </Typography.Title>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <OnRampCard
-                    icon={<Plugs size={18} />}
-                    title="Bring an existing app"
-                    description="Send traces from your code — observe & evaluate what you already run."
-                    onClick={onBringApp}
-                />
-                <OnRampCard
-                    icon={<Compass size={18} />}
-                    title="Explore a demo project"
-                    description="Poke around a populated workspace. View-only, no setup."
-                    onClick={onExploreDemo}
-                />
+                {onBringApp ? (
+                    <OnRampCard
+                        icon={<Plugs size={18} />}
+                        title="Bring an existing app"
+                        description="Send traces from your code — observe & evaluate what you already run."
+                        onClick={onBringApp}
+                    />
+                ) : null}
+                {onExploreDemo ? (
+                    <OnRampCard
+                        icon={<Compass size={18} />}
+                        title="Explore a demo project"
+                        description="Poke around a populated workspace. View-only, no setup."
+                        onClick={onExploreDemo}
+                    />
+                ) : null}
             </div>
         </section>
     )

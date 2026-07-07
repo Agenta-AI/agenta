@@ -22,6 +22,8 @@ from agenta.sdk.agents import (
     MissingProviderError,
     ModelRef,
     ResolvedConnection,
+    RunContext,
+    RunContextRun,
     RuntimeAuthContext,
     SandboxAgentBackend,
     SessionConfig,
@@ -56,10 +58,11 @@ from agenta.sdk.models.workflows import (
 
 from agenta.sdk.utils.logging import get_module_logger
 
+from agenta.sdk.agents.tracing import record_usage, run_context, trace_context
+
 from oss.src.agent.config import load_config, runner_dir, runner_url
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
-from oss.src.agent.tracing import record_usage, run_context, trace_context
 
 log = get_module_logger(__name__)
 
@@ -243,16 +246,22 @@ async def _agent(
         resolved_connection = await _resolve_session_connection(model_ref, ctx)
         secrets = resolved_connection.env
 
+    rc = run_context()
+    run_kind = (request.meta or {}).get("run_kind")
+    if isinstance(run_kind, str) and run_kind:
+        rc = rc or RunContext()
+        rc.run = RunContextRun(kind=run_kind)
+
     session_config = SessionConfig(
         agent=agent_template,
         secrets=secrets,  # the env compat alias the wire still reads
         resolved_connection=resolved_connection,
         permission_default=agent_template.permission_default,
         trace=trace_context(),
-        # The run's own context (trace + workflow identity), refreshed each turn and consumed only
-        # by a tool's `call.context` binding at dispatch (direct-call tools, Phase 3a). The
-        # conversation id is threaded separately as `session_id` below, not duplicated in here.
-        run_context=run_context(),
+        # The run's own context (run kind, trace, and workflow identity), refreshed each turn
+        # and consumed by tool context bindings at dispatch. The conversation id is threaded
+        # separately as `session_id` below, not duplicated in here.
+        run_context=rc,
         session_id=session_id,
         builtin_names=resolved_tools.builtin_names,
         tool_specs=resolved_tools.tool_specs,
@@ -287,13 +296,13 @@ def create_agent_app():
     # canonical identity for the agent workflow). The SDK seeds the registries for this URI with a
     # minimal default interface; the service is the authoritative live owner in its own process, so:
     #
-    # 1. Instrument `_agent`, then register THAT under the builtin URI. Order matters: `ag.workflow`
-    #    only instruments inside `_register_handler`, which it skips once a handler exists in the
-    #    registry. Registering the raw `_agent` would lose tracing instrumentation; registering the
-    #    instrumented one keeps it (mirrors chat.py, whose registry handler is pre-instrumented).
-    # 2. OVERRIDE the interface registry with the service interface (AGENT_SCHEMAS), so
+    # 1. Instrument `_agent`, then register THAT under the builtin URI, REPLACING the SDK-seeded
+    #    composition-default `agent_v0` (register_handler replaces, like register_interface).
+    #    Order matters: `ag.workflow` only instruments inside `_register_handler`, which it skips
+    #    once a handler exists in the registry. Registering the raw `_agent` would lose tracing
+    #    instrumentation; registering the instrumented one keeps it (mirrors chat.py).
+    # 2. REPLACE the interface registry entry with the service interface (AGENT_SCHEMAS), so
     #    `retrieve_interface(AGENT_URI)` returns the SAME schemas `/inspect` advertises.
-    #    `register_interface` replaces (not setdefault), unlike the SDK's minimal seed.
     # 3. Build the workflow against the URI. `ag.workflow.__init__` resolves the (instrumented)
     #    handler and merges the registered interface; the passed `schemas` still win.
     #
@@ -303,7 +312,10 @@ def create_agent_app():
     # are resolved by the frontend via `x-ag-harness-ref` on the agent-config harness field — the
     # same catalog/ref mechanism as every other type. The agent service still imports the SDK
     # capability table directly for its server-side reject; it never publishes it on inspect.
-    register_handler(auto_instrument(_agent), uri=AGENT_URI)
+    register_handler(
+        auto_instrument(_agent),
+        uri=AGENT_URI,
+    )
     register_interface(
         WorkflowRevisionData(uri=AGENT_URI, schemas=AGENT_SCHEMAS),
         uri=AGENT_URI,

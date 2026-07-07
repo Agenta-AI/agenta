@@ -45,25 +45,28 @@ const stripColors = (o: Record<string, unknown>) =>
 const stripComponentColors = (c: Record<string, Record<string, unknown>>) =>
     Object.fromEntries(Object.entries(c).map(([n, t]) => [n, stripColors(t)]))
 
-// Mirror DARK_TOKEN_OVERRIDES exactly (kept in sync with ThemeContextProvider.tsx)
-// — including the shadow overrides, so antdDark resolves --ant-box-shadow-* the
-// way the app actually renders them.
-const OVERLAY_SHADOW =
-    "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)"
-const DARK_TOKEN_OVERRIDES = {
-    colorPrimary: "#f2f25c",
-    colorSuccess: "#52c41a",
-    colorWarning: "#faad14",
-    colorError: "#ff4d4f",
-    colorLink: "#58a6ff",
-    colorLinkHover: "#79b8ff",
-    colorLinkActive: "#3b8eea",
-    boxShadow: OVERLAY_SHADOW,
-    boxShadowSecondary: OVERLAY_SHADOW,
-    boxShadowTertiary:
-        "0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 6px -1px rgba(0, 0, 0, 0.20), 0 2px 4px 0 rgba(0, 0, 0, 0.20)",
-    colorBgElevated: "#242424",
-    colorTextPlaceholder: "rgba(255, 255, 255, 0.38)",
+// antd token overrides applied on top of darkAlgorithm, DERIVED from palette (never
+// hand-copied) so palette.ts stays the single source of truth: editing a dark value
+// there flows into both the algorithm input below AND the emitted DARK_TOKEN_OVERRIDES
+// (buildAntdOverrides reuses this object). Includes the shadow overrides so antdDark
+// resolves --ant-box-shadow-* the way the app actually renders them.
+const DARK_TOKEN_OVERRIDES: Record<string, string> = {
+    colorPrimary: palette.accent.primary.dark as string,
+    colorLink: palette.accent.link.dark as string,
+    colorLinkHover: palette.accent.linkHover.dark as string,
+    colorLinkActive: palette.accent.linkActive.dark as string,
+    colorSuccess: palette.semantic.success.dark as string,
+    colorWarning: palette.semantic.warning.dark as string,
+    colorError: palette.semantic.error.dark as string,
+    colorBgElevated: palette.surface.elevated.dark as string,
+    colorTextPlaceholder: palette.text.placeholder.dark as string,
+    boxShadow: palette.shadow.overlay.dark as string,
+    boxShadowSecondary: palette.shadow.overlay.dark as string,
+    boxShadowTertiary: palette.shadow.tertiary.dark as string,
+    boxShadowDrawerRight: palette.shadow.drawerRight.dark as string,
+    boxShadowDrawerLeft: palette.shadow.drawerLeft.dark as string,
+    boxShadowDrawerTop: palette.shadow.drawerTop.dark as string,
+    boxShadowDrawerBottom: palette.shadow.drawerBottom.dark as string,
 }
 
 // antd SEED tokens: setting them feeds the algorithm, which DERIVES a different
@@ -359,24 +362,10 @@ ${shim.dark}
 // ---------------------------------------------------------------------------
 function buildAntdOverrides(): string {
     const p = palette
-    const o = {
-        colorPrimary: p.accent.primary.dark,
-        colorLink: p.accent.link.dark,
-        colorLinkHover: p.accent.linkHover.dark,
-        colorLinkActive: p.accent.linkActive.dark,
-        colorSuccess: p.semantic.success.dark,
-        colorWarning: p.semantic.warning.dark,
-        colorError: p.semantic.error.dark,
-        colorBgElevated: p.surface.elevated.dark,
-        colorTextPlaceholder: p.text.placeholder.dark,
-        boxShadow: p.shadow.overlay.dark,
-        boxShadowSecondary: p.shadow.overlay.dark,
-        boxShadowTertiary: p.shadow.tertiary.dark,
-        boxShadowDrawerRight: p.shadow.drawerRight.dark,
-        boxShadowDrawerLeft: p.shadow.drawerLeft.dark,
-        boxShadowDrawerTop: p.shadow.drawerTop.dark,
-        boxShadowDrawerBottom: p.shadow.drawerBottom.dark,
-    }
+    // Same palette-derived object the darkAlgorithm is seeded with — emitting it here is
+    // exactly what ThemeContextProvider imports, so the CSS-var layer and the antd-config
+    // layer can never diverge.
+    const o = DARK_TOKEN_OVERRIDES
     // Emit prettier-conformant TS (unquoted keys, trailing commas) so the generated
     // file stays lint-clean and doesn't churn against format-fix.
     // Match prettier: wrap the value onto its own indented line when the single-line

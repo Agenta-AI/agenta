@@ -56,6 +56,10 @@ import {WIDGET_DEFAULT_CONFIG, WIDGET_HEADER_TITLE} from "./constants"
 
 const {Text} = Typography
 
+// Auto-open for new users is parked along with the rest of legacy onboarding.
+// Flip to true to restore it if the widget is ever remounted.
+const AUTO_OPEN_FOR_NEW_USERS = false
+
 // ---------------------------------------------------------------------------
 // Lightweight gate — only reads cheap localStorage-backed atoms + session
 // to decide whether the heavy widget should mount at all.
@@ -80,6 +84,7 @@ const OnboardingWidgetGate = () => {
 
     // Auto-open for new users
     useEffect(() => {
+        if (!AUTO_OPEN_FOR_NEW_USERS) return
         if (!isNewUser || !doesSessionExist) return
         setWidgetUIState((prev) => {
             if (prev.isOpen) return prev

@@ -29,6 +29,7 @@ from agenta.sdk.agents import (
     ResolvedConnection,
     RunContext,
     RunContextReference,
+    RunContextRun,
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
@@ -81,6 +82,8 @@ _CUSTOM_TOOL = {
     "inputSchema": {"type": "object", "properties": {}},
     "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
     "kind": "callback",
+    "contextBindings": {"target.workflow_variant_id": "$ctx.workflow.variant.id"},
+    "timeoutMs": 120000,
     "readOnly": True,
 }
 # A DIRECT-CALL tool (direct-call tools, Phase 1): a callback spec that carries a `call`
@@ -145,6 +148,7 @@ def _pi_payload():
         # drops the unset reference fields. The conversation id rides the top-level `session_id`,
         # not run context.
         run_context=RunContext(
+            run=RunContextRun(kind="test"),
             workflow=RunContextWorkflow(
                 artifact=RunContextReference(id="wf_abc"),
                 variant=RunContextReference(id="var_abc", slug="weather-agent"),
@@ -181,6 +185,7 @@ def _claude_payload():
         messages=[Message(role="user", content="hi")],
         secrets={"ANTHROPIC_API_KEY": "sk-ant"},
         trace=None,
+        run_context=RunContext(run=RunContextRun(kind="test")),
         session_id=None,
     )
 
@@ -236,6 +241,11 @@ def test_request_to_wire_omits_skills_when_none():
 def test_request_to_wire_pi_matches_golden(golden):
     payload = _pi_payload()
     assert payload == golden("run_request.pi_core.json")
+    # The callRef runner-only fields ride the wire for the executor, with camelCase names.
+    assert payload["customTools"][0]["contextBindings"] == {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+    }
+    assert payload["customTools"][0]["timeoutMs"] == 120000
     # The Composio read-only hint rides the wire as camelCase `readOnly`.
     assert payload["customTools"][0]["readOnly"] is True
     # The direct-call tool rides the wire carrying its `call` descriptor and NO `callRef`
@@ -256,6 +266,7 @@ def test_request_to_wire_pi_matches_golden(golden):
     # grouped into artifact / variant / revision references, and the unset reference fields dropped
     # by `to_wire`. The conversation id is NOT here — it rides the top-level `sessionId`.
     assert payload["runContext"] == {
+        "run": {"kind": "test"},
         "workflow": {
             "artifact": {"id": "wf_abc"},
             "variant": {"id": "var_abc", "slug": "weather-agent"},
@@ -370,8 +381,8 @@ def test_request_to_wire_omits_project_id_when_none():
 def test_request_to_wire_claude_matches_golden(golden):
     payload = _claude_payload()
     assert payload == golden("run_request.claude.json")
-    # The claude payload threads no run context, so `runContext` is absent (the golden has none).
-    assert "runContext" not in payload
+    # Claude carries the child run identity so reserved handlers can reject recursive test runs.
+    assert payload["runContext"] == {"run": {"kind": "test"}}
     # No trace context threaded on this config: both role-separated keys are null (matching the
     # prior single `trace: null`), and the legacy `trace` key is gone.
     assert payload["context"] is None

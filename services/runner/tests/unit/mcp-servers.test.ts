@@ -13,6 +13,9 @@
  *   execution) until its security is fixed.
  * - A command-less stdio server or a url-less http server was never deliverable and is skipped.
  *
+ * The SSRF guard resolves hostnames via DNS (`tools/ssrf-guard.ts`), so tests here use IP literals
+ * to stay network-free; the DNS-resolution path itself is covered in `ssrf-guard.test.ts`.
+ *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/mcp-servers.test.ts)
  */
 import { afterEach, describe, it } from "vitest";
@@ -24,12 +27,12 @@ import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { McpServerConfig } from "../../src/protocol.ts";
 
 describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
-  it("maps empty input to []", () => {
-    assert.deepEqual(toAcpMcpServers(undefined), [], "undefined -> []");
-    assert.deepEqual(toAcpMcpServers([]), [], "[] -> []");
+  it("maps empty input to []", async () => {
+    assert.deepEqual(await toAcpMcpServers(undefined), [], "undefined -> []");
+    assert.deepEqual(await toAcpMcpServers([]), [], "[] -> []");
   });
 
-  it("throws the unsupported error for a stdio server", () => {
+  it("throws the unsupported error for a stdio server", async () => {
     const servers: McpServerConfig[] = [
       {
         name: "github",
@@ -39,18 +42,18 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
         env: { GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_x", LOG_LEVEL: "info" },
       },
     ];
-    assert.throws(
+    await assert.rejects(
       () => toAcpMcpServers(servers),
       new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
     );
   });
 
-  it("delivers an http server, routing the resolved secret into a header", () => {
-    const out = toAcpMcpServers([
+  it("delivers an http server, routing the resolved secret into a header", async () => {
+    const out = await toAcpMcpServers([
       {
         name: "linear",
         transport: "http",
-        url: "https://mcp.linear.app/sse",
+        url: "https://93.184.216.34/sse",
         // The SDK resolver put the resolved `linear-mcp-token` secret here under the
         // author-chosen header name "Authorization"; the wire has no separate `headers` key.
         env: { Authorization: "Bearer secret-token-value" },
@@ -61,7 +64,7 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
     const server = out[0] as McpServerHttp;
     assert.equal(server.type, "http", "ACP http variant");
     assert.equal(server.name, "linear");
-    assert.equal(server.url, "https://mcp.linear.app/sse");
+    assert.equal(server.url, "https://93.184.216.34/sse");
     assert.deepEqual(
       server.headers,
       [{ name: "Authorization", value: "Bearer secret-token-value" }],
@@ -69,21 +72,21 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
     );
   });
 
-  it("delivers an http server with no secrets as an empty header list", () => {
-    const out = toAcpMcpServers([
-      { name: "public", transport: "http", url: "https://mcp.example/sse" },
+  it("delivers an http server with no secrets as an empty header list", async () => {
+    const out = await toAcpMcpServers([
+      { name: "public", transport: "http", url: "https://93.184.216.34/sse" },
     ]);
     const server = out[0] as McpServerHttp;
     assert.equal(server.type, "http");
     assert.deepEqual(server.headers, [], "no env -> no headers");
   });
 
-  it("does not throw on a mix of http (delivered) and command-less stdio (skipped)", () => {
-    const out = toAcpMcpServers([
+  it("does not throw on a mix of http (delivered) and command-less stdio (skipped)", async () => {
+    const out = await toAcpMcpServers([
       {
         name: "remote",
         transport: "http",
-        url: "https://example.com/mcp",
+        url: "https://93.184.216.34/mcp",
         env: { "X-Api-Key": "k" },
       },
       { name: "broken", transport: "stdio" }, // no command -> never launched, skipped
@@ -112,21 +115,21 @@ describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
     },
   ];
 
-  it("rejects a non-https url (the secret would ride in clear text)", () => {
-    assert.throws(
-      () => toAcpMcpServers(http("http://mcp.example.com/sse")),
+  it("rejects a non-https url (the secret would ride in clear text)", async () => {
+    await assert.rejects(
+      () => toAcpMcpServers(http("http://93.184.216.34/sse")),
       /must use https/,
     );
   });
 
-  it("rejects the cloud metadata host (169.254.169.254)", () => {
-    assert.throws(
+  it("rejects the cloud metadata host (169.254.169.254)", async () => {
+    await assert.rejects(
       () => toAcpMcpServers(http("https://169.254.169.254/latest/meta-data/")),
       /internal\/metadata host/,
     );
   });
 
-  it("rejects localhost and loopback / private literals", () => {
+  it("rejects localhost and loopback / private literals", async () => {
     for (const url of [
       "https://localhost/mcp",
       "https://127.0.0.1/mcp",
@@ -135,7 +138,7 @@ describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
       "https://172.16.4.4/mcp",
       "https://[::1]/mcp",
     ]) {
-      assert.throws(
+      await assert.rejects(
         () => toAcpMcpServers(http(url)),
         /internal\/metadata host/,
         `should reject ${url}`,
@@ -143,30 +146,49 @@ describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
     }
   });
 
-  it("rejects a malformed url", () => {
-    assert.throws(() => toAcpMcpServers(http("not a url")), /not a valid URL/);
+  it("rejects hex/octal/integer IPv4 and IPv4-mapped IPv6 evasions", async () => {
+    for (const url of [
+      "https://0x7f000001/mcp", // hex IPv4 -> 127.0.0.1
+      "https://017700000001/mcp", // octal IPv4 -> 127.0.0.1
+      "https://2130706433/mcp", // integer IPv4 -> 127.0.0.1
+      "https://[::ffff:127.0.0.1]/mcp", // IPv4-mapped IPv6 loopback
+      "https://[::ffff:169.254.169.254]/mcp", // IPv4-mapped IPv6 metadata host
+    ]) {
+      await assert.rejects(
+        () => toAcpMcpServers(http(url)),
+        /internal\/metadata host/,
+        `should reject ${url}`,
+      );
+    }
   });
 
-  it("allows a public https url unchanged", () => {
-    const out = toAcpMcpServers(http("https://mcp.linear.app/sse"));
+  it("rejects a malformed url", async () => {
+    await assert.rejects(
+      () => toAcpMcpServers(http("not a url")),
+      /not a valid URL/,
+    );
+  });
+
+  it("allows a public ip literal unchanged", async () => {
+    const out = await toAcpMcpServers(http("https://93.184.216.34/sse"));
     assert.equal(out.length, 1);
-    assert.equal((out[0] as McpServerHttp).url, "https://mcp.linear.app/sse");
+    assert.equal((out[0] as McpServerHttp).url, "https://93.184.216.34/sse");
   });
 
-  it("allowlist opts a host out of the https + internal-host checks", () => {
+  it("allowlist opts a host out of the https + internal-host checks", async () => {
     process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST = "localhost,10.0.0.5";
     // http://localhost is normally rejected twice over (non-https + internal); allowlisted -> ok.
-    const out = toAcpMcpServers(http("http://localhost:9000/mcp"));
+    const out = await toAcpMcpServers(http("http://localhost:9000/mcp"));
     assert.equal(out.length, 1, "allowlisted host is delivered");
     assert.equal((out[0] as McpServerHttp).url, "http://localhost:9000/mcp");
     // A private IP literal in the allowlist is also permitted.
     assert.equal(
-      toAcpMcpServers(http("https://10.0.0.5/mcp")).length,
+      (await toAcpMcpServers(http("https://10.0.0.5/mcp"))).length,
       1,
       "allowlisted private literal delivered",
     );
     // A host NOT in the allowlist is still rejected.
-    assert.throws(
+    await assert.rejects(
       () => toAcpMcpServers(http("https://127.0.0.1/mcp")),
       /internal\/metadata host/,
     );

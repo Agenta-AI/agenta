@@ -366,6 +366,8 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- define "agenta.redisVolatile.maxmemoryPolicy" -}}{{ default "volatile-lru" (default dict .Values.redisVolatile).maxmemoryPolicy }}{{- end }}
 {{- define "agenta.redisDurable.maxmemory" -}}{{ default "512mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
 {{- define "agenta.redisDurable.maxmemoryPolicy" -}}{{ default "noeviction" (default dict .Values.redisDurable).maxmemoryPolicy }}{{- end }}
+{{/* Bytes of corrupt AOF tail redis may auto-truncate at load instead of refusing to start. */}}
+{{- define "agenta.redisDurable.aofLoadCorruptTailMaxSize" -}}{{ default 1048576 (default dict .Values.redisDurable).aofLoadCorruptTailMaxSize }}{{- end }}
 
 {{/* ================================================================
    Alembic job defaults.
@@ -1077,14 +1079,17 @@ imagePullSecrets:
 - name: AGENTA_OTLP_MAX_BATCH_BYTES
   value: {{ $otlp.maxBatchBytes | quote }}
 {{- end }}
-{{- /* agenta.webhooks — outbound webhook flags */}}
-{{- if hasKey $webhooksCfg "allowInsecure" }}
-- name: AGENTA_WEBHOOKS_ALLOW_INSECURE
+{{- /* agenta.insecureEgressAllowed — SSRF guard override for webhooks/hooks/custom-provider egress.
+     Canonical key wins; falls back to the deprecated agenta.webhooks.allowInsecure /
+     agenta.services.hook.allowInsecure keys so values.yaml files predating the rename keep working. */}}
+{{- if hasKey $agenta "insecureEgressAllowed" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
+  value: {{ $agenta.insecureEgressAllowed | quote }}
+{{- else if hasKey $webhooksCfg "allowInsecure" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $webhooksCfg.allowInsecure | quote }}
-{{- end }}
-{{- /* agenta.services.hook — surfaced to user-code runners via SDK */}}
-{{- if hasKey $svcHook "allowInsecure" }}
-- name: AGENTA_SERVICES_HOOK_ALLOW_INSECURE
+{{- else if hasKey $svcHook "allowInsecure" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $svcHook.allowInsecure | quote }}
 {{- end }}
 {{- /* agenta.services.code — SDK sandbox runner selector */}}

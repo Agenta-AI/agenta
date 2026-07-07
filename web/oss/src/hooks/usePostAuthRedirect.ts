@@ -121,19 +121,24 @@ const usePostAuthRedirect = () => {
                 if (isInvitedUser) {
                     console.log("[post-auth] redirect invited new user -> /workspaces/accept")
                     await router.push("/workspaces/accept?survey=true")
+                    return
                 } else if (isEE()) {
                     console.log("[post-auth] redirect new EE user -> /post-signup")
                     writePostSignupPending()
                     await resetAuthState()
                     setIsNewUser(true)
                     await router.push("/post-signup")
+                    return
                 } else {
-                    console.log("[post-auth] redirect new OSS user -> /get-started")
+                    // New OSS users no longer land on the removed /get-started page.
+                    // Fall through to the same resolved-path logic returning users get
+                    // (below), landing them on /apps like everyone else.
+                    console.log(
+                        "[post-auth] new OSS user -> falling through to resolved post-login path",
+                    )
                     await resetAuthState()
                     setIsNewUser(true)
-                    await router.push("/get-started")
                 }
-                return
             }
 
             if (isInvitedUser) {

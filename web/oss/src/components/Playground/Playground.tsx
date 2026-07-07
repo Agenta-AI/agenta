@@ -91,7 +91,7 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     // flash the wrong split before the agent flag resolves and switches to the agent layout. Gated on
     // `onboarding` so the normal playground never hits this branch.
     if (onboarding && !agentOnboarding.ready) {
-        return <OnboardingLoader />
+        return <OnboardingLoader error={agentOnboarding.error} onRetry={agentOnboarding.retry} />
     }
 
     const providers = {

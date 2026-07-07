@@ -21,6 +21,7 @@ import re
 from typing import Any, Dict, List, Literal, Optional, Sequence, TypedDict
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.redaction.context import get_active_redactor
 
 from ..permission_rules import PermissionRule
 from ..dtos import (
@@ -59,6 +60,9 @@ def sanitize_runner_error(error: Any) -> str:
     dumps) carry internal text. This is the single boundary that reaches the caller/UI, so it
     keeps the actionable message, drops stack-frame and path noise, caps the length, and logs the
     untruncated original for the trace/logs. A clean concise message passes through unchanged.
+
+    Stack-strip THEN redact: known-value redaction runs last so a leaked secret can't survive
+    even inside an otherwise-clean message.
     """
     raw = "" if error is None else str(error)
     if raw and (
@@ -72,7 +76,7 @@ def sanitize_runner_error(error: Any) -> str:
         return "agent run failed"
     if len(message) > _ERROR_MAX_LEN:
         message = message[: _ERROR_MAX_LEN - 1].rstrip() + "…"
-    return message
+    return get_active_redactor().redact_string(message, sink="error") or message
 
 
 def request_to_wire(
@@ -116,8 +120,8 @@ def request_to_wire(
     that drops each entry into the cwd with no harness knowledge.
 
     ``run_context`` is the run's own context (trace + variant identity), refreshed per turn. When
-    set it rides as ``runContext`` and is consumed only by a tool's ``call.context`` binding at
-    dispatch (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
+    set it rides as ``runContext`` and is consumed by tool context bindings at dispatch
+    (``call.context`` on direct-call specs and ``contextBindings`` on callRef specs) (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
     so a run that needs no binding stays byte-identical to before.
     """
     payload: Dict[str, Any] = {

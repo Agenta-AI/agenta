@@ -238,6 +238,25 @@ export function assembleBody(
   return body;
 }
 
+export function applyContextBindings(
+  args: unknown,
+  bindings: Record<string, string>,
+  runContext?: RunContext,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = isPlainObject(args)
+    ? (structuredClone(args) as Record<string, unknown>)
+    : {};
+  for (const [argPath, token] of Object.entries(bindings)) {
+    deepDelete(body, argPath);
+    const value = resolveCtxToken(runContext, token);
+    if (value === undefined) {
+      throw new Error(`missing run-context value for tool binding '${argPath}'`);
+    }
+    deepSet(body, argPath, value);
+  }
+  return body;
+}
+
 /**
  * Validate the descriptor and build the absolute URL to call. The `call` is untrusted input, so
  * this is the SSRF guard, and it makes NO assumption about where the Agenta API is mounted:
@@ -339,18 +358,19 @@ export async function callDirect(
   url: string,
   authorization: string | undefined,
   body: Record<string, unknown>,
-  signal?: AbortSignal,
+  options: { signal?: AbortSignal; runKind?: string } = {},
 ): Promise<string> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
   if (authorization) headers["authorization"] = authorization;
+  if (options.runKind) headers["x-agenta-run-kind"] = options.runKind;
 
   const timeoutSignal = AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS);
   const anyOf = (AbortSignal as any).any;
   const combined =
-    signal && typeof anyOf === "function"
-      ? anyOf([signal, timeoutSignal])
+    options.signal && typeof anyOf === "function"
+      ? anyOf([options.signal, timeoutSignal])
       : timeoutSignal;
 
   let response: Response;

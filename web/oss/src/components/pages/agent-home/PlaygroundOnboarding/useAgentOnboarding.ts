@@ -16,6 +16,8 @@ import {
     isAgentModeAtomFamily,
     playgroundController,
 } from "@agenta/playground"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
+import {App} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
@@ -32,6 +34,10 @@ import {type OnboardingContextValue} from "./OnboardingContext"
 export interface AgentOnboardingResult {
     /** True once the ephemeral has been minted (the playground can render it). */
     ready: boolean
+    /** True when the ephemeral mint failed — the loader shows a retry affordance instead of hanging. */
+    error: boolean
+    /** Re-attempt a failed mint. No-op while a mint is in flight or already succeeded. */
+    retry: () => void
     /** Override for the playground's `AgentGenerationPanel` (the onboarding composer → live chat). */
     agentPanel: ComponentType | null
     /** Templates for the config-panel slot while ephemeral; undefined once real. */
@@ -49,6 +55,7 @@ export interface AgentOnboardingResult {
  * normal playground is unchanged.
  */
 export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
+    const {message} = App.useApp()
     const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
     const createAgent = useCreateAgent()
     const {baseAppURL} = useAtomValue(urlAtom)
@@ -60,6 +67,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const [committingSeed, setCommittingSeed] = useState<string | null>(null)
     const [browseAll, setBrowseAll] = useState(false)
     const [chromeRevealed, setChromeRevealed] = useState(false)
+    const [error, setError] = useState(false)
     const startedRef = useRef(false)
 
     // Post-commit chrome (session bar / connect-model banner / header mode switch) eases in a beat AFTER
@@ -73,20 +81,20 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         return () => window.clearTimeout(id)
     }, [realEntityId])
 
-    // Mint one ephemeral agent when onboarding activates. Ref-guarded so it runs exactly once.
+    // Mint one ephemeral agent. Ref-guarded so it runs exactly once per success.
     // NOTE: deliberately NO abort-on-cleanup. React StrictMode double-invokes effects (setup → cleanup
     // → setup) and the ref-guard blocks the second setup, so aborting on the first cleanup would cancel
     // the ONLY mint attempt and leave entityId null forever (→ no ephemeral, no agent). The mint is
     // cheap and client-only; let it finish. The component instance survives the StrictMode cycle, so
     // setEntityId lands (and a genuine unmount mid-mint is a harmless no-op in React 18).
-    useEffect(() => {
-        if (!active) return
+    const startMint = useCallback(() => {
         if (startedRef.current) return
         startedRef.current = true
+        setError(false)
         // Wipe the onboarding scope BEFORE the ephemeral is minted (→ before AgentChatPanel mounts and
         // seeds its session). The onboarding runs on the app-less project route and uses a fixed scope
         // key, so a prior visit's persisted conversation (e.g. a failed run) would otherwise be restored
-        // into this "fresh" session. Runs once per mount (ref-guarded above).
+        // into this "fresh" session.
         resetOnboardingScope()
         void createEphemeralAppFromTemplate({
             type: "agent",
@@ -94,10 +102,28 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             // Return as soon as the entity is seeded (flags → agent layout resolves at once); the schema
             // inspect round-trip resolves in the background (not needed for the pre-commit surface).
             deferInspect: true,
-        }).then((id) => {
-            if (id) setEntityId(id)
         })
-    }, [active])
+            .then((id) => {
+                if (!id) throw new Error("Onboarding mint returned no entity id")
+                setEntityId(id)
+            })
+            .catch((err) => {
+                // Never leave the loader spinning forever: release the guard so `retry` can re-run,
+                // surface the failure, and flip to the error state the loader renders.
+                startedRef.current = false
+                setError(true)
+                message.error(
+                    extractApiErrorMessage(err) || "Couldn't set up onboarding. Please retry.",
+                )
+            })
+    }, [resetOnboardingScope, message])
+
+    const retry = useCallback(() => startMint(), [startMint])
+
+    useEffect(() => {
+        if (!active) return
+        startMint()
+    }, [active, startMint])
 
     // Point the playground at the ephemeral (until it's committed to a real revision). `setEntityIds`
     // alone doesn't hold on the project route: `playgroundSyncAtom` reconciles the selection against the
@@ -120,6 +146,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
             setCommittingSeed(seedMessage.trim() || null)
+            let committed = false
             void createAgent({
                 name,
                 seedMessage,
@@ -128,6 +155,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 // once the model is ready (no extra Start click), keeping the transition seamless.
                 autoSendSeed: true,
                 onCommitted: ({appId, revisionId}) => {
+                    committed = true
                     // Flip the onboarding state urgently — the settling skeleton, the `chromeRevealed`
                     // timer, and the commit-failure recovery all read `realEntityId` synchronously.
                     setRealEntityId(revisionId)
@@ -145,7 +173,12 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                         )
                     }
                 },
-            }).finally(() => setCommitting(false))
+            }).finally(() => {
+                setCommitting(false)
+                // On a failed commit (createAgent resolves without onCommitted), drop the optimistic
+                // seed so no stale "sent" turn can be re-surfaced by a later render.
+                if (!committed) setCommittingSeed(null)
+            })
         },
         [entityId, committing, realEntityId, createAgent, setEntityIds, baseAppURL],
     )
@@ -206,10 +239,12 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
 
     return {
         ready: !!entityId,
+        error,
+        retry,
         // The onboarding right panel IS the real AgentChatPanel (the agent-chat view) — "what do you
         // want to build?" is just an AgentChatEmptyState state + the same editor with different controls,
         // read from the OnboardingContext. So we DON'T override the generation panel; Playground uses its
-        // default AgentChatPanel. (OnboardingAgentPanel is now dead code — removed at cleanup.)
+        // default AgentChatPanel.
         agentPanel: null,
         renderConfigOverride,
         contextValue,

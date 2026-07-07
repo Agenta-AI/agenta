@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useRef} from "react"
 
 import {
     createEphemeralAppFromTemplate,
@@ -46,6 +46,11 @@ export function useCreateAgent() {
     const {baseAppURL} = useAtomValue(urlAtom)
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
 
+    // Mint+commit is a multi-step async round-trip; a re-entry latch here protects every caller
+    // (home composer, builder template cards, setup drawer) from a rapid double-click minting two
+    // agents — the UI-level disabled/loading guards don't cover the composer path.
+    const inFlightRef = useRef(false)
+
     return useCallback(
         async ({
             name,
@@ -54,6 +59,8 @@ export function useCreateAgent() {
             onCommitted,
             autoSendSeed,
         }: CreateAgentParams = {}) => {
+            if (inFlightRef.current) return
+            inFlightRef.current = true
             try {
                 const agentName = name?.trim() || "New agent"
                 const ephemeralId =
@@ -108,6 +115,8 @@ export function useCreateAgent() {
                 }
             } catch (error) {
                 message.error(extractApiErrorMessage(error))
+            } finally {
+                inFlightRef.current = false
             }
         },
         [message, commitFromEphemeral, store, router, baseAppURL],
