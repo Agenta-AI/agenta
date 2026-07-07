@@ -266,7 +266,9 @@ async def lifespan(*args, **kwargs):
         except Exception as e:  # noqa: BLE001
             log.warning("Store bucket ensure failed at startup: %s", e)
 
-    _orphan_sweep_task = asyncio.create_task(orphan_sweep_loop(_transactions_engine))
+    _orphan_sweep_task = asyncio.create_task(
+        orphan_sweep_loop(_transactions_engine, _lock_engine)
+    )
 
     # Best-effort: ingestion re-resolves on demand if this fails.
     if env.composio.enabled:
