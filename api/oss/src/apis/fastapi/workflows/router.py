@@ -1766,6 +1766,7 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionResponse(), exclude=[HTTPException])
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def retrieve_workflow_revision(
         self,
@@ -1887,6 +1888,7 @@ class WorkflowsRouter:
         return workflow_revision_response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def resolve_workflow_revision_endpoint(
         self,
