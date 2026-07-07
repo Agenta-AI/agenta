@@ -3,7 +3,7 @@ import {useCallback, useRef, useState} from "react"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {App, Tag, Typography} from "antd"
+import {App, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
@@ -85,19 +85,6 @@ const StripHome: React.FC = () => {
         <PageLayout className="grow min-h-0">
             <div className="mx-auto flex w-full max-w-[780px] flex-col pb-16 pt-8">
                 <div className="flex flex-col gap-3">
-                    {firstRun ? (
-                        <div className="flex items-center gap-2">
-                            <Tag
-                                color="processing"
-                                className="!m-0 !rounded !px-1.5 !py-0 !text-[10px] !font-semibold !uppercase !leading-5"
-                            >
-                                {HERO.eyebrowNew}
-                            </Tag>
-                            <span className="text-xs font-medium text-[var(--ag-colorTextSecondary)]">
-                                {HERO.eyebrowLabel}
-                            </span>
-                        </div>
-                    ) : null}
                     <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
                         {HERO.title}
                     </Typography.Title>
@@ -118,7 +105,7 @@ const StripHome: React.FC = () => {
                 </div>
 
                 <TemplateStrip
-                    className="mt-[30px]"
+                    className="mt-3"
                     surface="home"
                     selectedTemplateKey={provenance.selectedTemplateKey}
                     onPick={handlePick}

@@ -1293,6 +1293,16 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         )
     }
 
+    // Strip era (TEMPLATE_STRIP_MODE): the bare "what do you want to build?" hero (no messages yet,
+    // nothing pending, not browsing the template gallery) is when the onboarding TemplateStrip docks
+    // directly above the composer, mirroring the agent-chat strip's bottom-anchored rhythm.
+    const showBareOnboardingHero =
+        TEMPLATE_STRIP_MODE &&
+        onboardingActive &&
+        messages.length === 0 &&
+        !pendingFirstTurn &&
+        !onboarding?.browseAll
+
     return (
         <div
             className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
@@ -1375,18 +1385,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                     canStart={!modelBlocked}
                                     onboarding={onboardingActive}
                                     onPrefill={(text) => richInputRef.current?.setMarkdown(text)}
-                                    stripNode={
-                                        TEMPLATE_STRIP_MODE && onboardingActive ? (
-                                            <TemplateStrip
-                                                surface="onboarding"
-                                                selectedTemplateKey={
-                                                    stripProvenance.selectedTemplateKey
-                                                }
-                                                onPick={handleStripPick}
-                                                surfaceColorVar="--ag-surface-chat"
-                                            />
-                                        ) : null
-                                    }
                                 />
                             ))}
                         {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
@@ -1479,17 +1477,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         onApprovalResponse={addToolApprovalResponse}
                         onViewTrace={openPausedTurnTrace}
                     />
-                    {/* Provenance chip docks flush above the composer (no gap; chip has no bottom border). */}
-                    {TEMPLATE_STRIP_MODE && stripProvenance.chipNode ? (
-                        <div className={CHAT_COLUMN}>{stripProvenance.chipNode}</div>
+                    {/* Owner call: a template pick must not shift the composer, so no chip renders here
+                        (unlike the home surface) — the strip card's own selected state is the
+                        "which template" indicator; the composer text is the only other feedback. */}
+                    {/* Onboarding strip: docked directly above the composer (mb-3 gap), mirroring the
+                        agent-chat strip's rhythm — hero stays top-aligned above the flex space, and
+                        the strip + composer read as one bottom-anchored cluster. */}
+                    {showBareOnboardingHero ? (
+                        <div className={`${CHAT_COLUMN} mb-3`}>
+                            <TemplateStrip
+                                surface="onboarding"
+                                selectedTemplateKey={stripProvenance.selectedTemplateKey}
+                                onPick={handleStripPick}
+                                surfaceColorVar="--ag-surface-chat"
+                            />
+                        </div>
                     ) : null}
                     <RichChatInput
                         ref={richInputRef}
-                        className={`${CHAT_COLUMN} mb-3${
-                            TEMPLATE_STRIP_MODE && stripProvenance.selectedTemplate
-                                ? ` ${stripProvenance.composerClassName}`
-                                : ""
-                        }`}
+                        className={`${CHAT_COLUMN} mb-3`}
                         // Onboarding: submit = commit the ephemeral (not send); Enter inserts a newline
                         // (you're writing a description), and the Create-agent button (trailing) commits.
                         onSubmit={onboardingActive ? () => handleCreateAgent() : handleSubmit}
