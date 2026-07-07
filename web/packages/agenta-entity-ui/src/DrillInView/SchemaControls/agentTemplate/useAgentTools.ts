@@ -8,7 +8,7 @@ import {useCallback, useMemo, type MutableRefObject} from "react"
 import type {WorkflowReferenceBridge, WorkflowReferencePayload} from "@agenta/ui/drill-in"
 
 import type {ToolSelectionMeta} from "../ToolSelectorPopover"
-import type {ToolObj} from "../toolUtils"
+import {gatewayToolIdentity, parseGatewayTool, type ToolObj} from "../toolUtils"
 
 import {isBuiltinPayloadMatch, toolName, toolReferenceSlug} from "./itemDescriptors"
 import type {ItemKind} from "./itemKinds"
@@ -132,6 +132,40 @@ export function useAgentTools({
         [tools],
     )
 
+    // Encoding-independent identities of the gateway tools present — the drawer's added-state.
+    // Derived from the SAME `tools` memo as `selectedToolNames`, so the two never drift.
+    const selectedGatewayIds = useMemo(
+        () =>
+            new Set(
+                tools
+                    .map((t) => {
+                        const v = parseGatewayTool(t)
+                        return v ? gatewayToolIdentity(v) : null
+                    })
+                    .filter((s): s is string => Boolean(s)),
+            ),
+        [tools],
+    )
+
+    // Remove EXACTLY ONE identity match (toggle-off) — never all duplicates, per the design.
+    const removeGatewayToolByIdentity = useCallback(
+        (identity: string) => {
+            let removed = false
+            setTools(
+                tools.filter((t) => {
+                    if (removed) return true
+                    const v = parseGatewayTool(t)
+                    if (v && gatewayToolIdentity(v) === identity) {
+                        removed = true
+                        return false
+                    }
+                    return true
+                }),
+            )
+        },
+        [tools, setTools],
+    )
+
     // Workflows not yet referenced as a tool — the pool the selector drawer offers.
     const referenceableWorkflows = useMemo(() => {
         const referenced = new Set(
@@ -147,6 +181,8 @@ export function useAgentTools({
         handleRemoveToolByName,
         handleRemoveBuiltinTool,
         selectedToolNames,
+        selectedGatewayIds,
+        removeGatewayToolByIdentity,
         referenceableWorkflows,
     }
 }

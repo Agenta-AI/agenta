@@ -10,7 +10,7 @@
  * header, `closeOnLayoutClick={false}` so an accidental backdrop click mid-connect never drops the
  * flow, and a footer whose count reflects the app tools added so far + a Done exit.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useState} from "react"
 
 import {
     buildToolSlug,
@@ -37,7 +37,7 @@ import {CatalogChooser} from "../../../drawers/shared/CatalogChooser"
 import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
 import {useReconnectToolConnection} from "../../../gatewayTool/hooks/useReconnectToolConnection"
 import type {ToolSelectionMeta} from "../ToolSelectorPopover"
-import {parseGatewayFunctionName, type ToolObj} from "../toolUtils"
+import {gatewayToolIdentity, type ToolObj} from "../toolUtils"
 
 type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
@@ -45,8 +45,8 @@ export interface AgentIntegrationDrawerProps {
     open: boolean
     onClose: () => void
     onAddTool: (tool: ToolObj, meta?: ToolSelectionMeta) => void
-    onRemoveTool?: (toolName: string) => void
-    selectedToolNames: Set<string>
+    onRemoveToolByIdentity?: (identity: string) => void
+    selectedGatewayIds: Set<string>
     /** Preselect this app on open (a provider group's "Add {app} tool" → its actions directly). */
     defaultIntegrationKey?: string
 }
@@ -129,14 +129,15 @@ function useToolActionList(integrationKey: string) {
 // run in the background.
 function ToolCatalogContent({
     onAddTool,
-    onRemoveTool,
-    selectedToolNames,
+    onRemoveToolByIdentity,
+    selectedGatewayIds,
     defaultIntegrationKey,
 }: Omit<AgentIntegrationDrawerProps, "open" | "onClose">) {
     const [pending, setPending] = useState<string | null>(null)
     const {connections} = useToolConnectionsQuery()
     const {reconnect, reconnectingId} = useReconnectToolConnection()
 
+    // The in-flight spinner is still keyed by slug; the added-state is keyed by identity.
     const slugFor = useCallback(
         (conn: ToolConnection, actionKey: string) =>
             buildToolSlug(
@@ -148,14 +149,28 @@ function ToolCatalogContent({
         [],
     )
 
+    // Encoding-independent identity — matches a canonical or legacy entry already in the config.
+    const idFor = useCallback(
+        (conn: ToolConnection, actionKey: string) =>
+            gatewayToolIdentity({
+                provider: conn.provider_key ?? "composio",
+                integration: conn.integration_key,
+                action: actionKey,
+                connection: conn.slug ?? "",
+                encoding: "legacy",
+            }),
+        [],
+    )
+
     // Add the chosen action as a function tool (toggles off if already added).
     const toggle = useCallback(
         async (conn: ToolConnection, action: ToolCatalogAction) => {
-            const slug = slugFor(conn, action.key)
-            if (selectedToolNames.has(slug)) {
-                onRemoveTool?.(slug)
+            const id = idFor(conn, action.key)
+            if (selectedGatewayIds.has(id)) {
+                onRemoveToolByIdentity?.(id)
                 return
             }
+            const slug = slugFor(conn, action.key)
             setPending(slug)
             // The model-facing input schema comes from the per-action detail endpoint, which
             // errors provider-side for some actions. That must NOT block the add: the tool
@@ -204,7 +219,7 @@ function ToolCatalogContent({
                 setPending(null)
             }
         },
-        [slugFor, selectedToolNames, onAddTool, onRemoveTool],
+        [slugFor, idFor, selectedGatewayIds, onAddTool, onRemoveToolByIdentity],
     )
 
     return (
@@ -248,9 +263,8 @@ function ToolCatalogContent({
                 emptyItemsText="No actions for this app"
                 onPickItem={(conn, action) => void toggle(conn, action)}
                 itemState={(conn, action) => {
-                    const slug = slugFor(conn, action.key)
-                    if (pending === slug) return "pending"
-                    return selectedToolNames.has(slug) ? "selected" : "add"
+                    if (pending === slugFor(conn, action.key)) return "pending"
+                    return selectedGatewayIds.has(idFor(conn, action.key)) ? "selected" : "add"
                 }}
                 renderConnect={(integration, handlers) => (
                     <ConnectDrawer
@@ -275,16 +289,12 @@ export function AgentIntegrationDrawer({
     open,
     onClose,
     onAddTool,
-    onRemoveTool,
-    selectedToolNames,
+    onRemoveToolByIdentity,
+    selectedGatewayIds,
     defaultIntegrationKey,
 }: AgentIntegrationDrawerProps) {
     // App tools already added — the footer count so the multi-add flow shows progress.
-    const addedCount = useMemo(() => {
-        let n = 0
-        for (const name of selectedToolNames) if (parseGatewayFunctionName(name)) n++
-        return n
-    }, [selectedToolNames])
+    const addedCount = selectedGatewayIds.size
 
     return (
         <EnhancedDrawer
@@ -320,8 +330,8 @@ export function AgentIntegrationDrawer({
         >
             <ToolCatalogContent
                 onAddTool={onAddTool}
-                onRemoveTool={onRemoveTool}
-                selectedToolNames={selectedToolNames}
+                onRemoveToolByIdentity={onRemoveToolByIdentity}
+                selectedGatewayIds={selectedGatewayIds}
                 defaultIntegrationKey={defaultIntegrationKey}
             />
         </EnhancedDrawer>

@@ -1,7 +1,44 @@
 # Status
 
-**State:** Design approved with Mahmoud's review round folded in. Both open questions are
-closed. Ready to implement on Mahmoud's go. Design only — no code changes yet.
+**State:** Implemented and live-QA'd on `:8280` (PR #5140, lane `docs/gateway-tool-rendering`).
+Design approved with Mahmoud's review round, a codex xhigh design review, and Mahmoud's
+mid-implementation 1-to-1 constraint round all folded in (2026-07-07) — see
+[context.md](context.md).
+
+## Implemented
+
+- **Shared helper** `parseGatewayTool` + `gatewayToolIdentity` in `toolUtils.ts`
+  (`parseGatewayFunctionName` now aliases the shared `parseGatewayToolSlug`).
+- **Phase 1 rendering:** `describeTool` + `ToolManagementList` grouping read through
+  `parseGatewayTool`; canonical tools render identically to legacy.
+- **Phase 2 drill-in:** `ToolFormView` body extracted to `FunctionToolForm` (legacy
+  untouched); `CanonicalGatewayToolForm` resolves the catalog (Option B) and feeds
+  `FunctionToolForm` the synthesized legacy shape — canonical drill-in is pixel-identical to
+  legacy. Fail-safe = warning + read-only JSON. `editView`/`jsonOnly` widened for canonical.
+- **Phase 3 add-path:** `selectedGatewayIds` + `removeGatewayToolByIdentity` (both derived
+  from the same `tools` memo); the drawer matches added-state by identity, counts canonical
+  tools, and toggles off exactly one match.
+- **Tests:** `tests/unit/gatewayTool.test.ts` — parser/identity, `describeTool`, `editView`
+  routing, add-path identity. Package `lint` / `types:check` / `test` (158) / `build` green.
+
+## Live QA (repro app `019f3d51-1f93-7452-8133-dff2f0d91385`, rev `019f3d56-…`)
+
+1. **List** — the three canonical Slack tools render under a **Slack** card in **Connected
+   apps** with humanized names ("Open dm", "Send message", "Retrieve message permalink URL").
+   PASS.
+2. **Drill-in** — canonical opens the same `ToolFormView` a legacy tool gets: catalog-resolved
+   PARAMETERS, slug Name, catalog Description, Permission = Allow. The JSON view shows the
+   **untouched canonical object** (read-path only, no shape mutation). PASS.
+3. **Fail-safe** — verified by code review (Opus) and logic; not live-crafted (the Lexical
+   JSON editor rejects synthetic edits and the package has no jsdom/testing-library render
+   harness). Low risk (a terminal `!isLoading && !action` → warning + read-only JSON).
+4. **Add-path** — the drawer preselected to Slack shows the canonical actions as selected,
+   footer "3 app tools added"; toggle-off removes exactly one (3→2); re-add restores (2→3,
+   as a legacy entry — cross-encoding identity match). PASS.
+5. **Dark theme** — list and canonical drill-in render correctly in dark. PASS.
+
+Legacy parity: a re-added legacy OPEN_DM rendered identically to the canonical entries in
+both the list and the drawer; legacy code paths are unchanged.
 
 **Date:** 2026-07-07
 **Session:** https://claude.ai/code/session_01EcGku1uKvh1Yo48ZU2xN5e

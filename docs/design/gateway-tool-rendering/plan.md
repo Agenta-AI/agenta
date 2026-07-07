@@ -15,37 +15,40 @@ normalized view. Less branching, same output.
 
 ## The shared helper (the keystone)
 
-Add to `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils.ts`,
-beside the existing `parseGatewayFunctionName` (which it reuses for the legacy branch).
+Add to `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolUtils.ts`. The
+legacy branch composes the **shared** string parser `parseGatewayToolSlug` from
+`@agenta/shared/utils` (the canonical one; `toolUtils.ts`'s own `parseGatewayFunctionName`
+is a duplicate of it — codex finding, folded).
 
 ```ts
-export interface GatewayToolView {
+export interface ParsedGatewayTool {
     provider: string
     integration: string
     action: string
     connection: string
     /** Which encoding it was read from — protocol context only; never displayed or
      *  persisted. */
-    shape: "canonical" | "legacy"
+    encoding: "canonical" | "legacy"
     /** Per-tool permission when present (top-level on both shapes). */
     permission?: string
 }
 
 /** Normalize either encoding of a connected-app tool into one view; null if it is not one. */
-export function parseGatewayTool(tool: unknown): GatewayToolView | null
+export function parseGatewayTool(tool: unknown): ParsedGatewayTool | null
 
 /** Stable identity for the drawer's added-state (double-add prevention + toggle-off),
- *  independent of encoding: `${provider}.${integration}.${action}.${connection}`. */
-export function gatewayToolIdentity(view: GatewayToolView): string
+ *  independent of encoding. The four segments joined by a NUL — a connection slug may
+ *  contain a dot, so a dotted key is not collision-safe (codex finding). */
+export function gatewayToolIdentity(view: ParsedGatewayTool): string
 ```
 
 `parseGatewayTool` logic:
 
 1. If `tool` is an object with `type === "gateway"` → read
    `provider` (default `"composio"`), `integration`, `action`, `connection`,
-   `permission`; `shape: "canonical"`.
-2. Else if `tool.function?.name` parses via `parseGatewayFunctionName` → return that with
-   `shape: "legacy"` and `permission` from the top-level `permission` key.
+   `permission`; `encoding: "canonical"`.
+2. Else if `tool.function?.name` parses via the shared `parseGatewayToolSlug` → return that
+   with `encoding: "legacy"` and `permission` from the top-level `permission` key.
 3. Else `null`.
 
 ### Interface-role check (design-interfaces lens)
@@ -57,13 +60,13 @@ export function gatewayToolIdentity(view: GatewayToolView): string
 - `permission` — **policy**, not identity. It is deliberately excluded from
   `gatewayToolIdentity` so two entries for the same action with different permissions
   still count as the same tool (you don't add it twice).
-- `shape` — **protocol/encoding context**, not domain data. It exists only so the read
+- `encoding` — **protocol/encoding context**, not domain data. It exists only so the read
   path knows how to match a drawer action back to an existing entry for the added-state.
   It must never leak into a persisted value or a display label.
 
-This mirrors the existing `GatewayToolParsed` (`toolUtils.ts:24`) — `parseGatewayTool` is
-its object-level superset, and `parseGatewayFunctionName` stays as the string-level
-primitive it composes.
+`parseGatewayTool` is the object-level parser; the shared `parseGatewayToolSlug`
+(`@agenta/shared/utils`) stays the string-level primitive it composes for the legacy
+branch.
 
 ## Question 1 — Rendering (row descriptor + grouping)
 
@@ -95,52 +98,68 @@ exactly like legacy. No change to `CollapsibleProviderGroup` / `GatewayGroups`.
 
 ## Question 2 — The drill-in
 
-**Decision (Mahmoud, 2026-07-07): reuse the existing view. No new component as a product
-surface.** We already have a view for opening a gateway tool in the drawer. A canonical
-entry must open that **same** existing view a legacy entry gets. We do not build a new
-`GatewayToolDetailView`, and we do not change how the current view looks.
+**Decision (Mahmoud, 2026-07-07): reuse the existing view; no new product surface.** A
+canonical entry must open the **same drill-in** a legacy entry gets. The agent-template
+drill-in is the shared `ConfigItemDrawer` whose Form slot is `ToolFormView` and whose JSON
+slot is `JsonObjectEditor` (**not** `ToolItemControl` — that is the prompt surface; codex
+correction). So the gateway-aware branch lands in **`ToolFormView`**, mirroring its
+existing `type:"reference"` → `ReferenceToolFormView` branch — an established extension
+point, not new chrome.
 
-Today canonical opens the **raw JSON editor** (`itemKinds.tsx:85` → `"json"`) because the
-gateway detection (`ToolItemControl.tsx:619`, `ToolFormView.tsx:33,153`) only recognizes
-the legacy slug. The fix widens that detection with `parseGatewayTool` so a resolvable
-canonical object routes to the **existing gateway drill-in** the legacy encoding already
-uses (the `ToolItemControl` / `ToolFormView` gateway header + `GatewayToolHeaderIdentity` +
-`gatewayTools.useIntegrationInfo`, `ToolItemControl.tsx:303,330`), not to JSON. Canonical is
-no longer `jsonOnly` when it resolves.
+**The layering fix (codex, folded).** Resolvability depends on an async catalog fetch, so it
+**cannot** be decided in `itemKinds.editView`, which is a synchronous
+`(item) => "form" | "json"`. `editView` therefore only says: **a syntactic gateway tool
+opens the Form** (`parseGatewayTool(item)` non-null → `"form"`; `jsonOnly` stays false so
+the JSON toggle remains the lossless escape hatch). The mounted gateway body owns the fetch,
+the loading state, and the fail-safe.
 
-**Where the description + schema come from: Option B (decided).** The canonical object
-persists no description and no input schema; the catalog is authoritative and the resolve
-path re-enriches both server-side at run time (`service.py:432`). So on drill-in we **fetch
-the catalog detail** with the existing `useToolActionDetail(integration, action)` hook
-(`useToolActionDetail.ts:29`) and populate the existing gateway view with the real
-description and a read-only input-schema preview. One cached request, only while the drawer
-is open. This is what makes a canonical tool look identical to a legacy one in the drill-in:
-the legacy tool carries these fields locally, the canonical tool fetches them; same view,
-same content. The bar Mahmoud set — tools show EXACTLY the same for UI-created and
-agent-created, in the outside list and in the drill-in — is met by this fetch.
+**`ToolFormView` gateway branch (pixel-identical, legacy untouched — Mahmoud's constraint
+round).** Legacy gateway tools are function tools; they must render byte-for-byte as they do
+today. So the existing `ToolFormView` body is extracted verbatim into an inner
+`FunctionToolForm` (a code-only move, zero render change), and only a **canonical**
+`type:"gateway"` object is routed to a wrapper:
+
+- `editView` routes a canonical gateway object to the Form (legacy already opens the Form).
+- The wrapper `CanonicalGatewayToolForm` runs `useToolActionDetail(integration, action)`
+  (`useToolActionDetail.ts:29`, cached, `staleTime` 5 min; composio-only today — see note);
+- **while pending** → a spinner (never a flash of raw JSON or an empty form);
+- **on resolve** → it builds the **exact legacy function shape the add drawer would have
+  written** — `{type:"function", function:{name: buildGatewayToolSlug(...), description:
+  catalog.description, parameters: normalize(catalog.schemas.inputs)}}` with `permission`
+  preserved — and renders `FunctionToolForm` with it. So a canonical tool's drill-in is the
+  same component, same fields, same layout as a legacy tool's. The synthesized shape is
+  **display-only**; the on-disk draft stays canonical and nothing is persisted unless the
+  user edits (read-path only).
+- **on terminal failure / action not confirmed** → the fail-safe (below).
+
+Legacy gateway tools do **not** go through the wrapper; their existing editable param tree
+is unchanged. This satisfies the invariant (canonical == legacy in the drill-in) without
+altering anything a user sees for legacy tools.
+
+**Where the description + schema come from: Option B (decided).** The catalog is
+authoritative; the fetch supplies the description and the parameters. One cached request,
+only while the drawer is open.
+
+**Note — provider.** `useToolActionDetail` fetches under `provider = "composio"`. Every real
+gateway tool is composio today. A non-composio canonical tool would resolve through the
+composio fetch and, if absent there, land on the fail-safe. `provider` stays in the parsed
+identity for correctness; threading it through the fetch is a documented follow-up.
 
 ### The fail-safe — the one allowed divergence (new design item)
 
 An agent writes tool configs programmatically. It can write a `type:"gateway"` object that
 names an integration / action / connection that does not resolve: a typo, a renamed action,
-a connection that no longer exists. When that happens the catalog fetch fails or the action
-cannot be confirmed to exist, and there is no real tool to populate the gateway view with.
+a connection that no longer exists. When the catalog fetch fails or the action cannot be
+confirmed, there is nothing to populate the detail view with.
 
-**Fail-safe behavior:** fall back to the raw JSON view (today's behavior for an unrecognized
-tool) **plus a warning that the tool could not be resolved.** This is the **only** place a
-canonical tool is allowed to look different from a legacy one, and only because the tool
-itself is broken. A resolvable canonical tool always gets the normal gateway view.
+**Fail-safe behavior:** `CanonicalGatewayToolForm` shows a **warning banner** ("Couldn't
+resolve this tool …") above a **read-only raw-JSON view** of the object (today's raw-JSON
+behavior), and the drawer's **JSON toggle** stays the editable escape hatch. This is the
+**only** place a gateway tool looks different, and only because the tool itself is broken.
+It is a terminal `!isLoading && !action` from the hook (loading shows a spinner first), so
+there is no flash of the wrong view while the fetch is in flight.
 
-Routing rule for `itemKinds.tsx` `editView`:
-
-1. `parseGatewayTool(item)` is null → not a gateway tool → today's behavior (unchanged).
-2. non-null AND the catalog detail resolves → the **existing gateway drill-in** (both
-   encodings; canonical populated via the Option-B fetch).
-3. non-null BUT the catalog fetch fails or the action cannot be confirmed → **raw JSON view
-   + "could not resolve this tool" warning** (the fail-safe).
-
-Case 3 gets its own plan slice and its own test (see Phasing and Testing). Cases 1–2 are
-pure read-path widening with no visual change.
+Slices and tests: Cases resolve / pending / fail each get a test (see Phasing and Testing).
 
 ## Question 3 — Add (the drawer's only identity responsibility)
 
@@ -152,16 +171,21 @@ identity is the **add path**: show a tool as already added so the user cannot ad
 So `gatewayToolIdentity` serves exactly three drawer behaviors, all on the add side:
 
 - **Added-state.** In the drawer, an action + connection that already exists in the config
-  (in either encoding) shows as selected. Build a dedicated `selectedGatewayIds: Set<string>`
-  in `useAgentTools.ts:130` from `parseGatewayTool(tool)` → `gatewayToolIdentity(view)` over
-  the current tools, and leave `selectedToolNames` for other uses. The drawer's
-  `slugFor`/`itemState` (`AgentIntegrationDrawer.tsx:140,155,250`) compare the chosen
-  action's identity against that set.
+  (in either encoding) shows as selected. Derive `selectedGatewayIds: Set<string>` in
+  `useAgentTools.ts:130` from the **same** `tools` memo `selectedToolNames` comes from
+  (`parseGatewayTool(tool)` → `gatewayToolIdentity(view)`), so the two sets never drift —
+  both are pure derivations of `tools`, neither is independent state (codex finding). The
+  drawer's `slugFor`/`itemState` (`AgentIntegrationDrawer.tsx:140,155,250`) compare the
+  chosen action's identity against that set.
 - **Double-add prevention.** Because the matched action reads as selected, the drawer blocks
   adding it again for the same action + connection.
-- **Toggle-off of the matched entry.** Toggling a selected action off removes the entry the
-  toggle refers to (the one the identity matched), via `gatewayToolIdentity`. It does not
-  sweep other entries.
+- **Toggle-off of the matched entry.** Toggling a selected action off removes **exactly one**
+  identity-matched entry via a new `removeGatewayToolByIdentity(identity)` in `useAgentTools`
+  (derived from the same snapshot). It removes one deterministic match, **never all**
+  duplicates (codex finding). If a duplicate remains the action stays selected — which is
+  correct: showing what exists beats silently sweeping. `handleRemoveToolByName` (which
+  filters *all* same-name entries and can't match canonical) is left for the row remove
+  button's existing legacy path.
 
 `addedCount` (`AgentIntegrationDrawer.tsx:283`) counts these identities so canonical tools
 are counted in the drawer's added total.
@@ -199,16 +223,30 @@ parser from one place. No new module.
 `ToolManagementList` switched to it. After this, canonical Slack tools render as "Connected
 app tool" rows under a Slack card, identical to legacy. Smallest shippable slice.
 
-**Phase 2 — Drill-in through the existing view.** Widen `itemKinds` routing so a resolvable
-canonical tool opens the **existing gateway drill-in** (not a new component, not raw JSON),
-populated by the Option-B `useToolActionDetail` fetch. Add the **fail-safe**: an unresolvable
-canonical tool falls back to raw JSON plus a "could not resolve this tool" warning. Canonical
-entries stop opening the raw JSON editor except in the fail-safe case.
+**Phase 2 — Drill-in through the existing view.** `editView` routes a canonical gateway
+object to the Form (legacy already does). The existing `ToolFormView` body becomes
+`FunctionToolForm` (verbatim, legacy untouched); `CanonicalGatewayToolForm` runs the Option-B
+`useToolActionDetail` fetch, synthesizes the legacy function shape, and renders
+`FunctionToolForm` with it — a spinner while pending, the **fail-safe** (warning + read-only
+JSON) on terminal failure. The async lives in the mounted body, never in the synchronous
+`editView`.
 
-**Phase 3 — Add-path identity.** Identity-based `selectedGatewayIds` so canonical entries
-show as already-added, block a double-add, and toggle off. No display or removal dedupe.
+**Phase 3 — Add-path identity.** `selectedGatewayIds` and `removeGatewayToolByIdentity`, both
+derived from the same `tools` snapshot, so canonical entries show as already-added, block a
+double-add, and toggle off exactly one identity match. No display or removal dedupe.
 
 **Convergence (Question 4) is deferred** — no write-path change in this work.
+
+## Out of scope / follow-ups (from the codex review)
+
+- **Prompt surface** (`ToolSelectorPopover`, `PromptSchemaControl`, `ToolItemControl`) still
+  keys gateway selection/removal and drill-in off the legacy slug; a canonical tool in a
+  completion/chat prompt would still misrender there. This PR is the agent Tools section
+  only.
+- **`commitDiff` identity** (`workflow/commitDiff/identity.ts` `agentItemIdentity`) keys
+  tools by `function.name`, so a canonical gateway tool gets positional identity in the
+  change-diff / commit-summary layer. Separate surface, pre-existing, deferred.
+- **`provider` threading** into `useToolActionDetail` (composio-only today).
 
 ## Testing
 
@@ -216,19 +254,23 @@ Unit tests belong in `web/packages/agenta-entity-ui/tests/unit/` (package conven
 
 - `parseGatewayTool`: canonical object, legacy function-name, dotted/`__` slug variants,
   non-gateway function tool, builtin, reference, junk → correct view or `null`; `provider`
-  defaults to `composio` when absent.
+  defaults to `composio` when absent; `encoding` is set correctly.
 - `gatewayToolIdentity`: legacy and canonical for the same action + connection produce the
   **same** identity (this is what makes the drawer's added-state match across encodings);
-  different connection/action differ; `permission` does not affect it.
+  different connection/action differ; `permission` and `encoding` do not affect it; a
+  connection slug containing a dot does not collide with a different split.
 - `describeTool`: canonical `type:"gateway"` → name = humanized action, tag = integration,
   subtitle "Connected app tool · …", **not** built-in.
 - `ToolManagementList` partition: a canonical entry lands in the provider group, not
-  `builtins`.
-- Drill-in routing: a **resolvable** canonical tool opens the **existing gateway view**
-  (populated by the Option-B fetch), not the raw JSON editor.
-- **Fail-safe:** an **unresolvable** canonical tool (bad integration/action/connection so
-  the catalog fetch fails or the action cannot be confirmed) falls back to the raw JSON view
-  **and** shows the "could not resolve this tool" warning.
+  `builtins`; and a canonical + a legacy entry for the same integration land in the **same**
+  provider group.
+- `editView`: a syntactic gateway tool (either encoding) → `"form"`, `jsonOnly` false.
+- Drill-in body (component test of `GatewayToolFormView`): pending → spinner (no raw-JSON
+  flash); resolved → identity + description + schema preview + permission; terminal failure
+  → warning banner (fail-safe), JSON toggle still present.
+- Add-path: `selectedGatewayIds` derived from a config holding a canonical tool marks the
+  matching drawer action selected; `removeGatewayToolByIdentity` removes exactly one match,
+  leaving a duplicate in place.
 - Live check on the `:8280` repro (app `019f3d51-1f93-7452-8133-dff2f0d91385`, revision
   `019f3d56-90f3-7870-b1c4-bd67f4313e18`): the three Slack tools render under a Slack card
   with humanized names.
