@@ -17,6 +17,15 @@ export interface RevisionDelta {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
 
+const hasOwn = (obj: Record<string, unknown>, key: string): boolean =>
+    Object.prototype.hasOwnProperty.call(obj, key)
+
+// Python dicts have no prototype chain, so keys like `__proto__` must land as plain own
+// keys — plain assignment would invoke the prototype setter instead of mirroring the backend.
+const setOwnKey = (obj: Record<string, unknown>, key: string, value: unknown): void => {
+    Object.defineProperty(obj, key, {value, enumerable: true, writable: true, configurable: true})
+}
+
 // Matches backend `_deep_merge`: only dict/dict pairs recurse — lists replace wholesale.
 const deepMerge = (
     base: Record<string, unknown>,
@@ -24,8 +33,12 @@ const deepMerge = (
 ): Record<string, unknown> => {
     const merged = {...base}
     for (const [key, value] of Object.entries(patch)) {
-        const current = merged[key]
-        merged[key] = isRecord(current) && isRecord(value) ? deepMerge(current, value) : value
+        const current = hasOwn(merged, key) ? merged[key] : undefined
+        setOwnKey(
+            merged,
+            key,
+            isRecord(current) && isRecord(value) ? deepMerge(current, value) : value,
+        )
     }
     return merged
 }
@@ -36,8 +49,8 @@ const removePath = (tree: Record<string, unknown>, path: string): Record<string,
     const keys = path.split(".")
     const rebuild = (node: Record<string, unknown>, depth: number): Record<string, unknown> => {
         const key = keys[depth]
+        if (!hasOwn(node, key)) return node
         if (depth === keys.length - 1) {
-            if (!(key in node)) return node
             const {[key]: _removed, ...rest} = node
             return rest
         }

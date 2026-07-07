@@ -240,9 +240,8 @@ function ScalarRows({changes}: {changes: ScalarChange[]}) {
     )
 }
 
-/** Detail-view card whose header sticks to the scroll area's top and collapses back to the
- * summary on click. Can't reuse CARD here: its overflow-hidden clips sticky positioning, so the
- * header/body are split into sibling blocks that recreate the card frame. */
+/** Detail-view card with a sticky header that collapses back to the summary on click.
+ * Split frame, not CARD: CARD's overflow-hidden clips sticky positioning. */
 function DetailCard({
     head,
     onCollapse,
@@ -257,10 +256,7 @@ function DetailCard({
     return (
         <div>
             {/* Solid underlay so scrolled rows don't ghost through the translucent fill. */}
-            <div
-                className="sticky top-0 z-[1] rounded-t-[10px]"
-                style={{background: "var(--ag-colorBgContainer)"}}
-            >
+            <div className="sticky top-0 z-[1] rounded-t-[10px] bg-[var(--ag-colorBgContainer)]">
                 <div
                     className={cn(
                         "flex cursor-pointer items-center rounded-t-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] transition-colors",
@@ -299,14 +295,14 @@ function SectionCard({
     small?: boolean
 }) {
     const toolItems = items ?? section.items
-    // Split frame (not CARD): the header must stick while the open body scrolls, and CARD's
-    // overflow-hidden would clip sticky positioning. Each header sticks only within its own
-    // card wrapper, so the next card pushes it away naturally.
+    // Split frame per DetailCard; each header sticks only within its own card wrapper.
     return (
         <div className={cn(small ? "mb-1.5" : "mb-2.5")}>
             <div
-                className={cn("sticky top-0 z-[1]", open ? "rounded-t-[10px]" : "rounded-[10px]")}
-                style={{background: "var(--ag-colorBgContainer)"}}
+                className={cn(
+                    "sticky top-0 z-[1] bg-[var(--ag-colorBgContainer)]",
+                    open ? "rounded-t-[10px]" : "rounded-[10px]",
+                )}
             >
                 <div
                     className={cn(
@@ -458,10 +454,8 @@ export default function AgentChangesSummary({
                 ) : null}
             </div>
 
-            {/* body — the only scroll area. Compact hosts have no fixed frame, so the cap must be
-                a plain max-h block (flex-1/min-h-0 only resolve against the modal's h-full). The
-                compact radius matches the cards', so rows scrolling under a pinned sticky header
-                clip at the same curve instead of peeking through its rounded corners. */}
+            {/* body — the only scroll area. Compact hosts have no fixed frame, so the cap is a
+                plain max-h, rounded like the cards so pinned-header scrolls clip at the same curve. */}
             <div
                 className={cn(
                     "overflow-auto",

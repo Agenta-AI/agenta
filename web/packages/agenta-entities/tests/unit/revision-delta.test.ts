@@ -67,6 +67,18 @@ describe("applyRevisionDelta — backend merge semantics", () => {
         )
         expect(JSON.stringify(currentParams)).toBe(before)
     })
+
+    it("treats __proto__ as a literal own key, like the backend's dict assignment", () => {
+        // JSON.parse yields an own `__proto__` key; plain `obj[key] =` would hit the setter.
+        const delta = JSON.parse(
+            '{"set": {"parameters": {"__proto__": {"polluted": true}}}, "remove": ["parameters.__proto__.nope"]}',
+        ) as {set: Record<string, unknown>; remove: string[]}
+        const data = applyRevisionDelta({parameters: {}}, delta)
+        const params = data.parameters as Record<string, unknown>
+        expect(Object.getPrototypeOf(params)).toBe(Object.prototype)
+        expect(Object.prototype.hasOwnProperty.call(params, "__proto__")).toBe(true)
+        expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    })
 })
 
 describe("classifyRevisionDeltaChanges — sections for a partial delta", () => {
