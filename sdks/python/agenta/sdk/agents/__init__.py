@@ -64,6 +64,7 @@ from .dtos import (
     HarnessCapabilities,
     HarnessIdentity,
     HarnessType,
+    InvalidPermissionDefaultError,
     Message,
     NetworkEgress,
     PermissionMode,
@@ -261,6 +262,7 @@ __all__ = [
     "AgentRunnerConfigurationError",
     "UnsupportedHarnessError",
     "ToolResolutionError",
+    "InvalidPermissionDefaultError",
     # Adapters
     "SandboxAgentBackend",
     "LocalBackend",

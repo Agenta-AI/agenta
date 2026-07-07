@@ -109,6 +109,16 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
 PERMISSION_MODES = frozenset({"allow", "ask", "deny", "allow_reads"})
 
 
+class InvalidPermissionDefaultError(ValueError):
+    """Raised when ``runner.permissions.default`` is not a recognized permission mode."""
+
+    def __init__(self, value: str) -> None:
+        super().__init__(
+            f"invalid runner.permissions.default {value!r}; expected one of "
+            f"{sorted(PERMISSION_MODES)}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Sandbox permission (Layer 2: the sandbox security boundary)
 # ---------------------------------------------------------------------------
@@ -375,7 +385,7 @@ class TraceContext(BaseModel):
     traceparent: Optional[str] = None
     baggage: Optional[str] = None
     endpoint: Optional[str] = None  # OTLP traces URL
-    authorization: Optional[str] = None  # full Authorization header value
+    authorization: Optional[str] = Field(default=None, repr=False)
     capture_content: bool = True
 
     def context_to_wire(self) -> Dict[str, Any]:
@@ -947,7 +957,7 @@ class SessionConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     agent: AgentTemplate
-    secrets: Dict[str, str] = Field(default_factory=dict)
+    secrets: Dict[str, str] = Field(default_factory=dict, repr=False)
     # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
     # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
     # transition: Slice 1 still ships the credential through ``secrets`` on the wire.
@@ -1124,9 +1134,9 @@ def _parse_run_selection(
         permission_default = defaults.permission_default
     else:
         normalized = str(raw_default).lower()
-        permission_default = (
-            normalized if normalized in PERMISSION_MODES else "allow_reads"
-        )
+        if normalized not in PERMISSION_MODES:
+            raise InvalidPermissionDefaultError(normalized)
+        permission_default = normalized
     return harness, sandbox, permission_default
 
 

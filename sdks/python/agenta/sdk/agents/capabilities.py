@@ -71,6 +71,21 @@ CLAUDE_MODEL_ALIASES: List[str] = [
 # ``agenta`` with no slug.)
 _ALL_MODES = ["agenta", "self_managed"]
 
+# Canonical provider -> env-var map (the harness's own env, e.g. Pi/Claude/litellm). The single
+# source of truth; ``platform/secrets.py`` and ``connections/resolver.py`` import this instead of
+# hand-copying it, so the three can no longer drift.
+PROVIDER_ENV_VARS: Dict[str, str] = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
+    "mistralai": "MISTRAL_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "together_ai": "TOGETHERAI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+}
+
 
 def _pi_models() -> Dict[str, List[str]]:
     """The per-provider model ids Pi reaches: the catalog entry for each vault provider.
@@ -170,37 +185,36 @@ def harness_catalog_document() -> Dict[str, Dict[str, object]]:
 def harness_allows_provider(harness: str, provider: str) -> bool:
     """Whether ``harness`` can reach ``provider``.
 
-    A harness with no entry is treated permissively (returns ``True``) so an unknown or
-    newly-added harness is not broken by a stale table. The match is case-insensitive on the
-    provider family.
+    A harness with no entry is unknown, so it gets no capability (closed, not permissive). The
+    match is case-insensitive on the provider family.
     """
     entry = HARNESS_CONNECTION_CAPABILITIES.get(harness)
     if entry is None:
-        return True
+        return False
     return provider.lower() in {p.lower() for p in entry.providers}
 
 
 def harness_allows_mode(harness: str, mode: str) -> bool:
     """Whether ``harness`` supports the connection ``mode``.
 
-    A harness with no entry is treated permissively (returns ``True``), matching
+    A harness with no entry is unknown, so it gets no capability, matching
     :func:`harness_allows_provider`.
     """
     entry = HARNESS_CONNECTION_CAPABILITIES.get(harness)
     if entry is None:
-        return True
+        return False
     return mode in entry.connection_modes
 
 
 def harness_allows_deployment(harness: str, deployment: str) -> bool:
     """Whether ``harness`` can CONSUME the resolved ``deployment`` in v1.
 
-    A harness with no entry is treated permissively. ``direct`` is always allowed. The cloud
-    surfaces are allowed only when the harness lists them as consumable. ``pi_core``/``pi_agenta``
-    list only ``direct``; Claude also lists ``custom``/``bedrock``/``vertex_ai``.
+    A harness with no entry is unknown, so it gets no capability (closed). The cloud surfaces
+    are allowed only when the harness lists them as consumable. ``pi_core``/``pi_agenta`` list
+    only ``direct``; Claude also lists ``custom``/``bedrock``/``vertex_ai``.
     """
     entry = HARNESS_CONNECTION_CAPABILITIES.get(harness)
     if entry is None:
-        return True
+        return False
     normalized = "vertex_ai" if deployment == "vertex" else deployment
     return normalized in entry.deployments
