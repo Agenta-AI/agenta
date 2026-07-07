@@ -23,6 +23,7 @@ import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
+import {applyAgentCreationPrefs, agentCreationPrefsAtom} from "./agentCreationPrefs"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
 
@@ -177,9 +178,23 @@ export async function createEphemeralAppFromTemplate({
     const rawParameters: Record<string, unknown> = {
         ...((template.data?.parameters as Record<string, unknown> | undefined) ?? {}),
     }
-    const parameters =
+    let parameters =
         (syncPromptInputKeysInParameters(rawParameters) as Record<string, unknown> | undefined) ??
         rawParameters
+
+    // New agents default to the user's last-used harness/model/connection instead of only the
+    // template default. Both agent-create paths (home composer + onboarding) mint through this one
+    // factory, so overlaying here covers both without duplicating the logic at each call site.
+    if (type === "agent") {
+        const agentPrefs = store.get(agentCreationPrefsAtom)
+        const agentConfig =
+            parameters.agent &&
+            typeof parameters.agent === "object" &&
+            !Array.isArray(parameters.agent)
+                ? (parameters.agent as Record<string, unknown>)
+                : {}
+        parameters = {...parameters, agent: applyAgentCreationPrefs(agentConfig, agentPrefs)}
+    }
 
     // Build the seedable workflow for a given schema set. Flags are synchronous (no network), so
     // seeding early lets the workflow type resolve (`workflowType`) before inspect returns.

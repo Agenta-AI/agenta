@@ -464,13 +464,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
 
-    // Model connection: does the vault hold a key for this agent's model provider? Drives the
-    // connect-a-model banner AND disables the composer until connected. Only gate when the provider
-    // is KNOWN but keyless — an unresolved provider must never dead-end the composer with no banner.
+    // Model connection: is the project vault empty (no key of any kind), the agent not self-managed,
+    // and the user never set up a key before? Drives the connect-a-model banner AND disables the
+    // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
-    // `!modelKey.loading`: never block until the vault query resolves — otherwise a reload flashes a
-    // false "connect a model" gate (the static provider catalog reads keyless until the query lands).
-    const modelBlocked = !!modelKey.providerEntry && !modelKey.hasKey && !modelKey.loading
+    const modelBlocked = modelKey.gateActive
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the

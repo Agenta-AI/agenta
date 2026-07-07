@@ -11,3 +11,4 @@ export {
     COMMIT_MESSAGE_MAX_LENGTH,
     type CommitMessageInputProps,
 } from "./CommitMessageInput"
+export {LabelInput, type LabelInputProps} from "./LabelInput"

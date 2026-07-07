@@ -24,7 +24,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {workflowBuildKitEnabledAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    agentCreationPrefsAtom,
+    workflowBuildKitEnabledAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {
     agentItemIdentity,
     classifyAgentChanges,
@@ -64,7 +68,7 @@ import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
 import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
-import {modelIdFromConfig} from "./connectionUtils"
+import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
@@ -175,8 +179,22 @@ export function AgentTemplateControl({
     // internal auto-correction effect must not leak into `draftConfig`). The live `mh` handles any
     // real auto-correction against the entity.
     const noopConfigChange = useCallback(() => {}, [])
+    // Single source of truth for "the currently open section has unsaved edits" — shared by the
+    // open-a-new-section guard below and the Save-button gate (`sectionDirty`) so they can't drift.
+    const isCurrentSectionDirty = useCallback(
+        () =>
+            openSection !== null &&
+            sectionBaseline.current !== null &&
+            (!deepEqual(draftConfig, sectionBaseline.current.config) ||
+                draftBuildKit !== sectionBaseline.current.buildKit),
+        [openSection, draftConfig, draftBuildKit],
+    )
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
+            // Same section already open: never re-snapshot over a live draft.
+            if (openSection === key) return
+            // Another section is open with unsaved edits: drop the request rather than clobber it.
+            if (isCurrentSectionDirty()) return
             const snapshotConfig = (value ?? {}) as Record<string, unknown>
             const snapshotBuildKit = store.get(
                 workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
@@ -186,7 +204,7 @@ export function AgentTemplateControl({
             sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
             setOpenSection(key)
         },
-        [value, store],
+        [value, store, openSection, isCurrentSectionDirty],
     )
     const closeSectionDraft = useCallback(() => {
         setOpenSection(null)
@@ -199,24 +217,42 @@ export function AgentTemplateControl({
     const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
     useEffect(() => {
         if (!openSectionRequest) return
+        // Always clears the request, even when openSectionDrawer no-ops on a dirty open section —
+        // the request is intentionally dropped rather than queued.
         openSectionDrawer(openSectionRequest)
         setOpenSectionRequest(null)
     }, [openSectionRequest, openSectionDrawer, setOpenSectionRequest])
     // Cancel: nothing was written live, so just drop the draft.
     const cancelSection = closeSectionDraft
     const saveSection = useCallback(() => {
-        if (draftConfig !== null) onChange(draftConfig)
+        if (draftConfig !== null) {
+            onChange(draftConfig)
+            // Remember the harness/model/connection pick for future agent creations — only on an
+            // explicit Model & harness save, not on every keystroke or the Advanced section.
+            if (openSection === "model-harness") {
+                const harness = draftConfig.harness
+                const harnessKind =
+                    harness && typeof harness === "object" && !Array.isArray(harness)
+                        ? (harness as Record<string, unknown>).kind
+                        : undefined
+                const modelId = modelIdFromConfig(draftConfig.llm)
+                const connection = connectionFromConfig(draftConfig.llm)
+                store.set(agentCreationPrefsAtom, (prev) => ({
+                    version: 1,
+                    harness: typeof harnessKind === "string" ? harnessKind : prev.harness,
+                    model: modelId ?? prev.model,
+                    provider: connection.provider ?? prev.provider,
+                    connectionMode: connection.mode ?? prev.connectionMode,
+                }))
+            }
+        }
         if (draftBuildKit !== null) {
             store.set(workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""), draftBuildKit)
         }
         closeSectionDraft()
-    }, [draftConfig, draftBuildKit, onChange, store, closeSectionDraft])
+    }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
-    const sectionDirty =
-        openSection !== null &&
-        sectionBaseline.current !== null &&
-        (!deepEqual(draftConfig, sectionBaseline.current.config) ||
-            draftBuildKit !== sectionBaseline.current.buildKit)
+    const sectionDirty = isCurrentSectionDirty()
 
     // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
     const layout = useAtomValue(agentTemplateLayoutAtom)
@@ -846,6 +882,7 @@ export function AgentTemplateControl({
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
+                dirty={sectionDirty}
                 width={mhDraft.modelHarnessDrawerWidth}
             >
                 {mhDraft.modelHarnessDrawerBody}
@@ -858,6 +895,7 @@ export function AgentTemplateControl({
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
+                dirty={sectionDirty}
                 width={880}
             >
                 {mhDraft.advancedDrawerBody}

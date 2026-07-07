@@ -2,7 +2,7 @@
  * useModelHarness — the Model & harness + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     customSecretsAtom,
@@ -11,11 +11,12 @@ import {
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {ConfigAccordionSection, LabeledField} from "@agenta/ui/components/presentational"
+import {normalizeProviderFamily} from "@agenta/shared/utils"
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Check, Cube, Key, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
+import {Check, Cube, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
 import {Select, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -27,14 +28,12 @@ import {
     buildModelOptionGroups,
     composeModelValue,
     connectionFromConfig,
-    familyFromModelId,
     harnessAllowsModel,
     modelIdFromConfig,
-    namedConnectionOptions,
     providerForModel,
     vaultModelGroups,
+    vaultPickedProviderFamily,
     type ConnectionMode,
-    type VaultConnectionEntry,
 } from "../connectionUtils"
 import {EnumSelectControl} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
@@ -43,7 +42,7 @@ import {PiSettingsControl} from "../PiSettingsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
-import ProviderKeyField from "./ProviderKeyField"
+import ProviderCredentialsSection from "./ProviderCredentialsSection"
 import {useBuildKit} from "./useBuildKit"
 
 type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
@@ -164,14 +163,10 @@ export function useModelHarness({
     )
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
 
-    // The project's stored connections (read-only) for the connection picker. The transformed vault
-    // list surfaces custom-provider connections as {type, name, provider}; the resolver matches a
-    // named connection by that name (the slug).
+    // The vault query backs `vaultLoaded` below (gates the "needs a key" flag) and the custom_provider
+    // model groups (`vaultModelGroups`); connections themselves are always the project default now,
+    // so there is no named-connection list here.
     const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
-    const vaultSecrets = useMemo(
-        () => (Array.isArray(vaultQuery.data) ? (vaultQuery.data as VaultConnectionEntry[]) : []),
-        [vaultQuery.data],
-    )
 
     const modeOptions = useMemo(
         () => allowedConnectionModes(capabilities, harnessValue),
@@ -184,38 +179,42 @@ export function useModelHarness({
     // Inline credential prompt: resolve the selected model's provider family and check whether the
     // vault already holds its (standard) key. When it doesn't, the drawer surfaces a key field so the
     // user can connect it here. `providerForModel` is the same catalog lookup the model picker uses.
+    // Also fed to the Provider credentials section, which auto-highlights this family in its rail.
     const standardSecrets = useAtomValue(standardSecretsAtom)
+    const selectedProviderFamily = useMemo(
+        () => providerForModel(capabilities, harnessValue, modelId) ?? connection.provider ?? null,
+        [capabilities, harnessValue, modelId, connection.provider],
+    )
     const providerVaultEntry = useMemo(() => {
-        const family = (
-            providerForModel(capabilities, harnessValue, modelId) ??
-            connection.provider ??
-            ""
-        ).toLowerCase()
+        const family = normalizeProviderFamily(selectedProviderFamily)
         if (!family) return null
         return (
             standardSecrets.find(
                 (secret) =>
-                    (secret.name ?? "").toLowerCase().replace(/_api_key$/, "") === family ||
-                    (secret.title ?? "").toLowerCase() === family,
+                    normalizeProviderFamily((secret.name ?? "").replace(/_api_key$/i, "")) ===
+                        family || normalizeProviderFamily(secret.title) === family,
             ) ?? null
         )
-    }, [standardSecrets, capabilities, harnessValue, modelId, connection.provider])
+    }, [standardSecrets, selectedProviderFamily])
     // Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
     // `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
     // flash a false "Connect key" warning on the section, rail item, and config-panel row.
     const vaultLoaded = Array.isArray(vaultQuery.data)
-    const providerNeedsKey = vaultLoaded && !!providerVaultEntry && !providerVaultEntry.key
+    // Self-managed agents never need a vault key — the harness signs itself in. Neither does a
+    // named custom-provider connection (agenta mode with a slug): it carries its own credentials,
+    // so a missing STANDARD vault key for the family is not this connection's problem.
+    const providerNeedsKey =
+        connection.mode !== "self_managed" &&
+        !(connection.mode === "agenta" && !!connection.slug) &&
+        vaultLoaded &&
+        !!providerVaultEntry &&
+        !providerVaultEntry.key
 
-    // Model section sub-tabs (rail): pick the model vs connect its provider key. Lands on "key" when a
-    // key is missing so the "Set up credentials" banner opens straight onto it; only re-forces on the
-    // needs-key → true transition, so manual navigation to "Model" is respected.
-    const [modelTab, setModelTab] = useState<"model" | "key">(providerNeedsKey ? "key" : "model")
-    useEffect(() => {
-        if (providerNeedsKey) setModelTab("key")
-    }, [providerNeedsKey])
-
-    // The "Add provider" footer + drawer come from context, same source as the completion picker.
-    const {llmProviderConfig} = useDrillInUI()
+    // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
+    // `deployment.isCloud` gates the Provider credentials section's "Use subscription" toggle
+    // (design.md D6) — absent (older OSS providers) reads as not-cloud, i.e. ungated.
+    const {llmProviderConfig, deployment} = useDrillInUI()
+    const isCloud = deployment?.isCloud ?? false
 
     // Harness-filtered model options: the inspect catalog PLUS the vault custom_provider models,
     // so a configured Bedrock model is selectable. Empty when the harness publishes none AND the
@@ -237,33 +236,43 @@ export function useModelHarness({
             provider?: string | null
             mode?: ConnectionMode
             slug?: string | null
+            /** A vault-hosted option's own connection kind (`metadata.provider` from
+             * `vaultModelGroups`) — a fallback family source, see `vaultPickedProviderFamily`. */
+            metadataProvider?: string | null
         }) => {
             const nextModelId = patch.modelId !== undefined ? patch.modelId : modelId
-            // A vault-model pick reunites the model with its connection slug.
-            const vaultMatch =
-                patch.modelId !== undefined
-                    ? customSecrets.find((s) => (s.models ?? []).includes(nextModelId ?? ""))
-                    : undefined
-            // Provider is always the model FAMILY — a vault match's `provider` is its DEPLOYMENT
-            // kind (bedrock/…), which would fail the harness provider check.
+            // Explicit slug wins — the picker threads a vault option's own connection slug through
+            // (see the `SelectLLMProviderBase` onChange below), so we never guess the connection by
+            // model id (duplicate ids can exist across providers/connections). A model switch with
+            // no explicit slug CLEARS the old one rather than keeping it: the backend fails loud on
+            // a provider/slug mismatch when the new model is a standard catalog provider.
+            const nextSlug =
+                patch.slug !== undefined
+                    ? patch.slug
+                    : patch.modelId !== undefined
+                      ? null
+                      : connection.slug
+            // Provider is always the model FAMILY — a vault connection's own `provider` is its
+            // DEPLOYMENT kind (bedrock/…), which would fail the harness provider check. For a vault
+            // pick, `vaultPickedProviderFamily` prefers the id-encoded family and only falls back to
+            // the connection's own kind when that kind is ALREADY a plain family (not a deployment
+            // kind); either way, never drop to null while a prior provider exists (guarantees a
+            // model pick never silently clears `llm.provider`).
             let nextProvider: string | null
             if (patch.provider !== undefined) {
                 nextProvider = patch.provider
             } else if (patch.modelId !== undefined) {
-                nextProvider = vaultMatch
-                    ? familyFromModelId(nextModelId, capabilities)
+                nextProvider = patch.slug
+                    ? (vaultPickedProviderFamily(
+                          nextModelId,
+                          patch.metadataProvider,
+                          capabilities,
+                      ) ?? connection.provider)
                     : (providerForModel(capabilities, harnessValue, nextModelId) ??
                       connection.provider)
             } else {
                 nextProvider = connection.provider
             }
-            // Explicit slug wins; a vault pick auto-fills; a non-vault pick keeps the current one.
-            const nextSlug =
-                patch.slug !== undefined
-                    ? patch.slug
-                    : vaultMatch?.name
-                      ? (vaultMatch.name as string)
-                      : connection.slug
             setAgentField(
                 "llm",
                 composeModelValue({
@@ -275,26 +284,45 @@ export function useModelHarness({
                 }),
             )
         },
-        [setAgentField, modelId, connection, llm, capabilities, harnessValue, customSecrets],
+        [setAgentField, modelId, connection, llm, capabilities, harnessValue],
     )
+
+    // Adopt a custom provider created FROM this pane: after the user opens the Configure-provider
+    // drawer via an "Add custom provider" rail row, the first NEW vault connection that appears becomes the
+    // selection — its first model + its connection slug — so the pane reflects what was just added.
+    // Armed per click so a provider created elsewhere (e.g. Settings → Secrets) never steals the model.
+    const knownCustomSecretKeysRef = useRef<Set<string> | null>(null)
+    const adoptNextCustomProviderRef = useRef(false)
+    useEffect(() => {
+        const keys = new Set(customSecrets.map((secret) => secret.id ?? secret.name ?? ""))
+        const known = knownCustomSecretKeysRef.current
+        knownCustomSecretKeysRef.current = keys
+        if (!known || !adoptNextCustomProviderRef.current) return
+        const added = customSecrets.find((secret) => !known.has(secret.id ?? secret.name ?? ""))
+        if (!added) return
+        adoptNextCustomProviderRef.current = false
+        const firstModel = (added.models ?? []).find(Boolean)
+        if (firstModel && added.name) writeModel({modelId: firstModel, slug: added.name})
+    }, [customSecrets, writeModel])
+    const openConfigureProviderAdopting = useMemo(() => {
+        const open = llmProviderConfig?.openConfigureProvider
+        if (!open) return undefined
+        return (kind: string) => {
+            adoptNextCustomProviderRef.current = true
+            open(kind)
+        }
+    }, [llmProviderConfig?.openConfigureProvider])
 
     // Model is deliberately NOT cleared on a harness switch that can't reach it: the compatibility
     // panel flags it instead, so the user's choice survives (Arda's call; may error at run time).
 
     // Reset a connection mode the new harness disallows; guarded on a non-empty option set so a
-    // harness publishing no modes stays permissive. Slug is NOT normalized here (connectionOptions
-    // is vault-async; an empty set mid-load would wrongly clear a valid slug).
+    // harness publishing no modes stays permissive.
     useEffect(() => {
         if (modeOptions.length > 0 && !modeOptions.includes(connection.mode)) {
             writeModel({mode: modeOptions[0], slug: null})
         }
     }, [connection.mode, modeOptions, writeModel])
-
-    // Named connections selectable for the chosen provider under this harness (Agenta-managed).
-    const connectionOptions = useMemo(
-        () => namedConnectionOptions(vaultSecrets, capabilities, harnessValue, connection.provider),
-        [vaultSecrets, capabilities, harnessValue, connection.provider],
-    )
 
     // Claude permissions (Layer 1, Claude-only): the Claude harness's own permission knobs, the
     // first-class `harness.permissions` slice. Shown in Advanced only for the Claude harness.
@@ -353,7 +381,6 @@ export function useModelHarness({
     })
 
     const hasAdvanced = Boolean(
-        props.llm || // Authentication lives in Advanced now
         sandboxProps.kind ||
         sandboxProps.permissions ||
         runnerProps.permissions ||
@@ -373,7 +400,25 @@ export function useModelHarness({
                 showGroup
                 options={modelGroups}
                 value={modelId ?? undefined}
-                onChange={(v) => writeModel({modelId: (v as string) ?? null})}
+                onChange={(v, option) => {
+                    // A vault-hosted model option carries its own connection slug + kind in
+                    // `metadata` (set by `vaultModelGroups`); a catalog option carries neither.
+                    // Read them straight off the picked option instead of re-guessing the
+                    // connection by model id — duplicate ids across providers/connections would
+                    // resolve to the wrong one. The kind is a fallback provider source only (see
+                    // `vaultPickedProviderFamily`) for ids that encode no family themselves.
+                    const picked = Array.isArray(option) ? option[0] : option
+                    const metadata = (
+                        picked as
+                            | {metadata?: {connectionSlug?: string; provider?: string}}
+                            | undefined
+                    )?.metadata
+                    writeModel({
+                        modelId: (v as string) ?? null,
+                        slug: metadata?.connectionSlug ?? null,
+                        metadataProvider: metadata?.provider ?? null,
+                    })
+                }}
                 disabled={disabled}
                 placeholder="Select a model…"
                 className="w-full"
@@ -524,6 +569,23 @@ export function useModelHarness({
         </SectionRail>
     )
 
+    // Provider credentials section: identical in both the capability-aware and flat layouts below,
+    // rendered once and reused so the two branches don't carry a duplicate prop list.
+    const providerCredentialsSection = props.llm ? (
+        <ProviderCredentialsSection
+            mode={connection.mode}
+            onModeChange={(m) => writeModel({mode: m})}
+            selectedProviderFamily={selectedProviderFamily}
+            selectedConnectionSlug={connection.slug ?? null}
+            modeOptions={modeOptions}
+            isCloud={isCloud}
+            selfHostingGuideUrl={deployment?.selfHostingGuideUrl}
+            providerNeedsKey={providerNeedsKey}
+            openConfigureProvider={openConfigureProviderAdopting}
+            disabled={disabled}
+        />
+    ) : null
+
     // Model & harness drawer body. With inspect capabilities: harness cards + model picker on the
     // left (each card owns its model-compat state), version history on the right — same two-panel
     // shape as the Advanced drawer. Without capabilities: the plain harness select, single column.
@@ -554,57 +616,23 @@ export function useModelHarness({
             <ConfigAccordionSection
                 size="compact"
                 icon={<Sparkle size={15} />}
-                title="Model & credentials"
-                status={
-                    !modelId || !selectedKeepsModel || providerNeedsKey ? "warning" : "complete"
-                }
+                title="Model"
+                status={!modelId || !selectedKeepsModel ? "warning" : "complete"}
                 summary={modelId ?? undefined}
                 summaryCollapsedOnly
             >
-                <SectionRail
-                    disabled={disabled}
-                    items={[
-                        {
-                            value: "model",
-                            label: "Model",
-                            status:
-                                !modelId || !selectedKeepsModel ? ("warning" as const) : undefined,
-                        },
-                        {
-                            value: "key",
-                            label: "Provider key",
-                            status: providerNeedsKey ? ("warning" as const) : undefined,
-                        },
-                    ]}
-                    value={modelTab}
-                    onChange={(v) => setModelTab(v as "model" | "key")}
-                >
-                    {modelTab === "model" ? (
-                        <div className="flex flex-col gap-2 py-0.5">
-                            {modelControl}
-                            {hasInspectModels ? (
-                                <Typography.Text
-                                    type="secondary"
-                                    className="!text-[11px] !leading-snug"
-                                >
-                                    Filtered to the models this harness can reach. Selecting a model
-                                    also sets its provider.
-                                </Typography.Text>
-                            ) : null}
-                        </div>
-                    ) : providerVaultEntry ? (
-                        <ProviderKeyField provider={providerVaultEntry} />
-                    ) : (
-                        <Typography.Text
-                            type="secondary"
-                            className="!text-[11px] !leading-snug py-0.5"
-                        >
-                            This model's provider is set up from the model list — use “+ Add
-                            provider” there to connect its credentials.
+                <div className="flex flex-col gap-2 py-0.5">
+                    {modelControl}
+                    {hasInspectModels ? (
+                        <Typography.Text type="secondary" className="!text-[11px] !leading-snug">
+                            Filtered to the models this harness can reach. Selecting a model also
+                            sets its provider.
                         </Typography.Text>
-                    )}
-                </SectionRail>
+                    ) : null}
+                </div>
             </ConfigAccordionSection>
+
+            {providerCredentialsSection}
         </>
     ) : (
         <>
@@ -620,9 +648,7 @@ export function useModelHarness({
                 </RailField>
             )}
             {modelPicker}
-            {providerNeedsKey && providerVaultEntry ? (
-                <ProviderKeyField provider={providerVaultEntry} />
-            ) : null}
+            {providerCredentialsSection}
         </>
     )
 
@@ -641,68 +667,8 @@ export function useModelHarness({
     // two-panel split or side panel (which read as out-of-place chrome inside a tab).
     const modelHarnessInline = <div className="flex flex-col gap-4">{modelHarnessControls}</div>
 
-    // Authentication (credential source) — moved out of Model & harness into Advanced. The
-    // credential-source axis reads as the drawer's shared `[rail | content]`: mode toggle on the
-    // left, the active mode's description + (Agenta-managed) connection picker on the right.
-    const authDescription =
-        connection.mode === "agenta"
-            ? "Agenta supplies the credential from this project's vault — the default provider key, or a named connection you pick below."
-            : "The harness signs in itself (an environment variable or a prior OAuth login). Agenta injects no credential."
-    const authConnectionField =
-        connection.mode === "agenta" ? (
-            <LabeledField
-                label="Connection"
-                description="Which stored connection supplies the credential. Project default uses the project's provider key."
-                withTooltip={withTooltip}
-            >
-                <Select<string>
-                    value={connection.slug ?? "__default__"}
-                    onChange={(v) => writeModel({slug: v === "__default__" ? null : (v ?? null)})}
-                    options={[
-                        {value: "__default__", label: "Project default"},
-                        ...connectionOptions.map((o) => ({value: o.value, label: o.label})),
-                    ]}
-                    disabled={disabled}
-                    className="w-full"
-                    showSearch
-                    optionFilterProp="label"
-                />
-            </LabeledField>
-        ) : null
-    const authControls = props.llm ? (
-        modeOptions.length > 0 ? (
-            <SectionRail
-                disabled={disabled}
-                items={modeOptions.map((m) => ({
-                    value: m,
-                    label: m === "agenta" ? "Agenta-managed" : "Self-managed",
-                }))}
-                value={connection.mode}
-                onChange={(m) => writeModel({mode: m as ConnectionMode})}
-            >
-                <Typography.Text type="secondary" className="text-[11px] leading-snug">
-                    {authDescription}
-                </Typography.Text>
-                {authConnectionField}
-            </SectionRail>
-        ) : (
-            <div className="flex flex-col gap-2">
-                <Typography.Text type="secondary" className="text-[11px] leading-snug">
-                    {authDescription}
-                </Typography.Text>
-                {authConnectionField}
-            </div>
-        )
-    ) : null
-
-    // Advanced header summary: auth mode + sandbox, so the collapsed header still conveys state.
-    const advancedSummary =
-        [
-            props.llm ? (connection.mode === "agenta" ? "Agenta-managed" : "Self-managed") : null,
-            sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : null,
-        ]
-            .filter(Boolean)
-            .join(" · ") || undefined
+    // Advanced header summary: sandbox only now — mode UI moved to the Provider credentials section.
+    const advancedSummary = sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
 
     // Advanced drawer body: two panels like Model & harness (settings left, version history right).
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
@@ -712,32 +678,10 @@ export function useModelHarness({
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
     // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
-    // `SectionRail` (Authentication mode) and `RailField` (labelled control rows).
+    // `SectionRail` (mode groups) and `RailField` (labelled control rows).
     const advancedControls = (
         <>
             {buildKitSection}
-
-            {authControls ? (
-                <ConfigAccordionSection
-                    size="compact"
-                    defaultOpen={false}
-                    icon={<Key size={15} />}
-                    title="Authentication"
-                    summary={
-                        props.llm
-                            ? connection.mode === "agenta"
-                                ? "Agenta-managed"
-                                : "Self-managed"
-                            : undefined
-                    }
-                    summaryCollapsedOnly
-                >
-                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
-                        Where the model credential comes from when this agent runs.
-                    </Typography.Text>
-                    {authControls}
-                </ConfigAccordionSection>
-            ) : null}
 
             {hasExecutionGroup ? (
                 <ConfigAccordionSection

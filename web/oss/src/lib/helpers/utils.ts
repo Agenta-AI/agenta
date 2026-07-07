@@ -2,6 +2,7 @@ import type {LlmProvider} from "@agenta/shared/types"
 import {
     dataUriToObjectUrl,
     isBase64,
+    isSlugInputValid,
     isUrl,
     removeEmptyFromObjects as sharedRemoveEmptyFromObjects,
     safeJson5Parse,
@@ -42,10 +43,8 @@ export const isVariantNameInputValid = (input: string) => {
     return URL_SAFE.test(input)
 }
 
-// Slugs go into URLs / identifiers and stay constrained to [a-zA-Z0-9_-].
-export const isSlugInputValid = (input: string) => {
-    return URL_SAFE.test(input)
-}
+// Moved to @agenta/shared/utils; re-exported here so existing oss imports keep working.
+export {isSlugInputValid}
 
 export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 

@@ -107,12 +107,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
     const isSearching = searchTerm.trim().length > 0
 
-    const handleSelect = (value: string) => {
+    const handleSelect = (value: string, metadata?: Record<string, unknown>) => {
         if (onSelectValue) {
             onSelectValue(value)
         }
         if (props.onChange) {
-            props.onChange(value, {value} as unknown as Parameters<
+            props.onChange(value, {value, metadata} as unknown as Parameters<
                 NonNullable<typeof props.onChange>
             >[1])
         }
@@ -261,7 +261,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                         onMouseDown={(e) => {
                                                             e.preventDefault()
                                                             e.stopPropagation()
-                                                            handleSelect(option.value)
+                                                            handleSelect(
+                                                                option.value,
+                                                                option.metadata,
+                                                            )
                                                         }}
                                                     >
                                                         {renderOption(option)}
@@ -316,6 +319,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     key={option.key ?? option.value}
                                     value={option.value}
                                     label={renderOptionContent(option)}
+                                    metadata={option.metadata}
                                 >
                                     {renderOption(option)}
                                 </Option>
@@ -329,6 +333,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 key={option.key ?? option.value}
                                 value={option.value}
                                 label={renderOptionContent(option)}
+                                metadata={option.metadata}
                             >
                                 {renderOption(option)}
                             </Option>

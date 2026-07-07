@@ -55,16 +55,20 @@ existing control:
 
 - `agents_md` renders as a multiline text input labeled "Instructions". It falls back to a
   legacy `instructions` value when `agents_md` is missing.
-- `model` renders as a unified, harness-filtered provider + model picker. The options come from
-  the agent's `/inspect` `meta.harness_capabilities[harness].models` (Pi: the vault providers'
-  catalog ids; Claude: its aliases), not the full shared catalog. Selecting a model sets BOTH the
-  model id and its provider, so there is no separate provider field. When `/inspect` publishes no
-  per-harness models (older agents / a standalone control), it falls back to the schema's full
-  grouped-choice catalog. Below the picker, an **Authentication** toggle chooses *Agenta-managed*
-  (a vault connection — "Project default" or a named connection picked from `GET /secrets/`) vs
-  *Self-managed* (the harness uses its own login; Agenta injects nothing). The form always writes
-  `model` as a structured `ModelRef` (`{provider, model, connection?}`), never a free-text string;
-  the connection rides in `model_ref.connection`. A raw-JSON escape hatch remains for power users.
+- `model` renders in its own "Model" section: a harness-filtered provider + model picker. The
+  options come from the agent's `/inspect` `meta.harness_capabilities[harness].models` (Pi: the
+  vault providers' catalog ids; Claude: its aliases), not the full shared catalog. Selecting a
+  model sets BOTH the model id and its provider, so there is no separate provider field. When
+  `/inspect` publishes no per-harness models (older agents / a standalone control), it falls back
+  to the schema's full grouped-choice catalog. A separate **Provider credentials** section, not
+  nested under the model picker, holds the connection mode: a segmented toggle with *Use API key*
+  (a vault connection, either "Project default" or a named connection picked from
+  `GET /secrets/`) and *Use subscription* (the harness signs itself in, using a Claude Code or
+  Codex subscription or any credentials it reads from its own environment such as environment
+  variables; Agenta injects nothing and this mode requires a self-hosted deployment). The form
+  always writes `model` as a structured `ModelRef` (`{provider, model, connection?}`), never a
+  free-text string; the connection rides in `model_ref.connection`. A raw-JSON escape hatch
+  remains for power users.
 - `tools` renders as a flat array. Each entry uses `ToolItemControl`, the same tool object
   shape the prompt control uses.
 - `mcp_servers` renders as a flat array. Each entry uses `McpServerItemControl`, which is a

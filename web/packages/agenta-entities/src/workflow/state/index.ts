@@ -245,3 +245,13 @@ export {
     type AppType,
     type CreateEphemeralAppFromTemplateParams,
 } from "./appUtils"
+
+// ============================================================================
+// AGENT CREATION PREFERENCES (last-used harness/model/connection default)
+// ============================================================================
+
+export {
+    agentCreationPrefsAtom,
+    applyAgentCreationPrefs,
+    type AgentCreationPrefs,
+} from "./agentCreationPrefs"
