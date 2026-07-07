@@ -13,6 +13,7 @@ error paths (unknown op, missing API base).
 
 from __future__ import annotations
 
+import json
 import logging
 
 import pytest
@@ -256,6 +257,10 @@ async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_defa
     }
     assert spec.input_schema["required"] == ["inputs"]
     assert spec.input_schema["properties"]["inputs"]["required"] == ["messages"]
+    # The verdict enum is spelled out in the description so its meaning survives even when
+    # the skill is not loaded (see docs/design/.../part-3-agenta-skills-sync.md, B5).
+    for verdict_word in ("pass", "incomplete", "unconfirmed", "failed"):
+        assert verdict_word in spec.description
 
     wire = spec.to_wire()
     assert wire["callRef"] == "tools.agenta.test_run"
@@ -384,6 +389,10 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     delta = workflow_revision["properties"]["delta"]
     assert set(delta["properties"]) == {"set", "remove"}
     assert "parameters.agent" in delta["properties"]["set"]["description"]
+    # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must warn
+    # the model to resend the complete list or it wipes its own build-kit tools (B2).
+    assert "wholesale" in spec.description
+    assert "revision id" in spec.description
 
 
 async def test_commit_revision_is_not_read_only(connection):
@@ -393,6 +402,108 @@ async def test_commit_revision_is_not_read_only(connection):
     spec = resolution.tool_specs[0]
     assert spec.read_only is False
     assert spec.effective_permission() is None
+
+
+# --- delta.set carries the typed agent-template shape -------------------------
+
+
+def _iter_required_lists(node):
+    """Yield every JSON-Schema `required` array reachable under `node`."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "required" and isinstance(value, list):
+                yield value
+            else:
+                yield from _iter_required_lists(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _iter_required_lists(item)
+
+
+def _has_embed_branch(items):
+    """True when a list-item schema accepts the `@ag.embed` object alternative."""
+    branches = items.get("anyOf") if isinstance(items, dict) else None
+    if not isinstance(branches, list):
+        return False
+    return any(
+        isinstance(branch, dict)
+        and isinstance(branch.get("properties"), dict)
+        and "@ag.embed" in branch["properties"]
+        for branch in branches
+    )
+
+
+def _commit_agent_subtree():
+    schema = get_platform_op("commit_revision").resolved_input_schema()
+    delta = schema["properties"]["workflow_revision"]["properties"]["delta"]
+    return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
+
+
+def _test_run_agent_subtree():
+    schema = get_platform_op("test_run").resolved_input_schema()
+    delta = schema["properties"]["delta"]
+    return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
+
+
+def test_commit_revision_delta_set_carries_agent_template_shape():
+    # (a) The agent-template shape is reachable under delta.set.parameters.agent, so the tool schema
+    # itself (not just prose) tells the model what a `parameters.agent` payload looks like. The
+    # harness `kind` enum is a concrete, low-drift landmark inside it.
+    agent = _commit_agent_subtree()
+    assert agent["type"] == "object"
+    assert set(agent["properties"]) >= {
+        "instructions",
+        "llm",
+        "tools",
+        "mcps",
+        "skills",
+        "harness",
+        "runner",
+        "sandbox",
+    }
+    harness_kind = agent["properties"]["harness"]["properties"]["kind"]
+    assert "pi_core" in harness_kind["enum"]
+    assert "claude" in harness_kind["enum"]
+    # The inline skill-template ref was expanded (its typed fields are present), not left as a marker.
+    skills_items = agent["properties"]["skills"]["items"]
+    assert "x-ag-type-ref" not in json.dumps(agent)
+    assert _has_embed_branch(skills_items)
+
+
+def test_commit_revision_delta_set_agent_subtree_has_no_required():
+    # (b) A delta is a deep partial: EVERY field is optional, so no `required` array may survive
+    # anywhere under the agent subtree, or a schema-following harness would think it must resend
+    # every required field just to change one.
+    agent = _commit_agent_subtree()
+    assert list(_iter_required_lists(agent)) == []
+
+
+def test_commit_revision_delta_set_list_items_accept_embeds():
+    # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries; since the model re-sends the
+    # whole list, each item schema must accept the embed shape or the embeds get mangled.
+    agent = _commit_agent_subtree()
+    for field in ("tools", "skills", "mcps"):
+        items = agent["properties"][field]["items"]
+        assert "anyOf" in items, field
+        assert _has_embed_branch(items), field
+
+
+def test_test_run_delta_set_matches_commit_revision():
+    # (d) test_run's uncommitted delta gets the same typed, deep-partial, embed-tolerant shape.
+    agent = _test_run_agent_subtree()
+    assert set(agent["properties"]) >= {"instructions", "llm", "harness", "sandbox"}
+    assert "pi_core" in agent["properties"]["harness"]["properties"]["kind"]["enum"]
+    assert list(_iter_required_lists(agent)) == []
+    for field in ("tools", "skills", "mcps"):
+        assert _has_embed_branch(agent["properties"][field]["items"]), field
+
+
+def test_commit_revision_resolved_schema_size_is_bounded():
+    # (e) Guard against runaway expansion (a self-referential or duplicated type-ref could blow the
+    # schema up and the tools/list payload with it). A generous cap still catches an explosion.
+    schema = get_platform_op("commit_revision").resolved_input_schema()
+    size = len(json.dumps(schema))
+    assert size < 200_000, size
 
 
 # --- resolver: annotate_trace self-targets its own trace/span -----------------
@@ -483,8 +594,15 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     assert schedule.call.context == {
         "schedule.data.references.workflow_variant.id": "$ctx.workflow.variant.id"
     }
-    assert "references" not in schedule.input_schema["properties"]["data"]["properties"]
-    assert "selector" not in schedule.input_schema["properties"]["data"]["properties"]
+    schedule_data_props = schedule.input_schema["properties"]["data"]["properties"]
+    assert "references" not in schedule_data_props
+    assert "selector" not in schedule_data_props
+    # Un-pinned triggers bind to the variant's latest revision at creation and do not follow
+    # later commits (A1/B2): the description must say so.
+    assert "latest revision" in schedule.description
+    inputs_fields_description = schedule_data_props["inputs_fields"]["description"]
+    assert "JSON Path" in inputs_fields_description
+    assert "JSON Pointer" in inputs_fields_description
 
     subscription = specs["create_subscription"]
     assert subscription.call.args_into == "subscription"
@@ -494,6 +612,8 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     data_props = subscription.input_schema["properties"]["data"]["properties"]
     assert "references" not in data_props
     assert "selector" not in data_props
+    assert "latest revision" in subscription.description
+    assert data_props["inputs_fields"]["description"] == inputs_fields_description
 
 
 async def test_config_permission_rides_with_catalog_read_only_hint(connection):

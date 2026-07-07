@@ -21,6 +21,10 @@ export const processEnv = {
     // ephemeral agent (templates + "what do you want to build?" composer) and commits it in place on
     // send — no redirect. Unset/false leaves the current agent-home + redirect onboarding untouched.
     NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING: process.env.NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING,
+    // Agent chat message virtualization (react-virtuoso spike): when "true", the playground settings
+    // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
+    // so it's off everywhere unless explicitly enabled while the approach is evaluated.
+    NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION: process.env.NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,
