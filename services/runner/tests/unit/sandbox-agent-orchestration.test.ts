@@ -805,6 +805,38 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
   });
 
+  it("never puts the OTLP bearer in the local Pi daemon's env", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://otlp.example.test/v1/traces",
+              headers: { authorization: "Bearer reusable-caller-token" },
+            },
+          },
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    // The harness-readable env carries a file path, never the bearer itself.
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
+    assert.equal(typeof env.AGENTA_AGENT_OTLP_AUTH_FILE, "string");
+    assert.equal(
+      JSON.stringify(env).includes("reusable-caller-token"),
+      false,
+    );
+  });
+
   it("sets Claude Bedrock env and strict selected model pass-through", async () => {
     const { calls, deps } = fakeHarness();
 
