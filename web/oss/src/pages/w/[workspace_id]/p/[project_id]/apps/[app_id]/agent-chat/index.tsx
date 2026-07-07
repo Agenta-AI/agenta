@@ -9,7 +9,7 @@ const AgentChatSlice = dynamic(() => import("@/oss/components/AgentChatSlice"), 
 
 /**
  * Feature-flagged route for the agent chat streaming slice (contract v1).
- * Enable with `NEXT_PUBLIC_AGENT_CHAT_SLICE=true`.
+ * On by default; disable with `NEXT_PUBLIC_AGENT_CHAT_SLICE=false`.
  */
 const AgentChatPage = () => {
     useBreadcrumbsEffect({breadcrumbs: {"agent-chat": {label: "Agent chat"}}}, [])
@@ -18,7 +18,8 @@ const AgentChatPage = () => {
         return (
             <div className="flex h-full items-center justify-center">
                 <Typography.Text type="secondary">
-                    Agent chat slice is disabled. Set NEXT_PUBLIC_AGENT_CHAT_SLICE=true to enable.
+                    Agent chat slice is disabled. Set NEXT_PUBLIC_AGENT_CHAT_SLICE to anything but
+                    "false" to re-enable.
                 </Typography.Text>
             </div>
         )
