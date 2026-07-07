@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   ADAPTER_BIN_DIR,
   buildDaemonEnv,
+  KNOWN_SANDBOX_ENV_VARS,
   KNOWN_PROVIDER_ENV_VARS,
 } from "../../src/engines/sandbox_agent/daemon.ts";
 
@@ -66,7 +67,8 @@ describe("buildDaemonEnv", () => {
     assert.equal(env.ANTHROPIC_API_KEY, "anthropic");
     assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, "claude-oauth");
     assert.equal(env.COMPOSIO_API_KEY, undefined);
-    assert.equal(env.DAYTONA_API_KEY, undefined);
+    // Force-blanked (not merely absent) — see the F-INFRA-ENV test below for why.
+    assert.equal(env.DAYTONA_API_KEY, "");
   });
 
   it("clears the COMPLETE provider env inventory on a managed run (clear-then-apply, rule 5)", () => {
@@ -90,7 +92,11 @@ describe("buildDaemonEnv", () => {
     const env = buildDaemonEnv("pi", { clearProviderEnv: true });
 
     for (const key of KNOWN_PROVIDER_ENV_VARS) {
-      assert.equal(env[key], undefined, `${key} must not be inherited on a managed run`);
+      assert.equal(
+        env[key],
+        undefined,
+        `${key} must not be inherited on a managed run`,
+      );
     }
     // The cloud groups are part of the inventory, so they are cleared too.
     assert.equal(env.AWS_ACCESS_KEY_ID, undefined);
@@ -103,5 +109,23 @@ describe("buildDaemonEnv", () => {
     // Non-credential launch vars are still present.
     assert.equal(env.HOME, "/home/runner");
     assert.ok(env.PATH);
+  });
+
+  it("force-blanks infra creds (DAYTONA_API_KEY) on every run, managed or not (F-INFRA-ENV)", () => {
+    process.env.DAYTONA_API_KEY = "org-key-should-not-leak";
+
+    // The underlying sandbox-agent local() provider spawns with
+    // {...process.env, ...options.env} (inherit-then-apply), so an ABSENT key here would not
+    // stop the leak — only a forced override does. Assert both run shapes.
+    for (const opts of [{}, { clearProviderEnv: true }]) {
+      const env = buildDaemonEnv("pi", opts);
+      for (const key of KNOWN_SANDBOX_ENV_VARS) {
+        assert.equal(
+          env[key],
+          "",
+          `${key} must be force-blanked, not merely absent`,
+        );
+      }
+    }
   });
 });

@@ -9,6 +9,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
+from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
@@ -18,6 +19,11 @@ from oss.src.apis.fastapi.applications import router as applications_router_modu
 from oss.src.apis.fastapi.applications.overlay import (
     DEFAULT_BUILD_KIT_OPS,
     build_agent_template_overlay,
+)
+from oss.src.core.workflows.build_kit import (
+    BUILD_KIT_WORKFLOW_SLUG,
+    REQUEST_INPUT_WORKFLOW_SLUG,
+    build_agent_template_overlay as build_core_agent_template_overlay,
 )
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.core.applications.dtos import SimpleApplication
@@ -71,27 +77,32 @@ def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first()
     overlay = build_agent_template_overlay()
 
     catalog = StaticWorkflowCatalog()
-    expected_static_tool_embeds = []
-    for slug in catalog.list_slugs():
-        revision = catalog.retrieve_revision(slug=slug)
-        if not revision or not revision.flags or revision.flags.is_skill:
-            continue
-        expected_static_tool_embeds.append(
-            {
-                "@ag.embed": {
-                    "@ag.references": {"workflow": {"slug": slug}},
-                    "@ag.selector": {"path": "parameters.tool"},
-                },
-                "name": revision.name,
-            }
-        )
+    request_connection = catalog.retrieve_revision(
+        slug=REQUEST_CONNECTION_WORKFLOW_SLUG
+    )
+    request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
 
     assert AGENTA_FORCED_TOOLS == ["read", "bash"]
     assert overlay["tools"] == [
         {"type": "builtin", "name": "read"},
         {"type": "builtin", "name": "bash"},
         *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
-        *expected_static_tool_embeds,
+        {
+            "@ag.embed": {
+                "@ag.references": {
+                    "workflow": {"slug": REQUEST_CONNECTION_WORKFLOW_SLUG}
+                },
+                "@ag.selector": {"path": "parameters.tool"},
+            },
+            "name": request_connection.name,
+        },
+        {
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": REQUEST_INPUT_WORKFLOW_SLUG}},
+                "@ag.selector": {"path": "parameters.tool"},
+            },
+            "name": request_input.name,
+        },
     ]
 
 
@@ -130,7 +141,11 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
     }
 
 
-def test_agent_template_overlay_includes_reserved_static_workflow_tool_embeds():
+def test_api_overlay_adapter_matches_core_build_kit_builder():
+    assert build_agent_template_overlay() == build_core_agent_template_overlay()
+
+
+def test_agent_template_overlay_includes_only_allowlisted_static_tool_embeds():
     overlay = build_agent_template_overlay()
     tool_embeds = [
         tool
@@ -153,13 +168,23 @@ def test_agent_template_overlay_includes_reserved_static_workflow_tool_embeds():
         revision = catalog.retrieve_revision(slug=_embed_slug(tool))
         assert tool.get("name") == revision.name
 
-    expected_slugs = set()
-    for slug in catalog.list_slugs():
-        revision = catalog.retrieve_revision(slug=slug)
-        if revision and revision.flags and not revision.flags.is_skill:
-            expected_slugs.add(slug)
+    assert tool_embed_slugs == {
+        REQUEST_CONNECTION_WORKFLOW_SLUG,
+        REQUEST_INPUT_WORKFLOW_SLUG,
+    }
 
-    assert tool_embed_slugs == expected_slugs
+
+def test_agent_template_overlay_does_not_embed_build_kit():
+    overlay = build_agent_template_overlay()
+
+    embedded_slugs = {
+        _embed_slug(entry)
+        for section in ("tools", "skills")
+        for entry in overlay[section]
+        if isinstance(entry, dict) and "@ag.embed" in entry
+    }
+
+    assert BUILD_KIT_WORKFLOW_SLUG not in embedded_slugs
 
 
 @pytest.mark.asyncio

@@ -250,4 +250,43 @@ describe("otel skills + error tracing", () => {
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
     expect(agentSpan?.attributes["ag.exception.provider"]).toBe("anthropic");
   });
+
+  // Emit the dotted cache-token keys the ingest adapter reads; underscore form is dropped.
+  it("emits dotted cache-token keys matching the ingest adapter's expected form", () => {
+    const spans = spyTracer();
+    const otel = createAgentaOtel({ captureContent: true });
+    const handlers: Record<string, (...args: any[]) => Promise<void>> = {};
+    otel.register({
+      on: (name: string, fn: (...args: any[]) => Promise<void>) => {
+        handlers[name] = fn;
+      },
+    } as any);
+    return (async () => {
+      await handlers["before_agent_start"]?.({ prompt: "hi" });
+      await handlers["agent_start"]?.({});
+      await handlers["turn_start"]?.({ turnIndex: 0 });
+      await handlers["before_provider_request"]?.({}, { model: { id: "gpt-5" } });
+      await handlers["message_end"]?.({
+        message: {
+          role: "assistant",
+          usage: { input: 10, output: 5, cacheRead: 7, cacheWrite: 3 },
+        },
+      });
+
+      const llmSpan = spans.find((s) => s.name === "chat gpt-5");
+      expect(llmSpan?.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(
+        7,
+      );
+      expect(
+        llmSpan?.attributes["gen_ai.usage.cache_creation.input_tokens"],
+      ).toBe(3);
+      // The old underscore form must be gone — that mismatch is the bug being fixed.
+      expect(
+        llmSpan?.attributes["gen_ai.usage.cache_read_input_tokens"],
+      ).toBeUndefined();
+      expect(
+        llmSpan?.attributes["gen_ai.usage.cache_creation_input_tokens"],
+      ).toBeUndefined();
+    })();
+  });
 });

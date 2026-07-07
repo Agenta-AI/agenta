@@ -15,7 +15,7 @@ export const processEnv = {
     NEXT_PUBLIC_AGENT_CHAT_TRACK: process.env.NEXT_PUBLIC_AGENT_CHAT_TRACK,
     // Agent-home template behavior: off by default (config-definition drawer flow). Set to "true" to
     // instead skip the drawer and open the playground seeded with the template's builder instruction
-    // (Mahmoud's agent-builder flow). Stays opt-in until the build-kit overlay fix lands
+    // (Mahmoud's agent-builder flow). On by default since the build-kit overlay ships as the __ag__build_kit static workflow
     // (docs/design/build-kit-overlay-delivery/); that flow needs the build kit, which the new creation
     // path can't deliver yet.
     NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER,

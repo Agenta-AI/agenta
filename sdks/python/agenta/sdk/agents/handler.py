@@ -1,7 +1,10 @@
 """``agent_v0``: the canonical agent handler, composition-injectable (specs.md `agent_v0`).
 
 Owns stream/trim/force; composition (template, tool/MCP/connection resolvers, backend
-selector) is injectable via `AgentComposition`, defaulting to env-driven SDK behavior.
+selector) is injectable via `AgentComposition`, defaulting to env-driven SDK behavior. The
+default composition also owns capability gating, degradation policy, and MCP gating:
+these are protocol-level safety behaviors, not service-specific, so a bare `agent_v0` (no
+composition override) gets them for free instead of a permissive fallback.
 """
 
 from __future__ import annotations
@@ -12,14 +15,25 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
 from agenta.sdk.agents.interfaces import Backend, Environment
+from agenta.sdk.agents.capabilities import (
+    harness_allows_deployment,
+    harness_allows_mode,
+    harness_allows_provider,
+)
 from agenta.sdk.agents.connections import (
+    ConnectionResolutionError,
+    MissingProviderError,
     ModelRef,
     ResolvedConnection,
     RuntimeAuthContext,
+    UnsupportedConnectionModeError,
+    UnsupportedDeploymentError,
+    UnsupportedProviderError,
 )
 from agenta.sdk.agents.tools import ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
-from agenta.sdk.agents.mcp import ResolvedMCPServer
+from agenta.sdk.agents.mcp import MCPDisabledError, ResolvedMCPServer
+from agenta.sdk.agents.mcp.parsing import parse_mcp_server_configs
 from agenta.sdk.agents.platform import (
     resolve_connection as _platform_resolve_connection,
 )
@@ -32,12 +46,17 @@ from agenta.sdk.agents.tracing import (
     run_context as ambient_run_context,
     trace_context as ambient_trace_context,
 )
+from agenta.sdk.agents.dtos import RunContext, RunContextRun
 
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
     WorkflowServiceRequest,
 )
+from agenta.sdk.utils.constants import TRUTHY
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 ResolveToolsFn = Callable[..., Awaitable[ResolvedToolSet]]
 ResolveMCPFn = Callable[..., Awaitable[List[ResolvedMCPServer]]]
@@ -66,14 +85,118 @@ async def _default_resolve_tools(tools, **kwargs) -> ResolvedToolSet:
     return await _platform_resolve_tools(tools, **kwargs)
 
 
+def _mcp_enabled() -> bool:
+    # MCP gating: off by default, deployment opts in via AGENTA_AGENT_MCPS_ENABLED.
+    return os.getenv("AGENTA_AGENT_MCPS_ENABLED", "").strip().lower() in TRUTHY
+
+
 async def _default_resolve_mcp_servers(
     mcp_servers, **kwargs
 ) -> List[ResolvedMCPServer]:
+    """Resolve MCP servers, gated by ``AGENTA_AGENT_MCPS_ENABLED`` (off by default).
+
+    Disabled + no servers declared -> ``[]`` (the common case, unchanged). Disabled + servers
+    declared -> :class:`MCPDisabledError`, so a caller's ignored MCP config fails loud instead
+    of silently running with none.
+    """
+    if not _mcp_enabled():
+        if not mcp_servers:
+            return []
+        names = [config.name for config in parse_mcp_server_configs(mcp_servers)]
+        raise MCPDisabledError(server_names=names)
     return await _platform_resolve_mcp(mcp_servers, **kwargs)
 
 
 async def _default_resolve_connection(*, model, context) -> ResolvedConnection:
     return await _platform_resolve_connection(model=model, context=context)
+
+
+def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> None:
+    """The PRE-resolve half of the agent-layer capability check (design Concern 3b).
+
+    The provider and connection mode are known from the config alone, so reject them before the
+    vault resolve runs. The vault resolve itself is harness-agnostic; this guard (and the
+    post-resolve deployment guard) is the only place the harness gates a credential, and it runs
+    server-side so a direct API caller is checked too. An unset harness skips the check.
+    """
+    if not harness:
+        return
+    provider = model_ref.provider
+    if provider and not harness_allows_provider(harness, provider):
+        raise UnsupportedProviderError(provider=provider, harness=harness)
+    mode = model_ref.connection.mode
+    if not harness_allows_mode(harness, mode):
+        raise UnsupportedConnectionModeError(mode=mode, harness=harness)
+
+
+def _check_harness_post_resolve(
+    resolved: ResolvedConnection, harness: Optional[str]
+) -> None:
+    """The POST-resolve half of the capability check: reject an unconsumable deployment.
+
+    A slug-less ``agenta`` connection only reveals its deployment once the vault selects the
+    secret, so the deployment reject runs after the resolve returns.
+    """
+    if not harness:
+        return
+    if not harness_allows_deployment(harness, resolved.deployment):
+        raise UnsupportedDeploymentError(
+            deployment=resolved.deployment, harness=harness
+        )
+
+
+async def _default_resolve_session_connection(
+    model_ref: ModelRef,
+    context: RuntimeAuthContext,
+    *,
+    resolve_connection: ResolveConnectionFn = _default_resolve_connection,
+) -> ResolvedConnection:
+    """Resolve one least-privilege connection for the run, with graceful degradation.
+
+    Provider + mode are rejected BEFORE the vault resolve (known from the config), the resolved
+    deployment is rejected AFTER (only known once the vault picks the secret).
+
+    An EXPLICIT named ``agenta`` connection (``slug`` set) fails loud on a resolution failure: the
+    user named a connection, so a missing/ambiguous one is a real error they must fix.
+
+    A project-default connection (``agenta`` with no slug) or a ``self_managed`` connection is
+    TOLERANT of a resolution failure: most projects have no configured connection for the default
+    model and rely on the harness's own login / a self-managed sidecar, so a failed resolve
+    (including a network/HTTP error) degrades to an empty ``runtime_provided`` plan and the run
+    still works. A capability reject is NEVER tolerated — it is a misconfiguration the user must
+    fix, not a missing credential.
+    """
+    _check_harness_pre_resolve(model_ref, context.harness)
+
+    connection = model_ref.connection
+    is_named = connection.mode == "agenta" and bool(
+        connection.slug and connection.slug.strip()
+    )
+    if is_named:
+        resolved = await resolve_connection(model=model_ref, context=context)
+        _check_harness_post_resolve(resolved, context.harness)
+        return resolved
+    try:
+        resolved = await resolve_connection(model=model_ref, context=context)
+    except MissingProviderError:
+        # A bare model id with no provider is an underspecified config, not a missing
+        # credential, so it fails loud even on a default connection.
+        raise
+    except ConnectionResolutionError:
+        log.warning(
+            "agent: no connection resolved for provider %r (mode=%s); "
+            "running with no injected credential (harness login / self-managed)",
+            model_ref.provider,
+            connection.mode,
+        )
+        return ResolvedConnection(
+            provider=model_ref.provider or "",
+            model=model_ref.model,
+            credential_mode="runtime_provided",
+            env={},
+        )
+    _check_harness_post_resolve(resolved, context.harness)
+    return resolved
 
 
 @dataclass
@@ -84,14 +207,20 @@ class AgentComposition:
     to the ambient runtime captures in ``agents/tracing.py``: they read SDK-owned per-request
     state (the active span, the ``TracingContext`` ContextVar) at CALL time and degrade to
     ``None``/no-op when a run has no such state, so a bare ``agent_v0`` behaves correctly in
-    any process without composition."""
+    any process without composition.
+
+    ``resolve_session_connection`` / ``resolve_mcp_servers`` default to the SAFE behavior
+    (capability-gated + degrading connection resolve; MCP-gated server resolve) rather than
+    a bare fallback, so a composition-free ``agent_v0`` is not the permissive copy."""
 
     default_template: DefaultTemplateFn = field(default=_default_template)
     resolve_tools: ResolveToolsFn = field(default=_default_resolve_tools)
     resolve_mcp_servers: ResolveMCPFn = field(default=_default_resolve_mcp_servers)
     resolve_connection: ResolveConnectionFn = field(default=_default_resolve_connection)
-    # override for capability gating (pre/post-resolve harness checks); bare resolve by default.
-    resolve_session_connection: Optional[ResolveSessionConnectionFn] = None
+    # capability gating + degradation policy; override to replace, not just add to.
+    resolve_session_connection: Optional[ResolveSessionConnectionFn] = field(
+        default=None
+    )
     select_backend: SelectBackendFn = field(default=_default_select_backend)
     trace_context: TraceContextFn = field(default=ambient_trace_context)
     run_context: RunContextFn = field(default=ambient_run_context)
@@ -139,11 +268,24 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             ctx = RuntimeAuthContext(
                 harness=agent_template.harness, backend=agent_template.sandbox
             )
+            # Default is the gated+degrading resolve, bound to comp.resolve_connection
+            # so an override of the plain resolver still flows through the capability check.
             resolve_session_connection = comp.resolve_session_connection or (
-                lambda m, c: comp.resolve_connection(model=m, context=c)
+                lambda m, c: _default_resolve_session_connection(
+                    m, c, resolve_connection=comp.resolve_connection
+                )
             )
             resolved_connection = await resolve_session_connection(model_ref, ctx)
             secrets = resolved_connection.env
+
+        # run_kind rides the wire on `request.meta`: a wire-supplied run_kind must not
+        # be silently dropped, so it layers onto whatever run_context composition supplies.
+        # Copy before setting so a shared/cached RunContext can't leak run_kind across requests.
+        rc = comp.run_context()
+        run_kind = (request.meta or {}).get("run_kind")
+        if isinstance(run_kind, str) and run_kind:
+            base = rc or RunContext()
+            rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
 
         session_config = SessionConfig(
             agent=agent_template,
@@ -151,7 +293,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             resolved_connection=resolved_connection,
             permission_default=agent_template.permission_default,
             trace=comp.trace_context(),
-            run_context=comp.run_context(),
+            run_context=rc,
             session_id=session_id,
             builtin_names=resolved_tools.builtin_names,
             tool_specs=resolved_tools.tool_specs,

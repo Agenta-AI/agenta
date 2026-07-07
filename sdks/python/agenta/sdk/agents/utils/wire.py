@@ -1,7 +1,7 @@
 """The ``/run`` wire contract: our DTOs <-> the runner's camelCase JSON.
 
 Used by the sandbox-agent backend. The TS side mirrors these names in
-``services/agent/src/protocol.ts``, and the contract is pinned by shared golden fixtures
+``services/runner/src/protocol.ts``, and the contract is pinned by shared golden fixtures
 under ``sdks/python/oss/tests/pytest/unit/agents/golden/`` (see ``test_wire_contract.py``).
 The runner drives one engine (the sandbox-agent ACP path); the ``harness`` field selects the
 agent, so there is no engine selector on the wire.

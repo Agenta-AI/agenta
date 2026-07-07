@@ -1,15 +1,15 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
- * Template behavior toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`). Off by default: clicking a template
- * (Home or the gallery) uses the config-definition drawer flow. Opt in with `true` to instead open the
- * playground seeded with the template's builder instruction — Mahmoud's agent-builder flow (no direct
- * config write). Both are kept so we can A/B them while the agent builder is unreliable.
- * Flips to default-on once the build-kit overlay fix lands (docs/design/build-kit-overlay-delivery/) —
- * that flow needs the build kit, which the new creation path can't deliver yet.
+ * Template behavior toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`). On by default: clicking a
+ * template (Home or the gallery) opens the playground seeded with the template's builder
+ * instruction (the agent-builder flow; no direct config write). Set to "false" to fall back to
+ * the config-definition drawer flow. Default-on requires the build kit to reach ephemeral
+ * drafts, delivered via the `__ag__build_kit` static workflow
+ * (docs/design/build-kit-overlay-delivery/).
  */
 export const TEMPLATE_BUILDER_MODE =
-    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER") || "").toLowerCase() === "true"
+    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER") || "").toLowerCase() !== "false"
 
 /**
  * Playground-native onboarding toggle (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). On by default: the
@@ -22,15 +22,15 @@ export const PLAYGROUND_NATIVE_ONBOARDING =
     (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() !== "false"
 
 /**
- * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). When true, Home,
+ * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). On by default: Home,
  * playground onboarding, and every agent's empty chat render the shared `<TemplateStrip />`:
  * always visible, filterable in place, card click fills the composer + shows a provenance
- * chip (no drawer, no direct create). When false/unset (default), the current per-surface
- * template UIs (grid, quick-pick list, gallery) are unchanged. Both are kept so the new
- * experience can be A/B'd before the old flows are removed.
+ * chip (no drawer, no direct create). Set to "false" to fall back to the per-surface
+ * template UIs (grid, quick-pick list, gallery), kept so the experiences can still be
+ * compared before the old flows are removed.
  */
 export const TEMPLATE_STRIP_MODE =
-    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() === "true"
+    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() !== "false"
 
 export const HERO = {
     eyebrowNew: "New",

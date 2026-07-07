@@ -78,6 +78,7 @@ import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
+  writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
   decide,
@@ -383,10 +384,21 @@ export async function runSandboxAgent(
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
+  // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
+  // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
+  const otlpAuthFilePath =
+    plan.isPi && !plan.isDaytona
+      ? `${plan.relayDir}.otlp-auth`
+      : undefined;
+  const otlpAuthorization = request.telemetry?.exporters?.otlp?.headers?.authorization;
+  if (otlpAuthFilePath && otlpAuthorization) {
+    writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, logger);
+  }
   const piExtEnv = plan.isPi
     ? buildPiExtensionEnv(request, !plan.isDaytona, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
+        otlpAuthFilePath,
         builtinGatingActive: plan.builtinGatingActive,
         builtinGrants: plan.builtinGrants,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
@@ -502,10 +514,15 @@ export async function runSandboxAgent(
       return false;
     });
   };
+  // Gates the cwd rmSync in the `finally` below: never delete through a mount we can't prove
+  // is gone. Checked at the call site, not here, since this placeholder can be replaced
+  // by prepareWorkspace's own cleanup before the gate is evaluated.
+  let durableCwdSafeToDelete = true;
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
     : {
-        cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
+        cleanup: async () =>
+          rmSync(plan.cwd, { recursive: true, force: true }),
       };
 
   try {
@@ -551,13 +568,35 @@ export async function runSandboxAgent(
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
-    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it.
+    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it, and
+    // BEFORE workspace materialization on both providers so AGENTS.md, harness files, and skills
+    // land in the durable prefix instead of being hidden under the later FUSE mount.
     // Local: on-host geesefs; scoped creds never enter agent space.
     // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
     if (mountCreds && !plan.isDaytona) {
-      // Mount before local workspace materialization so AGENTS.md, harness files, and skills
-      // land in the durable prefix instead of being hidden under the later FUSE mount.
       await mountLocalDurableCwd("initial");
+    }
+    if (mountCreds && plan.isDaytona) {
+      const endpoint = await (
+        deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
+      )({
+        log: logger,
+      });
+      if (
+        endpoint &&
+        (await (deps.mountStorageRemote ?? mountStorageRemote)(
+          sandbox,
+          plan.cwd,
+          mountCreds,
+          {
+            endpoint,
+            log: logger,
+          },
+        ))
+      ) {
+        // Remote files live in the store; nothing on this host to unmount.
+        logger(`remote durable cwd active for session=${sessionForMount}`);
+      }
     }
 
     try {
@@ -583,31 +622,6 @@ export async function runSandboxAgent(
         });
       } else {
         throw err;
-      }
-    }
-
-    if (mountCreds) {
-      if (plan.isDaytona) {
-        const endpoint = await (
-          deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
-        )({
-          log: logger,
-        });
-        if (
-          endpoint &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            sandbox,
-            plan.cwd,
-            mountCreds,
-            {
-              endpoint,
-              log: logger,
-            },
-          ))
-        ) {
-          // Remote files live in the store; nothing on this host to unmount.
-          logger(`remote durable cwd active for session=${sessionForMount}`);
-        }
       }
     }
 
@@ -978,7 +992,10 @@ export async function runSandboxAgent(
     // Also surface it as an event (before finish flushes the sink) so the error reaches the
     // live stream and the durable record, not only the trace.
     otel?.emitEvent({ type: "error", message: error });
-    otel?.finish();
+    // finish() must not throw uncaught, same as recordError above — tracing must not mask the run error.
+    try {
+      otel?.finish();
+    } catch {}
     await otel?.flush().catch(() => {});
     return {
       ok: false,
@@ -1006,14 +1023,25 @@ export async function runSandboxAgent(
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
-    // mountpoint is torn down. Best-effort (the store keeps the files regardless).
-    if (mountedCwd)
-      await (deps.unmountStorage ?? unmountStorage)(mountedCwd, { log }).catch(
-        () => {},
+    // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete below:
+    // rmSync must never run against a possibly-live FUSE mount into the durable store.
+    if (mountedCwd) {
+      durableCwdSafeToDelete = await (
+        deps.unmountStorage ?? unmountStorage
+      )(mountedCwd, { log }).catch(() => false);
+    }
+    if (!durableCwdSafeToDelete) {
+      logger(
+        `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
       );
-    await workspace?.cleanup().catch(() => {});
+    } else {
+      await workspace?.cleanup().catch(() => {});
+    }
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
+    // Backstop: the extension deletes this on read; remove it here too in case the harness
+    // never started (or crashed before reading it), so the bearer never lingers.
+    if (otlpAuthFilePath) rmSync(otlpAuthFilePath, { force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   }

@@ -13,7 +13,7 @@
  * `createAgentServer(run)` is the testable seam: it builds the server around an injectable
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
-import { apiBase } from "./apiBase.ts";
+import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -201,6 +201,22 @@ async function runAndStream(
   request: AgentRunRequest,
   run: RunAgent,
 ): Promise<void> {
+  // scope the inferred api base to this request (AsyncLocalStorage), not a process
+  // global — a second concurrent request with a different base must not be pinned to the first.
+  const requestApiBase = apiBaseFromRequest(request);
+  if (requestApiBase) {
+    return runWithRequestApiBase(requestApiBase, () =>
+      runAndStreamWithApiBaseResolved(res, request, run),
+    );
+  }
+  return runAndStreamWithApiBaseResolved(res, request, run);
+}
+
+async function runAndStreamWithApiBaseResolved(
+  res: ServerResponse,
+  request: AgentRunRequest,
+  run: RunAgent,
+): Promise<void> {
   res.writeHead(200, {
     "content-type": "application/x-ndjson",
     "cache-control": "no-cache",
@@ -243,13 +259,8 @@ async function runAndStream(
   let aliveWatchdog: { release: () => Promise<void> } | undefined;
 
   if (sessionOwned) {
-    const requestApiBase = apiBaseFromRequest(request);
-    if (requestApiBase && !process.env.AGENTA_API_URL) {
-      process.env.AGENTA_API_URL = requestApiBase;
-      process.stderr.write(
-        `[sessions] inferred AGENTA_API_URL=${requestApiBase}\n`,
-      );
-    }
+    // The request's api base (if any) is already scoped for this call via
+    // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
     // The runner authenticates session calls AS the invoke caller (the run credential),
     // refreshing it for the turn's lifetime — never the admin key. Project scope is
     // resolved server-side from the credential, so no project_id rides the request.
@@ -392,7 +403,10 @@ export function createRequestListener(
           // (Accept: application/x-ndjson) and the SDK coalesces the batch result from the
           // stream. This coalesced JSON response is kept only for local debugging of /run; no
           // live caller hits it. Do not build new behavior on this branch.
-          const result = await run(request);
+          const oneShotApiBase = apiBaseFromRequest(request);
+          const result = oneShotApiBase
+            ? await runWithRequestApiBase(oneShotApiBase, () => run(request))
+            : await run(request);
           return send(res, result.ok ? 200 : 500, result);
         } finally {
           inFlight -= 1;

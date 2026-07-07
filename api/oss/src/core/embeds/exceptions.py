@@ -37,6 +37,14 @@ class UnsupportedReferenceTypeError(EmbedError):
         super().__init__(f"Unsupported reference type: {ref_type}")
 
 
+class NonEmbeddableWorkflowReferenceError(EmbedError):
+    def __init__(self, slug: str):
+        self.slug = slug
+        super().__init__(
+            f"Static workflow '{slug}' is retrievable but cannot be embedded."
+        )
+
+
 class MixedEntityTypesError(EmbedError):
     def __init__(self, categories: List[str]):
         self.categories = categories

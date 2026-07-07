@@ -18,7 +18,7 @@ dependency graph.
 ## Commands
 
 ```bash
-pnpm install              # from services/agent, with Node 24 on PATH
+pnpm install              # from services/runner, with Node 24 on PATH
 pnpm run serve            # HTTP sidecar on :8765 (GET /health, POST /run)
 pnpm run run:cli          # one JSON request on stdin -> one result on stdout
 pnpm test                 # vitest: all unit tests

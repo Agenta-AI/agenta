@@ -1,7 +1,7 @@
 """The runner HTTP transport sends the optional shared-token header (Codex LOW-5).
 
 The runner's ``/run`` endpoint has an opt-in shared-token gate (``AGENTA_RUNNER_TOKEN``,
-default OFF; see ``services/agent/src/server.ts``). When the operator turns it on, an un-tokened
+default OFF; see ``services/runner/src/server.ts``). When the operator turns it on, an un-tokened
 POST from the co-located Python service is rejected with 401. These tests pin the Python side of
 that contract: ``deliver_http_result`` / ``deliver_http_stream`` attach ``Authorization: Bearer
 <token>`` when the same env var is set, and send no auth header when it is not (loopback default).
