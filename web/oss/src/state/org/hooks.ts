@@ -5,7 +5,7 @@ import {useAtom, useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
-import {OrgDetails} from "@/oss/lib/Types"
+import type {OrgDetails} from "@/oss/lib/Types"
 import {fetchSingleOrg} from "@/oss/services/organization/api"
 import {fetchAllProjects} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
@@ -22,8 +22,6 @@ import {
     orgsAtom,
     selectedOrgAtom,
 } from "./selectors/org"
-
-const EmptyOrgs: OrgDetails[] = []
 
 const projectMatchesWorkspace = (
     project: {workspace_id?: string | null; organization_id?: string | null},
@@ -55,7 +53,9 @@ const pickPreferredProjectForWorkspace = (
 export const useOrgData = () => {
     const queryClient = useQueryClient()
     const router = useRouter()
-    const [{data: orgs, isPending: loadingOrgs, refetch: refetchOrgs}] = useAtom(orgsQueryAtom)
+    const [{isPending: loadingOrgs, refetch: refetchOrgs}] = useAtom(orgsQueryAtom)
+    // Read via orgsAtom (not raw query data) so demo orgs stay hidden
+    const orgs = useAtomValue(orgsAtom)
     const [{data: selectedOrg, isPending: loadingDetails, refetch: refetchSelectedOrg}] =
         useAtom(selectedOrgQueryAtom)
     const navigate = useSetAtom(requestNavigationAtom)
@@ -198,7 +198,7 @@ export const useOrgData = () => {
     }, [refetchOrgs, refetchSelectedOrg, queryClient])
 
     return {
-        orgs: orgs ?? EmptyOrgs,
+        orgs,
         selectedOrg: selectedOrg ?? null,
         loading: loadingOrgs || loadingDetails,
         changeSelectedOrg,
