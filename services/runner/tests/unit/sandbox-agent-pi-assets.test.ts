@@ -20,6 +20,7 @@ import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalAgentDir,
+  prepareLocalPiAssets,
   uploadDirToSandbox,
   uploadSkillsToSandbox,
   writeSystemPromptLocal,
@@ -269,6 +270,57 @@ describe("prepareLocalAgentDir", () => {
       readFileSync(join(runDir, "skills", "skill", "SKILL.md"), "utf-8"),
       "---\nname: skill\n---\n",
     );
+  });
+});
+
+describe("prepareLocalPiAssets (PI_CODING_AGENT_DIR guard)", () => {
+  const ENV_VAR = "PI_CODING_AGENT_DIR";
+  const previous = process.env[ENV_VAR];
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env[ENV_VAR];
+    else process.env[ENV_VAR] = previous;
+  });
+
+  const plainPiPlan = {
+    isPi: true,
+    isDaytona: false,
+    skillDirs: [],
+    hasSystemPrompt: false,
+    systemPrompt: undefined,
+    appendSystemPrompt: undefined,
+    sourcePiAgentDir: "/unused",
+  };
+
+  it("logs a clear warning when a plain local Pi run has no PI_CODING_AGENT_DIR", () => {
+    delete process.env[ENV_VAR];
+    const logs: string[] = [];
+
+    const runDir = prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+      log: (msg) => logs.push(msg),
+    });
+
+    assert.equal(runDir, undefined);
+    assert.ok(
+      logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")),
+      `expected a PI_CODING_AGENT_DIR warning, got: ${JSON.stringify(logs)}`,
+    );
+  });
+
+  it("installs the extension silently (no warning) when PI_CODING_AGENT_DIR is set", () => {
+    const dir = tempDir("agenta-pi-configured-dir-");
+    process.env[ENV_VAR] = dir;
+    const logs: string[] = [];
+
+    prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+      log: (msg) => logs.push(msg),
+    });
+
+    assert.ok(!logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")));
   });
 });
 

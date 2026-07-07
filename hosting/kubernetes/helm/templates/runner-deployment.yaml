@@ -50,6 +50,10 @@ spec:
               value: {{ include "agenta.agentRunner.port" . | quote }}
             - name: SANDBOX_AGENT_PROVIDER
               value: {{ default "local" $runner.provider | quote }}
+            {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}
+            - name: PI_CODING_AGENT_DIR
+              value: {{ default "/pi-agent" $runner.piAgentDir | quote }}
+            {{- end }}
             {{- if $runner.logLevel }}
             - name: SANDBOX_AGENT_LOG_LEVEL
               value: {{ $runner.logLevel | quote }}
