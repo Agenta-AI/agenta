@@ -18,6 +18,8 @@ interface StripComposerProps {
     onCodingAgentCopy: () => void
     /** Chip-docking border/radius classes from `useTemplateProvenance`. */
     composerClassName: string
+    /** Forwarded to `RichChatInput`'s `onChange` — lets provenance notice the text going empty. */
+    onTextChange?: (text: string) => void
 }
 
 /**
@@ -30,11 +32,13 @@ const StripComposer = ({
     onCreate,
     onCodingAgentCopy,
     composerClassName,
+    onTextChange,
 }: StripComposerProps) => {
     return (
         <RichChatInput
             ref={composerRef}
             onSubmit={() => onCreate()}
+            onChange={onTextChange}
             placeholder={HERO.placeholder}
             hideSendButton
             hideShortcutHints

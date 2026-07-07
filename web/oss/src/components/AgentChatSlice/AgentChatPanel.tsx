@@ -448,8 +448,17 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // One provenance instance per panel, shared by the onboarding hero strip (S5) and the
     // agent empty-chat strip (S6): pick fills the composer + docks the chip above it.
     const stripProvenance = useTemplateProvenance({
-        composerApi: {setText: (text) => richInputRef.current?.setMarkdown(text)},
+        composerApi: {
+            setText: (text) => richInputRef.current?.setMarkdown(text),
+            getText: () => richInputRef.current?.getMarkdown() ?? "",
+        },
     })
+    // Provenance is scoped to ONE agent revision. `AgentConversation` survives an `entityId`
+    // change in place (see the self-commit `switchEntity` above and a revision swap) — without
+    // this, a template picked against the old entity would leak its name into the new one.
+    useEffect(() => {
+        stripProvenance.clear()
+    }, [entityId, stripProvenance.clear])
     // S6 gate: fresh agent only (`version` v0/v1 = creation, same seed-vs-history convention used
     // elsewhere); unknown while loading counts as not-fresh so the strip never flashes in.
     const revisionQuery = useAtomValue(workflowMolecule.selectors.query(entityId))
@@ -497,6 +506,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const handleCreateAgent = useCallback(() => {
         if (!onboarding || onboarding.committing) return
         const text = richInputRef.current?.getMarkdown().trim() ?? ""
+        // Resolve BEFORE clearing the composer below — `resolveTemplateName` compares against the
+        // live text, so reading it after the clear would always see "" and never match the seed.
+        const templateName = stripProvenance.resolveTemplateName(text)
         setPendingFirstTurn(text || null)
         // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
         richInputRef.current?.setMarkdown("")
@@ -509,9 +521,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 intentValue: classifyAgentIntent(text),
             })
         }
-        onboarding.commit(text, stripProvenance.selectedTemplate?.name)
+        onboarding.commit(text, templateName)
         if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
-    }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.selectedTemplate])
+    }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.resolveTemplateName])
 
     // Also cover the template-click commit path (which goes straight through `commit()`, not the
     // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear

@@ -45,7 +45,10 @@ const StripHome: React.FC = () => {
     const firstRun = firstRunOverride ?? (!agentsLoading && agents.length === 0)
 
     const provenance = useTemplateProvenance({
-        composerApi: {setText: (text) => composerRef.current?.setMarkdown(text)},
+        composerApi: {
+            setText: (text) => composerRef.current?.setMarkdown(text),
+            getText: () => composerRef.current?.getMarkdown() ?? "",
+        },
     })
 
     const handlePick = useCallback(
@@ -67,8 +70,8 @@ const StripHome: React.FC = () => {
     )
 
     const handleCreate = useCallback(() => {
-        onCreate(provenance.selectedTemplate?.name)
-    }, [onCreate, provenance.selectedTemplate])
+        onCreate(provenance.resolveTemplateName())
+    }, [onCreate, provenance.resolveTemplateName])
 
     const handleCodingAgentCopy = useCallback(async () => {
         const text = composerRef.current?.getMarkdown().trim() ?? ""
@@ -105,6 +108,7 @@ const StripHome: React.FC = () => {
                         onCreate={handleCreate}
                         onCodingAgentCopy={handleCodingAgentCopy}
                         composerClassName={provenance.composerClassName}
+                        onTextChange={provenance.onComposerTextChange}
                     />
                 </div>
 

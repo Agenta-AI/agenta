@@ -6,7 +6,7 @@ template cards with category tabs. Clicking a card fills the composer with the t
 message and attaches a provenance chip. The whole experience sits behind a new
 environment flag; the current flows stay intact when the flag is off.
 
-The high-fidelity design lives at `/home/mahmoud/code/agenta/design_handoff_template_strip`
+The high-fidelity design lives at `design_handoff_template_strip/` at the repo root
 (interactive HTML prototypes plus written notes). Light mode is final and should be
 recreated pixel-perfectly with AntD + Tailwind. Dark mode needs deliberate token
 translation, covered in `design.md`.
