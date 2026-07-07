@@ -421,6 +421,16 @@ export async function runSandboxAgent(
   // than the requested one. Declared here so the catch can flush a partial trace.
   let sandbox: any | undefined;
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
+  // The live ACP session handle, set once `createSession` resolves. Declared here (not
+  // `const` inside the try) so the `finally` can always send a graceful `session/cancel`
+  // before tearing down the daemon (see the `finally` block below for why this matters).
+  // Typed `any` to match `sandbox` above: the real type comes from the `sandbox-agent`
+  // package's `createSession` return, which the rest of this function already treats loosely.
+  let session: any;
+  // Set true once the HITL pause controller has already sent `session/cancel` (below), so the
+  // `finally` block's own graceful-cancel step (added for the ACP child process leak) does not
+  // redundantly re-cancel an already-destroyed session.
+  let sessionDestroyRequested = false;
   // Daytona tool relay loop (started once the session exists, stopped after the prompt).
   let toolRelay: { stop: () => Promise<void> } | undefined;
   // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
@@ -668,7 +678,7 @@ export async function runSandboxAgent(
     // Close the internal gateway-tool MCP server (if one started) when the run ends.
     closeToolMcp = sessionMcp.close;
 
-    const session = await sandbox.createSession({
+    session = await sandbox.createSession({
       agent: plan.acpAgent,
       cwd: plan.cwd,
       sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
@@ -718,6 +728,7 @@ export async function runSandboxAgent(
       // Abort any in-flight loopback `tools/call` (a paused Claude client tool) BEFORE the
       // session teardown, so its handler cannot write a result after the turn ends.
       mcpAbort.abort();
+      sessionDestroyRequested = true;
       return sandbox.destroySession?.(session.id);
     });
 
@@ -972,6 +983,18 @@ export async function runSandboxAgent(
     // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
     mcpAbort.abort();
     await closeToolMcp?.().catch(() => {});
+    // Send a graceful `session/cancel` BEFORE tearing down the daemon (the ACP child process
+    // leak, dev-box incident 2026-07-06): on a normal/error completion this was the only path
+    // that never called `destroySession` (the HITL pause controller already does, above), so
+    // every such run went straight from a live session to `destroySandbox()` hard-killing the
+    // local `sandbox-agent`
+    // server. That kill only reaches the immediate child (the sandbox-agent server process,
+    // via SIGTERM/SIGKILL); it does not cascade to the ACP adapter subprocess (e.g.
+    // `claude-agent-acp`) the server spawned to drive the harness, which then gets reparented to
+    // the container's PID 1 and never exits (observed accumulating for hours in production).
+    // Skip if the pause path already sent it (`sessionDestroyRequested`) — best-effort either way.
+    if (session && !sessionDestroyRequested)
+      await sandbox?.destroySession?.(session.id).catch(() => {});
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
