@@ -5,6 +5,7 @@ import {Typography} from "antd"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
+import {TEMPLATE_STRIP_MODE} from "../assets/constants"
 import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 import {AGENT_TEMPLATES, templateBuilderMessage, type AgentTemplate} from "../assets/templates"
 
@@ -23,6 +24,10 @@ const OnboardingConfigPanel = () => {
     // the real config panel) — softens both ends of the left-panel handoff instead of hard cuts.
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
+
+    // Strip era (TEMPLATE_STRIP_MODE): the chat-column strip is the only browsing surface —
+    // the left panel keeps only its empty container until the real config forms swap in.
+    if (TEMPLATE_STRIP_MODE) return <div className="flex h-full flex-col gap-2 p-4" />
 
     const selectTemplate = (template: AgentTemplate) => {
         captureFirstAgentIntent(posthog, {

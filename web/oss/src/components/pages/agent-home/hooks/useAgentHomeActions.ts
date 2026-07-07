@@ -18,9 +18,16 @@ import {useCreateAgent} from "./useCreateAgent"
  * seeding the composer text as the first-run prompt. The "Continue in IDE" handler lives on the page
  * (it opens the IDE-handoff modal — see `useIdeHandoffModal`).
  */
-export function useAgentHomeActions(composerRef: RefObject<RichChatInputHandle | null>) {
+export function useAgentHomeActions(
+    composerRef: RefObject<RichChatInputHandle | null>,
+    options?: {
+        /** Auto-send the seed once the playground is ready (strip-era home behavior). */
+        autoSendSeed?: boolean
+    },
+) {
     const createAgent = useCreateAgent()
     const posthog = usePostHogAg()
+    const autoSendSeed = options?.autoSendSeed
 
     const readPrompt = useCallback(
         () => composerRef.current?.getMarkdown().trim() ?? "",
@@ -36,8 +43,8 @@ export function useAgentHomeActions(composerRef: RefObject<RichChatInputHandle |
                 intentValue: classifyAgentIntent(message),
             })
         }
-        void createAgent({seedMessage: message})
-    }, [createAgent, posthog, readPrompt])
+        void createAgent({seedMessage: message, autoSendSeed})
+    }, [createAgent, posthog, readPrompt, autoSendSeed])
 
     return {onCreate}
 }

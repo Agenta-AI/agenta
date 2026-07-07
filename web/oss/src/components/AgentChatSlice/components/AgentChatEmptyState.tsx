@@ -1,10 +1,12 @@
-import {useMemo} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+// Safe: assets/constants is a leaf (imports only dynamicEnv), unlike the agent-home components.
+import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
 
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
@@ -19,6 +21,9 @@ const ONBOARDING_COPY = {
     title: "What do you want to build?",
     subtitle:
         "Describe an agent in plain language below — I'll name it, wire up what it needs, and run it, all right here.",
+    // Strip-era subtitle (TEMPLATE_STRIP_MODE): templates live in the strip below, not the left panel.
+    subtitleStrip:
+        "Describe an agent in plain language — we'll create and name it, then run it right here.",
     hint: "← Not sure? Pick a template on the left",
     videoDuration: "2:04",
     videoLabel: "Watch 2-min tour",
@@ -88,6 +93,7 @@ const AgentChatEmptyState = ({
     canStart = true,
     onboarding = false,
     onPrefill,
+    stripNode,
 }: {
     entityId: string
     onStart: (text: string) => void
@@ -103,6 +109,8 @@ const AgentChatEmptyState = ({
     onboarding?: boolean
     /** Prefill the composer with a quick-start prompt (onboarding "Try" chips). */
     onPrefill?: (text: string) => void
+    /** Strip-era (TEMPLATE_STRIP_MODE): the panel-built TemplateStrip, rendered below the hero. */
+    stripNode?: ReactNode
 }) => {
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
@@ -162,25 +170,36 @@ const AgentChatEmptyState = ({
                         {ONBOARDING_COPY.title}
                     </Typography.Title>
                     <Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                        {ONBOARDING_COPY.subtitle}
+                        {TEMPLATE_STRIP_MODE
+                            ? ONBOARDING_COPY.subtitleStrip
+                            : ONBOARDING_COPY.subtitle}
                     </Text>
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {ONBOARDING_COPY.hint}
-                    </span>
+                    {TEMPLATE_STRIP_MODE ? (
+                        // Strip era: the strip below replaces the left-panel hint + "Try" starters.
+                        <div className="mt-8">{stripNode}</div>
+                    ) : (
+                        <>
+                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                                {ONBOARDING_COPY.hint}
+                            </span>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">Try</span>
-                        {ONBOARDING_STARTERS.map((starter) => (
-                            <button
-                                key={starter}
-                                type="button"
-                                onClick={() => onPrefill?.(starter)}
-                                className="box-border cursor-pointer rounded-full border border-solid border-[var(--ag-colorBorder)] bg-transparent px-3 py-1 text-xs text-[var(--ag-colorTextSecondary)] transition-colors hover:border-[var(--ag-colorPrimary)] hover:text-[var(--ag-colorText)]"
-                            >
-                                {starter}
-                            </button>
-                        ))}
-                    </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                                    Try
+                                </span>
+                                {ONBOARDING_STARTERS.map((starter) => (
+                                    <button
+                                        key={starter}
+                                        type="button"
+                                        onClick={() => onPrefill?.(starter)}
+                                        className="box-border cursor-pointer rounded-full border border-solid border-[var(--ag-colorBorder)] bg-transparent px-3 py-1 text-xs text-[var(--ag-colorTextSecondary)] transition-colors hover:border-[var(--ag-colorPrimary)] hover:text-[var(--ag-colorText)]"
+                                    >
+                                        {starter}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </Reveal>
             </div>
         )
@@ -261,7 +280,7 @@ const AgentChatEmptyState = ({
                             </Text>
                         )}
                     </div>
-                ) : (
+                ) : TEMPLATE_STRIP_MODE ? null : ( // Strip era: the composer-docked strip replaces the starter pills.
                     <div className="flex flex-col items-start gap-1.5">
                         <Text type="secondary" className="!text-[11px]">
                             Try

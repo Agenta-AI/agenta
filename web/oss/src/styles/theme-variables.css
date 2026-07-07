@@ -41,6 +41,7 @@
     --ag-colorInfoBorder: #91caff;
     --ag-colorSuccessBorder: #b7eb8f;
     --ag-colorWarningBorder: #ffe58f;
+    --ag-colorWarningBg: #fffbe6;
     --ag-colorBgContainerDisabled: rgba(5, 23, 41, 0.04);
     --ag-colorInfoBg: #f5f7fa;
     --ag-controlItemBgActive: #f5f7fa;
@@ -190,6 +191,9 @@
     --ag-status-success-text: #2e7d3a;
     --ag-surface-error-well: #fdf3f3;
     --ag-surface-error-well-border: #f3d0ce;
+    --ag-strip-input-border: #d6dee6;
+    --ag-strip-selected-bg: #f5f7fa;
+    --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(28, 44, 61, 0.12);
     --ag-sidebar-bg: var(--ag-surface-raised);
 
     /* --- legacy --ag-c-* shim (light = original hex) --- */
@@ -324,6 +328,7 @@
     --ag-colorInfoBorder: var(--ant-blue-5);
     --ag-colorSuccessBorder: #274916;
     --ag-colorWarningBorder: #594214;
+    --ag-colorWarningBg: #2b2111;
     --ag-colorBgContainerDisabled: rgba(255, 255, 255, 0.08);
     --ag-colorInfoBg: #242424;
     --ag-controlItemBgActive: #57572a;
@@ -493,6 +498,9 @@
     --ag-drawer-tag-bg: rgba(255, 255, 255, 0.05);
     --ag-drawer-tag-text: #9a9a9f;
     --ag-drawer-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
+    --ag-strip-input-border: #2e3136;
+    --ag-strip-selected-bg: rgba(255, 255, 255, 0.06);
+    --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
     --ag-sidebar-bg: var(--ag-surface-raised);
 
     /* --- legacy --ag-c-* shim (dark aliased to roles where possible) --- */
@@ -582,7 +590,7 @@
     --ag-c-FFE4B5: var(--ag-colorBgElevated);
     --ag-c-FFE58F: var(--ag-colorBgElevated);
     --ag-c-FFF7E6: var(--ag-colorBgElevated);
-    --ag-c-FFFAEB: var(--ant-gold-1);
+    --ag-c-FFFAEB: var(--ag-colorWarningBg);
     --ag-c-FFFBE6: var(--ag-colorBgElevated);
     --ag-c-FFFBFA: var(--ag-colorBgElevated);
     --ag-c-FFFFFF: var(--ag-colorBgContainer);

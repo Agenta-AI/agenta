@@ -155,6 +155,7 @@ const CORE: Row[] = [
     ["colorInfoBorder", palette.semantic.infoBorder],
     ["colorSuccessBorder", palette.semantic.successBorder],
     ["colorWarningBorder", palette.semantic.warningBorder],
+    ["colorWarningBg", palette.semantic.warningBg],
     ["colorBgContainerDisabled", palette.surface.containerDisabled],
     ["colorInfoBg", palette.surface.infoBg],
     ["controlItemBgActive", palette.surface.controlItemBgActive],
@@ -295,6 +296,9 @@ const FEATURES: [string, FVal][] = [
     ...Object.entries(pf.drawerDark).map(
         ([k, v]) => [`drawer-${camelToKebab(k)}`, {dark: v as string}] as [string, FVal],
     ),
+    ["strip-input-border", pairOf(pf.templateStrip.inputBorder)],
+    ["strip-selected-bg", pairOf(pf.templateStrip.selectedBg)],
+    ["strip-card-hover-shadow", pairOf(pf.templateStrip.cardHoverShadow)],
     ["sidebar-bg", {light: "var(--ag-surface-raised)", dark: "var(--ag-surface-raised)"}],
 ]
 
