@@ -7,7 +7,9 @@ turning the neutral :class:`SessionConfig` into the harness's own config, especi
 - **pi_core** takes built-in tools by name *and* resolved tool specs, delivered natively (Pi
   has no MCP). The runner relay enforces the shared permission plan.
 - **claude** has no built-in tools (they are a Pi concept), delivers tools over MCP, and
-  receives the same runner permission plan.
+  receives the same runner permission plan. It is a first-class harness for platform agents
+  too, so it also gets the forced AGENTS.md preamble and forced platform skill(s) (see
+  :mod:`.agenta_builtins`); it has no Pi `system`/`append_system` slot, so no persona is forced.
 - **pi_agenta** is Pi with an opinion: the same engine and config shape, plus a fixed set of
   forced tools, a base AGENTS.md preamble, and a persona (see :mod:`.agenta_builtins`).
   Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
@@ -92,6 +94,10 @@ class ClaudeHarness(Harness):
                 "ClaudeHarness ignores %d built-in tool(s); built-ins are a Pi concept",
                 len(config.builtin_names),
             )
+        # Claude is a first-class harness for platform agents too: the same forced Agenta
+        # preamble and forced platform skill(s) that pi_agenta gets are carried onto claude
+        # runs (see :mod:`.agenta_builtins`). Claude has no Pi `system`/`append_system` slot,
+        # so only the preamble and skills are forced here.
         # Skills stay on the harness config; the runner materializes them under `.claude/skills`
         # in the session cwd so Claude ACP can load the same resolved inline packages.
         # The harness's first-class `permissions` slice (plus sandbox_permission + mcp_servers) is
@@ -99,13 +105,16 @@ class ClaudeHarness(Harness):
         # adapter) renders `.claude/settings.json` as a generic `harnessFiles` entry. No
         # claude-specific parsing happens here; the runner just writes the files into the cwd.
         return ClaudeAgentTemplate(
-            agents_md=config.agent.instructions,
+            agents_md=compose_instructions(config.agent.instructions),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),
-            skills=list(config.agent.skills),
+            # Force the platform skill(s) into every run, de-duped by name, mirroring
+            # AgentaHarness: a custom config that drops the default template's `_agenta` embed
+            # still gets the platform skill.
+            skills=force_skills(list(config.agent.skills)),
             sandbox_permission=config.agent.sandbox_permission,
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,

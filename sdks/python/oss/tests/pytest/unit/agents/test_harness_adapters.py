@@ -261,8 +261,53 @@ def test_claude_carries_skills_for_project_local_materialization(make_env):
 
     # Claude keeps resolved inline packages on the config. The runner materializes them under
     # `.claude/skills/<name>` in the session cwd, matching Claude's project-local skill layout.
-    assert [s.name for s in result.skills] == ["release-notes"]
+    # The forced platform skill is unioned in after the author's own skill(s), same as Agenta.
+    skill_names = [s.name for s in result.skills]
+    assert skill_names[0] == "release-notes"
+    assert GETTING_STARTED_WITH_AGENTA_SKILL.name in skill_names
     assert result.wire_skills()["skills"][0]["name"] == "release-notes"
+
+
+def test_claude_forces_platform_skill_on_a_skill_less_config(make_env):
+    # Mirrors AgentaHarness: a claude config with no skills still carries the platform skill on
+    # every run, so a claude-harness platform agent gets the getting-started skill too.
+    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    config = _session_config(
+        agent=AgentTemplate(instructions="hi", model="m", skills=[])
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert [s.name for s in result.skills] == [GETTING_STARTED_WITH_AGENTA_SKILL.name]
+
+
+def test_claude_does_not_duplicate_an_already_present_platform_skill(make_env):
+    # A config that already carries the resolved platform skill (e.g. via the default template's
+    # embed) is not doubled: the author's copy wins on the name clash.
+    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    existing = GETTING_STARTED_WITH_AGENTA_SKILL.model_dump(mode="json")
+    config = _session_config(
+        agent=AgentTemplate(instructions="hi", model="m", skills=[existing])
+    )
+
+    result = harness._to_harness_config(config)
+
+    names = [s.name for s in result.skills]
+    assert names.count(GETTING_STARTED_WITH_AGENTA_SKILL.name) == 1
+
+
+def test_claude_composes_instructions_with_the_agenta_preamble(make_env):
+    # Claude runs now get the same forced AGENTS.md preamble as pi_agenta, so a claude-harness
+    # platform agent isn't left without the getting-started preamble.
+    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    config = _session_config(
+        agent=AgentTemplate(instructions="My project rules.", model="m")
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert result.agents_md.startswith(AGENTA_PREAMBLE)
+    assert result.agents_md.endswith("My project rules.")
 
 
 def test_claude_no_warning_without_builtins(make_env, monkeypatch):
