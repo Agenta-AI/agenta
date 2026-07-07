@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
+import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
@@ -450,6 +450,12 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const stripProvenance = useTemplateProvenance({
         composerApi: {setText: (text) => richInputRef.current?.setMarkdown(text)},
     })
+    // S6 gate: fresh agent only (`version` v0/v1 = creation, same seed-vs-history convention used
+    // elsewhere); unknown while loading counts as not-fresh so the strip never flashes in.
+    const revisionQuery = useAtomValue(workflowMolecule.selectors.query(entityId))
+    const revisionVersion = revisionQuery.data?.version
+    const isFreshAgentRevision =
+        !revisionQuery.isPending && typeof revisionVersion === "number" && revisionVersion <= 1
     const [copiedToastOpen, setCopiedToastOpen] = useState(false)
     const handleStripPick = useCallback(
         (template: AgentTemplate) => {
@@ -1448,11 +1454,13 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                     onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
                 <Reveal className="px-3">
-                    {/* Agent empty-chat strip (S6): docked above the composer so a pick never shifts
-                        it; unmounts once a message exists; suppressed while a first-run prompt is
-                        pending so two suggestion systems never stack. */}
+                    {/* Agent empty-chat strip (S6): docked above the composer, unmounts once a
+                        message exists or a first-run prompt is pending. Build-mode + fresh-agent
+                        only — never in maximized chat mode, and gone for good after any commit. */}
                     {TEMPLATE_STRIP_MODE &&
                     !onboardingActive &&
+                    buildMode &&
+                    isFreshAgentRevision &&
                     messages.length === 0 &&
                     !firstRunPrompt &&
                     !pendingFirstTurn ? (
