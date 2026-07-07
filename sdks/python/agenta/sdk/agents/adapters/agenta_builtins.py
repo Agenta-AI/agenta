@@ -110,14 +110,15 @@ GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
 _CONFIG_SCHEMA_REFERENCE = """\
 # The agent config, field by field
 
-Read this before your first `commit_revision`, and whenever a commit fails validation and you
-need to check the shape.
+Read this before your first `commit_revision`, and whenever a run misbehaves after a commit and
+you need to check the shape.
 
 `parameters.agent` is one object. You edit it by sending only the changed fields under
 `commit_revision`'s `workflow_revision.delta.set.parameters.agent`. The portable definition —
 `instructions`, `llm`, `tools`, `mcps`, `skills` — is flat on it; the execution parts —
-`harness`, `runner`, `sandbox` — are nested sub-objects. Almost every sub-object rejects unknown
-keys, so a misplaced or misspelled field fails the commit rather than being silently ignored.
+`harness`, `runner`, `sandbox` — are nested sub-objects. The commit does NOT validate this shape:
+a misplaced or misspelled field commits fine and only bites when the agent next runs. Get the
+shape right from this reference, and verify with `test_run` after every commit.
 
 ## The whole object
 
@@ -134,19 +135,24 @@ keys, so a misplaced or misspelled field fails the commit rather than being sile
 }
 ```
 
-You are a `pi_agenta` agent. Keep `harness`, `runner`, `sandbox`, and `llm` as they are unless
-the user asks to change one.
+The example above shows one common setup; your own `harness` may be `pi_agenta`, `claude`, or
+`pi_core`. Whatever it is, keep `harness`, `runner`, `sandbox`, and `llm` as they are unless the
+user explicitly asks to change one.
 
 ## The fields you decide
 
 ### instructions
 
-`instructions.agents_md` — a Markdown string, your AGENTS.md: who you are and what you do. On the
-`pi_agenta` harness a fixed Agenta preamble and persona are prepended automatically, so write only
-your own project conventions here. One or two sentences for a simple agent; an explicit numbered
-procedure for a multi-tool or scheduled one (see the instruction-writing section of SKILL.md).
+`instructions.agents_md` — a Markdown string, your AGENTS.md: who you are and what you do. Write
+only your own project conventions here — the platform supplies its own baseline framing (on
+`pi_agenta` and `claude`, a fixed Agenta preamble is prepended automatically). One or two
+sentences for a simple agent; an explicit numbered procedure for a multi-tool or scheduled one
+(see the instruction-writing section of SKILL.md).
 
 ### llm
+
+You almost never touch `llm` in a delta. Keep it exactly as it is unless the user explicitly asks
+to change the model, provider, or connection. The rules below matter only when they do ask:
 
 - `model` — the model. How you NAME it depends on the harness (this is the trap):
   - `pi_core` / `pi_agenta`: a real model id, e.g. `gpt-5.5` or `anthropic/claude-...`
@@ -175,11 +181,15 @@ runner default for that one tool). The six `type` values:
   "python"|"node", "script": "...", "input_schema": {...}, "secrets": [...] }`.
 - `client` — a tool the caller fulfills: `{ "type": "client", "name": "...", "description":
   "...", "input_schema": {...} }`.
-- `reference` — another Agenta workflow run as a tool: `{ "type": "reference", "ref_by":
-  "variant"|"environment", "slug": "...", "version": "...", "environment": "...", "name": "...",
-  "input_schema": {...} }`. `ref_by="variant"` takes the slug's latest revision (or a pinned
-  `version`); `ref_by="environment"` takes whatever is deployed in `environment` (and must not
-  set `version`).
+- `reference` — another Agenta workflow run as a tool. `ref_by` picks which revision runs:
+  - `{ "type": "reference", "ref_by": "variant", "slug": "my-summarizer" }` — runs that
+    variant's LATEST revision, following every new commit.
+  - `{ "type": "reference", "ref_by": "variant", "slug": "my-summarizer", "version": "3" }` —
+    pins revision 3; later commits do not change what runs.
+  - `{ "type": "reference", "ref_by": "environment", "slug": "my-summarizer",
+       "environment": "production" }` — runs whatever is deployed in that environment (and must
+    NOT set `version`; the environment is the pin).
+  Optionally add the model-facing surface: `name`, `description`, and `input_schema`.
 - `platform` — an existing Agenta endpoint exposed as a tool: `{ "type": "platform", "op":
   "discover_tools" }`. The catalog owns everything else about it.
 
@@ -250,24 +260,150 @@ the run:
   configure yourself with — which severs them on your next run.
 - `remove` takes dotted paths, e.g. `parameters.agent.tools`.
 
-## Mistakes that fail the commit
+## Mistakes that break your agent
+
+The commit accepts whatever you send — none of these return a validation error. Each one commits
+fine and then bites later, at a different spot. Your two detectors are `test_run` (read the
+`resolved` block and the executed tool list, not just the status) and a skill that fails to load
+on the next run.
 
 - `slug` or `content` as top-level fields on a skill entry. The skill's Markdown goes in `body`;
-  a bundled file's text goes in that file's `content` inside `files`. Top-level `slug`/`content`
-  are unknown keys and the commit fails.
+  a bundled file's text goes in that file's `content` inside `files`. Bites at RUN time: skill
+  parsing rejects the unknown keys and the run fails to load the skill.
+- Any unknown or misspelled key in a skill entry or a tool entry. Same failure point: the run
+  rejects the entry when it parses the config, not the commit.
 - `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
-  only; the run's Model & Harness never resolves and it never runs.
-- Any unknown key in `llm`, `instructions`, `harness`, `runner`, `sandbox`, a skill entry, or a
-  tool entry. These objects reject extras, so a typo'd field name fails the commit.
-- Dropping `harness`, `runner`, or `sandbox` from a fresh full-object commit. Prefer a narrow
-  `delta.set` that touches only what you change, so the boilerplate survives the deep merge.
-
-## Mistakes that commit fine but break the run
-
+  only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). The model field is a free string, so
-  the commit succeeds — the run then silently falls back to a default model. Match the naming to
-  the harness and check `test_run`'s `resolved` block to catch a fallback.
+  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). Bites silently: the run falls back
+  to a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
+- Sending a short `tools`/`skills`/`mcps` list. Bites on the NEXT run: lists replace wholesale,
+  so everything you left out is gone — including the platform ops you configure yourself with.
+- Rebuilding the whole `parameters.agent` object instead of a narrow delta. Prefer a `delta.set`
+  that touches only what you change, so `harness`, `runner`, `sandbox`, and `llm` survive the
+  deep merge untouched.
+
+## Example requests
+
+These are complete `commit_revision` payloads, ready to adapt. Field names match exactly; only the
+values are placeholders. Most of the time you change only `instructions` and `skills` — the first
+two examples cover the common case.
+
+Instructions only, the minimal two-step case — just a persona and a task:
+
+```json
+{
+  "workflow_revision": {
+    "message": "Set the agent's persona: triage inbound support emails.",
+    "delta": {
+      "set": {
+        "parameters": {
+          "agent": {
+            "instructions": {
+              "agents_md": "You triage inbound support emails. For each email: (1) classify it as bug, billing, or question; (2) draft a one-paragraph reply; (3) hand off billing issues instead of answering them."
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Adding a skill entry — an inline skill template with one bundled reference file. `skills` replaces
+wholesale too, so include your existing entries (this example assumes the list was empty):
+
+```json
+{
+  "workflow_revision": {
+    "message": "Add a code-review-checklist skill.",
+    "delta": {
+      "set": {
+        "parameters": {
+          "agent": {
+            "skills": [
+              {
+                "name": "code-review-checklist",
+                "description": "Use when reviewing a pull request for style and correctness issues.",
+                "body": "# Code review checklist\\n\\nWalk every changed file against `references/checklist.md` before approving.\\n",
+                "files": [
+                  {
+                    "path": "references/checklist.md",
+                    "content": "- No commented-out code\\n- Tests cover the new branch\\n- Error messages are actionable\\n"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry you already have (the
+forced builtins, your existing platform ops, any `@ag.embed` tool) plus the new one. The gateway
+entry is copied from what `discover_tools` returned, with the `connection` slug filled in.
+CAVEAT: the list below is SHORTENED to keep the example readable — in a real commit, resend your
+ENTIRE current tools list, every entry you have, not this subset:
+
+```json
+{
+  "workflow_revision": {
+    "message": "Add the GitHub create-issue tool alongside the existing build-kit tools.",
+    "delta": {
+      "set": {
+        "parameters": {
+          "agent": {
+            "tools": [
+              { "type": "builtin", "name": "read" },
+              { "type": "builtin", "name": "bash" },
+              { "type": "platform", "op": "discover_tools" },
+              { "type": "platform", "op": "commit_revision" },
+              { "type": "platform", "op": "test_run" },
+              { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__some_tool" } },
+                                "@ag.selector": { "path": "parameters.tool" } } },
+              {
+                "type": "gateway",
+                "provider": "composio",
+                "integration": "github",
+                "action": "GITHUB_CREATE_AN_ISSUE",
+                "connection": "conn_9f3a1c",
+                "name": "create_github_issue"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Dropping one field with `delta.remove` — a dotted path, no `set` required:
+
+```json
+{
+  "workflow_revision": {
+    "message": "Drop the reasoning_effort override; use the model's default again.",
+    "delta": {
+      "remove": ["parameters.agent.llm.extras.reasoning_effort"]
+    }
+  }
+}
+```
+
+Don't forget:
+
+- Re-send the complete list for `tools`, `skills`, and `mcps`. A one-entry list wipes the rest,
+  including the platform ops you rely on every run.
+- Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
+- `message` is a real commit message. Say what changed and why, not a placeholder.
+- After the user connects an integration, re-run `discover_tools` before committing the tool, so
+  the `connection` slug is current.
+- Keep `harness`, `runner`, `sandbox`, and `llm` out of `delta.set` unless you are intentionally
+  changing them; a narrow delta preserves them through the deep merge.
 """
 
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime
@@ -354,6 +490,60 @@ interpolation, so the payload rides as a SIBLING key, not inlined into the messa
 Passing no `inputs_fields` at all gives the agent the raw context object as inputs — fine for a
 smoke test, but a real agent should get an explicit `messages` entry so the run starts from an
 imperative instruction.
+
+## Example requests
+
+These are complete `create_schedule` / `create_subscription` payloads, ready to adapt. Write the
+fields exactly as shown here — top-level `name` / `data` / ... — not wrapped in an outer key.
+
+`create_schedule` — a weekday-morning cron tick with a fixed instruction:
+
+```json
+{
+  "name": "daily-digest",
+  "description": "Runs the daily support digest every weekday morning.",
+  "data": {
+    "event_key": "daily_digest_tick",
+    "schedule": "0 8 * * 1-5",
+    "inputs_fields": {
+      "messages": [
+        { "role": "user", "content": "Run the daily digest now." }
+      ]
+    }
+  }
+}
+```
+
+`create_subscription` — a provider event, with the payload mapped alongside a fixed instruction:
+
+```json
+{
+  "name": "github-issue-triage",
+  "description": "Fires when a new issue is opened in the connected repo.",
+  "connection_id": "conn_9f3a1c",
+  "data": {
+    "event_key": "GITHUB_ISSUE_OPENED",
+    "trigger_config": { "owner": "agenta-ai", "repo": "agenta" },
+    "inputs_fields": {
+      "messages": [
+        { "role": "user", "content": "Triage the GitHub issue in inputs.event." }
+      ],
+      "event": "$.event.attributes"
+    }
+  }
+}
+```
+
+Don't forget:
+
+- A selector must be the WHOLE leaf. `"Summarize $.event.attributes"` stays that literal text; put
+  the selector on its own key instead.
+- Give every trigger an explicit imperative `messages` entry so the run starts from a command, not
+  raw context.
+- `schedule` is five fields, UTC, with a one-minute floor. Convert the user's timezone yourself
+  before writing it.
+- Map the provider payload as a sibling key, such as `"event": "$.event.attributes"`, never inlined
+  into the message text.
 """
 
 
@@ -381,10 +571,16 @@ You decide four things under `parameters.agent`:
 Everything else is fixed unless the user explicitly asks to change it. Configure yourself with
 `commit_revision` by setting `parameters.agent` fields; do not create a separate app.
 
-Read `references/config-schema.md` before your first `commit_revision`: it gives the exact shape
-of every field, the tool-entry types, the skill-entry shape, the delta merge semantics, and the
-mistakes that fail a commit. Read `references/trigger-inputs.md` before you write a schedule or
-subscription's `inputs_fields`.
+Read `references/config-schema.md` before your first `commit_revision`. It gives:
+
+- the exact shape of every field,
+- the tool-entry types,
+- the skill-entry shape,
+- the delta merge semantics,
+- the mistakes that break your agent.
+
+Read `references/trigger-inputs.md` before you write a schedule or subscription's
+`inputs_fields`.
 
 ## Decision table
 
@@ -489,8 +685,11 @@ HTTP only when your wired tools cannot do the job, and say so when you do.
 
 - A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
   exist. Do not redo them.
-- A validation error on commit names the fields that are wrong. Fix those named fields and
-  re-commit; do not start over. `references/config-schema.md` has the "mistakes that fail" list.
+- The commit does not validate your config: a wrong shape commits fine and surfaces at run time —
+  a skill fails to load, the model silently falls back, a tool goes missing. So verify with
+  `test_run` after every commit: read `resolved` and the executed tool list, and when something
+  is off, check the shape against `references/config-schema.md` and re-commit the fix; do not
+  start over.
 - After any commit, existing schedules and subscriptions still point at the previous revision.
   Re-point them so they run the new config.
 - If `test_run`'s `resolved` harness or model differs from what you committed, the config silently

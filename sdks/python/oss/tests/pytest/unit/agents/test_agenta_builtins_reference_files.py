@@ -87,3 +87,21 @@ def test_trigger_inputs_reference_documents_the_context_shape():
     content = _file("references/trigger-inputs.md").content
     for key in ("event", "subscription", "scope", "attributes", "inputs_fields"):
         assert key in content, f"trigger-inputs.md omits {key!r}"
+
+
+def test_config_schema_has_example_commit_revision_requests():
+    content = _file("references/config-schema.md").content
+    assert "## Example requests" in content
+    # A complete, copy-adaptable `commit_revision` payload, not just a field-shape snippet.
+    assert '"workflow_revision"' in content
+    assert '"delta"' in content
+
+
+def test_trigger_inputs_has_example_trigger_requests():
+    content = _file("references/trigger-inputs.md").content
+    assert "## Example requests" in content
+    # Complete `create_schedule` / `create_subscription` args payloads, written the way the
+    # model must emit them: unwrapped, matching the resolved input schema (not args_into).
+    assert '"event_key"' in content
+    assert '"schedule"' in content
+    assert '"connection_id"' in content
