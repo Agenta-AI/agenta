@@ -28,11 +28,14 @@ import type {
     InterfaceSchemasResponse,
     AppOpenApiSchemas,
     SimpleApplicationFetchResponse,
+    AgentBuildKitOverlay,
 } from "../api"
 import {
+    AGENT_BUILD_KIT_WORKFLOW_SLUG,
     extractDefaultsFromSchema,
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
+    fetchAgentBuildKitOverlay,
     fetchSimpleApplication,
     fetchWorkflowAppOpenApiSchema,
     fetchAgTypeSchema,
@@ -1159,6 +1162,15 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
 
 export type AgentTemplate = Record<string, unknown>
 
+const AGENT_BUILTIN_URI_PREFIX = "agenta:builtin:agent"
+
+const isAgentBuiltinUri = (uri: unknown): boolean =>
+    typeof uri === "string" && uri.startsWith(AGENT_BUILTIN_URI_PREFIX)
+
+const isAgentTemplateOverlay = (
+    overlay: AgentBuildKitOverlay | AgentTemplate | null | undefined,
+): overlay is AgentTemplate => !!overlay && typeof overlay === "object" && !Array.isArray(overlay)
+
 /**
  * Fetch the simple-application envelope for one app id.
  *
@@ -1182,23 +1194,44 @@ export const simpleApplicationQueryAtomFamily = atomFamily((applicationId: strin
     }),
 )
 
+export const agentBuildKitOverlayAtom = atomWithQuery((get) => {
+    const projectId = get(workflowProjectIdAtom)
+    return {
+        queryKey: ["agentBuildKitOverlay", AGENT_BUILD_KIT_WORKFLOW_SLUG, projectId],
+        queryFn: async (): Promise<AgentBuildKitOverlay | null> => {
+            if (!projectId) return null
+            return fetchAgentBuildKitOverlay(projectId)
+        },
+        enabled: get(sessionAtom) && !!projectId,
+        staleTime: Infinity,
+        refetchOnWindowFocus: false,
+    }
+})
+
 export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: string) =>
     atom<AgentTemplate | null>((get) => {
-        // The app id (workflow artifact id) the revision belongs to. Server data
-        // wins; fall back to the local base entity so a draft agent still resolves.
         const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
-        const applicationId =
-            revisionData?.workflow_id ??
-            get(workflowBaseEntityAtomFamily(revisionId))?.workflow_id ??
-            null
+        const baseEntity = get(workflowBaseEntityAtomFamily(revisionId))
+        const explicitIsAgent = revisionData?.flags?.is_agent ?? baseEntity?.flags?.is_agent
+        const targetUri = revisionData?.data?.uri ?? baseEntity?.data?.uri
+        const isAgent = explicitIsAgent ?? isAgentBuiltinUri(targetUri)
+        if (!isAgent || !get(sessionAtom)) return null
+
+        const slugQuery = get(agentBuildKitOverlayAtom)
+        if (isAgentTemplateOverlay(slugQuery.data)) {
+            return slugQuery.data
+        }
+
+        const applicationId = revisionData?.workflow_id ?? baseEntity?.workflow_id ?? null
         if (!applicationId) return null
+        const shouldUseFallback =
+            slugQuery.isError || (slugQuery.data === null && !slugQuery.isPending)
+        if (!shouldUseFallback) return null
 
         const appData = get(simpleApplicationQueryAtomFamily(applicationId)).data ?? null
         const overlay =
             appData?.additional_context?.playground_build_kit?.agent_template_overlay ?? null
-        return overlay && typeof overlay === "object" && !Array.isArray(overlay)
-            ? (overlay as AgentTemplate)
-            : null
+        return isAgentTemplateOverlay(overlay) ? overlay : null
     }),
 )
 

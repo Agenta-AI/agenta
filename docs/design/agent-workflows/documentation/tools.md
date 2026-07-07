@@ -439,8 +439,13 @@ Each catalog entry (`PlatformOp`, a typed model validated at import) maps an `op
 
 Each op has a stable reserved id, `tools.agenta.<op>`. The catalog holds every exposable op
 (discovery, workflow reads/writes, tracing reads, and the trigger/schedule/subscription
-lifecycle). The playground **build-kit overlay** embeds an explicit default subset,
-`DEFAULT_BUILD_KIT_OPS` in `api/oss/src/apis/fastapi/applications/overlay.py`: `discover_tools`,
+lifecycle). The playground **build kit** is itself served as the reserved static workflow
+`__ag__build_kit` (a constant agent config in `api/oss/src/core/workflows/static_catalog.py`;
+content builder `api/oss/src/core/workflows/build_kit.py`) — the frontend resolves it by slug
+once per project and merges it as an overlay onto any agent-typed entity; it is retrievable
+but not embeddable/committable, and the legacy per-application `additional_context` rider
+remains one release as a fallback. It embeds an explicit default subset,
+`DEFAULT_BUILD_KIT_OPS` in `api/oss/src/core/workflows/build_kit.py`: `discover_tools`,
 `commit_revision`, `annotate_trace`, `query_spans`, `discover_triggers`, `create_schedule`,
 `create_subscription`, `list_schedules`, `list_deliveries`, `test_subscription`,
 `remove_schedule`, and `remove_subscription` (12 ops, plus the `request_connection` client
