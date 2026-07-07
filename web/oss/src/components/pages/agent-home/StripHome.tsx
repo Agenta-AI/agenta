@@ -3,22 +3,21 @@ import {useCallback, useRef, useState} from "react"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {App, Button, Tag, Typography} from "antd"
+import {App, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
-import {ArrowLeftRight, ArrowRight} from "lucide-react"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
+import StripComposer from "@/oss/components/TemplateStrip/components/StripComposer"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
-import {COMPOSER, HERO} from "./assets/constants"
+import {HERO} from "./assets/constants"
 import {captureFirstAgentIntent, truncateForCapture} from "./assets/onboardingAnalytics"
 import {type AgentTemplate} from "./assets/templates"
-import AgentComposer from "./components/AgentComposer"
 import UsageSummary from "./components/UsageSummary"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
@@ -110,29 +109,11 @@ const StripHome: React.FC = () => {
                 {/* Chip docks flush above the composer (no gap; the chip has no bottom border). */}
                 <div className="mt-5 flex flex-col items-stretch">
                     {provenance.chipNode}
-                    <AgentComposer
+                    <StripComposer
                         composerRef={composerRef}
                         onCreate={onCreate}
-                        classNameOverride={provenance.composerClassName}
-                        trailingOverride={
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    icon={<ArrowLeftRight size={14} />}
-                                    onClick={handleCodingAgentCopy}
-                                >
-                                    {STRIP_COPY.useCodingAgent}
-                                </Button>
-                                <Button
-                                    type="primary"
-                                    icon={<ArrowRight size={14} />}
-                                    iconPosition="end"
-                                    onClick={onCreate}
-                                    className="!shadow-none"
-                                >
-                                    {COMPOSER.createAgent}
-                                </Button>
-                            </div>
-                        }
+                        onCodingAgentCopy={handleCodingAgentCopy}
+                        composerClassName={provenance.composerClassName}
                     />
                 </div>
 
