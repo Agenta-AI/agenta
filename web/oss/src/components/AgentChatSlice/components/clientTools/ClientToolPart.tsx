@@ -1,7 +1,7 @@
 /**
  * Client-tool dispatcher (#4920, interaction kinds M1) — the sibling to `ToolActivity` that renders
  * a single client-tool part. It resolves the widget by `render.kind` → `toolName` (the registry)
- * and falls back to the explicit "can't handle that" surface for an unknown client tool. The
+ * and falls back to the neutral "not handled by this client" surface for an unknown client tool. The
  * `render.kind` arrives as a sibling `data-render` part (strict tool chunks), resolved through the
  * message-scoped `renderMap`. The widget settles the part via `settle`, which calls the panel's
  * `addToolOutput`; the resume predicate then auto-resends.

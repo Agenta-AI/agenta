@@ -14,14 +14,15 @@
  *                    ClientToolPart → resolveClientToolHandler(meta)
  *                    render.kind ──▶ BY_RENDER_KIND   (elicitation, connect, …)
  *                    toolName ─────▶ BY_TOOL_NAME     (request_connection)
- *                    neither ──────▶ UnhandledClientTool ("can't handle", auto-settles)
+ *                    neither ──────▶ UnhandledClientTool (neutral "not handled", auto-settles)
  *                                        │ widget settles: output {action,…} | errorText
  *                                        ▼
  *                    addToolOutput → agentShouldResumeAfterApproval → auto-resend → resume
  *
- * A streamed client tool with no entry is NOT an error here — `ClientToolPart` renders the explicit
- * "this app can't handle that request" surface and settles the part so the run never hangs. An
- * `elicitation` part whose payload fails validation degrades the same way (errorText, retry-capped).
+ * A streamed client tool with no entry is NOT an error here — `ClientToolPart` renders the neutral
+ * "not handled by this client" surface, which settles a non-error output so the run never hangs.
+ * An `elicitation` part whose payload fails validation degrades differently: it settles via the
+ * pinned degradation `errorText` prefix (retry-capped) — errorText stays reserved for degradation.
  */
 import type {ComponentType} from "react"
 

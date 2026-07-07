@@ -50,7 +50,7 @@ export const clientToolMeta = (
  *  2. **Parked unknown client tool** — the turn has finished (not streaming) yet a non-provider-
  *     executed tool part is still unsettled and is not an approval gate. The runner only leaves a
  *     part in this "turn done, part unsettled, not providerExecuted" state for a client tool, so we
- *     surface the explicit "can't handle that" widget (which settles the part so it never hangs).
+ *     surface the neutral "not handled" widget (which settles the part so it never hangs).
  */
 export const isClientToolPart = (
     part: ToolUIPart,
