@@ -7,8 +7,14 @@ function uuidToBytes(uuid: string): Buffer {
   return Buffer.from(uuid.replace(/-/g, ""), "hex");
 }
 
-/** RFC 4122 uuid5 (SHA-1) of `name` under `namespace`. */
+/**
+ * RFC 4122 uuid5 (SHA-1) of `name` under `namespace`. SHA-1 is mandated by the uuid5 spec
+ * itself (RFC 4122 §4.3), not a security choice: the output is a non-secret, non-collision-
+ * sensitive identifier for record dedup, never used for auth, integrity, or secrecy.
+ */
 function uuid5(name: string, namespace: string): string {
+  // codeql[js/weak-cryptographic-algorithm] SHA-1 is the RFC 4122 uuid5 algorithm; the
+  // digest is a public, deterministic id, not a security-sensitive value.
   const hash = createHash("sha1")
     .update(uuidToBytes(namespace))
     .update(name, "utf8")
