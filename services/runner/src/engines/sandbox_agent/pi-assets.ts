@@ -279,6 +279,9 @@ export function prepareLocalPiAssets({
 
   if (process.env.PI_CODING_AGENT_DIR) {
     installPiExtensionLocal(process.env.PI_CODING_AGENT_DIR, log);
+  } else {
+    // unset here means this run has no Agenta extension (tracing + tools); warn so it's visible.
+    log("PI_CODING_AGENT_DIR is unset; plain local Pi run has no Agenta extension installed");
   }
   return undefined;
 }
