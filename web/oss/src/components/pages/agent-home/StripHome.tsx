@@ -109,7 +109,7 @@ const StripHome: React.FC = () => {
                 </div>
 
                 <TemplateStrip
-                    className="mt-4"
+                    className="mt-[30px]"
                     surface="home"
                     selectedTemplateKey={provenance.selectedTemplateKey}
                     onPick={handlePick}
