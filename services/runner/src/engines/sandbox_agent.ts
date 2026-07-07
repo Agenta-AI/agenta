@@ -990,7 +990,10 @@ export async function runSandboxAgent(
     // Also surface it as an event (before finish flushes the sink) so the error reaches the
     // live stream and the durable record, not only the trace.
     otel?.emitEvent({ type: "error", message: error });
-    otel?.finish();
+    // finish() must not throw uncaught, same as recordError above — tracing must not mask the run error.
+    try {
+      otel?.finish();
+    } catch {}
     await otel?.flush().catch(() => {});
     return {
       ok: false,
