@@ -388,5 +388,68 @@ async def test_composition_select_backend_is_deployment_specific():
     assert result_b["messages"][0]["content"] == "b"
 
 
+# --------------------------------------------------------------------------- #
+# Local-sandbox gate is the bare SDK default too (a composition-free `agent_v0` gets
+# this protocol-level safety behavior for free, same as capability/MCP gating above).
+# --------------------------------------------------------------------------- #
+async def test_default_select_backend_refuses_local_sandbox_when_knob_off(monkeypatch):
+    from agenta.sdk.agents import LocalSandboxNotAllowedError
+    from agenta.sdk.agents.dtos import AgentTemplate
+
+    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", "false")
+    comp = AgentComposition(resolve_connection=_no_connection)
+    handler = make_agent_handler(comp)
+
+    with pytest.raises(LocalSandboxNotAllowedError):
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={
+                "agent": {"harness": {"kind": "pi_core"}, "sandbox": {"kind": "local"}}
+            },
+        )
+
+    # sanity: the template really did carry "local" through to select_backend's input.
+    assert AgentTemplate(sandbox="local").sandbox == "local"
+
+
+async def test_default_select_backend_allows_local_sandbox_by_default(monkeypatch):
+    from agenta.sdk.agents.errors import AgentRunnerConfigurationError
+
+    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
+    comp = AgentComposition(resolve_connection=_no_connection)
+    handler = make_agent_handler(comp)
+
+    # Past the gate, it hits the real SandboxAgentBackend construction, which fails on
+    # missing runner assets in this sandboxed test env -- proving the gate itself passed.
+    with pytest.raises(AgentRunnerConfigurationError):
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={
+                "agent": {"harness": {"kind": "pi_core"}, "sandbox": {"kind": "local"}}
+            },
+        )
+
+
+async def test_default_select_backend_allows_daytona_sandbox_by_default(monkeypatch):
+    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    result = await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={
+            "agent": {"harness": {"kind": "pi_core"}, "sandbox": {"kind": "daytona"}}
+        },
+    )
+    assert isinstance(result, dict)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])

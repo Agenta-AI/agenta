@@ -1097,6 +1097,11 @@ imagePullSecrets:
 - name: AGENTA_SERVICES_CODE_SANDBOX_RUNNER
   value: {{ $svcCode.sandboxRunner | quote }}
 {{- end }}
+{{- /* agenta.sandboxLocalAllowed — agent runner `local` sandbox gate */}}
+{{- if hasKey $agenta "sandboxLocalAllowed" }}
+- name: AGENTA_SANDBOX_LOCAL_ALLOWED
+  value: {{ $agenta.sandboxLocalAllowed | quote }}
+{{- end }}
 {{- /* agenta.services.middleware — SDK middleware toggles */}}
 {{- if hasKey $svcMiddleware "authEnabled" }}
 - name: AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED

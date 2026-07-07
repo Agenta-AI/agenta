@@ -16,7 +16,8 @@
         "apiInternalUrl": { "type": "string", "description": "Internal API URL (in-cluster). Emitted as AGENTA_API_INTERNAL_URL." },
         "authKey": { "type": "string", "minLength": 1, "description": "Authorization key. Emitted as AGENTA_AUTH_KEY via Secret." },
         "cryptKey": { "type": "string", "minLength": 1, "description": "Encryption key. Emitted as AGENTA_CRYPT_KEY via Secret." },
-        "insecureEgressAllowed": { "type": ["boolean", "string"], "description": "AGENTA_INSECURE_EGRESS_ALLOWED — default false (secure); true permits egress to private/loopback IPs — dev only." },
+        "insecureEgressAllowed": { "type": ["boolean", "string"], "description": "AGENTA_INSECURE_EGRESS_ALLOWED — default true (permissive, zero-config self-host); set false to harden a shared/multi-tenant deployment." },
+        "sandboxLocalAllowed": { "type": ["boolean", "string"], "description": "AGENTA_SANDBOX_LOCAL_ALLOWED — default true (permissive, zero-config self-host); `local` sandbox runs unconfined host bash. Set false to harden a shared/multi-tenant deployment." },
         "access": {
           "type": "object",
           "additionalProperties": false,
@@ -102,7 +103,7 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "sandboxRunner": { "type": "string", "enum": ["local", "daytona"], "description": "AGENTA_SERVICES_CODE_SANDBOX_RUNNER." }
+                "sandboxRunner": { "type": "string", "enum": ["restricted", "local", "daytona"], "description": "AGENTA_SERVICES_CODE_SANDBOX_RUNNER — default local." }
               }
             },
             "middleware": {
