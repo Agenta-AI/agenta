@@ -519,7 +519,12 @@ export function AgentTemplateControl({
         existingToolCount: tools.length,
         gatewayTools,
         onReferenceWorkflow: workflowReference?.enabled
-            ? () => setReferenceSelectorOpen(true)
+            ? () => {
+                  // Opening the picker is the point the workflow list is actually needed — activate
+                  // the (lazy) bridge so it resolves now instead of on every playground load.
+                  workflowReference.activate?.()
+                  setReferenceSelectorOpen(true)
+              }
             : undefined,
         // Route the integration row to the agent-scoped drawer instead of the shared global catalog.
         onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
