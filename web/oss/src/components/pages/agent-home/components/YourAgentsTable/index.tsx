@@ -7,10 +7,15 @@ import {
 } from "@agenta/ui/table"
 import {Typography} from "antd"
 import type {TableProps} from "antd/es/table"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
+import {
+    agentsWorkflowsAtom,
+    agentsWorkflowsLoadingAtom,
+    invalidateAgentsWorkflowQueries,
+} from "@/oss/components/pages/agents/store"
+import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
@@ -32,20 +37,39 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
+    const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const rows = useAtomValue(agentsWorkflowsAtom)
     const isLoading = useAtomValue(agentsWorkflowsLoadingAtom)
 
-    const handleOpen = useCallback(
+    const handleOpenOverview = useCallback(
         (record: AppWorkflowRow) => router.push(`${baseAppURL}/${record.workflowId}/overview`),
         [router, baseAppURL],
     )
 
+    // Default open affordance (row click, name cell) — straight to the playground, not overview.
+    const handleOpenPlayground = useCallback(
+        (record: AppWorkflowRow) => goToPlayground(undefined, {appId: record.workflowId}),
+        [goToPlayground],
+    )
+
+    const handleArchive = useCallback(
+        (record: AppWorkflowRow) => {
+            openDeleteAppModal({
+                id: record.workflowId,
+                name: record.name,
+                onArchived: () => invalidateAgentsWorkflowQueries(),
+            })
+        },
+        [openDeleteAppModal],
+    )
+
     const actions: AgentColumnActions = useMemo(
         () => ({
-            onOpen: handleOpen,
-            onOpenPlayground: (record) => goToPlayground(undefined, {appId: record.workflowId}),
+            onOpen: handleOpenOverview,
+            onOpenPlayground: handleOpenPlayground,
+            onArchive: handleArchive,
         }),
-        [handleOpen, goToPlayground],
+        [handleOpenOverview, handleOpenPlayground, handleArchive],
     )
     const columns = useMemo(() => createAgentColumns(actions), [actions])
 
@@ -74,11 +98,11 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
             bordered: true,
             loading: isLoading,
             onRow: (record) => ({
-                onClick: () => handleOpen(record),
+                onClick: () => handleOpenPlayground(record),
                 className: "cursor-pointer",
             }),
         }),
-        [handleOpen, isLoading],
+        [handleOpenPlayground, isLoading],
     )
 
     const showEmpty = forceEmpty || (!isLoading && rows.length === 0)

@@ -55,6 +55,8 @@ export interface AppWorkflowRow {
     isEvaluator: boolean
     updatedAt: string | null
     createdAt: string | null
+    /** Creator user id (artifact `created_by_id`), resolved to a name via UserAuthorLabel. */
+    createdById?: string | null
     deletedAt?: string | null
     deletedById?: string | null
     [k: string]: unknown
