@@ -398,6 +398,7 @@ export function useModelHarness({
         hasInspectModels ? (
             <SelectLLMProviderBase
                 showGroup
+                providerDropdownWidth={425}
                 options={modelGroups}
                 value={modelId ?? undefined}
                 onChange={(v, option) => {
