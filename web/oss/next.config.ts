@@ -55,6 +55,20 @@ const COMMON_CONFIG: NextConfig = {
             },
         ]
     },
+    async headers() {
+        return [
+            {
+                // `__env.js` is per-deployment RUNTIME config (regenerated on each container
+                // start by the web entrypoint), not an immutable build asset. Next serves
+                // `public/` files as `Cache-Control: public, max-age=0`, which CDNs cache by
+                // extension and pin to their own browser-cache TTL (Cloudflare's default is 4h)
+                // — so env/flag changes silently take hours to reach the browser. Force it
+                // uncacheable so every load reads the current runtime config.
+                source: "/__env.js",
+                headers: [{key: "Cache-Control", value: "no-store, must-revalidate"}],
+            },
+        ]
+    },
     // Enable package import optimization for workspace packages and icon libraries
     experimental: {
         optimizePackageImports: [
