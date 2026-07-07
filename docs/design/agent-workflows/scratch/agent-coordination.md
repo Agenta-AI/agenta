@@ -1207,3 +1207,26 @@ verified. Open PRs: #5140 (design, revised per Mahmoud's review + inline replies
 **BUT-LOCK TAKEN** (expires in 15min or on my release note): merging PR #5141
 (feat/settings-short-link) and #5142 (feat/hide-demo-workspaces) into big-agents,
 then `but pull` to advance the base and retire the two lanes.
+
+### 2026-07-07 ~18:40 UTC - build-kit-skills-sync
+
+**BUT-LOCK TAKEN**: retiring lane fix/entrypoint-env-injection (PR #5144 closed by Mahmoud —
+runtime flag overrides stay dev-only; supertokens-keys subset under separate investigation).
+
+**BUT-LOCK RELEASED.** Lane unapplied, remote branch deleted.
+
+### 2026-07-07 ~18:45 UTC - supertokens-env-sync
+
+**BUT-LOCK TAKEN**: new lane fix/supertokens-password-env-injection over big-agents
+(one file: web/entrypoint.sh). Follow-up to PR #5144 (closed — the 10-key sync was
+rejected). Traced the three NEXT_PUBLIC_SUPERTOKENS_PASSWORD_{POLICY,MIN_LENGTH,MAX_LENGTH}
+keys end to end: genuinely consumed by frontendConfig.ts's validatePassword (wired into
+SuperTokensReact.init via AuthProvider.tsx), missing from the __env.js block so
+runtime override is impossible on built images. Injecting from the unprefixed
+SUPERTOKENS_PASSWORD_* operator vars (same names api/oss/src/utils/env.py and the
+self-host docs already use), matching the POSTHOG_API_KEY/CRISP_WEBSITE_ID convention.
+Agent flag keys and PASSWORD_REGEX stay out of scope.
+
+**BUT-LOCK RELEASED.** Lane fix/supertokens-password-env-injection committed (8b2be4e0ab,
+exactly the 1 intended file — verified via git show --stat) and pushed; local == remote
+SHA 8b2be4e0ab. PR next (base big-agents).
