@@ -16,7 +16,7 @@ const icons = [OpenAi, Gemini, Anthropic, Mistral, Together]
  *
  * Returns:
  * - extraOptionGroups: vault/custom secret models as ProviderGroup[]
- * - footerContent: "Add provider" button rendered in select popups
+ * - footerContent: "Add custom provider" button rendered in select popups
  * - overlay: ConfigureProviderDrawer mounted outside popup lifecycle
  */
 export function useLLMProviderConfig() {
@@ -60,7 +60,7 @@ export function useLLMProviderConfig() {
                 variant="outlined"
             >
                 <span className="flex items-center gap-1">
-                    <Plus size={14} /> Add provider
+                    <Plus size={14} /> Add custom provider
                 </span>
 
                 <div className="flex items-center gap-0.5">

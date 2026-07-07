@@ -21,6 +21,7 @@ import {
     modelIdFromConfig,
     modelSelectionMode,
     providerForModel,
+    vaultModelGroups,
     type HarnessCapabilitiesMap,
 } from "../../src/DrillInView/SchemaControls/connectionUtils"
 
@@ -230,5 +231,83 @@ describe("connectionUtils: harness-filtered model picker", () => {
         // No published models -> permissive (don't over-clear the catalog fallback).
         expect(harnessAllowsModel(CAPABILITIES, "future-harness", "anything")).toBe(true)
         expect(harnessAllowsModel(CAPABILITIES, "pi_core", null)).toBe(true)
+    })
+})
+
+describe("connectionUtils: vaultModelGroups (custom_provider connections)", () => {
+    it("includes a connection whose kind is a plain provider family the harness reaches", () => {
+        // pi_core reaches "openai" directly — a second, differently-configured "openai"-kind
+        // connection (e.g. a self-hosted OpenAI-compatible gateway) must still surface its models.
+        const groups = vaultModelGroups(
+            [{name: "my-provider", provider: "openai", models: ["my-model-1"]}],
+            CAPABILITIES,
+            "pi_core",
+        )
+        expect(groups).toEqual([
+            {
+                label: "my-provider",
+                options: [
+                    {
+                        label: "my-model-1",
+                        value: "my-model-1",
+                        metadata: {connectionSlug: "my-provider", provider: "openai"},
+                    },
+                ],
+            },
+        ])
+    })
+
+    it("excludes a plain-provider-family connection the harness cannot reach", () => {
+        // claude only reaches anthropic — an "openai"-kind connection is not selectable there.
+        expect(
+            vaultModelGroups(
+                [{name: "my-provider", provider: "openai", models: ["my-model-1"]}],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toEqual([])
+    })
+
+    it("gates a deployment-kind connection (custom/bedrock/vertex_ai) against consumable deployments, not providers", () => {
+        // claude's capability entry declares "custom" as a consumable deployment.
+        expect(
+            vaultModelGroups(
+                [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toHaveLength(1)
+        // pi_core only consumes "direct" — a "custom" deployment connection stays hidden there
+        // (matches the runner: Pi ignores a resolved custom endpoint/base_url in v1).
+        expect(
+            vaultModelGroups(
+                [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
+                CAPABILITIES,
+                "pi_core",
+            ),
+        ).toEqual([])
+    })
+
+    it("is permissive when the capability map is missing (no over-filtering a standalone control)", () => {
+        expect(
+            vaultModelGroups(
+                [{name: "my-provider", provider: "openai", models: ["my-model-1"]}],
+                null,
+                "pi_core",
+            ),
+        ).toHaveLength(1)
+    })
+
+    it("skips connections with no slug or no models", () => {
+        expect(
+            vaultModelGroups(
+                [
+                    {name: "", provider: "openai", models: ["m1"]},
+                    {name: "empty", provider: "openai", models: []},
+                ],
+                CAPABILITIES,
+                "pi_core",
+            ),
+        ).toEqual([])
     })
 })

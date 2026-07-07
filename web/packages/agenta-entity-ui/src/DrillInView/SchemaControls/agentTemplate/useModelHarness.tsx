@@ -210,7 +210,7 @@ export function useModelHarness({
         !!providerVaultEntry &&
         !providerVaultEntry.key
 
-    // The "Add provider" footer + drawer come from context, same source as the completion picker.
+    // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
     // `deployment.isCloud` gates the Provider credentials section's "Use subscription" toggle
     // (design.md D6) — absent (older OSS providers) reads as not-cloud, i.e. ungated.
     const {llmProviderConfig, deployment} = useDrillInUI()
@@ -277,7 +277,7 @@ export function useModelHarness({
     )
 
     // Adopt a custom provider created FROM this pane: after the user opens the Configure-provider
-    // drawer via an "Add provider" rail row, the first NEW vault connection that appears becomes the
+    // drawer via an "Add custom provider" rail row, the first NEW vault connection that appears becomes the
     // selection — its first model + its connection slug — so the pane reflects what was just added.
     // Armed per click so a provider created elsewhere (e.g. Settings → Secrets) never steals the model.
     const knownCustomSecretKeysRef = useRef<Set<string> | null>(null)

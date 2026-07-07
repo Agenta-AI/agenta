@@ -341,12 +341,40 @@ export function familyFromModelId(
     return null
 }
 
+// A custom_provider secret's `kind` (its `provider` field) is one of two flavors: a DEPLOYMENT
+// surface (azure/bedrock/vertex_ai/custom/sagemaker — a hosting mechanism, gated against what the
+// harness can *consume*) or a plain PROVIDER FAMILY (openai/anthropic/gemini/... — the "custom"
+// provider is really a second, differently-configured connection for a standard family, gated
+// against what the harness can *reach*). `CustomProviderForm` lets a connection be created under
+// either flavor (its provider Select offers both azure/bedrock/vertex_ai/custom AND every standard
+// provider), so both must be recognized here or one flavor's connections silently vanish.
+const DEPLOYMENT_KINDS = new Set(["direct", "custom", "azure", "bedrock", "vertex_ai", "sagemaker"])
+
+/**
+ * Whether the harness can reach a custom_provider connection's kind — as a consumable deployment
+ * surface when the kind names one, otherwise as a plain provider family.
+ */
+function harnessReachesCustomProviderKind(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    kind: string,
+): boolean {
+    if (DEPLOYMENT_KINDS.has(kind)) {
+        const consumable = allowedDeployments(capabilities, harness)
+        return consumable.includes("*") || consumable.some((d) => d.toLowerCase() === kind)
+    }
+    const providers = allowedProviders(capabilities, harness)
+    return providers.includes("*") || providers.some((p) => p.toLowerCase() === kind)
+}
+
 /**
  * Grouped model options contributed by the vault's custom_provider connections, so a connection's
- * own models (e.g. a Bedrock connection's `eu.anthropic.claude-haiku-4-5`) are selectable in the
- * model picker — not just the harness's static catalog. Filtered to connections whose provider the
- * harness can consume; each group carries its connection slug in option metadata so picking a model
- * can reunite it with its agenta-managed credential. Skips connections with no models.
+ * own models (e.g. a Bedrock connection's `eu.anthropic.claude-haiku-4-5`, or a second named
+ * `openai`-kind connection's own models) are selectable in the model picker — not just the
+ * harness's static catalog. Filtered to connections whose kind the harness can reach (see
+ * `harnessReachesCustomProviderKind`); each group carries its connection slug in option metadata so
+ * picking a model can reunite it with its agenta-managed credential. Skips connections with no
+ * models.
  */
 export function vaultModelGroups(
     secrets: VaultModelSource[] | null | undefined,
@@ -354,24 +382,14 @@ export function vaultModelGroups(
     harness: string | null | undefined,
 ): ModelOptionGroup[] {
     if (!secrets?.length) return []
-    // A custom_provider's `provider` field is its deployment kind (bedrock/vertex_ai/azure/custom),
-    // gated against the harness's consumable deployments — NOT its provider families.
-    const consumable = allowedDeployments(capabilities, harness)
-    const anyDeployment = consumable.includes("*")
 
     const groups: ModelOptionGroup[] = []
     for (const secret of secrets) {
         const slug = secret.name?.trim()
-        const deployment = secret.provider?.toLowerCase() || null
+        const kind = secret.provider?.toLowerCase() || null
         const models = (secret.models ?? []).filter(Boolean)
         if (!slug || !models.length) continue
-        if (
-            !anyDeployment &&
-            deployment &&
-            !consumable.some((d) => d.toLowerCase() === deployment)
-        ) {
-            continue
-        }
+        if (kind && !harnessReachesCustomProviderKind(capabilities, harness, kind)) continue
         groups.push({
             label: secret.name ?? slug,
             options: models.map((id) => ({
