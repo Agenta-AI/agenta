@@ -9,11 +9,11 @@
  *
  * Pattern mirrors `secret/api/client.ts` and `workflow/api/api.ts`.
  */
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getTracesClient as getSdkTracesClient} from "@agenta/sdk/resources"
 
 /** The Fern `traces` resource client (spans, traces, sessions, analytics). */
 export function getTracesClient() {
-    return getAgentaSdkClient().traces
+    return getSdkTracesClient()
 }
 
 /**

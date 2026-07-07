@@ -10,11 +10,48 @@ import {sessionLoadingAtom} from "@/oss/state/session"
 import focusDrawerState from "@/oss/state/url/focusDrawer"
 
 import {syncAuthStateFromUrl} from "./auth"
-import {syncPlaygroundStateFromUrl} from "./playground"
 import {syncSessionStateFromUrl} from "./session"
 import {syncTestcaseStateFromUrl} from "./testcase"
 import {syncTraceStateFromUrl} from "./trace"
-import {syncVariantStateFromUrl} from "./variant"
+
+// `./playground` and `./variant` drag the heavy workflow/playground graph
+// (@agenta/entities/workflow, @agenta/playground, playground-ui) into the
+// always-loaded _app chunk. Load them lazily and replay the latest URL once the
+// chunk resolves, so non-playground pages never pull them. The sub-second window
+// before resolution only delays restoring playground/variant-drawer state from a
+// deep link — every other URL slice stays synchronous.
+const makeLazyUrlSync = (load: () => Promise<(nextUrl?: string) => void>) => {
+    let fn: ((nextUrl?: string) => void) | null = null
+    let loading: Promise<void> | null = null
+    let pending: {nextUrl?: string} | null = null
+
+    return (nextUrl?: string) => {
+        if (fn) {
+            fn(nextUrl)
+            return
+        }
+        pending = {nextUrl}
+        if (!loading) {
+            loading = load()
+                .then((resolved) => {
+                    fn = resolved
+                    fn(pending?.nextUrl)
+                    pending = null
+                })
+                .catch((error) => {
+                    loading = null
+                    console.error("Failed to load lazy URL sync slice:", error)
+                })
+        }
+    }
+}
+
+const syncPlaygroundStateFromUrl = makeLazyUrlSync(() =>
+    import("./playground").then((m) => m.syncPlaygroundStateFromUrl),
+)
+const syncVariantStateFromUrl = makeLazyUrlSync(() =>
+    import("./variant").then((m) => m.syncVariantStateFromUrl),
+)
 
 export {activeInviteAtom, protectedRouteReadyAtom} from "./auth"
 export {clearSessionParamAtom, clearSessionQueryParam, sessionIdAtom} from "./session"
