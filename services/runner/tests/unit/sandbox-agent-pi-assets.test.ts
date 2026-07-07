@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,6 +23,7 @@ import {
   prepareLocalAgentDir,
   uploadDirToSandbox,
   uploadSkillsToSandbox,
+  writeOtlpAuthFile,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
 
@@ -85,6 +87,7 @@ describe("buildPiExtensionEnv", () => {
     const env = buildPiExtensionEnv(request, true, {
       relayDir: "/tmp/relay",
       usageOutPath: "/tmp/usage.json",
+      otlpAuthFilePath: "/tmp/otlp-auth",
     });
 
     assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
@@ -92,10 +95,9 @@ describe("buildPiExtensionEnv", () => {
       env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
       request.telemetry?.exporters?.otlp?.endpoint,
     );
-    assert.equal(
-      env.OTEL_EXPORTER_OTLP_HEADERS,
-      `Authorization=${request.telemetry?.exporters?.otlp?.headers?.authorization}`,
-    );
+    // the bearer rides a file path, never a plain env var the harness can read/echo.
+    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, "/tmp/otlp-auth");
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
@@ -224,6 +226,38 @@ describe("buildPiExtensionEnv", () => {
         .AGENTA_AGENT_SKILLS_LOADED,
       undefined,
     );
+  });
+
+  it("never leaks the bearer into env when no auth file path is given", () => {
+    const env = buildPiExtensionEnv(
+      {
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://otlp.example.test/v1/traces",
+              headers: { authorization: "Bearer trace-token" },
+            },
+          },
+        },
+      } as AgentRunRequest,
+      true,
+    );
+
+    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, undefined);
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
+    assert.equal(JSON.stringify(env).includes("trace-token"), false);
+  });
+});
+
+describe("writeOtlpAuthFile", () => {
+  it("writes the bearer to a 0600 file, not env", () => {
+    const dir = tempDir("agenta-pi-otlp-auth-test-");
+    const path = join(dir, "nested", "otlp-auth");
+
+    writeOtlpAuthFile(path, "Bearer trace-token");
+
+    assert.equal(readFileSync(path, "utf-8"), "Bearer trace-token");
+    assert.equal(statSync(path).mode & 0o777, 0o600);
   });
 });
 

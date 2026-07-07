@@ -78,6 +78,7 @@ import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
+  writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
   decide,
@@ -383,10 +384,21 @@ export async function runSandboxAgent(
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
+  // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
+  // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
+  const otlpAuthFilePath =
+    plan.isPi && !plan.isDaytona
+      ? `${plan.relayDir}.otlp-auth`
+      : undefined;
+  const otlpAuthorization = request.telemetry?.exporters?.otlp?.headers?.authorization;
+  if (otlpAuthFilePath && otlpAuthorization) {
+    writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, logger);
+  }
   const piExtEnv = plan.isPi
     ? buildPiExtensionEnv(request, !plan.isDaytona, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
+        otlpAuthFilePath,
         builtinGatingActive: plan.builtinGatingActive,
         builtinGrants: plan.builtinGrants,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
@@ -1014,6 +1026,9 @@ export async function runSandboxAgent(
     await workspace?.cleanup().catch(() => {});
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
+    // Backstop: the extension deletes this on read; remove it here too in case the harness
+    // never started (or crashed before reading it), so the bearer never lingers.
+    if (otlpAuthFilePath) rmSync(otlpAuthFilePath, { force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   }
