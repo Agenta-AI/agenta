@@ -39,16 +39,22 @@ import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
 import { requiredFields, specInputSchema } from "../tools/spec-schema.ts";
 
-/** Read the OTLP bearer from its runner-written file once, then delete it. */
+/** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
 export function readOtlpAuthFile(path?: string): string | undefined {
   if (!path) return undefined;
+  let value: string;
   try {
-    const value = readFileSync(path, "utf-8").trim();
-    unlinkSync(path);
-    return value || undefined;
+    value = readFileSync(path, "utf-8").trim();
   } catch {
     return undefined;
   }
+  // Delete is best-effort and must not drop a bearer we already read (runner cleanup also removes it).
+  try {
+    unlinkSync(path);
+  } catch {
+    /* ignore */
+  }
+  return value || undefined;
 }
 import { relayPermissionCheck, runResolvedTool } from "../tools/dispatch.ts";
 
