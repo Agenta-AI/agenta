@@ -352,14 +352,30 @@ class OTLPConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_SANDBOX_RUNNER_LOCAL_WARNED = False
+
+
 class ServicesCodeConfig(BaseModel):
     sandbox_runner: str = (
         os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
         or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-        or "restricted"
+        or "local"
     )
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _warn_sandbox_runner_mode(self) -> "ServicesCodeConfig":
+        global _SANDBOX_RUNNER_LOCAL_WARNED
+        if self.sandbox_runner == "local" and not _SANDBOX_RUNNER_LOCAL_WARNED:
+            _SANDBOX_RUNNER_LOCAL_WARNED = True
+            warnings.warn(
+                "AGENTA_SERVICES_CODE_SANDBOX_RUNNER is 'local' (default): code execution "
+                "is not sandboxed from the host. Set it to 'restricted' to harden a "
+                "shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
 
 
 class ServicesMiddlewareConfig(BaseModel):
@@ -417,7 +433,7 @@ class WebhooksConfig(BaseModel):
         os.getenv("AGENTA_INSECURE_EGRESS_ALLOWED")
         or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
         or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-        or "false"
+        or "true"
     ).lower() in _TRUTHY
 
     model_config = ConfigDict(extra="ignore")
@@ -428,8 +444,9 @@ class WebhooksConfig(BaseModel):
         if self.allow_insecure and not _EGRESS_INSECURE_WARNED:
             _EGRESS_INSECURE_WARNED = True
             warnings.warn(
-                "AGENTA_INSECURE_EGRESS_ALLOWED is set: webhook/egress targets may include http "
-                "and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.",
+                "AGENTA_INSECURE_EGRESS_ALLOWED is on (default): webhook/egress targets may "
+                "include http and private/loopback/metadata hosts. Set it to false to harden "
+                "a shared/multi-tenant deployment.",
                 stacklevel=2,
             )
         return self
@@ -940,12 +957,33 @@ class LoopsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_SANDBOX_LOCAL_WARNED = False
+
+
 class RunnerConfig(BaseModel):
     """Agent runner (services/runner) sidecar configuration."""
 
     concurrency_limit: int = int(os.getenv("AGENTA_RUNNER_CONCURRENCY_LIMIT") or "1000")
 
+    # `local` sandbox runs unconfined host bash — not a tenant boundary; on by default
+    # for zero-config self-host. Canonical declaration; services/oss reads the same var directly.
+    sandbox_local_allowed: bool = (
+        os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true"
+    ).lower() in _TRUTHY
+
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _warn_local_sandbox(self) -> "RunnerConfig":
+        global _SANDBOX_LOCAL_WARNED
+        if self.sandbox_local_allowed and not _SANDBOX_LOCAL_WARNED:
+            _SANDBOX_LOCAL_WARNED = True
+            warnings.warn(
+                "AGENTA_SANDBOX_LOCAL_ALLOWED is on (default): local sandbox is not a "
+                "tenant boundary. Set it to false to harden a shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------

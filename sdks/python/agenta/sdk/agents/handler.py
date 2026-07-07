@@ -32,6 +32,7 @@ from agenta.sdk.agents.connections import (
 )
 from agenta.sdk.agents.tools import ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
+from agenta.sdk.agents.errors import LocalSandboxNotAllowedError
 from agenta.sdk.agents.mcp import MCPDisabledError, ResolvedMCPServer
 from agenta.sdk.agents.mcp.parsing import parse_mcp_server_configs
 from agenta.sdk.agents.platform import (
@@ -75,8 +76,21 @@ def _default_template() -> AgentTemplate:
     return AgentTemplate()
 
 
+def _sandbox_local_allowed() -> bool:
+    return (
+        os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true"
+    ).strip().lower() in TRUTHY
+
+
 def _default_select_backend(agent_template: AgentTemplate) -> Backend:
-    """Env-driven default: `AGENTA_RUNNER_INTERNAL_URL` picks HTTP transport; else local cwd."""
+    """Env-driven default: `AGENTA_RUNNER_INTERNAL_URL` picks HTTP transport; else local cwd.
+
+    `local` (unconfined host bash, not a tenant boundary) is refused unless
+    `AGENTA_SANDBOX_LOCAL_ALLOWED` is on — a bare `agent_v0` gets this protocol-level
+    safety behavior for free, same as capability gating and MCP gating above.
+    """
+    if agent_template.sandbox == "local" and not _sandbox_local_allowed():
+        raise LocalSandboxNotAllowedError()
     url = os.getenv("AGENTA_RUNNER_INTERNAL_URL", "").strip() or None
     return SandboxAgentBackend(sandbox=agent_template.sandbox, url=url, cwd=os.getcwd())
 

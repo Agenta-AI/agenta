@@ -19,6 +19,7 @@ import agenta as ag
 from agenta.sdk.agents import (
     AgentTemplate,
     Backend,
+    LocalSandboxNotAllowedError,
     SandboxAgentBackend,
 )
 
@@ -42,7 +43,12 @@ from agenta.sdk.utils.logging import get_module_logger
 
 from agenta.sdk.agents.tracing import record_usage, run_context, trace_context
 
-from oss.src.agent.config import load_config, runner_dir, runner_url
+from oss.src.agent.config import (
+    load_config,
+    runner_dir,
+    runner_url,
+    sandbox_local_allowed,
+)
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
 
@@ -66,7 +72,13 @@ def select_backend(agent_template: AgentTemplate) -> Backend:
     selects HTTP transport in deployed containers. When it is unset, local development
     spawns the TypeScript runner CLI from the runner dir. Only ``sandbox`` is read here;
     it is a backend/environment concern that never enters ``SessionConfig``.
+
+    ``local`` is refused unless ``AGENTA_SANDBOX_LOCAL_ALLOWED`` is on: it is unconfined
+    host bash, not a tenant boundary, on a shared deployment. This is the producer-side
+    gate; the runner's own id whitelist is a second, independent layer.
     """
+    if agent_template.sandbox == "local" and not sandbox_local_allowed():
+        raise LocalSandboxNotAllowedError()
     return SandboxAgentBackend(
         sandbox=agent_template.sandbox,
         url=runner_url(),
