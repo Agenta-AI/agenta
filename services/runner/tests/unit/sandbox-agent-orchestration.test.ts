@@ -358,7 +358,7 @@ describe("runSandboxAgent orchestration", () => {
       seenMountAccessKeys.push(creds.accessKey);
       return true;
     }) as any;
-    deps.unmountStorage = (async () => {}) as any;
+    deps.unmountStorage = (async () => true) as any;
     deps.prepareWorkspace = (async ({ plan }: any) => {
       workspaceCalls += 1;
       if (workspaceCalls === 1) {
@@ -487,6 +487,126 @@ describe("runSandboxAgent orchestration", () => {
     );
     assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
     assert.equal(unmountCalls, 1, "cleanup waits for runtime remount before unmount");
+  });
+
+  it("skips the durable cwd delete when unmount is not confirmed", async () => {
+    // A failed/still-mounted unmount must never be followed by rmSync on the cwd — that would
+    // delete through a possibly-live FUSE mount into the durable store.
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/mount-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    // Simulate an unconfirmed unmount (still mounted after the detach attempt).
+    deps.unmountStorage = (async () => false) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      calls.workspaceCleanup,
+      0,
+      "cwd delete is skipped when unmount is not confirmed",
+    );
+  });
+
+  it("still deletes the cwd once unmount is confirmed gone", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/mount-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      calls.workspaceCleanup,
+      1,
+      "cwd delete proceeds once unmount is confirmed",
+    );
+  });
+
+  it("Daytona mounts the durable cwd before workspace materialization", async () => {
+    const { calls, deps } = fakeHarness();
+    let mountCallsBeforeWorkspace = 0;
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/mount-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.discoverTunnelEndpoint = (async () => "https://tunnel.example") as any;
+    let mountCalls = 0;
+    deps.mountStorageRemote = (async () => {
+      mountCalls += 1;
+      return true;
+    }) as any;
+    deps.prepareWorkspace = (async ({ plan }: any) => {
+      mountCallsBeforeWorkspace = mountCalls;
+      calls.workspacePlan = plan;
+      return { cleanup: async () => {} };
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(mountCalls, 1, "remote mount is attempted");
+    assert.equal(
+      mountCallsBeforeWorkspace,
+      1,
+      "the durable cwd is mounted before workspace materialization writes into it",
+    );
   });
 
   it("keeps terminal events empty on the streaming path", async () => {

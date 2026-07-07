@@ -514,10 +514,15 @@ export async function runSandboxAgent(
       return false;
     });
   };
+  // Gates the cwd rmSync in the `finally` below: never delete through a mount we can't prove
+  // is gone. Checked at the call site, not here, since this placeholder can be replaced
+  // by prepareWorkspace's own cleanup before the gate is evaluated.
+  let durableCwdSafeToDelete = true;
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
     : {
-        cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
+        cleanup: async () =>
+          rmSync(plan.cwd, { recursive: true, force: true }),
       };
 
   try {
@@ -563,13 +568,35 @@ export async function runSandboxAgent(
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
-    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it.
+    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it, and
+    // BEFORE workspace materialization on both providers so AGENTS.md, harness files, and skills
+    // land in the durable prefix instead of being hidden under the later FUSE mount.
     // Local: on-host geesefs; scoped creds never enter agent space.
     // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
     if (mountCreds && !plan.isDaytona) {
-      // Mount before local workspace materialization so AGENTS.md, harness files, and skills
-      // land in the durable prefix instead of being hidden under the later FUSE mount.
       await mountLocalDurableCwd("initial");
+    }
+    if (mountCreds && plan.isDaytona) {
+      const endpoint = await (
+        deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
+      )({
+        log: logger,
+      });
+      if (
+        endpoint &&
+        (await (deps.mountStorageRemote ?? mountStorageRemote)(
+          sandbox,
+          plan.cwd,
+          mountCreds,
+          {
+            endpoint,
+            log: logger,
+          },
+        ))
+      ) {
+        // Remote files live in the store; nothing on this host to unmount.
+        logger(`remote durable cwd active for session=${sessionForMount}`);
+      }
     }
 
     try {
@@ -595,31 +622,6 @@ export async function runSandboxAgent(
         });
       } else {
         throw err;
-      }
-    }
-
-    if (mountCreds) {
-      if (plan.isDaytona) {
-        const endpoint = await (
-          deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
-        )({
-          log: logger,
-        });
-        if (
-          endpoint &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            sandbox,
-            plan.cwd,
-            mountCreds,
-            {
-              endpoint,
-              log: logger,
-            },
-          ))
-        ) {
-          // Remote files live in the store; nothing on this host to unmount.
-          logger(`remote durable cwd active for session=${sessionForMount}`);
-        }
       }
     }
 
@@ -1021,12 +1023,20 @@ export async function runSandboxAgent(
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
-    // mountpoint is torn down. Best-effort (the store keeps the files regardless).
-    if (mountedCwd)
-      await (deps.unmountStorage ?? unmountStorage)(mountedCwd, { log }).catch(
-        () => {},
+    // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete below:
+    // rmSync must never run against a possibly-live FUSE mount into the durable store.
+    if (mountedCwd) {
+      durableCwdSafeToDelete = await (
+        deps.unmountStorage ?? unmountStorage
+      )(mountedCwd, { log }).catch(() => false);
+    }
+    if (!durableCwdSafeToDelete) {
+      logger(
+        `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
       );
-    await workspace?.cleanup().catch(() => {});
+    } else {
+      await workspace?.cleanup().catch(() => {});
+    }
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
     // Backstop: the extension deletes this on read; remove it here too in case the harness
