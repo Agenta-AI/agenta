@@ -146,6 +146,56 @@ describe("approvedCallKey", () => {
     );
   });
 
+  it("tolerates stray trailing closers on stringified JSON args", () => {
+    const toolName = "mcp__agenta-tools__commit_revision";
+    const workflowRevision = { delta: { a: 1 } };
+    const objectKey = approvedCallKey(toolName, {
+      workflow_revision: workflowRevision,
+    });
+
+    // The turn-6d34b1ea round-5 shape: a JSON string with ONE stray trailing `}`.
+    assert.equal(
+      approvedCallKey(toolName, {
+        workflow_revision: `${JSON.stringify(workflowRevision)}}`,
+      }),
+      objectKey,
+    );
+    assert.equal(
+      approvedCallKey(toolName, {
+        workflow_revision: `${JSON.stringify(workflowRevision)} }]`,
+      }),
+      objectKey,
+    );
+    assert.equal(
+      approvedCallKey(toolName, {
+        workflow_revision: `${JSON.stringify([1, 2])}]`,
+      }),
+      approvedCallKey(toolName, { workflow_revision: [1, 2] }),
+    );
+  });
+
+  it("keeps genuinely non-JSON strings as literals, trailing brace or not", () => {
+    // A stray closer on a non-JSON string never turns into an object key.
+    assert.equal(
+      approvedCallKey("echo", { message: "oops}" }),
+      approvedCallKey("echo", { message: "oops}" }),
+    );
+    assert.notEqual(
+      approvedCallKey("echo", { message: "oops}" }),
+      approvedCallKey("echo", { message: "oops" }),
+    );
+    // A stringified scalar stays a string literal (containers only), as before.
+    assert.notEqual(
+      approvedCallKey("echo", { message: "5}" }),
+      approvedCallKey("echo", { message: 5 }),
+    );
+    // Non-trailing junk after the JSON value is not repaired.
+    assert.notEqual(
+      approvedCallKey("echo", { message: '{"a":1} trailing text' }),
+      approvedCallKey("echo", { message: { a: 1 } }),
+    );
+  });
+
   it("keeps plain non-JSON strings canonicalizable", () => {
     assert.equal(
       approvedCallKey("echo", { message: "hello world" }),
