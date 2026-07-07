@@ -324,6 +324,11 @@ export function extractApprovalDecisions(
  * from the next stored output instead of one overwriting the other. The value is the raw
  * output, never coerced.
  *
+ * Scoped to the CURRENT turn (results at/after the latest user message). A prior turn's answer
+ * is already resolved-in-transcript, so a new identical-args call in a later turn must pause for
+ * a fresh answer rather than silently reuse it — the store only fulfills the current turn's own
+ * paused call. (Approvals deliberately stay full-history: a grant is idempotent across turns.)
+ *
  * (A normal callback/code tool result also lands here, but is harmless: `onClientTool` only
  * fires for `kind: "client"` tools, and a resolved callback tool is not re-called as a client
  * pause.)
@@ -333,7 +338,7 @@ export function extractClientToolOutputs(
 ): Map<string, unknown[]> {
   const outputs = new Map<string, unknown[]>();
   const callShapeById = buildCallShapeIndex(request);
-  for (const block of toolResultBlocks(request)) {
+  for (const block of currentTurnToolResultBlocks(request)) {
     if (approvalDecisionOf(block) !== undefined) continue; // an approval, not a client output
     const argsKey = coldReplayKey(block, callShapeById);
     if (!argsKey) continue;
@@ -369,6 +374,31 @@ function buildCallShapeIndex(
 function* toolResultBlocks(request: AgentRunRequest): Generator<ContentBlock> {
   for (const message of request.messages ?? []) {
     const content = message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type === "tool_result") yield block;
+    }
+  }
+}
+
+/** Index where the current turn starts: the latest `user`-role message. 0 when there is no user
+ * message, so a history without a turn boundary treats everything as the current turn. */
+function currentTurnStartIndex(request: AgentRunRequest): number {
+  const messages = request.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return i;
+  }
+  return 0;
+}
+
+/** `tool_result` blocks in the current turn only (at/after the latest user message). Prior-turn
+ * results are already resolved-in-transcript and must not fulfill a fresh identical call. */
+function* currentTurnToolResultBlocks(
+  request: AgentRunRequest,
+): Generator<ContentBlock> {
+  const messages = request.messages ?? [];
+  for (let i = currentTurnStartIndex(request); i < messages.length; i++) {
+    const content = messages[i]?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type === "tool_result") yield block;
