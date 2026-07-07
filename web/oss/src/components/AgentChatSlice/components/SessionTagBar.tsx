@@ -1,3 +1,5 @@
+import {useEffect, useRef} from "react"
+
 import {Plus, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import clsx from "clsx"
@@ -61,8 +63,21 @@ const SessionTag = ({
 }: SessionTagProps) => {
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
+    const tabRef = useRef<HTMLDivElement>(null)
+    // Keep the active tab visible: a freshly-added session lands past the strip's overflow edge,
+    // so scroll it into view when this tab becomes (or mounts) active.
+    useEffect(() => {
+        if (!active) return
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        tabRef.current?.scrollIntoView({
+            behavior: reduceMotion ? "auto" : "smooth",
+            block: "nearest",
+            inline: "nearest",
+        })
+    }, [active])
     return (
         <div
+            ref={tabRef}
             role="tab"
             aria-selected={active}
             tabIndex={0}
