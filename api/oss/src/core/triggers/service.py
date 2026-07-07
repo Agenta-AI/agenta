@@ -754,18 +754,22 @@ class TriggersService:
         project_id: UUID,
         references: Optional[dict],
     ) -> None:
-        """Assert the bound reference family resolves — without pinning it.
+        """Assert the bound reference family resolves, pinning HEAD onto a bare variant.
 
         The FE sends a partial family under the proper prefix (``application`` /
         ``evaluator``, or ``environment`` + ``application``). We delegate to
         ``WorkflowsService.retrieve_workflow_revision`` to confirm it currently
-        resolves to a runnable revision (the graceful-failure guarantee), but we
-        deliberately do NOT overwrite the stored references with the resolved
-        revision: an environment slug, or an artifact/variant without a revision,
-        means "resolve latest at trigger time." Persisting the resolved revision
-        here would freeze that binding at save time. The dispatcher re-resolves
-        from the raw references on every fire (``invoke_workflow`` ->
-        ``_ensure_request_revision``), so latest-tracking is preserved.
+        resolves to a runnable revision (the graceful-failure guarantee).
+
+        A ``{prefix}_variant`` reference with no ``{prefix}_revision`` is pinned
+        in-place to the resolved (HEAD) revision: this is the shape agent-created
+        triggers send (context-bound to the variant id only), and callers that
+        display "which version runs" need a bound revision, not an implicit
+        latest. An environment slug, or an artifact reference without a variant,
+        still resolves without pinning — that ambiguity means "resolve latest at
+        trigger time," and the dispatcher re-resolves from the raw references on
+        every fire (``invoke_workflow`` -> ``_ensure_request_revision``), so
+        latest-tracking for those is preserved.
         """
         if not references or not self.workflows_service:
             return
@@ -793,21 +797,35 @@ class TriggersService:
             artifact_slug = getattr(artifact, "slug", None)
             key = f"{artifact_slug}.revision" if artifact_slug else None
 
+        workflow_variant_ref = (
+            _ref(references.get(f"{prefix}_variant")) if prefix else None
+        )
+        workflow_revision_ref = (
+            _ref(references.get(f"{prefix}_revision")) if prefix else None
+        )
+
         revision, _, _ = await self.workflows_service.retrieve_workflow_revision(
             project_id=project_id,
             environment_ref=environment_ref,
             key=key,
             workflow_ref=_ref(references.get(prefix)) if prefix else None,
-            workflow_variant_ref=(
-                _ref(references.get(f"{prefix}_variant")) if prefix else None
-            ),
-            workflow_revision_ref=(
-                _ref(references.get(f"{prefix}_revision")) if prefix else None
-            ),
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
         )
         if revision is None:
             raise TriggerReferenceInvalid(
                 "Bound workflow reference could not be resolved to a runnable revision."
+            )
+
+        if (
+            environment_ref is None
+            and workflow_variant_ref is not None
+            and workflow_revision_ref is None
+        ):
+            references[f"{prefix}_revision"] = Reference(
+                id=revision.id,
+                slug=revision.slug,
+                version=revision.version,
             )
 
     async def create_subscription(

@@ -1003,6 +1003,8 @@ class TriggersRouter:
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except TriggerReferenceInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
 
         return TriggerSubscriptionResponse(
             count=1 if subscription else 0,
@@ -1114,12 +1116,15 @@ class TriggersRouter:
                 detail="Path subscription_id does not match body id",
             )
 
-        subscription = await self.triggers_service.edit_subscription(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            subscription=body.subscription,
-        )
+        try:
+            subscription = await self.triggers_service.edit_subscription(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                subscription=body.subscription,
+            )
+        except TriggerReferenceInvalid as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
         if not subscription:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
