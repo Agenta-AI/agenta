@@ -717,6 +717,58 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  // A throw from otel.finish() in the error path must not mask the real run error.
+  it("still returns the run error when otel.finish() throws in the error path", async () => {
+    const { calls, deps } = fakeHarness({ promptError: new Error("boom") });
+    deps.createOtel = ((otelOptions: any) => {
+      calls.otelOptions = otelOptions;
+      return {
+        start() {},
+        handleUpdate() {},
+        emitEvent(event: AgentEvent) {
+          void event;
+        },
+        usage() {
+          return { input: 0, output: 0, total: 0, cost: 0 };
+        },
+        setUsage() {},
+        finish() {
+          calls.runFinished += 1;
+          throw new Error("tracing finish blew up");
+        },
+        recordError(message: string, provider?: string) {
+          calls.recordedErrors.push({ message, provider });
+        },
+        output() {
+          return "";
+        },
+        async flush() {
+          calls.runFlushed += 1;
+        },
+        events() {
+          return [];
+        },
+        settleOpenToolCalls() {},
+        traceId() {
+          return "trace-1";
+        },
+      };
+    }) as any;
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "explode" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.deepEqual(result, { ok: false, error: "boom" });
+    assert.equal(calls.runFinished, 1);
+    assert.equal(calls.runFlushed, 1);
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
+  });
+
   it("passes the sandbox permission through to buildSandboxProvider", async () => {
     const { calls, deps } = fakeHarness();
     const sandboxPermission = {
