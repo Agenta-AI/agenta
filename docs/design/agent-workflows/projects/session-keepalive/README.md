@@ -4,17 +4,17 @@ Keep the harness session alive for a TTL after a turn ends, so the next message 
 
 ## Files
 
-- [context.md](context.md) — why this exists, goals, non-goals, background, and how it relates to the other features.
-- [plan.md](plan.md) — the plan. Contains the Q&A section answering Mahmoud's questions, the "could a minimal version work in an hour?" answer, the slice sizes and risks, flags, failure modes, and the verification plan.
-- [status.md](status.md) — source of truth for progress, decisions, and the drift check of the research against current code.
-- [open-questions.md](open-questions.md) — decisions that refine defaults and edge behavior; none blocks slice 1.
-- [architecture-notes.md](architecture-notes.md) — the code-grounded research the plan builds on. Read this for the exact line references and the full design.
+- [context.md](context.md): why this exists, goals, non-goals, background, and how it relates to the other features.
+- [architecture-notes.md](architecture-notes.md): the deep companion. Three parts: how the runner works today (the current flow, the process tree, the teardown, the four approval gates), what keep-alive changes (before/after with worked examples), and every design decision with its problem, options, trade-offs, and reason. Read this to understand the feature.
+- [plan.md](plan.md): the plan. The Q&A answering Mahmoud's questions (with measured costs and the Claude-vs-Pi approval story), the slice sizes and risks, the one-hour assessment, flags, failure modes, and the verification plan. Builds on architecture-notes.md by reference.
+- [open-questions.md](open-questions.md): decisions that refine defaults and edge behavior; none blocks slice 1.
+- [status.md](status.md): progress, decisions, provenance, measured research figures, the drift check against current code, and recorded follow-ups. The meta and provenance home.
 
 ## Start here
 
-Read context.md, then plan.md. The plan's Q&A section and the one-hour assessment are the parts Mahmoud asked for.
+Read context.md, then architecture-notes.md (Part 1 explains how things work today before anything changes), then plan.md.
 
 ## Related
 
-- [../approval-boundary/cold-replay-failure-report.md](../approval-boundary/cold-replay-failure-report.md) — why the agent has no memory. This feature is Part 3, option 2.
-- [../harness-session-resume/plan.md](../harness-session-resume/plan.md) — option 3, the complementary feature. Build it after keep-alive.
+- [../approval-boundary/cold-replay-failure-report.md](../approval-boundary/cold-replay-failure-report.md): why the agent has no memory. This feature is Part 3, option 2.
+- [../harness-session-resume/plan.md](../harness-session-resume/plan.md): option 3, the complementary feature. Build it after keep-alive.
