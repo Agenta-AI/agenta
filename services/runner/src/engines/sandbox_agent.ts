@@ -91,6 +91,10 @@ import {
   PendingApprovalPauseController,
 } from "./sandbox_agent/pause.ts";
 import {
+  createRunLimits,
+  resolveRunLimits,
+} from "./sandbox_agent/run-limits.ts";
+import {
   createInteraction,
   resolveInteraction,
   buildWorkflowReferences,
@@ -269,6 +273,8 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   unmountStorage?: typeof unmountStorage;
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
   responderFactory?: (request: AgentRunRequest) => Responder;
+  resolveRunLimits?: typeof resolveRunLimits;
+  createRunLimits?: typeof createRunLimits;
   log?: Log;
 }
 
@@ -452,6 +458,22 @@ export async function runSandboxAgent(
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
   // Fired by the pause controller's destroy path and, as a backstop, by the `finally`.
   const mcpAbort = new AbortController();
+  // Time-based run deadlines (total/idle/TTFB/per-tool-call): tripping one aborts the run the
+  // SAME way a client disconnect does, so this existing `finally` reclaims the sandbox — no new
+  // teardown. Merged with the caller's own signal (a client disconnect on a non-session run)
+  // so either source can end the run; whichever fires first wins.
+  const deadlineAbort = new AbortController();
+  const runLimits = (deps.createRunLimits ?? createRunLimits)(
+    (deps.resolveRunLimits ?? resolveRunLimits)(logger),
+    { log: logger },
+  );
+  runLimits.onTrip((reason) => {
+    logger(`run limit tripped: ${reason}`);
+    deadlineAbort.abort(new Error(reason));
+  });
+  const runSignal = signal
+    ? AbortSignal.any([signal, deadlineAbort.signal])
+    : deadlineAbort.signal;
   // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
   // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
   let mountedCwd: string | undefined;
@@ -543,9 +565,11 @@ export async function runSandboxAgent(
         plan.sandboxPermission,
       ),
       persist,
-      // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
-      // in-flight run aborts instead of finishing unobserved. The `finally` still disposes.
-      ...(signal ? { signal } : {}),
+      // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) merged
+      // with the run-limits deadline signal, so either one aborts an in-flight run instead of
+      // it finishing unobserved. The `finally` still disposes. Always defined (unlike the raw
+      // `signal` param) because the deadline signal exists even with no caller signal.
+      signal: runSignal,
       // Drive the ACP HTTP client through a long-timeout undici dispatcher so a paused HITL
       // turn (the connection held open while a human approves a tool) is NOT reaped by
       // undici's default `headersTimeout` (which would kill it with UND_ERR_HEADERS_TIMEOUT).
@@ -721,7 +745,10 @@ export async function runSandboxAgent(
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
       emitSpans: !plan.isPi || plan.isDaytona,
-      emit,
+      // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
+      // deltas, tool calls and results, usage, ...) — this is the one seam every harness's
+      // output already flows through.
+      emit: emit && runLimits.wrapEmit(emit),
     });
     otel = run;
 
@@ -745,6 +772,10 @@ export async function runSandboxAgent(
       sessionDestroyRequested = true;
       return sandbox.destroySession?.(session.id);
     });
+    // The pause signal resolves exactly once, the moment a turn parks for human input — that is
+    // the one place every pause path (ACP gate, relay, internal MCP) converges, so it is also
+    // the one place to retire the run-limits deadlines for good.
+    void pause.signal.then(() => runLimits.notePaused());
 
     session.onEvent((event: any) => {
       remountLocalCwdAfterRuntimeEnotconn(event);
@@ -754,6 +785,18 @@ export async function runSandboxAgent(
         // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's
         // bubble (recorded even for suppressed frames; a lookup CONSUMES its matched id).
         toolCallIndex.record(update);
+        // Per-tool-call deadline: starts on the announcement, ends on a terminal status.
+        // Tracked regardless of pause-suppression below (a call already timed out must not
+        // linger just because a later sibling frame gets suppressed).
+        if (update.sessionUpdate === "tool_call" && update.toolCallId) {
+          runLimits.noteToolCallStart(String(update.toolCallId));
+        } else if (
+          update.sessionUpdate === "tool_call_update" &&
+          update.toolCallId &&
+          (update.status === "completed" || update.status === "failed")
+        ) {
+          runLimits.noteToolCallEnd(String(update.toolCallId));
+        }
         if (!shouldSuppressPausedToolCallUpdate(update, pause)) {
           run.handleUpdate(update);
           // A sibling announced AFTER the pause won the latch can never execute (the session
@@ -1002,6 +1045,7 @@ export async function runSandboxAgent(
       error,
     };
   } finally {
+    runLimits.dispose();
     await runtimeRemount?.catch(() => {});
     if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});

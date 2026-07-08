@@ -2,7 +2,7 @@
  * API utilities for Agenta packages.
  */
 
-export {getEnv, getAgentaApiUrl, getAgentaWebUrl, processEnv} from "./env"
+export {getEnv, getAgentaApiUrl, getAgentaWebUrl, isSandboxLocalEnabled, processEnv} from "./env"
 export {
     axios,
     createAxiosInstance,

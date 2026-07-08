@@ -63,6 +63,12 @@ else
   export AGENTA_BILLING_ENABLED="false"
 fi
 
+# Mirror AGENTA_SANDBOX_LOCAL_ALLOWED (api/oss/src/utils/env.py _TRUTHY): unset -> enabled.
+case "$(printf '%s' "${AGENTA_SANDBOX_LOCAL_ALLOWED:-true}" | tr '[:upper:]' '[:lower:]')" in
+  true|1|t|y|yes|on|enable|enabled) export AGENTA_SANDBOX_LOCAL_ENABLED="true" ;;
+  *) export AGENTA_SANDBOX_LOCAL_ENABLED="false" ;;
+esac
+
 mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
 
 # Derive frontend auth feature flags
@@ -202,6 +208,7 @@ window.__env = {
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH: "${SUPERTOKENS_PASSWORD_MIN_LENGTH}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH: "${SUPERTOKENS_PASSWORD_MAX_LENGTH}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX: "${SUPERTOKENS_PASSWORD_REGEX}",
+  NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: "${AGENTA_SANDBOX_LOCAL_ENABLED}",
 };
 EOF
 

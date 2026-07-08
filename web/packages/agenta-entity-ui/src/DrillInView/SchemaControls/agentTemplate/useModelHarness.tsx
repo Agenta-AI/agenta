@@ -11,6 +11,7 @@ import {
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {isSandboxLocalEnabled} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -35,7 +36,7 @@ import {
     vaultPickedProviderFamily,
     type ConnectionMode,
 } from "../connectionUtils"
-import {EnumSelectControl} from "../EnumSelectControl"
+import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
 import {HarnessSelectControl} from "../HarnessSelectControl"
 import {PiSettingsControl} from "../PiSettingsControl"
@@ -95,6 +96,10 @@ export function useModelHarness({
     const harnessProps = subProps("harness")
     const runnerProps = subProps("runner")
     const sandboxProps = subProps("sandbox")
+    const sandboxOptions = useMemo(() => {
+        const options = getEnumOptions(sandboxProps.kind)
+        return isSandboxLocalEnabled() ? options : options.filter((o) => o.value !== "local")
+    }, [sandboxProps.kind])
 
     const asObject = useCallback(
         (key: string): Record<string, unknown> =>
@@ -398,6 +403,7 @@ export function useModelHarness({
         hasInspectModels ? (
             <SelectLLMProviderBase
                 showGroup
+                providerDropdownWidth={580}
                 options={modelGroups}
                 value={modelId ?? undefined}
                 onChange={(v, option) => {
@@ -699,6 +705,7 @@ export function useModelHarness({
                         <RailField label="Sandbox" align="center">
                             <EnumSelectControl
                                 schema={sandboxProps.kind}
+                                options={sandboxOptions}
                                 value={(sandbox.kind as string | null) ?? null}
                                 onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
                                 withTooltip={withTooltip}

@@ -162,6 +162,7 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 | `AGENTA_RUNNER_INTERNAL_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
 | `AGENTA_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
 | `AGENTA_AGENT_MCPS_ENABLED` | Services API | `agentRunner.enableMcp` |
+| `AGENTA_SANDBOX_LOCAL_ALLOWED` | Services API, SDK | `agenta.sandboxLocalAllowed` |
 | `SANDBOX_AGENT_PROVIDER` | `runner` | `agentRunner.provider` |
 | `SANDBOX_AGENT_LOG_LEVEL` | `runner` | `agentRunner.logLevel` |
 | `DAYTONA_API_KEY` | `runner` | `agentRunner.daytona.apiKey` |
@@ -171,14 +172,25 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 | `DAYTONA_IMAGE` | `runner` | `agentRunner.daytona.image` |
 | `DAYTONA_AUTOSTOP` | `runner` | `agentRunner.daytona.autostopDelay` |
 | `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `runner` | `agentRunner.daytona.installPi` |
+
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
 
-- `restricted` (default) — in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access.
-- `local` — raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. Use only for trusted, single-tenant deployments.
+- `local` (default) — raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. This is what makes self-hosting work with zero configuration; the deployment logs a warning while it's active.
+- `restricted` — in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access. Set this to harden a shared/multi-tenant deployment.
 - `daytona` — isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona) credentials below.
 
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
+:::
+
+:::warning Agent sandbox
+`AGENTA_SANDBOX_LOCAL_ALLOWED` gates the `local` sandbox for agents (unconfined host bash,
+not a tenant boundary). It defaults to `true` so self-hosting works with zero
+configuration; the deployment logs a warning while `local` is active. Set it to `false`
+to harden a shared/multi-tenant deployment: requests for the `local` sandbox are then
+refused with an HTTP 403, and the web UI hides the `local` option
+(`NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED`, derived automatically). The `daytona`
+sandbox is unaffected either way.
 :::
 
 ## Store (durable object store) {#store-durable-object-store}
@@ -276,13 +288,15 @@ cross into a remote sandbox.
 | `AGENTA_INSECURE_EGRESS_ALLOWED` | `agenta.webhooks.allow_insecure` (API); read directly by the SDK for workflow hooks and custom model provider endpoints | `agenta.insecureEgressAllowed` |
 
 :::note SSRF protection
-`AGENTA_INSECURE_EGRESS_ALLOWED` defaults to **false** (secure). Outbound requests that
-Agenta itself makes to a tenant-configured endpoint (webhooks, workflow hooks, custom
-model provider URLs) are blocked if they resolve to a private, loopback, or otherwise
-reserved IP address. This holds regardless of who configured the URL. Public URLs are
-never affected.
+`AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true`, so outbound requests that Agenta
+itself makes to a tenant-configured endpoint (webhooks, workflow hooks, custom model
+provider URLs) are allowed even when they resolve to a private, loopback, or otherwise
+reserved IP address. The deployment logs a warning while this default is active.
 
-Set it to `true` only for local development against services on your private network.
+If you're running a shared or multi-tenant deployment, set it to `false`. Agenta then
+blocks any such request that resolves to a private, loopback, or reserved IP address,
+regardless of who configured the URL. Public URLs are never affected either way.
+
 The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALLOW_INSECURE`,
 `AGENTA_SERVICES_HOOK_ALLOW_INSECURE`, `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE`) are
 deprecated aliases and still work, but new configuration should use the canonical name.
