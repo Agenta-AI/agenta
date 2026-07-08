@@ -165,17 +165,21 @@ def test_resolve_rejects_blocked_ip_before_pinning(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Default posture — allow_insecure defaults to False
+# Default posture — allow_insecure defaults to True (permissive, zero-config self-host)
 # ---------------------------------------------------------------------------
 
 
-def test_allow_insecure_defaults_false(monkeypatch):
+def test_allow_insecure_defaults_true(monkeypatch):
+    from oss.src.utils import env
+
     monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
     monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
     monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
-    from oss.src.utils.env import WebhooksConfig
-
-    assert WebhooksConfig().allow_insecure is False
+    try:
+        importlib.reload(env)
+        assert env.WebhooksConfig().allow_insecure is True
+    finally:
+        importlib.reload(env)
 
 
 def test_allow_insecure_canonical_env_var(monkeypatch):
