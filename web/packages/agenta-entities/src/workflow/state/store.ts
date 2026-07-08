@@ -1121,6 +1121,30 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !revisionId) return null
                 const cached = findWorkflowRevisionInCache(queryClient, projectId, revisionId)
                 if (cached) return cached
+                // Dedup vs the revisions-by-workflow list: that query primes this revision's detail
+                // cache under the SAME key (primeWorkflowRevisionDetailCache), so on a cold first
+                // paint the current app's displayed revision would otherwise be fetched twice — once
+                // by the list, once here. Await any in-flight list query and re-check the cache before
+                // firing a standalone by-id round-trip. Best-effort: any miss (unrelated workflow, or
+                // the list omitted it) or error falls through to the direct fetch, so correctness is
+                // never at risk.
+                try {
+                    const inflightLists = queryClient.getQueryCache().findAll({
+                        queryKey: ["workflows", "revisionsByWorkflow"],
+                        fetchStatus: "fetching",
+                    })
+                    if (inflightLists.length > 0) {
+                        await Promise.allSettled(inflightLists.map((query) => query.promise))
+                        const primed = findWorkflowRevisionInCache(
+                            queryClient,
+                            projectId,
+                            revisionId,
+                        )
+                        if (primed) return primed
+                    }
+                } catch {
+                    // fall through to the direct fetch below
+                }
                 return workflowRevisionBatchFetcher({projectId, revisionId})
             },
             initialData: detailCached ?? undefined,
