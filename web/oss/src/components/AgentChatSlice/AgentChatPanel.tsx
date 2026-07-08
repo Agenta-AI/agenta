@@ -156,9 +156,6 @@ const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
 const isEmptyAssistantTurn = (m: UIMessage): boolean =>
     m.role === "assistant" && !m.parts.some(isVisiblePart)
 
-/** Rendered-part count for a turn — the "has the resumed stream written anything yet" signal. */
-const visiblePartCount = (m: UIMessage): number => m.parts.filter(isVisiblePart).length
-
 interface ParsedRunError {
     message: string
     code?: number
@@ -428,25 +425,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     })
 
     const busy = status === "submitted" || status === "streaming"
-
-    // A settle-driven resume (approval approve/deny, client-tool result → `sendAutomaticallyWhen`)
-    // re-sends WITHOUT a new user turn: the last message stays the settled-looking assistant turn,
-    // so nothing in the transcript signals the in-flight run until its first new part streams in
-    // (the runner cold-replays first, which can take a while — the chat read as frozen). Snapshot
-    // the last turn while idle; while busy with that SAME turn unchanged, the waiting bubble in
-    // `renderMessage` bridges the gap. Render-time ref write, same pattern as `entityIdRef`.
-    const idleTurnSnapshotRef = useRef<{id: string; visible: number} | null>(null)
-    const lastMessage = messages[messages.length - 1]
-    if (!busy) {
-        idleTurnSnapshotRef.current = lastMessage
-            ? {id: lastMessage.id, visible: visiblePartCount(lastMessage)}
-            : null
-    }
-    const awaitingResumeContent =
-        busy &&
-        lastMessage?.role === "assistant" &&
-        idleTurnSnapshotRef.current?.id === lastMessage.id &&
-        visiblePartCount(lastMessage) === idleTurnSnapshotRef.current.visible
 
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
@@ -1443,13 +1421,15 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     }
                     turnTraceId={turnTraceId}
                 />
-                {/* Waiting indicator stays inside the last message so the reserve keeps it on-screen.
-                    Two cases: a fresh send (assistant turn not created yet), and a settle-driven
-                    resume streaming into the EXISTING assistant turn (`awaitingResumeContent`) —
-                    the first new part (thought/tool/text) dismisses it. */}
+                {/* Working indicator: pinned under the latest content for the WHOLE run, so gaps
+                    with no streaming output (approval-resume cold-replay, between steps, server
+                    tool waits, post-tool thinking) never read as frozen. It stays inside the last
+                    message so the reserve keeps it on-screen, and drops the moment the run
+                    settles. An EMPTY streaming assistant turn already renders its own loading
+                    bubble (AgentMessage), so skip it there — exactly one indicator while busy. */}
                 {isLast &&
-                    ((status === "submitted" && message.role !== "assistant") ||
-                        awaitingResumeContent) && (
+                    busy &&
+                    (message.role !== "assistant" || message.parts.some(isVisiblePart)) && (
                         <Bubble placement="start" variant="borderless" loading content="" />
                     )}
                 {/* Stopped tag + Resend belong only to the LAST assistant turn (the one you cancelled),
