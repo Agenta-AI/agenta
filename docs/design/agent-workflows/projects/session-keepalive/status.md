@@ -4,10 +4,46 @@ Source of truth for progress. Keep this current.
 
 ## Current state (2026-07-08)
 
-- Phase: implementation. Mahmoud approved the plan subject to the Codex xhigh review findings; all seven findings are folded into plan.md and architecture-notes.md (see the review changelog at the top of plan.md).
-- Codex xhigh confirmation pass over the amended plan: 5 of 7 folds confirmed outright; 2 material corrections found and folded the same day (the pool-key project scope comes from the mount-sign response since no project id rides the wire, with a hard no-mount-no-park rule; the credential epoch hashes resolved secret VALUES process-locally since no version identity exists on the wire), plus one stale park-mode sentence corrected to match the v1 gate scope. One fold only, per the agreed loop bound.
+- Phase: implementation, PRs in review. Mahmoud approved the plan subject to the Codex xhigh review findings; all seven findings, plus a confirmation-pass correction, are folded into plan.md and architecture-notes.md.
+- Codex xhigh confirmation pass over the amended plan: 5 of 7 folds confirmed outright; 2 material corrections found and folded the same day (the pool-key project scope comes from the mount-sign response since no project id rides the wire, with a hard no-mount-no-park rule; the credential epoch hashes resolved secret VALUES process-locally since no version identity exists on the wire), plus one stale park-mode sentence corrected to match the v1 gate scope.
 - Slice 1 (`feat/session-keepalive-pool`) and slice 2 (`feat/session-keepalive-approvals`, stacked on slice 1) are being implemented as draft PRs based on `big-agents`.
 - Research: [architecture-notes.md](architecture-notes.md) verified against the current runner code. See "Drift check" below.
+
+## Documentation rewrite (2026-07-08)
+
+Mahmoud reviewed PR #5153 and asked for a substantial rewrite for clarity, context, and reasoning: current-state before change, before/after flows with examples, every decision as problem/options/trade-offs/choice/why, plain language with no meta-provenance in the main text, and a solution story that covers both Claude and Pi. This pass rewrote:
+
+- `architecture-notes.md` restructured into three parts (how the runner works today, what keep-alive changes with before/after examples, the design decisions each with trade-offs), plus a relations section (session resume + restart consequence, the interactions plane "state later" story, the memory-leak honest answer).
+- `plan.md` Q&A deepened with measured numbers, the Daytona cost estimate, the Pi-vs-Claude approval story, the restart consequence, and the interactions-plane composition; all review-provenance wording ("amended after review", "confirmation pass", "Codex finding") removed from the main text and kept here.
+- `open-questions.md` folded in Mahmoud's answers (idle TTL 60s lgtm, approval TTL 5 min and configurable, pool cap sized from measured RAM).
+- The provenance of the amendments themselves lives only here, per Mahmoud's rule that meta stays out of the design text.
+
+## Measured costs and mechanism research (2026-07-08)
+
+Recorded here as the source for the numbers now cited in the design docs.
+
+**Per-session memory and CPU (measured on the Hetzner dev box, inside `agenta-claude-sub-sidecar`, `AGENTA_RUNNER_SESSION_KEEPALIVE=1`, against real parked Claude sessions).** Method: the image has no `ps`, so measurements read `/proc/<pid>/status` (VmRSS) and `/proc/<pid>/smaps_rollup` (Pss) directly, plus `docker stats`. Real playground traffic live-parked sessions (a bare self-managed `/run` carries no mount project scope and runs cold by design, so the app's own traffic was the parking source).
+
+- Per parked Claude session: sandbox-agent daemon ~15.7 MB RSS / ~11.3 MB Pss; ACP adapter (`@zed-industries/claude-agent-acp`) ~82.4 MB / ~33.4 MB; Claude CLI ~246 MB / ~184.5 MB. Total ~336 MB RSS / ~224 MB Pss. Held stable across a 40s+ parked window and across 3 concurrent sessions.
+- Baseline idle runner (no sessions): ~250 MB RSS / ~156 MB Pss.
+- Idle CPU while parked: 0.45% quietest; 2.4 to 7% under light real traffic (node event loops and the esbuild watcher, not the parked sessions, which block on I/O at ~0%).
+- `docker stats` MEM is a poor per-session signal here (2.5 GiB with zero sessions, page cache; 1.1 to 1.25 GiB with 3 to 7 sessions) because the cgroup counts shared text once while per-process RSS counts it repeatedly. Pss (~224 MB/session) is the honest marginal figure.
+- Container was restored: running, `AGENTA_RUNNER_SESSION_KEEPALIVE=1`, health ok, app still pointed at it.
+
+**Process model.** The runner spawns a fresh three-process tree per session (sandbox-agent daemon per `SandboxAgent`, one ACP adapter per agent-connection, one harness under it), not a shared pool. Confirmed against `sandbox-agent` 0.4.2 (`node_modules/sandbox-agent/dist/providers/local.js` spawns one daemon per instance; `pi-acp`/`claude-agent-acp` spawn the harness).
+
+**Approval gates.** Only the Claude ACP permission gate leaves the runner holding an answerable promise (`pendingPermissionRequests` map plus the suspended `prompt()` held open by the disabled undici timeout in `acp-fetch.ts`). Pi custom-tool and builtin gates block on an in-sandbox file poll with a 60s `RELAY_TIMEOUT_MS` deadline (nothing runner-held). The client-tool MCP pause aborts its HTTP request (`tool-mcp-http.ts`, nothing held). This is the code basis for slice 2 parking Claude only.
+
+**Daytona billing.** Per-second, per-resource: ~$0.0504/vCPU-hr, ~$0.0162/GiB-RAM-hr, ~$0.000108/GiB-disk-hr. Default sandbox 1 vCPU / 1 GiB / 3 GiB ~ $0.067/hr running; stopped bills disk only ~$0.0003/hr (~200x cheaper); cold start sub-90ms (negligible dollar cost). 5-min TTL ~ $0.0056/conversation at default size; ~$168/mo at 100 users x 10 conv/day; 24/7 ceiling ~$49/user/mo. Sources: Daytona pricing/billing/docs pages, Northflank and Blaxel 2026 comparisons (exact per-unit rates from the comparisons, consistent with Daytona's own ~$0.067/hr statement; confirm against a live invoice before a contract-grade estimate).
+
+**Memory leak (2026-07-06 incident).** Killing the daemon does not cascade to the ACP adapter it spawned; the orphan reparents to PID 1. Fixed by sending `session/cancel` before `destroySandbox` (teardown step 4). Residual: a hard SIGKILL/OOM of the runner skips teardown and still leaks. The pool is neutral-to-slightly-helpful on graceful paths (all teardown routes through the same idempotent `destroy()`), slightly worse on the hard-kill path (more trees alive at once). The root fix is an OS-level process-group kill / reaper that does not depend on the `finally` (see follow-ups).
+
+## Follow-ups recorded (out of scope for this design)
+
+1. **Lower the implemented approval-TTL default to 5 minutes.** The design recommendation is now `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS=300000` (was 600000 in the slice-2 code). Whoever finalizes slice 2 should lower the code default to match.
+2. **`sandbox_agent.ts` structural cleanup.** The file is long; the acquire/run split is a good moment to break it into smaller modules. A structural refactor task, not part of this feature.
+3. **OS-level orphan-process backstop.** A process-group kill or reaper for the daemon-adapter-harness tree that survives a runner SIGKILL/OOM, so a hard kill cannot leak parked trees. Addresses the residual 2026-07-06 leak class, independent of keep-alive.
+4. **Frontend "setting up sandbox" phase.** The `/run` stream is silent during the acquire phase (sign mount, start sandbox, create session) before any agent event. A setup-phase event would let the frontend show "setting up" instead of an unexplained wait. Not designed here; a small side-note improvement worth filing.
 
 ## Decisions made
 
