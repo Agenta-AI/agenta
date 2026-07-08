@@ -212,13 +212,15 @@ class NormalizerMiddleware:
         exc: Exception,
     ) -> WorkflowServiceBatchResponse:
         error_status = None
+        # Traceback is logged server-side only, never returned to the client.
+        stacktrace = None
 
         if isinstance(exc, ErrorStatus):
+            stacktrace = exc.stacktrace
             error_status = WorkflowServiceStatus(
                 type=exc.type,
                 code=exc.code,
                 message=exc.message,
-                stacktrace=exc.stacktrace,
             )
         else:
             type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
@@ -230,17 +232,18 @@ class NormalizerMiddleware:
 
             message = str(exc) or "Internal Server Error"
 
-            stacktrace = format_exception(
-                exc,  # type: ignore
-                value=exc,
-                tb=exc.__traceback__,
+            stacktrace = "".join(
+                format_exception(
+                    exc,  # type: ignore
+                    value=exc,
+                    tb=exc.__traceback__,
+                )
             )
 
             error_status = WorkflowServiceStatus(
                 type=type,
                 code=code,
                 message=message,
-                stacktrace=stacktrace,
             )
 
         trace_id = None
@@ -266,6 +269,7 @@ class NormalizerMiddleware:
             status_code=error_status.code if error_status else None,
             status_type=error_status.type if error_status else None,
             message=error_status.message if error_status else None,
+            stacktrace=stacktrace,
             trace_id=trace_id,
             span_id=span_id,
         )
