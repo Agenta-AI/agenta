@@ -10,6 +10,7 @@ import {useEffect, useMemo, useRef, useState} from "react"
 
 import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
 import {
+    type ElicitationResult,
     buildAcceptResult,
     buildCancelResult,
     buildDeclineResult,
@@ -26,8 +27,7 @@ import type {ClientToolHandlerProps} from "./types"
 const {Text} = Typography
 
 /** ElicitationResult → the settle channel's Record shape (interfaces carry no index signature). */
-const toOutput = (result: import("@agenta/shared/utils").ElicitationResult) =>
-    ({...result}) as Record<string, unknown>
+const toOutput = (result: ElicitationResult) => ({...result}) as Record<string, unknown>
 
 /** Settled/parked single-line chip — one chrome for every terminal state (design: settled chip). */
 const Chip = ({

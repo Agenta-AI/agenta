@@ -115,6 +115,21 @@ describe("parseElicitationPayload", () => {
         expect(parseElicitationPayload(payload).ok).toBe(true)
     })
 
+    it("canonicalizes format aliases and drops unknown formats on the parsed payload", () => {
+        const payload = validPayload()
+        const props = payload.requestedSchema.properties as Record<string, unknown>
+        props.at = {type: "string", format: "datetime"}
+        props.notes = {type: "string", format: "textarea"}
+        props.odd = {type: "string", format: "hologram"}
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        const parsed = result.payload.requestedSchema.properties
+        expect(parsed.at.format).toBe("date-time")
+        expect(parsed.notes.format).toBe("multiline")
+        expect("format" in parsed.odd).toBe(false)
+    })
+
     it("accepts x-ag-* presentation hints without changing semantics", () => {
         const payload = validPayload()
         ;(payload.requestedSchema.properties as Record<string, unknown>).name = {
@@ -285,6 +300,22 @@ describe("serializeElicitationContent", () => {
         expect(serializeElicitationContent(payload, {due: "2026-07-06"})).toEqual({
             due: "2026-07-06",
         })
+    })
+
+    it("serializes a date value under an aliased format (parse canonicalizes it first)", () => {
+        const result = parseElicitationPayload({
+            message: "when?",
+            requestedSchema: {
+                type: "object",
+                properties: {at: {type: "string", format: "datetime"}},
+            },
+        })
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        const iso = "2026-07-06T09:30:00.000Z"
+        expect(serializeElicitationContent(result.payload, {at: {toISOString: () => iso}})).toEqual(
+            {at: iso},
+        )
     })
 })
 

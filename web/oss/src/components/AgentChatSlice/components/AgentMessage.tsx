@@ -335,6 +335,14 @@ const AgentMessage = ({
         [toolSignature],
     )
 
+    // Message-scoped render hints (sibling `data-render` parts). Memoized so the stable reference
+    // doesn't bust the memoized ClientToolPart on nowTick re-renders. Must sit with the other hooks
+    // (above the early returns) to satisfy rules-of-hooks.
+    const renderMap = useMemo(
+        () => buildRenderMap(message.parts as {type?: string; data?: unknown}[]),
+        [message.parts],
+    )
+
     // #3: collapse a run of empty "no response" turns to just the first. A turn with ANY content
     // (answer or reasoning) and any error turn (isError, which shows the real failure) always
     // render; only a truly-empty, non-error turn that follows another empty turn is hidden.
@@ -368,8 +376,7 @@ const AgentMessage = ({
     const isSupersededGate = (p: ToolUIPart): boolean =>
         p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
 
-    // Message-scoped render hints (sibling `data-render` parts) + the elicitation retry cap.
-    const renderMap = buildRenderMap(message.parts as {type?: string; data?: unknown}[])
+    // The elicitation retry cap: did an elicitation already degrade earlier this turn?
     const degradedEarlierInTurn = hasPriorElicitationDegradation(
         message.parts as {state?: string; errorText?: string}[],
     )

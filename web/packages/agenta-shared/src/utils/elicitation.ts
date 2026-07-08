@@ -137,7 +137,24 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
         if (unknown) return {ok: false, reason: `required field "${unknown}" is not a property`}
     }
 
-    return {ok: true, payload: input as unknown as ElicitationRequestPayload}
+    // Canonicalize format hints once at the boundary so the renderer and the serializer never
+    // diverge (aliases like "datetime" → "date-time"); unknown formats are dropped.
+    const properties = Object.fromEntries(
+        Object.entries(requestedSchema.properties).map(([name, prop]) => {
+            const field = {...(prop as ElicitationFieldSchema)}
+            const canonical = normalizeStringFormat(field.format)
+            if (canonical) field.format = canonical
+            else delete field.format
+            return [name, field]
+        }),
+    ) as Record<string, ElicitationFieldSchema>
+
+    const requested = requestedSchema as ElicitationRequestPayload["requestedSchema"]
+    const payload: ElicitationRequestPayload = {
+        message,
+        requestedSchema: {...requested, properties},
+    }
+    return {ok: true, payload}
 }
 
 /** Build the accept result. `content` must already be validated form values. */
