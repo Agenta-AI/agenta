@@ -53,6 +53,29 @@ def runner_url() -> Optional[str]:
     return value.strip() if value and value.strip() else None
 
 
+_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+_SANDBOX_LOCAL_WARNED = False
+
+
+def sandbox_local_allowed() -> bool:
+    """Whether `sandbox: "local"` (unconfined host bash) may be selected.
+
+    Mirrors `api/oss/src/utils/env.py`'s `RunnerConfig.sandbox_local_allowed`: same env
+    var, same permissive-by-default posture (zero-config self-host). This service does
+    not depend on `api`, so it reads the var directly (this package's own convention;
+    see `runner_dir`/`runner_url` above) rather than importing the shared `env` object.
+    """
+    global _SANDBOX_LOCAL_WARNED
+    allowed = (os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true").lower() in _TRUTHY
+    if allowed and not _SANDBOX_LOCAL_WARNED:
+        _SANDBOX_LOCAL_WARNED = True
+        log.warning(
+            "AGENTA_SANDBOX_LOCAL_ALLOWED is on (default): local sandbox is not a "
+            "tenant boundary. Set it to false to harden a shared/multi-tenant deployment."
+        )
+    return allowed
+
+
 def config_dir() -> Path:
     """Directory holding the static on-file agent template (AGENTS.md and agent.json)."""
     override = os.getenv("AGENTA_AGENT_TEMPLATE_DIR")

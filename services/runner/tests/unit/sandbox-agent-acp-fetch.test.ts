@@ -3,8 +3,9 @@
  *
  * HITL parks the ACP connection open while a human approves a tool; the default undici
  * `headersTimeout` would reap it (UND_ERR_HEADERS_TIMEOUT) and kill the parked + resume turns.
- * These tests pin that the ACP dispatcher disables those timeouts by default and honors the
- * env overrides.
+ * These tests pin that the ACP dispatcher defaults to a wide (not short, not disabled) timeout —
+ * wide enough that an ordinary pause or run never trips it — and honors the env overrides,
+ * including `0` to disable outright.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-acp-fetch.test.ts)
  */
@@ -41,12 +42,14 @@ function agentOptions(dispatcher: object): Record<string, unknown> {
 }
 
 describe("createAcpDispatcher", () => {
-  it("disables headers/body timeouts by default so a parked HITL turn is not reaped", () => {
+  it("defaults headers/body timeouts wide so a parked HITL turn is not reaped", () => {
     delete process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS;
     delete process.env.SANDBOX_AGENT_ACP_BODY_TIMEOUT_MS;
     const opts = agentOptions(createAcpDispatcher());
-    assert.equal(opts.headersTimeout, 0);
-    assert.equal(opts.bodyTimeout, 0);
+    // Wide enough that no ordinary pause or run trips it (see run-limits.ts for the total
+    // deadline this backstops); not disabled outright, so a truly stuck connection still ends.
+    assert.equal(opts.headersTimeout, 60 * 60_000);
+    assert.equal(opts.bodyTimeout, 60 * 60_000);
   });
 
   it("honors a positive env override for the headers and body timeout", () => {
@@ -57,10 +60,16 @@ describe("createAcpDispatcher", () => {
     assert.equal(opts.bodyTimeout, 120000);
   });
 
-  it("falls back to disabled (0) for a non-numeric override", () => {
-    process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS = "not-a-number";
+  it("honors an explicit 0 override to disable the timeout outright", () => {
+    process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS = "0";
     const opts = agentOptions(createAcpDispatcher());
     assert.equal(opts.headersTimeout, 0);
+  });
+
+  it("falls back to the wide default for a non-numeric override", () => {
+    process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS = "not-a-number";
+    const opts = agentOptions(createAcpDispatcher());
+    assert.equal(opts.headersTimeout, 60 * 60_000);
   });
 });
 

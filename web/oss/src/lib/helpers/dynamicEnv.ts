@@ -62,6 +62,7 @@ export const processEnv = {
         process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
+    NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH:
         process.env.NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH:
@@ -76,6 +77,14 @@ export const processEnv = {
 
 const normalizeBoolean = (value: string | undefined) => {
     return (value || "").toLowerCase() === "true"
+}
+
+// Mirror the API `_TRUTHY` rule: unset defaults to enabled, only truthy values enable.
+const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"])
+
+export const isSandboxLocalEnabled = () => {
+    const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
+    return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
 }
 
 export const getEffectiveAuthConfig = () => {

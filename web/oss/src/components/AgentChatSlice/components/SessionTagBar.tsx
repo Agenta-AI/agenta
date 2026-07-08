@@ -23,20 +23,27 @@ const STATUS_META: Record<SessionRunStatus, {dot: string; pulse: boolean; title:
 
 /** A session's run-state dot. Subscribes to just that session's status atom so a streaming
  * conversation repaints only its own dot, never the whole bar. */
-export const SessionStatusDot = ({sessionId}: {sessionId: string}) => {
+export const SessionStatusDot = ({
+    sessionId,
+    active = false,
+}: {
+    sessionId: string
+    active?: boolean
+}) => {
     const status = useAtomValue(sessionStatusAtomFamily(sessionId))
     const meta = STATUS_META[status]
+    const dotClassName = clsx(meta.dot, active && "dark:bg-white")
     return (
         <span className="relative flex h-1.5 w-1.5 shrink-0" title={meta.title}>
             {meta.pulse && (
                 <span
                     className={clsx(
                         "absolute inline-flex h-full w-full rounded-full opacity-60 motion-safe:animate-ping",
-                        meta.dot,
+                        dotClassName,
                     )}
                 />
             )}
-            <span className={clsx("relative inline-flex h-1.5 w-1.5 rounded-full", meta.dot)} />
+            <span className={clsx("relative inline-flex h-1.5 w-1.5 rounded-full", dotClassName)} />
         </span>
     )
 }
@@ -91,7 +98,7 @@ const SessionTag = ({
                     : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
             )}
         >
-            <SessionStatusDot sessionId={session.id} />
+            <SessionStatusDot sessionId={session.id} active={active} />
             <SessionTabLabel
                 label={label}
                 onRename={onRename}

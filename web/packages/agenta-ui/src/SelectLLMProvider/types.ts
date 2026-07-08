@@ -19,6 +19,10 @@ export interface SelectLLMProviderBaseProps extends Omit<SelectProps, "options">
     showGroup?: boolean
     /** Whether to show search input in dropdown */
     showSearch?: boolean
+    /** Total dropdown width for the grouped provider picker */
+    providerDropdownWidth?: number | string
+    /** Width allocated to the models panel after hovering a provider */
+    modelListWidth?: number | string
     /** Custom footer content (e.g., Add Provider button) */
     footerContent?: React.ReactNode
     /** Custom handler when a value is selected */
