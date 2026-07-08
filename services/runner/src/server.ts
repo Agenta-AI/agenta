@@ -43,7 +43,8 @@ import {
   approvalDecisionForToolCall,
   computeCredentialEpoch,
   configFingerprint,
-  credentialEpochValid,
+  credentialEpochMismatch,
+  mountCredentialsExpired,
   expectedNextHistoryFingerprint,
   historyFingerprint,
   poolKeyFor,
@@ -496,11 +497,16 @@ export async function runWithKeepalive(
   if (existing && existing.state === "idle") {
     // Validate the continuation. Any failure evicts and degrades to cold; never fails the turn.
     const priorFp = historyFingerprint(priorConversation(request));
+    // Splits the old ambiguous "credentials" reason into credentials-expired (mount lifetime
+    // elapsed) vs credentials-rotated (secret/tool-auth material changed) so log diagnosis works.
+    const credMismatch = credentialEpochMismatch(
+      existing.credentialEpoch,
+      incomingEpoch,
+    );
     let mismatch: string | undefined;
     if (cfgFp !== existing.configFingerprint) mismatch = "config";
     else if (priorFp !== existing.historyFingerprint) mismatch = "history";
-    else if (!credentialEpochValid(existing.credentialEpoch, incomingEpoch))
-      mismatch = "credentials";
+    else if (credMismatch) mismatch = credMismatch;
     else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
 
     if (mismatch) {
@@ -544,8 +550,23 @@ export async function runWithKeepalive(
     }
     // checkout lost a race; fall through to cold.
   } else if (existing && existing.state === "awaiting_approval") {
-    // Slice 2: an approval-parked session. Only a validated approval decision that matches the
-    // parked Claude ACP gate resumes it live; anything else evicts and degrades to cold.
+    // Slice 2: an approval-parked session. A validated approval decision that matches the parked
+    // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
+    //
+    // Unlike the idle-continuation branch above, this branch does NOT require the resume request's
+    // configFingerprint or credential epoch to EQUAL the parked session's. Every approval reply is
+    // a fresh /run the backend mints carrying freshly minted short-lived material (gateway/Composio
+    // secret VALUES, a per-turn tool-callback bearer), so the incoming credential epoch — and often
+    // the config fingerprint, which can embed those per-turn tokens — practically never match the
+    // parked ones. But the parked live process already holds its OWN resolved credentials baked at
+    // acquire time; the resume request only delivers the human's yes/no. Re-minted per-turn material
+    // on the resume says nothing about the parked environment's validity, so matching it against the
+    // park would evict a perfectly good live session on every approval (the "approve twice" bug).
+    //
+    // We keep the checks that DO bound the parked environment: the approval-decision match, the
+    // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
+    // bound — if the parked session's mount credentials are past expiry, its durable cwd can no
+    // longer be written, so evict to cold.
     const parked = existing.environment.parkedApproval;
     const decision = parked
       ? approvalDecisionForToolCall(request, parked.toolCallId)
@@ -556,12 +577,10 @@ export async function runWithKeepalive(
       mismatch = "not-claude-gate"; // defensive: only a Claude ACP gate ever parks here
     } else if (!decision) {
       mismatch = "no-matching-approval"; // fresh user text, or an approval for another id
-    } else if (cfgFp !== existing.configFingerprint) {
-      mismatch = "config";
     } else if (priorFp !== existing.historyFingerprint) {
       mismatch = "history";
-    } else if (!credentialEpochValid(existing.credentialEpoch, incomingEpoch)) {
-      mismatch = "credentials";
+    } else if (mountCredentialsExpired(existing.credentialEpoch)) {
+      mismatch = "credentials-expired";
     }
 
     if (mismatch || !parked || !decision) {

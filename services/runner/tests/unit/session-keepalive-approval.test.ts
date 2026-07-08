@@ -440,18 +440,24 @@ describe("runWithKeepalive: never-park gate types stay cold", () => {
 });
 
 describe("runWithKeepalive: approval resume validation degrades to cold", () => {
-  async function parkThenResume(resume: AgentRunRequest) {
-    const { engine, calls } = makeApprovalEngine([
-      {
-        approvalPause: {
-          permissionId: "perm-1",
-          toolCallId: "tc-gate",
-          toolName: "commit",
+  async function parkThenResume(
+    resume: AgentRunRequest,
+    mountOpts: { expiresAt?: string } = {},
+  ) {
+    const { engine, calls } = makeApprovalEngine(
+      [
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+          },
+          toolCallIds: ["tc-gate"],
         },
-        toolCallIds: ["tc-gate"],
-      },
-      { result: { ok: true, output: "cold", stopReason: "complete" } },
-    ]);
+        { result: { ok: true, output: "cold", stopReason: "complete" } },
+      ],
+      mountOpts,
+    );
     const ctx = makeCtx(engine);
     await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
     const env1 = calls.acquiredEnvs[0];
@@ -491,13 +497,19 @@ describe("runWithKeepalive: approval resume validation degrades to cold", () => 
     );
   });
 
-  it("a changed config evicts the parked approval and cold-starts", async () => {
-    const { calls, env1 } = await parkThenResume(
-      approveResume(true, { model: "m2" }),
+  it("an expired parked mount evicts the approval and cold-starts (hard mount-expiry bound)", async () => {
+    // The parked session's mount credentials are already past expiry: its durable cwd can no longer
+    // be written, so even a matching decision + history must degrade to cold.
+    const { calls, env1 } = await parkThenResume(approveResume(true), {
+      expiresAt: "2000-01-01T00:00:00.000Z",
+    });
+    assert.equal(env1.destroyed, 1, "the expired parked session is destroyed");
+    assert.equal(calls.acquire, 2, "cold-started a fresh env");
+    assert.equal(
+      calls.resumes.length,
+      0,
+      "no live respondPermission on an expired mount",
     );
-    assert.equal(env1.destroyed, 1);
-    assert.equal(calls.acquire, 2);
-    assert.equal(calls.resumes.length, 0);
   });
 
   it("an approval for a different toolCallId (no match) evicts to cold", async () => {
@@ -526,6 +538,70 @@ describe("runWithKeepalive: approval resume validation degrades to cold", () => 
     assert.equal(env1.destroyed, 1);
     assert.equal(calls.acquire, 2);
     assert.equal(calls.resumes.length, 0);
+  });
+});
+
+describe("runWithKeepalive: approval resume ignores re-minted credentials/config", () => {
+  // The "approve twice" bug: every approval reply is a fresh /run carrying freshly minted
+  // short-lived material (gateway/Composio secret VALUES, a per-turn tool-callback bearer), so its
+  // credential epoch — and often its config fingerprint (per-turn tokens embed in it) — never match
+  // the parked session's. The parked live process already holds its own baked credentials; the
+  // resume only delivers the human's yes/no, so a mismatch there must NOT evict the live session.
+  async function parkThenResume(resume: AgentRunRequest) {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+      { result: { ok: true, output: "resumed", stopReason: "complete" } },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+    const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
+    return { calls, env1, ctx, r2 };
+  }
+
+  it("resumes LIVE when the resume carries a DIFFERENT credential epoch AND config fingerprint but a matching decision + history", async () => {
+    // The resume request re-mints a fresh tool-callback bearer (changes both the config fingerprint
+    // via toolCallback.endpoint and the credential epoch via secrets + toolCallback.authorization).
+    const { calls, env1, r2 } = await parkThenResume(
+      approveResume(true, {
+        toolCallback: {
+          endpoint: "https://gateway/tools/call",
+          authorization: "fresh-per-turn-bearer",
+        },
+        secrets: { OPENAI_API_KEY: "sk-freshly-minted" },
+      }),
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(
+      calls.acquire,
+      1,
+      "no cold re-acquire; the live parked session was reused",
+    );
+    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
+    assert.equal(
+      calls.resumes.length,
+      1,
+      "the gate was answered live exactly once (respondPermission)",
+    );
+    assert.equal(calls.resumes[0].reply, "once");
+    assert.equal(calls.resumes[0].permissionId, "perm-1");
+  });
+
+  it("a changed model on the resume still resumes live (config fingerprint no longer gates the approval branch)", async () => {
+    const { calls, env1, r2 } = await parkThenResume(
+      approveResume(true, { model: "m2" }),
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "no cold re-acquire");
+    assert.equal(env1.destroyed, 0, "the parked session was reused");
+    assert.equal(calls.resumes.length, 1, "answered live exactly once");
   });
 });
 

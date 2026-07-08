@@ -297,18 +297,49 @@ export function computeCredentialEpoch(
 }
 
 /**
+ * Whether a parked session's MOUNT credentials have already expired, ignoring the secret material
+ * hash entirely. This answers only "can the parked environment still write its durable cwd?".
+ *
+ * The approval-resume path uses this instead of `credentialEpochValid`: a resume must NOT require
+ * the resume request's re-minted credentials to MATCH the parked ones (a fresh /run mints fresh
+ * short-lived material every time, so they practically never match), but an expired mount means
+ * the parked cwd can no longer be written, so it must still evict to cold.
+ */
+export function mountCredentialsExpired(
+  epoch: CredentialEpoch,
+  now = Date.now(),
+): boolean {
+  return epoch.mountExpiresAtMs !== undefined && now >= epoch.mountExpiresAtMs;
+}
+
+/**
+ * Why a parked epoch is no longer usable for an incoming request's epoch, or undefined when it
+ * still is. The two failure modes are distinguished so diagnosis works from logs:
+ *  - `credentials-expired` — the mount credential's lifetime elapsed (time bound).
+ *  - `credentials-rotated` — the resolved secret/tool-auth material changed (a rotated same-slug
+ *    secret, a different tool-callback bearer).
+ */
+export function credentialEpochMismatch(
+  parked: CredentialEpoch,
+  incoming: CredentialEpoch,
+  now = Date.now(),
+): "credentials-expired" | "credentials-rotated" | undefined {
+  if (mountCredentialsExpired(parked, now)) return "credentials-expired";
+  if (parked.secretsHash !== incoming.secretsHash) return "credentials-rotated";
+  return undefined;
+}
+
+/**
  * Whether a parked epoch is still valid for an incoming request's epoch. Invalid (evict, cold)
- * when the mount credential expired, or the resolved secret/tool-auth material changed.
+ * when the mount credential expired, or the resolved secret/tool-auth material changed. Thin
+ * wrapper over `credentialEpochMismatch` for callers that only need the boolean.
  */
 export function credentialEpochValid(
   parked: CredentialEpoch,
   incoming: CredentialEpoch,
   now = Date.now(),
 ): boolean {
-  if (parked.mountExpiresAtMs !== undefined && now >= parked.mountExpiresAtMs) {
-    return false;
-  }
-  return parked.secretsHash === incoming.secretsHash;
+  return credentialEpochMismatch(parked, incoming, now) === undefined;
 }
 
 /**

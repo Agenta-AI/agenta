@@ -11,7 +11,9 @@ import {
   approvalDecisionForToolCall,
   computeCredentialEpoch,
   configFingerprint,
+  credentialEpochMismatch,
   credentialEpochValid,
+  mountCredentialsExpired,
   expectedNextHistoryFingerprint,
   historyFingerprint,
   poolKeyFor,
@@ -377,6 +379,45 @@ describe("credential epoch", () => {
     const parked = computeCredentialEpoch({ secrets: { A: "1" } });
     const incoming = computeCredentialEpoch({ secrets: { A: "2" } });
     assert.equal(credentialEpochValid(parked, incoming, Date.now()), false);
+  });
+
+  it("credentialEpochMismatch splits the reason: expired vs rotated vs none", () => {
+    const parked = computeCredentialEpoch(
+      { secrets: { A: "1" } },
+      "2026-01-01T00:00:10.000Z",
+    );
+    const same = computeCredentialEpoch({ secrets: { A: "1" } });
+    const rotated = computeCredentialEpoch({ secrets: { A: "2" } });
+    const before = Date.parse("2026-01-01T00:00:05.000Z");
+    const after = Date.parse("2026-01-01T00:00:15.000Z");
+    assert.equal(credentialEpochMismatch(parked, same, before), undefined);
+    assert.equal(
+      credentialEpochMismatch(parked, same, after),
+      "credentials-expired",
+    );
+    assert.equal(
+      credentialEpochMismatch(parked, rotated, before),
+      "credentials-rotated",
+    );
+    // Expiry takes precedence over a rotation when both hold.
+    assert.equal(
+      credentialEpochMismatch(parked, rotated, after),
+      "credentials-expired",
+    );
+  });
+
+  it("mountCredentialsExpired checks only the mount lifetime, ignoring the secret hash", () => {
+    const parked = computeCredentialEpoch(
+      { secrets: { A: "1" } },
+      "2026-01-01T00:00:10.000Z",
+    );
+    const before = Date.parse("2026-01-01T00:00:05.000Z");
+    const after = Date.parse("2026-01-01T00:00:15.000Z");
+    assert.equal(mountCredentialsExpired(parked, before), false);
+    assert.equal(mountCredentialsExpired(parked, after), true);
+    // No expiry recorded => never expired, regardless of the secret material.
+    const noExpiry = computeCredentialEpoch({ secrets: { A: "1" } });
+    assert.equal(mountCredentialsExpired(noExpiry, after), false);
   });
 });
 
