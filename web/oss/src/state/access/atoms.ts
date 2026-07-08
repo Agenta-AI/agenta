@@ -1,4 +1,5 @@
 import {inferQueueMaxFromPlan} from "@agenta/entities/trace/etl"
+import {lowPriorityWhenCached} from "@agenta/shared/api"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -37,6 +38,17 @@ export interface RoleEntry {
 
 export type RolesCatalog = Record<"organization" | "workspace" | "project", RoleEntry[]>
 
+// Entitlement/billing bootstrap: never retry a 4xx, and DON'T hammer a gateway-unavailable billing
+// service (502/503/504). Entitlements degrade gracefully (fall back to hobby/free), so failing fast
+// beats firing several slow attempts that compete with render-critical traffic — the symptom that
+// prompted this was /billing/subscription 502-ing three times at High priority on playground load.
+const entitlementRetry = (failureCount: number, error: unknown) => {
+    const status = (error as {response?: {status?: number}})?.response?.status
+    if (status != null && status >= 400 && status < 500) return false
+    if (status === 502 || status === 503 || status === 504) return false
+    return failureCount < 2
+}
+
 export const plansQueryAtom = atomWithQuery((get) => {
     const sessionExists = get(sessionExistsAtom)
     const user = get(profileQueryAtom).data as {id?: string} | undefined
@@ -44,7 +56,10 @@ export const plansQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["access", "plans"],
         queryFn: async (): Promise<PlansCatalog> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/access/plans`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/access/plans`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
@@ -55,12 +70,7 @@ export const plansQueryAtom = atomWithQuery((get) => {
         // project), not just the session, so the request isn't fired and aborted
         // before the profile resolves.
         enabled: isEE() && sessionExists && !!user && !!projectId,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        retry: entitlementRetry,
     }
 })
 
@@ -88,6 +98,7 @@ export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
         queryFn: async (): Promise<CurrentSubscription> => {
             const response = await axios.get(
                 `${getAgentaApiUrl()}/billing/subscription?project_id=${projectId}`,
+                lowPriorityWhenCached(true),
             )
             return response.data
         },
@@ -96,12 +107,7 @@ export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
         refetchOnReconnect: false,
         refetchOnMount: true,
         enabled: isEE() && sessionExists && !!organizationId && !!user && !!projectId,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        retry: entitlementRetry,
     }
 })
 
@@ -128,7 +134,10 @@ export const catalogQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["billing", "catalog"],
         queryFn: async (): Promise<CatalogEntry[]> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/billing/catalog`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/billing/catalog`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
@@ -136,12 +145,7 @@ export const catalogQueryAtom = atomWithQuery((get) => {
         refetchOnReconnect: false,
         refetchOnMount: true,
         enabled: isEE() && sessionExists,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        retry: entitlementRetry,
     }
 })
 
@@ -150,7 +154,10 @@ export const pricingQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["billing", "pricing"],
         queryFn: async (): Promise<PricingMap> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/billing/pricing`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/billing/pricing`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
@@ -158,12 +165,7 @@ export const pricingQueryAtom = atomWithQuery((get) => {
         refetchOnReconnect: false,
         refetchOnMount: true,
         enabled: isEE() && sessionExists,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        retry: entitlementRetry,
     }
 })
 
@@ -224,7 +226,10 @@ export const rolesQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["access", "roles"],
         queryFn: async (): Promise<RolesCatalog> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/access/roles`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/access/roles`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
@@ -235,11 +240,6 @@ export const rolesQueryAtom = atomWithQuery((get) => {
         // project), not just the session, so the request isn't fired and aborted
         // before the profile resolves.
         enabled: sessionExists && !!user && !!projectId,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        retry: entitlementRetry,
     }
 })
