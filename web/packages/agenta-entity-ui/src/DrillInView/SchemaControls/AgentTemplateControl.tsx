@@ -106,6 +106,19 @@ export interface AgentTemplateControlProps {
     className?: string
 }
 
+// Draft body for the Model & harness / Advanced section drawers. Isolated into its own component so
+// `useModelHarness` (harness-catalog + vault-secrets + build-kit-overlay subscriptions) runs ONLY
+// while a section drawer is open — `SectionDrawer` uses `destroyOnClose`, so this mounts on open and
+// unmounts on close. Previously a second `useModelHarness` ran in the always-mounted parent,
+// subscribing on every agent-config render even with both drawers shut.
+const ModelHarnessSectionDrawerBody = ({
+    section,
+    ...params
+}: {section: "model-harness" | "advanced"} & Parameters<typeof useModelHarness>[0]) => {
+    const mh = useModelHarness(params)
+    return <>{section === "advanced" ? mh.advancedDrawerBody : mh.modelHarnessDrawerBody}</>
+}
+
 export function AgentTemplateControl({
     schema,
     value,
@@ -175,10 +188,6 @@ export function AgentTemplateControl({
         (next: Record<string, unknown>) => setDraftConfig(next),
         [],
     )
-    // Swallow writes from the draft hook while its drawer is closed (its body isn't rendered, so an
-    // internal auto-correction effect must not leak into `draftConfig`). The live `mh` handles any
-    // real auto-correction against the entity.
-    const noopConfigChange = useCallback(() => {}, [])
     // Single source of truth for "the currently open section has unsaved edits" — shared by the
     // open-a-new-section guard below and the Save-button gate (`sectionDirty`) so they can't drift.
     const isCurrentSectionDirty = useCallback(
@@ -284,24 +293,19 @@ export function AgentTemplateControl({
     //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries + the inline
     //    tabs bodies. Keeping it live means a section header NEVER reflects the drawer's unsaved draft
     //    (the reported bug: editing in the open drawer updated the background summary).
-    //  - `mhDraft` is bound to the DRAFT (config + build-kit) — it drives the OPEN section drawer's
-    //    body, so its forms edit the buffer and Save relays it to the entity/atom. When no drawer is
-    //    open its `onChange` is a no-op (and its body isn't rendered), so the extra hook is inert.
+    //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
+    //    now lives inside `ModelHarnessSectionDrawerBody`, mounted only while the drawer is open, so
+    //    its harness/vault/overlay subscriptions don't run in the background.
     const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
-    const mhDraft = useModelHarness({
-        schema,
-        config: draftConfig ?? config,
-        onChange: openSection !== null ? applyDraftConfig : noopConfigChange,
-        disabled,
-        withTooltip,
-        revisionId,
-        buildKitEnabledOverride:
+    const draftBuildKitOverride = useMemo(
+        () =>
             draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
-        // "Current" marks the SAVED harness (from the live entity), not the draft pick.
-        savedHarnessValue:
-            ((config.harness as Record<string, unknown> | undefined)?.kind as string | undefined) ??
-            null,
-    })
+        [draftBuildKit],
+    )
+    // "Current" marks the SAVED harness (from the live entity), not the draft pick.
+    const savedHarnessValue =
+        ((config.harness as Record<string, unknown> | undefined)?.kind as string | undefined) ??
+        null
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -888,9 +892,19 @@ export function AgentTemplateControl({
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
-                width={mhDraft.modelHarnessDrawerWidth}
+                width={mh.modelHarnessDrawerWidth}
             >
-                {mhDraft.modelHarnessDrawerBody}
+                <ModelHarnessSectionDrawerBody
+                    section="model-harness"
+                    schema={schema}
+                    config={draftConfig ?? config}
+                    onChange={applyDraftConfig}
+                    disabled={disabled}
+                    withTooltip={withTooltip}
+                    revisionId={revisionId}
+                    buildKitEnabledOverride={draftBuildKitOverride}
+                    savedHarnessValue={savedHarnessValue}
+                />
             </SectionDrawer>
 
             <SectionDrawer
@@ -903,7 +917,17 @@ export function AgentTemplateControl({
                 dirty={sectionDirty}
                 width={880}
             >
-                {mhDraft.advancedDrawerBody}
+                <ModelHarnessSectionDrawerBody
+                    section="advanced"
+                    schema={schema}
+                    config={draftConfig ?? config}
+                    onChange={applyDraftConfig}
+                    disabled={disabled}
+                    withTooltip={withTooltip}
+                    revisionId={revisionId}
+                    buildKitEnabledOverride={draftBuildKitOverride}
+                    savedHarnessValue={savedHarnessValue}
+                />
             </SectionDrawer>
 
             {workflowReference?.enabled && (
