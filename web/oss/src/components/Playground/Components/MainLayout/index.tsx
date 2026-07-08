@@ -25,6 +25,7 @@ import dynamic from "next/dynamic"
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 import {PanelSessionInspectorButton} from "@/oss/components/SessionInspector"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
@@ -178,7 +179,13 @@ const PlaygroundMainView = ({
     // key change the panel would keep the initial (pre-resolution) 50% split on reload.
     const primaryConfigId =
         !isComparisonView && configEntityIds.length > 0 ? configEntityIds[0]! : ""
-    const isAgentConfig = useAtomValue(isAgentModeAtomFamily(primaryConfigId))
+    // Seed the agent geometry from the early app-id signal so the splitter mounts at the
+    // 440px agent split instead of flashing the prompt 50/50 while the revision loads.
+    // Single-view only (agents are excluded from comparison); the per-entity value still
+    // wins once the config revision resolves.
+    const earlyIsAgent = useAtomValue(playgroundEarlyAgentStateAtom) === "agent"
+    const isAgentConfig =
+        useAtomValue(isAgentModeAtomFamily(primaryConfigId)) || (!isComparisonView && earlyIsAgent)
     const configDefaultSize = isAgentConfig ? 440 : "50%"
     const configMaxSize = isAgentConfig ? 450 : "70%"
     // Let the runs panel auto-fill in agent mode. A px config default + a "50%" runs default

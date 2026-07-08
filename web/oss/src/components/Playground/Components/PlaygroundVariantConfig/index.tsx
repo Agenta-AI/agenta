@@ -23,6 +23,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {PlaygroundNodeTokenPathProvider} from "../../PlaygroundTokenPath"
 
@@ -66,6 +67,14 @@ const PlaygroundVariantConfig: React.FC<
     // The agent config panel is a read-only summary that edits via section drawers, so the
     // form/JSON/YAML view switch doesn't apply — hide it for agents (kept for prompt/eval variants).
     const isAgent = useAtomValue(isAgentModeAtomFamily(variantId))
+    // `isAgentModeAtomFamily` is false until the revision's is_agent flag loads, so on load the heavy
+    // prompt chrome (view switcher) would flash for an agent. Treat as agent-header mode when it's an
+    // agent, the early app-id signal says agent, OR agent-ness is still unknown (variant not settled).
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const variantQueryPending = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(variantId || ""), [variantId]),
+    ).isPending
+    const isAgentHeaderMode = isAgent || earlyAgentState === "agent" || variantQueryPending
 
     // Refine prompt modal state
     const [refineModalOpen, setRefineModalOpen] = useState(false)
@@ -221,7 +230,7 @@ const PlaygroundVariantConfig: React.FC<
                 evaluatorLabel={evaluatorInfo?.label}
                 hasPresets={hasPresets}
                 onLoadPreset={() => setIsPresetModalOpen(true)}
-                extraActions={isAgent ? undefined : viewModeSelector}
+                extraActions={isAgentHeaderMode ? undefined : viewModeSelector}
             />
             {hasPendingHydration ? (
                 <div className="p-4 flex flex-col gap-3">

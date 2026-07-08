@@ -1,47 +1,42 @@
 import {memo} from "react"
 
 import {bgColors} from "@agenta/ui"
-import {DownOutlined} from "@ant-design/icons"
-import {Flask, Plus} from "@phosphor-icons/react"
-import {Button, Space, Typography} from "antd"
+import {Robot} from "@phosphor-icons/react"
+import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/assets/constants"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
-import {currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
+// Neutral chunk-download fallback. It must NOT prejudge the app as non-agent — the old
+// shell hardcoded the eval stack (New Evaluation / Compare), which then vanished on agent
+// reloads. Read the early app-id agent signal so an agent app shows the agent-flavored
+// header from the first paint, and never render the eval actions here (the real header
+// commits them once the workflow type is confirmed).
 const PlaygroundLoadingShell = () => {
+    const isAgent = useAtomValue(playgroundEarlyAgentStateAtom) === "agent"
     return (
         <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
             <div
                 className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
             >
-                <Typography className="text-[16px] leading-[18px] font-[600]">
-                    Playground
-                </Typography>
-                <div className="flex items-center gap-2">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<Flask size={14} />}
-                        className="self-start"
-                        disabled
-                    >
-                        New Evaluation
-                    </Button>
-                    <Space.Compact size="small">
-                        <Button
-                            className="flex items-center gap-1"
-                            icon={<Plus size={14} />}
-                            disabled
-                        >
-                            Compare
-                        </Button>
-                        <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
-                    </Space.Compact>
-                </div>
+                {isAgent ? (
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
+                            <Robot size={15} weight="fill" />
+                        </span>
+                        <Typography className="text-[16px] leading-[18px] font-[600]">
+                            Agent
+                        </Typography>
+                    </div>
+                ) : (
+                    <Typography className="text-[16px] leading-[18px] font-[600]">
+                        Playground
+                    </Typography>
+                )}
             </div>
         </div>
     )

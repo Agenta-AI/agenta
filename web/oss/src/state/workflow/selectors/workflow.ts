@@ -1,4 +1,6 @@
 import {
+    readPersistedAgentType,
+    workflowAppTypeAtomFamily,
     workflowDetailQueryAtomFamily,
     type Workflow,
     type WorkflowFlags,
@@ -146,4 +148,33 @@ export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => 
         isNotFound: false,
         isError: false,
     }
+})
+
+/**
+ * Early, app-id-keyed agent signal for the playground shell/header/layout.
+ *
+ * The node-derived `isAgentModeAtomFamily(rootEntityId)` only resolves after the
+ * heavy playground graph + root revision load, so the layout would default to the
+ * non-agent (prompt) chrome and flip once it turns out to be an agent — mounting
+ * then unmounting the eval stack. This reads the lightweight latest-revision query
+ * (already warmed by the sidebar) keyed by the URL app id, giving a definitive
+ * answer *before* the graph resolves.
+ *
+ * "unknown" = no app in URL (project-level) OR the latest-revision query still
+ * pending AND nothing persisted from a prior session. Consumers render neutral
+ * chrome while unknown, committing to the agent or prompt layout only once confirmed.
+ */
+export type PlaygroundAgentState = "agent" | "non-agent" | "unknown"
+
+export const playgroundEarlyAgentStateAtom = atom<PlaygroundAgentState>((get) => {
+    const appId = get(routerAppIdAtom)
+    if (!appId) return "unknown"
+    const appType = get(workflowAppTypeAtomFamily(appId))
+    if (appType != null) return appType === "agent" ? "agent" : "non-agent"
+    // Live query still pending on a cold reload — fall back to the last-known type persisted from a
+    // prior session (see persistedAgentType) so the layout commits immediately instead of flashing
+    // neutral/non-agent chrome. The live query rewrites the entry, so a stale value self-heals.
+    const cached = readPersistedAgentType(appId)
+    if (cached) return cached === "agent" ? "agent" : "non-agent"
+    return "unknown"
 })
