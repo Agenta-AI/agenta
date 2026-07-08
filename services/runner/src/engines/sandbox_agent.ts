@@ -634,7 +634,7 @@ export async function acquireEnvironment(
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
   const mcpAbort = new AbortController();
 
-  const env2: SessionEnvironment = {
+  const environment: SessionEnvironment = {
     plan,
     logger,
     deps,
@@ -672,67 +672,74 @@ export async function acquireEnvironment(
     clearTurn: () => {},
   };
 
-  env2.clearTurn = () => {
-    env2.currentTurn = undefined;
+  environment.clearTurn = () => {
+    environment.currentTurn = undefined;
   };
 
   // The one complete, idempotent teardown — the same steps the old per-run `finally` ran, in the
   // same order. Every resource is null-checked, so it is safe after a partial acquire and safe to
   // call twice (the guard returns on a second call). It must never throw.
-  env2.destroy = async () => {
-    if (env2.destroyed) return;
-    env2.destroyed = true;
-    await env2.runtimeRemount?.catch(() => {});
-    if (env2.sandbox) inFlightSandboxes.delete(env2.sandbox);
-    await env2.currentTurn?.toolRelay?.stop().catch(() => {});
+  environment.destroy = async () => {
+    if (environment.destroyed) return;
+    environment.destroyed = true;
+    await environment.runtimeRemount?.catch(() => {});
+    if (environment.sandbox) inFlightSandboxes.delete(environment.sandbox);
+    await environment.currentTurn?.toolRelay?.stop().catch(() => {});
     // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
-    env2.mcpAbort.abort();
-    await env2.closeToolMcp?.().catch(() => {});
+    environment.mcpAbort.abort();
+    await environment.closeToolMcp?.().catch(() => {});
     // Send a graceful `session/cancel` BEFORE tearing down the daemon (the ACP child process
     // leak, dev-box incident 2026-07-06): destroySandbox hard-kills the sandbox-agent server but
     // does not cascade to the ACP adapter subprocess it spawned, which then reparents to PID 1
     // and never exits. Skip if the pause path already sent it (`sessionDestroyRequested`).
-    if (env2.session && !env2.sessionDestroyRequested)
-      await env2.sandbox?.destroySession?.(env2.session.id).catch(() => {});
-    await env2.sandbox?.destroySandbox().catch(() => {});
-    await env2.sandbox?.dispose().catch(() => {});
+    if (environment.session && !environment.sessionDestroyRequested)
+      await environment.sandbox
+        ?.destroySession?.(environment.session.id)
+        .catch(() => {});
+    await environment.sandbox?.destroySandbox().catch(() => {});
+    await environment.sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
     // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete: rmSync must
     // never run against a possibly-live FUSE mount into the durable store.
-    if (env2.mountedCwd) {
-      env2.durableCwdSafeToDelete = await (
-        env2.deps.unmountStorage ?? unmountStorage
-      )(env2.mountedCwd, { log }).catch(() => false);
+    if (environment.mountedCwd) {
+      environment.durableCwdSafeToDelete = await (
+        environment.deps.unmountStorage ?? unmountStorage
+      )(environment.mountedCwd, { log }).catch(() => false);
     }
-    if (!env2.durableCwdSafeToDelete) {
+    if (!environment.durableCwdSafeToDelete) {
       logger(
         `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
       );
     } else {
-      await env2.workspace?.cleanup().catch(() => {});
+      await environment.workspace?.cleanup().catch(() => {});
     }
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
-    if (env2.runAgentDir)
-      rmSync(env2.runAgentDir, { recursive: true, force: true });
+    if (environment.runAgentDir)
+      rmSync(environment.runAgentDir, { recursive: true, force: true });
     // Backstop: the extension deletes this on read; remove it here too in case the harness never
     // started (or crashed before reading it), so the bearer never lingers.
-    if (env2.otlpAuthFilePath) rmSync(env2.otlpAuthFilePath, { force: true });
+    if (environment.otlpAuthFilePath)
+      rmSync(environment.otlpAuthFilePath, { force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   };
 
-  // --- local durable cwd mount helpers (session-scoped, close over env2) ------ //
+  // --- local durable cwd mount helpers (session-scoped, close over environment) ------ //
   const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
-    if (!env2.mountCreds || plan.isDaytona) return false;
+    if (!environment.mountCreds || plan.isDaytona) return false;
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
     if (
-      await (deps.mountStorage ?? mountStorage)(plan.cwd, env2.mountCreds, {
-        log: logger,
-      })
+      await (deps.mountStorage ?? mountStorage)(
+        plan.cwd,
+        environment.mountCreds,
+        {
+          log: logger,
+        },
+      )
     ) {
-      env2.mountedCwd = plan.cwd;
+      environment.mountedCwd = plan.cwd;
       return true;
     }
     return false;
@@ -764,17 +771,21 @@ export async function acquireEnvironment(
       );
       return false;
     }
-    env2.mountCreds = fresh;
+    environment.mountCreds = fresh;
     return mountLocalDurableCwd("enotconn-retry");
   };
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown): void => {
-    if (plan.isDaytona || !env2.mountCreds || !env2.mountedCwd) return;
-    if (env2.runtimeRemount || !containsTransportEndpointDisconnected(event))
+    if (plan.isDaytona || !environment.mountCreds || !environment.mountedCwd)
+      return;
+    if (
+      environment.runtimeRemount ||
+      !containsTransportEndpointDisconnected(event)
+    )
       return;
     logger(
       `local durable cwd ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
     );
-    env2.runtimeRemount = reSignAndRemountLocalCwd().catch((err) => {
+    environment.runtimeRemount = reSignAndRemountLocalCwd().catch((err) => {
       logger(
         `local durable cwd runtime remount failed session=${sessionForMount}: ${conciseError(err, plan.harness)}`,
       );
@@ -790,7 +801,7 @@ export async function acquireEnvironment(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
-    env2.sandbox = await startSandboxAgent({
+    environment.sandbox = await startSandboxAgent({
       sandbox: (deps.buildSandboxProvider ?? buildSandboxProvider)(
         plan.sandboxId,
         env,
@@ -811,12 +822,12 @@ export async function acquireEnvironment(
     });
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
-    if (env2.sandbox) inFlightSandboxes.add(env2.sandbox);
+    if (environment.sandbox) inFlightSandboxes.add(environment.sandbox);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     if (plan.isDaytona) {
       await prepareDaytonaPiAssets({
-        sandbox: env2.sandbox,
+        sandbox: environment.sandbox,
         plan,
         log: logger,
       });
@@ -825,10 +836,10 @@ export async function acquireEnvironment(
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
-    if (env2.mountCreds && !plan.isDaytona) {
+    if (environment.mountCreds && !plan.isDaytona) {
       await mountLocalDurableCwd("initial");
     }
-    if (env2.mountCreds && plan.isDaytona) {
+    if (environment.mountCreds && plan.isDaytona) {
       const endpoint = await (
         deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
       )({
@@ -837,9 +848,9 @@ export async function acquireEnvironment(
       if (
         endpoint &&
         (await (deps.mountStorageRemote ?? mountStorageRemote)(
-          env2.sandbox,
+          environment.sandbox,
           plan.cwd,
-          env2.mountCreds,
+          environment.mountCreds,
           {
             endpoint,
             log: logger,
@@ -851,23 +862,27 @@ export async function acquireEnvironment(
     }
 
     try {
-      env2.workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
-        sandbox: env2.sandbox,
-        plan,
-        log: logger,
-      });
+      environment.workspace = await (deps.prepareWorkspace ?? prepareWorkspace)(
+        {
+          sandbox: environment.sandbox,
+          plan,
+          log: logger,
+        },
+      );
     } catch (err) {
       if (
         !plan.isDaytona &&
-        env2.mountCreds &&
+        environment.mountCreds &&
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
       ) {
         logger(
           `retrying workspace preparation after local durable cwd remount`,
         );
-        env2.workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
-          sandbox: env2.sandbox,
+        environment.workspace = await (
+          deps.prepareWorkspace ?? prepareWorkspace
+        )({
+          sandbox: environment.sandbox,
           plan,
           log: logger,
         });
@@ -878,17 +893,18 @@ export async function acquireEnvironment(
 
     // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle.
     assert(
-      env2.sandbox && typeof env2.sandbox.createSession === "function",
+      environment.sandbox &&
+        typeof environment.sandbox.createSession === "function",
       `sandbox provider '${plan.sandboxId}' returned no usable sandbox handle`,
     );
 
     // Probe what this harness supports and branch on capabilities, not on the harness name.
     const probed = await (deps.probeCapabilities ?? probeCapabilities)(
-      env2.sandbox,
+      environment.sandbox,
       plan.acpAgent,
     );
     const capabilities = probed.capabilities;
-    env2.capabilities = capabilities;
+    environment.capabilities = capabilities;
 
     // Fail loud (A7): a run that REQUIRES a capability the harness lacks errors specifically
     // rather than silently dropping the behavior.
@@ -913,82 +929,122 @@ export async function acquireEnvironment(
       log: logger,
     });
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
-    env2.closeToolMcp = sessionMcp.close;
+    environment.closeToolMcp = sessionMcp.close;
 
-    env2.session = await env2.sandbox.createSession({
+    environment.session = await environment.sandbox.createSession({
       agent: plan.acpAgent,
       cwd: plan.cwd,
       sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
     });
-    env2.sessionId = resolveRunSessionId(request, env2.session.id);
+    environment.sessionId = resolveRunSessionId(
+      request,
+      environment.session.id,
+    );
 
     // Resolve the model first: when the harness rejects the requested id and keeps its own
     // default, `model` is undefined and the chat span is labelled "chat".
-    env2.model = await (deps.applyModel ?? applyModel)(
-      env2.session,
+    environment.model = await (deps.applyModel ?? applyModel)(
+      environment.session,
       request.model,
       logger,
       { strict: strictModel },
     );
 
-    // Session-lifetime listeners: attach ONCE, demux into the active turn's sink. Non-throwing
-    // (the sandbox-agent registries are plain Sets; a thrown handler would corrupt the stream).
-    // Deliberate divergence from the old inline handler: a handler throw is swallowed + logged
-    // here instead of propagating, because the listener now outlives any single turn.
-    env2.session.onEvent((event: any) => {
-      try {
-        remountLocalCwdAfterRuntimeEnotconn(event);
-        const payload = event?.payload;
-        const update = payload?.params?.update ?? payload?.update;
-        if (!update) return;
-        // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's bubble
-        // (session-scoped; a lookup CONSUMES its matched id).
-        env2.toolCallIndex.record(update);
-        const turn = env2.currentTurn;
-        if (turn) {
-          turn.handleUpdate(update);
-        } else {
-          // Between turns (parked/idle): no turn owns this event. Log and drop by decision.
-          logger(`[keepalive] between-turns event dropped`);
-        }
-      } catch (err) {
-        logger(
-          `session onEvent handler error: ${conciseError(err, plan.harness)}`,
-        );
-      }
-    });
-    env2.session.onPermissionRequest((req: any) => {
-      try {
-        const turn = env2.currentTurn;
-        if (turn?.onPermissionRequest) {
-          turn.onPermissionRequest(req);
-          return;
-        }
-        // Between turns: no turn owns this gate. A slice-2 approval park is recorded DURING the
-        // active turn (the gate fires while a prompt runs, routing through currentTurn), and a
-        // parked-on-approval session leaves its harness suspended on that gate — so nothing new
-        // fires here while parked. A gate that reaches this handler is therefore a genuine stray
-        // (e.g. a late teardown artifact): cancel by policy so it cannot hang.
-        logger(
-          `[keepalive] between-turns permission request, cancelling by policy id=${req?.id}`,
-        );
-        void Promise.resolve(
-          env2.session?.respondPermission?.(req?.id, "reject"),
-        ).catch(() => {});
-      } catch (err) {
-        logger(
-          `session onPermissionRequest handler error: ${conciseError(err, plan.harness)}`,
-        );
-      }
-    });
+    // Session-lifetime listeners: attach ONCE, each demuxing into the active turn's sink. They
+    // outlive any single turn, so the routing lives in dedicated non-throwing helpers below.
+    environment.session.onEvent((event: any) =>
+      routeSessionEventToActiveTurn(
+        environment,
+        remountLocalCwdAfterRuntimeEnotconn,
+        event,
+      ),
+    );
+    environment.session.onPermissionRequest((req: any) =>
+      routePermissionRequestToActiveTurn(environment, req),
+    );
 
-    return { ok: true, env: env2 };
+    return { ok: true, env: environment };
   } catch (err) {
     const error = conciseError(err, plan.harness, request.provider);
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
-    await env2.destroy();
+    await environment.destroy();
     return { ok: false, error };
+  }
+}
+
+/**
+ * Route one harness event into the active turn's sink.
+ *
+ * Data flow: the ACP session emits an event -> we demux it -> the active turn
+ * (`environment.currentTurn`) consumes the update. The session listener is attached ONCE and
+ * outlives every turn, so this must never throw: the sandbox-agent registries are plain Sets and a
+ * thrown handler would corrupt the event stream, so any error is swallowed and logged.
+ *
+ * Steps: let the ENOTCONN watcher observe the raw event, extract the update payload (dropping events
+ * that carry none), record live tool_call ids for client-tool correlation, then hand the update to
+ * the active turn — or, between turns when no turn owns it, log and drop it.
+ */
+function routeSessionEventToActiveTurn(
+  environment: SessionEnvironment,
+  remountLocalCwdAfterRuntimeEnotconn: (event: unknown) => void,
+  event: any,
+): void {
+  const { logger, plan } = environment;
+  try {
+    remountLocalCwdAfterRuntimeEnotconn(event);
+    const payload = event?.payload;
+    const update = payload?.params?.update ?? payload?.update;
+    if (!update) return;
+    // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's bubble
+    // (session-scoped; a lookup CONSUMES its matched id).
+    environment.toolCallIndex.record(update);
+    const turn = environment.currentTurn;
+    if (turn) {
+      turn.handleUpdate(update);
+    } else {
+      // Between turns (parked/idle): no turn owns this event. Log and drop by decision.
+      logger(`[keepalive] between-turns event dropped`);
+    }
+  } catch (err) {
+    logger(`session onEvent handler error: ${conciseError(err, plan.harness)}`);
+  }
+}
+
+/**
+ * Route one permission gate into the active turn's approval handler.
+ *
+ * Data flow: the harness raises a permission request -> the active turn (`environment.currentTurn`)
+ * decides it. Like the event listener this is attached ONCE and must never throw (a thrown handler
+ * would corrupt the sandbox-agent registries), so errors are swallowed and logged.
+ *
+ * Between turns no turn owns the gate. An approval park is always recorded DURING the active turn
+ * (the gate fires while a prompt runs, routing through currentTurn), and a parked-on-approval
+ * session leaves its harness suspended on that gate, so nothing new fires while parked. A gate that
+ * reaches here is therefore a genuine stray (e.g. a late teardown artifact): reject it by policy so
+ * it cannot hang.
+ */
+function routePermissionRequestToActiveTurn(
+  environment: SessionEnvironment,
+  req: any,
+): void {
+  const { logger, plan } = environment;
+  try {
+    const turn = environment.currentTurn;
+    if (turn?.onPermissionRequest) {
+      turn.onPermissionRequest(req);
+      return;
+    }
+    logger(
+      `[keepalive] between-turns permission request, cancelling by policy id=${req?.id}`,
+    );
+    void Promise.resolve(
+      environment.session?.respondPermission?.(req?.id, "reject"),
+    ).catch(() => {});
+  } catch (err) {
+    logger(
+      `session onPermissionRequest handler error: ${conciseError(err, plan.harness)}`,
+    );
   }
 }
 
