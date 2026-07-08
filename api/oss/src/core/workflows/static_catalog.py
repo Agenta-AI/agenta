@@ -40,6 +40,7 @@ from oss.src.core.workflows.build_kit import (
     BUILD_KIT_WORKFLOW_NAME,
     BUILD_KIT_WORKFLOW_SLUG,
     REQUEST_CONNECTION_WORKFLOW_NAME,
+    REQUEST_INPUT_WORKFLOW_SLUG,
     build_agent_template_overlay,
 )
 from oss.src.core.workflows.dtos import (
@@ -134,6 +135,66 @@ def _client_tool_revision() -> WorkflowRevision:
     )
 
 
+REQUEST_INPUT_TOOL_NAME = "request_input"
+
+
+def _request_input_revision() -> WorkflowRevision:
+    """The elicitation client tool (interaction kinds M1): pause and collect typed input.
+
+    The payload contract ({message, requestedSchema} flat dialect, accept/decline/cancel result
+    envelope, secret-field refusal) is pinned by the shared golden fixtures at
+    ``web/packages/agenta-shared/tests/fixtures/elicitation_*.json`` and enforced by the
+    browser-side validator. Design: docs/design/agent-chat-interaction-kinds/decisions.md
+    """
+    return WorkflowRevision(
+        name="Request input",
+        description="Ask the user for structured input via an inline form.",
+        data=WorkflowRevisionData(
+            uri="client:tool:request_input:v0",
+            parameters={
+                "tool": {
+                    "type": "client",
+                    "name": REQUEST_INPUT_TOOL_NAME,
+                    "description": (
+                        "Pause the run and ask the user for typed input via an inline form. "
+                        "Use this instead of guessing values the user must confirm — for "
+                        "example, when wiring a provider tool, ask WHICH actions to enable "
+                        "(enum from discover_tools results) or collect non-secret settings "
+                        "(subdomain, workspace) before request_connection; or collect schedule "
+                        "details (frequency, time of day, timezone) before create_schedule. "
+                        "`requestedSchema` must be a FLAT JSON object schema: top-level "
+                        "string/number/integer/boolean properties only (enum, format and title "
+                        "allowed) — no nested objects or arrays. Supported `format` values: "
+                        "'date', 'date-time', 'email', 'uri', and 'multiline' — use 'multiline' "
+                        "for any long or free-form text field (notes, a description, a message "
+                        "body). NEVER request secrets "
+                        "(passwords, API keys, tokens); use request_connection for credentials. "
+                        "The result is {action: 'accept'|'decline'|'cancel', content?}: on "
+                        "accept, `content` holds the user's values; respect a decline or "
+                        "cancel — do not re-ask."
+                    ),
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "What you need and why, in one or two sentences shown above the form.",
+                            },
+                            "requestedSchema": {
+                                "type": "object",
+                                "description": "Flat JSON Schema (type 'object', primitive top-level properties only) describing the fields to collect.",
+                            },
+                        },
+                        "required": ["message", "requestedSchema"],
+                        "additionalProperties": False,
+                    },
+                    "render": {"kind": "elicitation"},
+                }
+            },
+        ),
+    )
+
+
 def _build_kit_revision() -> WorkflowRevision:
     return WorkflowRevision(
         name=BUILD_KIT_WORKFLOW_NAME,
@@ -161,6 +222,14 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "latest": "v1",
         "versions": {
             "v1": _client_tool_revision(),
+        },
+    },
+    REQUEST_INPUT_WORKFLOW_SLUG: {
+        "kind": "tool",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {
+            "v1": _request_input_revision(),
         },
     },
     BUILD_AN_AGENT_SLUG: {
