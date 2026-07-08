@@ -401,10 +401,8 @@ export function AgentTemplateControl({
         return keys
     }, [config, committed])
 
-    // Per-item draft: canonical identity → stable-stringified committed value, so a row reads as
-    // "new" (identity absent from the baseline) or "edited" (present but the value differs). The
-    // identity is collision-free (see agentItemIdentity) so id-less builtin/reference tools and
-    // unnamed items don't collapse onto one map key.
+    // Match unchanged values before identity so deleting an earlier item cannot make positional
+    // identities mark every surviving row as edited. Identity then distinguishes new from edited.
     const baseMaps = useMemo(() => {
         const build = (list: unknown, kind: ItemKind) =>
             new Map(
@@ -426,12 +424,12 @@ export function AgentTemplateControl({
                     return {tone: "invalid", label: "Incomplete", tooltip: INVALID_ITEM_TIP[kind]}
                 }
                 if (!committed) return undefined
+                const currentValue = stableStringify(stripAgentaMetadataDeep(item))
+                if ([...baseMaps[kind].values()].includes(currentValue)) return undefined
                 const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
                 if (prev === undefined)
                     return {tone: "new", label: "New", tooltip: "Added since the last commit."}
-                if (prev !== stableStringify(stripAgentaMetadataDeep(item)))
-                    return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
-                return undefined
+                return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
             },
         [committed, baseMaps],
     )

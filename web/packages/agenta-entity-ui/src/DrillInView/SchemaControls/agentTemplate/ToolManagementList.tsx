@@ -7,13 +7,13 @@
  * count header. Connected-app grouping mirrors the trigger section's provider groups (shared
  * {@link CollapsibleProviderGroup} / {@link SubSectionHeader}); the other kinds are flat row lists.
  *
- * The provider catalog (for app names/logos) only loads when there are gateway tools — the parent
- * partitions with the tool function-name alone, and the catalog hook lives in {@link GatewayGroups},
- * mounted only when a group exists. Dark-safe (`--ag-color*` tokens only).
+ * Provider details (for app names/logos) only load when there are gateway tools — the parent
+ * partitions with the tool function-name alone, and each group's detail hook mounts only when that
+ * group exists. Dark-safe (`--ag-color*` tokens only).
  */
-import {type ReactNode, useCallback, useMemo} from "react"
+import {type ReactNode, useMemo} from "react"
 
-import {useToolCatalogIntegrations} from "@agenta/entities/gatewayTool"
+import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -43,9 +43,74 @@ interface ToolProviderGroup {
     items: IndexedTool[]
 }
 
+interface GatewayProviderGroupProps {
+    group: ToolProviderGroup
+    entityId: string | null
+    openEdit: ToolManagementListProps["openEdit"]
+    removeItem: ToolManagementListProps["removeItem"]
+    closeEditor: () => void
+    disabled?: boolean
+    onOpenIntegration?: (integrationKey?: string) => void
+    statusFor?: ToolStatusFor
+}
+
 function prettifyProvider(key: string): string {
     if (!key) return "Other"
     return key.charAt(0).toUpperCase() + key.slice(1)
+}
+
+function GatewayProviderGroup({
+    group,
+    entityId,
+    openEdit,
+    removeItem,
+    closeEditor,
+    disabled,
+    onOpenIntegration,
+    statusFor,
+}: GatewayProviderGroupProps) {
+    const [expanded, setExpanded] = useAtom(toolGroupsExpandedAtom)
+    // Selected-tool metadata must not come from the searchable browse query: typing in the open
+    // catalog changes that query's pages and would otherwise make existing groups lose their logos.
+    const {integration} = useToolIntegrationDetail(group.key)
+    const name = integration?.name || prettifyProvider(group.key)
+    const open =
+        (entityId ? expanded[`${entityId}:${group.key}`] : undefined) ?? group.items.length === 1
+
+    const toggle = () => {
+        if (!entityId) return
+        const key = `${entityId}:${group.key}`
+        setExpanded((prev) => ({
+            ...prev,
+            [key]: !(prev[key] ?? group.items.length === 1),
+        }))
+    }
+
+    return (
+        <CollapsibleProviderGroup
+            logo={integration?.logo ?? null}
+            name={name}
+            countText={`${group.items.length} ${group.items.length === 1 ? "tool" : "tools"}`}
+            open={open}
+            onToggle={toggle}
+            onAdd={!disabled && onOpenIntegration ? () => onOpenIntegration(group.key) : undefined}
+            addLabel={`Add ${name} tool`}
+        >
+            {group.items.map(({item, index}) => (
+                <ItemChildRow
+                    key={`tool-${index}`}
+                    descriptor={describeTool(item)}
+                    onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
+                    onRemove={() => {
+                        removeItem("tool", index)
+                        closeEditor()
+                    }}
+                    disabled={disabled}
+                    status={statusFor?.(item, index)}
+                />
+            ))}
+        </CollapsibleProviderGroup>
+    )
 }
 
 export interface ToolManagementListProps {
@@ -133,85 +198,30 @@ function GatewayGroups({
     onOpenIntegration?: (integrationKey?: string) => void
     statusFor?: ToolStatusFor
 }) {
-    const {integrations} = useToolCatalogIntegrations()
-    const [expanded, setExpanded] = useAtom(toolGroupsExpandedAtom)
-
-    const intgByKey = useMemo(
-        () => new Map(integrations.map((i) => [i.key, i] as const)),
-        [integrations],
-    )
-
-    const resolved = useMemo(
+    const orderedGroups = useMemo(
         () =>
-            groups
-                .map((g) => {
-                    const intg = intgByKey.get(g.key)
-                    return {
-                        ...g,
-                        name: intg?.name || prettifyProvider(g.key),
-                        logo: intg?.logo ?? null,
-                    }
-                })
-                .sort((a, b) => a.name.localeCompare(b.name)),
-        [groups, intgByKey],
-    )
-
-    // Persist expand state per entity; without an entityId, don't write to the shared atom under a
-    // colliding `null:*` key — just fall back to the default (single-group open).
-    const isGroupOpen = useCallback(
-        (key: string, size: number) =>
-            (entityId ? expanded[`${entityId}:${key}`] : undefined) ?? size === 1,
-        [expanded, entityId],
-    )
-    const toggleGroup = useCallback(
-        (key: string, size: number) => {
-            if (!entityId) return
-            const k = `${entityId}:${key}`
-            setExpanded((prev) => ({...prev, [k]: !(prev[k] ?? size === 1)}))
-        },
-        [entityId, setExpanded],
+            [...groups].sort((a, b) =>
+                prettifyProvider(a.key).localeCompare(prettifyProvider(b.key)),
+            ),
+        [groups],
     )
 
     return (
         <div className="flex flex-col gap-2">
             <SubSectionHeader label="Connected apps" count={totalCount} />
-            {resolved.map((group) => {
-                const open = isGroupOpen(group.key, group.items.length)
-                return (
-                    <CollapsibleProviderGroup
-                        key={group.key}
-                        logo={group.logo}
-                        name={group.name}
-                        countText={`${group.items.length} ${
-                            group.items.length === 1 ? "tool" : "tools"
-                        }`}
-                        open={open}
-                        onToggle={() => toggleGroup(group.key, group.items.length)}
-                        onAdd={
-                            !disabled && onOpenIntegration
-                                ? () => onOpenIntegration(group.key)
-                                : undefined
-                        }
-                        addLabel={`Add ${group.name} tool`}
-                    >
-                        {group.items.map(({item, index}) => (
-                            <ItemChildRow
-                                key={`tool-${index}`}
-                                descriptor={describeTool(item)}
-                                onEdit={() =>
-                                    openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))
-                                }
-                                onRemove={() => {
-                                    removeItem("tool", index)
-                                    closeEditor()
-                                }}
-                                disabled={disabled}
-                                status={statusFor?.(item, index)}
-                            />
-                        ))}
-                    </CollapsibleProviderGroup>
-                )
-            })}
+            {orderedGroups.map((group) => (
+                <GatewayProviderGroup
+                    key={group.key}
+                    group={group}
+                    entityId={entityId}
+                    openEdit={openEdit}
+                    removeItem={removeItem}
+                    closeEditor={closeEditor}
+                    disabled={disabled}
+                    onOpenIntegration={onOpenIntegration}
+                    statusFor={statusFor}
+                />
+            ))}
         </div>
     )
 }
