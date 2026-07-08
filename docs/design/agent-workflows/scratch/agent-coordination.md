@@ -69,6 +69,7 @@ surfaces.
 | contract-versioning (A1) | released | DONE. DOCS-ONLY proposal committed: `feat/agent-contract-versioning-docs` commit `12a1944e88` (one file, the README). | `docs/design/agent-workflows/projects/contract-versioning/README.md`. | 2026-06-24 23:59 Europe/Berlin | Read-only on code; no contract/code changed. Aligned ON PAPER with A2 (`wire-contract-schema`, which committed its plan in parallel — its README folds in the same `contractVersion` field) and A3 (pi->pi_core / agenta->pi_agenta rename = the first breaking change my scheme absorbs via a v2->v1 harness downcaster). Key finding documented: runner advertises `protocol: 1` on `/health` (`version.ts`) but the Python client (`ts_runner.py`) never reads it — no negotiation, no skew guard. |
 | mcp-mvp-claude | released | ALL PHASES DONE. P1: #5047 generalized+merged to big-agents 17:12Z (details in log). P2: #4985 RECUT on `feat/claude-client-tools-recut` (6 commits) + Codex-xhigh & internal reviews → 2 blockers fixed (claude_settings client-tool rules; ACP correlation-index title normalization + consume-on-match) in commits `618764edae`+`51f0e3f2a3`; pushed to `feat/claude-client-tools`, PR CI all green, awaiting Mahmoud. P3: #4912 recut as one commit on `feat/mcp-default-on-recut` → pushed to `feat/mcp-user-servers-default-on`, awaiting Mahmoud. Also: docs PR #5067 (mcp-delivery-architecture). See my ping to approval-boundary-session in the log re entangled worktree hunks. | `feat/claude-client-tools-recut`, `feat/mcp-default-on-recut`, `docs/mcp-delivery-architecture` lanes | released 2026-07-04 evening | BUT-LOCK RELEASED. Next session: merge queue after Mahmoud's reviews, then #4873 revival + live client-tool QA. |
 | parallel-approval-gates-impl | active | Implementing the parallel-approval-gates plan (updates PR #5089, existing docs lane): (1) runner Option A settle sweep for latch-loser siblings before pause teardown, (2) FIFO approval-decision store (duplicate same-key gated calls), (3) transcript honesty fix for approved-but-not-executed calls, (4) FE neutral/informational rendering for deferred + unhandled client-tool parts. Via codex-xhigh implementers, reviewed here before commit. | `services/runner/src/tracing/otel.ts`, `services/runner/src/engines/sandbox_agent.ts`, `services/runner/src/responder.ts`, `services/runner/src/engines/sandbox_agent/transcript.ts`, their unit tests, `web/oss/src/components/AgentChatSlice/components/{ToolActivity.tsx,clientTools/UnhandledClientTool.tsx}`, `docs/design/parallel-approval-gates/*` | 2026-07-06 23:59 Europe/Berlin | Existing lane `docs/parallel-approval-gates-plan`. Will commit in small slices (settle fix / FIFO fix / transcript fix / tests / FE / docs), verify each with `git show --stat --name-only`. |
+| session-keepalive-impl | released (2026-07-08) | DONE, awaiting Mahmoud's final review. Design amendments + confirmation fold on `docs/session-keepalive-plan` (#5153, commits `7963dbdc1d` `995fc45c57` `4da4dacefc`). Slice 1 `feat/session-keepalive-pool` = `8dd2ee56bd`, draft PR #5156 (base big-agents), 8 inline comments, live-QA'd on the dev box (cold 25.6s -> hit 3.1s). Slice 2 `feat/session-keepalive-approvals` stacked = `98be8004e0` + env-var docs `867f0e1735`, draft PR #5158 (base feat/session-keepalive-pool), 8 inline comments. 704 runner tests green, flag off by default, no wire/SDK/FE change. Slice-2 live loop (debug-local-deployment) deferred per Mahmoud. | Lanes: `docs/session-keepalive-plan`, `feat/session-keepalive-pool`, `feat/session-keepalive-approvals`. Files: `docs/design/agent-workflows/projects/session-keepalive/*`, NEW `services/runner/src/engines/sandbox_agent/session-pool.ts`, `services/runner/src/engines/sandbox_agent.ts`, `services/runner/src/server.ts`, `services/runner/src/engines/sandbox_agent/pause.ts`, `services/runner/src/engines/sandbox_agent/acp-interactions.ts`, runner unit tests. NOT touching: transcript.ts/responder.ts/run-plan.ts (owned by fix/cold-replay-stopgaps #5152), protocol.ts, wire.py, goldens, web/**. | 2026-07-08 23:59 Europe/Berlin | One lane at a time under BUT-LOCK; every commit verified with `git show --stat --name-only`. |
 | build-kit-skills-sync | active | Overnight autonomous run (Mahmoud asleep): implement `tools-review/part-3-agenta-skills-sync.md` — A1 trigger revision default-to-HEAD (api triggers), A2 agent-config commit validation (api workflows), B2/B3/B5 op-catalog description upgrades, B1/B3-B7 build-an-agent skill reference files + rules, A4b ClaudeHarness forced extras. 5 new lanes + PRs, one lane committed at a time under BUT-LOCK discipline. | NEW lanes: `fix/trigger-revision-default-head`, `feat/agent-config-commit-validation`, `feat/build-kit-op-guidance`, `feat/build-an-agent-references` (stacked on op-guidance), `fix/claude-harness-forced-extras`. Files: `api/oss/src/core/triggers/*`, `api/oss/src/{core,apis/fastapi}/workflows commit path`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py`, `sdks/python/agenta/sdk/agents/adapters/{agenta_builtins.py,harnesses.py}`, matching pytest files, `docs/design/agent-workflows/projects/builder-agent-reliability/tools-review/part-3-agenta-skills-sync.md`, `docs/design/agent-workflows/documentation/tools.md` (sync). NOT touching: runner TS, protocol.ts/wire.py/goldens, capabilities.py (staged to connect-model-drawer), web/**. | 2026-07-07 12:00 Europe/Berlin | Will take BUT-LOCK per commit batch and verify each commit with `git show --stat --name-only`. Working tree carries other sessions' uncommitted files — assigning by explicit path only, never blanket ops. |
 
 ## Workstream Boundaries
@@ -368,7 +369,24 @@ is dated and ignorable.
 - 2026-07-03 ~14:15Z approval-boundary-session: INCIDENT + REPAIR. A commit subagent hit hunk-locking on op_catalog.py/test_op_catalog.py (locked to feat/annotate-trace-op-code's commit 2793d222d1), improvised ref surgery and an oplog RESTORE at 15:53 local that rewound other sessions' uncommitted files (apologies; recovered by the affected session). Subagent killed. Repair: restacking feat/annotate-trace-op-code INTO the approval-boundary stack (big-agents-work <- annotate <- docs/approval-boundary) because the approval-boundary phase-3 edits textually depend on the annotate commit. annotate lane has no remote/PR, so the move is local-only. Its owner: your lane now sits on big-agents-work instead of main; content unchanged; push/PR when ready with base big-agents-work. Subagent briefs now forbid oplog restore + raw ref surgery.
 
 ## BUT-LOCK
-FREE (released by route-wip-by-owner-session 2026-07-07T17:35:00Z — **ROUTED all 3 tracked-dirty files to their owning lanes successfully (root cause confirmed), but STOPPED before `but pull` on detecting a live concurrent session.** Snapshot `1aa28fd4bd` taken first (valid recovery point).
+FREE (released by session-keepalive-review2-docs 2026-07-08T15:20:00Z — landed Mahmoud's SECOND PR #5153 review round on the `docs/session-keepalive-plan` lane (h0) as two commits: `576c95fe15` (7 files: architecture-notes rewrites + README/status + 4 NEW followup docs) and `852c904bb3` (the why-not-a-backend-lock rewrite that missed the first pass, architecture-notes.md only). Both verified via `git show --stat --name-only` = no leakage; pushed, local == remote `852c904bb3`. Other sessions' unassigned files left untouched. Posting 13 inline PR replies + new inline comments next.)
+
+<!-- previous LOCK note preserved below for history -->
+FREE (released by session-keepalive-review2-docs 2026-07-08T15:16:00Z — committed Mahmoud's SECOND PR #5153 review round `576c95fe15` to the `docs/session-keepalive-plan` lane (h0), exactly the 7 session-keepalive/* doc files via `but commit h0 -p ym,qz,mnw,lk,qn,ly,wl`, verified via `git show --stat --name-only` = no leakage (README, architecture-notes, status, + 4 NEW files under followups/parkable-gates and followups/in-place-reconfiguration). Pushed, local == remote `576c95fe15`. Left all other unassigned files untouched: cold-replay-failure-report.md, harness-session-resume/plan.md, this board, turn-*.md timelines. Posted 13 inline PR replies + new inline comments.)
+
+<!-- previous LOCK note preserved below for history -->
+FREE (released by codex-5156-fixes 2026-07-08T12:48:00Z — landed the 3 Codex review fixes for PR #5156 as ONE commit `f099be159d` on the TOP lane `feat/session-keepalive-approvals` (#5158), stacked on `c4e9679ef4`. Chose the top lane on the sanctioned hunk-lock fallback: the P2 streaming-retry fix edits slice-2's approval-resume branch in server.ts, so the change genuinely depends on slice-2 and cannot split cleanly onto the pool lane; GitButler routed all 8 files (incl. the two NEW run-limits files) to the approvals staging group. Exactly 8 files, verified via `git show --stat --name-only` = no leakage: sandbox_agent.ts, run-limits.ts NEW, session-pool.ts, server.ts, run-limits.test.ts NEW, sandbox-agent-orchestration.test.ts, session-keepalive-dispatch.test.ts, session-pool.test.ts. Pool lane `feat/session-keepalive-pool` untouched at `8dd2ee56bd`. Pushed, local == remote for BOTH lanes (`f099be159d` / `8dd2ee56bd`). Fixes: (P1) re-integrated the time-based run-limits controller — added on big-agents AFTER this lane branched — into the acquire/runTurn split so a wedged/silent harness is reclaimed; (P2) skip the cold retry after a failed live continuation/resume already streamed to the client; (P2) `park` now awaits a replaced same-key session's teardown before taking the slot. 723 runner tests green, typecheck clean. Left all other unassigned files (this board, cold-replay-failure-report.md, harness-session-resume/, turn-*.md timelines) untouched.)
+
+<!-- previous LOCK note preserved below for history -->
+FREE (released by session-keepalive-approval-fix 2026-07-08T11:57:00Z — committed the slice-2 "approve twice" fix `c4e9679ef4` to the existing `feat/session-keepalive-approvals` lane (#5158), stacked on `867f0e1735`. server.ts awaiting_approval branch drops the config-fingerprint + credential-epoch equality checks (keeps decision + history + a hard mount-expiry bound); session-pool.ts adds `mountCredentialsExpired`/`credentialEpochMismatch` and splits the idle-branch credentials reason into credentials-expired/credentials-rotated; runner unit tests updated (708 green). Exactly 4 files, verified via `git show --stat --name-only` = no leakage: server.ts, session-pool.ts, session-keepalive-approval.test.ts, session-pool.test.ts. Pool lane `feat/session-keepalive-pool` untouched at `8dd2ee56bd`. Pushed, local == remote `c4e9679ef4`. Left all other unassigned files (this board, cold-replay-failure-report.md, harness-session-resume/plan.md, turn-*.md timelines) untouched.)
+
+<!-- previous LOCK note preserved below for history -->
+FREE (released by session-keepalive-docs-rewrite 2026-07-08T11:50:00Z — committed the PR #5153 doc rewrite `06e3446a9e` to the `docs/session-keepalive-plan` lane, exactly the 5 `session-keepalive/*` files (README, architecture-notes, open-questions, plan, status), verified via `git show --stat` = no leakage; pushed, local == remote `06e3446a9e`. Did NOT touch any other lane; the other unassigned files (cold-replay-failure-report.md, harness-session-resume/plan.md, turn-*.md timelines, this board) left as-is.)
+
+<!-- previous LOCK note preserved below for history -->
+FREE (released by session-keepalive-impl 2026-07-08T10:56:00Z after committing `867f0e1735` (env-var docs sync, exactly running-the-agent.md) to the TOP lane `feat/session-keepalive-approvals` (chosen over the lower lane to avoid rewriting the reviewed slice-2 SHA) and pushing; local == remote `867f0e1735`. Slice-1 lane untouched at `8dd2ee56bd`.)
+
+Previous: FREE (released by route-wip-by-owner-session 2026-07-07T17:35:00Z — **ROUTED all 3 tracked-dirty files to their owning lanes successfully (root cause confirmed), but STOPPED before `but pull` on detecting a live concurrent session.** Snapshot `1aa28fd4bd` taken first (valid recovery point).
 
 Root cause of the two prior empty-commit failures: committing all 3 files together to one scratch branch drops EVERY hunk when even one file's hunks hunk-lock to a different applied lane — it's an all-or-nothing failure at the `but commit --only` level, not per-file. `but absorb <cliId> --dry-run` on fresh cliIds showed real per-file owners:
 - `docs/design/agent-workflows/documentation/tools.md` → locks entirely to `feat/test-run-5b` (h0), tip `9afd0d411f` ("tools.md working sync"). Routed: `but rub` + `but commit feat/test-run-5b --only` → clean, no warning → commit (now rebased tip) `fb0a82a07a` "chore(sync): carry tools.md WIP forward", tree verified = exactly that file.
@@ -1230,3 +1248,79 @@ Agent flag keys and PASSWORD_REGEX stay out of scope.
 **BUT-LOCK RELEASED.** Lane fix/supertokens-password-env-injection committed (8b2be4e0ab,
 exactly the 1 intended file — verified via git show --stat) and pushed; local == remote
 SHA 8b2be4e0ab. PR next (base big-agents).
+
+### 2026-07-07 ~18:20 UTC - settings-shortlink-session
+
+**BUT-LOCK RELEASED.** PRs #5141 (settings short link) + #5142 (hide demo workspaces)
+merged into big-agents; `but pull` completed — base advanced to e8e8237eb3, lanes
+feat/settings-short-link, feat/hide-demo-workspaces, chore/remove-agent-chat-demo
+integrated and retired, all other lanes rebased cleanly. To get the pull past the
+untracked-path blocker, 62 untracked working files (onboarding redesign folder,
+design_handoff_template_strip, secret-isolation docs, console/onboarding-ux, HANDOFF,
+skills-lock.json, turn-timeline, CleanShot) were committed to local-only lane
+`chore/wip-parking-2026-07-07b` — NEVER push it; content is preserved in the worktree.
+Board WIP carried on chore/scratch-sync-2026-07-03 (daa996e, ce4e7a7). Post-verify:
+/settings?tab=apiKeys redirects correctly on :8280, api health ok, tree clean.
+
+### 2026-07-07 ~18:22 UTC - supertokens-env-sync
+
+**BUT-LOCK TAKEN** (expires in 15min or on my release note): Mahmoud asked to add the
+fourth key. Amending NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX (sourced from the unprefixed
+SUPERTOKENS_PASSWORD_REGEX, which exists backend-side at env.py:1248 and in the self-host
+docs) into the existing commit on lane fix/supertokens-password-env-injection via
+but absorb, then force-push and update PR #5146.
+
+**BUT-LOCK RELEASED.** Regex key amended into lane fix/supertokens-password-env-injection
+(now 0b9690f8cb after amend + reword; still exactly 1 file, all four keys verified) and
+force-pushed; local == remote SHA 0b9690f8cb. Note: `but absorb web/entrypoint.sh` first
+MIS-ROUTED the hunk toward 60e3e0bd34 (marketing-website docs commit, "last commit in
+primary lane" fallback) and errored mid-rebase — but the failure was atomic: 60e3e0bd34
+verified unpolluted, hunk rolled back to unassigned. Recovered via the sanctioned
+`but rub <fileCliId> <commitCliId>` amend instead. PR #5146 body update next.
+
+### 2026-07-07 ~19:15 UTC - gateway-tool-rendering-impl
+
+**BUT-LOCK TAKEN** (expires in 15min or on my release note): committing the
+gateway-tool-rendering implementation (FE read-path only, 9 `web/packages/agenta-entity-ui`
+files + 3 design docs + 1 unit test) on top of the two existing docs commits on lane
+`docs/gateway-tool-rendering` (PR #5140). Assigning only my files by cliId →
+`but commit docs/gateway-tool-rendering --only` → verify → push → mark PR ready. Not
+touching the board (`agent-coordination.md`), `turn-c6de1865-timeline.md`, or any other
+session's WIP.
+
+**BUT-LOCK RELEASED.** Implementation committed (b1f2e8b8d5, exactly the 12 intended files
+— 8 source + 3 design docs + 1 unit test, verified via `git show --stat`; no board/timeline
+leakage) and pushed; local == remote SHA b1f2e8b8d5. PR #5140 marked ready + renamed to
+`feat(frontend): render canonical gateway tools identically to UI-added ones`; body rewritten,
+inline self-review comments added, coderabbit review triggered. Board/timeline left unassigned.
+
+### 2026-07-08 ~15:20 UTC - session-keepalive-refactor (#5156)
+
+**BUT-LOCK TAKEN** (expires in 15min or on my release note): committing a readability-only
+refactor of the event-demux area in `services/runner/src/engines/sandbox_agent.ts` (rename
+`env2`->`environment`, extract two documented listener helpers; 723 tests unchanged, reviewer
+PASS no drift) to lane `feat/session-keepalive-pool` (#5156). Assigning ONLY cliId `ryz`
+(sandbox_agent.ts) -> `but commit feat/session-keepalive-pool --only` -> verify -> push. Not
+touching the board history, the turn-*.md timelines, or any other session's unassigned WIP.
+NOTE: NOT running `but pull` (target pinned at old big-agents e8e8237; workspace is hot with
+other sessions committing).
+
+**BUT-LOCK RELEASED.** The demux refactor attributed to the stack's TOP lane, so it committed
+to `feat/session-keepalive-approvals` (7551a8798c, exactly 1 file sandbox_agent.ts, verified
+`git show --stat`; no board/timeline leakage) rather than the pool lane; pushed, local == remote
+7551a8798c. #5156 explanatory note posted. Board/timelines left unassigned. MERGE of #5156/#5158
+into big-agents is BLOCKED: needs a base advance onto the current big-agents tip (e8f466c0, 8
+commits ahead), i.e. a workspace-wide `but pull` that is unsafe while the worktree is dirty and
+other sessions are mid-commit. Handed off in the final report + on #5156.
+
+### 2026-07-08 ~15:55 UTC - session-keepalive merge surgery (#5156 + #5158)
+
+**BUT-LOCK TAKEN** (holds for the whole surgery window; released on my completion row):
+Mahmoud green-lit the finish sequence and the workspace is confirmed quiet (the earlier
+oplog activity was this pipeline's own subagents). Plan: commit this board file to lane
+`chore/coordination-board-log` to clear the pull blocker -> `but pull` (advance target to
+big-agents e8f466c0) -> resolve the single sandbox_agent.ts conflict (keep #5158's runTurn
+run-limits integration f099be159d; drop JP's onEvent tool-call tracking, superseded) ->
+test+typecheck -> push lanes -> merge #5156 then #5158 bottom-up -> sanity -> announce.
+Oplog snapshot f17356b1ae is the recovery point. Untracked timeline/design dumps stay put
+(restored byte-identical if the pull forces a temporary move).
