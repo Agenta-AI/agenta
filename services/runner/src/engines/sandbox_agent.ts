@@ -359,6 +359,56 @@ interface CurrentTurn {
 }
 
 /**
+ * A Claude ACP permission gate that paused the turn and can be answered later on the SAME live
+ * session (slice 2 keep-alive). Recorded ONLY for a harness ACP permission gate (never a Pi relay
+ * gate, a Pi builtin gate, or a client-tool MCP pause — those cannot be answered across a turn
+ * boundary and stay on the cold path). Existence of this record is what makes the dispatch park a
+ * paused session in `awaiting_approval` instead of tearing it down.
+ */
+export interface ParkedApproval {
+  /** Marks the pending-gate shape; the dispatch treats any other shape as a cold-fallback. */
+  gateType: "claude-acp-permission";
+  /** The ACP permission-request id, answered later via `session.respondPermission`. */
+  permissionId: string;
+  /** The gated tool call's id — matched against the incoming approval envelope's toolCallId. */
+  toolCallId: string;
+  /** The gated tool name (logging + the durable interaction row); never its args, in logs. */
+  toolName: string | undefined;
+  /** The gated call's original args, used to seed the resume turn's trace/egress tool span. */
+  args: unknown;
+  /** The durable interaction row token, resolved on the answer via the onResolveInteraction hook. */
+  interactionToken: string;
+  /** The held original `prompt()` promise; the resume awaits it after `respondPermission`. */
+  promptPromise?: Promise<unknown>;
+}
+
+/** Answer a parked Claude ACP permission gate on the live session (the keep-alive resume input). */
+export interface ResumeApprovalInput {
+  permissionId: string;
+  reply: "once" | "reject";
+  toolCallId: string;
+  toolName: string | undefined;
+  args: unknown;
+  interactionToken: string;
+  promptPromise?: Promise<unknown>;
+}
+
+/** Per-turn options for `runTurn`. Absent (flag off / cold) means today's byte-identical path. */
+export interface RunTurnOptions {
+  /** A live continuation: send only the new user text instead of the full cold transcript. */
+  continuation?: boolean;
+  /**
+   * Keep-alive approval park mode: on a Claude ACP permission gate the pause keeps the session
+   * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
+   * relay, client tool) still tears down exactly as today, so this is safe to set on any eligible
+   * keep-alive turn.
+   */
+  approvalParkMode?: boolean;
+  /** A live approval resume: answer the parked gate and stream the continued prompt's events. */
+  resume?: ResumeApprovalInput;
+}
+
+/**
  * A session-scoped environment that can serve many turns. Everything expensive to build lives
  * here (sandbox, session, internal tool-MCP server, mounted cwd, relay/temp dirs); `destroy()`
  * is the one complete idempotent teardown the pool, the shutdown handler, and the cold path all
@@ -397,6 +447,18 @@ export interface SessionEnvironment {
    * so a tool-using turn still matches its own continuation (the FE keeps assistant tool parts).
    */
   lastTurnToolCallIds: string[];
+  /**
+   * The Claude ACP permission gate the LAST turn paused on (slice 2), or undefined. Set only for a
+   * harness ACP permission gate, reset at each turn start; the dispatch reads it after a paused
+   * turn to decide whether to park in `awaiting_approval` and, on the next request, how to resume.
+   */
+  parkedApproval?: ParkedApproval;
+  /**
+   * How many Claude ACP permission gates resolved to pendingApproval THIS turn (reset at turn
+   * start). More than one means parallel gates the single-gate resume cannot answer, so the
+   * dispatch does not park (tears down cold as today).
+   */
+  approvalGateCount: number;
   destroyed: boolean;
   /** Complete, idempotent teardown (all the finalizers the old per-run `finally` ran). */
   destroy: () => Promise<void>;
@@ -603,6 +665,8 @@ export async function acquireEnvironment(
     closeToolMcp: undefined,
     currentTurn: undefined,
     lastTurnToolCallIds: [],
+    parkedApproval: undefined,
+    approvalGateCount: 0,
     destroyed: false,
     destroy: async () => {},
     clearTurn: () => {},
@@ -900,8 +964,11 @@ export async function acquireEnvironment(
           turn.onPermissionRequest(req);
           return;
         }
-        // Between turns: slice 1 never parks an approval, so no turn owns this. Cancel by policy
-        // so a stray gate cannot hang; slice 2 will extend this handler to park it.
+        // Between turns: no turn owns this gate. A slice-2 approval park is recorded DURING the
+        // active turn (the gate fires while a prompt runs, routing through currentTurn), and a
+        // parked-on-approval session leaves its harness suspended on that gate — so nothing new
+        // fires here while parked. A gate that reaches this handler is therefore a genuine stray
+        // (e.g. a late teardown artifact): cancel by policy so it cannot hang.
         logger(
           `[keepalive] between-turns permission request, cancelling by policy id=${req?.id}`,
         );
@@ -937,13 +1004,18 @@ export async function runTurn(
   request: AgentRunRequest,
   emit?: EmitEvent,
   signal?: AbortSignal,
-  opts: { continuation?: boolean } = {},
+  opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
   const sessionId = env.sessionId;
   // Reset the per-turn tool-call id record (the park folds the completed turn's ids into the
   // expected next-history fingerprint).
   env.lastTurnToolCallIds = [];
+  // Reset the per-turn approval-park bookkeeping. A fresh turn starts with no parked gate; this
+  // turn re-records it only if it pauses on a Claude ACP permission gate. (The dispatch has
+  // already captured any prior park into `opts.resume` before calling us.)
+  env.parkedApproval = undefined;
+  env.approvalGateCount = 0;
   // Hoisted so the catch can flush a partial trace (mirroring the pre-split `otel?` handling —
   // a createOtel throw must still return `{ ok: false }`, not propagate raw) and the finally can
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
@@ -1002,10 +1074,23 @@ export async function runTurn(
     });
 
     const pause = new PendingApprovalPauseController(() => {
+      // The F-024 sibling settle runs UNCONDITIONALLY, park mode or not: latch-loser tool calls
+      // announced before the winning gate can never execute this turn, and skipping the settle
+      // here would leave them as orphaned open parts whenever the dispatch later refuses the park
+      // (multi-gate, pool full) — `env.destroy()` does not re-run it. The exclusion keeps the
+      // gated (paused) call itself open, so the live resume is untouched.
       run.settleOpenToolCalls(
         (id) => pause.isPausedToolCall(id),
         TOOL_NOT_EXECUTED_PAUSED,
       );
+      // Slice 2 park mode: a parkable Claude ACP permission gate recorded `env.parkedApproval`
+      // BEFORE firing this pause (the onUserApprovalGate hook runs before the single-pause latch).
+      // Keep the live session — the gated tool runs on the resume — so skip ONLY the mcpAbort and
+      // the destroySession. The teardown is not lost: the dispatch either parks the session or,
+      // if it decides not to (multi-gate, pool full), calls `env.destroy()` which runs them. A
+      // non-parkable pause (flag off, Pi relay/builtin gate, client tool) never records
+      // `parkedApproval`, so it still tears down here exactly as today.
+      if (opts.approvalParkMode && env.parkedApproval) return;
       // Abort any in-flight loopback `tools/call` (a paused Claude client tool) BEFORE the
       // session teardown, so its handler cannot write a result after the turn ends.
       env.mcpAbort.abort();
@@ -1106,6 +1191,21 @@ export async function runTurn(
         () => cred,
       );
     };
+    // Transition the durable interaction row to resolved once its gate is answered. Used both by
+    // the cold decision-map path (via attachPermissionResponder) and the live approval resume,
+    // which answers the parked gate directly. It mirrors the cold path's ordering against
+    // `cancelStaleInteractions` (server.ts): that sweep cancels only PENDING gates of OTHER turns,
+    // and by resume time the human already marked this gate responded, so it is spared here too.
+    const resolveInteractionToken = (token: string): void => {
+      const cred = runCredential(request);
+      if (!cred) return;
+      if (
+        !buildWorkflowReferences(request.runContext?.workflow)
+          ?.workflow_revision
+      )
+        return;
+      void resolveInteraction(sessionId, token, () => cred);
+    };
     // Exactly one gate per call: the harness gate on Claude, the relay on Pi.
     const relayPermissions: RelayPermissions = {
       enforce: plan.isPi,
@@ -1155,16 +1255,29 @@ export async function runTurn(
       onPause: () => pause.pause(),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
-      onResolveInteraction: (token) => {
-        const cred = runCredential(request);
-        if (!cred) return;
-        if (
-          !buildWorkflowReferences(request.runContext?.workflow)
-            ?.workflow_revision
-        )
-          return;
-        void resolveInteraction(sessionId, token, () => cred);
-      },
+      onResolveInteraction: resolveInteractionToken,
+      // Slice 2: record the parkable Claude ACP permission gate (only in keep-alive park mode) so
+      // the dispatch can resume it live. Fires per pending gate (before the latch) so a parallel
+      // gate is counted; the single-gate resume records only the FIRST gate's answer target.
+      onUserApprovalGate: opts.approvalParkMode
+        ? (info) => {
+            env.approvalGateCount += 1;
+            if (
+              env.approvalGateCount === 1 &&
+              info.permissionId &&
+              info.toolCallId
+            ) {
+              env.parkedApproval = {
+                gateType: "claude-acp-permission",
+                permissionId: info.permissionId,
+                toolCallId: info.toolCallId,
+                toolName: info.toolName,
+                args: info.args,
+                interactionToken: info.interactionToken,
+              };
+            }
+          }
+        : undefined,
     });
 
     // Resolve the ONE client-tool seam both delivery paths share. The correlation index is wired
@@ -1193,12 +1306,45 @@ export async function runTurn(
       );
     }
 
-    // Race the prompt against the pause signal: on a HITL pause the prompt either resolves with a
-    // cancelled stop reason or never resolves at all; either way the pause signal ends the turn.
-    const promptPromise = Promise.resolve(
-      env.session.prompt([{ type: "text", text: turnText }]),
-    );
-    promptPromise.catch(() => {});
+    // The prompt promise this turn races against the pause signal. A normal/continuation turn
+    // sends a fresh prompt; a live approval resume answers the parked gate on the SAME session and
+    // continues the ORIGINAL, still-pending prompt promise (the tool then runs with its original
+    // byte-exact args). Either way, on a HITL pause the prompt resolves cancelled or never
+    // resolves, and the pause signal ends the turn.
+    let promptPromise: Promise<unknown>;
+    if (opts.resume) {
+      // The new (resume) turn owns streaming + tracing; the environment is already wired to route
+      // continued events into this turn's sink (env.currentTurn was set above). Seed this run's
+      // trace with the parked tool call so the completing `tool_call_update` closes it and the FE
+      // approval part flips to output-available even if the adapter re-announces nothing. Then
+      // answer the gate on the live session — the original prompt continues from here.
+      run.handleUpdate({
+        sessionUpdate: "tool_call",
+        toolCallId: opts.resume.toolCallId,
+        title: opts.resume.toolName,
+        kind: opts.resume.toolName,
+        rawInput: opts.resume.args,
+      });
+      promptPromise = Promise.resolve(opts.resume.promptPromise);
+      promptPromise.catch(() => {});
+      await env.session.respondPermission(
+        opts.resume.permissionId,
+        opts.resume.reply,
+      );
+      // The gate is answered: resolve the durable interaction row (the parked pending row the cold
+      // path would otherwise resolve via its decision map). The fresh per-turn pause controller
+      // starts with an EMPTY pausedToolCallIds set, so the resumed call's `tool_call_update` frames
+      // are no longer suppressed and stream through — the "clear pausedToolCallIds on resume" step.
+      resolveInteractionToken(opts.resume.interactionToken);
+      logger(
+        `[keepalive] resume answered gate reply=${opts.resume.reply} tool=${opts.resume.toolName ?? "?"}`,
+      );
+    } else {
+      promptPromise = Promise.resolve(
+        env.session.prompt([{ type: "text", text: turnText }]),
+      );
+      promptPromise.catch(() => {});
+    }
     const raced = await Promise.race([
       promptPromise,
       pause.signal.then(() => PAUSED),
@@ -1212,6 +1358,14 @@ export async function runTurn(
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
     const result = raced === PAUSED ? undefined : raced;
+    // A parkable pause this turn: hand the still-pending prompt promise to the parked record so a
+    // later resume can await the same continuation. (Set after the race so `promptPromise` exists.
+    // The read is asserted because the onUserApprovalGate callback set the field via an async
+    // mutation TS's flow analysis cannot see, so it would otherwise narrow the reset to `never`.)
+    const parkedThisTurn = env.parkedApproval as ParkedApproval | undefined;
+    if (opts.approvalParkMode && pause.active && parkedThisTurn) {
+      parkedThisTurn.promptPromise = promptPromise;
+    }
     await turn.toolRelay?.stop();
     logger(`prompt stopReason=${stopReason}`);
 

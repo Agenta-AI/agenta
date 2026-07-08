@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
+  approvalDecisionForToolCall,
   computeCredentialEpoch,
   configFingerprint,
   credentialEpochValid,
@@ -51,6 +52,57 @@ function parkInput(key: string, env = fakeEnv()) {
     env,
   };
 }
+
+describe("approvalDecisionForToolCall", () => {
+  const req = (content: unknown[]): AgentRunRequest => ({
+    messages: [
+      { role: "user", content: "do X" },
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", toolCallId: "tc-1", toolName: "commit" },
+        ],
+      },
+      { role: "user", content: content as never },
+    ],
+  });
+
+  it("returns allow for an {approved:true} envelope matching the gate's toolCallId", () => {
+    const request = req([
+      { type: "text", text: "ok" },
+      { type: "tool_result", toolCallId: "tc-1", output: { approved: true } },
+    ]);
+    assert.equal(approvalDecisionForToolCall(request, "tc-1"), "allow");
+  });
+
+  it("returns deny for an {approved:false} envelope", () => {
+    const request = req([
+      { type: "tool_result", toolCallId: "tc-1", output: { approved: false } },
+    ]);
+    assert.equal(approvalDecisionForToolCall(request, "tc-1"), "deny");
+  });
+
+  it("returns undefined for a different toolCallId or a non-approval tool_result", () => {
+    const other = req([
+      { type: "tool_result", toolCallId: "tc-1", output: { approved: true } },
+    ]);
+    assert.equal(approvalDecisionForToolCall(other, "tc-OTHER"), undefined);
+    const plain = req([
+      { type: "tool_result", toolCallId: "tc-1", output: "browser result" },
+    ]);
+    assert.equal(approvalDecisionForToolCall(plain, "tc-1"), undefined);
+  });
+
+  it("returns undefined when the tail is a fresh user message (no approval)", () => {
+    const request: AgentRunRequest = {
+      messages: [
+        { role: "user", content: "do X" },
+        { role: "user", content: "changed my mind" },
+      ],
+    };
+    assert.equal(approvalDecisionForToolCall(request, "tc-1"), undefined);
+  });
+});
 
 describe("readKeepaliveConfig", () => {
   const KEYS = [
@@ -383,6 +435,139 @@ describe("SessionPool", () => {
     assert.equal(b.env.state.destroyed, 1, "the idle entry was evicted");
     assert.equal(a.env.state.destroyed, 0, "the busy entry is never evicted");
     assert.deepEqual(pool.keys().sort(), ["a", "c"]);
+  });
+
+  it("checkoutApproval REMOVES the session from the map (a racing request misses)", () => {
+    const pool = new SessionPool(cfg, () => {});
+    const { input } = parkInput("k1");
+    pool.park(input, 10_000, "awaiting_approval");
+    assert.equal(pool.get("k1")!.state, "awaiting_approval");
+    // The idle checkout ignores an approval-parked session; the approval checkout takes it out.
+    assert.equal(pool.checkoutIdle("k1"), undefined);
+    const live = pool.checkoutApproval("k1");
+    assert.ok(live, "the approval-parked session is checked out");
+    assert.equal(live!.state, "busy");
+    assert.equal(
+      pool.get("k1"),
+      undefined,
+      "the resume turn owns it exclusively; a racing request misses the pool",
+    );
+    // A duplicate approval cannot check the gate out a second time.
+    assert.equal(pool.checkoutApproval("k1"), undefined);
+  });
+
+  it("repark re-inserts a checked-out approval session into an EMPTY slot", () => {
+    const pool = new SessionPool(cfg, () => {});
+    const { input, env } = parkInput("k1");
+    pool.park(input, 10_000, "awaiting_approval");
+    const live = pool.checkoutApproval("k1")!;
+    const ok = pool.repark(
+      live,
+      {
+        configFingerprint: "cfg2",
+        historyFingerprint: "hist2",
+        credentialEpoch: epoch,
+      },
+      10_000,
+    );
+    assert.equal(ok, true, "an empty slot accepts the returning session");
+    assert.equal(
+      pool.get("k1"),
+      live,
+      "the SAME session object is back in the map",
+    );
+    assert.equal(pool.get("k1")!.state, "idle");
+    assert.equal(env.state.destroyed, 0);
+  });
+
+  it("repark refuses when a newer session occupies the slot (never clobbers it)", async () => {
+    const pool = new SessionPool(cfg, () => {});
+    const a = parkInput("k1");
+    pool.park(a.input, 10_000, "awaiting_approval");
+    const live = pool.checkoutApproval("k1")!;
+    // A racing request parked a NEWER session under the same key while the resume ran.
+    const b = parkInput("k1");
+    pool.park(b.input, 10_000);
+    const ok = pool.repark(
+      live,
+      {
+        configFingerprint: "cfg2",
+        historyFingerprint: "hist2",
+        credentialEpoch: epoch,
+      },
+      10_000,
+    );
+    assert.equal(ok, false, "the caller must destroy the orphaned resumed env");
+    assert.equal(
+      pool.get("k1")!.environment,
+      b.env,
+      "the newer session is untouched",
+    );
+    await Promise.resolve();
+    assert.equal(b.env.state.destroyed, 0);
+  });
+
+  it("repark never resurrects a destroyed session into an empty slot", async () => {
+    const pool = new SessionPool(cfg, () => {});
+    const { input, env } = parkInput("k1");
+    pool.park(input, 10_000);
+    const live = pool.checkoutIdle("k1")!;
+    // A /kill drain destroys everything, including the checked-out-but-mapped busy session.
+    await pool.destroyAll();
+    assert.equal(env.state.destroyed, 1);
+    const ok = pool.repark(
+      live,
+      {
+        configFingerprint: "cfg2",
+        historyFingerprint: "hist2",
+        credentialEpoch: epoch,
+      },
+      10_000,
+    );
+    assert.equal(ok, false, "a destroyed session never returns to the pool");
+    assert.equal(pool.size(), 0);
+  });
+
+  it("an awaiting_approval session is NEVER the LRU victim at the cap", async () => {
+    const pool = new SessionPool({ poolMax: 2 }, () => {});
+    const a = parkInput("a");
+    const b = parkInput("b");
+    const c = parkInput("c");
+    // a is approval-parked (longer TTL), b is idle. Parking c at the cap must evict b, not a.
+    pool.park(a.input, 600_000, "awaiting_approval");
+    pool.park(b.input, 10_000);
+    assert.equal(pool.park(c.input, 10_000), true);
+    await Promise.resolve();
+    assert.equal(b.env.state.destroyed, 1, "the idle entry was evicted");
+    assert.equal(
+      a.env.state.destroyed,
+      0,
+      "the awaiting_approval entry is never LRU-evicted",
+    );
+    assert.deepEqual(pool.keys().sort(), ["a", "c"]);
+  });
+
+  it("approval TTL expiry destroys the session and logs approval-ttl-expire", async () => {
+    vi.useFakeTimers();
+    try {
+      const logs: string[] = [];
+      const pool = new SessionPool(cfg, (m) => logs.push(m));
+      const { input, env } = parkInput("k1");
+      pool.park(input, 5000, "awaiting_approval");
+      await vi.advanceTimersByTimeAsync(5001);
+      assert.equal(
+        env.state.destroyed,
+        1,
+        "the expired approval session is destroyed",
+      );
+      assert.equal(pool.size(), 0);
+      assert.ok(
+        logs.some((l) => l.includes("approval-ttl-expire")),
+        "the approval TTL expiry is greppable",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not park when the pool is full and nothing is idle to evict", async () => {
