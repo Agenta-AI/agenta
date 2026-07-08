@@ -1324,3 +1324,18 @@ run-limits integration f099be159d; drop JP's onEvent tool-call tracking, superse
 test+typecheck -> push lanes -> merge #5156 then #5158 bottom-up -> sanity -> announce.
 Oplog snapshot f17356b1ae is the recovery point. Untracked timeline/design dumps stay put
 (restored byte-identical if the pull forces a temporary move).
+
+**BUT-LOCK RELEASED.** Surgery complete, both PRs MERGED into big-agents: #5156 (keep-alive
+pool) = c01722eee4, #5158 (approval parking) = 26404f1505. `but pull` advanced the target
+e8e8237eb3 -> 589cf600b4; all 26 applied lanes rebased clean (supertokens lane auto-retired
+as integrated), verified per-lane, no foreign lane broken, none pushed but ours. The single
+sandbox_agent.ts conflict was resolved by folding the runTurn run-limits weave (byte-identical
+to f099be159d's) into the pool commit; JP's runSandboxAgent-level wiring superseded, his own
+tests pass against the split placement (683 green at pool tip, 717 at approvals tip, typecheck
+clean, independent reviewer PASS). Three leaked explorer dist artifacts were uncommitted from
+the pool commit back to unassigned (they stay this workspace's local files). Live sanity on the
+dev-box sidecar post-merge: cold 25.7s -> hit-continue 1.86s, codeword answered from native
+memory, no cold replay; sidecar left running with AGENTA_RUNNER_SESSION_KEEPALIVE=1. Merge-sync
+comment on #4791 posted. Untracked timelines/design dumps untouched. DO NOT re-run but pull
+needlessly; the workspace is consistent. Recovery snapshots: f17356b1ae (pre-surgery),
+b62731fcb2 (pre-uncommit).
