@@ -346,8 +346,19 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
             if (!id) return null
             const {orgId} = await normalizeOrgIdentifier(id, get)
             const org = await fetchSingleOrg({organizationId: orgId})
-            if (org?.default_workspace?.id && org?.id) {
-                cacheWorkspaceOrgPair(org.default_workspace.id, org.id)
+            if (org?.id) {
+                // Dedup: on a cold load with no cached workspace→org mapping this atom keys by the
+                // workspace id, then re-keys to ["selectedOrg", orgId] once cacheWorkspaceOrgPair
+                // below lets selectedOrgIdAtom resolve the org id — which would refetch the same org.
+                // Seed the org-id-keyed cache with this response so the re-keyed query
+                // (refetchOnMount:false) and resolveWorkspaceIdForOrg's getQueryData fast-path serve
+                // from cache instead of a second round-trip.
+                if (org.id !== id) {
+                    queryClient.setQueryData(["selectedOrg", org.id], org)
+                }
+                if (org?.default_workspace?.id) {
+                    cacheWorkspaceOrgPair(org.default_workspace.id, org.id)
+                }
             }
             return org
         },
