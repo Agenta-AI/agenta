@@ -10,6 +10,8 @@ by :class:`StaticWorkflowCatalog`, never the database. These tests pin:
 - a user cannot create a workflow whose slug is in the reserved namespace.
 """
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -40,6 +42,8 @@ from oss.src.core.workflows.build_kit import (
     build_agent_template_overlay,
 )
 from oss.src.core.workflows.static_catalog import (
+    REQUEST_INPUT_TOOL_NAME,
+    REQUEST_INPUT_WORKFLOW_SLUG,
     STATIC_SLUG_PREFIX,
     StaticWorkflowCatalog,
 )
@@ -890,3 +894,72 @@ async def test_query_does_not_filter_on_is_static():
     # Only the explicitly-requested flag is filtered; is_static never appears.
     assert artifact_query.flags == {"is_application": True}
     assert "is_static" not in artifact_query.flags
+
+
+# ---------------------------------------------------------------------------
+# request_input (elicitation client tool, interaction kinds M1)
+# ---------------------------------------------------------------------------
+#
+# The catalogue entry is the EMITTER half of the elicitation contract; the browser validator is
+# the receiver half. Both are pinned by the shared golden fixtures so a drift on either side
+# fails a build (same pattern as the /run wire goldens).
+
+_REPO_ROOT = Path(__file__).resolve().parents[6]
+_GOLDEN_DIR = _REPO_ROOT / "web" / "packages" / "agenta-shared" / "tests" / "fixtures"
+
+_ELICITATION_PRIMITIVES = {"string", "number", "integer", "boolean"}
+
+
+def _request_input_tool() -> dict:
+    revision = StaticWorkflowCatalog().retrieve_revision(
+        slug=REQUEST_INPUT_WORKFLOW_SLUG
+    )
+    assert revision is not None
+    return revision.data.parameters["tool"]
+
+
+def test_request_input_catalog_entry_shape():
+    tool = _request_input_tool()
+    assert tool["type"] == "client"
+    assert tool["name"] == REQUEST_INPUT_TOOL_NAME
+    # render.kind is a REQUIRED wire field for interaction kinds (dispatch + resume predicate).
+    assert tool["render"] == {"kind": "elicitation"}
+    schema = tool["input_schema"]
+    assert set(schema["properties"]) == {"message", "requestedSchema"}
+    assert schema["required"] == ["message", "requestedSchema"]
+    assert schema["additionalProperties"] is False
+
+
+def test_request_input_matches_golden_request_fixture():
+    """The golden request must be a valid call of this tool, and flat-dialect clean."""
+    golden = json.loads((_GOLDEN_DIR / "elicitation_request.json").read_text())
+    tool = _request_input_tool()
+
+    assert golden["render"]["kind"] == tool["render"]["kind"]
+    payload_keys = set(golden) - {"render"}
+    assert payload_keys == set(tool["input_schema"]["properties"])
+    assert isinstance(golden["message"], str) and golden["message"]
+
+    requested = golden["requestedSchema"]
+    assert requested["type"] == "object"
+    for name, prop in requested["properties"].items():
+        assert prop["type"] in _ELICITATION_PRIMITIVES, name
+        assert "properties" not in prop and "items" not in prop, name
+    assert set(requested.get("required", [])) <= set(requested["properties"])
+
+
+def test_request_input_matches_golden_response_fixture():
+    """The response envelope the tool description promises matches the golden shapes."""
+    golden = json.loads((_GOLDEN_DIR / "elicitation_response.json").read_text())
+
+    assert golden["accept"]["action"] == "accept"
+    assert isinstance(golden["accept"]["content"], dict)
+    assert golden["decline"] == {
+        "action": "decline",
+        "humanFriendlyMessage": golden["decline"]["humanFriendlyMessage"],
+    }
+    assert golden["cancel"] == {"action": "cancel"}
+    # Degradation is an errorText with the pinned prefix — never a user action.
+    assert golden["degradation_error_text"].startswith(
+        "elicitation: unsupported payload — "
+    )

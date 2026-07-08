@@ -620,6 +620,107 @@ describe("client-tool output store (separate from approvals)", () => {
     });
   });
 
+  it("does NOT fulfill a new identical call from a PRIOR turn's output (cross-turn)", async () => {
+    // Turn 1 called + answered request_connection; turn 2 (a NEW user message) asks the same
+    // thing. The prior answer is resolved-in-transcript, so a fresh identical call must pause for
+    // a new answer, not silently reuse turn 1's output.
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        { role: "user", content: "connect slack" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { account: "first" },
+            },
+          ],
+        },
+        // Latest user message: turn 1's output now belongs to a PRIOR turn.
+        { role: "user", content: "connect slack" },
+      ],
+    };
+    const responder = new ApprovalResponder(
+      plan("ask"),
+      new ConversationDecisions(
+        extractApprovalDecisions(request),
+        extractClientToolOutputs(request),
+      ),
+    );
+    assert.deepEqual(
+      await responder.onClientTool(
+        { id: "i-1", toolCallId: "live-1", gate: clientGate() },
+        { consume: true },
+      ),
+      { kind: "pendingApproval" },
+      "a new identical call after a prior-turn answer must pause for a fresh answer",
+    );
+  });
+
+  it("still fulfills an in-turn resume from its current-turn output", async () => {
+    // The just-paused call's answer sits AFTER the latest user message (same turn); it must
+    // still resolve the call so a genuine resume never re-pauses.
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        { role: "user", content: "connect slack" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "c-1",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: { account: "first" },
+            },
+          ],
+        },
+      ],
+    };
+    const responder = new ApprovalResponder(
+      plan("ask"),
+      new ConversationDecisions(
+        extractApprovalDecisions(request),
+        extractClientToolOutputs(request),
+      ),
+    );
+    assert.deepEqual(
+      await responder.onClientTool(
+        { id: "i-1", toolCallId: "live-1", gate: clientGate() },
+        { consume: true },
+      ),
+      { kind: "fulfilled", output: { account: "first" } },
+      "an output resolved in the current turn still resolves the call",
+    );
+  });
+
   it("returns a client output literally \"allow\" as output, never as a permission decision", async () => {
     const request: AgentRunRequest = {
       sessionId: "s-client",
