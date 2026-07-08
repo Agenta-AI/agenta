@@ -15,7 +15,7 @@
  */
 
 import {getAgentaSdkClient} from "@agenta/sdk"
-import {getWorkflowsClient} from "@agenta/sdk/resources"
+import {getLowPriorityWorkflowsClient, getWorkflowsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios, lowPriorityWhenCached} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 import {z} from "zod"
@@ -299,11 +299,14 @@ export async function retrieveWorkflowRevision({
     workflowRef,
     workflowVariantRef,
     workflowRevisionRef,
+    lowPriority,
 }: {
     projectId: string
     workflowRef?: {id?: string; slug?: string; version?: string}
     workflowVariantRef?: {id?: string; slug?: string; version?: string}
     workflowRevisionRef?: {id?: string; slug?: string; version?: string}
+    /** Send with the `priority: "low"` fetch hint (secondary/background load). */
+    lowPriority?: boolean
 }): Promise<Workflow | null> {
     if (!projectId) return null
     // The backend needs at least one identifying ref (id or slug at any
@@ -318,7 +321,8 @@ export async function retrieveWorkflowRevision({
 
     // Use the Fern-generated client (single source of truth for the
     // request/response shape, kept in sync with the backend OpenAPI spec).
-    const data = await getWorkflowsClient().retrieveWorkflowRevision(
+    const client = lowPriority ? getLowPriorityWorkflowsClient() : getWorkflowsClient()
+    const data = await client.retrieveWorkflowRevision(
         {
             ...(workflowRef ? {workflow_ref: workflowRef} : {}),
             ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
@@ -362,6 +366,9 @@ export async function fetchAgentBuildKitOverlay(
     const revision = await retrieveWorkflowRevision({
         projectId,
         workflowRef: {slug: AGENT_BUILD_KIT_WORKFLOW_SLUG},
+        // Secondary: only feeds the optional Advanced "build kit" sub-block, so it must yield to the
+        // config/chat critical path on playground load.
+        lowPriority: true,
     })
     const overlay = revision?.data?.parameters?.agent
     if (overlay == null) return null

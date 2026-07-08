@@ -210,6 +210,10 @@ export const environmentsListQueryAtomFamily = atomFamily((includeArchived: bool
                 const response = await fetchEnvironmentsList({
                     projectId,
                     includeArchived: includeArchived ?? false,
+                    // Secondary on the playground (Deploy button targets); yield to the
+                    // render-critical config/chat queries. Low priority only bites under contention,
+                    // so pages where environments are primary are unaffected.
+                    lowPriority: true,
                 })
                 for (const environment of response.environments ?? []) {
                     primeEnvironmentDetailCache(queryClient, projectId, environment)
