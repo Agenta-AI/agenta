@@ -9,6 +9,7 @@ Keep the harness session alive for a TTL after a turn ends, so the next message 
 - [plan.md](plan.md): the plan. The Q&A answering Mahmoud's questions (with measured costs and the Claude-vs-Pi approval story), the slice sizes and risks, the one-hour assessment, flags, failure modes, and the verification plan. Builds on architecture-notes.md by reference.
 - [open-questions.md](open-questions.md): decisions that refine defaults and edge behavior; none blocks slice 1.
 - [status.md](status.md): progress, decisions, provenance, measured research figures, the drift check against current code, and recorded follow-ups. The meta and provenance home.
+- [followups/](followups/): incremental designs that build on keep-alive, each a full design in its own subfolder. [parkable-gates/](followups/parkable-gates/) makes the Pi and client-tool approval gates survive a turn the way the Claude gate now does. [in-place-reconfiguration/](followups/in-place-reconfiguration/) changes a live session's config (model, skills, AGENTS.md, tools) without tearing it down. Both land after slices 1 and 2.
 
 ## Start here
 
