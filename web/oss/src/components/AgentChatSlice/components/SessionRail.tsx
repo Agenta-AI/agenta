@@ -5,7 +5,8 @@ import {Button, Empty, Input, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+// Direct file import — the barrel would statically pull the inspector drawer into this chunk.
+import SessionInspectorButton from "@/oss/components/SessionInspector/SessionInspectorButton"
 
 import {useChatScopeKey} from "../state/scope"
 import {

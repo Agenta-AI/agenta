@@ -9,11 +9,6 @@ import {
     playgroundController,
 } from "@agenta/playground"
 import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground-ui/components"
-import {
-    GenerationComparisonOutput,
-    GenerationComparisonOutputHeader,
-    GenerationComparisonInputHeader as PlaygroundComparisonGenerationInputHeader,
-} from "@agenta/playground-ui/execution-item-comparison-view"
 import ExecutionItems, {
     type PlaygroundGenerationsProps,
 } from "@agenta/playground-ui/execution-items"
@@ -24,17 +19,46 @@ import dynamic from "next/dynamic"
 
 import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
-import {PanelSessionInspectorButton} from "@/oss/components/SessionInspector"
+// Direct file import — the SessionInspector barrel would statically pull the (dynamic,
+// open-on-demand) inspector drawer back into this chunk.
+import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
-import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
 const PlaygroundFocusDrawer = dynamic(() => import("../PlaygroundFocusDrawerAdapter"), {
     ssr: false,
 })
+
+// The comparison view only mounts with 2+ selected entities — never for agents, and
+// rarely at first paint — so its whole subtree loads on demand.
+const GenerationComparisonOutput = dynamic(
+    () =>
+        import("@agenta/playground-ui/execution-item-comparison-view").then(
+            (m) => m.GenerationComparisonOutput,
+        ),
+    {ssr: false},
+)
+const GenerationComparisonOutputHeader = dynamic(
+    () =>
+        import("@agenta/playground-ui/execution-item-comparison-view").then(
+            (m) => m.GenerationComparisonOutputHeader,
+        ),
+    {ssr: false},
+)
+const PlaygroundComparisonGenerationInputHeader = dynamic(
+    () =>
+        import("@agenta/playground-ui/execution-item-comparison-view").then(
+            (m) => m.GenerationComparisonInputHeader,
+        ),
+    {ssr: false},
+)
+const PromptComparisonVariantNavigation = dynamic(
+    () => import("../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"),
+    {ssr: false},
+)
 
 type MainLayoutProps = BaseContainerProps & {
     /** "app" (default) = standard app playground. "evaluator" = evaluator config playground. */

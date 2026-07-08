@@ -3,7 +3,6 @@ import {type FC, useCallback, useEffect, useMemo} from "react"
 import {executeToolCall} from "@agenta/entities/gatewayTool"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {CatalogDrawer} from "@agenta/entity-ui/gatewayTool"
 import {GatewayToolAssistantActions, type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
@@ -19,7 +18,6 @@ import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {OnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
 import {useAgentOnboarding} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/useAgentOnboarding"
-import {SessionInspectorDrawer} from "@/oss/components/SessionInspector"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
@@ -37,6 +35,17 @@ const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/Age
     ssr: false,
     loading: () => <AgentChatSkeleton />,
 })
+
+// Open-on-demand drawers: mounted closed until the user opens them, so their subtrees
+// load lazily instead of riding the playground's initial chunk.
+const CatalogDrawer = dynamic(
+    () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
+    {ssr: false},
+)
+const SessionInspectorDrawer = dynamic(
+    () => import("@/oss/components/SessionInspector/SessionInspectorDrawer"),
+    {ssr: false},
+)
 
 /**
  * Sync state tag slot — renders the sync state badge in each row header.

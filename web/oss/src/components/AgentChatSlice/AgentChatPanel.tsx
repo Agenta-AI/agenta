@@ -42,7 +42,8 @@ import {type AgentTemplate} from "@/oss/components/pages/agent-home/assets/templ
 import OnboardingBrowseTemplates from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingBrowseTemplates"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
-import {SessionInspectorButton} from "@/oss/components/SessionInspector"
+// Direct file import — the barrel would statically pull the inspector drawer into this chunk.
+import SessionInspectorButton from "@/oss/components/SessionInspector/SessionInspectorButton"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
