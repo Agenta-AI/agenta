@@ -5,6 +5,7 @@ Source of truth for progress. Keep this current.
 ## Current state (2026-07-08)
 
 - Phase: implementation. Mahmoud approved the plan subject to the Codex xhigh review findings; all seven findings are folded into plan.md and architecture-notes.md (see the review changelog at the top of plan.md).
+- Codex xhigh confirmation pass over the amended plan: 5 of 7 folds confirmed outright; 2 material corrections found and folded the same day (the pool-key project scope comes from the mount-sign response since no project id rides the wire, with a hard no-mount-no-park rule; the credential epoch hashes resolved secret VALUES process-locally since no version identity exists on the wire), plus one stale park-mode sentence corrected to match the v1 gate scope. One fold only, per the agreed loop bound.
 - Slice 1 (`feat/session-keepalive-pool`) and slice 2 (`feat/session-keepalive-approvals`, stacked on slice 1) are being implemented as draft PRs based on `big-agents`.
 - Research: [architecture-notes.md](architecture-notes.md) verified against the current runner code. See "Drift check" below.
 
