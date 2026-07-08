@@ -19,6 +19,13 @@
  * harness (which engine). The ACP boundary is daemon-to-harness; the service-to-sandbox-agent
  * hop stays harness-agnostic behind the Harness port.
  *
+ * Session keep-alive (flag-gated, off by default) splits the per-invoke work into
+ * `acquireEnvironment` (session-scoped: sandbox, mount, session, MCP wiring) and `runTurn`
+ * (per-turn: otel run, prompt, usage, trace). `runSandboxAgent` composes them exactly as
+ * before (acquire -> runTurn -> destroy), so with the flag off behavior is byte-identical.
+ * The dispatch in `server.ts` reuses the two halves to continue a live session across a turn
+ * boundary. See docs/design/agent-workflows/projects/session-keepalive/plan.md.
+ *
  * Tracing is built here from the ACP event stream (see tracing/otel.ts createSandboxAgentOtel),
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
@@ -56,8 +63,10 @@ import {
   type AgentRunRequest,
   type AgentRunResult,
   type EmitEvent,
+  type HarnessCapabilities,
   type ToolCallbackContext,
   type ToolPermission,
+  resolvePromptText,
   resolveRunSessionId,
 } from "../protocol.ts";
 import {
@@ -103,6 +112,7 @@ import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
+  type RunPlan,
 } from "./sandbox_agent/run-plan.ts";
 import { priorMessages } from "./sandbox_agent/transcript.ts";
 import { resolveRunUsage } from "./sandbox_agent/usage.ts";
@@ -324,12 +334,123 @@ function containsTransportEndpointDisconnected(value: unknown): boolean {
   return visit(value);
 }
 
-export async function runSandboxAgent(
+/**
+ * Race sentinel: a run-limits deadline (total/idle/TTFB/per-tool-call) tripped mid-turn. Distinct
+ * from `PAUSED` so the prompt race can tell a human pause (keep the session) from a wedge deadline
+ * (end the turn as an error, letting the caller's teardown reclaim the sandbox).
+ */
+const RUN_LIMIT_TRIPPED = Symbol("run-limit-tripped");
+
+/**
+ * The per-turn sink the session-lifetime listeners demux into. `runTurn` swaps a fresh one in
+ * at turn start (`env.currentTurn`) and the dispatch clears it at turn end. The `sandbox-agent`
+ * listener registries are plain Sets — an event with no listener is dropped and a permission
+ * request with no listener is CANCELLED — so the listeners stay attached for the session's whole
+ * life and route into whichever turn is active, with no detach/attach window between turns.
+ */
+interface CurrentTurn {
+  run: ReturnType<typeof createSandboxAgentOtel>;
+  pause: PendingApprovalPauseController;
+  toolRelay?: { stop: () => Promise<void> };
+  /** Route a session/update for the active turn (suppress + handleUpdate + pause re-sweep). */
+  handleUpdate: (update: unknown) => void;
+  /** Route a permission reverse-RPC for the active turn (built by attachPermissionResponder). */
+  onPermissionRequest?: (req: unknown) => void;
+}
+
+/**
+ * A session-scoped environment that can serve many turns. Everything expensive to build lives
+ * here (sandbox, session, internal tool-MCP server, mounted cwd, relay/temp dirs); `destroy()`
+ * is the one complete idempotent teardown the pool, the shutdown handler, and the cold path all
+ * call. Per-turn state rides `currentTurn`, swapped in by `runTurn`.
+ */
+export interface SessionEnvironment {
+  plan: RunPlan;
+  logger: Log;
+  deps: SandboxAgentDeps;
+  sandbox: any;
+  session: any;
+  sessionId: string;
+  model: string | undefined;
+  capabilities: HarnessCapabilities;
+  strictModel: boolean;
+  toolCallIndex: ReturnType<typeof createToolCallCorrelationIndex>;
+  /** The current turn's client-tool relay, read by the deferred ref baked into the MCP server. */
+  clientToolRelayRef: { current?: ClientToolRelay };
+  mcpAbort: AbortController;
+  runAgentDir: string | undefined;
+  otlpAuthFilePath: string | undefined;
+  mountCreds: MountCredentials | null;
+  /** The mount's owning project id (keep-alive pool key scope); undefined when there is no mount. */
+  mountProjectId?: string;
+  // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
+  sessionDestroyRequested: boolean;
+  mountedCwd: string | undefined;
+  durableCwdSafeToDelete: boolean;
+  workspace: { cleanup: () => Promise<void> } | undefined;
+  runtimeRemount: Promise<boolean> | undefined;
+  closeToolMcp: (() => Promise<void>) | undefined;
+  currentTurn?: CurrentTurn;
+  /**
+   * The unique ACP tool-call ids the LAST completed turn emitted (reset at each turn start).
+   * The keep-alive dispatch folds them into the expected next-history fingerprint at park time,
+   * so a tool-using turn still matches its own continuation (the FE keeps assistant tool parts).
+   */
+  lastTurnToolCallIds: string[];
+  destroyed: boolean;
+  /** Complete, idempotent teardown (all the finalizers the old per-run `finally` ran). */
+  destroy: () => Promise<void>;
+  /** End the active turn: clear the current-turn sink (called before a park). */
+  clearTurn: () => void;
+}
+
+export type AcquireEnvironmentResult =
+  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
+
+/**
+ * Sign the session's durable mount up front so keep-alive can build a pool key (the mount's
+ * owning `projectId`) and credential epoch without acquiring the whole environment. Returns
+ * exactly what the sign yielded: `null` when there is no session/credential to sign with, or
+ * the sign returned no usable mount (store unconfigured, 503, ephemeral fallback). The caller
+ * threads the result — null included — into `acquireEnvironment` as `presignedMount`, so the
+ * mount is signed exactly once per run on every path; a null result additionally means there is
+ * NO safe project key and the request must never park.
+ */
+export async function resolveKeepaliveMount(
   request: AgentRunRequest,
-  emit?: EmitEvent,
-  signal?: AbortSignal,
   deps: SandboxAgentDeps = {},
-): Promise<AgentRunResult> {
+): Promise<MountCredentials | null> {
+  const logger = deps.log ?? log;
+  const sessionForMount = request.sessionId?.trim();
+  const runCred = runCredential(request);
+  if (!sessionForMount || !runCred) return null;
+  const signMount =
+    deps.signSessionMountCredentials ?? signSessionMountCredentials;
+  return signMount(sessionForMount, {
+    apiBase: apiBase(),
+    authorization: runCred,
+    log: logger,
+  });
+}
+
+/**
+ * Build the session-scoped environment: sign the mount, build the run plan, start the sandbox,
+ * mount the durable cwd, prepare the workspace, probe capabilities, wire the internal tool-MCP
+ * server, and open the ACP session. Session-lifetime `onEvent`/`onPermissionRequest` listeners
+ * are attached once here and demux into `env.currentTurn`.
+ *
+ * Finalizers register incrementally on `env` as each resource is acquired; a mid-acquire failure
+ * runs `env.destroy()` (which null-checks every resource, so a half-built environment cannot
+ * leak) and returns `{ ok: false }`, mirroring today's shared teardown. When `presignedMount` is
+ * supplied (the keep-alive cold path already signed to build the pool key) the initial sign is
+ * skipped so the mount is signed once per run.
+ */
+export async function acquireEnvironment(
+  request: AgentRunRequest,
+  deps: SandboxAgentDeps = {},
+  signal?: AbortSignal,
+  presignedMount?: MountCredentials | null,
+): Promise<AcquireEnvironmentResult> {
   const logger = deps.log ?? log;
 
   // Sign BEFORE buildRunPlan so the prefix is available for the durable cwd derivation.
@@ -340,13 +461,15 @@ export async function runSandboxAgent(
   const signMount =
     deps.signSessionMountCredentials ?? signSessionMountCredentials;
   let mountCreds: MountCredentials | null =
-    sessionForMount && runCred
-      ? await signMount(sessionForMount, {
-          apiBase: apiBase(),
-          authorization: runCred,
-          log: logger,
-        })
-      : null;
+    presignedMount !== undefined
+      ? presignedMount
+      : sessionForMount && runCred
+        ? await signMount(sessionForMount, {
+            apiBase: apiBase(),
+            authorization: runCred,
+            log: logger,
+          })
+        : null;
 
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
   // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
@@ -393,10 +516,9 @@ export async function runSandboxAgent(
   // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
   // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
   const otlpAuthFilePath =
-    plan.isPi && !plan.isDaytona
-      ? `${plan.relayDir}.otlp-auth`
-      : undefined;
-  const otlpAuthorization = request.telemetry?.exporters?.otlp?.headers?.authorization;
+    plan.isPi && !plan.isDaytona ? `${plan.relayDir}.otlp-auth` : undefined;
+  const otlpAuthorization =
+    request.telemetry?.exporters?.otlp?.headers?.authorization;
   if (otlpAuthFilePath && otlpAuthorization) {
     writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, logger);
   }
@@ -433,61 +555,120 @@ export async function runSandboxAgent(
       `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
   );
 
-  // Pi traces itself via the extension under the propagated traceparent; for other
-  // harnesses we build the span tree here from the ACP event stream. Created below, once
-  // the model is resolved, so the chat span carries the harness's actual model rather
-  // than the requested one. Declared here so the catch can flush a partial trace.
-  let sandbox: any | undefined;
-  let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
-  // The live ACP session handle, set once `createSession` resolves. Declared here (not
-  // `const` inside the try) so the `finally` can always send a graceful `session/cancel`
-  // before tearing down the daemon (see the `finally` block below for why this matters).
-  // Typed `any` to match `sandbox` above: the real type comes from the `sandbox-agent`
-  // package's `createSession` return, which the rest of this function already treats loosely.
-  let session: any;
-  // Set true once the HITL pause controller has already sent `session/cancel` (below), so the
-  // `finally` block's own graceful-cancel step (added for the ACP child process leak) does not
-  // redundantly re-cancel an already-destroyed session.
-  let sessionDestroyRequested = false;
-  // Daytona tool relay loop (started once the session exists, stopped after the prompt).
-  let toolRelay: { stop: () => Promise<void> } | undefined;
-  // Internal gateway-tool MCP server closer (set when an internal channel is built for a non-Pi
-  // harness with executable tools; a no-op otherwise). Released in the `finally`.
-  let closeToolMcp: (() => Promise<void>) | undefined;
+  // The shared client-tool relay reference (the deferred ref baked into the MCP server reads it;
+  // each turn's `runTurn` sets `.current`). A `tools/call` can only arrive during a prompt —
+  // long after the relay is wired — so the server captures this reference and it resolves to the
+  // real relay before any call lands.
+  const clientToolRelayRef: { current?: ClientToolRelay } = {};
+  const deferredClientToolRelay: ClientToolRelay = {
+    onClientTool: (req) =>
+      clientToolRelayRef.current
+        ? clientToolRelayRef.current.onClientTool(req)
+        : Promise.resolve("deny" as ClientToolOutcome),
+    onPause: (req) => clientToolRelayRef.current?.onPause?.(req),
+  };
+
   // Aborts any in-flight loopback `tools/call` (a paused Claude client tool) on pause/teardown,
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
-  // Fired by the pause controller's destroy path and, as a backstop, by the `finally`.
   const mcpAbort = new AbortController();
-  // Time-based run deadlines (total/idle/TTFB/per-tool-call): tripping one aborts the run the
-  // SAME way a client disconnect does, so this existing `finally` reclaims the sandbox — no new
-  // teardown. Merged with the caller's own signal (a client disconnect on a non-session run)
-  // so either source can end the run; whichever fires first wins.
-  const deadlineAbort = new AbortController();
-  const runLimits = (deps.createRunLimits ?? createRunLimits)(
-    (deps.resolveRunLimits ?? resolveRunLimits)(logger),
-    { log: logger },
-  );
-  runLimits.onTrip((reason) => {
-    logger(`run limit tripped: ${reason}`);
-    deadlineAbort.abort(new Error(reason));
-  });
-  const runSignal = signal
-    ? AbortSignal.any([signal, deadlineAbort.signal])
-    : deadlineAbort.signal;
-  // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
-  // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
-  let mountedCwd: string | undefined;
+
+  const env2: SessionEnvironment = {
+    plan,
+    logger,
+    deps,
+    sandbox: undefined,
+    session: undefined,
+    sessionId: resolveRunSessionId(request, ""),
+    model: undefined,
+    capabilities: {},
+    strictModel,
+    toolCallIndex: createToolCallCorrelationIndex(),
+    clientToolRelayRef,
+    mcpAbort,
+    runAgentDir,
+    otlpAuthFilePath,
+    mountCreds,
+    mountProjectId: mountCreds?.projectId,
+    sessionDestroyRequested: false,
+    mountedCwd: undefined,
+    durableCwdSafeToDelete: true,
+    // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
+    workspace: plan.isDaytona
+      ? undefined
+      : {
+          cleanup: async () =>
+            rmSync(plan.cwd, { recursive: true, force: true }),
+        },
+    runtimeRemount: undefined,
+    closeToolMcp: undefined,
+    currentTurn: undefined,
+    lastTurnToolCallIds: [],
+    destroyed: false,
+    destroy: async () => {},
+    clearTurn: () => {},
+  };
+
+  env2.clearTurn = () => {
+    env2.currentTurn = undefined;
+  };
+
+  // The one complete, idempotent teardown — the same steps the old per-run `finally` ran, in the
+  // same order. Every resource is null-checked, so it is safe after a partial acquire and safe to
+  // call twice (the guard returns on a second call). It must never throw.
+  env2.destroy = async () => {
+    if (env2.destroyed) return;
+    env2.destroyed = true;
+    await env2.runtimeRemount?.catch(() => {});
+    if (env2.sandbox) inFlightSandboxes.delete(env2.sandbox);
+    await env2.currentTurn?.toolRelay?.stop().catch(() => {});
+    // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
+    env2.mcpAbort.abort();
+    await env2.closeToolMcp?.().catch(() => {});
+    // Send a graceful `session/cancel` BEFORE tearing down the daemon (the ACP child process
+    // leak, dev-box incident 2026-07-06): destroySandbox hard-kills the sandbox-agent server but
+    // does not cascade to the ACP adapter subprocess it spawned, which then reparents to PID 1
+    // and never exits. Skip if the pause path already sent it (`sessionDestroyRequested`).
+    if (env2.session && !env2.sessionDestroyRequested)
+      await env2.sandbox?.destroySession?.(env2.session.id).catch(() => {});
+    await env2.sandbox?.destroySandbox().catch(() => {});
+    await env2.sandbox?.dispose().catch(() => {});
+    // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
+    // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete: rmSync must
+    // never run against a possibly-live FUSE mount into the durable store.
+    if (env2.mountedCwd) {
+      env2.durableCwdSafeToDelete = await (
+        env2.deps.unmountStorage ?? unmountStorage
+      )(env2.mountedCwd, { log }).catch(() => false);
+    }
+    if (!env2.durableCwdSafeToDelete) {
+      logger(
+        `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
+      );
+    } else {
+      await env2.workspace?.cleanup().catch(() => {});
+    }
+    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
+    if (env2.runAgentDir)
+      rmSync(env2.runAgentDir, { recursive: true, force: true });
+    // Backstop: the extension deletes this on read; remove it here too in case the harness never
+    // started (or crashed before reading it), so the bearer never lingers.
+    if (env2.otlpAuthFilePath) rmSync(env2.otlpAuthFilePath, { force: true });
+    // Remove the per-run skills temp root the materializer created (success or error).
+    plan.skillsCleanup();
+  };
+
+  // --- local durable cwd mount helpers (session-scoped, close over env2) ------ //
   const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
-    if (!mountCreds || plan.isDaytona) return false;
+    if (!env2.mountCreds || plan.isDaytona) return false;
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
     if (
-      await (deps.mountStorage ?? mountStorage)(plan.cwd, mountCreds, {
+      await (deps.mountStorage ?? mountStorage)(plan.cwd, env2.mountCreds, {
         log: logger,
       })
     ) {
-      mountedCwd = plan.cwd;
+      env2.mountedCwd = plan.cwd;
       return true;
     }
     return false;
@@ -519,33 +700,23 @@ export async function runSandboxAgent(
       );
       return false;
     }
-    mountCreds = fresh;
+    env2.mountCreds = fresh;
     return mountLocalDurableCwd("enotconn-retry");
   };
-  let runtimeRemount: Promise<boolean> | undefined;
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown): void => {
-    if (plan.isDaytona || !mountCreds || !mountedCwd) return;
-    if (runtimeRemount || !containsTransportEndpointDisconnected(event)) return;
+    if (plan.isDaytona || !env2.mountCreds || !env2.mountedCwd) return;
+    if (env2.runtimeRemount || !containsTransportEndpointDisconnected(event))
+      return;
     logger(
       `local durable cwd ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
     );
-    runtimeRemount = reSignAndRemountLocalCwd().catch((err) => {
+    env2.runtimeRemount = reSignAndRemountLocalCwd().catch((err) => {
       logger(
         `local durable cwd runtime remount failed session=${sessionForMount}: ${conciseError(err, plan.harness)}`,
       );
       return false;
     });
   };
-  // Gates the cwd rmSync in the `finally` below: never delete through a mount we can't prove
-  // is gone. Checked at the call site, not here, since this placeholder can be replaced
-  // by prepareWorkspace's own cleanup before the gate is evaluated.
-  let durableCwdSafeToDelete = true;
-  let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
-    ? undefined
-    : {
-        cleanup: async () =>
-          rmSync(plan.cwd, { recursive: true, force: true }),
-      };
 
   try {
     // Persist events in-process so a follow-up turn can resume by session id.
@@ -555,7 +726,7 @@ export async function runSandboxAgent(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
-    sandbox = await startSandboxAgent({
+    env2.sandbox = await startSandboxAgent({
       sandbox: (deps.buildSandboxProvider ?? buildSandboxProvider)(
         plan.sandboxId,
         env,
@@ -565,42 +736,35 @@ export async function runSandboxAgent(
         plan.sandboxPermission,
       ),
       persist,
-      // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) merged
-      // with the run-limits deadline signal, so either one aborts an in-flight run instead of
-      // it finishing unobserved. The `finally` still disposes. Always defined (unlike the raw
-      // `signal` param) because the deadline signal exists even with no caller signal.
-      signal: runSignal,
-      // Drive the ACP HTTP client through a long-timeout undici dispatcher so a paused HITL
-      // turn (the connection held open while a human approves a tool) is NOT reaped by
-      // undici's default `headersTimeout` (which would kill it with UND_ERR_HEADERS_TIMEOUT).
-      // Daytona additionally needs the per-sandbox auth cookie carried across requests, so it
-      // uses the cookie fetch — which itself layers on the same long-timeout ACP dispatcher.
+      // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
+      // in-flight run aborts instead of finishing unobserved. `destroy` still disposes.
+      ...(signal ? { signal } : {}),
+      // Long-timeout undici dispatcher so a paused HITL turn is not reaped by undici's default
+      // headersTimeout; Daytona additionally carries the per-sandbox auth cookie.
       fetch: plan.isDaytona
         ? (deps.createCookieFetch ?? createCookieFetch)()
         : (deps.createAcpFetch ?? createAcpFetch)(),
     });
-    // Track the live handle so a shutdown signal handler can delete it if the `finally` below is
-    // skipped by a process KILL (docker stop / SIGTERM / OOM); removed in the `finally` on every
-    // normal exit so it is never double-deleted.
-    if (sandbox) inFlightSandboxes.add(sandbox);
+    // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
+    // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
+    if (env2.sandbox) inFlightSandboxes.add(env2.sandbox);
 
-    // On Daytona, push the harness login, the extension, and AGENTS.md into the remote
-    // sandbox via the filesystem API (nothing secret is baked into the image). Locally
-    // these use the host filesystem and the harness's own login (PI_CODING_AGENT_DIR).
+    // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     if (plan.isDaytona) {
-      await prepareDaytonaPiAssets({ sandbox, plan, log: logger });
+      await prepareDaytonaPiAssets({
+        sandbox: env2.sandbox,
+        plan,
+        log: logger,
+      });
     }
 
-    // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
-    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it, and
-    // BEFORE workspace materialization on both providers so AGENTS.md, harness files, and skills
-    // land in the durable prefix instead of being hidden under the later FUSE mount.
-    // Local: on-host geesefs; scoped creds never enter agent space.
-    // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
-    if (mountCreds && !plan.isDaytona) {
+    // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
+    // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
+    // prefix instead of being hidden under the FUSE mount).
+    if (env2.mountCreds && !plan.isDaytona) {
       await mountLocalDurableCwd("initial");
     }
-    if (mountCreds && plan.isDaytona) {
+    if (env2.mountCreds && plan.isDaytona) {
       const endpoint = await (
         deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
       )({
@@ -609,38 +773,37 @@ export async function runSandboxAgent(
       if (
         endpoint &&
         (await (deps.mountStorageRemote ?? mountStorageRemote)(
-          sandbox,
+          env2.sandbox,
           plan.cwd,
-          mountCreds,
+          env2.mountCreds,
           {
             endpoint,
             log: logger,
           },
         ))
       ) {
-        // Remote files live in the store; nothing on this host to unmount.
         logger(`remote durable cwd active for session=${sessionForMount}`);
       }
     }
 
     try {
-      workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
-        sandbox,
+      env2.workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
+        sandbox: env2.sandbox,
         plan,
         log: logger,
       });
     } catch (err) {
       if (
         !plan.isDaytona &&
-        mountCreds &&
+        env2.mountCreds &&
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
       ) {
         logger(
           `retrying workspace preparation after local durable cwd remount`,
         );
-        workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
-          sandbox,
+        env2.workspace = await (deps.prepareWorkspace ?? prepareWorkspace)({
+          sandbox: env2.sandbox,
           plan,
           log: logger,
         });
@@ -649,28 +812,22 @@ export async function runSandboxAgent(
       }
     }
 
-    // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle, or the
-    // probe/createSession below fail with an opaque "cannot read property of undefined".
+    // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle.
     assert(
-      sandbox && typeof sandbox.createSession === "function",
+      env2.sandbox && typeof env2.sandbox.createSession === "function",
       `sandbox provider '${plan.sandboxId}' returned no usable sandbox handle`,
     );
 
-    // Probe what this harness supports and branch on capabilities, not on the harness
-    // name. Tool delivery: Pi loads our extension (native tools, set up above); any other
-    // harness takes tools over MCP only when it advertises `mcpTools` (pi-acp does not
-    // forward MCP, Claude/Codex do).
+    // Probe what this harness supports and branch on capabilities, not on the harness name.
     const probed = await (deps.probeCapabilities ?? probeCapabilities)(
-      sandbox,
+      env2.sandbox,
       plan.acpAgent,
     );
     const capabilities = probed.capabilities;
+    env2.capabilities = capabilities;
 
-    // Fail loud (A7): a run that REQUIRES a capability the harness lacks errors with a
-    // specific message instead of silently dropping the behavior, the way the
-    // `*_UNSUPPORTED_MESSAGE` gates in `run-plan.ts` do. Today: tool delivery to a non-Pi
-    // harness whose probe reports `mcpTools:false` / `toolCalls:false`. The throw is caught
-    // below and returned as `{ ok: false, error }`.
+    // Fail loud (A7): a run that REQUIRES a capability the harness lacks errors specifically
+    // rather than silently dropping the behavior.
     assertRequiredCapabilities({
       harness: plan.harness,
       isPi: plan.isPi,
@@ -679,65 +836,148 @@ export async function runSandboxAgent(
       log: logger,
     });
 
-    // Correlate a Claude MCP `tools/call` (name + args only) to the real ACP tool-call id the
-    // event stream surfaces, so a paused `client_tool` widget attaches to Claude's tool bubble.
-    const toolCallIndex = createToolCallCorrelationIndex();
-    // The shared client-tool relay is only built AFTER the session/model resolve (it needs the
-    // responder + otel run + pause plumbing). But the internal MCP server is built HERE (its URL
-    // is handed to createSession) and pauses client tools through that relay. A `tools/call` can
-    // only arrive during `session.prompt()` — long after the relay is wired — so the server
-    // captures a DEFERRED reference that resolves to the real relay before any call lands.
-    let clientToolRelay: ClientToolRelay | undefined;
-    const deferredClientToolRelay: ClientToolRelay = {
-      onClientTool: (req) =>
-        clientToolRelay
-          ? clientToolRelay.onClientTool(req)
-          : Promise.resolve("deny" as ClientToolOutcome),
-      onPause: (req) => clientToolRelay?.onPause?.(req),
-    };
-
     const sessionMcp = await buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,
       harness: plan.harness,
-      // Daytona: skip the internal loopback HTTP MCP channel (unreachable from the in-sandbox
-      // harness); gateway tools are delivered through the Daytona file relay started below.
       isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
-      // Any LOCAL non-Pi harness (Claude today): lets the internal channel advertise + pause
-      // `client` tools. The deferred ref resolves before any `tools/call` arrives.
-      // buildSessionMcpServers ignores it for Pi / Daytona (no internal channel there).
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
       log: logger,
     });
-    // Close the internal gateway-tool MCP server (if one started) when the run ends.
-    closeToolMcp = sessionMcp.close;
+    // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
+    env2.closeToolMcp = sessionMcp.close;
 
-    session = await sandbox.createSession({
+    env2.session = await env2.sandbox.createSession({
       agent: plan.acpAgent,
       cwd: plan.cwd,
       sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
     });
-    const sessionId = resolveRunSessionId(request, session.id);
+    env2.sessionId = resolveRunSessionId(request, env2.session.id);
 
-    // Resolve the model first: when the harness rejects the requested id and keeps its
-    // own default (e.g. Claude ignores "gpt-5.5"), `model` is undefined and the chat span
-    // is labelled "chat" instead of falsely claiming the requested model.
-    const model = await (deps.applyModel ?? applyModel)(
-      session,
+    // Resolve the model first: when the harness rejects the requested id and keeps its own
+    // default, `model` is undefined and the chat span is labelled "chat".
+    env2.model = await (deps.applyModel ?? applyModel)(
+      env2.session,
       request.model,
       logger,
       { strict: strictModel },
     );
 
+    // Session-lifetime listeners: attach ONCE, demux into the active turn's sink. Non-throwing
+    // (the sandbox-agent registries are plain Sets; a thrown handler would corrupt the stream).
+    // Deliberate divergence from the old inline handler: a handler throw is swallowed + logged
+    // here instead of propagating, because the listener now outlives any single turn.
+    env2.session.onEvent((event: any) => {
+      try {
+        remountLocalCwdAfterRuntimeEnotconn(event);
+        const payload = event?.payload;
+        const update = payload?.params?.update ?? payload?.update;
+        if (!update) return;
+        // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's bubble
+        // (session-scoped; a lookup CONSUMES its matched id).
+        env2.toolCallIndex.record(update);
+        const turn = env2.currentTurn;
+        if (turn) {
+          turn.handleUpdate(update);
+        } else {
+          // Between turns (parked/idle): no turn owns this event. Log and drop by decision.
+          logger(`[keepalive] between-turns event dropped`);
+        }
+      } catch (err) {
+        logger(
+          `session onEvent handler error: ${conciseError(err, plan.harness)}`,
+        );
+      }
+    });
+    env2.session.onPermissionRequest((req: any) => {
+      try {
+        const turn = env2.currentTurn;
+        if (turn?.onPermissionRequest) {
+          turn.onPermissionRequest(req);
+          return;
+        }
+        // Between turns: slice 1 never parks an approval, so no turn owns this. Cancel by policy
+        // so a stray gate cannot hang; slice 2 will extend this handler to park it.
+        logger(
+          `[keepalive] between-turns permission request, cancelling by policy id=${req?.id}`,
+        );
+        void Promise.resolve(
+          env2.session?.respondPermission?.(req?.id, "reject"),
+        ).catch(() => {});
+      } catch (err) {
+        logger(
+          `session onPermissionRequest handler error: ${conciseError(err, plan.harness)}`,
+        );
+      }
+    });
+
+    return { ok: true, env: env2 };
+  } catch (err) {
+    const error = conciseError(err, plan.harness, request.provider);
+    // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
+    // trace to flush — just run the incrementally-registered finalizers and surface the error.
+    await env2.destroy();
+    return { ok: false, error };
+  }
+}
+
+/**
+ * Run one turn against an acquired environment: start a fresh otel run, wire this turn's pause
+ * controller / latch / decisions / responder into `env.currentTurn`, restart the tool relay,
+ * send the prompt, resolve usage, and finish + flush the trace. It does NOT tear down the
+ * environment (the caller owns `env.destroy`). On a continuation the prompt is only the new user
+ * text (`buildTurnText` does not run); on a cold turn it is `plan.turnText`, exactly as before.
+ */
+export async function runTurn(
+  env: SessionEnvironment,
+  request: AgentRunRequest,
+  emit?: EmitEvent,
+  signal?: AbortSignal,
+  opts: { continuation?: boolean } = {},
+): Promise<AgentRunResult> {
+  const { plan, logger, deps } = env;
+  const sessionId = env.sessionId;
+  // Reset the per-turn tool-call id record (the park folds the completed turn's ids into the
+  // expected next-history fingerprint).
+  env.lastTurnToolCallIds = [];
+  // Hoisted so the catch can flush a partial trace (mirroring the pre-split `otel?` handling —
+  // a createOtel throw must still return `{ ok: false }`, not propagate raw) and the finally can
+  // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
+  let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
+  let activeTurn: CurrentTurn | undefined;
+
+  // Time-based run deadlines (total/idle/TTFB/per-tool-call) for THIS turn: an idle/wedged harness
+  // has no deadline anywhere, so a silent or hung turn would hold its sandbox forever. Tripping a
+  // limit resolves the prompt race with `RUN_LIMIT_TRIPPED`, which ends the turn as an error so the
+  // caller's teardown (`runSandboxAgent`'s `finally`, or the keep-alive dispatch's evict-on-failure)
+  // reclaims the sandbox exactly as any other error does. Disposed in the `finally` on every path.
+  // A human pause retires the deadlines (`notePaused`): a HITL wait is legitimate, not a wedge.
+  const runLimits = (deps.createRunLimits ?? createRunLimits)(
+    (deps.resolveRunLimits ?? resolveRunLimits)(logger),
+    { log: logger },
+  );
+  let runLimitTrip: (() => void) | undefined;
+  let runLimitReason: string | undefined;
+  const runLimitTripped = new Promise<void>((resolve) => {
+    runLimitTrip = resolve;
+  });
+  runLimits.onTrip((reason) => {
+    runLimitReason = reason;
+    runLimitTrip?.();
+  });
+
+  try {
+    const promptText = resolvePromptText(request);
+    // Cold: replay the full transcript (plan.turnText). Continuation: only the new user text.
+    const turnText = opts.continuation ? promptText : plan.turnText;
+
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
-      model,
-      // The names of every skill that materialized for this run (author + forced `_agenta.*`),
-      // stamped on the agent span so the trace shows which skills loaded (F-029).
+      model: env.model,
       skills: plan.skillDirs.map((s) => s.name),
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
@@ -746,18 +986,18 @@ export async function runSandboxAgent(
       captureContent: request.telemetry?.capture?.content?.enabled,
       emitSpans: !plan.isPi || plan.isDaytona,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
-      // deltas, tool calls and results, usage, ...) — this is the one seam every harness's
-      // output already flows through.
+      // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
+      // through. Per-tool-call timers are driven separately from `handleUpdate` below.
       emit: emit && runLimits.wrapEmit(emit),
     });
     otel = run;
 
     run.start({
-      prompt: plan.prompt,
+      prompt: promptText,
       sessionId,
       messages: [
         ...priorMessages(request),
-        { role: "user", content: plan.prompt },
+        { role: "user", content: promptText },
       ],
     });
 
@@ -768,39 +1008,55 @@ export async function runSandboxAgent(
       );
       // Abort any in-flight loopback `tools/call` (a paused Claude client tool) BEFORE the
       // session teardown, so its handler cannot write a result after the turn ends.
-      mcpAbort.abort();
-      sessionDestroyRequested = true;
-      return sandbox.destroySession?.(session.id);
+      env.mcpAbort.abort();
+      env.sessionDestroyRequested = true;
+      return env.sandbox.destroySession?.(env.session.id);
     });
-    // The pause signal resolves exactly once, the moment a turn parks for human input — that is
-    // the one place every pause path (ACP gate, relay, internal MCP) converges, so it is also
-    // the one place to retire the run-limits deadlines for good.
+    // A human pause resolves this signal exactly once, the moment the turn parks for input — the one
+    // place every pause path converges, so the one place to retire the run-limits deadlines for good.
     void pause.signal.then(() => runLimits.notePaused());
 
-    session.onEvent((event: any) => {
-      remountLocalCwdAfterRuntimeEnotconn(event);
-      const payload = event?.payload;
-      const update = payload?.params?.update ?? payload?.update;
-      if (update) {
-        // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's
-        // bubble (recorded even for suppressed frames; a lookup CONSUMES its matched id).
-        toolCallIndex.record(update);
-        // Per-tool-call deadline: starts on the announcement, ends on a terminal status.
-        // Tracked regardless of pause-suppression below (a call already timed out must not
-        // linger just because a later sibling frame gets suppressed).
-        if (update.sessionUpdate === "tool_call" && update.toolCallId) {
-          runLimits.noteToolCallStart(String(update.toolCallId));
+    // Publish this turn's sink so the session-lifetime listeners route into it. handleUpdate
+    // reproduces the old per-event routing (suppress paused frames, handleUpdate, pause re-sweep).
+    const turn: CurrentTurn = {
+      run,
+      pause,
+      toolRelay: undefined,
+      handleUpdate: (update) => {
+        // Per-tool-call deadline: starts on the announcement, ends on a terminal status. Tracked
+        // regardless of the pause-suppression below (a call already timed out must not linger just
+        // because a later sibling frame gets suppressed).
+        const rawFrame = update as {
+          sessionUpdate?: unknown;
+          toolCallId?: unknown;
+          status?: unknown;
+        };
+        if (rawFrame?.sessionUpdate === "tool_call" && rawFrame.toolCallId) {
+          runLimits.noteToolCallStart(String(rawFrame.toolCallId));
         } else if (
-          update.sessionUpdate === "tool_call_update" &&
-          update.toolCallId &&
-          (update.status === "completed" || update.status === "failed")
+          rawFrame?.sessionUpdate === "tool_call_update" &&
+          rawFrame.toolCallId &&
+          (rawFrame.status === "completed" || rawFrame.status === "failed")
         ) {
-          runLimits.noteToolCallEnd(String(update.toolCallId));
+          runLimits.noteToolCallEnd(String(rawFrame.toolCallId));
         }
         if (!shouldSuppressPausedToolCallUpdate(update, pause)) {
+          // Record the emitted tool-call ids (unique, first-seen order): the park folds them
+          // into the expected next-history fingerprint so a tool-using turn continues live.
+          const frame = update as {
+            sessionUpdate?: unknown;
+            toolCallId?: unknown;
+          };
+          if (
+            frame?.sessionUpdate === "tool_call" &&
+            typeof frame.toolCallId === "string" &&
+            frame.toolCallId &&
+            !env.lastTurnToolCallIds.includes(frame.toolCallId)
+          ) {
+            env.lastTurnToolCallIds.push(frame.toolCallId);
+          }
           run.handleUpdate(update);
-          // A sibling announced AFTER the pause won the latch can never execute (the session
-          // is already being destroyed), and the pause-time sweep has already run — settle it
+          // A sibling announced AFTER the pause won the latch can never execute; settle it
           // immediately so the client never holds an orphaned part (idempotent re-sweep).
           if (pause.active) {
             run.settleOpenToolCalls(
@@ -809,8 +1065,12 @@ export async function runSandboxAgent(
             );
           }
         }
-      }
-    });
+      },
+      onPermissionRequest: undefined,
+    };
+    activeTurn = turn;
+    env.currentTurn = turn;
+
     const permissionPlan = permissionsFromRequest(request);
     const storedDecisionMap = extractApprovalDecisions(request);
     if (storedDecisionMap.size > 0) {
@@ -826,8 +1086,7 @@ export async function runSandboxAgent(
     const responder =
       deps.responderFactory?.(request) ??
       new ApprovalResponder(permissionPlan, decisions, logger);
-    // Every pause seeds the durable interactions plane, whichever gate paused (the ACP
-    // responder on Claude, the relay on Pi). Shared by both wiring sites below.
+    // Every pause seeds the durable interactions plane, whichever gate paused.
     const recordPendingInteraction = (
       token: string,
       toolName: string | undefined,
@@ -836,9 +1095,6 @@ export async function runSandboxAgent(
     ): void => {
       const cred = runCredential(request);
       if (!cred) return;
-      // The /interactions plane only works when respond can re-invoke THIS revision, which
-      // needs at least a committed workflow_revision reference. A draft (inline config, no
-      // committed revision) can't be re-resolved, so skip create and stay messages-only.
       const references = buildWorkflowReferences(request.runContext?.workflow);
       if (!references?.workflow_revision) return;
       void createInteraction(
@@ -850,8 +1106,7 @@ export async function runSandboxAgent(
         () => cred,
       );
     };
-    // Exactly one gate per call: the harness gate on Claude, the relay on Pi. If more
-    // harness families arrive, move this capability split to engines/sandbox_agent/capabilities.ts.
+    // Exactly one gate per call: the harness gate on Claude, the relay on Pi.
     const relayPermissions: RelayPermissions = {
       enforce: plan.isPi,
       decide: (gate) => decide(gate, permissionPlan, decisions),
@@ -880,8 +1135,18 @@ export async function runSandboxAgent(
       },
     };
     const serverPermissions = serverPermissionsFromRequest(request);
+    // Build the per-turn permission handler WITHOUT attaching to the live session: the
+    // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
+    // `currentTurn`. A capturing shim reuses attachPermissionResponder unchanged; its
+    // respondPermission delegates to the real session.
     attachPermissionResponder({
-      session,
+      session: {
+        onPermissionRequest: (handler: (req: unknown) => void) => {
+          turn.onPermissionRequest = handler;
+        },
+        respondPermission: (id: string, reply: string) =>
+          env.session.respondPermission(id, reply),
+      },
       run,
       responder,
       latch,
@@ -893,7 +1158,6 @@ export async function runSandboxAgent(
       onResolveInteraction: (token) => {
         const cred = runCredential(request);
         if (!cred) return;
-        // Mirror the create guard: no interaction exists for a draft, so nothing to resolve.
         if (
           !buildWorkflowReferences(request.runContext?.workflow)
             ?.workflow_revision
@@ -903,65 +1167,56 @@ export async function runSandboxAgent(
       },
     });
 
-    // Resolve the ONE client-tool seam both delivery paths share: the Pi file relay (below)
-    // consumes it directly, and the Claude internal MCP server reaches it through the deferred
-    // ref captured above. Built here because it needs the responder, the otel run, and the pause
-    // plumbing. The correlation index is wired for Claude only — Pi's relay toolCallId is
-    // already exact, so it pauses with no index (behavior-preserving).
-    clientToolRelay = buildClientToolRelay({
+    // Resolve the ONE client-tool seam both delivery paths share. The correlation index is wired
+    // for Claude only — Pi's relay toolCallId is already exact.
+    env.clientToolRelayRef.current = buildClientToolRelay({
       responder,
       run,
       latch,
       pause,
       recordPendingInteraction,
-      toolCallIndex: plan.isPi ? undefined : toolCallIndex,
+      toolCallIndex: plan.isPi ? undefined : env.toolCallIndex,
       log: logger,
     });
 
     if (plan.useToolRelay) {
-      toolRelay = (deps.startToolRelay ?? startToolRelay)(
+      turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
-          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(sandbox)
+          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox)
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.relayDir,
         plan.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
         relayPermissions,
         request.runContext,
-        clientToolRelay,
+        env.clientToolRelayRef.current,
       );
     }
 
-    // Race the prompt against the pause signal: on a HITL pause the prompt either resolves with
-    // a cancelled stop reason (the managed `session/cancel` landed) or never resolves at all
-    // (the harness ignores it) — either way the pause signal ends the turn so the runner returns
-    // promptly, the `finally` disposes the sandbox (no leak, F-040), and the egress emits a
-    // `finish` frame. When the pause wins, the orphaned `prompt()` may later reject as the
-    // cancelled/torn-down connection unwinds; swallow that so it is not an `unhandledRejection`
-    // (the daemon teardown's `fetch failed` is expected on a cancel, not a run error).
+    // Race the prompt against the pause signal: on a HITL pause the prompt either resolves with a
+    // cancelled stop reason or never resolves at all; either way the pause signal ends the turn.
     const promptPromise = Promise.resolve(
-      session.prompt([{ type: "text", text: plan.turnText }]),
+      env.session.prompt([{ type: "text", text: turnText }]),
     );
     promptPromise.catch(() => {});
     const raced = await Promise.race([
       promptPromise,
       pause.signal.then(() => PAUSED),
+      runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
     ]);
-    // A paused turn is terminal-but-incomplete: stop reason `paused` tells the egress to emit
-    // a clean `finish` (the FE then resumes on the user's decision). A real prompt result keeps
-    // the harness's own stop reason.
+    // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
+    // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
+    if (raced === RUN_LIMIT_TRIPPED) {
+      throw new Error(runLimitReason ?? "run limit tripped");
+    }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
     const result = raced === PAUSED ? undefined : raced;
-    await toolRelay?.stop();
+    await turn.toolRelay?.stop();
     logger(`prompt stopReason=${stopReason}`);
 
-    // Usage: Pi writes its totals to a file via the extension. Other harnesses report the
-    // input/output token split on the PromptResponse and the cost on ACP `usage_update`,
-    // so combine the two (the stream alone carries no per-call token split). Read and stamp
-    // this before finish/flush so exported spans and final events carry the final usage.
     const usage = await resolveRunUsage({
-      sandbox,
+      sandbox: env.sandbox,
       usageOutPath: plan.usageOutPath,
       isDaytona: plan.isDaytona,
       promptResult: result,
@@ -969,23 +1224,15 @@ export async function runSandboxAgent(
     });
     run.setUsage(usage);
 
-    // Peek for a swallowed model error BEFORE finishing the trace so the error message + provider
-    // can be stamped on the still-open agent span (F-030). When Pi's provider call fails
-    // (out-of-quota, bad key, rate limit, unknown model, ...), Pi's pi-acp bridge reports the
-    // turn as a plain `end_turn` with NO content, so without this the run would return an
-    // `ok:true` empty turn and the user would see a silent "No response" instead of the real
-    // failure. On the LOCAL Pi path the error is recoverable from Pi's own session transcript —
-    // which lives under `runAgentDir` (the per-run throwaway dir Pi was actually pointed at via
-    // PI_CODING_AGENT_DIR), NOT `plan.sourcePiAgentDir` (the static source login dir, which has
-    // no transcripts). Only checked when the turn produced no output and ran no tools (a real
-    // tool-only turn legitimately has empty text), and never on Daytona (the transcript lives in
-    // the remote sandbox).
     const swallowedPiError =
       plan.isPi &&
       !plan.isDaytona &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
-        ? findSwallowedPiError(runAgentDir ?? plan.sourcePiAgentDir, plan.cwd)
+        ? findSwallowedPiError(
+            env.runAgentDir ?? plan.sourcePiAgentDir,
+            plan.cwd,
+          )
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
@@ -995,15 +1242,12 @@ export async function runSandboxAgent(
         request.provider,
       );
       run.recordError(swallowedError, request.provider);
-      // Emit it as an event too (before finish() flushes the sink), so it reaches the live
-      // stream and the durable record, not only the trace span.
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
     const output = run.finish();
     await run.flush();
 
-    // Fail loud on the error detected above (A7 / "fail loud, not silent").
     if (swallowedError) {
       return { ok: false, error: swallowedError };
     }
@@ -1012,81 +1256,56 @@ export async function runSandboxAgent(
       ok: true,
       output,
       messages: output ? [{ role: "assistant", content: output }] : [],
-      // Streaming already delivered every event live, so the terminal result carries none
-      // (re-sending would double them on the consumer).
       events: emit ? [] : run.events(),
       usage,
       stopReason,
-      // `streamingDeltas` advertises end-to-end live deltas, which is only true when a live
-      // sink is wired. The one-shot path reports false even when the harness produces deltas.
       capabilities: {
-        ...capabilities,
-        streamingDeltas: !!emit && capabilities.streamingDeltas,
+        ...env.capabilities,
+        streamingDeltas: !!emit && env.capabilities.streamingDeltas,
       },
       sessionId,
-      model: model ?? request.model,
+      model: env.model ?? request.model,
       traceId: run.traceId(),
-    };
+    } as AgentRunResult;
   } catch (err) {
     const error = conciseError(err, plan.harness, request.provider);
-    // Stamp the error message + provider on the agent span before finishing it (F-030), so a
-    // trace carries the same diagnostic the response does (it previously held only a count).
     otel?.recordError(error, request.provider);
-    // Also surface it as an event (before finish flushes the sink) so the error reaches the
-    // live stream and the durable record, not only the trace.
     otel?.emitEvent({ type: "error", message: error });
-    // finish() must not throw uncaught, same as recordError above — tracing must not mask the run error.
+    // finish() must not throw uncaught — tracing must not mask the run error.
     try {
       otel?.finish();
     } catch {}
     await otel?.flush().catch(() => {});
-    return {
-      ok: false,
-      error,
-    };
+    return { ok: false, error };
   } finally {
+    // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
-    await runtimeRemount?.catch(() => {});
-    if (sandbox) inFlightSandboxes.delete(sandbox);
-    await toolRelay?.stop().catch(() => {});
-    // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
-    mcpAbort.abort();
-    await closeToolMcp?.().catch(() => {});
-    // Send a graceful `session/cancel` BEFORE tearing down the daemon (the ACP child process
-    // leak, dev-box incident 2026-07-06): on a normal/error completion this was the only path
-    // that never called `destroySession` (the HITL pause controller already does, above), so
-    // every such run went straight from a live session to `destroySandbox()` hard-killing the
-    // local `sandbox-agent`
-    // server. That kill only reaches the immediate child (the sandbox-agent server process,
-    // via SIGTERM/SIGKILL); it does not cascade to the ACP adapter subprocess (e.g.
-    // `claude-agent-acp`) the server spawned to drive the harness, which then gets reparented to
-    // the container's PID 1 and never exits (observed accumulating for hours in production).
-    // Skip if the pause path already sent it (`sessionDestroyRequested`) — best-effort either way.
-    if (session && !sessionDestroyRequested)
-      await sandbox?.destroySession?.(session.id).catch(() => {});
-    await sandbox?.destroySandbox().catch(() => {});
-    await sandbox?.dispose().catch(() => {});
-    // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
-    // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete below:
-    // rmSync must never run against a possibly-live FUSE mount into the durable store.
-    if (mountedCwd) {
-      durableCwdSafeToDelete = await (
-        deps.unmountStorage ?? unmountStorage
-      )(mountedCwd, { log }).catch(() => false);
-    }
-    if (!durableCwdSafeToDelete) {
-      logger(
-        `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
-      );
-    } else {
-      await workspace?.cleanup().catch(() => {});
-    }
-    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
-    if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
-    // Backstop: the extension deletes this on read; remove it here too in case the harness
-    // never started (or crashed before reading it), so the bearer never lingers.
-    if (otlpAuthFilePath) rmSync(otlpAuthFilePath, { force: true });
-    // Remove the per-run skills temp root the materializer created (success or error).
-    plan.skillsCleanup();
+    // This turn owns its relay: stop it on EVERY exit path (the happy path already stopped it
+    // after the prompt; stop is safe to repeat, matching the old finally). Null it afterwards so
+    // a later `destroy()` — possibly after the dispatch cleared the sink — cannot double-stop or
+    // orphan it.
+    await activeTurn?.toolRelay?.stop().catch(() => {});
+    if (activeTurn) activeTurn.toolRelay = undefined;
+  }
+}
+
+/**
+ * The cold, one-turn-per-environment entry (also the flag-off path). Acquire an environment, run
+ * one turn, then tear the environment down — exactly as the single `try/finally` did before the
+ * split, so behavior here is byte-identical to pre-keep-alive.
+ */
+export async function runSandboxAgent(
+  request: AgentRunRequest,
+  emit?: EmitEvent,
+  signal?: AbortSignal,
+  deps: SandboxAgentDeps = {},
+): Promise<AgentRunResult> {
+  const acquired = await acquireEnvironment(request, deps, signal);
+  if (!acquired.ok) return { ok: false, error: acquired.error };
+  const env = acquired.env;
+  try {
+    return await runTurn(env, request, emit, signal);
+  } finally {
+    await env.destroy();
   }
 }

@@ -30,9 +30,27 @@ import type {
 } from "./protocol.ts";
 import { resolvePromptText } from "./protocol.ts";
 import {
+  acquireEnvironment,
   destroyInFlightSandboxes,
+  resolveKeepaliveMount,
   runSandboxAgent,
+  runTurn,
+  type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
+import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
+import {
+  computeCredentialEpoch,
+  configFingerprint,
+  credentialEpochValid,
+  expectedNextHistoryFingerprint,
+  historyFingerprint,
+  poolKeyFor,
+  priorConversation,
+  readKeepaliveConfig,
+  SessionPool,
+  tailIsFreshUserMessage,
+  type KeepaliveConfig,
+} from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
@@ -106,11 +124,22 @@ function isAuthorized(req: IncomingMessage): boolean {
   return tokensMatch(presentedToken(req), expected);
 }
 
+/**
+ * Per-run flags the HTTP edge passes alongside the request. `clientGone` reports whether the
+ * streaming client has disconnected: session-owned runs survive disconnect (the run `signal` is
+ * deliberately NOT aborted), so the keep-alive park decision needs this separate channel to obey
+ * "disconnect means destroy, never park" (plan Q4).
+ */
+export interface RunAgentOptions {
+  clientGone?: () => boolean;
+}
+
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
 export type RunAgent = (
   request: AgentRunRequest,
   emit?: EmitEvent,
   signal?: AbortSignal,
+  options?: RunAgentOptions,
 ) => Promise<AgentRunResult>;
 
 /**
@@ -180,10 +209,287 @@ async function persistSandboxId(
   }
 }
 
+// --- Session keep-alive dispatch (flag-gated OFF by default) ---------------- //
+
+function klog(message: string): void {
+  process.stderr.write(`[keepalive] ${message}\n`);
+}
+
+/**
+ * The engine seam the keep-alive dispatch drives. The default wires to the real engine; tests
+ * inject a fake to exercise the pool/dispatch policy without a live harness.
+ */
+export interface KeepaliveEngine {
+  /** Sign the session's durable mount once, up front. Null = no mount = never park. */
+  resolveKeepaliveMount(
+    request: AgentRunRequest,
+  ): Promise<MountCredentials | null>;
+  acquireEnvironment(
+    request: AgentRunRequest,
+    signal: AbortSignal | undefined,
+    presignedMount: MountCredentials | null,
+  ): Promise<
+    { ok: true; env: SessionEnvironment } | { ok: false; error: string }
+  >;
+  runTurn(
+    env: SessionEnvironment,
+    request: AgentRunRequest,
+    emit: EmitEvent | undefined,
+    signal: AbortSignal | undefined,
+    opts: { continuation?: boolean },
+  ): Promise<AgentRunResult>;
+  /**
+   * Today's cold path (acquire -> runTurn -> teardown). Used when a request must not park.
+   * `presignedMount` threads an already-signed mount in (null = signed, no mount — do not sign
+   * again; undefined = not signed — acquire signs itself), so the mount is signed exactly once.
+   */
+  runCold(
+    request: AgentRunRequest,
+    emit?: EmitEvent,
+    signal?: AbortSignal,
+    presignedMount?: MountCredentials | null,
+  ): Promise<AgentRunResult>;
+}
+
+const realKeepaliveEngine: KeepaliveEngine = {
+  resolveKeepaliveMount: (request) => resolveKeepaliveMount(request),
+  acquireEnvironment: (request, signal, presignedMount) =>
+    acquireEnvironment(request, {}, signal, presignedMount),
+  runTurn: (env, request, emit, signal, opts) =>
+    runTurn(env, request, emit, signal, opts),
+  // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
+  // mount threaded through so an up-front keep-alive sign is never repeated.
+  runCold: async (request, emit, signal, presignedMount) => {
+    const acquired = await acquireEnvironment(
+      request,
+      {},
+      signal,
+      presignedMount,
+    );
+    if (!acquired.ok) return { ok: false, error: acquired.error };
+    try {
+      return await runTurn(acquired.env, request, emit, signal, {});
+    } finally {
+      await acquired.env.destroy();
+    }
+  },
+};
+
+/**
+ * Whether a completed turn's environment may be parked: never on abort, client disconnect,
+ * pause, or failure. Session-owned streams survive disconnect WITHOUT aborting the run signal
+ * (server policy), so the disconnect check needs the separate `clientGone` flag.
+ */
+function shouldPark(
+  result: AgentRunResult,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): boolean {
+  if (signal?.aborted) return false; // aborted run: destroy, do not park
+  if (clientGone?.()) return false; // client disconnected mid-turn: destroy, do not park
+  if (!result.ok) return false; // failed turn: teardown as today
+  if (result.stopReason === "paused") return false; // slice 1 never parks a paused session
+  return true;
+}
+
+export interface KeepaliveContext {
+  engine: KeepaliveEngine;
+  pool: SessionPool<SessionEnvironment>;
+  config: KeepaliveConfig;
+  /** Reports a mid-turn client disconnect on the streaming edge (see `RunAgentOptions`). */
+  clientGone?: () => boolean;
+}
+
+/**
+ * True when the request resolves to exactly the `local` provider (the same resolution
+ * `buildRunPlan` uses). Keep-alive is local-only in slice 1, and an unknown/future REMOTE
+ * provider must fail closed to cold rather than park, so anything not literally "local" is out.
+ */
+function isLocalSandbox(request: AgentRunRequest): boolean {
+  const provider =
+    request.sandbox || process.env.SANDBOX_AGENT_PROVIDER || "local";
+  return provider === "local";
+}
+
+/**
+ * Keep-alive dispatch. A pool hit whose fingerprints + credential epoch match and whose tail is
+ * a fresh user message continues the live environment (`runTurn` with `continuation`); anything
+ * else (miss, mismatch, busy, no mount, remote) evicts as needed and runs today's cold path.
+ * A validation failure never fails the turn: it degrades to cold.
+ */
+export async function runWithKeepalive(
+  request: AgentRunRequest,
+  emit: EmitEvent | undefined,
+  signal: AbortSignal | undefined,
+  ctx: KeepaliveContext,
+): Promise<AgentRunResult> {
+  const { engine, pool, config, clientGone } = ctx;
+  const sessionId = request.sessionId?.trim();
+
+  // Eligibility: session-owned + local sandbox. Otherwise never park; run cold as today
+  // (no up-front sign happened, so the cold path signs itself: still exactly once).
+  if (!sessionId || !isLocalSandbox(request)) {
+    return engine.runCold(request, emit, signal);
+  }
+
+  // Sign the mount once, up front. The mount's owning project is the only trustworthy project
+  // scope; no mount (store unconfigured, 503) or no projectId => no safe pool key => never park,
+  // and the sign result — null included — is threaded into the cold path so it never re-signs.
+  let signed: MountCredentials | null | undefined;
+  try {
+    signed = await engine.resolveKeepaliveMount(request);
+  } catch {
+    signed = undefined; // sign attempt failed outright: let the cold acquire retry it
+  }
+  const key = poolKeyFor(request, signed?.projectId);
+  if (!key) {
+    klog(`miss (no mount project scope) session=${sessionId}; cold`);
+    return engine.runCold(request, emit, signal, signed);
+  }
+  const mountCreds = signed!;
+
+  const cfgFp = configFingerprint(request);
+  const incomingEpoch = computeCredentialEpoch(request, mountCreds.expiresAt);
+
+  const coldAndPark = async (): Promise<AgentRunResult> => {
+    const acq = await engine.acquireEnvironment(request, signal, mountCreds);
+    if (!acq.ok) return { ok: false, error: acq.error };
+    const env = acq.env;
+    let result: AgentRunResult;
+    try {
+      result = await engine.runTurn(env, request, emit, signal, {});
+    } catch (err) {
+      await env.destroy();
+      return {
+        ok: false,
+        error: String(err instanceof Error ? err.message : err),
+      };
+    }
+    // Record/settle pending state (none in slice 1) then clear the sink before parking.
+    env.clearTurn();
+    if (shouldPark(result, signal, clientGone)) {
+      const parked = pool.park(
+        {
+          key,
+          environment: env,
+          configFingerprint: cfgFp,
+          historyFingerprint: expectedNextHistoryFingerprint(
+            request.messages ?? [],
+            env.lastTurnToolCallIds ?? [],
+          ),
+          credentialEpoch: incomingEpoch,
+          destroy: env.destroy,
+        },
+        config.ttlMs,
+      );
+      if (!parked) await env.destroy();
+    } else {
+      await env.destroy();
+    }
+    return result;
+  };
+
+  const existing = pool.get(key);
+  if (existing && existing.state === "idle") {
+    // Validate the continuation. Any failure evicts and degrades to cold; never fails the turn.
+    const priorFp = historyFingerprint(priorConversation(request));
+    let mismatch: string | undefined;
+    if (cfgFp !== existing.configFingerprint) mismatch = "config";
+    else if (priorFp !== existing.historyFingerprint) mismatch = "history";
+    else if (!credentialEpochValid(existing.credentialEpoch, incomingEpoch))
+      mismatch = "credentials";
+    else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
+
+    if (mismatch) {
+      klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
+      // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
+      // mount — they must never overlap.
+      await pool.evict(key, `mismatch:${mismatch}`);
+      return coldAndPark();
+    }
+
+    const live = pool.checkoutIdle(key);
+    if (live) {
+      klog(`hit-continue key=${key}`);
+      let result: AgentRunResult;
+      try {
+        result = await engine.runTurn(live.environment, request, emit, signal, {
+          continuation: true,
+        });
+      } catch (err) {
+        // A continuation that throws destroys the session and retries once cold. Identity-checked
+        // (a racing turn may have superseded this slot and parked its own session — never clobber
+        // it) and awaited (the teardown's unmount must finish before the cold acquire remounts).
+        klog(`evict (continuation-threw) key=${key}; retry cold`);
+        live.environment.clearTurn();
+        await pool.evictIfCurrent(live, "continuation-threw");
+        void err;
+        return coldAndPark();
+      }
+      if (!result.ok) {
+        // A failed continuation may mean a broken live session: destroy and retry once cold
+        // (identity-checked + awaited, same as the throw path above).
+        klog(`evict (continuation-failed) key=${key}; retry cold`);
+        live.environment.clearTurn();
+        await pool.evictIfCurrent(live, "continuation-failed");
+        return coldAndPark();
+      }
+      live.environment.clearTurn();
+      if (shouldPark(result, signal, clientGone)) {
+        const reparked = pool.repark(
+          live,
+          {
+            configFingerprint: cfgFp,
+            historyFingerprint: expectedNextHistoryFingerprint(
+              request.messages ?? [],
+              live.environment.lastTurnToolCallIds ?? [],
+            ),
+            credentialEpoch: incomingEpoch,
+          },
+          config.ttlMs,
+        );
+        if (!reparked) await live.destroy();
+      } else {
+        await pool.evictIfCurrent(
+          live,
+          `no-park:${result.stopReason ?? "failed"}`,
+        );
+      }
+      return result;
+    }
+    // checkout lost a race; fall through to cold.
+  } else if (existing) {
+    // Busy / awaiting_approval / destroyed: two turns racing one session. Supersede (destroy the
+    // parked one, cold-start the new turn) — awaited so its teardown cannot overlap our acquire.
+    klog(`evict (supersede-${existing.state}) key=${key}; cold`);
+    await pool.evict(key, `supersede-${existing.state}`);
+  } else {
+    klog(`miss key=${key}; cold`);
+  }
+
+  return coldAndPark();
+}
+
 // One engine: `sandbox-agent` drives a harness (Pi or Claude) over ACP. The harness is
 // selected by `request.harness`, not by an engine selector.
-const runAgent: RunAgent = (request, emit, signal) =>
-  runSandboxAgent(request, emit, signal);
+//
+// The keep-alive pool is a single per-replica singleton, consulted only when the flag is on.
+// With the flag off (default) the pool is never touched and the dispatch is byte-identical to
+// today (`runSandboxAgent`). `/kill` and shutdown drain it through `destroyAll`.
+const keepalivePool = new SessionPool<SessionEnvironment>(
+  readKeepaliveConfig(),
+);
+
+const runAgent: RunAgent = (request, emit, signal, options) => {
+  const config = readKeepaliveConfig();
+  if (!config.enabled) return runSandboxAgent(request, emit, signal);
+  return runWithKeepalive(request, emit, signal, {
+    engine: realKeepaliveEngine,
+    pool: keepalivePool,
+    config,
+    clientGone: options?.clientGone,
+  });
+};
 
 /**
  * Stream a run as NDJSON: one `{kind:"event"}` line per event the moment it is built, then
@@ -237,12 +543,22 @@ async function runAndStreamWithApiBaseResolved(
   // Session-owned runs survive client disconnect — the runner owns the run. Non-session
   // runs abort on disconnect (original behavior: caller drives, disconnect = cancel).
   const controller = new AbortController();
+  let clientDisconnected = false;
   if (!sessionOwned) {
     // Listen on the response, not the request: the request body is already fully read, so
     // its `close` can fire early on a keep-alive connection. `res` `close` fires when the
     // response connection ends — after a normal `res.end()` (harmless: the run is already
     // done) or when the client drops mid-stream (the case we want to cancel).
     res.on("close", () => controller.abort());
+  } else {
+    // Session-owned: the run signal is deliberately NOT aborted (the run must survive the
+    // disconnect and finish), but keep-alive's park decision must still see the disconnect —
+    // a disconnected client's session is destroyed at turn end, never parked (plan Q4). The
+    // flag is only read while the run is in flight, so the close that follows a normal
+    // `res.end()` (after the run resolved) can never affect a park decision.
+    res.on("close", () => {
+      clientDisconnected = true;
+    });
   }
 
   const writeRecord = (record: StreamRecord): void => {
@@ -296,7 +612,9 @@ async function runAndStreamWithApiBaseResolved(
 
   let result: AgentRunResult;
   try {
-    result = await run(request, emitFn, controller.signal);
+    result = await run(request, emitFn, controller.signal, {
+      clientGone: () => clientDisconnected,
+    });
     // A failed engine run ({ok:false}) already emitted its own error EVENT through the
     // persisting emitter (see sandbox_agent.ts), so no extra persist here (it would
     // duplicate the record).
@@ -304,7 +622,7 @@ async function runAndStreamWithApiBaseResolved(
     if (flushPersist) await flushPersist();
   } catch (err) {
     const message =
-      err instanceof Error ? err.stack ?? err.message : String(err);
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
@@ -353,7 +671,10 @@ export function createRequestListener(
         }
         // Idempotent, best-effort: the API collapses the alive lock (the runner's
         // per-run finally then destroys its own sandbox); this endpoint lets the
-        // orphan sweeper force a process-wide teardown out-of-band. Always ok.
+        // orphan sweeper force a process-wide teardown out-of-band. Drain the keep-alive
+        // pool first (its complete per-session destroy), then the sandbox registry as a
+        // second line of defense. Always ok.
+        await keepalivePool.destroyAll();
         await destroyInFlightSandboxes();
         return send(res, 200, { ok: true });
       }
@@ -416,7 +737,7 @@ export function createRequestListener(
       return send(res, 404, { ok: false, error: "Not found" });
     } catch (err) {
       const message =
-        err instanceof Error ? err.stack ?? err.message : String(err);
+        err instanceof Error ? (err.stack ?? err.message) : String(err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -474,7 +795,7 @@ if (isEntrypoint(import.meta.url)) {
   // run still returns its own error to its caller.
   process.on("unhandledRejection", (reason) => {
     process.stderr.write(
-      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`,
+      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
     );
   });
   process.on("uncaughtException", (err) => {
@@ -483,10 +804,15 @@ if (isEntrypoint(import.meta.url)) {
     );
   });
 
-  // On `docker stop` (SIGTERM) / Ctrl-C (SIGINT), delete any sandbox a run created before the
-  // process exits, so a kill mid-run does not leak the sandbox (the per-run `finally` never
-  // runs when the process is killed).
-  registerShutdownHandler();
+  // On `docker stop` (SIGTERM) / Ctrl-C (SIGINT), drain the keep-alive pool (its complete
+  // per-session destroy) and then delete any sandbox a run created, so a kill does not leak a
+  // parked session or an in-flight sandbox (the per-run teardown never runs on a process kill).
+  registerShutdownHandler({
+    onCleanup: async (timeoutMs?: number) => {
+      await keepalivePool.destroyAll(timeoutMs);
+      await destroyInFlightSandboxes(timeoutMs);
+    },
+  });
 
   createAgentServer().listen(PORT, HOST, () => {
     process.stderr.write(
