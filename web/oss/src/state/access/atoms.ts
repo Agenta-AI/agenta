@@ -6,6 +6,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isBillingEnabled, isEE} from "@/oss/lib/helpers/isEE"
+import {idleReadyAtom} from "@/oss/state/boot/idleReady"
 import {selectedOrgIdAtom} from "@/oss/state/org"
 import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
@@ -69,7 +70,9 @@ export const plansQueryAtom = atomWithQuery((get) => {
         // Gate on the full auth context the axios interceptor requires (user +
         // project), not just the session, so the request isn't fired and aborted
         // before the profile resolves.
-        enabled: isEE() && sessionExists && !!user && !!projectId,
+        // Deferred to browser idle: entitlement chrome, never needed for first paint, so it yields
+        // the load burst to the render-critical requests.
+        enabled: isEE() && sessionExists && !!user && !!projectId && get(idleReadyAtom),
         retry: entitlementRetry,
     }
 })
@@ -106,7 +109,14 @@ export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: true,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists && !!organizationId && !!user && !!projectId,
+        // Deferred to browser idle (billing chrome, not first-paint critical).
+        enabled:
+            isEE() &&
+            sessionExists &&
+            !!organizationId &&
+            !!user &&
+            !!projectId &&
+            get(idleReadyAtom),
         retry: entitlementRetry,
     }
 })
@@ -144,7 +154,8 @@ export const catalogQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists,
+        // Deferred to browser idle (billing chrome, not first-paint critical).
+        enabled: isEE() && sessionExists && get(idleReadyAtom),
         retry: entitlementRetry,
     }
 })
@@ -164,7 +175,8 @@ export const pricingQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists,
+        // Deferred to browser idle (billing chrome, not first-paint critical).
+        enabled: isEE() && sessionExists && get(idleReadyAtom),
         retry: entitlementRetry,
     }
 })
@@ -239,7 +251,9 @@ export const rolesQueryAtom = atomWithQuery((get) => {
         // Gate on the full auth context the axios interceptor requires (user +
         // project), not just the session, so the request isn't fired and aborted
         // before the profile resolves.
-        enabled: sessionExists && !!user && !!projectId,
+        // Deferred to browser idle: permission gates already default to not-ready until loaded, so
+        // holding the roles fetch off the load burst doesn't change first-paint behavior.
+        enabled: sessionExists && !!user && !!projectId && get(idleReadyAtom),
         retry: entitlementRetry,
     }
 })
