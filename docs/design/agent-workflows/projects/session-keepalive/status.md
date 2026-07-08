@@ -38,8 +38,13 @@ Minor items to note (not blockers):
 1. **Citation nudge.** The notes cite `sessions/alive.ts:32-36` for the `owner:session` affinity keys. Those lines are the `REPLICA_ID` constant. The affinity key is described in the file's header comment (lines 10-11, 30-31) and is driven by `REPLICA_ID`. The claim is correct; the line span points at the const, not the key literal.
 2. **Load-bearing nuance for the risk estimate.** The notes say the listeners are "re-attachable ... detach the previous turn's" as if the seam is ready. The package supports it (both listeners return an unsubscribe function), but the current runner code discards those return values (`sandbox_agent.ts:749`, `acp-interactions.ts:51`). So capturing and calling the unsubscribe functions is net-new work, and it is the crux of the slice-1 risk. This is reflected in plan.md Q2. No correction to the notes is needed; it is an emphasis for whoever implements.
 
+## Live QA notes (2026-07-08, dev box)
+
+- Slice 1 verified end to end with the flag on: turn 1 cold 25.61 s, turn 2 hit-continue 3.12 s, TTL expiry at 60 s, post-expiry cold replay 22.6 s and still correct, credentials-mismatch eviction correct. Playground and programmatic paths both green. Observed log lines: `[keepalive] miss`, `park ... ttl=60000ms state=idle poolSize=1`, `hit-continue`, `expire ... (TTL 60000ms)`, `evict ... reason=expire`.
+- Deployment footgun found during that test (NOT caused by any keepalive lane; `git diff origin/big-agents -- api/**/oss000000006*` is empty and no keepalive lane touches api/): the mounts migration `oss000000006_add_mounts.py` on big-agents now contains a `meta` column, but a dev DB that ran an OLDER revision of that same migration id never gets the column (alembic does not re-apply an applied migration), so mount signing 500s with "column meta of relation mounts does not exist". Keep-alive then silently runs all-cold BY DESIGN (no mount scope means never park), which masks the breakage. Lesson: never edit an already-applied migration; ship a new migration instead. The fix belongs to whoever edited oss000000006 on big-agents. Keep-alive QA must confirm mount signing works first: a `[keepalive] park` line proves it; an all-cold run with no park lines is the tell.
+
 ## Next steps
 
-1. Land slice 1 (`feat/session-keepalive-pool`) and slice 2 (`feat/session-keepalive-approvals`) as draft PRs; Mahmoud does the final review on the PRs.
-2. After review: run the deferred live-deployment loop (debug-local-deployment) with the flag on and off against a real playground conversation, confirming flag-off is byte-identical and watching the [HITL]/pool log lines.
+1. Land slice 1 (`feat/session-keepalive-pool`, PR #5156) and slice 2 (`feat/session-keepalive-approvals`) as draft PRs; Mahmoud does the final review on the PRs.
+2. After review: run the deferred live-deployment loop (debug-local-deployment) for slice 2 (approval parking) with the flag on and off; slice 1's live loop already ran (see QA notes above).
 3. Then consider Daytona (slice 3) and session resume (option 3) per the recorded order.
