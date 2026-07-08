@@ -310,7 +310,11 @@ export type RenderHint =
   // stamps it so the frontend renders the OAuth/API-key connect dialog when the tool pauses. No
   // payload — the widget is fully described by the paused call's tool name + input. `wire.py` does
   // not pin RenderHint (render rides as an opaque dict), so this member is TS-only.
-  | { kind: "connect" };
+  | { kind: "connect" }
+  // `elicitation` requests the built-in schema-driven form (interaction kinds M1): the `request_input`
+  // client tool stamps it so the frontend renders a form from the paused call's `requestedSchema`. Like
+  // `connect`, it carries no payload here and is TS-only (the render rides through as an opaque dict).
+  | { kind: "elicitation" };
 
 export type AgentEvent =
   | { type: "message"; text: string }
