@@ -98,7 +98,8 @@ export async function queryWorkflows({
     folderId,
     includeArchived = false,
     windowing,
-}: WorkflowListParams): Promise<WorkflowsResponse> {
+    lowPriority,
+}: WorkflowListParams & {lowPriority?: boolean}): Promise<WorkflowsResponse> {
     if (!projectId) {
         return {count: 0, workflows: []}
     }
@@ -124,7 +125,7 @@ export async function queryWorkflows({
             include_archived: includeArchived,
             windowing: windowing ?? undefined,
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(lowPriority)},
     )
 
     const validated = safeParseWithLogging(
@@ -156,6 +157,7 @@ export async function queryWorkflowVariants(
     workflowId: string,
     projectId: string,
     flags?: WorkflowQueryFlags,
+    opts?: {lowPriority?: boolean},
 ): Promise<WorkflowVariantsResponse> {
     if (!projectId || !workflowId) {
         return {count: 0, workflow_variants: []}
@@ -167,7 +169,7 @@ export async function queryWorkflowVariants(
             workflow_refs: [{id: workflowId}],
             workflow_variant: flags ? {flags} : undefined,
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
 
     const validated = safeParseWithLogging(
@@ -1275,6 +1277,7 @@ export async function unarchiveWorkflow(
 export async function fetchWorkflowsBatch(
     projectId: string,
     workflowIds: string[],
+    opts?: {lowPriority?: boolean},
 ): Promise<Map<string, Workflow>> {
     const results = new Map<string, Workflow>()
     const groupedByWorkflowId = new Map<string, Workflow[]>()
@@ -1289,7 +1292,7 @@ export async function fetchWorkflowsBatch(
             // With multiple workflows the global limit would cut across all, so skip it.
             ...(workflowIds.length === 1 ? {windowing: {limit: 1, order: "descending"}} : {}),
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
 
     const validated = safeParseWithLogging(

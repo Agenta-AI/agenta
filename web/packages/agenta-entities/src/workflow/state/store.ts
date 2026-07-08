@@ -413,7 +413,13 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
         queryKey: ["workflows", "apps", "list", projectId],
         queryFn: async (): Promise<WorkflowListRefsResponse> => {
             if (!projectId) return {count: 0, refs: []}
-            const response = await queryWorkflows({projectId, flags: {is_evaluator: false}})
+            // Sidebar workflow list — not on the playground's first-paint critical path, so yield to
+            // the render-critical config/chat queries.
+            const response = await queryWorkflows({
+                projectId,
+                flags: {is_evaluator: false},
+                lowPriority: true,
+            })
             const workflows = response.workflows ?? []
 
             return {
@@ -491,9 +497,13 @@ const appWorkflowsWithAgentFlagsQueryAtom = atomWithQuery((get) => {
         queryKey: ["workflows", "apps", "agentFlags", projectId, workflowVersionKey],
         queryFn: async (): Promise<Workflow[]> => {
             if (!projectId || workflows.length === 0) return workflows
+            // Sidebar prompt/agent split needs every app's latest revision just for the is_agent
+            // badge — heavy and not on the playground critical path, so demote it. It still primes the
+            // per-app latest-revision + detail caches, so the critical current-app fetch can share it.
             const latestRevisions = await fetchWorkflowsBatch(
                 projectId,
                 workflows.map((workflow) => workflow.id),
+                {lowPriority: true},
             )
             return withLatestAgentFlags(workflows, latestRevisions)
         },
@@ -517,7 +527,9 @@ export const workflowVariantsScopedQueryAtomFamily = atomFamily(
             queryKey: ["workflows", "variants", workflowId, projectId],
             queryFn: async (): Promise<WorkflowVariantsResponse> => {
                 if (!projectId || !workflowId) return {count: 0, workflow_variants: []}
-                return queryWorkflowVariants(workflowId, projectId)
+                // Variant picker/header label chrome — the config panel + agent chat render from the
+                // revision detail, not this, so yield to the render-critical queries.
+                return queryWorkflowVariants(workflowId, projectId, undefined, {lowPriority: true})
             },
             enabled: !!projectId && !!workflowId,
             staleTime: 30_000,
