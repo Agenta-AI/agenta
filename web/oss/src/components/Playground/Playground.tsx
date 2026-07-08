@@ -21,7 +21,9 @@ import {useAgentOnboarding} from "@/oss/components/pages/agent-home/PlaygroundOn
 import {SessionInspectorDrawer} from "@/oss/components/SessionInspector"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
+import AgentCatalogPrefetcher from "./Components/AgentCatalogPrefetcher"
 import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
@@ -81,6 +83,12 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     // reuses all the machinery above). Fully inert when `onboarding` is false — normal playground path.
     const agentOnboarding = useAgentOnboarding(onboarding)
 
+    // Once we know this is an agent playground (instant on reload via the persisted agent-type map),
+    // warm the static agent catalogs in parallel with the revision/inspect waterfall — see
+    // AgentCatalogPrefetcher. Onboarding is always an agent, so prefetch there too.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const prefetchAgentCatalogs = onboarding || earlyAgentState === "agent"
+
     // Preload lazy editor plugins ASAP to reduce first-render editor suspense jank.
     useEffect(() => {
         void preloadEditorPlugins()
@@ -110,6 +118,7 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const content = (
         <OSSPlaygroundShell providers={providers}>
             <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
+                {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />
                 <PlaygroundMainView
