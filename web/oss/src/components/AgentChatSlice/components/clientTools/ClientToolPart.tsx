@@ -1,11 +1,14 @@
 /**
- * Client-tool dispatcher (#4920) — the sibling to `ToolActivity` that renders a single client-tool
- * part. It resolves the widget by `render.kind` → `toolName` (the registry) and falls back to the
- * explicit "can't handle that" surface for an unknown client tool. The widget settles the part via
- * `settle`, which calls the panel's `addToolOutput`; the resume predicate then auto-resends.
+ * Client-tool dispatcher (#4920, interaction kinds M1) — the sibling to `ToolActivity` that renders
+ * a single client-tool part. It resolves the widget by `render.kind` → `toolName` (the registry)
+ * and falls back to the neutral "not handled by this client" surface for an unknown client tool. The
+ * `render.kind` arrives as a sibling `data-render` part (strict tool chunks), resolved through the
+ * message-scoped `renderMap`. The widget settles the part via `settle`, which calls the panel's
+ * `addToolOutput`; the resume predicate then auto-resends.
  */
 import {createElement, memo, useCallback} from "react"
 
+import type {RenderHintLike} from "@agenta/playground"
 import type {ToolUIPart} from "ai"
 
 import {clientToolMeta} from "./meta"
@@ -23,11 +26,16 @@ export type ClientToolOutputHandler = (args: {
 const ClientToolPart = ({
     part,
     onOutput,
+    renderMap,
+    degradedEarlierInTurn,
 }: {
     part: ToolUIPart
     onOutput: ClientToolOutputHandler
+    renderMap?: Map<string, RenderHintLike>
+    /** Retry cap: an earlier part in this turn already auto-settled as an elicitation degradation. */
+    degradedEarlierInTurn?: boolean
 }) => {
-    const meta = clientToolMeta(part)
+    const meta = clientToolMeta(part, renderMap)
     // The handler is a STABLE module-level component picked from the registry (not created during
     // render), so dispatch via `createElement` — `<Handler/>` would trip the static-components rule.
     const handler = resolveClientToolHandler(meta) ?? UnhandledClientTool
@@ -51,7 +59,7 @@ const ClientToolPart = ({
         [onOutput, meta.toolName, meta.toolCallId],
     )
 
-    return createElement(handler, {meta, settle})
+    return createElement(handler, {meta, settle, degradedEarlierInTurn})
 }
 
 export default memo(ClientToolPart)

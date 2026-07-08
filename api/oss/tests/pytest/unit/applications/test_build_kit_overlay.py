@@ -22,6 +22,7 @@ from oss.src.apis.fastapi.applications.overlay import (
 )
 from oss.src.core.workflows.build_kit import (
     BUILD_KIT_WORKFLOW_SLUG,
+    REQUEST_INPUT_WORKFLOW_SLUG,
     build_agent_template_overlay as build_core_agent_template_overlay,
 )
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
@@ -75,9 +76,11 @@ def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first()
     """
     overlay = build_agent_template_overlay()
 
-    request_connection = StaticWorkflowCatalog().retrieve_revision(
+    catalog = StaticWorkflowCatalog()
+    request_connection = catalog.retrieve_revision(
         slug=REQUEST_CONNECTION_WORKFLOW_SLUG
     )
+    request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
 
     assert AGENTA_FORCED_TOOLS == ["read", "bash"]
     assert overlay["tools"] == [
@@ -92,6 +95,13 @@ def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first()
                 "@ag.selector": {"path": "parameters.tool"},
             },
             "name": request_connection.name,
+        },
+        {
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": REQUEST_INPUT_WORKFLOW_SLUG}},
+                "@ag.selector": {"path": "parameters.tool"},
+            },
+            "name": request_input.name,
         },
     ]
 
@@ -158,7 +168,10 @@ def test_agent_template_overlay_includes_only_allowlisted_static_tool_embeds():
         revision = catalog.retrieve_revision(slug=_embed_slug(tool))
         assert tool.get("name") == revision.name
 
-    assert tool_embed_slugs == {REQUEST_CONNECTION_WORKFLOW_SLUG}
+    assert tool_embed_slugs == {
+        REQUEST_CONNECTION_WORKFLOW_SLUG,
+        REQUEST_INPUT_WORKFLOW_SLUG,
+    }
 
 
 def test_agent_template_overlay_does_not_embed_build_kit():
@@ -271,9 +284,14 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
         tool for tool in template.tools if isinstance(tool, ClientToolConfig)
     ]
     assert [tool.op for tool in platform_ops] == list(DEFAULT_BUILD_KIT_OPS)
-    # The request_connection embed must coerce to a client tool, not a builtin.
-    assert [tool.name for tool in client_tools] == ["request_connection"]
+    # The reserved static embeds must coerce to client tools, not builtins.
+    assert [tool.name for tool in client_tools] == [
+        "request_connection",
+        "request_input",
+    ]
     assert client_tools[0].render == {"kind": "connect"}
+    # The elicitation tool (interaction kinds M1) carries its REQUIRED render.kind.
+    assert client_tools[1].render == {"kind": "elicitation"}
     assert [skill.name for skill in template.skills] == ["build-an-agent"]
 
 

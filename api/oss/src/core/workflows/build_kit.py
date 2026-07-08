@@ -20,6 +20,8 @@ BUILD_KIT_WORKFLOW_DESCRIPTION = (
 AGENTA_BUILTIN_AGENT_URI = "agenta:builtin:agent:v0"
 
 REQUEST_CONNECTION_WORKFLOW_NAME = "Request connection"
+REQUEST_INPUT_WORKFLOW_SLUG = "__ag__request_input"
+REQUEST_INPUT_WORKFLOW_NAME = "Request input"
 
 # Cut ops stay catalog opt-ins.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
@@ -38,7 +40,11 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "remove_subscription",
 )
 
-_STATIC_TOOL_EMBED_SLUGS = (REQUEST_CONNECTION_WORKFLOW_SLUG,)
+# (slug, name) pairs — reserved static client tools embedded in every build kit, in order.
+_STATIC_TOOL_EMBEDS: tuple[tuple[str, str], ...] = (
+    (REQUEST_CONNECTION_WORKFLOW_SLUG, REQUEST_CONNECTION_WORKFLOW_NAME),
+    (REQUEST_INPUT_WORKFLOW_SLUG, REQUEST_INPUT_WORKFLOW_NAME),
+)
 
 
 def _workflow_embed(
@@ -61,12 +67,8 @@ def _workflow_embed(
 
 def _reserved_static_tool_embeds() -> List[Dict[str, Any]]:
     return [
-        _workflow_embed(
-            slug,
-            name=REQUEST_CONNECTION_WORKFLOW_NAME,
-            selector_path="parameters.tool",
-        )
-        for slug in _STATIC_TOOL_EMBED_SLUGS
+        _workflow_embed(slug, name=name, selector_path="parameters.tool")
+        for slug, name in _STATIC_TOOL_EMBEDS
     ]
 
 
