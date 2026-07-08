@@ -322,6 +322,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
     // Ids already on screen — restored/settled turns don't re-animate; only turns added live fade in.
     const seenIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
+    // Immutable snapshot of the restored ids (seenIdsRef grows) — the first-seen stamping
+    // effect below skips these so a reload can't masquerade as the turns' send time.
+    const restoredIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
     // Themed confirm dialogs. The static `Modal.confirm` renders detached from the app's
     // ConfigProvider, so it loses the theme (white box in dark mode). The hook form's
     // `contextHolder` is rendered in-tree, so its dialogs inherit the theme — same look as the
@@ -833,9 +836,14 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         pruneExpanded(live)
     }, [messages, status, store, pruneExpanded])
 
-    // Stamp a first-seen timestamp on any newly-appeared message (user + assistant).
+    // Stamp a first-seen timestamp on any newly-appeared LIVE message (user + assistant).
+    // Restored rows are excluded: their first-seen is the reload moment, not the turn's time —
+    // stamping them made old turns read "just now" until (or forever if) the trace never loads.
+    // Unstamped, their timestamp slot shows a pending placeholder, then the trace's real time.
     useEffect(() => {
-        stampMessagesCreatedAt(messages.map((m) => m.id))
+        stampMessagesCreatedAt(
+            messages.filter((m) => !restoredIdsRef.current.has(m.id)).map((m) => m.id),
+        )
     }, [messages, stampMessagesCreatedAt])
 
     // ── #4920 Application 1: refresh the config on a committed revision ──

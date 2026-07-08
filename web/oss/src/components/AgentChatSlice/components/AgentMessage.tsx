@@ -16,7 +16,7 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Tooltip, Typography} from "antd"
+import {Avatar, Skeleton, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -71,8 +71,17 @@ const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMe
     // Latency comes from the trace; tokens/cost come from the streamed message usage
     // (the agent-run trace summary doesn't surface them on the Pi/local path). Usage
     // wins where both exist so the figures match what the model actually reported.
-    const metrics = {...summary.metrics, ...usage}
-    return <ExecutionMetricsDisplay metrics={metrics} isLoading={summary.isPending} size="small" />
+    // Only the latency slot waits on the trace — usage renders immediately, and a fixed-size
+    // placeholder holds latency's spot so the row doesn't shift (or blank known data) meanwhile.
+    if (summary.isPending) {
+        return (
+            <div className="flex items-center gap-1">
+                <Skeleton.Button active size="small" style={{width: 56, height: 22}} />
+                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
+            </div>
+        )
+    }
+    return <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} size="small" />
 }
 
 interface AgentMessageProps {
@@ -536,7 +545,14 @@ const AgentMessage = ({
         onItemClick: () => onRewind(message),
     }
 
-    const timestamp = messageTime ? <MessageTimestamp createdAt={messageTime} /> : null
+    // Restored turns have no first-seen stamp (a reload isn't their send time), so until their
+    // trace time arrives the slot holds a placeholder — never a wrong "just now". Settled with no
+    // trace (deleted/expired) → no stamp at all. Live turns show first-seen instantly as before.
+    const timestamp = messageTime ? (
+        <MessageTimestamp createdAt={messageTime} />
+    ) : timeSummary.isPending ? (
+        <Skeleton.Button active size="small" style={{width: 64, height: 16}} />
+    ) : null
 
     const toolbar = isUser ? (
         <>
