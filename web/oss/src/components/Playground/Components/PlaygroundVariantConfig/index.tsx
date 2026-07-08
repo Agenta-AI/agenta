@@ -27,6 +27,7 @@ import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {PlaygroundNodeTokenPathProvider} from "../../PlaygroundTokenPath"
 
+import AgentConfigSkeleton from "./assets/AgentConfigSkeleton"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 
@@ -233,11 +234,15 @@ const PlaygroundVariantConfig: React.FC<
                 extraActions={isAgentHeaderMode ? undefined : viewModeSelector}
             />
             {hasPendingHydration ? (
-                <div className="p-4 flex flex-col gap-3">
-                    <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
-                    <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                    <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                </div>
+                isAgentHeaderMode ? (
+                    <AgentConfigSkeleton />
+                ) : (
+                    <div className="p-4 flex flex-col gap-3">
+                        <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                        <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                        <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                    </div>
+                )
             ) : (
                 <>
                     <FieldsDetectionProvider value={fieldsDetectionValue}>
@@ -256,6 +261,12 @@ const PlaygroundVariantConfig: React.FC<
                                 // header non-sticky, so the section headers have
                                 // nothing to clear — pin them at the scroll top.
                                 stickyHeaderTop={embedded ? 0 : 48}
+                                // Agent (known or early-signalled): hold the panel's real
+                                // section-row shape while the schema loads, instead of the
+                                // generic prompt-config pulse boxes.
+                                loadingFallback={
+                                    isAgentHeaderMode ? <AgentConfigSkeleton /> : undefined
+                                }
                             />
                         </PlaygroundNodeTokenPathProvider>
                     </FieldsDetectionProvider>

@@ -10,6 +10,7 @@ import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
 import {
     AgentChatScopeProvider,
     ONBOARDING_SCOPE_KEY,
@@ -30,9 +31,11 @@ import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
 
 // Agent-chat surface (third generation arm). Lazy — only loads the AI SDK when an
-// agent workflow is opened in the playground.
+// agent workflow is opened in the playground. The skeleton holds the pane's shape while
+// the chunk loads, so the chat doesn't sit blank and pop in wholesale.
 const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/AgentChatPanel"), {
     ssr: false,
+    loading: () => <AgentChatSkeleton />,
 })
 
 /**

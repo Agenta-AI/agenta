@@ -22,6 +22,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 import {PanelSessionInspectorButton} from "@/oss/components/SessionInspector"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
@@ -445,6 +446,12 @@ const PlaygroundMainView = ({
                                                 renderTestsetActions={renderTestsetActions}
                                             />
                                         )
+                                    }
+                                    // Agent identified early (persisted agent-type map) but the
+                                    // revision hasn't resolved the flag yet — hold the chat pane's
+                                    // shape instead of a blank canvas until the host mounts.
+                                    if (isAgentConfig && singleEntityQuery.isPending) {
+                                        return <AgentChatSkeleton key="agent-generation-skeleton" />
                                     }
                                     return displayedEntities.includes(variantId) ||
                                         isEvaluatorMode ? (

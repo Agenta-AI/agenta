@@ -617,6 +617,12 @@ export interface PlaygroundConfigSectionProps {
      * of floating 48px down into the editor content.
      */
     stickyHeaderTop?: number
+    /**
+     * Rendered instead of the generic pulse boxes while the config/schema is
+     * loading. Lets the caller show a layout-matched skeleton (e.g. the agent
+     * section-row list) when it knows the entity's shape before the data lands.
+     */
+    loadingFallback?: React.ReactNode
 }
 
 function PlaygroundConfigSection({
@@ -628,6 +634,7 @@ function PlaygroundConfigSection({
     onRefinePrompt,
     viewMode: externalViewMode,
     stickyHeaderTop = 48,
+    loadingFallback,
 }: PlaygroundConfigSectionProps) {
     const {llmProviderConfig} = useDrillInUI()
 
@@ -1805,6 +1812,9 @@ function PlaygroundConfigSection({
     const isConfigLoading = schemaQuery.isPending && !hasRenderableConfigSections(activeData)
 
     if (isConfigLoading) {
+        if (loadingFallback) {
+            return <div className={className}>{loadingFallback}</div>
+        }
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
                 <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
