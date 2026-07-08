@@ -109,7 +109,15 @@ const EvaluatorTemplateDropdownContent = memo(
                         return (
                             <div
                                 key={item.key}
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => handleTemplateSelect(item)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault()
+                                        handleTemplateSelect(item)
+                                    }
+                                }}
                                 className={cn(
                                     "border-0 border-b border-solid last:border-b-0",
                                     borderColors.secondary,

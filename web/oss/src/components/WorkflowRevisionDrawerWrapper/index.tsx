@@ -145,7 +145,9 @@ const EvaluatorTypeLabel = memo(({revisionId}: {revisionId: string}) => {
     // Gate on the canonical `is_evaluator` FLAG, not the URI prefix: builtin APPS
     // (chat/completion) also carry an `agenta:builtin:` URI, so a prefix-only check
     // both mislabels them as evaluators AND pulls the whole evaluator catalog.
-    const templatesMap = useAtomValue(isEvaluator ? evaluatorTemplatesMapAtom : EMPTY_TEMPLATES_MAP_ATOM)
+    const templatesMap = useAtomValue(
+        isEvaluator ? evaluatorTemplatesMapAtom : EMPTY_TEMPLATES_MAP_ATOM,
+    )
 
     const label = useMemo(() => {
         if (!isEvaluator) return null
