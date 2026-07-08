@@ -78,6 +78,7 @@ import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
+  writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
   decide,
@@ -89,6 +90,10 @@ import {
   PAUSED,
   PendingApprovalPauseController,
 } from "./sandbox_agent/pause.ts";
+import {
+  createRunLimits,
+  resolveRunLimits,
+} from "./sandbox_agent/run-limits.ts";
 import {
   createInteraction,
   resolveInteraction,
@@ -268,6 +273,8 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   unmountStorage?: typeof unmountStorage;
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
   responderFactory?: (request: AgentRunRequest) => Responder;
+  resolveRunLimits?: typeof resolveRunLimits;
+  createRunLimits?: typeof createRunLimits;
   log?: Log;
 }
 
@@ -383,10 +390,21 @@ export async function runSandboxAgent(
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
+  // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
+  // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
+  const otlpAuthFilePath =
+    plan.isPi && !plan.isDaytona
+      ? `${plan.relayDir}.otlp-auth`
+      : undefined;
+  const otlpAuthorization = request.telemetry?.exporters?.otlp?.headers?.authorization;
+  if (otlpAuthFilePath && otlpAuthorization) {
+    writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, logger);
+  }
   const piExtEnv = plan.isPi
     ? buildPiExtensionEnv(request, !plan.isDaytona, {
         relayDir: plan.relayDir,
         usageOutPath: plan.usageOutPath,
+        otlpAuthFilePath,
         builtinGatingActive: plan.builtinGatingActive,
         builtinGrants: plan.builtinGrants,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
@@ -440,6 +458,22 @@ export async function runSandboxAgent(
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
   // Fired by the pause controller's destroy path and, as a backstop, by the `finally`.
   const mcpAbort = new AbortController();
+  // Time-based run deadlines (total/idle/TTFB/per-tool-call): tripping one aborts the run the
+  // SAME way a client disconnect does, so this existing `finally` reclaims the sandbox — no new
+  // teardown. Merged with the caller's own signal (a client disconnect on a non-session run)
+  // so either source can end the run; whichever fires first wins.
+  const deadlineAbort = new AbortController();
+  const runLimits = (deps.createRunLimits ?? createRunLimits)(
+    (deps.resolveRunLimits ?? resolveRunLimits)(logger),
+    { log: logger },
+  );
+  runLimits.onTrip((reason) => {
+    logger(`run limit tripped: ${reason}`);
+    deadlineAbort.abort(new Error(reason));
+  });
+  const runSignal = signal
+    ? AbortSignal.any([signal, deadlineAbort.signal])
+    : deadlineAbort.signal;
   // Durable cwd: set to the host mountpoint once a session-owned local run geesefs-mounts its
   // store prefix, so the `finally` can unmount it. Undefined for non-session/remote/unmounted runs.
   let mountedCwd: string | undefined;
@@ -502,10 +536,15 @@ export async function runSandboxAgent(
       return false;
     });
   };
+  // Gates the cwd rmSync in the `finally` below: never delete through a mount we can't prove
+  // is gone. Checked at the call site, not here, since this placeholder can be replaced
+  // by prepareWorkspace's own cleanup before the gate is evaluated.
+  let durableCwdSafeToDelete = true;
   let workspace: { cleanup: () => Promise<void> } | undefined = plan.isDaytona
     ? undefined
     : {
-        cleanup: async () => rmSync(plan.cwd, { recursive: true, force: true }),
+        cleanup: async () =>
+          rmSync(plan.cwd, { recursive: true, force: true }),
       };
 
   try {
@@ -526,9 +565,11 @@ export async function runSandboxAgent(
         plan.sandboxPermission,
       ),
       persist,
-      // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
-      // in-flight run aborts instead of finishing unobserved. The `finally` still disposes.
-      ...(signal ? { signal } : {}),
+      // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) merged
+      // with the run-limits deadline signal, so either one aborts an in-flight run instead of
+      // it finishing unobserved. The `finally` still disposes. Always defined (unlike the raw
+      // `signal` param) because the deadline signal exists even with no caller signal.
+      signal: runSignal,
       // Drive the ACP HTTP client through a long-timeout undici dispatcher so a paused HITL
       // turn (the connection held open while a human approves a tool) is NOT reaped by
       // undici's default `headersTimeout` (which would kill it with UND_ERR_HEADERS_TIMEOUT).
@@ -551,13 +592,35 @@ export async function runSandboxAgent(
     }
 
     // Durable cwd: reuse the pre-signed creds (signed before buildRunPlan so the prefix drove the
-    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it.
+    // cwd derivation). The mount lands BEFORE createSession so the session opens inside it, and
+    // BEFORE workspace materialization on both providers so AGENTS.md, harness files, and skills
+    // land in the durable prefix instead of being hidden under the later FUSE mount.
     // Local: on-host geesefs; scoped creds never enter agent space.
     // Remote (Daytona): geesefs inside the sandbox over the ngrok tunnel.
     if (mountCreds && !plan.isDaytona) {
-      // Mount before local workspace materialization so AGENTS.md, harness files, and skills
-      // land in the durable prefix instead of being hidden under the later FUSE mount.
       await mountLocalDurableCwd("initial");
+    }
+    if (mountCreds && plan.isDaytona) {
+      const endpoint = await (
+        deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
+      )({
+        log: logger,
+      });
+      if (
+        endpoint &&
+        (await (deps.mountStorageRemote ?? mountStorageRemote)(
+          sandbox,
+          plan.cwd,
+          mountCreds,
+          {
+            endpoint,
+            log: logger,
+          },
+        ))
+      ) {
+        // Remote files live in the store; nothing on this host to unmount.
+        logger(`remote durable cwd active for session=${sessionForMount}`);
+      }
     }
 
     try {
@@ -583,31 +646,6 @@ export async function runSandboxAgent(
         });
       } else {
         throw err;
-      }
-    }
-
-    if (mountCreds) {
-      if (plan.isDaytona) {
-        const endpoint = await (
-          deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
-        )({
-          log: logger,
-        });
-        if (
-          endpoint &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            sandbox,
-            plan.cwd,
-            mountCreds,
-            {
-              endpoint,
-              log: logger,
-            },
-          ))
-        ) {
-          // Remote files live in the store; nothing on this host to unmount.
-          logger(`remote durable cwd active for session=${sessionForMount}`);
-        }
       }
     }
 
@@ -707,7 +745,10 @@ export async function runSandboxAgent(
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
       emitSpans: !plan.isPi || plan.isDaytona,
-      emit,
+      // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
+      // deltas, tool calls and results, usage, ...) — this is the one seam every harness's
+      // output already flows through.
+      emit: emit && runLimits.wrapEmit(emit),
     });
     otel = run;
 
@@ -731,6 +772,10 @@ export async function runSandboxAgent(
       sessionDestroyRequested = true;
       return sandbox.destroySession?.(session.id);
     });
+    // The pause signal resolves exactly once, the moment a turn parks for human input — that is
+    // the one place every pause path (ACP gate, relay, internal MCP) converges, so it is also
+    // the one place to retire the run-limits deadlines for good.
+    void pause.signal.then(() => runLimits.notePaused());
 
     session.onEvent((event: any) => {
       remountLocalCwdAfterRuntimeEnotconn(event);
@@ -740,6 +785,18 @@ export async function runSandboxAgent(
         // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's
         // bubble (recorded even for suppressed frames; a lookup CONSUMES its matched id).
         toolCallIndex.record(update);
+        // Per-tool-call deadline: starts on the announcement, ends on a terminal status.
+        // Tracked regardless of pause-suppression below (a call already timed out must not
+        // linger just because a later sibling frame gets suppressed).
+        if (update.sessionUpdate === "tool_call" && update.toolCallId) {
+          runLimits.noteToolCallStart(String(update.toolCallId));
+        } else if (
+          update.sessionUpdate === "tool_call_update" &&
+          update.toolCallId &&
+          (update.status === "completed" || update.status === "failed")
+        ) {
+          runLimits.noteToolCallEnd(String(update.toolCallId));
+        }
         if (!shouldSuppressPausedToolCallUpdate(update, pause)) {
           run.handleUpdate(update);
           // A sibling announced AFTER the pause won the latch can never execute (the session
@@ -978,13 +1035,17 @@ export async function runSandboxAgent(
     // Also surface it as an event (before finish flushes the sink) so the error reaches the
     // live stream and the durable record, not only the trace.
     otel?.emitEvent({ type: "error", message: error });
-    otel?.finish();
+    // finish() must not throw uncaught, same as recordError above — tracing must not mask the run error.
+    try {
+      otel?.finish();
+    } catch {}
     await otel?.flush().catch(() => {});
     return {
       ok: false,
       error,
     };
   } finally {
+    runLimits.dispose();
     await runtimeRemount?.catch(() => {});
     if (sandbox) inFlightSandboxes.delete(sandbox);
     await toolRelay?.stop().catch(() => {});
@@ -1006,14 +1067,25 @@ export async function runSandboxAgent(
     await sandbox?.destroySandbox().catch(() => {});
     await sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
-    // mountpoint is torn down. Best-effort (the store keeps the files regardless).
-    if (mountedCwd)
-      await (deps.unmountStorage ?? unmountStorage)(mountedCwd, { log }).catch(
-        () => {},
+    // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete below:
+    // rmSync must never run against a possibly-live FUSE mount into the durable store.
+    if (mountedCwd) {
+      durableCwdSafeToDelete = await (
+        deps.unmountStorage ?? unmountStorage
+      )(mountedCwd, { log }).catch(() => false);
+    }
+    if (!durableCwdSafeToDelete) {
+      logger(
+        `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
       );
-    await workspace?.cleanup().catch(() => {});
+    } else {
+      await workspace?.cleanup().catch(() => {});
+    }
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
     if (runAgentDir) rmSync(runAgentDir, { recursive: true, force: true });
+    // Backstop: the extension deletes this on read; remove it here too in case the harness
+    // never started (or crashed before reading it), so the bearer never lingers.
+    if (otlpAuthFilePath) rmSync(otlpAuthFilePath, { force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   }

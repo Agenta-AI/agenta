@@ -1,7 +1,7 @@
 """The static workflow catalogue: code-defined, read-only static workflows.
 
-Agenta ships its own managed workflows (skills today, extensible to other static workflow kinds
-later) to every project without per-project seeding and without a migration. They are served from
+Agenta ships its own managed workflows to every project without per-project seeding or a
+migration. They are served from
 this catalogue under a reserved ``__ag__*`` slug namespace, never the database, and carry
 ``flags.is_static=True`` (slug-derived) so clients and the frontend treat them as read-only.
 
@@ -14,7 +14,7 @@ Trust comes from the platform authoring the content in code: the reserved namesp
 user cannot author or shadow it, and resolution never falls through to Postgres.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
@@ -34,6 +34,14 @@ from agenta.sdk.engines.running.utils import (
     normalize_snippet_data,
 )
 
+from oss.src.core.workflows.build_kit import (
+    AGENTA_BUILTIN_AGENT_URI,
+    BUILD_KIT_WORKFLOW_DESCRIPTION,
+    BUILD_KIT_WORKFLOW_NAME,
+    BUILD_KIT_WORKFLOW_SLUG,
+    REQUEST_CONNECTION_WORKFLOW_NAME,
+    build_agent_template_overlay,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowRevision,
     WorkflowRevisionData,
@@ -47,6 +55,7 @@ from oss.src.core.workflows.types import (
 
 
 __all__ = [
+    "BUILD_KIT_WORKFLOW_SLUG",
     "STATIC_SLUG_PREFIX",
     "StaticWorkflowCatalog",
 ]
@@ -55,6 +64,7 @@ __all__ = [
 # sub-namespaced under "catalog". Stable across instances/restarts so a static workflow keeps the
 # same artifact / variant / revision ids everywhere. Changing it re-keys every static workflow.
 _STATIC_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "catalog")
+WorkflowRevisionDeclaration = Union[WorkflowRevision, Callable[[], WorkflowRevision]]
 
 
 # ---------------------------------------------------------------------------
@@ -65,8 +75,7 @@ _STATIC_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "catalog")
 # A version payload is a FULL WorkflowRevision carrying the declared content (name, description,
 # data); the catalogue stamps the structural fields (ids / slug / version) and the inferred flags
 # on resolution. The catalogue is a FULL workflow catalogue, not skill-specific; what a given entry
-# *is* falls out of its ``data.uri`` (the only static workflow today happens to be a skill, hence a
-# snippet carrying uri + parameters).
+# *is* falls out of its ``data.uri`` and explicit catalogue metadata.
 
 
 def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
@@ -86,7 +95,7 @@ def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
 
 def _client_tool_revision() -> WorkflowRevision:
     return WorkflowRevision(
-        name="Request connection",
+        name=REQUEST_CONNECTION_WORKFLOW_NAME,
         description="Ask the user to connect an external account.",
         data=WorkflowRevisionData(
             uri="client:tool:request_connection:v0",
@@ -125,24 +134,49 @@ def _client_tool_revision() -> WorkflowRevision:
     )
 
 
-# Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision}}.
+def _build_kit_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name=BUILD_KIT_WORKFLOW_NAME,
+        description=BUILD_KIT_WORKFLOW_DESCRIPTION,
+        data=WorkflowRevisionData(
+            uri=AGENTA_BUILTIN_AGENT_URI,
+            parameters={"agent": build_agent_template_overlay()},
+        ),
+    )
+
+
+# Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision factory}}.
 _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
     GETTING_STARTED_WITH_AGENTA_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
         "latest": "v1",
         "versions": {
             "v1": _skill_revision(GETTING_STARTED_WITH_AGENTA_SKILL),
         },
     },
     REQUEST_CONNECTION_WORKFLOW_SLUG: {
+        "kind": "tool",
+        "embeddable": True,
         "latest": "v1",
         "versions": {
             "v1": _client_tool_revision(),
         },
     },
     BUILD_AN_AGENT_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
         "latest": "v1",
         "versions": {
             "v1": _skill_revision(BUILD_AN_AGENT_SKILL),
+        },
+    },
+    BUILD_KIT_WORKFLOW_SLUG: {
+        "kind": "agent_config",
+        "embeddable": False,
+        "latest": "v1",
+        "versions": {
+            "v1": _build_kit_revision,
         },
     },
 }
@@ -211,6 +245,8 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                     f"{sorted(versions)}."
                 )
             for version, revision in versions.items():
+                if callable(revision):
+                    continue
                 if (
                     not isinstance(revision, WorkflowRevision)
                     or not revision.data
@@ -233,6 +269,26 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
 
     def is_static_id(self, entity_id: Optional[UUID]) -> bool:
         return entity_id is not None and entity_id in self._index_by_id
+
+    def is_embeddable(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+    ) -> bool:
+        resolved_slug = slug
+        if id is not None:
+            match = self._index_by_id.get(id)
+            if match is not None:
+                resolved_slug = match[0]
+
+        if resolved_slug is None:
+            return True
+
+        entry = self._catalog.get(resolved_slug)
+        if not entry:
+            return True
+        return bool(entry.get("embeddable", True))
 
     def retrieve_revision(
         self,
@@ -271,13 +327,20 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
             declared=versions[resolved_version],
         )
 
+    @staticmethod
+    def _declared_revision(
+        declared: WorkflowRevisionDeclaration,
+    ) -> WorkflowRevision:
+        return declared() if callable(declared) else declared
+
     def _build_revision(
         self,
         *,
         slug: str,
         version: str,
-        declared: WorkflowRevision,
+        declared: WorkflowRevisionDeclaration,
     ) -> WorkflowRevision:
+        declared = self._declared_revision(declared)
         # A snippet (skill) keeps only uri + parameters; for runnable static workflows this is a
         # no-op. Flags are inferred: is_skill from the uri, is_static from the (reserved) slug.
         data = normalize_snippet_data(declared.data)

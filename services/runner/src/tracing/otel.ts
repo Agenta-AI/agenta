@@ -42,6 +42,7 @@ import {
   type Span,
   type SpanContext,
 } from "@opentelemetry/api";
+import { ExportResultCode } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { Resource } from "@opentelemetry/resources";
 import type {
@@ -97,10 +98,9 @@ function getExporter(target: ExportTarget): OTLPTraceExporter {
 function defaultTarget(): ExportTarget {
   // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
-    (process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL)?.replace(
-      /\/+$/,
-      "",
-    ) || "https://cloud.agenta.ai/api";
+    (
+      process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
+    )?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
   // Prefer the bare API key; else fall back to the full (scheme-tagged) ephemeral
   // credential, used verbatim — `/check` hands back a `Secret ...`, not an API key.
   const apiKey = process.env.AGENTA_API_KEY || "";
@@ -142,9 +142,20 @@ class TraceBatchProcessor implements SpanProcessor {
     this.buffers.delete(traceId);
     const target = traceTargets.get(traceId) ?? defaultTarget();
     traceTargets.delete(traceId);
-    return new Promise((resolve) =>
-      getExporter(target).export(orderParentFirst(spans), () => resolve()),
-    );
+    return new Promise((resolve) => {
+      try {
+        getExporter(target).export(orderParentFirst(spans), (result) => {
+          if (result.code === ExportResultCode.FAILED)
+            console.error("otel: trace export failed", traceId, result.error);
+          resolve();
+        });
+      } catch (err) {
+        // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
+        // flush() is awaited without a catch, so a reject here would break the run.
+        console.error("otel: trace export threw", traceId, err);
+        resolve();
+      }
+    });
   }
 
   forceFlush(): Promise<void> {
@@ -365,7 +376,11 @@ function lastAssistantText(messages: any): string {
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
 /** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
  * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
-function applyAssistant(span: Span, msg: any, capture: boolean): string | undefined {
+function applyAssistant(
+  span: Span,
+  msg: any,
+  capture: boolean,
+): string | undefined {
   if (msg.provider) span.setAttribute("gen_ai.system", msg.provider);
   if (msg.model) span.setAttribute("gen_ai.request.model", msg.model);
   if (msg.responseModel || msg.model)
@@ -389,11 +404,13 @@ function applyAssistant(span: Span, msg: any, capture: boolean): string | undefi
       "gen_ai.usage.total_tokens",
       u.totalTokens ?? (u.input ?? 0) + (u.output ?? 0),
     );
-    if (u.cacheRead)
-      span.setAttribute("gen_ai.usage.cache_read_input_tokens", u.cacheRead);
-    if (u.cacheWrite)
+    // Dotted form: matches logfire_adapter.py's ingest keys (underscore form was never read).
+    // Nullish check, not truthy, so a real 0 is emitted like the other token fields.
+    if (u.cacheRead != null)
+      span.setAttribute("gen_ai.usage.cache_read.input_tokens", u.cacheRead);
+    if (u.cacheWrite != null)
       span.setAttribute(
-        "gen_ai.usage.cache_creation_input_tokens",
+        "gen_ai.usage.cache_creation.input_tokens",
         u.cacheWrite,
       );
     if (u.cost?.total != null)
@@ -1162,7 +1179,11 @@ export function createSandboxAgentOtel(
         name: String(name),
         input: update.rawInput,
       });
-      toolSpans.set(id, { span, name: String(name), inputJson: toolInputJson(update.rawInput) });
+      toolSpans.set(id, {
+        span,
+        name: String(name),
+        inputJson: toolInputJson(update.rawInput),
+      });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
       return;
@@ -1185,8 +1206,17 @@ export function createSandboxAgentOtel(
         const nextJson = toolInputJson(update.rawInput);
         if (nextJson !== entry.inputJson) {
           if (entry.span)
-            setInputs(entry.span, update.rawInput as Record<string, unknown>, capture);
-          record({ type: "tool_call", id: String(id), name: entry.name, input: update.rawInput });
+            setInputs(
+              entry.span,
+              update.rawInput as Record<string, unknown>,
+              capture,
+            );
+          record({
+            type: "tool_call",
+            id: String(id),
+            name: entry.name,
+            input: update.rawInput,
+          });
           entry.inputJson = nextJson;
         }
       }

@@ -7,6 +7,7 @@ import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -58,6 +59,85 @@ describe("prepareWorkspace", () => {
 
     await workspace.cleanup();
     assert.equal(existsSync(cwd), false);
+  });
+
+  it("clears a stale .req.json left from a prior turn before the next turn starts", async () => {
+    const cwd = tempDir();
+    const relayDir = join(cwd, ".agenta-tools");
+
+    // Simulate a prior turn's relay dir with an unconsumed (or already-answered) request.
+    mkdirSync(relayDir, { recursive: true });
+    writeFileSync(join(relayDir, "stale-call.req.json"), "{}", "utf-8");
+
+    const workspace = await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        cwd,
+        relayDir,
+        useToolRelay: true,
+        agentsMd: "agent instructions",
+        acpAgent: "pi",
+        isPi: true,
+        skillDirs: [],
+      },
+    });
+
+    assert.equal(
+      existsSync(join(relayDir, "stale-call.req.json")),
+      false,
+      "the stale request file from the prior turn must not survive into the next turn",
+    );
+    assert.equal(existsSync(relayDir), true, "the relay dir itself is recreated");
+
+    await workspace.cleanup();
+  });
+
+  it("clears the Daytona relay dir via runProcess before recreating it", async () => {
+    const calls: Array<{ op: string; path?: string; command?: string; args?: string[] }> =
+      [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) =>
+        calls.push({ op: "mkdir", path }),
+      writeFsFile: async ({ path }: { path: string }, _body: string) =>
+        calls.push({ op: "write", path }),
+      runProcess: async (opts: { command: string; args?: string[] }) =>
+        calls.push({ op: "run", command: opts.command, args: opts.args }),
+    };
+
+    await prepareWorkspace({
+      sandbox,
+      plan: {
+        isDaytona: true,
+        cwd: "/home/sandbox/agenta-fixed",
+        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+        useToolRelay: true,
+        agentsMd: "agent instructions",
+        acpAgent: "pi",
+        isPi: true,
+        skillDirs: [],
+      },
+    });
+
+    const runIndex = calls.findIndex((c) => c.op === "run");
+    const mkdirRelayIndex = calls.findIndex(
+      (c) => c.op === "mkdir" && c.path === "/home/sandbox/agenta-fixed/.agenta-tools",
+    );
+    assert.ok(runIndex !== -1, "the relay dir is cleared via runProcess");
+    assert.equal(
+      calls[runIndex]?.command,
+      "rm",
+      "clears with a direct rm exec, not a shell",
+    );
+    assert.deepEqual(
+      calls[runIndex]?.args,
+      ["-rf", "--", "/home/sandbox/agenta-fixed/.agenta-tools"],
+      "clears exactly the relay dir (argv, no shell interpolation), not the durable cwd",
+    );
+    assert.ok(
+      runIndex < mkdirRelayIndex,
+      "the clear happens before the relay dir is recreated",
+    );
   });
 
   it("writes claude instructions to CLAUDE.md, not AGENTS.md (local)", async () => {

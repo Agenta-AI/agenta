@@ -14,6 +14,10 @@ export {
     queryWorkflowRevisions,
     // Retrieve (single revision by ref — slug/version/id)
     retrieveWorkflowRevision,
+    // Agent build-kit overlay (reserved static workflow)
+    AGENT_BUILD_KIT_WORKFLOW_SLUG,
+    fetchAgentBuildKitOverlay,
+    type AgentBuildKitOverlay,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
     // Inspect (resolve full schema including inputs)

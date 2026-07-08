@@ -48,6 +48,11 @@ interface FakeOptions {
   // Make the managed cancel reject (and NOT resolve the hung prompt), so the only thing that
   // ends the turn is the local park signal — proves the run still terminates if cancel fails.
   destroySessionError?: Error;
+  // Mirrors what the real sandbox-agent package does when the caller's AbortSignal fires mid-
+  // prompt: resolve the in-flight prompt with a cancelled stop reason. Lets a hung-prompt fixture
+  // stand in for a wedged harness that a run-limits deadline (which aborts `startOptions.signal`)
+  // must be able to unstick.
+  abortSignalCancelsHungPrompt?: boolean;
 }
 
 function fakeHarness(options: FakeOptions = {}) {
@@ -220,6 +225,11 @@ function fakeHarness(options: FakeOptions = {}) {
     createPersist: () => ({}) as any,
     startSandboxAgent: (async (opts: any) => {
       calls.startOptions = opts;
+      if (options.abortSignalCancelsHungPrompt && opts.signal) {
+        opts.signal.addEventListener("abort", () => {
+          resolveHungPrompt?.({ stopReason: "cancelled" });
+        });
+      }
       return sandbox;
     }) as any,
     prepareWorkspace: (async ({ plan }: any) => {
@@ -358,7 +368,7 @@ describe("runSandboxAgent orchestration", () => {
       seenMountAccessKeys.push(creds.accessKey);
       return true;
     }) as any;
-    deps.unmountStorage = (async () => {}) as any;
+    deps.unmountStorage = (async () => true) as any;
     deps.prepareWorkspace = (async ({ plan }: any) => {
       workspaceCalls += 1;
       if (workspaceCalls === 1) {
@@ -487,6 +497,126 @@ describe("runSandboxAgent orchestration", () => {
     );
     assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
     assert.equal(unmountCalls, 1, "cleanup waits for runtime remount before unmount");
+  });
+
+  it("skips the durable cwd delete when unmount is not confirmed", async () => {
+    // A failed/still-mounted unmount must never be followed by rmSync on the cwd — that would
+    // delete through a possibly-live FUSE mount into the durable store.
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/mount-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    // Simulate an unconfirmed unmount (still mounted after the detach attempt).
+    deps.unmountStorage = (async () => false) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      calls.workspaceCleanup,
+      0,
+      "cwd delete is skipped when unmount is not confirmed",
+    );
+  });
+
+  it("still deletes the cwd once unmount is confirmed gone", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/mount-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      calls.workspaceCleanup,
+      1,
+      "cwd delete proceeds once unmount is confirmed",
+    );
+  });
+
+  it("Daytona mounts the durable cwd before workspace materialization", async () => {
+    const { calls, deps } = fakeHarness();
+    let mountCallsBeforeWorkspace = 0;
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/mount-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.discoverTunnelEndpoint = (async () => "https://tunnel.example") as any;
+    let mountCalls = 0;
+    deps.mountStorageRemote = (async () => {
+      mountCalls += 1;
+      return true;
+    }) as any;
+    deps.prepareWorkspace = (async ({ plan }: any) => {
+      mountCallsBeforeWorkspace = mountCalls;
+      calls.workspacePlan = plan;
+      return { cleanup: async () => {} };
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(mountCalls, 1, "remote mount is attempted");
+    assert.equal(
+      mountCallsBeforeWorkspace,
+      1,
+      "the durable cwd is mounted before workspace materialization writes into it",
+    );
   });
 
   it("keeps terminal events empty on the streaming path", async () => {
@@ -717,6 +847,58 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  // A throw from otel.finish() in the error path must not mask the real run error.
+  it("still returns the run error when otel.finish() throws in the error path", async () => {
+    const { calls, deps } = fakeHarness({ promptError: new Error("boom") });
+    deps.createOtel = ((otelOptions: any) => {
+      calls.otelOptions = otelOptions;
+      return {
+        start() {},
+        handleUpdate() {},
+        emitEvent(event: AgentEvent) {
+          void event;
+        },
+        usage() {
+          return { input: 0, output: 0, total: 0, cost: 0 };
+        },
+        setUsage() {},
+        finish() {
+          calls.runFinished += 1;
+          throw new Error("tracing finish blew up");
+        },
+        recordError(message: string, provider?: string) {
+          calls.recordedErrors.push({ message, provider });
+        },
+        output() {
+          return "";
+        },
+        async flush() {
+          calls.runFlushed += 1;
+        },
+        events() {
+          return [];
+        },
+        settleOpenToolCalls() {},
+        traceId() {
+          return "trace-1";
+        },
+      };
+    }) as any;
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "explode" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.deepEqual(result, { ok: false, error: "boom" });
+    assert.equal(calls.runFinished, 1);
+    assert.equal(calls.runFlushed, 1);
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
+  });
+
   it("passes the sandbox permission through to buildSandboxProvider", async () => {
     const { calls, deps } = fakeHarness();
     const sandboxPermission = {
@@ -753,7 +935,12 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.equal(calls.startOptions.signal, controller.signal);
+    // The signal handed to the harness is merged with the run-limits deadline signal
+    // (AbortSignal.any), so it is no longer the identical object — but aborting the caller's
+    // controller must still abort the merged signal the harness observes.
+    assert.equal(calls.startOptions.signal.aborted, false);
+    controller.abort();
+    assert.equal(calls.startOptions.signal.aborted, true);
   });
 
   it("clears inherited provider env on a managed run and applies ANTHROPIC_BASE_URL for claude", async () => {
@@ -803,6 +990,38 @@ describe("runSandboxAgent orchestration", () => {
     const env = calls.providerArgs[1] as Record<string, string>;
     // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
+  });
+
+  it("never puts the OTLP bearer in the local Pi daemon's env", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://otlp.example.test/v1/traces",
+              headers: { authorization: "Bearer reusable-caller-token" },
+            },
+          },
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    // The harness-readable env carries a file path, never the bearer itself.
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
+    assert.equal(typeof env.AGENTA_AGENT_OTLP_AUTH_FILE, "string");
+    assert.equal(
+      JSON.stringify(env).includes("reusable-caller-token"),
+      false,
+    );
   });
 
   it("sets Claude Bedrock env and strict selected model pass-through", async () => {
@@ -1464,5 +1683,77 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     assert.deepEqual(calls.permissionReplies, [
       { id: "perm-1", reply: "once" },
     ]);
+  });
+});
+
+describe("runSandboxAgent run-limits deadline", () => {
+  // Tiny real-ms limits: the run-limits DI seam overrides the whole resolve step, and the
+  // integration path needs the real createRunLimits (timers + abort wiring) rather than a fake
+  // clock, so the windows are set to a few ms and driven by real timers here.
+  const fastLimits = {
+    resolveRunLimits: () => ({
+      totalMs: 5,
+      idleMs: 5,
+      ttfbMs: 5,
+      toolCallMs: 5,
+    }),
+  };
+
+  it("aborts a wedged never-responding run so the existing finally reclaims the sandbox", async () => {
+    const { calls, deps } = fakeHarness({
+      // The harness comes up but the prompt never resolves on its own — a wedged run. Only an
+      // abort of the run signal (which a tripped deadline fires) can unstick it.
+      hangPrompt: true,
+      abortSignalCancelsHungPrompt: true,
+    });
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      { ...deps, ...fastLimits },
+    );
+
+    // The run RETURNED (did not hang) and the teardown finally ran: sandbox destroyed + disposed.
+    assert.equal(calls.sandboxDestroyed, 1);
+    assert.equal(calls.sandboxDisposed, 1);
+    assert.equal(calls.runFinished, 1);
+    // The prompt resolved via the deadline-driven abort, so the turn ends cancelled, not a hang.
+    if (result.ok) assert.equal(result.stopReason, "cancelled");
+  });
+
+  it("does NOT abort a turn that paused for human input, even past every deadline window", async () => {
+    // A gated tool call parks the turn (pause path), which retires the deadlines. With tiny
+    // limits, a wedged turn WOULD trip almost immediately — so a clean `paused` finish (never a
+    // deadline `cancelled`) proves the pause exemption held. The prompt hangs; only the local
+    // park signal ends the turn. Setup mirrors the F-040 park test above (real ApprovalResponder).
+    const { calls, deps } = (() => {
+      const { calls, deps } = fakeHarness({
+        emitPermission: true,
+        hangPrompt: true,
+      });
+      delete deps.responderFactory; // engine ApprovalResponder -> pauses (effective ask, no decision)
+      return { calls, deps };
+    })();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-paused",
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      { ...deps, ...fastLimits },
+    );
+    await flushPromises();
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // Paused, not cancelled: the pause path — not a deadline abort — ended the turn.
+    assert.equal(result.stopReason, "paused");
+    // The finally still reclaimed the sandbox on the pause path.
+    assert.equal(calls.sandboxDestroyed, 1);
   });
 });

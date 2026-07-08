@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,8 +21,10 @@ import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalAgentDir,
+  prepareLocalPiAssets,
   uploadDirToSandbox,
   uploadSkillsToSandbox,
+  writeOtlpAuthFile,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
 
@@ -85,6 +88,7 @@ describe("buildPiExtensionEnv", () => {
     const env = buildPiExtensionEnv(request, true, {
       relayDir: "/tmp/relay",
       usageOutPath: "/tmp/usage.json",
+      otlpAuthFilePath: "/tmp/otlp-auth",
     });
 
     assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
@@ -92,10 +96,9 @@ describe("buildPiExtensionEnv", () => {
       env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
       request.telemetry?.exporters?.otlp?.endpoint,
     );
-    assert.equal(
-      env.OTEL_EXPORTER_OTLP_HEADERS,
-      `Authorization=${request.telemetry?.exporters?.otlp?.headers?.authorization}`,
-    );
+    // the bearer rides a file path, never a plain env var the harness can read/echo.
+    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, "/tmp/otlp-auth");
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
@@ -225,6 +228,38 @@ describe("buildPiExtensionEnv", () => {
       undefined,
     );
   });
+
+  it("never leaks the bearer into env when no auth file path is given", () => {
+    const env = buildPiExtensionEnv(
+      {
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://otlp.example.test/v1/traces",
+              headers: { authorization: "Bearer trace-token" },
+            },
+          },
+        },
+      } as AgentRunRequest,
+      true,
+    );
+
+    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, undefined);
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
+    assert.equal(JSON.stringify(env).includes("trace-token"), false);
+  });
+});
+
+describe("writeOtlpAuthFile", () => {
+  it("writes the bearer to a 0600 file, not env", () => {
+    const dir = tempDir("agenta-pi-otlp-auth-test-");
+    const path = join(dir, "nested", "otlp-auth");
+
+    writeOtlpAuthFile(path, "Bearer trace-token");
+
+    assert.equal(readFileSync(path, "utf-8"), "Bearer trace-token");
+    assert.equal(statSync(path).mode & 0o777, 0o600);
+  });
 });
 
 describe("writeSystemPromptLocal", () => {
@@ -269,6 +304,57 @@ describe("prepareLocalAgentDir", () => {
       readFileSync(join(runDir, "skills", "skill", "SKILL.md"), "utf-8"),
       "---\nname: skill\n---\n",
     );
+  });
+});
+
+describe("prepareLocalPiAssets (PI_CODING_AGENT_DIR guard)", () => {
+  const ENV_VAR = "PI_CODING_AGENT_DIR";
+  const previous = process.env[ENV_VAR];
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env[ENV_VAR];
+    else process.env[ENV_VAR] = previous;
+  });
+
+  const plainPiPlan = {
+    isPi: true,
+    isDaytona: false,
+    skillDirs: [],
+    hasSystemPrompt: false,
+    systemPrompt: undefined,
+    appendSystemPrompt: undefined,
+    sourcePiAgentDir: "/unused",
+  };
+
+  it("logs a clear warning when a plain local Pi run has no PI_CODING_AGENT_DIR", () => {
+    delete process.env[ENV_VAR];
+    const logs: string[] = [];
+
+    const runDir = prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+      log: (msg) => logs.push(msg),
+    });
+
+    assert.equal(runDir, undefined);
+    assert.ok(
+      logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")),
+      `expected a PI_CODING_AGENT_DIR warning, got: ${JSON.stringify(logs)}`,
+    );
+  });
+
+  it("installs the extension silently (no warning) when PI_CODING_AGENT_DIR is set", () => {
+    const dir = tempDir("agenta-pi-configured-dir-");
+    process.env[ENV_VAR] = dir;
+    const logs: string[] = [];
+
+    prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+      log: (msg) => logs.push(msg),
+    });
+
+    assert.ok(!logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")));
   });
 });
 

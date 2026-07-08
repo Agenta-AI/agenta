@@ -17,9 +17,8 @@ class StaticWorkflowProvider(ABC):
     """A read-only provider of synthetic, code-defined workflow revisions.
 
     Static workflows live under a reserved slug namespace and are served from code, never the
-    database. The provider answers two questions for ``WorkflowsService``: whether a slug belongs
-    to the reserved namespace (so the service short-circuits before any DB lookup and so user
-    create/edit/commit can be rejected), and what synthetic revision a reserved slug resolves to.
+    database. The provider answers whether a reference belongs to the reserved namespace, whether
+    it may be embedded, and what synthetic revision it resolves to.
     """
 
     @abstractmethod
@@ -36,6 +35,15 @@ class StaticWorkflowProvider(ABC):
         Lets an id-only reference short-circuit to the catalogue (deploy emits synthetic ids), so
         a static id never DB-queries.
         """
+
+    @abstractmethod
+    def is_embeddable(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+    ) -> bool:
+        """Whether a static workflow reference may be used inside an embed."""
 
     @abstractmethod
     def retrieve_revision(

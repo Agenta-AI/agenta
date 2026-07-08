@@ -12,9 +12,13 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import factory, {
   normalizeBuiltinGrants,
+  readOtlpAuthFile,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
 
@@ -23,6 +27,7 @@ const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_RELAY_DIR",
   "TRACEPARENT",
   "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+  "AGENTA_AGENT_OTLP_AUTH_FILE",
   "AGENTA_AGENT_USAGE_CAPTURE_PATH",
   "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
   "AGENTA_AGENT_BUILTIN_GATING",
@@ -239,5 +244,24 @@ describe("agenta extension tool registration", () => {
       0,
       "specs without a relay dir do not register (incomplete wiring is not honored)",
     );
+  });
+});
+
+describe("readOtlpAuthFile", () => {
+  it("reads the bearer once, then deletes the file so it cannot be re-read", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-otlp-auth-test-"));
+    const path = join(dir, "otlp-auth");
+    writeFileSync(path, "Bearer trace-token", "utf-8");
+
+    const value = readOtlpAuthFile(path);
+
+    assert.equal(value, "Bearer trace-token");
+    assert.equal(existsSync(path), false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns undefined for a missing path without throwing", () => {
+    assert.equal(readOtlpAuthFile(undefined), undefined);
+    assert.equal(readOtlpAuthFile("/nonexistent/agenta-otlp-auth"), undefined);
   });
 });

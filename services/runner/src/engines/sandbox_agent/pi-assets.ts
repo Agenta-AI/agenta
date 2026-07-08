@@ -29,6 +29,12 @@ export const EXTENSION_BUNDLE =
 /**
  * Env the Agenta Pi extension reads. Tool env contains only public metadata plus the
  * relay directory; private specs/auth stay in the runner.
+ *
+ * The OTLP bearer is deliberately NOT placed in `OTEL_EXPORTER_OTLP_HEADERS` (or any other
+ * plain env var): that env is inherited by the harness process, so a prompt-injected sandbox
+ * could read/echo the caller's reusable Authorization bearer and impersonate the caller. It
+ * rides a runner-written 0600 read-once file whose PATH is the only thing env carries
+ * (`opts.otlpAuthFilePath` -> `AGENTA_AGENT_OTLP_AUTH_FILE`, see `writeOtlpAuthFile`).
  */
 export function buildPiExtensionEnv(
   request: AgentRunRequest,
@@ -36,6 +42,7 @@ export function buildPiExtensionEnv(
   opts: {
     relayDir?: string;
     usageOutPath?: string;
+    otlpAuthFilePath?: string;
     skills?: string[];
     builtinGatingActive?: boolean;
     builtinGrants?: string[];
@@ -47,8 +54,8 @@ export function buildPiExtensionEnv(
   const otlp = telemetry?.exporters?.otlp;
   if (propagation?.traceparent) env.TRACEPARENT = propagation.traceparent;
   if (otlp?.endpoint) env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = otlp.endpoint;
-  if (otlp?.headers?.authorization)
-    env.OTEL_EXPORTER_OTLP_HEADERS = `Authorization=${otlp.headers.authorization}`;
+  if (otlp?.headers?.authorization && opts.otlpAuthFilePath)
+    env.AGENTA_AGENT_OTLP_AUTH_FILE = opts.otlpAuthFilePath;
   if (telemetry?.capture?.content?.enabled === false)
     env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED = "false";
   // The skills that materialized for this run (author + forced `_agenta.*`), so Pi's own agent
@@ -72,6 +79,25 @@ export function buildPiExtensionEnv(
   if (opts.usageOutPath)
     env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
   return env;
+}
+
+/**
+ * Write the OTLP bearer to a 0600 file at `path`: the runner still holds this value
+ * in memory for its own out-of-band use (session/mount calls), but the harness process only
+ * ever gets a path, never the value, via env. Best-effort: a write failure just means the
+ * extension traces without export auth (falls back to its own env fallback, if any).
+ */
+export function writeOtlpAuthFile(
+  path: string,
+  authorization: string,
+  log: Log = () => {},
+): void {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, authorization, { encoding: "utf-8", mode: 0o600 });
+  } catch (err) {
+    log(`otlp auth file write skipped: ${(err as Error).message}`);
+  }
 }
 
 /** Install the extension bundle into a local Pi agent dir's extensions/. Best-effort. */
@@ -253,6 +279,9 @@ export function prepareLocalPiAssets({
 
   if (process.env.PI_CODING_AGENT_DIR) {
     installPiExtensionLocal(process.env.PI_CODING_AGENT_DIR, log);
+  } else {
+    // unset here means this run has no Agenta extension (tracing + tools); warn so it's visible.
+    log("PI_CODING_AGENT_DIR is unset; plain local Pi run has no Agenta extension installed");
   }
   return undefined;
 }

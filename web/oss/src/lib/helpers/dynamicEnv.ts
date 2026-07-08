@@ -7,15 +7,9 @@ export const processEnv = {
     // Feature flag for the agent chat streaming slice (contract v1) page. On by default; set to
     // "false" to disable.
     NEXT_PUBLIC_AGENT_CHAT_SLICE: process.env.NEXT_PUBLIC_AGENT_CHAT_SLICE,
-    // Streaming endpoint the agent chat slice points `useChat` at. Defaults to the
-    // local RAG_QA contract mock when unset (see AgentChatSlice/assets/constants.ts).
-    NEXT_PUBLIC_AGENT_CHAT_API: process.env.NEXT_PUBLIC_AGENT_CHAT_API,
-    // Default request-contract track for the agent chat slice: "uimessage" (Track A) or
-    // "agenta" (Track B). The page also has a runtime toggle.
-    NEXT_PUBLIC_AGENT_CHAT_TRACK: process.env.NEXT_PUBLIC_AGENT_CHAT_TRACK,
     // Agent-home template behavior: off by default (config-definition drawer flow). Set to "true" to
     // instead skip the drawer and open the playground seeded with the template's builder instruction
-    // (Mahmoud's agent-builder flow). Stays opt-in until the build-kit overlay fix lands
+    // (Mahmoud's agent-builder flow). On by default since the build-kit overlay ships as the __ag__build_kit static workflow
     // (docs/design/build-kit-overlay-delivery/); that flow needs the build kit, which the new creation
     // path can't deliver yet.
     NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER,
@@ -68,6 +62,7 @@ export const processEnv = {
         process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
+    NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH:
         process.env.NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH:
@@ -82,6 +77,14 @@ export const processEnv = {
 
 const normalizeBoolean = (value: string | undefined) => {
     return (value || "").toLowerCase() === "true"
+}
+
+// Mirror the API `_TRUTHY` rule: unset defaults to enabled, only truthy values enable.
+const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"])
+
+export const isSandboxLocalEnabled = () => {
+    const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
+    return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
 }
 
 export const getEffectiveAuthConfig = () => {

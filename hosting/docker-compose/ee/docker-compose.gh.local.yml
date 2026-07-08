@@ -272,13 +272,10 @@ services:
         environment:
             AGENTA_RUNNER_PORT: "8765"
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
-            # API as reached FROM this container: the compose service name over the network
-            # (http://api:8000, as the workers use), NOT the public http://localhost/api
-            # which does not resolve inside a container. Used by the OTLP tracing-export
-            # fallback AND the session heartbeat/record-persist calls.
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}
+            PI_CODING_AGENT_DIR: ${PI_CODING_AGENT_DIR:-/pi-agent}
             DAYTONA_API_KEY: ${DAYTONA_API_KEY:-}
             DAYTONA_API_URL: ${DAYTONA_API_URL:-}
             DAYTONA_TARGET: ${DAYTONA_TARGET:-}

@@ -13,6 +13,13 @@ from typing import Any, AsyncIterator, Dict, Optional, Sequence
 
 from agenta.sdk.utils.logging import get_module_logger
 
+# AGENTA_RUNNER_TIMEOUT_SECONDS is an IDLE timeout on the streaming transports: it bounds the
+# gap between successive records, not the whole run. The runner now owns the true end-to-end run
+# deadline server-side (it aborts a wedged run and returns a terminal record), so a long-but-
+# progressing run must not be killed here just for running long — only a stalled connection
+# (no records flowing) should trip. The HTTP transport's httpx read timeout is already per-read
+# (idle); the subprocess transport resets its deadline on each received line to match. On the
+# one-shot (dev-only) result transports there is a single request, so idle and total coincide.
 _DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180"))
 
 log = get_module_logger(__name__)
@@ -175,6 +182,8 @@ async def deliver_http_stream(
     url = base_url.rstrip("/") + "/run"
     headers = {"Accept": "application/x-ndjson", **_runner_auth_headers()}
     saw_result = False
+    # httpx applies `timeout` as a per-read timeout on a stream — i.e. an idle (between-record)
+    # bound, not a total wall-clock cap — matching the subprocess transport's per-line reset.
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream(
             "POST", url, json=payload, headers=headers
@@ -194,6 +203,19 @@ async def deliver_http_stream(
                     yield record
     if not saw_result:
         raise RuntimeError("Agent runner stream ended without a terminal result record")
+
+
+_STDERR_TAIL_BYTES = 2000
+
+
+async def _drain_stderr(stream: asyncio.StreamReader) -> bytes:
+    """Read stderr to EOF as it arrives so a full pipe never blocks the child; keep only the tail."""
+    tail = b""
+    while True:
+        chunk = await stream.read(65536)
+        if not chunk:
+            return tail
+        tail = (tail + chunk)[-_STDERR_TAIL_BYTES:]
 
 
 async def deliver_subprocess_stream(
@@ -218,20 +240,25 @@ async def deliver_subprocess_stream(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    assert proc.stdin is not None and proc.stdout is not None
+    assert (
+        proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
+    )
     proc.stdin.write(json.dumps(payload).encode("utf-8"))
     proc.stdin.close()
-    loop = asyncio.get_event_loop()
-    deadline = loop.time() + timeout
+    # Drain stderr concurrently (mirrors communicate()'s sibling behavior) so a chatty child
+    # never blocks on a full pipe while we're only reading stdout below.
+    stderr_task = asyncio.create_task(_drain_stderr(proc.stderr))
     saw_result = False
     try:
         while True:
-            remaining = deadline - loop.time()
-            if remaining <= 0:
+            # Idle timeout: bound the gap until the NEXT record, resetting on each line, so a
+            # long-but-progressing run is never killed here (the runner owns the total deadline).
+            try:
+                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=timeout)
+            except asyncio.TimeoutError:
                 raise RuntimeError(
-                    f"Agent runner stream timed out after {timeout}s: {' '.join(command)}"
+                    f"Agent runner stream stalled: no record for {timeout}s: {' '.join(command)}"
                 )
-            raw = await asyncio.wait_for(proc.stdout.readline(), timeout=remaining)
             if not raw:  # EOF
                 break
             line = raw.decode("utf-8", "replace").strip()
@@ -244,15 +271,18 @@ async def deliver_subprocess_stream(
         # A clean drain that never produced a terminal result means the runner exited or
         # disconnected early; fail loud rather than leaving the consumer without a result.
         if not saw_result:
-            err = b""
-            if proc.stderr is not None:
-                err = await proc.stderr.read()
+            err = await stderr_task
             raise _transport_error(
                 "Agent runner stream ended without a terminal result record",
                 detail=f"exit={proc.returncode} "
-                f"stderr={err.decode('utf-8', 'replace')[-2000:]}",
+                f"stderr={err.decode('utf-8', 'replace')[-_STDERR_TAIL_BYTES:]}",
             )
     finally:
         if proc.returncode is None:
             proc.kill()
             await proc.wait()
+        if not stderr_task.done():
+            stderr_task.cancel()
+        # Await the drain task so an early consumer break doesn't leave it pending or drop
+        # its exception ("Task exception was never retrieved").
+        await asyncio.gather(stderr_task, return_exceptions=True)

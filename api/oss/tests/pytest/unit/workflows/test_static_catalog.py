@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import (
@@ -26,9 +27,17 @@ from oss.src.core.workflows.dtos import (
     WorkflowArtifactQueryFlags,
     WorkflowRevision,
     WorkflowRevisionCreate,
+    WorkflowRevisionCommit,
     WorkflowRevisionData,
     WorkflowVariantCreate,
     WorkflowVariantFork,
+)
+from oss.src.core.workflows.build_kit import (
+    BUILD_KIT_WORKFLOW_SLUG,
+    AGENTA_BUILTIN_AGENT_URI,
+    BUILD_KIT_WORKFLOW_DESCRIPTION,
+    BUILD_KIT_WORKFLOW_NAME,
+    build_agent_template_overlay,
 )
 from oss.src.core.workflows.static_catalog import (
     STATIC_SLUG_PREFIX,
@@ -128,6 +137,31 @@ def test_default_static_skill_catalog_replaces_old_authoring_skills():
     assert skill["body"].startswith("# Build an Agenta agent")
     assert "test_run" in skill["body"]
     assert "query_spans" in skill["body"]
+
+
+def test_build_kit_static_workflow_returns_agent_config_equivalent_to_overlay():
+    catalog = StaticWorkflowCatalog()
+
+    revision = catalog.retrieve_revision(slug=BUILD_KIT_WORKFLOW_SLUG)
+
+    assert revision is not None
+    assert revision.name == BUILD_KIT_WORKFLOW_NAME
+    assert revision.description == BUILD_KIT_WORKFLOW_DESCRIPTION
+    assert revision.slug == BUILD_KIT_WORKFLOW_SLUG
+    assert revision.version == "v1"
+    assert revision.data.uri == AGENTA_BUILTIN_AGENT_URI
+    assert revision.data.parameters["agent"] == build_agent_template_overlay()
+    assert revision.flags.is_static is True
+    assert revision.flags.is_agent is True
+    assert revision.flags.is_managed is True
+    assert revision.flags.is_skill is False
+    assert revision.flags.has_url is True
+    assert catalog.is_embeddable(slug=BUILD_KIT_WORKFLOW_SLUG) is False
+    assert catalog.is_embeddable(id=revision.id) is False
+    assert (
+        StaticWorkflowCatalog().retrieve_revision(slug=BUILD_KIT_WORKFLOW_SLUG).id
+        == revision.id
+    )
 
 
 def test_artifact_level_lookup_resolves_current():
@@ -325,6 +359,122 @@ async def test_request_connection_tool_embed_resolves_to_client_tool_config_with
     assert resolution_info.embeds_resolved == 1
     workflows_dao.fetch_revision.assert_not_awaited()
     workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fetch_build_kit_static_revision_by_slug_returns_agent_config_without_db():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+
+    (
+        revision,
+        resolution_info,
+        retrieval_info,
+    ) = await service.retrieve_workflow_revision(
+        project_id=uuid4(),
+        workflow_ref=Reference(slug=BUILD_KIT_WORKFLOW_SLUG),
+    )
+
+    assert revision is not None
+    assert revision.slug == BUILD_KIT_WORKFLOW_SLUG
+    assert revision.data.parameters["agent"] == build_agent_template_overlay()
+    assert revision.flags.is_static is True
+    assert revision.flags.is_agent is True
+    assert resolution_info is None
+    assert retrieval_info is not None
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_build_kit_embed_is_rejected_during_resolution():
+    workflows_dao = AsyncMock()
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+    workflows_service.embeds_service = EmbedsService(
+        workflows_service=workflows_service
+    )
+
+    revision = WorkflowRevision(
+        id=uuid4(),
+        workflow_id=uuid4(),
+        workflow_variant_id=uuid4(),
+        slug="agent-default-config",
+        data=WorkflowRevisionData(
+            parameters={
+                "agent": {
+                    "skills": [
+                        {
+                            "@ag.embed": {
+                                "@ag.references": {
+                                    "workflow": {"slug": BUILD_KIT_WORKFLOW_SLUG}
+                                },
+                                "@ag.selector": {"path": "parameters.agent"},
+                            }
+                        }
+                    ]
+                }
+            }
+        ),
+    )
+
+    with pytest.raises(NonEmbeddableWorkflowReferenceError) as exc_info:
+        await workflows_service.resolve_workflow_revision(
+            project_id=uuid4(),
+            workflow_revision=revision,
+        )
+
+    assert exc_info.value.slug == BUILD_KIT_WORKFLOW_SLUG
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_commit_rejects_build_kit_embed_before_persisting():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+
+    with pytest.raises(NonEmbeddableWorkflowReferenceError) as exc_info:
+        await service.commit_workflow_revision(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=WorkflowRevisionCommit(
+                workflow_id=uuid4(),
+                workflow_variant_id=uuid4(),
+                slug="agent-config",
+                data=WorkflowRevisionData(
+                    uri=AGENTA_BUILTIN_AGENT_URI,
+                    parameters={
+                        "agent": {
+                            "tools": [
+                                {
+                                    "@ag.embed": {
+                                        "@ag.references": {
+                                            "workflow": {
+                                                "slug": BUILD_KIT_WORKFLOW_SLUG
+                                            }
+                                        },
+                                        "@ag.selector": {"path": "parameters.agent"},
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                ),
+            ),
+            emit=False,
+        )
+
+    assert exc_info.value.slug == BUILD_KIT_WORKFLOW_SLUG
+    workflows_dao.commit_revision.assert_not_awaited()
 
 
 @pytest.mark.asyncio

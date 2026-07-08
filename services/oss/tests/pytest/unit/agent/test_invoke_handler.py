@@ -367,12 +367,15 @@ def _patch_resolution(monkeypatch, backend, *, resolve):
     can inspect the ``ModelRef`` / ``RuntimeAuthContext`` it was called with.
 
     Returns a list that captures every ``SessionConfig`` the handler builds, so a test can
-    assert the resolved connection (and its env) was threaded onto the session. ``resolved_connection``
-    rides the ``SessionConfig``, not the harness-shaped config the backend records, so capturing it
-    here is the honest observable.
+    assert the resolved connection (and its env) was threaded onto the session.
+    ``_agent`` now delegates to the SDK seam (`agenta.sdk.agents.handler`), which is where
+    ``SessionConfig(...)`` is actually constructed, so the capture patches ``SessionConfig``
+    there rather than on this module.
     """
+    from agenta.sdk.agents import handler as sdk_handler
+
     built: list = []
-    real_session_config = app.SessionConfig
+    real_session_config = sdk_handler.SessionConfig
 
     def _capturing_session_config(**kwargs):
         cfg = real_session_config(**kwargs)
@@ -385,7 +388,7 @@ def _patch_resolution(monkeypatch, backend, *, resolve):
     async def _no_mcp(mcp_servers, **_kw):
         return []
 
-    monkeypatch.setattr(app, "SessionConfig", _capturing_session_config)
+    monkeypatch.setattr(sdk_handler, "SessionConfig", _capturing_session_config)
     monkeypatch.setattr(app, "resolve_tools", _tools)
     monkeypatch.setattr(app, "resolve_mcp_servers", _no_mcp)
     monkeypatch.setattr(app, "resolve_connection", resolve)
