@@ -1,0 +1,506 @@
+/**
+ * Unit tests for the session keep-alive pool and its fingerprints (slice 1).
+ *
+ * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-pool.test.ts)
+ */
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
+import assert from "node:assert/strict";
+
+import type { AgentRunRequest } from "../../src/protocol.ts";
+import {
+  computeCredentialEpoch,
+  configFingerprint,
+  credentialEpochValid,
+  expectedNextHistoryFingerprint,
+  historyFingerprint,
+  poolKeyFor,
+  priorConversation,
+  readKeepaliveConfig,
+  SessionPool,
+  tailIsFreshUserMessage,
+  type CredentialEpoch,
+} from "../../src/engines/sandbox_agent/session-pool.ts";
+
+// A fake environment: only `destroy` matters to the pool; we count destroys. Idempotent like
+// the real engine `destroy()` closure (the pool's contract): a second call is a no-op.
+function fakeEnv() {
+  const state = { destroyed: 0 };
+  let done = false;
+  return {
+    state,
+    destroy: async () => {
+      if (done) return;
+      done = true;
+      state.destroyed += 1;
+    },
+  };
+}
+
+const epoch: CredentialEpoch = { secretsHash: "h" };
+
+function parkInput(key: string, env = fakeEnv()) {
+  return {
+    input: {
+      key,
+      environment: env,
+      configFingerprint: "cfg",
+      historyFingerprint: "hist",
+      credentialEpoch: epoch,
+      destroy: env.destroy,
+    },
+    env,
+  };
+}
+
+describe("readKeepaliveConfig", () => {
+  const KEYS = [
+    "AGENTA_RUNNER_SESSION_KEEPALIVE",
+    "AGENTA_RUNNER_SESSION_TTL_MS",
+    "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS",
+    "AGENTA_RUNNER_SESSION_POOL_MAX",
+  ];
+  const saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const k of KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("defaults: off, 60s idle, 10m approval, cap 8", () => {
+    assert.deepEqual(readKeepaliveConfig(), {
+      enabled: false,
+      ttlMs: 60_000,
+      approvalTtlMs: 600_000,
+      poolMax: 8,
+    });
+  });
+
+  it("reads truthy spellings for the flag and positive ints for the numbers", () => {
+    process.env.AGENTA_RUNNER_SESSION_KEEPALIVE = "true";
+    process.env.AGENTA_RUNNER_SESSION_TTL_MS = "5000";
+    process.env.AGENTA_RUNNER_SESSION_POOL_MAX = "3";
+    const cfg = readKeepaliveConfig();
+    assert.equal(cfg.enabled, true);
+    assert.equal(cfg.ttlMs, 5000);
+    assert.equal(cfg.poolMax, 3);
+
+    process.env.AGENTA_RUNNER_SESSION_KEEPALIVE = "off";
+    assert.equal(readKeepaliveConfig().enabled, false);
+    process.env.AGENTA_RUNNER_SESSION_TTL_MS = "-1";
+    assert.equal(
+      readKeepaliveConfig().ttlMs,
+      60_000,
+      "invalid falls back to default",
+    );
+  });
+});
+
+describe("configFingerprint", () => {
+  const base: AgentRunRequest = {
+    harness: "claude",
+    model: "m1",
+    messages: [{ role: "user", content: "hi" }],
+  };
+
+  it("ignores per-turn volatiles (messages, turnId, telemetry, secrets)", () => {
+    const a = configFingerprint(base);
+    const b = configFingerprint({
+      ...base,
+      messages: [{ role: "user", content: "totally different" }],
+      turnId: "t-2",
+      secrets: { ANTHROPIC_API_KEY: "sekret" },
+      telemetry: {
+        exporters: { otlp: { headers: { authorization: "Bearer x" } } },
+      },
+      context: { propagation: { traceparent: "00-abc-def-01" } },
+    });
+    assert.equal(
+      a,
+      b,
+      "config fingerprint is stable across per-turn volatiles",
+    );
+  });
+
+  it("changes when a config-bearing field changes (model)", () => {
+    assert.notEqual(
+      configFingerprint(base),
+      configFingerprint({ ...base, model: "m2" }),
+    );
+  });
+
+  it("changes when tools change", () => {
+    assert.notEqual(
+      configFingerprint(base),
+      configFingerprint({ ...base, tools: ["read"] }),
+    );
+  });
+});
+
+describe("historyFingerprint (pruned-array contract)", () => {
+  const u1 = { role: "user", content: "hello" };
+  const u2 = { role: "user", content: "again" };
+  const assistantEmpty = { role: "assistant", content: "" };
+  const assistantToolCall = {
+    role: "assistant",
+    content: [{ type: "tool_call", toolCallId: "tc-1", toolName: "edit" }],
+  };
+
+  it("an answer-less (empty) assistant turn is fingerprint-neutral: pruned == unpruned", () => {
+    assert.equal(
+      historyFingerprint([u1, assistantEmpty, u2]),
+      historyFingerprint([u1, u2]),
+      "assistant text is ignored, so pruning an empty assistant turn does not change the hash",
+    );
+  });
+
+  it("a tool-call id in the assistant turn IS captured: unpruned != pruned", () => {
+    assert.notEqual(
+      historyFingerprint([u1, assistantToolCall, u2]),
+      historyFingerprint([u1, u2]),
+      "tool-call ids are part of the fingerprint (edit/tool detection)",
+    );
+  });
+
+  it("edited user text changes the fingerprint", () => {
+    assert.notEqual(
+      historyFingerprint([u1]),
+      historyFingerprint([{ role: "user", content: "hello!" }]),
+    );
+  });
+
+  it("continuation symmetry: park(full [u1]) == check(prior of [u1,a1,u2]) for a plain turn", () => {
+    const parked = historyFingerprint([u1]);
+    const req: AgentRunRequest = {
+      messages: [u1, assistantEmpty, u2],
+    };
+    const check = historyFingerprint(priorConversation(req));
+    assert.equal(
+      parked,
+      check,
+      "a plain conversational continuation matches its parked prefix",
+    );
+  });
+
+  it("dedupes ids: a tool_call + tool_result PAIR sharing one id hashes like a single id", () => {
+    // The wire folds one FE tool part into a tool_call block plus a tool_result block sharing
+    // the toolCallId (vercel messages.py); the park-time prediction folds each emitted id in
+    // once. Dedupe makes the two shapes agree.
+    const pair = {
+      role: "assistant",
+      content: [
+        { type: "tool_call", toolCallId: "tc-1", toolName: "read" },
+        { type: "tool_result", toolCallId: "tc-1", output: "x" },
+      ],
+    };
+    const single = {
+      role: "assistant",
+      content: [{ type: "tool_call", toolCallId: "tc-1" }],
+    };
+    assert.equal(
+      historyFingerprint([u1, pair]),
+      historyFingerprint([u1, single]),
+    );
+  });
+
+  it("expectedNextHistoryFingerprint: park prediction matches the FE's next tool-turn shape", () => {
+    // Park time: the turn ran on [u1] and emitted tc-1 + tc-2.
+    const predicted = expectedNextHistoryFingerprint([u1], ["tc-1", "tc-2"]);
+    // Next request's prior conversation as the FE sends it: the kept assistant turn carries a
+    // call+result pair per tool plus answer text (text is not hashed).
+    const nextPrior = [
+      u1,
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", toolCallId: "tc-1", toolName: "read" },
+          { type: "tool_result", toolCallId: "tc-1", output: "a" },
+          { type: "tool_call", toolCallId: "tc-2", toolName: "edit" },
+          { type: "tool_result", toolCallId: "tc-2", output: "b" },
+          { type: "text", text: "done" },
+        ],
+      },
+    ];
+    assert.equal(predicted, historyFingerprint(nextPrior));
+    // No emitted ids => identical to the plain history fingerprint.
+    assert.equal(
+      expectedNextHistoryFingerprint([u1], []),
+      historyFingerprint([u1]),
+    );
+    // A different id set still mismatches (the cold-fallback tripwire).
+    assert.notEqual(
+      expectedNextHistoryFingerprint([u1], ["tc-1"]),
+      historyFingerprint(nextPrior),
+    );
+  });
+});
+
+describe("tailIsFreshUserMessage", () => {
+  it("true for a plain trailing user message with text", () => {
+    assert.equal(
+      tailIsFreshUserMessage({ messages: [{ role: "user", content: "hi" }] }),
+      true,
+    );
+  });
+  it("false for an empty tail or non-user tail", () => {
+    assert.equal(tailIsFreshUserMessage({ messages: [] }), false);
+    assert.equal(
+      tailIsFreshUserMessage({
+        messages: [{ role: "assistant", content: "x" }],
+      }),
+      false,
+    );
+    assert.equal(
+      tailIsFreshUserMessage({ messages: [{ role: "user", content: "  " }] }),
+      false,
+    );
+  });
+  it("false when the tail user turn carries a tool_result (approval reply)", () => {
+    assert.equal(
+      tailIsFreshUserMessage({
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "ok" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                output: { approved: true },
+              },
+            ],
+          },
+        ],
+      }),
+      false,
+    );
+  });
+});
+
+describe("credential epoch", () => {
+  it("same secrets + tool-callback auth hash equal; a changed secret value differs", () => {
+    const a = computeCredentialEpoch({
+      secrets: { A: "1" },
+      toolCallback: { endpoint: "e", authorization: "z" },
+    });
+    const b = computeCredentialEpoch({
+      secrets: { A: "1" },
+      toolCallback: { endpoint: "e", authorization: "z" },
+    });
+    const c = computeCredentialEpoch({
+      secrets: { A: "2" },
+      toolCallback: { endpoint: "e", authorization: "z" },
+    });
+    assert.equal(a.secretsHash, b.secretsHash);
+    assert.notEqual(
+      a.secretsHash,
+      c.secretsHash,
+      "a rotated same-slug secret changes the hash",
+    );
+  });
+
+  it("valid until the mount expiry elapses; invalid once expired", () => {
+    const parked = computeCredentialEpoch(
+      { secrets: { A: "1" } },
+      "2026-01-01T00:00:10.000Z",
+    );
+    const incoming = computeCredentialEpoch({ secrets: { A: "1" } });
+    const before = Date.parse("2026-01-01T00:00:05.000Z");
+    const after = Date.parse("2026-01-01T00:00:15.000Z");
+    assert.equal(credentialEpochValid(parked, incoming, before), true);
+    assert.equal(
+      credentialEpochValid(parked, incoming, after),
+      false,
+      "expired mount evicts",
+    );
+  });
+
+  it("invalid when the secret material changed even if not expired", () => {
+    const parked = computeCredentialEpoch({ secrets: { A: "1" } });
+    const incoming = computeCredentialEpoch({ secrets: { A: "2" } });
+    assert.equal(credentialEpochValid(parked, incoming, Date.now()), false);
+  });
+});
+
+describe("poolKeyFor", () => {
+  it("is <projectId>:<sessionId> when both present", () => {
+    assert.equal(poolKeyFor({ sessionId: "s1" }, "proj-1"), "proj-1:s1");
+  });
+  it("is null without a session id or a mount project id (never park)", () => {
+    assert.equal(poolKeyFor({ sessionId: "s1" }, undefined), null);
+    assert.equal(poolKeyFor({}, "proj-1"), null);
+  });
+});
+
+describe("SessionPool", () => {
+  const cfg = { poolMax: 2 };
+
+  it("park then checkoutIdle returns the same session (busy) and clears the timer", () => {
+    const pool = new SessionPool(cfg, () => {});
+    const { input, env } = parkInput("k1");
+    assert.equal(pool.park(input, 10_000), true);
+    assert.equal(pool.size(), 1);
+    const live = pool.checkoutIdle("k1");
+    assert.ok(live);
+    assert.equal(live!.environment, env);
+    assert.equal(live!.state, "busy");
+    // A busy session is not checked out again (would supersede at the dispatch).
+    assert.equal(pool.checkoutIdle("k1"), undefined);
+  });
+
+  it("idle TTL expiry destroys the session", async () => {
+    vi.useFakeTimers();
+    try {
+      const pool = new SessionPool(cfg, () => {});
+      const { input, env } = parkInput("k1");
+      pool.park(input, 1000);
+      await vi.advanceTimersByTimeAsync(1001);
+      assert.equal(env.state.destroyed, 1, "expired session is destroyed");
+      assert.equal(pool.size(), 0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("LRU-evicts the oldest IDLE entry at the cap, never a busy one", async () => {
+    const pool = new SessionPool({ poolMax: 2 }, () => {});
+    const a = parkInput("a");
+    const b = parkInput("b");
+    const c = parkInput("c");
+    pool.park(a.input, 10_000);
+    // Make `a` busy so it can never be the LRU victim.
+    pool.checkoutIdle("a");
+    pool.park(b.input, 10_000);
+    // Pool now holds a(busy) + b(idle); parking c must evict b (the only idle), not a.
+    assert.equal(pool.park(c.input, 10_000), true);
+    await Promise.resolve();
+    assert.equal(b.env.state.destroyed, 1, "the idle entry was evicted");
+    assert.equal(a.env.state.destroyed, 0, "the busy entry is never evicted");
+    assert.deepEqual(pool.keys().sort(), ["a", "c"]);
+  });
+
+  it("does not park when the pool is full and nothing is idle to evict", async () => {
+    const pool = new SessionPool({ poolMax: 1 }, () => {});
+    const a = parkInput("a");
+    pool.park(a.input, 10_000);
+    pool.checkoutIdle("a"); // busy, not evictable
+    const b = parkInput("b");
+    assert.equal(
+      pool.park(b.input, 10_000),
+      false,
+      "park is best-effort; refused when full",
+    );
+    assert.equal(
+      b.env.state.destroyed,
+      0,
+      "the pool did not take ownership, so it did not destroy",
+    );
+    assert.equal(pool.size(), 1);
+  });
+
+  it("repark returns a busy session to idle; a superseded session is not resurrected", async () => {
+    const pool = new SessionPool(cfg, () => {});
+    const a = parkInput("k1");
+    pool.park(a.input, 10_000);
+    const live = pool.checkoutIdle("k1")!;
+    assert.equal(
+      pool.repark(
+        live,
+        {
+          configFingerprint: "c2",
+          historyFingerprint: "h2",
+          credentialEpoch: epoch,
+        },
+        10_000,
+      ),
+      true,
+    );
+    assert.equal(pool.get("k1")!.state, "idle");
+    assert.equal(pool.get("k1")!.historyFingerprint, "h2");
+
+    // Supersede: a new entry takes the slot; the old `live` must not be reparked.
+    const live2 = pool.checkoutIdle("k1")!;
+    await pool.evict("k1", "supersede");
+    assert.equal(
+      pool.repark(
+        live2,
+        {
+          configFingerprint: "c",
+          historyFingerprint: "h",
+          credentialEpoch: epoch,
+        },
+        10_000,
+      ),
+      false,
+      "a session whose slot was evicted is not resurrected",
+    );
+  });
+
+  it("evict awaits the destroy, and evict/destroy are idempotent (double destroy is safe)", async () => {
+    const pool = new SessionPool(cfg, () => {});
+    const a = parkInput("k1");
+    pool.park(a.input, 10_000);
+    assert.equal(await pool.evict("k1", "test"), true);
+    // Awaited: the destroy has already completed by the time evict resolves.
+    assert.equal(a.env.state.destroyed, 1);
+    // Second evict/destroy is a no-op.
+    assert.equal(await pool.evict("k1", "test"), false);
+    await pool.destroy("k1");
+    assert.equal(
+      a.env.state.destroyed,
+      1,
+      "the environment is destroyed exactly once",
+    );
+  });
+
+  it("evictIfCurrent never clobbers a racing turn's freshly parked session (B supersedes busy A)", async () => {
+    // The cross-turn interleaving from the review: A's continuation is in flight (busy) when B
+    // arrives, supersedes A (key-based evict), and parks its OWN session under the same key.
+    // A's failure cleanup must destroy only A's session — B's parked session must survive.
+    const pool = new SessionPool({ poolMax: 4 }, () => {});
+    const a = parkInput("k1");
+    pool.park(a.input, 10_000);
+    const liveA = pool.checkoutIdle("k1")!; // A's continuation begins (busy)
+
+    // B arrives, supersedes the busy A, and parks its own session under k1.
+    await pool.evict("k1", "supersede-busy");
+    assert.equal(a.env.state.destroyed, 1, "A was superseded and destroyed");
+    const b = parkInput("k1");
+    pool.park(b.input, 10_000);
+
+    // A's continuation now fails; its cleanup is identity-checked.
+    await pool.evictIfCurrent(liveA, "continuation-failed");
+
+    assert.equal(pool.size(), 1, "B's parked session is still in the pool");
+    assert.equal(
+      pool.get("k1")!.environment,
+      b.env,
+      "the slot still holds B's session, not A's",
+    );
+    assert.equal(b.env.state.destroyed, 0, "B's session was NOT destroyed");
+    assert.equal(
+      a.env.state.destroyed,
+      1,
+      "A's own destroy is idempotent (no double teardown)",
+    );
+  });
+
+  it("destroyAll drains every parked session", async () => {
+    const pool = new SessionPool({ poolMax: 8 }, () => {});
+    const envs = ["a", "b", "c"].map((k) => {
+      const p = parkInput(k);
+      pool.park(p.input, 10_000);
+      return p.env;
+    });
+    assert.equal(pool.size(), 3);
+    await pool.destroyAll();
+    assert.equal(pool.size(), 0);
+    for (const env of envs) assert.equal(env.state.destroyed, 1);
+  });
+});
