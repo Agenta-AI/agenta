@@ -17,13 +17,14 @@ Today the runner destroys the sandbox and harness session at the end of every tu
 ## Design
 
 ### Pool and keying
-- New `src/engines/sandbox_agent/session-pool.ts`: `LiveSession` records keyed by `request.sessionId`. States: `busy` -> `idle` (TTL timer) or `awaiting_approval` (longer approval TTL) -> `destroyed`.
+- New `src/engines/sandbox_agent/session-pool.ts`: `LiveSession` records keyed by `<projectId>:<request.sessionId>` (amended after review: the caller-supplied `sessionId` alone must not be the key; the project scope comes from the request's authenticated context, the same values the mount-signing call uses, so two projects can never share a live harness process). States: `busy` -> `idle` (TTL timer) or `awaiting_approval` (longer approval TTL) -> `destroyed`.
+- Credential epoch (amended after review): the park records the mount-credential expiry and a hash of the resolved credential identities. An expired or rotated epoch is treated as a fingerprint mismatch: evict and cold-start with fresh credentials. Parked sessions must not outlive their baked credentials.
 - Requests without a `sessionId` never park (non-playground callers keep today's semantics).
 
 ### Continuation versus cold decision
 Each parked session records two fingerprints:
 1. `configFingerprint`: canonical-JSON hash over config-bearing request fields (harness, sandbox, model, provider, deployment, endpoint, credentialMode, agentsMd, systemPrompt, appendSystemPrompt, tools, skills, customTools, mcpServers, toolCallback.endpoint, permissions, sandboxPermission, harnessFiles, workflow revision id/version, is_draft). Exclude per-turn volatiles (messages, turnId, trace propagation, telemetry headers which rotate ~15 min, secret values).
-2. `historyFingerprint`: ordered prior user-message texts plus ordered tool-call ids (both survive the egress/ingress round trip byte-stable), plus `promptCount`.
+2. `historyFingerprint`: ordered prior user-message texts plus ordered tool-call ids (both survive the egress/ingress round trip byte-stable), plus `promptCount`. Pinned contract (amended after review): computed over the message array the server receives, which is the frontend's PRUNED array (the FE drops answer-less assistant turns before sending). Unit tests pin the pruned-array contract so a future FE pruning change trips a test instead of silently breaking continuations; a fingerprint miss degrades to cold replay, never a wrong continuation.
 
 On an incoming request with a pool hit:
 - Continue (normal): fingerprints match, tail is a fresh user message -> `session.prompt(newUserText)`. No `buildTurnText`.
@@ -32,8 +33,10 @@ On an incoming request with a pool hit:
 
 ### Turn-flow refactor
 Split `runSandboxAgent` into:
-- `acquireEnvironment(request)`: mount signing through `createSession` + MCP wiring (today lines 328-699). Session-scoped: sandbox handle, session handle, internal tool-MCP server (its URL is baked into sessionInit, so it must live as long as the session), relay dir, mounted cwd, workspace, skills dirs.
-- `runTurn(env, request, emit, signal)`: per-turn otel run, fresh `PendingApprovalLatch`, fresh `ConversationDecisions`, re-attach `onEvent`/`onPermissionRequest` (detach the previous turn's), restart toolRelay, prompt, resolve usage, flush otel.
+- `acquireEnvironment(request)`: mount signing through `createSession` + MCP wiring (today lines 328-699). Session-scoped: sandbox handle, session handle, internal tool-MCP server (its URL is baked into sessionInit, so it must live as long as the session), relay dir, mounted cwd, workspace, skills dirs. Finalizers register incrementally as each resource is acquired; a mid-acquire failure runs the finalizers registered so far (reverse order) through the same `destroy()` the pool uses. A half-built environment cannot leak.
+- `runTurn(env, request, emit, signal)`: per-turn otel run, fresh `PendingApprovalLatch`, fresh `ConversationDecisions`, swap the environment's current-turn sink to this turn's handlers, restart toolRelay, prompt, resolve usage, flush otel.
+
+Listener model (amended after review): `onEvent`/`onPermissionRequest` attach ONCE in `acquireEnvironment` for the session's lifetime and demux into a mutable `currentTurn` sink that `runTurn` swaps in and out. Per-turn detach/attach is wrong for this package: the listener registries are plain Sets, an event with no listener is silently dropped, and a permission request with no listener is CANCELLED, so any detach window is a drop/cancel window. Events arriving with no active turn hit an explicit between-turns handler (permission requests park in slice 2 or cancel by policy; stray events are logged and dropped deliberately).
 
 ### The approval interaction (the big win)
 F-040 (docs/design/agent-workflows/projects/qa/f040-park-terminal-plan.md) destroyed the session on pause for three reasons: (a) the HTTP turn must end (Claude never resolves `prompt()` on an unanswered gate), (b) the sandbox would leak if the turn never ended, (c) the package blocks manual `session/cancel`, so destroy was the only clean cancel. A TTL park invalidates (b) and (c) and preserves (a): the turn still ends with `stopReason: "paused"` (the existing race at `sandbox_agent.ts:899-912` still works), but the `LiveSession` parks holding the still-pending `prompt()` promise and the unanswered permission id.
@@ -44,10 +47,15 @@ Required changes in park mode: the pause controller must not fire the destroy ca
 
 Note: `acp-fetch.ts` already disables undici header/body timeouts specifically so a paused HITL turn's held ACP connection survives human-timescale delays. The holding infrastructure exists.
 
+Scope (amended after review): the park-and-answer path applies to Claude ACP permission gates ONLY in v1. The other three gate mechanisms stay cold, each for a structural reason: Pi custom-tool gates block on the file relay inside the sandbox with their own deadline (`RELAY_TIMEOUT_MS` 60 s default; the dispatch shim polls a response file), Pi builtin gates block synchronously inside `extensions/agenta.ts` on `relayPermissionCheck`, and a client-tool MCP pause deterministically ABORTS the in-flight HTTP request (`tool-mcp-http.ts`), so by turn end there is nothing held to answer. The dispatch takes the park-and-answer path only for a parked Claude ACP permission id; any other pending-gate shape evicts to cold. Tests assert the non-Claude gates stay cold. The full consequence table is in plan.md Q7.
+
+Execution context on resume (amended after review): the ORIGINAL turn's baked environment executes the tool (its signed mount credentials, resolved secrets, callback auth, harness env, sandbox); the NEW turn's context owns streaming and tracing (otel run, emitter, interaction resolve). The credential epoch bounds staleness: expired or rotated credentials evict instead of resuming.
+
 ### Lifecycle and safety
 - Flags: `AGENTA_RUNNER_SESSION_KEEPALIVE` (default off), `AGENTA_RUNNER_SESSION_TTL_MS` (60000), `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` (600000), `AGENTA_RUNNER_SESSION_POOL_MAX` (~8).
 - Eviction: LRU on idle entries when full; never evict busy. Parking is best-effort; pool full -> tear down as today.
-- Teardown triggers: TTL expiry, fingerprint mismatch, explicit stop (`POST /kill` drains the pool), runner shutdown (keep parked sandboxes in `inFlightSandboxes` so the SIGTERM handler reaps them), rejected parked prompt promise.
+- Teardown triggers: TTL expiry, fingerprint mismatch, credential-epoch expiry, explicit stop (`POST /kill` drains the pool), runner shutdown, rejected parked prompt promise.
+- Runner shutdown (corrected after review): `inFlightSandboxes` is not sufficient; `destroyInFlightSandboxes` only calls `destroySandbox` and skips the relay stop, `mcpAbort`, `closeToolMcp`, `destroySession`, dispose, unmount, and temp-dir removal. Each `LiveSession` carries the complete idempotent `destroy()` (all the finalizers the old `finally` ran), and the SIGTERM/SIGINT path drains the pool through `pool.destroyAll()` (timeout-bounded). `inFlightSandboxes` stays as a second line of defense for the sandbox handle only.
 - Idle cost: local = host RAM only (a few hundred MB per session: daemon + adapter + harness processes; the 2026-07-06 child-process-leak notes in the finally block list exactly what to track). Daytona = billed idle time; existing backstops (15-min auto-stop, ephemeral auto-delete, `provider.ts:41-98`) still reap leaks. Enable local-only first.
 
 ### Failure modes (detect -> degrade, never fail the turn)
@@ -63,7 +71,7 @@ Note: `acp-fetch.ts` already disables undici header/body timeouts specifically s
 
 ### Slices
 1. Keep-alive across normal turn boundaries, local only, flag off by default. ~350-500 lines: session-pool.ts, split of sandbox_agent.ts, dispatch wrapper in server.ts, tests through the existing `SandboxAgentDeps` / `createAgentServer(run)` seams. Runner-only; zero wire/SDK/FE change; flag off = byte-identical behavior.
-2. Keep-alive across approval pauses. ~200-300 lines: pause.ts park mode, respondPermission resume, client-tool pause seam, interaction resolve ordering. Highest correctness value.
+2. Keep-alive across approval pauses, Claude ACP permission gates only. ~200-300 lines: pause.ts park mode, respondPermission resume, interaction resolve ordering. Pi relay gates, Pi builtin gates, and client-tool MCP pauses stay cold (asserted by tests). Highest correctness value.
 3. Daytona: remove the `isDaytona` gate after slices 1-2 are tested and have run in real use without problems; verify cookie-fetch session reuse and tunnel-mounted cwd survival across a park. Real operational risk is billed idle time and remote liveness.
 
 ## Relation to session resume (option 3, ../harness-session-resume/plan.md)

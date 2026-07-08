@@ -2,10 +2,10 @@
 
 Source of truth for progress. Keep this current.
 
-## Current state (2026-07-07)
+## Current state (2026-07-08)
 
-- Phase: planning. Plan drafted and awaiting Mahmoud's review.
-- Code: none written. Do not commit code from this workspace yet (another lane is in flight).
+- Phase: implementation. Mahmoud approved the plan subject to the Codex xhigh review findings; all seven findings are folded into plan.md and architecture-notes.md (see the review changelog at the top of plan.md).
+- Slice 1 (`feat/session-keepalive-pool`) and slice 2 (`feat/session-keepalive-approvals`, stacked on slice 1) are being implemented as draft PRs based on `big-agents`.
 - Research: [architecture-notes.md](architecture-notes.md) verified against the current runner code. See "Drift check" below.
 
 ## Decisions made
@@ -13,7 +13,12 @@ Source of truth for progress. Keep this current.
 - Build order: keep-alive slice 1, then slice 2, then session-resume slice A. Keep-alive before session resume (see plan.md Q6).
 - Local only first; Daytona (slice 3) only after slices 1 and 2 have run in real use with no problems (plan.md Q8).
 - Flag-gated, default off. Flag off is byte-identical behavior.
-- Pool key is the conversation `session_id`, which already rides the wire.
+- Pool key is `<projectId>:<session_id>` (project-scoped; the conversation id already rides the wire). Parks carry a credential epoch and evict on expiry or rotation.
+- Slice 2 v1 parks Claude ACP permission gates only; Pi relay gates, Pi builtin gates, and client-tool MCP pauses stay cold (plan.md Q7 scope table), asserted by tests.
+- Listeners attach once per session and demux into the active turn's sink; no per-turn detach/attach (drop/cancel window).
+- The pool owns a complete idempotent destroy() per session, built incrementally in acquireEnvironment; the shutdown path drains the pool through it (`inFlightSandboxes` alone only destroys the sandbox).
+- A resumed approval executes with the original turn's baked environment; the new turn owns streaming and tracing.
+- The debug-local-deployment live loop (implement-feature Phase 3) is EXPLICITLY DEFERRED by Mahmoud; it is the recorded next step after PR review.
 
 ## Open questions
 
@@ -34,7 +39,6 @@ Minor items to note (not blockers):
 
 ## Next steps
 
-1. Mahmoud reviews the plan and the open questions.
-2. Run spike E5 (two prompts, one session) before slice 1.
-3. Run spike E6 (hold a permission request, then respond) before slice 2.
-4. Implement slice 1 behind the flag. Verify flag-off is byte-identical.
+1. Land slice 1 (`feat/session-keepalive-pool`) and slice 2 (`feat/session-keepalive-approvals`) as draft PRs; Mahmoud does the final review on the PRs.
+2. After review: run the deferred live-deployment loop (debug-local-deployment) with the flag on and off against a real playground conversation, confirming flag-off is byte-identical and watching the [HITL]/pool log lines.
+3. Then consider Daytona (slice 3) and session resume (option 3) per the recorded order.
