@@ -141,20 +141,23 @@ const RAIL_WIDTH = 248
  *  - DT5 a11y: the message log is an aria-live region; controls are keyboard-operable.
  */
 
+/** A part the transcript actually renders — non-empty text/reasoning, files, sources, tools. */
+const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
+    (p.type === "text" && Boolean((p as {text?: string}).text?.trim())) ||
+    (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||
+    p.type === "file" ||
+    p.type === "source-url" ||
+    p.type.startsWith("tool-") ||
+    p.type === "dynamic-tool"
+
 /** A settled assistant turn with no content at all — no answer, reasoning, tool, file, or
  * source part. Mirrors AgentMessage's `!hasContent`; used to collapse a run of "no response"
  * bubbles (e.g. repeated failed runs) down to the first one. */
 const isEmptyAssistantTurn = (m: UIMessage): boolean =>
-    m.role === "assistant" &&
-    !m.parts.some(
-        (p) =>
-            (p.type === "text" && Boolean((p as {text?: string}).text?.trim())) ||
-            (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||
-            p.type === "file" ||
-            p.type === "source-url" ||
-            p.type.startsWith("tool-") ||
-            p.type === "dynamic-tool",
-    )
+    m.role === "assistant" && !m.parts.some(isVisiblePart)
+
+/** Rendered-part count for a turn — the "has the resumed stream written anything yet" signal. */
+const visiblePartCount = (m: UIMessage): number => m.parts.filter(isVisiblePart).length
 
 interface ParsedRunError {
     message: string
@@ -425,6 +428,25 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // A settle-driven resume (approval approve/deny, client-tool result → `sendAutomaticallyWhen`)
+    // re-sends WITHOUT a new user turn: the last message stays the settled-looking assistant turn,
+    // so nothing in the transcript signals the in-flight run until its first new part streams in
+    // (the runner cold-replays first, which can take a while — the chat read as frozen). Snapshot
+    // the last turn while idle; while busy with that SAME turn unchanged, the waiting bubble in
+    // `renderMessage` bridges the gap. Render-time ref write, same pattern as `entityIdRef`.
+    const idleTurnSnapshotRef = useRef<{id: string; visible: number} | null>(null)
+    const lastMessage = messages[messages.length - 1]
+    if (!busy) {
+        idleTurnSnapshotRef.current = lastMessage
+            ? {id: lastMessage.id, visible: visiblePartCount(lastMessage)}
+            : null
+    }
+    const awaitingResumeContent =
+        busy &&
+        lastMessage?.role === "assistant" &&
+        idleTurnSnapshotRef.current?.id === lastMessage.id &&
+        visiblePartCount(lastMessage) === idleTurnSnapshotRef.current.visible
 
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
@@ -1421,10 +1443,15 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     }
                     turnTraceId={turnTraceId}
                 />
-                {/* Waiting indicator stays inside the last message so the reserve keeps it on-screen. */}
-                {isLast && status === "submitted" && message.role !== "assistant" && (
-                    <Bubble placement="start" variant="borderless" loading content="" />
-                )}
+                {/* Waiting indicator stays inside the last message so the reserve keeps it on-screen.
+                    Two cases: a fresh send (assistant turn not created yet), and a settle-driven
+                    resume streaming into the EXISTING assistant turn (`awaitingResumeContent`) —
+                    the first new part (thought/tool/text) dismisses it. */}
+                {isLast &&
+                    ((status === "submitted" && message.role !== "assistant") ||
+                        awaitingResumeContent) && (
+                        <Bubble placement="start" variant="borderless" loading content="" />
+                    )}
                 {/* Stopped tag + Resend belong only to the LAST assistant turn (the one you cancelled),
                     gated on position so it can never smear onto past turns. Cleared on resend / ask. */}
                 {stopped && isLast && message.role === "assistant" && (
