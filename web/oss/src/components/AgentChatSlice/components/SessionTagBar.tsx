@@ -71,10 +71,19 @@ const SessionTag = ({
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
     const tabRef = useRef<HTMLDivElement>(null)
-    // Keep the active tab visible: a freshly-added session lands past the strip's overflow edge.
-    // Smooth vs instant comes from the strip's motion-safe:scroll-smooth, not JS.
+    // Keep the active tab visible. On the tab's FIRST reveal (reload restoring a far-away active
+    // session) jump instantly — the strip's scroll-smooth would otherwise play a long scroll across
+    // the whole strip. Later activations (user switching) keep the CSS smooth nudge.
+    const mountedRef = useRef(false)
     useEffect(() => {
-        if (active) tabRef.current?.scrollIntoView({block: "nearest", inline: "nearest"})
+        if (active) {
+            tabRef.current?.scrollIntoView({
+                block: "nearest",
+                inline: "nearest",
+                behavior: mountedRef.current ? undefined : "instant",
+            })
+        }
+        mountedRef.current = true
     }, [active])
     return (
         <div

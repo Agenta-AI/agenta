@@ -10,6 +10,7 @@ import {
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
 import {
+    AgentConfigSkeleton,
     PlaygroundConfigSection,
     LoadEvaluatorPresetModal,
     FieldsDetectionProvider,
@@ -27,7 +28,6 @@ import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {PlaygroundNodeTokenPathProvider} from "../../PlaygroundTokenPath"
 
-import AgentConfigSkeleton from "./assets/AgentConfigSkeleton"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 

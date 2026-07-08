@@ -44,6 +44,10 @@ export {
     MoleculeDrillInProvider,
     PlaygroundConfigSection,
 } from "./components"
+// Loading placeholder for the agent config section list — shared by the schema-loading
+// gate (PlaygroundVariantConfig's loadingFallback) and the lazy AgentTemplateControl's
+// Suspense fallback, so both gates render the identical frame.
+export {default as AgentConfigSkeleton} from "./SchemaControls/agentTemplate/AgentConfigSkeleton"
 export type {
     MoleculeDrillInProviderProps,
     PlaygroundConfigSectionProps,

@@ -9,7 +9,7 @@ import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
+import AgentChatPanelHost from "@/oss/components/AgentChatSlice/AgentChatPanelHost"
 import {
     AgentChatScopeProvider,
     ONBOARDING_SCOPE_KEY,
@@ -28,13 +28,9 @@ import PlaygroundHeader from "./Components/PlaygroundHeader"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
 
-// Agent-chat surface (third generation arm). Lazy — only loads the AI SDK when an
-// agent workflow is opened in the playground. The skeleton holds the pane's shape while
-// the chunk loads, so the chat doesn't sit blank and pop in wholesale.
-const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/AgentChatPanel"), {
-    ssr: false,
-    loading: () => <AgentChatSkeleton />,
-})
+// Agent-chat surface (third generation arm). The host is a LIGHT static import that lazy-loads
+// the AI-SDK panel internally and crossfades it in through a persistent skeleton overlay —
+// components materialize in place instead of a skeleton-discard → sudden pop.
 
 // Open-on-demand drawers: mounted closed until the user opens them, so their subtrees
 // load lazily instead of riding the playground's initial chunk.
@@ -123,7 +119,7 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
         // Third generation arm: agent-type entities render the agent-chat surface.
         // Lazy — pulls in the AI SDK only when an agent workflow is open. While onboarding, this is
         // the onboarding composer that hands off to the live chat once the ephemeral is committed.
-        AgentGenerationPanel: agentOnboarding.agentPanel ?? AgentChatPanel,
+        AgentGenerationPanel: agentOnboarding.agentPanel ?? AgentChatPanelHost,
         renderSyncStateTag: PlaygroundSyncStateTag,
     } as unknown as PlaygroundUIProviders
 

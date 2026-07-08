@@ -1,4 +1,13 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
+import {
+    lazy,
+    Suspense,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
@@ -11,7 +20,7 @@ import {
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
-import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useChat} from "@ai-sdk/react"
 import {Bubble} from "@ant-design/x"
 import {
@@ -62,6 +71,7 @@ import {filesToParts} from "./assets/files"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
+import {ComposerSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
@@ -70,8 +80,6 @@ import ConnectModelBanner from "./components/ConnectModelBanner"
 import QueuedMessages from "./components/QueuedMessages"
 import RevealCollapse from "./components/RevealCollapse"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
-import SessionRail from "./components/SessionRail"
-import SessionTagBar from "./components/SessionTagBar"
 import TurnInspector from "./components/TurnInspector/TurnInspector"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
@@ -100,6 +108,16 @@ import {
     agentChatVirtualizeAtom,
     isAgentChatVirtualizationAvailable,
 } from "./state/virtualization"
+
+// Lazy regions: each hydrates independently behind the SAME skeleton the loading gates show
+// for its slot, so the pane's structure never blocks on (or shifts around) a sibling region.
+// The composer carries Lexical — the heaviest dependency of this chunk — out of the panel's
+// synchronous mount; React.lazy (not next/dynamic) so the imperative handle ref forwards.
+const RichChatInput = lazy(() =>
+    import("@agenta/ui/rich-chat-input").then((m) => ({default: m.RichChatInput})),
+)
+const SessionTagBar = lazy(() => import("./components/SessionTagBar"))
+const SessionRail = lazy(() => import("./components/SessionRail"))
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the in-chat `error`
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
@@ -1758,100 +1776,105 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                             />
                         </div>
                     ) : null}
-                    <RichChatInput
-                        ref={richInputRef}
-                        className={`${CHAT_COLUMN} mb-3`}
-                        // Onboarding: submit = commit the ephemeral (not send); Enter inserts a newline
-                        // (you're writing a description), and the Create-agent button (trailing) commits.
-                        onSubmit={onboardingActive ? () => handleCreateAgent() : handleSubmit}
-                        disabled={onboardingActive ? ideHandoffActive : modelBlocked}
-                        hideSendButton={onboardingActive}
-                        submitOnEnter={!onboardingActive}
-                        placeholder={
-                            onboardingActive
-                                ? ideHandoffActive
-                                    ? "Continue in your IDE from the steps above — or start over."
-                                    : "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
-                                : modelBlocked
-                                  ? "Connect a model to start chatting…"
-                                  : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                        }
-                        onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                        sendForceEnabled={files.length > 0}
-                        streaming={busy}
-                        onStop={handleStop}
-                        prefix={
-                            // Attach button is gated until the agent service is ready for inline
-                            // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                            <Tooltip
-                                title={
-                                    atMax
-                                        ? `Up to ${limits.maxCount} files`
-                                        : "Attach files coming soon"
-                                }
-                            >
-                                <Button
-                                    type="text"
-                                    icon={<Paperclip size={16} />}
-                                    disabled={true}
-                                    onClick={() => setAttachmentsOpen((open) => !open)}
-                                    aria-label="Attach files"
-                                />
-                            </Tooltip>
-                        }
-                        header={
-                            <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                                <ComposerAttachments
-                                    files={files}
-                                    rejections={rejections}
-                                    limits={limits}
-                                    onAdd={addFiles}
-                                    onRemove={removeFile}
-                                    onDismissRejections={() => setRejections([])}
-                                />
-                            </HeightCollapse>
-                        }
-                        trailing={
-                            onboardingActive ? (
-                                ideHandoffActive ? (
-                                    <Button onClick={handleStartOver} className="!shadow-none">
-                                        Start over
-                                    </Button>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        {TEMPLATE_STRIP_MODE ? (
-                                            // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
-                                            <Button
-                                                icon={<Terminal size={15} />}
-                                                onClick={handleCodingAgentCopy}
-                                                className="!shadow-none"
-                                            >
-                                                {STRIP_COPY.useCodingAgent}
-                                            </Button>
-                                        ) : (
-                                            <Button
-                                                icon={<Code size={14} />}
-                                                onClick={streamIdeBubble}
-                                                className="!shadow-none"
-                                            >
-                                                Continue in IDE
-                                            </Button>
-                                        )}
-                                        <Button
-                                            type="primary"
-                                            icon={<ArrowRight size={14} />}
-                                            iconPosition="end"
-                                            loading={!!onboarding?.committing}
-                                            onClick={handleCreateAgent}
-                                            className="!shadow-none"
-                                        >
-                                            Create agent
+                    {/* Composer region hydrates independently (Lexical chunk); the fallback is the
+                        same skeleton the pane-level gates render for this slot, so the box never
+                        changes shape — the editor just materializes inside it. */}
+                    <Suspense fallback={<ComposerSkeleton className={`${CHAT_COLUMN} mb-3`} />}>
+                        <RichChatInput
+                            ref={richInputRef}
+                            className={`${CHAT_COLUMN} mb-3`}
+                            // Onboarding: submit = commit the ephemeral (not send); Enter inserts a newline
+                            // (you're writing a description), and the Create-agent button (trailing) commits.
+                            onSubmit={onboardingActive ? () => handleCreateAgent() : handleSubmit}
+                            disabled={onboardingActive ? ideHandoffActive : modelBlocked}
+                            hideSendButton={onboardingActive}
+                            submitOnEnter={!onboardingActive}
+                            placeholder={
+                                onboardingActive
+                                    ? ideHandoffActive
+                                        ? "Continue in your IDE from the steps above — or start over."
+                                        : "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
+                                    : modelBlocked
+                                      ? "Connect a model to start chatting…"
+                                      : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                            }
+                            onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                            sendForceEnabled={files.length > 0}
+                            streaming={busy}
+                            onStop={handleStop}
+                            prefix={
+                                // Attach button is gated until the agent service is ready for inline
+                                // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                                <Tooltip
+                                    title={
+                                        atMax
+                                            ? `Up to ${limits.maxCount} files`
+                                            : "Attach files coming soon"
+                                    }
+                                >
+                                    <Button
+                                        type="text"
+                                        icon={<Paperclip size={16} />}
+                                        disabled={true}
+                                        onClick={() => setAttachmentsOpen((open) => !open)}
+                                        aria-label="Attach files"
+                                    />
+                                </Tooltip>
+                            }
+                            header={
+                                <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                                    <ComposerAttachments
+                                        files={files}
+                                        rejections={rejections}
+                                        limits={limits}
+                                        onAdd={addFiles}
+                                        onRemove={removeFile}
+                                        onDismissRejections={() => setRejections([])}
+                                    />
+                                </HeightCollapse>
+                            }
+                            trailing={
+                                onboardingActive ? (
+                                    ideHandoffActive ? (
+                                        <Button onClick={handleStartOver} className="!shadow-none">
+                                            Start over
                                         </Button>
-                                    </div>
-                                )
-                            ) : undefined
-                        }
-                    />
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            {TEMPLATE_STRIP_MODE ? (
+                                                // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
+                                                <Button
+                                                    icon={<Terminal size={15} />}
+                                                    onClick={handleCodingAgentCopy}
+                                                    className="!shadow-none"
+                                                >
+                                                    {STRIP_COPY.useCodingAgent}
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    icon={<Code size={14} />}
+                                                    onClick={streamIdeBubble}
+                                                    className="!shadow-none"
+                                                >
+                                                    Continue in IDE
+                                                </Button>
+                                            )}
+                                            <Button
+                                                type="primary"
+                                                icon={<ArrowRight size={14} />}
+                                                iconPosition="end"
+                                                loading={!!onboarding?.committing}
+                                                onClick={handleCreateAgent}
+                                                className="!shadow-none"
+                                            >
+                                                Create agent
+                                            </Button>
+                                        </div>
+                                    )
+                                ) : undefined
+                            }
+                        />
+                    </Suspense>
                 </Reveal>
             </div>
             <TurnInspector sessionId={sessionId} messages={messages} />
@@ -1878,8 +1901,18 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
  * preserves a session's live stream / approval state. Each tab is its own `useChat` driven by
  * `buildAgentRequest` against the current `entityId` (so the run always uses the live draft config).
  */
-const AgentChatPanel = ({entityId}: {entityId: string}) => {
+const AgentChatPanel = ({
+    entityId,
+    onMounted,
+}: {
+    entityId: string
+    /** Fired once after first commit — lets the crossfade host dissolve its skeleton overlay. */
+    onMounted?: () => void
+}) => {
     const scope = useChatScopeKey()
+    useEffect(() => {
+        onMounted?.()
+    }, [onMounted])
     // Pre-commit onboarding: one ephemeral session, no multi-session UX — hide the whole session bar
     // (tabs / new / search / history). Stays hidden through the commit + first send, then eases in a beat
     // later (`chromeRevealed`) so the bar doesn't push the transcript down mid-send.
@@ -1930,7 +1963,10 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 style={{width: chatMaximized ? RAIL_WIDTH : 0}}
                 inert={!chatMaximized}
             >
-                <SessionRail activeId={activeId} className="h-full w-[248px]" />
+                {/* Rail is width-0 unless maximized, so no visible fallback is needed while it loads. */}
+                <Suspense fallback={null}>
+                    <SessionRail activeId={activeId} className="h-full w-[248px]" />
+                </Suspense>
             </div>
             <Tabs
                 animated={false}
@@ -1947,23 +1983,27 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                         className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
                         style={{height: chromeHidden || chatMaximized ? 0 : 48}}
                     >
-                        <SessionTagBar
-                            sessions={sessions}
-                            activeId={activeId}
-                            onSelect={setActiveSession}
-                            onAdd={addSession}
-                            onClose={closeSession}
-                            onRename={(id, title) => renameSession({id, title})}
-                            showSessions={!chatMaximized}
-                            extra={
-                                chatMaximized ? undefined : (
-                                    <>
-                                        <SessionInspectorButton sessionId={activeId ?? null} />
-                                        <SessionHistoryMenu />
-                                    </>
-                                )
-                            }
-                        />
+                        {/* Region fallback = the same bar skeleton the pane-level gates render,
+                            so the strip's lane holds its shape while this chunk loads. */}
+                        <Suspense fallback={<SessionBarSkeleton />}>
+                            <SessionTagBar
+                                sessions={sessions}
+                                activeId={activeId}
+                                onSelect={setActiveSession}
+                                onAdd={addSession}
+                                onClose={closeSession}
+                                onRename={(id, title) => renameSession({id, title})}
+                                showSessions={!chatMaximized}
+                                extra={
+                                    chatMaximized ? undefined : (
+                                        <>
+                                            <SessionInspectorButton sessionId={activeId ?? null} />
+                                            <SessionHistoryMenu />
+                                        </>
+                                    )
+                                }
+                            />
+                        </Suspense>
                     </div>
                 )}
                 items={sessions.map((session) => ({

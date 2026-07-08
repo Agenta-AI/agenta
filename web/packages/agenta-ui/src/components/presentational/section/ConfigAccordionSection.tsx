@@ -121,6 +121,13 @@ export interface ConfigAccordionSectionProps {
     revealOnMount?: boolean
     /** Stagger for `revealOnMount` — delay (ms) before this section fades in. @default 0 */
     revealDelayMs?: number
+    /**
+     * Mount the section COLLAPSED and expand it a beat later through the normal collapse
+     * transition. First paint then matches a collapsed-rows skeleton (no layout shift when the
+     * panel resolves); the content unfolds instead of appearing pre-expanded. Uncontrolled,
+     * collapsible, `defaultOpen` sections only — a no-op everywhere else.
+     */
+    animateInitialOpen?: boolean
     /** Section body. */
     children?: ReactNode
 }
@@ -149,6 +156,7 @@ export function ConfigAccordionSection({
     className,
     revealOnMount = false,
     revealDelayMs = 0,
+    animateInitialOpen = false,
     children,
 }: ConfigAccordionSectionProps) {
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
@@ -177,7 +185,15 @@ export function ConfigAccordionSection({
             ? "var(--ag-colorWarning)"
             : "var(--ag-c-586673,#586673)"
     const isControlled = open !== undefined
-    const [internalOpen, setInternalOpen] = useState(defaultOpen)
+    // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
+    // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
+    const [internalOpen, setInternalOpen] = useState(animateInitialOpen ? false : defaultOpen)
+    useEffect(() => {
+        if (!animateInitialOpen || !defaultOpen || isControlled || !collapsible) return
+        const t = window.setTimeout(() => setInternalOpen(true), 120)
+        return () => window.clearTimeout(t)
+        // Mount-only: this drives a one-shot entrance, never reacts to later prop changes.
+    }, [])
     // A section can either open a drawer (onOpen) or expand inline (the accordion default).
     const opensDrawer = onOpen !== undefined && !locked
     // Non-collapsible sections (e.g. the "cards" layout) stay open; locked sections stay shut.
