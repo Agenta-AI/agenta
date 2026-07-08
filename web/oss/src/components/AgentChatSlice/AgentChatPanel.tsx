@@ -286,6 +286,21 @@ const MessageRow = ({
     )
 }
 
+/** Compact three-dot pulse for the meta row under the last turn — the run-in-progress signal.
+ * Deliberately NOT a Bubble: it shares one line with "Inspect turn" instead of adding a
+ * bubble-sized row of its own. */
+const WorkingDots = () => (
+    <span
+        role="status"
+        aria-label="Agent is working"
+        className="flex items-center gap-1 px-1 py-0.5"
+    >
+        <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-duration:1.2s]" />
+        <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.2s] [animation-duration:1.2s]" />
+        <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.4s] [animation-duration:1.2s]" />
+    </span>
+)
+
 const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
@@ -1399,6 +1414,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             inspectorOpen && isAssistantTurn
                 ? () => openTurnInspector({sessionId, assistantMessageId: message.id})
                 : undefined
+        const showInspect = buildMode && isAssistantTurn
+        const showWorking =
+            isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
         return (
             <MessageRow
                 key={message.id}
@@ -1421,17 +1439,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                     }
                     turnTraceId={turnTraceId}
                 />
-                {/* Working indicator: pinned under the latest content for the WHOLE run, so gaps
-                    with no streaming output (approval-resume cold-replay, between steps, server
-                    tool waits, post-tool thinking) never read as frozen. It stays inside the last
-                    message so the reserve keeps it on-screen, and drops the moment the run
-                    settles. An EMPTY streaming assistant turn already renders its own loading
-                    bubble (AgentMessage), so skip it there — exactly one indicator while busy. */}
-                {isLast &&
-                    busy &&
-                    (message.role !== "assistant" || message.parts.some(isVisiblePart)) && (
-                        <Bubble placement="start" variant="borderless" loading content="" />
-                    )}
                 {/* Stopped tag + Resend belong only to the LAST assistant turn (the one you cancelled),
                     gated on position so it can never smear onto past turns. Cleared on resend / ask. */}
                 {stopped && isLast && message.role === "assistant" && (
@@ -1451,17 +1458,28 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         </Button>
                     </div>
                 )}
-                {buildMode && message.role === "assistant" && (
-                    <button
-                        type="button"
-                        onClick={() =>
-                            openTurnInspector({sessionId, assistantMessageId: message.id})
-                        }
-                        className="flex w-fit cursor-pointer items-center gap-1 self-start rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorPrimary"
-                    >
-                        <TreeStructure size={12} />
-                        Inspect turn
-                    </button>
+                {/* Meta row: the working dots + "Inspect turn" share ONE compact line under the
+                    turn. The dots run for the WHOLE busy run — so gaps with no streaming output
+                    (approval-resume cold-replay, between steps, server tool waits) never read as
+                    frozen — and drop the moment the run settles, leaving just the affordance. An
+                    EMPTY streaming assistant turn already renders its own loading bubble
+                    (AgentMessage), so the dots skip it — exactly one indicator while busy. */}
+                {(showWorking || showInspect) && (
+                    <div className="flex items-center gap-2 self-start">
+                        {showWorking && <WorkingDots />}
+                        {showInspect && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    openTurnInspector({sessionId, assistantMessageId: message.id})
+                                }
+                                className="flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorPrimary"
+                            >
+                                <TreeStructure size={12} />
+                                Inspect turn
+                            </button>
+                        )}
+                    </div>
                 )}
             </MessageRow>
         )
