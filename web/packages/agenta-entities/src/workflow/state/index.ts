@@ -92,12 +92,17 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Static catalog schema (agent-template etc.) — exported for early prefetch
+    agTypeSchemaAtomFamily,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
     workflowArtifactScopedQueryAtomFamily,
     workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
 } from "./store"
+
+// Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
+export {readPersistedAgentType} from "./persistedAgentType"
 
 // Union atoms (app + evaluator combined)
 export {

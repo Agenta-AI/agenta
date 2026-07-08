@@ -263,6 +263,8 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    agTypeSchemaAtomFamily,
+    readPersistedAgentType,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
     workflowArtifactScopedQueryAtomFamily,

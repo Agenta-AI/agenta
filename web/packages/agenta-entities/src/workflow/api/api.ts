@@ -16,7 +16,7 @@
 
 import {getAgentaSdkClient} from "@agenta/sdk"
 import {getWorkflowsClient} from "@agenta/sdk/resources"
-import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {getAgentaApiUrl, axios, lowPriorityWhenCached} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 import {z} from "zod"
 
@@ -504,6 +504,7 @@ export async function inspectWorkflow(
     uri: string,
     projectId: string,
     serviceUrl?: string | null,
+    opts?: {lowPriority?: boolean},
 ): Promise<InspectWorkflowResponse> {
     if (!projectId || !uri) {
         return {}
@@ -519,7 +520,7 @@ export async function inspectWorkflow(
         {
             revision: {uri},
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
 
     return response.data ?? {}
@@ -1378,9 +1379,13 @@ export async function fetchWorkflowRevisionsByIdsBatch(
  * @param agType - The referenced ag-type key, e.g. "prompt-template"
  * @returns The dereferenced JSON Schema for the ag-type
  */
-export async function fetchAgTypeSchema(agType: string): Promise<Record<string, unknown>> {
+export async function fetchAgTypeSchema(
+    agType: string,
+    opts?: {lowPriority?: boolean},
+): Promise<Record<string, unknown>> {
     const response = await axios.get(
         `${getAgentaApiUrl()}/workflows/catalog/types/${encodeURIComponent(agType)}`,
+        lowPriorityWhenCached(opts?.lowPriority),
     )
     const jsonSchema = response.data?.type?.json_schema
 
@@ -1399,8 +1404,13 @@ export async function fetchAgTypeSchema(agType: string): Promise<Record<string, 
  * playground resolves the selected harness's capabilities from this map to drive the
  * provider/model picker — instead of reading an inlined inspect `meta` field.
  */
-export async function fetchHarnessCapabilities(): Promise<Record<string, Record<string, unknown>>> {
-    const response = await axios.get(`${getAgentaApiUrl()}/workflows/catalog/harnesses/`)
+export async function fetchHarnessCapabilities(opts?: {
+    lowPriority?: boolean
+}): Promise<Record<string, Record<string, unknown>>> {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/workflows/catalog/harnesses/`,
+        lowPriorityWhenCached(opts?.lowPriority),
+    )
     const harnesses = (response.data?.harnesses ?? []) as {
         key?: string
         capabilities?: Record<string, unknown>
