@@ -31,6 +31,13 @@ export interface MountCredentials {
   secretKey: string;
   sessionToken?: string;
   expiresAt?: string;
+  /**
+   * The mount's owning project id, surfaced from the sign response's `mount` object. It is the
+   * only project scope the runner can trust for this request (the /run wire carries no project
+   * id today), so session keep-alive keys its pool on `<projectId>:<sessionId>`. Absent when the
+   * response omitted the mount object; keep-alive then refuses to park (no safe key source).
+   */
+  projectId?: string;
 }
 
 export interface SignMountDeps {
@@ -74,6 +81,7 @@ export async function signSessionMountCredentials(
       return null;
     }
     const body = (await res.json()) as {
+      mount?: { project_id?: string };
       credentials?: {
         endpoint?: string;
         region?: string;
@@ -99,6 +107,12 @@ export async function signSessionMountCredentials(
       secretKey: c.secret_key,
       sessionToken: c.session_token,
       expiresAt: c.expires_at,
+      // The owning project id (from the `mount` object), used only as the keep-alive pool key
+      // scope. A string in JSON (the API serializes the UUID); undefined when omitted.
+      projectId:
+        typeof body.mount?.project_id === "string"
+          ? body.mount.project_id
+          : undefined,
     };
   } catch (err) {
     log(
@@ -160,7 +174,10 @@ function credEnv(creds: MountCredentials): Record<string, string> {
  * check trusts it, so `mountStorage` short-circuits and the next session inherits a dead cwd.
  * Probe with a real access (`ls -A`) and treat ENOTCONN as NOT-mounted so the caller remounts.
  */
-async function isMounted(cwd: string, log: (m: string) => void): Promise<boolean> {
+async function isMounted(
+  cwd: string,
+  log: (m: string) => void,
+): Promise<boolean> {
   try {
     await pExecFile("mountpoint", ["-q", cwd]);
   } catch {
@@ -270,7 +287,9 @@ export async function mountStorage(
 export interface UnmountStorageDeps {
   runUnmount?: (cwd: string) => Promise<void>;
   // Resolve to "gone" | "mounted" | "inconclusive"; only "gone" allows the caller to delete.
-  checkMountpoint?: (cwd: string) => Promise<"gone" | "mounted" | "inconclusive">;
+  checkMountpoint?: (
+    cwd: string,
+  ) => Promise<"gone" | "mounted" | "inconclusive">;
   log?: (msg: string) => void;
 }
 
@@ -349,7 +368,9 @@ export async function discoverTunnelEndpoint(
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
   const api =
-    deps.ngrokApi ?? process.env.AGENTA_MOUNTS_TUNNEL_API ?? "http://ngrok:4040";
+    deps.ngrokApi ??
+    process.env.AGENTA_MOUNTS_TUNNEL_API ??
+    "http://ngrok:4040";
   try {
     const res = await doFetch(`${api}/api/tunnels`);
     if (!res.ok) {

@@ -176,6 +176,18 @@ sections).
   this non-zero auto-stop so a sandbox the runner leaks (a process KILL skips the per-run
   teardown) self-reaps instead of burning credit. Values below `1` fall back to the default
   (a `0` would re-disable auto-stop and reintroduce the leak).
+- `AGENTA_RUNNER_SESSION_KEEPALIVE`. Gates session keep-alive: after a turn ends, the runner
+  parks the live harness session and continues it on the next matching message in the same
+  conversation, instead of cold-replaying the transcript. Default off. Local sandbox only;
+  requires mount signing (no mount scope means the session never parks). Design:
+  `docs/design/agent-workflows/projects/session-keepalive/plan.md`.
+- `AGENTA_RUNNER_SESSION_TTL_MS`. How long an idle parked session lives before it is
+  destroyed. Default `60000`.
+- `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS`. How long a session parked on a Claude ACP approval
+  gate holds its pending permission request open. Default `600000`. Expiry degrades to the
+  cold decision-map path.
+- `AGENTA_RUNNER_SESSION_POOL_MAX`. Maximum parked sessions per runner replica (LRU evicts
+  idle sessions; busy and awaiting-approval sessions are never evicted). Default `8`.
 
 The `runner` container deliberately has no `env_file`. The harness sandbox must not inherit
 the stack's secrets. The compose block comments explain this
