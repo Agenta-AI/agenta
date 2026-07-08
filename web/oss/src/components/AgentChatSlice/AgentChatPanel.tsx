@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
@@ -417,6 +418,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
         sendAutomaticallyWhen: agentShouldResumeAfterApproval,
+        // The turn's trace may not be ingested yet when the row asks for its summary —
+        // marking it fresh lets the trace queries retry through the ingestion lag
+        // (historical traces get no such grace; a 404 there means the trace is gone).
+        onFinish: ({message}) => markTraceAsFresh(getMessageTraceId(message)),
         onError: (err) => {
             // Render the error in-chat (the `error` alert below); swallow it here so an
             // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).

@@ -66,3 +66,18 @@ export function buildClientOptions(options: AgentaInitOptions = {}): AgentaApiCl
             : undefined,
     }
 }
+
+/**
+ * Wrap a client's fetch so its requests carry the `priority: "low"` hint —
+ * Chromium schedules them behind render-critical traffic; other engines
+ * ignore the hint. Composes with the auth-sanitizing fetch when present.
+ * Use for background hydration (e.g. per-turn trace summaries), never for
+ * user-initiated loads.
+ */
+export function withLowPriorityFetch(options: AgentaApiClient.Options): AgentaApiClient.Options {
+    const baseFetch = options.fetch ?? fetch
+    return {
+        ...options,
+        fetch: (input, requestInit) => baseFetch(input, {...requestInit, priority: "low"}),
+    }
+}

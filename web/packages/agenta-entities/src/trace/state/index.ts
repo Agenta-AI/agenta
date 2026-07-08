@@ -17,11 +17,16 @@ export {traceSpanMolecule, type TraceSpanMolecule} from "./molecule"
 export {
     // Cache invalidation
     invalidateTraceEntityCache,
+    // Freshness (gates not-found retries to just-finished runs)
+    markTraceAsFresh,
     // Error classes
     SpanNotFoundError,
     TraceNotFoundError,
     // Trace-level query atom
     traceEntityAtomFamily,
+    // Lightweight summary query (root span + errored spans, flat)
+    traceSummaryQueryAtomFamily,
+    type TraceSummarySpans,
     // Trace-level derived atoms (convenience selectors)
     traceRootSpanAtomFamily,
     traceInputsAtomFamily,

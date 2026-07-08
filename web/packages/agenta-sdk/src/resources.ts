@@ -16,11 +16,18 @@ import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
-import {buildClientOptions} from "./config"
+import {buildClientOptions, withLowPriorityFetch} from "./config"
 
 let _traces: TracesClient | undefined
 export function getTracesClient(): TracesClient {
     return (_traces ??= new TracesClient(buildClientOptions()))
+}
+
+let _tracesLowPriority: TracesClient | undefined
+/** Same host/auth as `getTracesClient`, but requests carry `priority: "low"` —
+ * for background hydration that must yield to render-critical traffic. */
+export function getLowPriorityTracesClient(): TracesClient {
+    return (_tracesLowPriority ??= new TracesClient(withLowPriorityFetch(buildClientOptions())))
 }
 
 let _tools: ToolsClient | undefined
