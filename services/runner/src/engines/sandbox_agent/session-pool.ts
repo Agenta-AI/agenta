@@ -22,6 +22,7 @@ import {
   type ContentBlock,
   messageText,
 } from "../../protocol.ts";
+import { approvalDecisionOf } from "../../responder.ts";
 
 function log(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
@@ -220,6 +221,33 @@ export function priorConversation(request: AgentRunRequest): ChatMessage[] {
 }
 
 /**
+ * The approval decision (allow/deny) the incoming request carries for a specific parked gate's
+ * tool-call id, or undefined when the request has no approval envelope for that id. Reuses the
+ * cold path's `approvalDecisionOf` (responder.ts) to parse the `{approved}` envelope, and matches
+ * strictly by toolCallId (the parked gate's id) — never by name+args — so a live resume answers
+ * exactly the gate that parked. An incoming reply for a different id, or a plain user message,
+ * yields undefined and the dispatch degrades to cold.
+ */
+export function approvalDecisionForToolCall(
+  request: AgentRunRequest,
+  toolCallId: string,
+): "allow" | "deny" | undefined {
+  if (!toolCallId) return undefined;
+  for (const message of request.messages ?? []) {
+    const content = message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
+        continue;
+      }
+      const decision = approvalDecisionOf(block);
+      if (decision !== undefined) return decision;
+    }
+  }
+  return undefined;
+}
+
+/**
  * True when the request's tail is a fresh user message with text and NOT an approval envelope.
  * A continuation only takes the live path for a plain new user turn; an approval reply (a
  * trailing tool-role message, or a user turn carrying a tool_result) is slice 2's concern and
@@ -269,18 +297,49 @@ export function computeCredentialEpoch(
 }
 
 /**
+ * Whether a parked session's MOUNT credentials have already expired, ignoring the secret material
+ * hash entirely. This answers only "can the parked environment still write its durable cwd?".
+ *
+ * The approval-resume path uses this instead of `credentialEpochValid`: a resume must NOT require
+ * the resume request's re-minted credentials to MATCH the parked ones (a fresh /run mints fresh
+ * short-lived material every time, so they practically never match), but an expired mount means
+ * the parked cwd can no longer be written, so it must still evict to cold.
+ */
+export function mountCredentialsExpired(
+  epoch: CredentialEpoch,
+  now = Date.now(),
+): boolean {
+  return epoch.mountExpiresAtMs !== undefined && now >= epoch.mountExpiresAtMs;
+}
+
+/**
+ * Why a parked epoch is no longer usable for an incoming request's epoch, or undefined when it
+ * still is. The two failure modes are distinguished so diagnosis works from logs:
+ *  - `credentials-expired` — the mount credential's lifetime elapsed (time bound).
+ *  - `credentials-rotated` — the resolved secret/tool-auth material changed (a rotated same-slug
+ *    secret, a different tool-callback bearer).
+ */
+export function credentialEpochMismatch(
+  parked: CredentialEpoch,
+  incoming: CredentialEpoch,
+  now = Date.now(),
+): "credentials-expired" | "credentials-rotated" | undefined {
+  if (mountCredentialsExpired(parked, now)) return "credentials-expired";
+  if (parked.secretsHash !== incoming.secretsHash) return "credentials-rotated";
+  return undefined;
+}
+
+/**
  * Whether a parked epoch is still valid for an incoming request's epoch. Invalid (evict, cold)
- * when the mount credential expired, or the resolved secret/tool-auth material changed.
+ * when the mount credential expired, or the resolved secret/tool-auth material changed. Thin
+ * wrapper over `credentialEpochMismatch` for callers that only need the boolean.
  */
 export function credentialEpochValid(
   parked: CredentialEpoch,
   incoming: CredentialEpoch,
   now = Date.now(),
 ): boolean {
-  if (parked.mountExpiresAtMs !== undefined && now >= parked.mountExpiresAtMs) {
-    return false;
-  }
-  return parked.secretsHash === incoming.secretsHash;
+  return credentialEpochMismatch(parked, incoming, now) === undefined;
 }
 
 /**
@@ -380,10 +439,35 @@ export class SessionPool<E = unknown> {
   }
 
   /**
-   * Return a checked-out (busy) session to idle after a successful continuation: refresh its
+   * Check out an approval-parked session for a live resume: clear its (longer) approval TTL timer,
+   * REMOVE it from the map, mark it busy, and return it. Returns undefined when the key is absent
+   * or not awaiting_approval. Removing it is what makes a racing request safe: the resume turn
+   * owns the environment exclusively, a duplicate approval or fresh message simply misses the pool
+   * and runs cold (today's concurrent-request semantics), and no supersede path can destroy the
+   * environment while it is executing the just-approved tool. The gate is therefore answered at
+   * most once: only the checkout winner ever holds the parked permission id. After the resume
+   * turn, `repark` re-inserts only if the slot is still empty (see there).
+   */
+  checkoutApproval(key: string): LiveSession<E> | undefined {
+    const session = this.sessions.get(key);
+    if (!session || session.state !== "awaiting_approval") return undefined;
+    this.clearTimer(session);
+    this.sessions.delete(key);
+    session.state = "busy";
+    session.lastUsed = Date.now();
+    return session;
+  }
+
+  /**
+   * Return a checked-out (busy) session to the pool after a completed turn: refresh its
    * fingerprints + credential epoch and re-arm the TTL timer, keeping the SAME live environment.
-   * Verifies identity so a session superseded mid-turn (its map slot taken by a racing turn) is
-   * NOT resurrected — returns false, and the caller tears its now-orphaned environment down.
+   * Two checkout shapes are handled:
+   *  - `checkoutIdle` left the busy session IN the map: the slot must still hold this exact
+   *    session (a racing turn may have superseded it — never clobber the newer one).
+   *  - `checkoutApproval` REMOVED it from the map: re-insert only if the slot is still EMPTY;
+   *    an occupant is a newer session parked by a racing request and must not be clobbered.
+   * A destroyed session (e.g. drained by `destroyAll` mid-turn) is never resurrected.
+   * Returns false when the session cannot return; the caller destroys its orphaned environment.
    */
   repark(
     session: LiveSession<E>,
@@ -393,21 +477,30 @@ export class SessionPool<E = unknown> {
       credentialEpoch: CredentialEpoch;
     },
     ttlMs: number,
+    state: "idle" | "awaiting_approval" = "idle",
   ): boolean {
-    if (this.sessions.get(session.key) !== session) return false;
+    if (session.state === "destroyed") return false;
+    const current = this.sessions.get(session.key);
+    if (current !== undefined && current !== session) return false;
+    if (current === undefined) {
+      // Re-inserting a checked-out-and-removed session: respect the cap like `park` does.
+      if (this.sessions.size >= this.config.poolMax && !this.evictLruIdle()) {
+        this.logger(
+          `re-park skipped (pool full, nothing idle to evict) key=${session.key}`,
+        );
+        return false;
+      }
+      this.sessions.set(session.key, session);
+    }
     this.clearTimer(session);
     session.configFingerprint = update.configFingerprint;
     session.historyFingerprint = update.historyFingerprint;
     session.credentialEpoch = update.credentialEpoch;
-    session.state = "idle";
+    session.state = state;
     session.lastUsed = Date.now();
-    session.ttlTimer = setTimeout(() => {
-      this.logger(`expire key=${session.key} (idle TTL ${ttlMs}ms)`);
-      void this.evict(session.key, "expire");
-    }, ttlMs);
-    session.ttlTimer.unref?.();
+    this.armTtl(session, ttlMs, state);
     this.logger(
-      `park key=${session.key} ttl=${ttlMs}ms (re-park) poolSize=${this.sessions.size}`,
+      `park key=${session.key} ttl=${ttlMs}ms state=${state} (re-park) poolSize=${this.sessions.size}`,
     );
     return true;
   }
@@ -417,13 +510,20 @@ export class SessionPool<E = unknown> {
    * awaiting_approval session. If nothing evictable frees a slot, the session is NOT parked and
    * the caller tears it down as today (parking is best-effort). Returns whether it parked.
    */
-  park(input: ParkInput<E>, ttlMs: number): boolean {
+  async park(
+    input: ParkInput<E>,
+    ttlMs: number,
+    state: "idle" | "awaiting_approval" = "idle",
+  ): Promise<boolean> {
     // A supersede/re-park on the same key replaces any prior entry (destroy the old one first).
+    // AWAIT the teardown before taking the slot, exactly like `evict`: the replaced session shares
+    // the SAME durable cwd/mount as the successor, so its unmount/delete must complete BEFORE the
+    // new session is parked, or the old destroy could unmount the cwd out from under the successor.
     const existing = this.sessions.get(input.key);
     if (existing) {
       this.clearTimer(existing);
       this.sessions.delete(input.key);
-      void this.safeDestroy(existing);
+      await this.safeDestroy(existing);
     }
 
     if (this.sessions.size >= this.config.poolMax && !this.evictLruIdle()) {
@@ -439,21 +539,36 @@ export class SessionPool<E = unknown> {
       configFingerprint: input.configFingerprint,
       historyFingerprint: input.historyFingerprint,
       credentialEpoch: input.credentialEpoch,
-      state: "idle",
+      state,
       lastUsed: Date.now(),
       destroy: input.destroy,
     };
-    session.ttlTimer = setTimeout(() => {
-      this.logger(`expire key=${input.key} (idle TTL ${ttlMs}ms)`);
-      void this.evict(input.key, "expire");
-    }, ttlMs);
-    // Do not let an idle TTL timer keep the process alive on its own.
-    session.ttlTimer.unref?.();
+    this.armTtl(session, ttlMs, state);
     this.sessions.set(input.key, session);
     this.logger(
-      `park key=${input.key} ttl=${ttlMs}ms poolSize=${this.sessions.size}`,
+      `park key=${input.key} ttl=${ttlMs}ms state=${state} poolSize=${this.sessions.size}`,
     );
     return true;
+  }
+
+  /**
+   * Arm the TTL reaper on a parked session. An idle park uses the short idle TTL; an approval park
+   * uses the longer approval TTL and logs `approval-ttl-expire` when it fires so an expired
+   * approval (which degrades to the cold decision-map path) is greppable. Never lets the timer
+   * keep the process alive on its own.
+   */
+  private armTtl(
+    session: LiveSession<E>,
+    ttlMs: number,
+    state: "idle" | "awaiting_approval",
+  ): void {
+    const label =
+      state === "awaiting_approval" ? "approval-ttl-expire" : "expire";
+    session.ttlTimer = setTimeout(() => {
+      this.logger(`${label} key=${session.key} (TTL ${ttlMs}ms)`);
+      void this.evict(session.key, label);
+    }, ttlMs);
+    session.ttlTimer.unref?.();
   }
 
   /**

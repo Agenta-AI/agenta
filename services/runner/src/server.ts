@@ -35,13 +35,16 @@ import {
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
+  type RunTurnOptions,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
 import {
+  approvalDecisionForToolCall,
   computeCredentialEpoch,
   configFingerprint,
-  credentialEpochValid,
+  credentialEpochMismatch,
+  mountCredentialsExpired,
   expectedNextHistoryFingerprint,
   historyFingerprint,
   poolKeyFor,
@@ -50,6 +53,7 @@ import {
   SessionPool,
   tailIsFreshUserMessage,
   type KeepaliveConfig,
+  type LiveSession,
 } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import { isEntrypoint } from "./entry.ts";
@@ -236,7 +240,7 @@ export interface KeepaliveEngine {
     request: AgentRunRequest,
     emit: EmitEvent | undefined,
     signal: AbortSignal | undefined,
-    opts: { continuation?: boolean },
+    opts: RunTurnOptions,
   ): Promise<AgentRunResult>;
   /**
    * Today's cold path (acquire -> runTurn -> teardown). Used when a request must not park.
@@ -326,6 +330,20 @@ export async function runWithKeepalive(
   const { engine, pool, config, clientGone } = ctx;
   const sessionId = request.sessionId?.trim();
 
+  // Track whether anything reached the client on this streaming edge. A live continuation/resume
+  // that fails AFTER emitting (a partial answer or an error event) must NOT retry cold: the client
+  // and persistence already saw the failed live stream, and a following cold answer would duplicate
+  // it. Only a live turn that emitted NOTHING yet may fall back to a fresh cold turn (today's
+  // resilience). In buffered mode (`emit` undefined) nothing is ever streamed, so a cold retry is
+  // always safe. `emit` stays undefined when undefined so `runTurn` keeps buffering.
+  let emitted = false;
+  const trackedEmit: EmitEvent | undefined = emit
+    ? (event) => {
+        emitted = true;
+        emit(event);
+      }
+    : undefined;
+
   // Eligibility: session-owned + local sandbox. Otherwise never park; run cold as today
   // (no up-front sign happened, so the cold path signs itself: still exactly once).
   if (!sessionId || !isLocalSandbox(request)) {
@@ -351,13 +369,135 @@ export async function runWithKeepalive(
   const cfgFp = configFingerprint(request);
   const incomingEpoch = computeCredentialEpoch(request, mountCreds.expiresAt);
 
+  // The fingerprint the NEXT request's prior conversation is expected to hash to (slice 1's
+  // prediction; the same one works for an approval park, whose gated tool_call id the FE folds
+  // back into the resume request's assistant turn).
+  const nextHistoryFp = (env: SessionEnvironment): string =>
+    expectedNextHistoryFingerprint(
+      request.messages ?? [],
+      env.lastTurnToolCallIds ?? [],
+    );
+
+  // Whether a paused turn holds a single, parkable Claude ACP permission gate (slice 2). Only such
+  // a gate carries a `respondPermission`-answerable id; a Pi relay/builtin gate or a client-tool
+  // MCP pause never records `parkedApproval`, and more than one pending gate cannot be answered by
+  // the single-gate resume — both stay on the cold path, logged.
+  const approvalToPark = (
+    env: SessionEnvironment,
+    result: AgentRunResult,
+  ): boolean => {
+    if (result.stopReason !== "paused") return false;
+    if (!env.parkedApproval) {
+      klog(`non-claude-gate-no-park key=${key}`);
+      return false;
+    }
+    if ((env.approvalGateCount ?? 0) > 1) {
+      klog(`multi-gate-no-park key=${key} gates=${env.approvalGateCount}`);
+      return false;
+    }
+    // An approval park waits for the HUMAN, who is still on the page even if the streaming client
+    // dropped right after the pause frame (plan Q4). So, unlike a normal park, do NOT consult
+    // clientGone or the abort signal here; the approval TTL bounds the wait and an expiry degrades
+    // to the cold decision-map path.
+    return true;
+  };
+
+  // A parked prompt that REJECTS while the session sits in awaiting_approval means the harness
+  // or sandbox died mid-park; the dead session must not occupy a pool slot until the 10-minute
+  // approval TTL (plan Q4 lists a rejected parked prompt as a teardown trigger). Identity-checked:
+  // the handler evicts only while THIS exact entry is still parked at the key. A rejection that
+  // lands after a successful checkout (the resume is in flight and owns the environment; its own
+  // try/catch handles the failure) or after a supersede is not ours and does nothing. `evict` is
+  // idempotent through the session's one destroy, so no double-destroy is possible. The promise
+  // already carries runTurn's swallowing catch, so no unhandled rejection is introduced.
+  const watchParkedPrompt = (env: SessionEnvironment): void => {
+    const promptPromise = env.parkedApproval?.promptPromise;
+    const entry = pool.get(key);
+    if (!promptPromise || !entry || entry.environment !== env) return;
+    promptPromise.catch(() => {
+      const current = pool.get(key);
+      if (current !== entry || current.state !== "awaiting_approval") return;
+      klog(`parked-prompt-rejected key=${key}; evict`);
+      void pool.evict(key, "parked-prompt-rejected");
+    });
+  };
+
+  // Park a freshly cold-acquired environment (new pool slot) as approval / idle, or tear it down.
+  const parkFreshOrDestroy = async (
+    env: SessionEnvironment,
+    result: AgentRunResult,
+  ): Promise<void> => {
+    env.clearTurn();
+    const input = {
+      key,
+      environment: env,
+      configFingerprint: cfgFp,
+      historyFingerprint: nextHistoryFp(env),
+      credentialEpoch: incomingEpoch,
+      destroy: env.destroy,
+    };
+    if (approvalToPark(env, result)) {
+      klog(
+        `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
+      );
+      if (
+        !(await pool.park(input, config.approvalTtlMs, "awaiting_approval"))
+      ) {
+        await env.destroy();
+      } else {
+        watchParkedPrompt(env);
+      }
+    } else if (shouldPark(result, signal, clientGone)) {
+      if (!(await pool.park(input, config.ttlMs))) await env.destroy();
+    } else {
+      await env.destroy();
+    }
+  };
+
+  // Re-park a checked-out pool session (same slot) as approval / idle, or evict it.
+  const reparkOrEvict = async (
+    live: LiveSession<SessionEnvironment>,
+    result: AgentRunResult,
+  ): Promise<void> => {
+    const env = live.environment;
+    env.clearTurn();
+    const update = {
+      configFingerprint: cfgFp,
+      historyFingerprint: nextHistoryFp(env),
+      credentialEpoch: incomingEpoch,
+    };
+    if (approvalToPark(env, result)) {
+      klog(
+        `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
+      );
+      if (
+        !pool.repark(live, update, config.approvalTtlMs, "awaiting_approval")
+      ) {
+        await live.destroy();
+      } else {
+        watchParkedPrompt(env);
+      }
+    } else if (shouldPark(result, signal, clientGone)) {
+      if (!pool.repark(live, update, config.ttlMs)) await live.destroy();
+    } else {
+      await pool.evictIfCurrent(
+        live,
+        `no-park:${result.stopReason ?? "failed"}`,
+      );
+    }
+  };
+
   const coldAndPark = async (): Promise<AgentRunResult> => {
     const acq = await engine.acquireEnvironment(request, signal, mountCreds);
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
     let result: AgentRunResult;
     try {
-      result = await engine.runTurn(env, request, emit, signal, {});
+      // Park mode on: a Claude ACP permission gate this turn keeps the session alive instead of
+      // tearing down. A non-parkable pause (Pi relay/builtin, client tool) still destroys as today.
+      result = await engine.runTurn(env, request, trackedEmit, signal, {
+        approvalParkMode: true,
+      });
     } catch (err) {
       await env.destroy();
       return {
@@ -365,27 +505,7 @@ export async function runWithKeepalive(
         error: String(err instanceof Error ? err.message : err),
       };
     }
-    // Record/settle pending state (none in slice 1) then clear the sink before parking.
-    env.clearTurn();
-    if (shouldPark(result, signal, clientGone)) {
-      const parked = pool.park(
-        {
-          key,
-          environment: env,
-          configFingerprint: cfgFp,
-          historyFingerprint: expectedNextHistoryFingerprint(
-            request.messages ?? [],
-            env.lastTurnToolCallIds ?? [],
-          ),
-          credentialEpoch: incomingEpoch,
-          destroy: env.destroy,
-        },
-        config.ttlMs,
-      );
-      if (!parked) await env.destroy();
-    } else {
-      await env.destroy();
-    }
+    await parkFreshOrDestroy(env, result);
     return result;
   };
 
@@ -393,11 +513,16 @@ export async function runWithKeepalive(
   if (existing && existing.state === "idle") {
     // Validate the continuation. Any failure evicts and degrades to cold; never fails the turn.
     const priorFp = historyFingerprint(priorConversation(request));
+    // Splits the old ambiguous "credentials" reason into credentials-expired (mount lifetime
+    // elapsed) vs credentials-rotated (secret/tool-auth material changed) so log diagnosis works.
+    const credMismatch = credentialEpochMismatch(
+      existing.credentialEpoch,
+      incomingEpoch,
+    );
     let mismatch: string | undefined;
     if (cfgFp !== existing.configFingerprint) mismatch = "config";
     else if (priorFp !== existing.historyFingerprint) mismatch = "history";
-    else if (!credentialEpochValid(existing.credentialEpoch, incomingEpoch))
-      mismatch = "credentials";
+    else if (credMismatch) mismatch = credMismatch;
     else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
 
     if (mismatch) {
@@ -413,54 +538,163 @@ export async function runWithKeepalive(
       klog(`hit-continue key=${key}`);
       let result: AgentRunResult;
       try {
-        result = await engine.runTurn(live.environment, request, emit, signal, {
-          continuation: true,
-        });
+        // A continuation can itself raise an approval gate, so it runs in park mode too.
+        result = await engine.runTurn(
+          live.environment,
+          request,
+          trackedEmit,
+          signal,
+          {
+            continuation: true,
+            approvalParkMode: true,
+          },
+        );
       } catch (err) {
         // A continuation that throws destroys the session and retries once cold. Identity-checked
         // (a racing turn may have superseded this slot and parked its own session — never clobber
         // it) and awaited (the teardown's unmount must finish before the cold acquire remounts).
-        klog(`evict (continuation-threw) key=${key}; retry cold`);
+        // But NOT if the failed turn already streamed to the client: a cold retry would duplicate.
         live.environment.clearTurn();
         await pool.evictIfCurrent(live, "continuation-threw");
+        if (emitted) {
+          klog(
+            `evict (continuation-threw) key=${key}; already streamed, no retry`,
+          );
+          return {
+            ok: false,
+            error: String(err instanceof Error ? err.message : err),
+          };
+        }
+        klog(`evict (continuation-threw) key=${key}; retry cold`);
         void err;
         return coldAndPark();
       }
       if (!result.ok) {
         // A failed continuation may mean a broken live session: destroy and retry once cold
-        // (identity-checked + awaited, same as the throw path above).
-        klog(`evict (continuation-failed) key=${key}; retry cold`);
+        // (identity-checked + awaited, same as the throw path above). But NOT if the failed turn
+        // already streamed to the client: return the failure, a cold retry would duplicate.
         live.environment.clearTurn();
         await pool.evictIfCurrent(live, "continuation-failed");
+        if (emitted) {
+          klog(
+            `evict (continuation-failed) key=${key}; already streamed, no retry`,
+          );
+          return result;
+        }
+        klog(`evict (continuation-failed) key=${key}; retry cold`);
         return coldAndPark();
       }
-      live.environment.clearTurn();
-      if (shouldPark(result, signal, clientGone)) {
-        const reparked = pool.repark(
-          live,
+      await reparkOrEvict(live, result);
+      return result;
+    }
+    // checkout lost a race; fall through to cold.
+  } else if (existing && existing.state === "awaiting_approval") {
+    // Slice 2: an approval-parked session. A validated approval decision that matches the parked
+    // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
+    //
+    // Unlike the idle-continuation branch above, this branch does NOT require the resume request's
+    // configFingerprint or credential epoch to EQUAL the parked session's. Every approval reply is
+    // a fresh /run the backend mints carrying freshly minted short-lived material (gateway/Composio
+    // secret VALUES, a per-turn tool-callback bearer), so the incoming credential epoch — and often
+    // the config fingerprint, which can embed those per-turn tokens — practically never match the
+    // parked ones. But the parked live process already holds its OWN resolved credentials baked at
+    // acquire time; the resume request only delivers the human's yes/no. Re-minted per-turn material
+    // on the resume says nothing about the parked environment's validity, so matching it against the
+    // park would evict a perfectly good live session on every approval (the "approve twice" bug).
+    //
+    // We keep the checks that DO bound the parked environment: the approval-decision match, the
+    // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
+    // bound — if the parked session's mount credentials are past expiry, its durable cwd can no
+    // longer be written, so evict to cold.
+    const parked = existing.environment.parkedApproval;
+    const decision = parked
+      ? approvalDecisionForToolCall(request, parked.toolCallId)
+      : undefined;
+    const priorFp = historyFingerprint(priorConversation(request));
+    let mismatch: string | undefined;
+    if (!parked || parked.gateType !== "claude-acp-permission") {
+      mismatch = "not-claude-gate"; // defensive: only a Claude ACP gate ever parks here
+    } else if (!decision) {
+      mismatch = "no-matching-approval"; // fresh user text, or an approval for another id
+    } else if (priorFp !== existing.historyFingerprint) {
+      mismatch = "history";
+    } else if (mountCredentialsExpired(existing.credentialEpoch)) {
+      mismatch = "credentials-expired";
+    }
+
+    if (mismatch || !parked || !decision) {
+      klog(
+        `approval-mismatch (${mismatch ?? "unknown"}) key=${key}; evict + cold`,
+      );
+      await pool.evict(key, `approval-mismatch:${mismatch ?? "unknown"}`);
+      return coldAndPark();
+    }
+
+    const live = pool.checkoutApproval(key);
+    if (live) {
+      const reply = decision === "allow" ? "once" : "reject";
+      klog(
+        `${reply === "once" ? "resume-approve" : "resume-reject"} key=${key} ` +
+          `tool=${parked.toolName ?? "?"}`,
+      );
+      let result: AgentRunResult;
+      try {
+        // Answer the parked gate on the SAME live session; the original prompt continues and this
+        // (new) turn owns streaming + tracing. The gated tool runs with its original byte-exact
+        // args — no model re-issues anything, so argument drift/task restart cannot happen.
+        result = await engine.runTurn(
+          live.environment,
+          request,
+          trackedEmit,
+          signal,
           {
-            configFingerprint: cfgFp,
-            historyFingerprint: expectedNextHistoryFingerprint(
-              request.messages ?? [],
-              live.environment.lastTurnToolCallIds ?? [],
-            ),
-            credentialEpoch: incomingEpoch,
+            approvalParkMode: true,
+            resume: {
+              permissionId: parked.permissionId,
+              reply,
+              toolCallId: parked.toolCallId,
+              toolName: parked.toolName,
+              args: parked.args,
+              interactionToken: parked.interactionToken,
+              promptPromise: parked.promptPromise,
+            },
           },
-          config.ttlMs,
         );
-        if (!reparked) await live.destroy();
-      } else {
-        await pool.evictIfCurrent(
-          live,
-          `no-park:${result.stopReason ?? "failed"}`,
-        );
+      } catch (err) {
+        // As in the continuation branch: retry cold only if nothing streamed to the client yet.
+        live.environment.clearTurn();
+        await pool.evictIfCurrent(live, "resume-threw");
+        if (emitted) {
+          klog(`evict (resume-threw) key=${key}; already streamed, no retry`);
+          return {
+            ok: false,
+            error: String(err instanceof Error ? err.message : err),
+          };
+        }
+        klog(`evict (resume-threw) key=${key}; retry cold`);
+        void err;
+        return coldAndPark();
       }
+      if (!result.ok) {
+        live.environment.clearTurn();
+        await pool.evictIfCurrent(live, "resume-failed");
+        if (emitted) {
+          klog(`evict (resume-failed) key=${key}; already streamed, no retry`);
+          return result;
+        }
+        klog(`evict (resume-failed) key=${key}; retry cold`);
+        return coldAndPark();
+      }
+      await reparkOrEvict(live, result);
       return result;
     }
     // checkout lost a race; fall through to cold.
   } else if (existing) {
-    // Busy / awaiting_approval / destroyed: two turns racing one session. Supersede (destroy the
-    // parked one, cold-start the new turn) — awaited so its teardown cannot overlap our acquire.
+    // Busy / destroyed: two turns racing one session. Only a checkoutIdle continuation leaves a
+    // busy entry in the map (checkoutApproval REMOVES its session, so an in-flight approval
+    // resume can never be found — a duplicate approval misses the pool and runs cold, and its
+    // environment can never be destroyed by this branch). Supersede — destroy the parked one and
+    // cold-start — awaited so its teardown cannot overlap our acquire.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
     await pool.evict(key, `supersede-${existing.state}`);
   } else {

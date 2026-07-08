@@ -10,7 +10,12 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import type { AgentRunRequest, AgentRunResult } from "../../src/protocol.ts";
+import type {
+  AgentEvent,
+  AgentRunRequest,
+  AgentRunResult,
+  EmitEvent,
+} from "../../src/protocol.ts";
 import {
   runWithKeepalive,
   type KeepaliveContext,
@@ -35,6 +40,9 @@ interface EngineOptions {
   turnResults?: AgentRunResult[];
   /** Per-call emitted tool-call ids the fake runTurn records on the env (by call index). */
   turnToolCallIds?: string[][];
+  /** Per-call: when true, the fake runTurn streams one event through `emit` before returning
+   *  its result (models a live turn that reached the client before failing). */
+  turnEmits?: boolean[];
 }
 
 interface FakeEnv {
@@ -97,10 +105,13 @@ function makeEngine(options: EngineOptions = {}) {
   const runOneTurn = async (
     env: FakeEnv,
     continuation: boolean,
+    emit: EmitEvent | undefined,
   ): Promise<AgentRunResult> => {
     const idx = calls.turns.length;
     calls.turns.push({ env, continuation });
     env.lastTurnToolCallIds = options.turnToolCallIds?.[idx] ?? [];
+    if (options.turnEmits?.[idx])
+      emit?.({ type: "message_delta", id: "d1", delta: "partial" });
     return (
       options.turnResults?.[idx] ?? {
         ok: true,
@@ -122,8 +133,8 @@ function makeEngine(options: EngineOptions = {}) {
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },
-    async runTurn(env, _request, _emit, _signal, opts) {
-      return runOneTurn(env as unknown as FakeEnv, !!opts.continuation);
+    async runTurn(env, _request, emit, _signal, opts) {
+      return runOneTurn(env as unknown as FakeEnv, !!opts.continuation, emit);
     },
     async runCold(_request, _emit, _signal, presignedMount) {
       calls.cold += 1;
@@ -587,6 +598,50 @@ describe("runWithKeepalive: races and failures", () => {
     assert.equal(r2.ok, true);
     assert.equal(r2.output, "recovered");
     assert.equal(ctx.pool.size(), 1, "the cold retry re-parked");
+  });
+
+  it("does NOT retry cold when a failed continuation already streamed to the client", async () => {
+    // Streaming edge (emit defined): the continuation emits a partial answer, then fails. A cold
+    // retry would push a second, successful answer after the client already saw the failed live
+    // stream — a duplicate. The broken session is still evicted, but the failure is returned as-is.
+    const { engine, calls } = makeEngine({
+      turnResults: [
+        { ok: true, stopReason: "complete" },
+        { ok: false, error: "session died mid-stream" },
+        { ok: true, output: "recovered", stopReason: "complete" }, // must NOT run
+      ],
+      turnEmits: [false, true], // the continuation streams before failing
+    });
+    const ctx = makeCtx(engine);
+    const seen: AgentEvent[] = [];
+    const emit: EmitEvent = (event) => {
+      seen.push(event);
+    };
+    await runWithKeepalive(turn1(), emit, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+    const r2 = await runWithKeepalive(turn2(), emit, undefined, ctx);
+
+    assert.equal(
+      env1.destroyed,
+      1,
+      "the broken live session is still destroyed",
+    );
+    assert.equal(
+      calls.acquire,
+      1,
+      "no cold reacquire after the client already streamed",
+    );
+    assert.equal(calls.cold, 0, "no cold retry");
+    assert.equal(
+      r2.ok,
+      false,
+      "the failure is returned, not masked by a cold answer",
+    );
+    assert.equal(
+      seen.filter((e) => e.type === "message_delta").length,
+      1,
+      "the client saw exactly the one live delta — no duplicated cold answer",
+    );
   });
 
   it("eviction before a cold reacquire is AWAITED (teardown cannot overlap the new acquire)", async () => {
