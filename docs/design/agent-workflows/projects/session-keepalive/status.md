@@ -18,6 +18,21 @@ Mahmoud reviewed PR #5153 and asked for a substantial rewrite for clarity, conte
 - `open-questions.md` folded in Mahmoud's answers (idle TTL 60s lgtm, approval TTL 5 min and configurable, pool cap sized from measured RAM).
 - The provenance of the amendments themselves lives only here, per Mahmoud's rule that meta stays out of the design text.
 
+## Second review round (2026-07-08)
+
+Mahmoud did a second pass on PR #5153 (13 inline comments on architecture-notes.md, plus "please address"). This round's changes, all provenance kept here rather than in the design text:
+
+- **Decision 1 (project scope home).** Added the honest analysis of whether taking `project_id` from the mount mixes responsibilities. It does, partly. Verified in code: the live `/run` wire never populates the nominal `projectId` field and the runner never reads it, so the mount-sign response is the only server-verified scope the runner holds today; but the project id already exists one layer up (`RuntimeAuthContext.project_id`, from request state). Recorded the clean home (stamp it into `runContext`) as follow-up 5.
+- **Decision 2 (config change).** Corrected the overstated "a running harness cannot be reconfigured in place." It is not impossible, just not built. v1 keeps evict-and-cold (option C); the in-place path is designed in `followups/in-place-reconfiguration/`.
+- **Decision 2 (observability).** Added the warm-vs-cold visibility section: a silent all-cold regression is the real risk, so surface the path as a trace attribute (`ag.keepalive.path`) and optionally a stream meta event. Recorded as follow-up 6.
+- **Decision 3 (stop button + supersede).** Documented the current stop-button reality (session-owned runs ignore the client disconnect; the harness runs to completion in the background; there is no per-turn cancel). Added supersede option (c), abort-the-turn-and-continue-on-the-same-session, as the better end state paired with a real per-turn stop. Recorded as follow-up 7.
+- **Decision 3 (why not the backend lock).** Rewrote using verified code: the distributed Redis alive-lock (`api/oss/src/dbs/redis/sessions/locks.py`) already exists and the runner cooperates with it over the HTTP heartbeat; the busy flag is not a reimplementation, it guards an in-process pool of live warmed sandbox handles a Redis key cannot represent. Multi-replica layering recorded.
+- **Decision 5.** Expanded with the concrete current-turn-sink shape and a two-turns-plus-stray-event worked example, per the request for more architectural detail.
+- **Decision 6.** Removed the meta sentence ("the decision Mahmoud asked to be rewritten"); noted `RELAY_TIMEOUT_MS` is env-configurable and that raising it does not buy parkability; clarified that the park-mode-changes section is the Claude ACP permission gate, not the client-tool MCP pause; pointed the "future path" at `followups/parkable-gates/`.
+- **Decision 9.** Removed the meta sentence ("Mahmoud asked for real numbers").
+- **Decision 10 (Daytona).** Verified in code: the runner sets no cpu/memory/disk, so the sandbox comes up at the Daytona account default spec (the cost math assumes that spec); the image is the custom `agenta-sandbox-pi` snapshot; the 15-minute auto-stop is explicitly set (`DEFAULT_DAYTONA_AUTOSTOP_MINUTES`, tunable via `DAYTONA_AUTOSTOP`), overriding the upstream default of off.
+- **Two new follow-up designs written and added to this PR**, both of the same standard as the main docs: `followups/parkable-gates/` (make the Pi relay, Pi builtin, and client-tool MCP gates parkable; recommends inverting the Pi relay to a runner-held handle and holding the client-tool MCP socket open) and `followups/in-place-reconfiguration/` (change a live session's config without a respawn).
+
 ## Measured costs and mechanism research (2026-07-08)
 
 Recorded here as the source for the numbers now cited in the design docs.
@@ -44,6 +59,9 @@ Recorded here as the source for the numbers now cited in the design docs.
 2. **`sandbox_agent.ts` structural cleanup.** The file is long; the acquire/run split is a good moment to break it into smaller modules. A structural refactor task, not part of this feature.
 3. **OS-level orphan-process backstop.** A process-group kill or reaper for the daemon-adapter-harness tree that survives a runner SIGKILL/OOM, so a hard kill cannot leak parked trees. Addresses the residual 2026-07-06 leak class, independent of keep-alive.
 4. **Frontend "setting up sandbox" phase.** The `/run` stream is silent during the acquire phase (sign mount, start sandbox, create session) before any agent event. A setup-phase event would let the frontend show "setting up" instead of an unexplained wait. Not designed here; a small side-note improvement worth filing.
+5. **Move the pool's project scope off the mount and into `runContext`.** Today the pool key's project scope comes from the mount-sign response because no project id rides the `/run` wire. The clean home is `runContext`, which the service already computes server-side from request state (the same server-verified path that produces the workflow id). A small wire addition (DTO, the two mirrors, goldens, one service line), to land when keep-alive stops being strictly runner-only. Decouples the pool key from the mount signer (Decision 1).
+6. **A warm-vs-cold run signal for the inspector.** Emit the keep-alive path taken on each run as a trace attribute (`ag.keepalive.path = hit | miss | park | cold`), so a silent regression where every run went cold is a query instead of an invisible slowdown. A stream meta event for a live "continuing vs starting fresh" indicator is a later nicety on the same surface as follow-up 4. The trace attribute should land with slice 1 (Decision 2).
+7. **A real per-turn stop, and supersede-without-cold.** Today "stop" only drops the client stream; a session-owned run keeps executing in the background, and a superseding second turn cold-starts. A per-turn cancel that aborts the in-flight `prompt()` and keeps the session would make "stop" actually stop and let a superseding turn continue on the live session instead of going cold. One piece of work; the abort machinery exists but is not wired to a cancel call, and session-clean-after-abort is unproven (Decision 3).
 
 ## Decisions made
 
