@@ -434,10 +434,10 @@ describe("poolKeyFor", () => {
 describe("SessionPool", () => {
   const cfg = { poolMax: 2 };
 
-  it("park then checkoutIdle returns the same session (busy) and clears the timer", () => {
+  it("park then checkoutIdle returns the same session (busy) and clears the timer", async () => {
     const pool = new SessionPool(cfg, () => {});
     const { input, env } = parkInput("k1");
-    assert.equal(pool.park(input, 10_000), true);
+    assert.equal(await pool.park(input, 10_000), true);
     assert.equal(pool.size(), 1);
     const live = pool.checkoutIdle("k1");
     assert.ok(live);
@@ -471,7 +471,7 @@ describe("SessionPool", () => {
     pool.checkoutIdle("a");
     pool.park(b.input, 10_000);
     // Pool now holds a(busy) + b(idle); parking c must evict b (the only idle), not a.
-    assert.equal(pool.park(c.input, 10_000), true);
+    assert.equal(await pool.park(c.input, 10_000), true);
     await Promise.resolve();
     assert.equal(b.env.state.destroyed, 1, "the idle entry was evicted");
     assert.equal(a.env.state.destroyed, 0, "the busy entry is never evicted");
@@ -577,7 +577,7 @@ describe("SessionPool", () => {
     // a is approval-parked (longer TTL), b is idle. Parking c at the cap must evict b, not a.
     pool.park(a.input, 600_000, "awaiting_approval");
     pool.park(b.input, 10_000);
-    assert.equal(pool.park(c.input, 10_000), true);
+    assert.equal(await pool.park(c.input, 10_000), true);
     await Promise.resolve();
     assert.equal(b.env.state.destroyed, 1, "the idle entry was evicted");
     assert.equal(
@@ -618,7 +618,7 @@ describe("SessionPool", () => {
     pool.checkoutIdle("a"); // busy, not evictable
     const b = parkInput("b");
     assert.equal(
-      pool.park(b.input, 10_000),
+      await pool.park(b.input, 10_000),
       false,
       "park is best-effort; refused when full",
     );
@@ -714,6 +714,61 @@ describe("SessionPool", () => {
       a.env.state.destroyed,
       1,
       "A's own destroy is idempotent (no double teardown)",
+    );
+  });
+
+  it("park AWAITS the replaced same-key session's teardown before taking the slot", async () => {
+    // Two cold turns for the same key finish near each other: the second park replaces the first.
+    // Both share the same durable cwd/mount, so the first's destroy (unmount/delete) must complete
+    // BEFORE the successor is parked, or it could unmount the cwd out from under the new session.
+    const pool = new SessionPool({ poolMax: 4 }, () => {});
+    // A's destroy is gated: it does not resolve until we release it, standing in for a slow unmount.
+    let releaseADestroy: (() => void) | undefined;
+    const aState = { destroyed: 0 };
+    const aEnv = {
+      state: aState,
+      destroy: async () => {
+        await new Promise<void>((resolve) => {
+          releaseADestroy = resolve;
+        });
+        aState.destroyed += 1;
+      },
+    };
+    const a = parkInput("k1", aEnv);
+    await pool.park(a.input, 10_000);
+
+    const b = parkInput("k1");
+    // The replacing park cannot resolve while A's teardown is still in flight.
+    const parked = pool.park(b.input, 10_000);
+    let settled = false;
+    void parked.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    assert.equal(
+      settled,
+      false,
+      "park is pending until the old destroy finishes",
+    );
+    assert.equal(aState.destroyed, 0, "A's destroy has not completed yet");
+    assert.equal(
+      pool.get("k1"),
+      undefined,
+      "the successor is NOT parked while the shared cwd is still being unmounted",
+    );
+
+    // Release A's teardown: only now does the successor take the slot.
+    releaseADestroy?.();
+    assert.equal(await parked, true);
+    assert.equal(
+      aState.destroyed,
+      1,
+      "the replaced session was destroyed first",
+    );
+    assert.equal(
+      pool.get("k1")!.environment,
+      b.env,
+      "the successor holds the slot only after the old teardown completed",
     );
   });
 

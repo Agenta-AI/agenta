@@ -330,6 +330,20 @@ export async function runWithKeepalive(
   const { engine, pool, config, clientGone } = ctx;
   const sessionId = request.sessionId?.trim();
 
+  // Track whether anything reached the client on this streaming edge. A live continuation/resume
+  // that fails AFTER emitting (a partial answer or an error event) must NOT retry cold: the client
+  // and persistence already saw the failed live stream, and a following cold answer would duplicate
+  // it. Only a live turn that emitted NOTHING yet may fall back to a fresh cold turn (today's
+  // resilience). In buffered mode (`emit` undefined) nothing is ever streamed, so a cold retry is
+  // always safe. `emit` stays undefined when undefined so `runTurn` keeps buffering.
+  let emitted = false;
+  const trackedEmit: EmitEvent | undefined = emit
+    ? (event) => {
+        emitted = true;
+        emit(event);
+      }
+    : undefined;
+
   // Eligibility: session-owned + local sandbox. Otherwise never park; run cold as today
   // (no up-front sign happened, so the cold path signs itself: still exactly once).
   if (!sessionId || !isLocalSandbox(request)) {
@@ -426,13 +440,15 @@ export async function runWithKeepalive(
       klog(
         `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
       );
-      if (!pool.park(input, config.approvalTtlMs, "awaiting_approval")) {
+      if (
+        !(await pool.park(input, config.approvalTtlMs, "awaiting_approval"))
+      ) {
         await env.destroy();
       } else {
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!pool.park(input, config.ttlMs)) await env.destroy();
+      if (!(await pool.park(input, config.ttlMs))) await env.destroy();
     } else {
       await env.destroy();
     }
@@ -479,7 +495,7 @@ export async function runWithKeepalive(
     try {
       // Park mode on: a Claude ACP permission gate this turn keeps the session alive instead of
       // tearing down. A non-parkable pause (Pi relay/builtin, client tool) still destroys as today.
-      result = await engine.runTurn(env, request, emit, signal, {
+      result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
       });
     } catch (err) {
@@ -523,26 +539,49 @@ export async function runWithKeepalive(
       let result: AgentRunResult;
       try {
         // A continuation can itself raise an approval gate, so it runs in park mode too.
-        result = await engine.runTurn(live.environment, request, emit, signal, {
-          continuation: true,
-          approvalParkMode: true,
-        });
+        result = await engine.runTurn(
+          live.environment,
+          request,
+          trackedEmit,
+          signal,
+          {
+            continuation: true,
+            approvalParkMode: true,
+          },
+        );
       } catch (err) {
         // A continuation that throws destroys the session and retries once cold. Identity-checked
         // (a racing turn may have superseded this slot and parked its own session — never clobber
         // it) and awaited (the teardown's unmount must finish before the cold acquire remounts).
-        klog(`evict (continuation-threw) key=${key}; retry cold`);
+        // But NOT if the failed turn already streamed to the client: a cold retry would duplicate.
         live.environment.clearTurn();
         await pool.evictIfCurrent(live, "continuation-threw");
+        if (emitted) {
+          klog(
+            `evict (continuation-threw) key=${key}; already streamed, no retry`,
+          );
+          return {
+            ok: false,
+            error: String(err instanceof Error ? err.message : err),
+          };
+        }
+        klog(`evict (continuation-threw) key=${key}; retry cold`);
         void err;
         return coldAndPark();
       }
       if (!result.ok) {
         // A failed continuation may mean a broken live session: destroy and retry once cold
-        // (identity-checked + awaited, same as the throw path above).
-        klog(`evict (continuation-failed) key=${key}; retry cold`);
+        // (identity-checked + awaited, same as the throw path above). But NOT if the failed turn
+        // already streamed to the client: return the failure, a cold retry would duplicate.
         live.environment.clearTurn();
         await pool.evictIfCurrent(live, "continuation-failed");
+        if (emitted) {
+          klog(
+            `evict (continuation-failed) key=${key}; already streamed, no retry`,
+          );
+          return result;
+        }
+        klog(`evict (continuation-failed) key=${key}; retry cold`);
         return coldAndPark();
       }
       await reparkOrEvict(live, result);
@@ -603,29 +642,47 @@ export async function runWithKeepalive(
         // Answer the parked gate on the SAME live session; the original prompt continues and this
         // (new) turn owns streaming + tracing. The gated tool runs with its original byte-exact
         // args — no model re-issues anything, so argument drift/task restart cannot happen.
-        result = await engine.runTurn(live.environment, request, emit, signal, {
-          approvalParkMode: true,
-          resume: {
-            permissionId: parked.permissionId,
-            reply,
-            toolCallId: parked.toolCallId,
-            toolName: parked.toolName,
-            args: parked.args,
-            interactionToken: parked.interactionToken,
-            promptPromise: parked.promptPromise,
+        result = await engine.runTurn(
+          live.environment,
+          request,
+          trackedEmit,
+          signal,
+          {
+            approvalParkMode: true,
+            resume: {
+              permissionId: parked.permissionId,
+              reply,
+              toolCallId: parked.toolCallId,
+              toolName: parked.toolName,
+              args: parked.args,
+              interactionToken: parked.interactionToken,
+              promptPromise: parked.promptPromise,
+            },
           },
-        });
+        );
       } catch (err) {
-        klog(`evict (resume-threw) key=${key}; retry cold`);
+        // As in the continuation branch: retry cold only if nothing streamed to the client yet.
         live.environment.clearTurn();
         await pool.evictIfCurrent(live, "resume-threw");
+        if (emitted) {
+          klog(`evict (resume-threw) key=${key}; already streamed, no retry`);
+          return {
+            ok: false,
+            error: String(err instanceof Error ? err.message : err),
+          };
+        }
+        klog(`evict (resume-threw) key=${key}; retry cold`);
         void err;
         return coldAndPark();
       }
       if (!result.ok) {
-        klog(`evict (resume-failed) key=${key}; retry cold`);
         live.environment.clearTurn();
         await pool.evictIfCurrent(live, "resume-failed");
+        if (emitted) {
+          klog(`evict (resume-failed) key=${key}; already streamed, no retry`);
+          return result;
+        }
+        klog(`evict (resume-failed) key=${key}; retry cold`);
         return coldAndPark();
       }
       await reparkOrEvict(live, result);

@@ -510,17 +510,20 @@ export class SessionPool<E = unknown> {
    * awaiting_approval session. If nothing evictable frees a slot, the session is NOT parked and
    * the caller tears it down as today (parking is best-effort). Returns whether it parked.
    */
-  park(
+  async park(
     input: ParkInput<E>,
     ttlMs: number,
     state: "idle" | "awaiting_approval" = "idle",
-  ): boolean {
+  ): Promise<boolean> {
     // A supersede/re-park on the same key replaces any prior entry (destroy the old one first).
+    // AWAIT the teardown before taking the slot, exactly like `evict`: the replaced session shares
+    // the SAME durable cwd/mount as the successor, so its unmount/delete must complete BEFORE the
+    // new session is parked, or the old destroy could unmount the cwd out from under the successor.
     const existing = this.sessions.get(input.key);
     if (existing) {
       this.clearTimer(existing);
       this.sessions.delete(input.key);
-      void this.safeDestroy(existing);
+      await this.safeDestroy(existing);
     }
 
     if (this.sessions.size >= this.config.poolMax && !this.evictLruIdle()) {
