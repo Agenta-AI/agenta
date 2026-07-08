@@ -1458,15 +1458,16 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                         </Button>
                     </div>
                 )}
-                {/* Meta row: the working dots + "Inspect turn" share ONE compact line under the
+                {/* Meta row: "Inspect turn" + the working dots share ONE compact line under the
                     turn. The dots run for the WHOLE busy run — so gaps with no streaming output
                     (approval-resume cold-replay, between steps, server tool waits) never read as
-                    frozen — and drop the moment the run settles, leaving just the affordance. An
-                    EMPTY streaming assistant turn already renders its own loading bubble
-                    (AgentMessage), so the dots skip it — exactly one indicator while busy. */}
+                    frozen — and drop the moment the run settles. The affordance renders FIRST so
+                    its left edge stays put (and aligned with older turns') when the trailing dots
+                    unmount — no settle-time layout shift. An EMPTY streaming assistant turn
+                    already renders its own loading bubble (AgentMessage), so the dots skip it —
+                    exactly one indicator while busy. */}
                 {(showWorking || showInspect) && (
                     <div className="flex items-center gap-2 self-start">
-                        {showWorking && <WorkingDots />}
                         {showInspect && (
                             <button
                                 type="button"
@@ -1479,6 +1480,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                 Inspect turn
                             </button>
                         )}
+                        {showWorking && <WorkingDots />}
                     </div>
                 )}
             </MessageRow>
