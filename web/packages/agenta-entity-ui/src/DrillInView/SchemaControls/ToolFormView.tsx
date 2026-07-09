@@ -231,7 +231,7 @@ function CanonicalGatewayToolForm({
                     view.action,
                     view.connection,
                 ),
-                description: action.description ?? action.name ?? action.key ?? "",
+                description: action.description || action.name || action.key || "",
                 parameters: normalizeParameters(details?.schemas?.inputs),
             },
             ...(view.permission ? {permission: view.permission} : {}),
