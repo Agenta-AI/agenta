@@ -43,8 +43,24 @@ export const GLOBAL_APP_KEY = "__global__"
  * Default scope key when a surface provides no override: the current app (or `__global__` off an
  * app page). Kept as the bare app id (no prefix) so sessions persisted before scoping was
  * introduced still resolve under the same storage key.
+ *
+ * Fallback order matters: `routerAppIdAtom` derives from the app-state snapshot, which updates
+ * on routeChangeComplete — AFTER the destination page has rendered. During a client-side nav
+ * onto an app playground, a mounted chat panel would briefly scope to `__global__` (wrong/empty
+ * session store, stray seeded tab), then swap to the app scope when the snapshot settles —
+ * remounting the transcript (the warm re-entry "flash"). The live URL never lags, so parse the
+ * app id from it before conceding to the global scope. The non-reactive window read is safe:
+ * when the router atom catches up it yields the SAME id, so the scope value never swaps.
  */
-export const defaultScopeKeyAtom = atom((get) => get(routerAppIdAtom) || GLOBAL_APP_KEY)
+export const defaultScopeKeyAtom = atom((get) => {
+    const routed = get(routerAppIdAtom)
+    if (routed) return routed
+    if (typeof window !== "undefined") {
+        const fromUrl = window.location.pathname.match(/\/apps\/([^/]+)/)?.[1]
+        if (fromUrl) return fromUrl
+    }
+    return GLOBAL_APP_KEY
+})
 
 // One source of truth per concern, keyed by scope key. Scoped accessors below derive a single
 // scope's slice (mirrors the playground's `selectedVariantsByAppAtom` pattern).
