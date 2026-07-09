@@ -419,7 +419,7 @@ describe("buildAgentRequest", () => {
         expect(refs).not.toBeNull()
         expect(refs.application.id).toBe(REAL_APP)
         expect(refs.application_variant.id).toBe(REAL_VARIANT)
-        expect(refs.application_revision).toBeUndefined()
+        expect(refs).not.toHaveProperty("application_revision")
         expect(req!.invocationUrl).toContain(`application_id=${REAL_APP}`)
     })
 
@@ -449,8 +449,20 @@ describe("buildAgentRequest", () => {
         expect(refs).not.toBeNull()
         expect(refs.application.id).toBe(REAL_APP)
         expect(refs.application_variant.id).toBe(REAL_VARIANT)
-        expect(refs.application_revision).toBeUndefined()
+        expect(refs).not.toHaveProperty("application_revision")
         expect(req!.invocationUrl).toContain(`application_id=${REAL_APP}`)
+    })
+
+    it("collapses to references: null for a DIRTY run whose only real identity is the revision (no app/variant)", async () => {
+        // `buildAgentReferences` would produce ONLY `application_revision` here (a real revision
+        // UUID, no real app/variant ids). The gate strips `application_revision` on a dirty run,
+        // so nothing survives the gate — references must fall back to null, not an empty object.
+        seed(store, "e", {
+            isDirty: true,
+            data: {id: REAL_REV, version: 3},
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.requestBody.references).toBeNull()
     })
 
     it("invariant guard: a dirty committed run still carries data.parameters alongside the bare-variant references", async () => {
@@ -474,7 +486,7 @@ describe("buildAgentRequest", () => {
         expect(Object.keys(data.parameters).length).toBeGreaterThan(0)
         const refs = req!.requestBody.references as any
         expect(refs.application_variant.id).toBe(REAL_VARIANT)
-        expect(refs.application_revision).toBeUndefined()
+        expect(refs).not.toHaveProperty("application_revision")
     })
 
     it("puts project_id + application_id in the URL QUERY, never the body", async () => {
