@@ -8,10 +8,11 @@ This document extends that property to the three gates that still lack it: the P
 relay gate, the Pi builtin gate, and the client-tool MCP pause. It is judged by one invariant,
 stated first, because the invariant (not connection plumbing) is what decides every choice below.
 
-Everything below is verified against `services/runner/src` as of 2026-07-08, and against the
+Everything below is verified against `services/runner/src` as of 2026-07-08, against the
 kill-and-resume experiments of 2026-07-09
 ([protocol](../../../harness-session-resume/experiments/protocol.md),
-[report](../../../harness-session-resume/experiments/report.md)).
+[report](../../../harness-session-resume/experiments/report.md)), and against the live Option C
+spike of the same day ([spike-option-c/report.md](spike-option-c/report.md)).
 
 ---
 
@@ -196,13 +197,14 @@ does the decision arrive at a genuinely new agent turn, the cold path below.
   ordering is the novel part and the main risk. In return, everything stays in our code, on the
   transport that already exists, with no new dependency.
 
-**Option C: route Pi approvals over the ACP permission plane the bridge already has.** Stop
-expressing Pi approvals through the relay files at all; raise them as real ACP permission
-requests the runner holds as promises, exactly like Claude's gate. The relay files stay for
-tool execution only.
+**Option C (proven live, recommended): route Pi approvals over the ACP permission plane the
+bridge already has.** Stop expressing Pi approvals through the relay files at all; raise them
+as real ACP permission requests the runner holds as promises, exactly like Claude's gate. The
+relay files stay for tool execution only. A live spike proved the mechanism end to end on
+2026-07-09: [spike-option-c/report.md](spike-option-c/report.md) (protocol, the spike
+extension, the ACP client, and raw wire transcripts sit alongside it).
 
-An earlier draft dismissed this as upstream work inside Pi. That was wrong on both counts, and
-the corrected picture makes C much closer than "north star":
+An earlier draft dismissed this as upstream work inside Pi. That was wrong on both counts:
 
 - **Pi already has the hooks.** Every Pi extension event handler receives a `ctx.ui` with
   `confirm(title, message): Promise<boolean>` plus `select`/`input`/`notify`
@@ -221,45 +223,67 @@ the corrected picture makes C much closer than "north star":
   request, park the session, `respondPermission` on resume) would apply with a new gate type
   and almost no new mechanism.
 
-What is actually missing, verified against the bundled packages:
+What the 2026-07-09 spike settled, driving a real Pi session under the real bridge (five
+scenarios: allow, deny, three-minute hold, transport drop, clean reject):
 
-- **Payload fidelity.** `pi-acp` synthesizes the ACP tool call from the dialog: id
-  `pi-ui-<n>`, `rawInput` limited to title/message/options (`index.js:565, 1130-1144`). The
-  real tool-call id and arguments do not ride the request natively, and the approval card and
-  decision map key on them. Either encode them in the confirm message and parse runner-side,
-  or make a small `pi-acp` change forwarding structured metadata.
-- **Ownership.** Pi (`@earendil-works/pi-coding-agent`) is Mario Zechner's; `pi-acp` is a
-  separate MIT adapter by Sergii Kozak (`svkozak/pi-acp`, v0.0.29 bundled). Neither is ours.
-  A small upstream PR is the clean route, and this repo already `pnpm patch`es
-  `sandbox-agent`, so a patch is the normal escape hatch, not a blocker.
-- **An unproven hop.** Nobody has driven `ctx.ui.confirm` through the sandbox-agent daemon to
-  the runner's permission listener. The Daytona trust prompt rides the same dialog channel, so
-  the path exists, but the gate use needs a spike.
+- **The hop is real, mid-gate.** `ctx.ui.confirm` raised from inside a `tool_call` hook
+  arrives at the ACP client as a genuine `session/request_permission` while the tool call sits
+  pending, and the answer resolves the blocked hook (report, Q1).
+- **The park is the default, not an engineering feat.** The held request survived 180067 ms
+  with no reaper, and the late allow ran the original call with its original arguments inside
+  one uninterrupted `prompt()`. Pi's dialog helper arms a timeout only when the caller passes
+  one; the hook passes none, and the relay's `RELAY_TIMEOUT_MS` is never touched on this path
+  (report, Q3). The unbounded fail-closed wait Option B must engineer into the relay is this
+  path's out-of-the-box behavior.
+- **Fail-closed holds on every unhappy path.** A deny and a cleanly rejected ACP request both
+  resolve the dialog to false, the hook blocks, and the tool never runs; a transport drop
+  kills the bridge and Pi cleanly and degrades to tier-2 session resume (report, Q4).
+- **The payload gap closes with an envelope, not upstream work.** Natively the bridge forwards
+  only the dialog strings (`toolCallId` `pi-ui-<uuid>`, `rawInput` `{method, title, message}`,
+  `index.js:565, 1130-1144`). A JSON envelope carrying the real gate identity (tool name, call
+  id, arguments) through the message field round-trips byte-exact, including quotes,
+  backslashes, Japanese text, and newlines (report, Q2).
+- **The sandbox-agent path forwards it unchanged** (`acp-http-client@0.4.2` passes
+  `requestPermission` straight through, fail-closed when no handler is attached), and the
+  runner's permission responder routes a spec-less gate onto the slice-2 park machinery
+  (report, Q5, source-verified). One live daemon run remains as a confidence check; it is a
+  residual, not an open question.
+
+Shipping C is therefore two runner work items, not a mechanism build:
+
+1. **Parse the envelope into the real gate identity** where permission requests are
+   classified, so approval cards, the durable decision map, and permission policy key on the
+   actual tool name, call id, and arguments rather than on `agenta-approval` dialog strings.
+2. **Switch the in-sandbox extension** to raise `ctx.ui.confirm` (with the envelope) at both
+   gates instead of the relay poll; the relay keeps carrying execution.
+
+Ownership stays worth naming: Pi (`@earendil-works/pi-coding-agent`) is Mario Zechner's;
+`pi-acp` is a separate MIT adapter by Sergii Kozak (`svkozak/pi-acp`, 0.0.29 bundled). The
+cleanup end state is a small upstream `pi-acp` field for structured metadata (or a pnpm patch,
+which this repo already uses for `sandbox-agent`), retiring the envelope encoding.
 
 - Trade-off: C reuses the proven Claude park machinery unchanged (one gate mechanism for both
   harnesses, no relay-timeout surgery, no write-file resume verb) and removes the "pause
   expressed as a missing file" awkwardness. Against that, it puts a correctness-critical path
-  through a third-party bridge and needs the payload-fidelity gap closed by encoding or by an
-  upstream change. It shares Option B's novel ordering (the turn still ends while Pi's
-  `prompt()` hangs inside a blocked hook), so that risk is common to both.
+  through a third-party bridge, carries the envelope encoding until an upstream field exists,
+  and shares Option B's novel ordering (the turn still ends while Pi's `prompt()` hangs inside
+  a blocked hook).
 
 ### Recommended option
 
-**Spike Option C's wire hop first; ship C if the payload survives, otherwise B.** The two
-options reach the same parkability and share the same cold fall-back and the same novel
-ordering risk. They differ in where the pending handle lives: C reuses the exact ACP request
-the Claude park already holds (smallest delta from slice 2, one gate mechanism for both
-harnesses, but a third-party bridge in the path and a payload gap to close); B keeps everything
-in our own code on the existing relay files (no new dependency, but three code deltas and a new
-resume verb). The C spike is small: one Pi session under the bridge, a `tool_call` hook that
-awaits `ctx.ui.confirm`, and a check of what the runner's permission listener receives. If the
-tool name and arguments survive that hop (natively, by encoding, or by a small accepted
-upstream change), C is the better build; if not, B ships and C stays the end state. Either way
-the gate degrades cleanly: with keep-alive off, or on any run that cannot park, the bounded
-fail-closed behavior of today remains.
+**Option C, proven, shipping with the JSON envelope.** The spike removed the condition the
+earlier recommendation hinged on: the hop works, the payload survives by encoding, and the
+park behavior needed is the dialog path's default. C is the smallest delta from slice 2 (the
+runner holds and answers the same ACP request shape it already parks for Claude) and gives
+both harnesses one gate mechanism. Option B stays documented above as the fallback, and it is
+explicitly not chosen: it needs three code deltas plus a new write-the-file resume verb to
+build, inside our own relay, the exact wait the dialog path provides for free, and its only
+advantage (no third-party bridge in the path) is not worth that build while the bridge is
+pinned and patchable. If the residual daemon run or the Pi upgrade path ever breaks the dialog
+channel, B is the recorded escape route. Either way the gate degrades cleanly: with keep-alive
+off, or on any run that cannot park, the bounded fail-closed behavior of today remains.
 
-Before/after, one Pi approval, against the invariant (the warm mechanics shown are Option B's;
-under C the file write is replaced by `respondPermission` resolving the held dialog):
+Before/after, one Pi approval, against the invariant:
 
 - Today (tier 3): Pi calls a gated tool. The runner records a durable interaction, writes no
   response, ends the turn `paused`, and destroys the session (the poll dies with it). The human
@@ -267,12 +291,13 @@ under C the file write is replaced by `respondPermission` resolving the held dia
   call from text as a NEW `tool_use`; the runner matches it against the stored decision by name
   plus canonical arguments. If the regenerated arguments drift, the gate re-fires. The LLM call
   sequence differs from the warm one.
-- With Option B (tier 1, inside the approval TTL): Pi calls a gated tool. The runner records a
-  runner-held handle and emits `paused`; keep-alive parks the live Pi session, and the blocked
-  `execute` callback keeps waiting. The human clicks Approve. The runner writes the response file
-  into the parked sandbox. The same blocked callback reads it and returns. The original call runs
-  with its original arguments, and call N+1 to the LLM carries the real `tool_result` for the
-  original id. The invariant holds.
+- With Option C (tier 1, inside the approval TTL): Pi calls a gated tool. The extension's gate
+  raises `ctx.ui.confirm` with the envelope; the bridge surfaces it as a real
+  `session/request_permission`; the runner parses the envelope, records the park, emits
+  `paused`, and keep-alive holds the live session with the request open. The human clicks
+  Approve. The runner answers the held request (`respondPermission`); the blocked gate returns
+  allow; the original call runs with its original arguments, and call N+1 to the LLM carries
+  the real `tool_result` for the original id. The invariant holds.
 
 ## Gate 2: the Pi builtin gate
 
@@ -304,13 +329,15 @@ alive as long as the session is.
 ### Options and recommendation
 
 The mechanism is the relay, so the options are Gate 1's options, and the same recommendation
-applies: spike C's hop; C if the payload survives, else B. One extra constraint applies here
-under B. The paused state must become a genuine third outcome (suspend and keep polling),
+applies: Option C, proven by the spike (whose `tool_call` hook is exactly this gate's shape).
+Under C this gate gets simpler than it is today: the hook awaits `ctx.ui.confirm` and the
+answer is the answer; the fail-closed default is the dialog resolving false on any
+cancellation. The extra constraint below applies only if the Option B fallback is ever built.
+Under B the paused state must become a genuine third outcome (suspend and keep polling),
 distinct from allow and deny, held open only while keep-alive holds the session; the watcher
 must stop answering an ask instantly with `pendingApproval`, because fail-closed makes the hook
 treat that as final. When keep-alive cannot park, the hook keeps today's fail-closed timeout,
-so a builtin never runs unapproved. Under C the constraint disappears: the hook awaits
-`ctx.ui.confirm` and the answer is the answer.
+so a builtin never runs unapproved.
 
 The same turn-versus-prompt reading from Gate 1 applies: on the warm path nothing new is ever
 prompted into Pi. The approval arrives as a new `/run` request, the runner writes the
@@ -435,10 +462,9 @@ that owns it was torn down. So this work sits on top of keep-alive slices 1 and 
 into the tier model above, which extends the two-tier picture in architecture-notes.md with the
 middle tier the experiments defined.
 
-- **The parked handle is tier 1, the fast in-memory tier.** A parked Pi gate (a relay handle
-  under Option B, a held ACP permission request under Option C) or a held MCP socket (client
-  tool) resumes the original call with no replay, valid for the approval TTL. The only
-  byte-exact tier.
+- **The parked handle is tier 1, the fast in-memory tier.** A parked Pi gate (a held ACP
+  permission request, Option C) or a held MCP socket (client tool) resumes the original call
+  with no replay, valid for the approval TTL. The only byte-exact tier.
 - **Harness session resume is tier 2.** When the parked process is gone but the harness session
   file survives, `session/load` continues the conversation with full structured history; the
   parked call is settled and re-issued. This tier belongs to the harness-session-resume project,
@@ -487,40 +513,45 @@ schedule; building them against the current runner-local pool would produce a co
 head start. Parkable gates and session resume are two tiers of one invariant, not two features,
 and they should be planned as one roadmap.
 
-- **v-next (the Pi gate park).** Both Pi gates as one change, with the mechanism decided by the
-  small Option C spike: either the extension-UI permission plane (C: the gate awaits
-  `ctx.ui.confirm`, the bridge raises a real ACP permission request, and slice 2's park
-  machinery holds it) or the parked relay wait (B: park instead of destroy, the write-the-file
-  resume verb, a park-length poll deadline). This is the larger and higher-value piece, because
-  Pi has no tier-1 path today at all. Coordinate with the backend warm-session move; the park
-  record should live wherever the pool lands.
+- **v-next (the Pi gate park, Option C).** Both Pi gates as one change on the proven
+  mechanism: the gate awaits `ctx.ui.confirm` with the JSON envelope, the bridge raises a real
+  ACP permission request, and slice 2's park machinery holds it. The two runner work items are
+  the envelope parsing and the extension switch; the one residual is a live daemon-path
+  confidence run. This is the larger and higher-value piece, because Pi has no tier-1 path
+  today at all. Coordinate with the backend warm-session move; the park record should live
+  wherever the pool lands.
 - **v-next (client tools), gated on a measurement.** Option A for the client-tool MCP pause: hold
   the socket open. Ship it only after measuring Claude's MCP client request timeout and confirming
   it covers at least the idle TTL. If it does not, hold for the idle TTL only and keep cold-replay
   for the approval TTL.
-- **later (the cleanup).** If C ships on encoded payloads, upstream the structured-metadata
-  change to `pi-acp` (or carry it as a pnpm patch) so the encoding disappears. If B ships, C
-  stays the recorded end state, now known to be reachable through the existing bridge rather
-  than blocked on Pi.
+- **later (the cleanup).** Upstream a structured-metadata field to `pi-acp` (maintainer
+  Sergii Kozak, `svkozak/pi-acp`; or carry a pnpm patch, which this repo already does for
+  `sandbox-agent`) so the JSON envelope encoding disappears from the extension and the
+  runner's parser becomes a plain field read.
 
 ---
 
 ## Risks and open questions
 
-- **Ending a turn while an in-band tool call is suspended (Pi).** The Claude gate ends a turn while
-  holding an out-of-band request. Options B and C alike end a turn while Pi's `prompt()` is still
-  inside a blocked hook or `execute`. The egress must emit `paused` and stop streaming without Pi
-  emitting an error or a spurious result. This is the least-proven part and deserves a spike
-  (drive one Pi session, block a tool, park it a minute, answer it, and confirm the original call
-  resumes) before the full build, mirroring the slice-2 spike. The experiments narrowed the blast
-  radius of getting it wrong: Pi's session file already holds the pending call mid-block, so a
-  park that dies degrades to a tier-2 continuation, not to a lost turn. They did not test the
-  park itself; the spike still must.
-- **The Option C hop and its payload.** Nobody has driven `ctx.ui.confirm` from an in-sandbox Pi
-  extension through the sandbox-agent daemon to the runner's permission listener, and `pi-acp`
-  forwards only the dialog fields, not the gated call's id and arguments. The C spike must show
-  the hop works end to end and that the payload survives (by encoding or a small upstream
-  change); until it does, Option B is the default build.
+- **Ending a turn while an in-band tool call is suspended (Pi).** The Claude gate ends a turn
+  while holding an out-of-band request; the Pi gate ends a turn while Pi's `prompt()` is still
+  inside a blocked hook or `execute`. The spike retired the harness half of this risk: a Pi
+  session held a gate open for three minutes with no reaper and resumed the original call with
+  its original arguments, in one uninterrupted `prompt()`. What remains is the runner half:
+  emitting `paused` on the egress and running the turn-end bookkeeping (the latch-loser sweep,
+  the orphaned-tool-call settle) while the dialog request stays held, without Pi emitting an
+  error or a spurious result. That is the same shape slice 2 already handles for Claude, and
+  the two experiments bound the blast radius (Pi's session file holds the pending call
+  mid-block, so a park that dies degrades to a tier-2 continuation), but it should be watched
+  in the build's first integration test rather than assumed.
+- **The Option C residuals.** The spike proved the hop, the payload envelope, the three-minute
+  park, and the fail-closed unhappy paths against the real bridge; the sandbox-agent daemon leg
+  is source-verified but not yet live-run, so one daemon-path confidence run belongs at the
+  start of the build. Two smaller cautions ride with it: without envelope parsing the runner
+  would key the gate as `agenta-approval` with dialog-string arguments (wrong identity on
+  cards, the decision map, and policy), so the parsing work item is correctness-critical, and
+  the no-reaper dialog behavior is a property of Pi's RPC helper at the pinned version, so a Pi
+  upgrade should re-run the hold scenario.
 - **Claude's MCP client timeout (client tools).** Whether Option A survives the idle TTL and the
   approval TTL depends entirely on a timeout the runner does not own. It is still unmeasured; the
   2026-07-09 experiments covered kill-and-resume behavior, not this. Measure it before committing
