@@ -32,7 +32,11 @@ behavior the feature surfaces in the UI.
 
 ---
 
-## 2. The create-time pin to revert (commit `fe4a01f`, PR #5103)
+## 2. The create-time pin to remove (commit `fe4a01f`, PR #5103)
+
+**Update 2026-07-09: PR #5103 was closed unmerged (pinning is the wrong behavior). The
+pin never landed on `big-agents`; it exists only on the local lane below. Phase A
+removes it from that lane and opens a fresh backend PR.**
 
 Lane `fix/trigger-revision-default-head`, commit **`fe4a01f1d2`** ("fix(api): pin trigger
 references to the variant HEAD revision when none is given"). The commit touches three
