@@ -38,7 +38,11 @@ import {
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
-import { requiredFields, specInputSchema } from "../tools/spec-schema.ts";
+import {
+  assertRequiredArguments,
+  requiredFields,
+  specInputSchema,
+} from "../tools/spec-schema.ts";
 import {
   buildPiGateEnvelope,
   PI_GATE_DIALOG_TITLE,
@@ -62,7 +66,7 @@ export function readOtlpAuthFile(path?: string): string | undefined {
   }
   return value || undefined;
 }
-import { relayPermissionCheck, runResolvedTool } from "../tools/dispatch.ts";
+import { runResolvedTool } from "../tools/dispatch.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
@@ -205,9 +209,7 @@ function blockReason(reason: string | undefined): ToolCallEventResult {
 
 function registerBuiltinGating(
   pi: ExtensionAPI,
-  relayDir: string | undefined,
   builtinGrants: readonly PiBuiltinToolName[],
-  dialogGate: boolean,
 ): void {
   pi.on("before_agent_start", async () => {
     pi.setActiveTools(
@@ -224,40 +226,14 @@ function registerBuiltinGating(
     async (event, ctx): Promise<ToolCallEventResult | undefined> => {
       const toolName = builtinToolNameFromEvent(event);
       if (!toolName) return undefined;
-
-      // Dialog plane (flag on): the gate rides `ctx.ui.confirm`, so the runner holds and can park
-      // it. The relay path stays behind the flag for rollback.
-      if (dialogGate) {
-        const { allowed, reason } = await piDialogAllows(
-          ctx,
-          "pi-builtin",
-          toolName,
-          event.toolCallId,
-          event.input,
-        );
-        return allowed ? undefined : blockReason(reason);
-      }
-
-      if (!relayDir) {
-        return blockReason(
-          "Permission check denied because the relay directory is missing.",
-        );
-      }
-
-      try {
-        const response = await relayPermissionCheck(
-          relayDir,
-          toolName,
-          event.toolCallId,
-          event.input,
-        );
-        if (response.verdict === "allow") return undefined;
-        return blockReason(response.reason);
-      } catch (err) {
-        return blockReason(
-          err instanceof Error ? err.message : "Permission check failed.",
-        );
-      }
+      const { allowed, reason } = await piDialogAllows(
+        ctx,
+        "pi-builtin",
+        toolName,
+        event.toolCallId,
+        event.input,
+      );
+      return allowed ? undefined : blockReason(reason);
     },
   );
 }
@@ -301,7 +277,7 @@ function parseSkillsLoaded(raw: string | undefined): string[] {
 }
 
 /** Register public tool metadata as Pi tools whose execution relays to the runner. */
-function registerTools(pi: ExtensionAPI, dialogGate: boolean): void {
+function registerTools(pi: ExtensionAPI): void {
   const raw = process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS;
   const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   if (!raw || !relayDir) return;
@@ -318,8 +294,8 @@ function registerTools(pi: ExtensionAPI, dialogGate: boolean): void {
   for (const spec of specs) {
     // The dialog gate applies to EXECUTABLE custom tools only. `client` tools are
     // browser-fulfilled across a turn boundary through the relay's own pause semantics; gating
-    // one via the dialog would be wrong, so they keep today's path.
-    const gateViaDialog = dialogGate && (spec.kind ?? "callback") !== "client";
+    // one via the dialog would be wrong, so they keep their path.
+    const gateViaDialog = (spec.kind ?? "callback") !== "client";
     pi.registerTool({
       name: spec.name,
       label: spec.name,
@@ -335,8 +311,11 @@ function registerTools(pi: ExtensionAPI, dialogGate: boolean): void {
         _onUpdate?: unknown,
         ctx?: ExtensionContext,
       ) {
+        // Validate BEFORE the gate: a malformed call must error to the model, never reach a
+        // human as an approval prompt (and never relay as a no-op).
+        assertRequiredArguments(spec, params);
         // Gate BEFORE the relay execution: only an allow proceeds. A deny surfaces as the tool's
-        // result text (mirroring the relay's own deny), so the model loop continues.
+        // result text, so the model loop continues.
         if (gateViaDialog) {
           const { allowed, reason } = await piDialogAllows(
             ctx,
@@ -388,17 +367,11 @@ const factory = (pi: ExtensionAPI): void => {
   const builtinGrants = normalizeBuiltinGrants(
     process.env.AGENTA_AGENT_BUILTIN_GRANTS,
   );
-  // Approval parking (Option C): route both Pi gates over the extension-UI dialog plane instead
-  // of the file relay, so the runner can hold and park an ask. Runner-side flag
-  // AGENTA_RUNNER_PI_DIALOG_GATE -> sandbox AGENTA_AGENT_PI_DIALOG_GATE (buildPiExtensionEnv).
-  // Default off: with it off, both gates keep the byte-identical relay path.
-  const dialogGate = isTruthyFlag(process.env.AGENTA_AGENT_PI_DIALOG_GATE);
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
   if (!hasTracing && !hasTools && !hasBuiltinGating && !usageOut) return;
 
-  if (hasTools) registerTools(pi, dialogGate);
-  if (hasBuiltinGating)
-    registerBuiltinGating(pi, relayDir, builtinGrants, dialogGate);
+  if (hasTools) registerTools(pi);
+  if (hasBuiltinGating) registerBuiltinGating(pi, builtinGrants);
   // Tracing exports the span tree (when the OTLP target is reachable, i.e. local runs).
   // Usage accumulation is needed both for that export AND for the writeback the runner
   // uses on Daytona (where the in-sandbox process can't reach Agenta's OTLP, so the

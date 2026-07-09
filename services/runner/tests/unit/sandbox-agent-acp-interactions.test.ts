@@ -495,7 +495,11 @@ function piGateRequest(opts: {
       kind: "other",
       status: "pending",
       title: opts.title ?? PI_GATE_DIALOG_TITLE,
-      rawInput: { method: "confirm", title: PI_GATE_DIALOG_TITLE, message },
+      rawInput: {
+        method: "confirm",
+        title: opts.title ?? PI_GATE_DIALOG_TITLE,
+        message,
+      },
     },
   };
 }
@@ -504,6 +508,17 @@ function permissionPlan(
   defaultMode: PermissionPlan["default"],
 ): PermissionPlan {
   return { default: defaultMode, rules: [] };
+}
+
+/** The resolved-specs map that marks a Pi run and feeds metadata recovery. Every custom tool a
+ *  test raises must be present: an unknown name fails closed by design. */
+function piSpecs(
+  entries: Array<[string, PiToolSpecMeta]> = [
+    ["park_probe", {}],
+    ["x", {}],
+  ],
+): Map<string, PiToolSpecMeta> {
+  return new Map(entries);
 }
 
 describe("attachPermissionResponder: Pi dialog gate", () => {
@@ -518,7 +533,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
       latch: new PendingApprovalLatch(),
-      dialogGateEnabled: true,
+      piToolSpecsByName: piSpecs(),
       onPausedToolCall: (id) => pausedToolCalls.push(id),
       onUserApprovalGate: (info) => gates.push(info),
     });
@@ -535,7 +550,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
     // pause bookkeeping, the park record, and the emitted card ALL key on the real id.
     assert.deepEqual(pausedToolCalls, ["call_REAL_123"]);
     assert.equal(gates[0].toolCallId, "call_REAL_123");
-    assert.equal(gates[0].gateType, "pi-dialog-permission");
+    assert.equal(gates[0].gateType, "pi-acp-permission");
     const payload = (events[0] as any).payload;
     assert.equal(payload.toolCallId, "call_REAL_123");
     assert.equal(payload.toolCall.toolCallId, "call_REAL_123");
@@ -559,7 +574,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       // A default-allow responder: if the malformed request fell through it would ALLOW.
       responder: fakeResponder({ kind: "allow" }),
       latch: new PendingApprovalLatch(),
-      dialogGateEnabled: true,
+      piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
       },
@@ -595,7 +610,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
       latch: new PendingApprovalLatch(),
-      dialogGateEnabled: true,
+      piToolSpecsByName: piSpecs(),
     });
     emit(
       piGateRequest({
@@ -631,7 +646,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: () => {} },
       responder,
       latch: new PendingApprovalLatch(),
-      dialogGateEnabled: true,
       piToolSpecsByName,
     });
     emit(
@@ -673,7 +687,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: () => {} },
       responder,
       latch: new PendingApprovalLatch(),
-      dialogGateEnabled: true,
+      piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
       },
@@ -710,7 +724,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: () => {} },
       responder,
       latch: new PendingApprovalLatch(),
-      dialogGateEnabled: true,
+      piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
       },
@@ -727,7 +741,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
     await flushPromises();
 
     assert.equal(pauses, 1);
-    assert.equal(gates[0].gateType, "pi-dialog-permission");
+    assert.equal(gates[0].gateType, "pi-acp-permission");
     assert.equal(gates[0].toolName, "Bash");
   });
 
@@ -746,7 +760,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: (event) => events.push(event) },
       responder,
       latch: new PendingApprovalLatch(),
-      dialogGateEnabled: true,
+      piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
       },
@@ -766,11 +780,43 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
     assert.deepEqual(events, [], "no approval card for a fabricated name");
   });
 
-  it("with detection OFF, a Claude gate whose title collides with the dialog title takes today's path", async () => {
-    // The MF-1 regression: attachPermissionResponder is shared by Claude and Pi. With the
-    // dialog gate off, a Claude gate titled literally "agenta-approval" (editing a file with
-    // that name, a bash command equal to it) has no envelope and must pause/resolve exactly as
-    // on the base path, never auto-reject.
+  it("an unknown custom-tool name (no resolved spec) rejects (fail closed)", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    let pauses = 0;
+    // A default-allow responder: if the fabricated name fell through it would ALLOW.
+    const responder = fakeResponder({ kind: "allow" });
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: (event) => events.push(event) },
+      responder,
+      latch: new PendingApprovalLatch(),
+      piToolSpecsByName: piSpecs([["park_probe", {}]]),
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "not_a_resolved_tool",
+        toolCallId: "c",
+        input: {},
+      }),
+    );
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-pi", reply: "reject" }]);
+    assert.equal(pauses, 0, "an unresolved custom tool never pauses");
+    assert.deepEqual(events, [], "no approval card for a fabricated name");
+  });
+
+  it("a Claude run (no Pi specs) never enters envelope detection, even on a title collision", async () => {
+    // attachPermissionResponder is shared by Claude and Pi. On a Claude run (piToolSpecsByName
+    // absent), a gate titled literally "agenta-approval" (editing a file with that name, a bash
+    // command equal to it) has no envelope and must pause/resolve exactly as on the base path,
+    // never auto-reject.
     const replies: Array<{ id: string; reply: string }> = [];
     const { session, emit } = makeSession(async (id, reply) => {
       replies.push({ id, reply });
@@ -784,7 +830,7 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
       latch: new PendingApprovalLatch(),
-      // dialogGateEnabled intentionally absent (flag off / Claude run).
+      // piToolSpecsByName intentionally absent (a Claude run).
       onPause: () => {
         pauses += 1;
       },

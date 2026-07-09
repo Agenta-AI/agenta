@@ -243,7 +243,7 @@ describe("buildPiGateDescriptor (runner-side metadata recovery)", () => {
     assert.equal(reader!.readOnlyHint, true);
   });
 
-  it("the envelope input is the gate args (stored-decision key parity with the relay)", () => {
+  it("the envelope input is the gate args (the stored-decision key)", () => {
     const g = buildPiGateDescriptor(
       {
         v: 1,
@@ -253,15 +253,16 @@ describe("buildPiGateDescriptor (runner-side metadata recovery)", () => {
         toolCallId: "c",
         input: { a: 1, b: 2 },
       },
-      new Map(),
+      new Map([["t", {}]]),
     );
     assert.deepEqual(g!.args, { a: 1, b: 2 });
   });
 
-  it("an unknown builtin name yields NO descriptor (the caller must reject it)", () => {
-    // Relay parity: the relay denies unknown builtins outright, and the sandbox-origin envelope
-    // must not put a fabricated name on the approval card.
-    const g = buildPiGateDescriptor(
+  it("an unknown name yields NO descriptor (the caller must reject it)", () => {
+    // The sandbox-origin envelope must not resolve a fabricated name against the default
+    // permission or put it on the approval card: a builtin outside the canonical set and a
+    // custom tool with no resolved spec both fail closed.
+    const unknownBuiltin = buildPiGateDescriptor(
       {
         v: 1,
         kind: "agenta.gate",
@@ -272,6 +273,19 @@ describe("buildPiGateDescriptor (runner-side metadata recovery)", () => {
       },
       undefined,
     );
-    assert.equal(g, undefined);
+    assert.equal(unknownBuiltin, undefined);
+
+    const unknownCustomTool = buildPiGateDescriptor(
+      {
+        v: 1,
+        kind: "agenta.gate",
+        gate: "pi-custom-tool",
+        toolName: "not_a_resolved_tool",
+        toolCallId: "c",
+        input: {},
+      },
+      new Map([["park_probe", {}]]),
+    );
+    assert.equal(unknownCustomTool, undefined);
   });
 });

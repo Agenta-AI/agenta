@@ -46,8 +46,6 @@ export function buildPiExtensionEnv(
     skills?: string[];
     builtinGatingActive?: boolean;
     builtinGrants?: string[];
-    /** Route both Pi gates over the extension-UI dialog plane (Pi approval parking). */
-    dialogGateActive?: boolean;
   } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -73,15 +71,12 @@ export function buildPiExtensionEnv(
     env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
     env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
   }
+  // Builtin gating needs no relay dir: the gate rides the extension's `ctx.ui.confirm`
+  // dialog onto the ACP permission plane (Pi approval parking), not the file relay.
   if (opts.builtinGatingActive) {
     env.AGENTA_AGENT_BUILTIN_GATING = "1";
     env.AGENTA_AGENT_BUILTIN_GRANTS = (opts.builtinGrants ?? []).join(",");
-    if (opts.relayDir) env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
   }
-  // Pi approval parking: with the flag on both gates ride `ctx.ui.confirm` (a parkable ACP
-  // permission request) instead of the file relay. One flag drives both sides coherently
-  // because the runner installs the extension per run.
-  if (opts.dialogGateActive) env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
   if (opts.usageOutPath)
     env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
   return env;

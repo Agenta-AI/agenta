@@ -151,7 +151,7 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
   });
 
-  it("sets builtin gating env and relay dir without custom tools", () => {
+  it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
     const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
       relayDir: "/tmp/relay",
       builtinGatingActive: true,
@@ -160,30 +160,8 @@ describe("buildPiExtensionEnv", () => {
 
     assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
     assert.equal(env.AGENTA_AGENT_BUILTIN_GRANTS, "read,write");
-    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
-  });
-
-  it("sets the Pi dialog gate flag only when active (default off = byte-identical)", () => {
-    // Flag off (undefined): no dialog env, so the extension keeps the relay path.
-    assert.equal(
-      buildPiExtensionEnv({} as AgentRunRequest, false, {})
-        .AGENTA_AGENT_PI_DIALOG_GATE,
-      undefined,
-    );
-    assert.equal(
-      buildPiExtensionEnv({} as AgentRunRequest, false, {
-        dialogGateActive: false,
-      }).AGENTA_AGENT_PI_DIALOG_GATE,
-      undefined,
-    );
-    // Flag on: exports the sandbox-side switch.
-    assert.equal(
-      buildPiExtensionEnv({} as AgentRunRequest, false, {
-        dialogGateActive: true,
-      }).AGENTA_AGENT_PI_DIALOG_GATE,
-      "1",
-    );
   });
 
   it("accepts snake_case tool schemas from older Python wire payloads", () => {

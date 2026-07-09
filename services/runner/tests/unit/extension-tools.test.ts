@@ -38,7 +38,6 @@ const TOOL_ENV = [
   "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
   "AGENTA_AGENT_BUILTIN_GATING",
   "AGENTA_AGENT_BUILTIN_GRANTS",
-  "AGENTA_AGENT_PI_DIALOG_GATE",
 ];
 
 /** A fake extension UI context whose `confirm` records its calls and returns a scripted answer. */
@@ -313,8 +312,6 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
   it("builtin gate rides ctx.ui.confirm with the envelope; allow -> undefined", async () => {
     clearEnv();
     process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
-    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-unused";
-    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
 
     const pi = fakePi();
     factory(pi as any);
@@ -335,7 +332,6 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
   it("builtin gate: deny -> block, and a thrown/absent dialog fails closed (block)", async () => {
     clearEnv();
     process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
-    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
 
     const pi = fakePi();
     factory(pi as any);
@@ -371,7 +367,6 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
     // not be reached.
     process.env.AGENTA_AGENT_TOOLS_RELAY_DIR =
       "/tmp/agenta-relay-must-not-be-used";
-    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
 
     const pi = fakePi();
     factory(pi as any);
@@ -409,7 +404,6 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       { name: "request_connection", description: "connect", kind: "client" },
     ]);
     process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = dir;
-    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
 
     const pi = fakePi();
     factory(pi as any);
@@ -429,30 +423,6 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       "browser-fulfilled",
       "it took the relay path",
     );
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("with the dialog flag OFF, the builtin gate keeps the relay path (no dialog raised)", async () => {
-    clearEnv();
-    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-off-"));
-    process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
-    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = dir;
-    // AGENTA_AGENT_PI_DIALOG_GATE intentionally unset.
-
-    const pi = fakePi();
-    factory(pi as any);
-    const hook = pi.handlers.tool_call![0];
-    const { calls, ctx } = fakeDialogCtx(true);
-
-    // Pre-seed the relay permission response (allow) so the relay path resolves without a runner.
-    writeFileSync(
-      join(dir, "tc-b.res.json"),
-      JSON.stringify({ kind: "permission", ok: true, verdict: "allow" }),
-      "utf-8",
-    );
-    const result = await hook(builtinEvent("bash", { command: "ls" }), ctx);
-    assert.equal(calls.length, 0, "flag off: the dialog is never raised");
-    assert.equal(result, undefined, "the relay allow let the builtin proceed");
     rmSync(dir, { recursive: true, force: true });
   });
 });

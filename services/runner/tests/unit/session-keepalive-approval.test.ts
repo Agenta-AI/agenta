@@ -346,7 +346,7 @@ describe("runWithKeepalive: approval park + resume", () => {
           permissionId: "perm-1",
           toolCallId: "tc-gate",
           toolName: "commit",
-          gateType: "pi-dialog-permission",
+          gateType: "pi-acp-permission",
         },
         toolCallIds: ["tc-gate"],
       },
@@ -1362,96 +1362,5 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await env.destroy();
     assert.equal(calls.sessionDestroyed, 1, "destroy tore the session down");
     assert.equal(calls.sandboxDestroyed, 1);
-  });
-
-  it("a Pi warm resume seeds the relay's execution check from the folded approval", async () => {
-    // The Pi custom-tool double gate on the WARM path: the resume answers the held dialog via
-    // respondPermission (never through the responder, so nothing re-appends), and the relay's
-    // own execution check must still pass. The resume request folds the gated tool_call plus
-    // the {approved: true} envelope; the resume turn's real ConversationDecisions (built by
-    // runTurn from that history) is what the relay consults. Capture the REAL relayPermissions
-    // runTurn wires into startToolRelay and assert its decide() finds the allow.
-    const { calls, deps } = pausableHarness();
-    let relayPermissions:
-      { enforce: boolean; decide: (gate: any) => { kind: string } } | undefined;
-    deps.startToolRelay = ((
-      _host: unknown,
-      _dir: unknown,
-      _specs: unknown,
-      _callback: unknown,
-      permissions: any,
-    ) => {
-      relayPermissions = permissions;
-      return { stop: async () => {} };
-    }) as any;
-
-    const resumeRequest: AgentRunRequest = {
-      harness: "pi_core",
-      customTools: [{ name: "park_probe", permission: "ask" }] as any,
-      toolCallback: {
-        endpoint: "http://callback",
-        authorization: "bearer",
-      } as any,
-      messages: [
-        { role: "user", content: "do X" },
-        {
-          role: "assistant",
-          content: [
-            {
-              type: "tool_call",
-              toolCallId: "call_REAL",
-              toolName: "park_probe",
-              input: { token: "T" },
-            },
-          ],
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "tool_result",
-              toolCallId: "call_REAL",
-              output: { approved: true },
-            },
-          ],
-        },
-      ],
-    };
-    const acquired = await acquireEnvironment(resumeRequest, deps);
-    assert.equal(acquired.ok, true);
-    if (!acquired.ok) return;
-    const env = acquired.env;
-
-    // Drive the resume branch: answer the (already-parked) gate and continue the held prompt.
-    const result = await runTurn(env, resumeRequest, undefined, undefined, {
-      approvalParkMode: true,
-      resume: {
-        permissionId: "perm-1",
-        reply: "once",
-        toolCallId: "call_REAL",
-        toolName: "park_probe",
-        args: { token: "T" },
-        interactionToken: "call_REAL",
-        promptPromise: Promise.resolve({ stopReason: "complete" }),
-      },
-    });
-    assert.equal(result.ok, true);
-    assert.deepEqual(
-      calls.permissionReplies,
-      [{ id: "perm-1", reply: "once" }],
-      "the held dialog was answered on the live session",
-    );
-    assert.ok(relayPermissions, "the resume turn restarted the relay");
-    assert.equal(relayPermissions!.enforce, true, "Pi: the relay enforces");
-    // The relay's second gate on the resumed call finds the folded approval.
-    const verdict = relayPermissions!.decide({
-      executor: "relay",
-      toolName: "park_probe",
-      specPermission: "ask",
-      args: { token: "T" },
-    });
-    assert.equal(verdict.kind, "allow");
-
-    await env.destroy();
   });
 });

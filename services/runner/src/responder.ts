@@ -236,27 +236,6 @@ export class ConversationDecisions implements StoredPermissionDecisions {
     return value;
   }
 
-  /**
-   * Re-append one decision to the FRONT of this call's queue (the Pi double-gate bridge).
-   *
-   * A Pi custom-tool dialog gate and the relay's execution check both `decide()` the SAME
-   * (name + canonical args) key: the dialog approves the call, then the relay watcher re-checks
-   * it before executing. When the dialog answered from a STORED decision it consumed one queued
-   * entry, so the relay's later `take` would find none and pause a second time. Re-appending the
-   * consumed decision lets the relay consume exactly what the human already granted
-   * (consume-1-append-1). It goes to the FRONT, not the back, because the relay's `decide` is the
-   * immediate next `take` on this call (Pi runs tools sequentially): a back-append would hand the
-   * relay a LATER identical call's decision. A single call empties the queue first, so front and
-   * back coincide there; front is correct for the 2+ identical-call case too.
-   */
-  appendDecision(gate: GateDescriptor, decision: "allow" | "deny"): void {
-    const key = approvedCallKey(gate.toolName, gate.args);
-    if (!key) return;
-    const queue = this.decisionQueues.get(key);
-    if (queue) queue.unshift(decision);
-    else this.decisionQueues.set(key, [decision]);
-  }
-
   /** The next FIFO client-tool output for this exact call, without consuming it. */
   peekClientOutput(gate: GateDescriptor): { found: boolean; output?: unknown } {
     const entry = this.nextClientOutput(gate);
@@ -292,46 +271,16 @@ export class ConversationDecisions implements StoredPermissionDecisions {
  * in execution shape: `allow` and `ask` both mean "forward to the browser and pause unless a
  * stored browser output is already available"; `deny` refuses the call.
  */
-export interface ApprovalResponderOptions {
-  /**
-   * The Pi double-gate bridge (dialog-gate runs only). ON only when the run routes Pi gates
-   * over the dialog plane, where a dialog-allowed custom tool still hits the relay watcher's
-   * own `decide()` before executing. It must stay OFF everywhere else: on Claude the relay
-   * never enforces (`enforce: plan.isPi`), so a relay-shaped Claude gate has no second
-   * consumer and an appended decision would linger and mis-resolve a LATER identical call,
-   * changing flag-off behavior.
-   */
-  bridgeRelayDoubleGate?: boolean;
-}
-
 export class ApprovalResponder implements Responder {
   constructor(
     private readonly plan: PermissionPlan,
     private readonly decisions: ConversationDecisions,
     private readonly log: (msg: string) => void = () => {},
-    private readonly options: ApprovalResponderOptions = {},
   ) {}
 
   async onPermission(request: PermissionGateRequest): Promise<Verdict> {
     const permission = effectivePermission(request.gate, this.plan);
     const verdict = decide(request.gate, this.plan, this.decisions);
-    // Pi double-gate bridge: a pi-custom-tool dialog gate (executor "relay") whose "ask" decision
-    // was answered instantly from a STORED allow consumed one queued entry; the relay's own
-    // execution check will `decide()` the same call again and must see it. Re-append exactly the
-    // consumed decision. Guarded so it fires ONLY when the relay will actually consume it:
-    // allow only (on a deny the extension short-circuits without relaying, so an appended deny
-    // would linger and auto-deny a later identical call that should re-prompt); "ask" only (an
-    // allow/deny policy consumes nothing — decide returns before `stored.take` — and a pause
-    // consumed nothing); relay executor only (builtins have no relay second gate); and only
-    // when the dialog-gate bridge is on (see ApprovalResponderOptions).
-    if (
-      this.options.bridgeRelayDoubleGate &&
-      request.gate.executor === "relay" &&
-      permission === "ask" &&
-      verdict.kind === "allow"
-    ) {
-      this.decisions.appendDecision(request.gate, verdict.kind);
-    }
     this.log(
       `[HITL] gate toolName=${JSON.stringify(request.gate.toolName)} ` +
         `permission=${permission} outcome=${verdict.kind}`,

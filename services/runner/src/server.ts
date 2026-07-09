@@ -379,9 +379,9 @@ export async function runWithKeepalive(
     );
 
   // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi
-  // dialog gate). Only such a gate carries a `respondPermission`-answerable id; a Pi file-relay
-  // gate or a client-tool MCP pause never records `parkedApproval`, and more than one pending
-  // gate cannot be answered by the single-gate resume — both stay on the cold path, logged.
+  // ACP gate). Only such a gate carries a `respondPermission`-answerable id; a client-tool MCP
+  // pause never records `parkedApproval`, and more than one pending gate cannot be answered by
+  // the single-gate resume — both stay on the cold path, logged.
   const approvalToPark = (
     env: SessionEnvironment,
     result: AgentRunResult,
@@ -615,9 +615,9 @@ export async function runWithKeepalive(
     if (
       !parked ||
       (parked.gateType !== "claude-acp-permission" &&
-        parked.gateType !== "pi-dialog-permission")
+        parked.gateType !== "pi-acp-permission")
     ) {
-      // Defensive: only a parkable gate type (Claude ACP or Pi dialog) ever parks here. Both
+      // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
       // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
       mismatch = "unrecognized-gate-type";
     } else if (!decision) {

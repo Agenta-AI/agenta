@@ -32,16 +32,12 @@ import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 import {
-  RELAY_PERMISSION_PROTOCOL,
   RELAY_POLL_MS,
   RELAY_REQ_SUFFIX,
   RELAY_RES_SUFFIX,
   RELAY_TIMEOUT_MS,
-  parsePermissionRelayResponse,
   sanitizeRelayId,
   sleep,
-  type PermissionRelayRequest,
-  type PermissionRelayResponse,
   type RelayResponse,
 } from "./relay.ts";
 
@@ -108,108 +104,6 @@ export async function relayToolCall(
     await sleep(RELAY_POLL_MS);
   }
   throw new Error(`tool relay timed out for ${toolName}`);
-}
-
-function oneLineReason(reason: string): string {
-  return reason.replace(/\s+/g, " ").trim() || "Permission check failed.";
-}
-
-function denyPermissionRelayResponse(reason: string): PermissionRelayResponse {
-  return {
-    kind: "permission",
-    ok: false,
-    verdict: "deny",
-    reason: oneLineReason(reason),
-  };
-}
-
-/**
- * Pi builtin permission check: write a permission request into the same relay directory the
- * runner watches for tool execution, then poll for its permission response. The extension must
- * fail closed because returning nothing lets Pi execute the builtin.
- */
-export async function relayPermissionCheck(
-  dir: string,
-  toolName: string,
-  toolCallId: string,
-  args: unknown,
-): Promise<PermissionRelayResponse> {
-  const id = sanitizeRelayId(toolCallId);
-  const reqPath = `${dir}/${id}${RELAY_REQ_SUFFIX}`;
-  const resPath = `${dir}/${id}${RELAY_RES_SUFFIX}`;
-  try {
-    mkdirSync(dir, { recursive: true });
-  } catch {
-    // The runner also creates it; a race here is harmless.
-  }
-
-  const req: PermissionRelayRequest = {
-    kind: "permission",
-    protocol: RELAY_PERMISSION_PROTOCOL,
-    toolName,
-    toolCallId,
-    args: args ?? {},
-  };
-  try {
-    writeFileSync(reqPath, JSON.stringify(req), "utf-8");
-  } catch (err) {
-    return denyPermissionRelayResponse(
-      `permission relay request for ${toolName} could not be written: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-  }
-
-  const cleanup = (): void => {
-    try {
-      unlinkSync(reqPath);
-    } catch {
-      /* best-effort cleanup */
-    }
-    try {
-      unlinkSync(resPath);
-    } catch {
-      /* best-effort cleanup */
-    }
-  };
-
-  const deadline = Date.now() + RELAY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    if (existsSync(resPath)) {
-      let parsed: PermissionRelayResponse | undefined;
-      try {
-        parsed = parsePermissionRelayResponse(
-          JSON.parse(readFileSync(resPath, "utf-8")),
-        );
-      } catch {
-        cleanup();
-        return denyPermissionRelayResponse(
-          `permission relay response for ${toolName} was unparseable`,
-        );
-      }
-      cleanup();
-      if (!parsed) {
-        return denyPermissionRelayResponse(
-          `permission relay response for ${toolName} was unparseable`,
-        );
-      }
-      if (!parsed.ok) {
-        return denyPermissionRelayResponse(
-          parsed.reason || `permission relay failed for ${toolName}`,
-        );
-      }
-      return parsed;
-    }
-    await sleep(RELAY_POLL_MS);
-  }
-  try {
-    unlinkSync(reqPath);
-  } catch {
-    /* best-effort cleanup */
-  }
-  return denyPermissionRelayResponse(
-    `permission relay timed out for ${toolName}`,
-  );
 }
 
 /**
