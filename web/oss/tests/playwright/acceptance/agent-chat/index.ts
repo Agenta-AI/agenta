@@ -164,18 +164,27 @@ const agentChatTests = () => {
         }) => {
             baseAgentChatTest.setTimeout(120000)
 
-            await expectAuthenticatedSession(page)
-            const appId = await seedAgentChatApp()
-            await navigateToAgentPlayground(appId)
-            const mock = await mockElicitationInvoke()
-            mock.setResumeText("Recorded.")
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
 
-            await sendChatMessage("hi")
-            await expect(page.getByText(ELICITATION_PAYLOAD.message)).toBeVisible({timeout: 30000})
-            await page.getByLabel("First Name").fill("Ada")
-            await page.getByRole("button", {name: "Accept", exact: true}).click()
-            await expect(page.getByText("Provided the requested input.")).toBeVisible({
-                timeout: 30000,
+            await scenarios.and("a mocked elicitation run is open", async () => {
+                const appId = await seedAgentChatApp()
+                await navigateToAgentPlayground(appId)
+                const mock = await mockElicitationInvoke()
+                mock.setResumeText("Recorded.")
+            })
+
+            await scenarios.and("the user fills and accepts the form", async () => {
+                await sendChatMessage("hi")
+                await expect(page.getByText(ELICITATION_PAYLOAD.message)).toBeVisible({
+                    timeout: 30000,
+                })
+                await page.getByLabel("First Name").fill("Ada")
+                await page.getByRole("button", {name: "Accept", exact: true}).click()
+                await expect(page.getByText("Provided the requested input.")).toBeVisible({
+                    timeout: 30000,
+                })
             })
 
             await scenarios.when("the user reloads the page", async () => {
@@ -206,14 +215,23 @@ const agentChatTests = () => {
         }) => {
             baseAgentChatTest.setTimeout(120000)
 
-            await expectAuthenticatedSession(page)
-            const appId = await seedAgentChatApp()
-            await navigateToAgentPlayground(appId)
-            const mock = await mockElicitationInvoke()
-            mock.setResumeText("First Name: Ada")
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
 
-            await sendChatMessage("hi")
-            await expect(page.getByText(ELICITATION_PAYLOAD.message)).toBeVisible({timeout: 30000})
+            await scenarios.and(
+                "a mocked elicitation run is open with a pending form",
+                async () => {
+                    const appId = await seedAgentChatApp()
+                    await navigateToAgentPlayground(appId)
+                    const mock = await mockElicitationInvoke()
+                    mock.setResumeText("First Name: Ada")
+                    await sendChatMessage("hi")
+                    await expect(page.getByText(ELICITATION_PAYLOAD.message)).toBeVisible({
+                        timeout: 30000,
+                    })
+                },
+            )
 
             await scenarios.when("the user reloads while the form is pending", async () => {
                 await page.reload({waitUntil: "domcontentloaded"})

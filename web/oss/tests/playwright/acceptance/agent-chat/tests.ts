@@ -57,37 +57,58 @@ const testWithAgentChatFixtures = baseTest.extend<AgentChatFixtures>({
                 }
                 return res.json()
             }
+            // Fail fast at the exact step whose response is missing its id, rather than seeding a
+            // broken app that only surfaces as a confusing timeout downstream.
+            const requireId = (body: any, key: string, step: string): string => {
+                const id = body?.[key]?.id
+                if (typeof id !== "string" || !id) {
+                    throw new Error(
+                        `[agent-chat E2E] ${step} returned no id (body: ${JSON.stringify(body).slice(0, 200)})`,
+                    )
+                }
+                return id
+            }
 
-            const wf = await post("/workflows/", {
-                workflow: {
-                    slug,
-                    name: "E2E Agent",
-                    flags: {is_application: true, is_evaluator: false, is_snippet: false},
-                },
-            })
-            const workflowId = wf.workflow?.id as string
+            const workflowId = requireId(
+                await post("/workflows/", {
+                    workflow: {
+                        slug,
+                        name: "E2E Agent",
+                        flags: {is_application: true, is_evaluator: false, is_snippet: false},
+                    },
+                }),
+                "workflow",
+                "create workflow",
+            )
 
-            const variant = await post("/workflows/variants/", {
-                workflow_variant: {
-                    workflow_id: workflowId,
-                    slug: `${slug}.default`,
-                    name: "default",
-                },
-            })
-            const variantId = variant.workflow_variant?.id as string
+            const variantId = requireId(
+                await post("/workflows/variants/", {
+                    workflow_variant: {
+                        workflow_id: workflowId,
+                        slug: `${slug}.default`,
+                        name: "default",
+                    },
+                }),
+                "workflow_variant",
+                "create variant",
+            )
 
-            const commit = await post("/workflows/revisions/commit", {
-                workflow_revision: {
-                    workflow_id: workflowId,
-                    workflow_variant_id: variantId,
-                    slug: `${unique}rev`,
-                    name: "default",
-                    data: {uri: AGENT_URI, parameters: {agent: {}}, schemas: {}},
-                    message: "Agent",
-                },
-            })
-            const revisionId = commit.workflow_revision?.id as string
-            if (workflowId && revisionId) seededRevisionByApp.set(workflowId, revisionId)
+            const revisionId = requireId(
+                await post("/workflows/revisions/commit", {
+                    workflow_revision: {
+                        workflow_id: workflowId,
+                        workflow_variant_id: variantId,
+                        slug: `${unique}rev`,
+                        name: "default",
+                        data: {uri: AGENT_URI, parameters: {agent: {}}, schemas: {}},
+                        message: "Agent",
+                    },
+                }),
+                "workflow_revision",
+                "commit revision",
+            )
+
+            seededRevisionByApp.set(workflowId, revisionId)
             return workflowId
         })
     },
