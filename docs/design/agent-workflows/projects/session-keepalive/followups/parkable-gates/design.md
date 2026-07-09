@@ -1,32 +1,82 @@
-# Parkable gates: how the other three approval gates pause, why they die on a turn boundary, and how to make them survive
+# Parkable gates: one invariant, four gates, and why warm parking is the only exact tier
 
 Keep-alive slice 2 made one thing true: a Claude approval survives the turn it paused on. The
 human clicks Approve minutes later, and the runner answers the exact tool call that was open,
 with its exact original arguments. No new agent re-issues anything, so nothing drifts.
 
-That property has a name in this design: a gate is **parkable**. A gate is parkable if, after
-the turn ends, the runner still holds a handle it can answer to make the original tool call
-proceed. Only the Claude ACP permission gate has that handle today. The Pi custom-tool relay
-gate, the Pi builtin gate, and the client-tool MCP pause do not, so each still destroys its
-session on pause and resumes through cold replay (a fresh agent reads a flattened transcript,
-re-issues the call from text, and hopes its arguments match a stored decision). That is the
-path both production approval failures came from.
+This document extends that property to the three gates that still lack it: the Pi custom-tool
+relay gate, the Pi builtin gate, and the client-tool MCP pause. It is judged by one invariant,
+stated first, because the invariant (not connection plumbing) is what decides every choice below.
 
-This document explains, for each of those three gates, how it pauses today (with the real code
-mechanism), why it cannot be parked as built, the options for making it parkable, the
-trade-offs, and the recommended option. It closes with how the result composes with keep-alive
-and the interactions plane, the scope and ordering, and the honest risks.
+Everything below is verified against `services/runner/src` as of 2026-07-08, and against the
+kill-and-resume experiments of 2026-07-09
+([protocol](../../../harness-session-resume/experiments/protocol.md),
+[report](../../../harness-session-resume/experiments/report.md)).
 
-Everything below is verified against `services/runner/src` as of 2026-07-08.
+---
+
+## The invariant this design is judged by
+
+At the LLM layer, an approval is simple. The model API is stateless. Call N ends with the model
+returning a `tool_use` block. Call N+1 sends the same message list plus the real `tool_result`
+for that block. The invariant this design wants:
+
+> Whether the human answers in ten seconds or after twelve hours, the sequence of LLM API calls
+> is identical. Call N ends with `tool_use`. Call N+1 appends the real `tool_result` for that
+> same id. Nothing is regenerated in between.
+
+The LLM never waits, so the invariant is achievable in principle: whoever holds the exact
+message list and the pending call's identity can answer it at any later time. What breaks the
+invariant today is harness plumbing. When a gate pauses a turn, the runner destroys the session
+and later replays a flattened text transcript into a fresh agent. That fresh agent makes a new
+LLM call, and the model generates a *new* `tool_use` with a new id and possibly different
+arguments. Both production approval failures came from exactly that drift.
+
+"Parking" is the mechanism that preserves the invariant: keep the harness process alive (it
+holds the real message list in memory) and keep an answerable handle to the blocked call. The
+question this document answers per gate is whether such a handle can exist.
+
+## What each tier can actually guarantee (measured, not assumed)
+
+Could a cold restart meet the invariant instead, by resuming the harness's own session file?
+The kill-and-resume experiments settled this. Both harnesses were examined mid-gate: blocked on
+a permission, pending `tool_use` issued, no result yet. Claude Code was killed and resumed live
+on both its paths (CLI `--resume`, and ACP `session/load`, the path the runner ships on, with
+the resume id in `_meta.claudeCode.options.resume`); Pi was verified from source. Two findings:
+
+- **The pending `tool_use` survives a hard kill on disk, on both harnesses.** Both flush the
+  session file per message, so the assistant message carrying the pending call is durable before
+  the gate resolves. Claude's JSONL held it mid-block and was byte-identical after `kill -9`.
+  Pi persists on `message_end`, which fires before its permission gate runs.
+- **Neither harness will ever answer that surviving call.** On load, the parked call is
+  force-settled: Claude ACP records a synthetic error `tool_result` and marks the call failed;
+  Claude CLI abandons it as a no-op; Pi injects a synthetic "No result provided" error result at
+  the LLM boundary. In every case the model then re-issues a NEW `tool_use` (new id, regenerated
+  arguments) to do the work. A logging proxy on the wire confirmed the call sequences differ.
+
+So the tiers rank like this, and only the first is exact:
+
+| Tier | Mechanism | What it guarantees | Bound |
+|---|---|---|---|
+| 1. Warm park | The harness process stays alive; the runner holds an answerable handle | The invariant, byte-exact: the original call runs with its original arguments | The approval TTL (default 5 minutes) |
+| 2. Harness session resume | `session/load` rehydrates the harness's own session file after the process died | Faithful continuation: full structured history, but the parked call is settled as errored and the model re-issues a new one. Small drift risk, bounded because the original request text is still in context | Whenever the file survives |
+| 3. Cold replay + durable decision | Flattened text into a fresh agent; the stored decision is matched by tool name plus canonical arguments | Correct outcome when the re-issued arguments match; the gate re-fires when they drift | Always available |
+
+This ranking is the reason this design exists. Warm parking is not a latency optimization; it
+is the only tier that meets the invariant. Session resume (which makes tier 2 real) does not
+replace it and cannot, by harness policy rather than by lost state. That makes extending
+parking to the remaining gates worth a relay restructure, and it makes the durable-decision
+cold path the permanent answer for anything past the warm TTL, such as an overnight approval.
 
 ---
 
 ## The parkability property, and where each gate holds its pending state today
 
-The crux is one question: **where does the pending wait live?** If it lives in the runner's own
-memory, the runner can answer it after the turn ends, so the gate is parkable. If it lives
-inside the sandbox, or the runner destroyed it on pause, there is nothing to answer, so the gate
-is not parkable.
+A gate is **parkable** if, after the turn ends, the runner still holds a handle it can answer
+to make the original tool call proceed. The crux is one question: **where does the pending wait
+live?** If it lives in the runner's own memory, the runner can answer it after the turn ends.
+If it lives inside the sandbox, or the runner destroyed it on pause, there is nothing to
+answer.
 
 | Gate | Harness | Where the pending wait lives today | Parkable? |
 |---|---|---|---|
@@ -130,18 +180,20 @@ stays exactly as correct as today. It is the "relay restructure" this project is
 Option C is where the design should end up if Pi's bridge ever grows a native permission plane;
 until then, B is what ships.
 
-Before/after, one Pi approval:
+Before/after, one Pi approval, against the invariant:
 
-- Today: Pi calls a gated tool. The runner records a durable interaction and writes no response.
-  The in-sandbox poll spins for 60 seconds and throws. The turn ends. The human clicks Approve.
-  A fresh Pi session cold-replays the transcript, re-issues the call from text, and the runner
-  matches it against the stored decision by name plus canonical arguments. If the regenerated
-  arguments drift, the gate re-fires.
-- With Option B (inside the approval TTL): Pi calls a gated tool. The runner records a
+- Today (tier 3): Pi calls a gated tool. The runner records a durable interaction and writes no
+  response. The in-sandbox poll spins for 60 seconds and throws. The turn ends. The human clicks
+  Approve. A fresh Pi session cold-replays the transcript, and the model re-issues the call from
+  text as a NEW `tool_use`; the runner matches it against the stored decision by name plus
+  canonical arguments. If the regenerated arguments drift, the gate re-fires. The LLM call
+  sequence differs from the warm one.
+- With Option B (tier 1, inside the approval TTL): Pi calls a gated tool. The runner records a
   runner-held handle and emits `paused`; keep-alive parks the live Pi session, and the blocked
   `execute` callback keeps waiting. The human clicks Approve. The runner writes the response file
   into the parked sandbox. The same blocked callback reads it and returns. The original call runs
-  with its original arguments. Nothing re-issues, so nothing drifts.
+  with its original arguments, and call N+1 to the LLM carries the real `tool_result` for the
+  original id. The invariant holds.
 
 ## Gate 2: the Pi builtin gate
 
@@ -172,6 +224,12 @@ distinct from allow and deny, held open only while keep-alive holds the session.
 cannot park, the hook keeps today's fail-closed timeout, so a builtin never runs unapproved.
 
 Because both Pi gates ride the same relay, they should be built as one change, not two.
+
+One fact the experiments added: Pi flushes the assistant message carrying the pending tool call
+to disk on `message_end`, strictly before this hook runs. So at the moment a Pi gate parks, the
+pending call is already durable in Pi's own session file. If a parked Pi session later dies
+(TTL expiry, crash, eviction), the disk still holds everything tier 2 needs; the degradation
+path is a faithful session-resume continuation, not a total loss.
 
 ## Gate 3: the client-tool MCP pause
 
@@ -219,8 +277,8 @@ JSON-RPC result into that same held socket, and Claude continues.
   runner owns the server side, not Claude's client-side request timeout. If Claude's MCP client
   reaps a request that produces no headers for long enough, holding the socket open survives only
   until that timeout, not for an arbitrary park. Whether that timeout is long enough for the idle
-  TTL (60 seconds) and the approval TTL (5 minutes) has to be measured. This is the load-bearing
-  open question for this gate.
+  TTL (60 seconds) and the approval TTL (5 minutes) has to be measured; the 2026-07-09
+  experiments did not measure it, so it remains the load-bearing open question for this gate.
 
 **Option B: destroy as today, but re-answer the same call after resume without the harness
 re-issuing it.** Keep the socket destroy, but on resume inject the browser output straight into
@@ -228,8 +286,10 @@ the harness rather than replaying the transcript and letting Claude re-issue the
 
 - Trade-off: with the socket destroyed and the turn ended, there is no open call to inject into.
   Making the harness hold a client-tool call open across a turn boundary is exactly what the
-  destroy exists to prevent. This option is, in practice, today's cold-replay path wearing a
-  different name; it does not remove the drift. Rejected as a parkability mechanism.
+  destroy exists to prevent. The experiments confirmed the general form of this: once a pending
+  call has been settled on the harness side, no load path will answer it; the model re-issues.
+  This option is, in practice, today's cold-replay path wearing a different name; it does not
+  remove the drift. Rejected as a parkability mechanism.
 
 ### Recommended option
 
@@ -244,41 +304,70 @@ rather than promise a park the transport cannot hold.
 
 ---
 
-## How this composes with keep-alive and the interactions plane
+## How this composes with keep-alive, session resume, and the interactions plane
 
 These gates only become parkable inside keep-alive; a parked handle is worthless if the session
 that owns it was torn down. So this work sits on top of keep-alive slices 1 and 2, and it slots
-into the same two-tier model architecture-notes.md describes for the Claude gate.
+into the tier model above, which extends the two-tier picture in architecture-notes.md with the
+middle tier the experiments defined.
 
-- **The parked handle is the fast, in-memory tier.** A runner-held relay handle (Pi) or a held
-  MCP socket (client tool) resumes the original call with no replay, valid for the approval TTL.
-- **The durable interaction row is the slow tier.** The runner already writes a
+- **The parked handle is tier 1, the fast in-memory tier.** A runner-held relay handle (Pi) or a
+  held MCP socket (client tool) resumes the original call with no replay, valid for the approval
+  TTL. The only byte-exact tier.
+- **Harness session resume is tier 2.** When the parked process is gone but the harness session
+  file survives, `session/load` continues the conversation with full structured history; the
+  parked call is settled and re-issued. This tier belongs to the harness-session-resume project,
+  not to this one.
+- **The durable interaction row is tier 3, the slow tier.** The runner already writes a
   `session_interactions` row on pause and resolves it on the decision (for committed revisions).
   When the answer comes after the TTL, from another surface, the live session is gone; the answer
-  settles the row and a resume replays cold. That is the same settle-by-stored-decision mechanism
-  the cold path already uses.
+  settles the row and a resume replays cold. The stored decision is what makes the re-issued
+  call deterministic rather than a fresh model guess.
 - **Whoever answers first wins.** A quick click resumes the live call through the parked handle; a
-  late answer settles the durable row and replays cold. This is identical to the Claude story in
-  architecture-notes.md "Relation to the interactions plane," now extended to the Pi and
-  client-tool gates. This work does not build the cross-plane resolver; it makes the fast lane
-  real for three more gates and leaves the row untouched.
+  late answer settles the durable row and replays cold (or, once tier 2 ships, resumes
+  faithfully). This work does not build the cross-plane resolver; it makes the fast lane real for
+  three more gates and leaves the row untouched.
 
 The fall-back rule is the same one keep-alive already lives by: every one of these gates, when it
 cannot park (keep-alive off, TTL expired, client timeout too short, session gone), degrades to
-exactly today's cold path. Nothing here can fail a turn; the worst case is a cold restart.
+the next tier down. Nothing here can fail a turn; the worst case is a cold restart.
 
----
+Three slice-2 realities shape how the new parked handles validate and scope, and each new gate
+must adopt them rather than reinvent:
 
-## Scope and ordering
+- **Resume validation checks the decision, the history, and the mount expiry; nothing else.**
+  The approval-resume dispatch (`server.ts`, the `awaiting_approval` branch) deliberately does
+  NOT require the resume request's config fingerprint or credential epoch to equal the parked
+  session's. The backend re-mints per-request secret material (resolved secret values, the
+  per-turn tool-callback bearer), so the incoming epoch never matches a park, and demanding
+  equality would evict a good live session on every approval. What bounds a park is the
+  approval-decision match for the parked tool-call id, the history fingerprint, and the parked
+  mount credentials' own expiry. A parked Pi or client-tool handle must use the same rule.
+- **The approval TTL default is 5 minutes** (`DEFAULT_APPROVAL_TTL_MS = 300_000` in
+  `session-pool.ts`, overridable via `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS`). That is the
+  ceiling any tier-1 park designs against.
+- **The pool's project scope prefers the server-stamped run context.** The pool key takes its
+  project id from `runContext.project.id` when the service stamps it, and falls back to the
+  mount's owning project id (`session-pool.ts:345-376`). New parked handles inherit the pool key
+  as-is.
+
+## Ownership and ordering
 
 This is an incremental follow-up **after** keep-alive slices 1 and 2 have run in real use. It is
-not part of shipping keep-alive.
+not part of shipping keep-alive. And it is not a standalone build: the warm-session machinery is
+moving into the backend, and harness session resume (tier 2) is in progress, both owned by JP.
+Those two efforts reshape the same pause, park, and resume code this design would touch. So the
+Pi relay inversion and the client-tool hold-open land on top of, or inside, that work, on its
+schedule; building them against the current runner-local pool would produce a conflict, not a
+head start. Parkable gates and session resume are two tiers of one invariant, not two features,
+and they should be planned as one roadmap.
 
 - **v-next (the relay restructure).** Options B for both Pi gates, built as one change to the
   relay: a runner-held pending handle, a park-aware keep-alive-gated wait replacing the fixed
   60-second deadline, and the response-into-parked-sandbox resume. This is the larger and
-  higher-value piece, because Pi has no human-in-the-loop today at all beyond the cold path, and
-  because a relay restructure is an accepted cost for this work.
+  higher-value piece, because Pi has no tier-1 path today at all, and because a relay
+  restructure is an accepted cost for this work. Coordinate with the backend warm-session move;
+  the pending-handle registry should live wherever the pool lands.
 - **v-next (client tools), gated on a measurement.** Option A for the client-tool MCP pause: hold
   the socket open. Ship it only after measuring Claude's MCP client request timeout and confirming
   it covers at least the idle TTL. If it does not, hold for the idle TTL only and keep cold-replay
@@ -297,9 +386,13 @@ not part of shipping keep-alive.
   blocked `execute`. The egress must emit `paused` and stop streaming without Pi emitting an error
   or a spurious result. This is the least-proven part and deserves a spike (drive one Pi session,
   block a tool, park it a minute, answer it, and confirm the original call resumes) before the full
-  build, mirroring the slice-2 spike.
+  build, mirroring the slice-2 spike. The experiments narrowed the blast radius of getting it
+  wrong: Pi's session file already holds the pending call mid-block, so a park that dies degrades
+  to a tier-2 continuation, not to a lost turn. They did not test the park itself; the spike
+  still must.
 - **Claude's MCP client timeout (client tools).** Whether Option A survives the idle TTL and the
-  approval TTL depends entirely on a timeout the runner does not own. Measure it before committing
+  approval TTL depends entirely on a timeout the runner does not own. It is still unmeasured; the
+  2026-07-09 experiments covered kill-and-resume behavior, not this. Measure it before committing
   to hold-open past the idle window. If it is short, the client-tool gate parks briefly and stays
   cold for long waits, and that is the ceiling.
 - **Fail-closed must stay fail-closed off the park path.** Both Pi gates are fail-closed today for
@@ -311,7 +404,8 @@ not part of shipping keep-alive.
   running. Holding sockets open (Option A) does not change that; threading the signal into dispatch
   remains a separate known follow-up, and a parked client tool that is later abandoned must not
   leave a tool running with nowhere to report.
-- **Credential epoch.** A parked Pi or client-tool handle inherits the same stale-credential risk
-  the Claude park has (architecture-notes.md Decision 7). The resumed call runs with the original
-  turn's baked credentials, so the same epoch check (expiry plus a process-local value hash) must
-  cover these handles too; a park that outlives its credentials evicts to cold.
+- **Credentials on the resumed call.** A parked Pi or client-tool handle executes with the
+  original turn's baked credentials, the same as the Claude park. The bound is the slice-2
+  validation rule above: decision match, history fingerprint, and the parked mount credentials'
+  expiry. A park that outlives its mount credentials evicts to the next tier down. No config or
+  epoch equality is demanded on the resume, because the backend re-mints per-request material.

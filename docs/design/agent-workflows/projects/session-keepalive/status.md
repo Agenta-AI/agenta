@@ -33,6 +33,28 @@ Mahmoud did a second pass on PR #5153 (13 inline comments on architecture-notes.
 - **Decision 10 (Daytona).** Verified in code: the runner sets no cpu/memory/disk, so the sandbox comes up at the Daytona account default spec (the cost math assumes that spec); the image is the custom `agenta-sandbox-pi` snapshot; the 15-minute auto-stop is explicitly set (`DEFAULT_DAYTONA_AUTOSTOP_MINUTES`, tunable via `DAYTONA_AUTOSTOP`), overriding the upstream default of off.
 - **Two new follow-up designs written and added to this PR**, both of the same standard as the main docs: `followups/parkable-gates/` (make the Pi relay, Pi builtin, and client-tool MCP gates parkable; recommends inverting the Pi relay to a runner-held handle and holding the client-tool MCP socket open) and `followups/in-place-reconfiguration/` (change a live session's config without a respawn).
 
+## Invariant reframe + kill-and-resume experiments (2026-07-09)
+
+Mahmoud reframed the parkable-gates follow-up in discussion: judge it by one invariant (whether
+an approval is answered warm or cold, the sequence of LLM API calls should be identical: call N
+ends with `tool_use`, call N+1 appends the real `tool_result`, nothing regenerated), not by
+connection-keeping. Two experiments then tested whether a cold restart can meet that invariant
+from the harness's own session file. Protocol and results:
+`../harness-session-resume/experiments/` (protocol.md, report.md), run live on the dev box for
+Claude Code (CLI `--resume` and ACP `session/load` with `_meta.claudeCode.options.resume`,
+wire-verified through a logging proxy) and static-from-source for Pi.
+
+Verdicts: rubric B everywhere. The pending `tool_use` survives `kill -9` on disk in both
+harnesses (per-message flush), but no load path answers it: Claude ACP settles it with a
+synthetic error `tool_result` and the model re-issues a NEW id; Claude CLI abandons it as a
+no-op; Pi injects a synthetic "No result provided" error result and re-issues. Consequence,
+folded into `followups/parkable-gates/`: warm parking is the only byte-exact tier; harness
+session resume is faithful-context continuation with re-issue drift; the durable-decision cold
+path stays the answer past the warm TTL. The parkable-gates design was rewritten around the
+invariant the same day, and its ownership section now states that the Pi relay inversion and
+client-tool hold-open must land on top of (or inside) JP's backend warm-session move and
+harness-session-resume work.
+
 ## Measured costs and mechanism research (2026-07-08)
 
 Recorded here as the source for the numbers now cited in the design docs.
@@ -55,11 +77,11 @@ Recorded here as the source for the numbers now cited in the design docs.
 
 ## Follow-ups recorded (out of scope for this design)
 
-1. **Lower the implemented approval-TTL default to 5 minutes.** The design recommendation is now `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS=300000` (was 600000 in the slice-2 code). Whoever finalizes slice 2 should lower the code default to match.
+1. **Lower the implemented approval-TTL default to 5 minutes. DONE (2026-07-09, merged as PR #5178, lane `fix/keepalive-approval-ttl-default`).** The code default is now `DEFAULT_APPROVAL_TTL_MS = 300_000` in `session-pool.ts`; the doc and comment mentions were swept to match (`running-the-agent.md`, `server.ts`). The env var `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` still overrides.
 2. **`sandbox_agent.ts` structural cleanup.** The file is long; the acquire/run split is a good moment to break it into smaller modules. A structural refactor task, not part of this feature.
 3. **OS-level orphan-process backstop.** A process-group kill or reaper for the daemon-adapter-harness tree that survives a runner SIGKILL/OOM, so a hard kill cannot leak parked trees. Addresses the residual 2026-07-06 leak class, independent of keep-alive.
 4. **Frontend "setting up sandbox" phase.** The `/run` stream is silent during the acquire phase (sign mount, start sandbox, create session) before any agent event. A setup-phase event would let the frontend show "setting up" instead of an unexplained wait. Not designed here; a small side-note improvement worth filing.
-5. **Move the pool's project scope off the mount and into `runContext`.** Today the pool key's project scope comes from the mount-sign response because no project id rides the `/run` wire. The clean home is `runContext`, which the service already computes server-side from request state (the same server-verified path that produces the workflow id). A small wire addition (DTO, the two mirrors, goldens, one service line), to land when keep-alive stops being strictly runner-only. Decouples the pool key from the mount signer (Decision 1).
+5. **Move the pool's project scope off the mount and into `runContext`. IMPLEMENTED, parked as draft PR #5180 (2026-07-09).** The service stamps `runContext.project.id` server-side; the pool key prefers it and falls back to the mount's owning project id (`session-pool.ts:345-376`). Parked as a draft rather than merged because the backend warm-session move reshapes the same code; land or fold it there. Decouples the pool key from the mount signer (Decision 1).
 6. **A warm-vs-cold run signal for the inspector.** Emit the keep-alive path taken on each run as a trace attribute (`ag.keepalive.path = hit | miss | park | cold`), so a silent regression where every run went cold is a query instead of an invisible slowdown. A stream meta event for a live "continuing vs starting fresh" indicator is a later nicety on the same surface as follow-up 4. The trace attribute should land with slice 1 (Decision 2).
 7. **A real per-turn stop, and supersede-without-cold.** Today "stop" only drops the client stream; a session-owned run keeps executing in the background, and a superseding second turn cold-starts. A per-turn cancel that aborts the in-flight `prompt()` and keeps the session would make "stop" actually stop and let a superseding turn continue on the live session instead of going cold. One piece of work; the abort machinery exists but is not wired to a cancel call, and session-clean-after-abort is unproven (Decision 3).
 
