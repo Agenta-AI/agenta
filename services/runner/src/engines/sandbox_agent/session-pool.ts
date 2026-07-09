@@ -43,7 +43,7 @@ const APPROVAL_TTL_ENV = "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS";
 const POOL_MAX_ENV = "AGENTA_RUNNER_SESSION_POOL_MAX";
 
 const DEFAULT_TTL_MS = 60_000;
-const DEFAULT_APPROVAL_TTL_MS = 600_000;
+const DEFAULT_APPROVAL_TTL_MS = 300_000;
 const DEFAULT_POOL_MAX = 8;
 
 function positiveIntEnv(name: string, fallback: number): number {

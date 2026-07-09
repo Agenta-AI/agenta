@@ -184,7 +184,7 @@ sections).
 - `AGENTA_RUNNER_SESSION_TTL_MS`. How long an idle parked session lives before it is
   destroyed. Default `60000`.
 - `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS`. How long a session parked on a Claude ACP approval
-  gate holds its pending permission request open. Default `600000`. Expiry degrades to the
+  gate holds its pending permission request open. Default `300000`. Expiry degrades to the
   cold decision-map path.
 - `AGENTA_RUNNER_SESSION_POOL_MAX`. Maximum parked sessions per runner replica (LRU evicts
   idle sessions; busy and awaiting-approval sessions are never evicted). Default `8`.
