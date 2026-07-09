@@ -33,6 +33,20 @@ export interface AttachPermissionResponderInput {
   ) => void;
   /** Called after a stored decision was successfully forwarded to the harness. */
   onResolveInteraction?: (token: string) => void;
+  /**
+   * Fires for EVERY Claude ACP permission gate (harness executor) that resolves to
+   * pendingApproval, BEFORE the single-pause latch. Slice 2 keep-alive uses it to record the
+   * parked permission id / tool-call id (for a live resume via `respondPermission`) and to count
+   * how many gates are pending this turn (a multi-gate pause does not park). It never fires for a
+   * client-tool gate (`pauseClientTool`), so only Claude ACP permission gates can park.
+   */
+  onUserApprovalGate?: (info: {
+    permissionId: string;
+    toolCallId: string;
+    toolName: string | undefined;
+    args: unknown;
+    interactionToken: string;
+  }) => void;
 }
 
 /** Wire ACP permission reverse-RPC into the runner's event stream and responder policy. */
@@ -47,6 +61,7 @@ export function attachPermissionResponder({
   onPausedToolCall,
   onCreateInteraction,
   onResolveInteraction,
+  onUserApprovalGate,
 }: AttachPermissionResponderInput): void {
   session.onPermissionRequest((req: any) => {
     void handleRequest(req).catch((err) => {
@@ -75,6 +90,16 @@ export function attachPermissionResponder({
     id: string,
     gate: GateDescriptor,
   ): void => {
+    // Signal the parkable gate BEFORE the latch so a keep-alive resume can record the pending
+    // permission id and the multi-gate detector counts every pending gate (not just the first).
+    const gateToolCallId = stringValue(req?.toolCall?.toolCallId);
+    onUserApprovalGate?.({
+      permissionId: id,
+      toolCallId: gateToolCallId ?? "",
+      toolName: gate.toolName,
+      args: gate.args,
+      interactionToken: interactionEventId(id, gateToolCallId),
+    });
     if (!latch.tryAcquire()) return;
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);

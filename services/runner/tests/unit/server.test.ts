@@ -192,6 +192,19 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("POST /kill drains the pool + sandboxes and returns 200 (idempotent)", async () => {
+    // With keep-alive off (default) the pool is empty, so the drain is a no-op that still 200s.
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, { method: "POST" });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { ok: boolean };
+      assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("NDJSON stream: events first, then exactly one terminal result with no echoed events", async () => {
     const streamRun: RunAgent = async (_req, emit) => {
       emit?.({ type: "message", text: "a" });
