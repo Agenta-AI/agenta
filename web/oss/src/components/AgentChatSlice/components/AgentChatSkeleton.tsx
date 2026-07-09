@@ -64,9 +64,28 @@ export const ComposerSkeleton = ({className}: {className?: string}) => (
 )
 
 /**
- * Whole-pane placeholder, shown before the panel itself can mount: (1) the workflow
- * revision is still resolving the agent flag, (2) the lazy AgentChatPanel chunk is
- * loading (the crossfade host keeps it as a dissolving overlay).
+ * Conversation-body placeholder: transcript + composer, WITHOUT the session bar (the frame owns
+ * that region separately). This is the Suspense fallback the synchronous panel frame reserves for
+ * each tab while the lazy `AgentConversation` chunk loads — so the frame's real structure paints
+ * immediately and only the body fills in behind this.
+ */
+export const ConversationSkeleton = () => (
+    <div
+        className="ag-canvas flex h-full min-h-0 w-full flex-col"
+        aria-busy
+        aria-label="Loading conversation"
+    >
+        <TranscriptSkeleton />
+        <div className="w-full px-3 pb-3">
+            <ComposerSkeleton className="mx-auto w-full max-w-[880px]" />
+        </div>
+    </div>
+)
+
+/**
+ * Whole-pane placeholder (bar + transcript + composer), shown at ONE gate: the workflow revision
+ * is still resolving the agent flag, so it's not yet confirmed to be an agent and the live panel
+ * must not mount. Once confirmed, the frame renders directly (no crossfade overlay).
  */
 const AgentChatSkeleton = () => (
     <div className="flex h-full w-full flex-col" aria-busy aria-label="Loading conversation">

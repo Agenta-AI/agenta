@@ -53,6 +53,9 @@ interface SessionTagProps {
     index: number
     active: boolean
     closable: boolean
+    /** True when this session already existed at the bar's first mount (reload restore) — an
+     * activation here jumps instantly; a session added afterwards keeps the smooth scroll. */
+    presentAtMount: boolean
     onSelect: () => void
     onClose: () => void
     onRename: (title: string) => void
@@ -64,6 +67,7 @@ const SessionTag = ({
     index,
     active,
     closable,
+    presentAtMount,
     onSelect,
     onClose,
     onRename,
@@ -71,16 +75,17 @@ const SessionTag = ({
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
     const tabRef = useRef<HTMLDivElement>(null)
-    // Keep the active tab visible. On the tab's FIRST reveal (reload restoring a far-away active
-    // session) jump instantly — the strip's scroll-smooth would otherwise play a long scroll across
-    // the whole strip. Later activations (user switching) keep the CSS smooth nudge.
+    // Keep the active tab visible. Jump INSTANTLY only on the bar's initial reveal of a session that
+    // was already present at mount (reload restoring a far-away active tab) — the strip's scroll-smooth
+    // would otherwise play a long scroll across the whole strip. A session added later, or any user
+    // switch, keeps the CSS smooth nudge (so a freshly-created tab still glides into view).
     const mountedRef = useRef(false)
     useEffect(() => {
         if (active) {
             tabRef.current?.scrollIntoView({
                 block: "nearest",
                 inline: "nearest",
-                behavior: mountedRef.current ? undefined : "instant",
+                behavior: presentAtMount && !mountedRef.current ? "instant" : undefined,
             })
         }
         mountedRef.current = true
@@ -160,6 +165,14 @@ const SessionTagBar = ({
     showSessions = true,
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
+    // Session ids present when the bar first mounted. Seeded once; NOT topped up, so an id that
+    // appears later reads as "added after mount" and scrolls smoothly (see SessionTag).
+    const presentAtMountRef = useRef<Set<string>>(new Set())
+    const seededRef = useRef(false)
+    if (!seededRef.current) {
+        seededRef.current = true
+        sessions.forEach((s) => presentAtMountRef.current.add(s.id))
+    }
     return (
         <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
             {showSessions ? (
@@ -171,6 +184,7 @@ const SessionTagBar = ({
                             index={index}
                             active={session.id === activeId}
                             closable={closable}
+                            presentAtMount={presentAtMountRef.current.has(session.id)}
                             onSelect={() => onSelect(session.id)}
                             onClose={() => onClose(session.id)}
                             onRename={(title) => onRename(session.id, title)}

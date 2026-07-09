@@ -11,6 +11,7 @@ import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
+import {MoreOutlined} from "@ant-design/icons"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -27,7 +28,12 @@ import {PlaygroundVariantConfigHeaderProps} from "./types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
-    {ssr: false},
+    {
+        ssr: false,
+        // Reserve the kebab's 32px footprint while the chunk loads so it doesn't pop in and
+        // shift Commit/Deploy leftward on the (skeletonized) agent config header.
+        loading: () => <Button type="text" icon={<MoreOutlined size={14} />} disabled />,
+    },
 )
 
 const PlaygroundVariantConfigHeader = ({

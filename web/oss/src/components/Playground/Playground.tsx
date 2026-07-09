@@ -9,7 +9,9 @@ import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import AgentChatPanelHost from "@/oss/components/AgentChatSlice/AgentChatPanelHost"
+// Synchronous thin frame (Splitter + Tabs + region slots): its real structure paints immediately;
+// the heavy conversation body / bar / rail are lazy leaves inside it, each behind its own skeleton.
+import AgentChatPanel from "@/oss/components/AgentChatSlice/AgentChatPanel"
 import {
     AgentChatScopeProvider,
     ONBOARDING_SCOPE_KEY,
@@ -116,10 +118,10 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
         ChatTurnAssistantActions: (props) => (
             <GatewayToolAssistantActions {...props} onExecuteToolCall={executeToolCall} />
         ),
-        // Third generation arm: agent-type entities render the agent-chat surface.
-        // Lazy — pulls in the AI SDK only when an agent workflow is open. While onboarding, this is
-        // the onboarding composer that hands off to the live chat once the ephemeral is committed.
-        AgentGenerationPanel: agentOnboarding.agentPanel ?? AgentChatPanelHost,
+        // Third generation arm: agent-type entities render the agent-chat surface. The frame is
+        // synchronous (real structure paints immediately); the AI SDK stays in the lazy conversation
+        // body. While onboarding, this is the onboarding composer that hands off to the live chat.
+        AgentGenerationPanel: agentOnboarding.agentPanel ?? AgentChatPanel,
         renderSyncStateTag: PlaygroundSyncStateTag,
     } as unknown as PlaygroundUIProviders
 

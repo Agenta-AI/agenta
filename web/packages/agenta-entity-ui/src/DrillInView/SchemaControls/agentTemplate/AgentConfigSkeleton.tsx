@@ -10,7 +10,7 @@ import {Skeleton} from "antd"
 
 // One entry per section row: title/value widths vary like the real labels do.
 const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
-    {title: 150, value: 190}, // Model & harness
+    {title: 128, value: 130}, // Model & harness (value mirrors the real, truncating summary)
     {title: 112, value: 48, withAdd: true}, // Instructions
     {title: 60, value: 56, withAdd: true}, // Tools
     {title: 122, value: 44, withAdd: true}, // MCP servers
@@ -25,7 +25,7 @@ const AgentConfigSkeleton = () => (
             <div
                 key={i}
                 className={
-                    "flex items-center gap-3 py-6" +
+                    "flex items-center gap-3 overflow-hidden py-6" +
                     (i < ROWS.length - 1
                         ? " border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]"
                         : "")
