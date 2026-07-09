@@ -20,7 +20,7 @@ const STATUS_META: Record<
     SessionRunStatus,
     {dot: string; pulse: boolean; attention: boolean; title: string}
 > = {
-    running: {dot: "bg-colorInfo", pulse: true, attention: false, title: "Running"},
+    running: {dot: "bg-colorInfo", pulse: true, attention: false, title: "Responding…"},
     awaiting: {dot: "bg-colorWarning", pulse: true, attention: true, title: "Needs your input"},
     error: {dot: "bg-colorError", pulse: false, attention: true, title: "Last run failed"},
     idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
@@ -37,10 +37,10 @@ export const SessionStatusDot = ({
 }) => {
     const status = useAtomValue(sessionStatusAtomFamily(sessionId))
     const meta = STATUS_META[status]
-    // Whiten the dot to match the active tab's white text ONLY for non-attention states; an
-    // awaiting/error session keeps its warning/error colour even when active so the "needs you"
-    // signal survives on the tab you're looking at.
-    const dotClassName = clsx(meta.dot, active && !meta.attention && "dark:bg-white")
+    // Whiten the dot to match the active tab's white text ONLY when the session is idle. Any live
+    // state — running (streaming a response), awaiting (needs you), error — keeps its semantic
+    // colour even on the active tab, so its signal survives on the session you're looking at.
+    const dotClassName = clsx(meta.dot, active && status === "idle" && "dark:bg-white")
     return (
         <span
             className={clsx(
