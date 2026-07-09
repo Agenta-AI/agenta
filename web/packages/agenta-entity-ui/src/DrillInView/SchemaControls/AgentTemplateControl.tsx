@@ -34,7 +34,7 @@ import {
     classifyAgentChanges,
     stableStringify,
 } from "@agenta/entities/workflow/commitDiff"
-import {openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {agentSelfCommitSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {ConfigAccordionSection, sectionIndicatorColor} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -282,6 +282,50 @@ export function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+
+    // ── Agent self-commit: surface WHAT the agent just changed ──────────────────────────
+    // The chat raises the signal (with the outgoing revision's parameters) when the agent
+    // commits itself and the playground switches in place. Once this control renders the
+    // NEW revision, diff the configs per section and mark the changed ones. The computed
+    // set is FROZEN on first non-empty result so the user's own subsequent edits don't
+    // drift into the "agent changed this" indication. Dismiss (or the next commit) clears.
+    const [commitSignal, setCommitSignal] = useAtom(agentSelfCommitSignalAtom)
+    const frozenAgentDiffRef = useRef<{signalAt: number; keys: Set<string>} | null>(null)
+    const agentChangedKeys = useMemo(() => {
+        if (!commitSignal || !revisionId || commitSignal.revisionId !== revisionId) return null
+        if (frozenAgentDiffRef.current?.signalAt === commitSignal.at) {
+            return frozenAgentDiffRef.current.keys
+        }
+        try {
+            const sectionIdToKey: Record<string, string> = {
+                model: "model-harness",
+                instructions: "instructions",
+                tools: "tools",
+                mcps: "mcp",
+                skills: "skills",
+                params: "advanced",
+            }
+            const changed = classifyAgentChanges(commitSignal.prevParameters, {agent: value})
+            const keys = new Set(
+                changed.map((s) => sectionIdToKey[s.id]).filter((k): k is string => Boolean(k)),
+            )
+            if (keys.size === 0) return null
+            frozenAgentDiffRef.current = {signalAt: commitSignal.at, keys}
+            return keys
+        } catch {
+            return null
+        }
+    }, [commitSignal, revisionId, value])
+    const agentChangeIndicator = useCallback(
+        (sectionKey: string) =>
+            agentChangedKeys?.has(sectionKey)
+                ? {
+                      tone: "draft" as const,
+                      tooltip: `Updated by the agent${commitSignal?.version ? ` in ${commitSignal.version}` : ""}`,
+                  }
+                : undefined,
+        [agentChangedKeys, commitSignal?.version],
+    )
     // Triggers bound to this agent (for the section count badge). The section body and the header
     // add-dropdown derive scoping from the same hook.
     const {count: triggerCount} = useAgentTriggers(revisionId)
@@ -720,6 +764,26 @@ export function AgentTemplateControl({
 
     return (
         <div className={cn("flex flex-col", className)}>
+            {agentChangedKeys ? (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-[color-mix(in_srgb,var(--ag-colorInfo)_10%,transparent)] px-3 py-1.5">
+                    <Typography.Text className="text-xs text-[var(--ag-colorText)]">
+                        Agent updated this configuration
+                        {commitSignal?.version ? ` (${commitSignal.version})` : ""} — the marked
+                        sections changed
+                    </Typography.Text>
+                    <Button
+                        type="text"
+                        aria-label="Dismiss agent update notice"
+                        className="!h-5 !px-1 !text-xs"
+                        onClick={() => {
+                            frozenAgentDiffRef.current = null
+                            setCommitSignal(null)
+                        }}
+                    >
+                        Dismiss
+                    </Button>
+                </div>
+            ) : null}
             {sections.length === 0 ? (
                 <Typography.Text type="secondary" className="text-xs">
                     No agent configuration fields are available for this schema.
@@ -780,7 +844,7 @@ export function AgentTemplateControl({
                             titleBadge={sectionBadge(s.key)}
                             summary={s.summary}
                             extra={s.extra}
-                            indicator={s.indicator}
+                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
                             onOpen={s.onOpen}
                             collapsible={false}
                             noDivider
@@ -799,7 +863,7 @@ export function AgentTemplateControl({
                         titleBadge={sectionBadge(s.key)}
                         summary={s.summary}
                         extra={s.extra}
-                        indicator={s.indicator}
+                        indicator={s.indicator ?? agentChangeIndicator(s.key)}
                         onOpen={s.onOpen}
                         defaultOpen={s.defaultOpen}
                         noDivider={index === sections.length - 1}

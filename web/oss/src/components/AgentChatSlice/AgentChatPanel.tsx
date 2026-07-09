@@ -18,7 +18,7 @@ import {
     buildTurnCapture,
     playgroundController,
 } from "@agenta/playground"
-import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {agentSelfCommitSignalAtom, simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -988,6 +988,7 @@ const AgentConversation = ({
     // inspect caches so the config panel, section drawers, and build-kit view all re-read the new
     // config. Deduped by revision id so a re-render (token stream) doesn't re-invalidate.
     const committedRevisionsSeenRef = useRef<Set<string>>(new Set())
+    const setAgentCommitSignal = useSetAtom(agentSelfCommitSignalAtom)
     useEffect(() => {
         for (const message of messages) {
             for (const part of message.parts) {
@@ -999,11 +1000,22 @@ const AgentConversation = ({
                 committedRevisionsSeenRef.current.add(key)
                 invalidateAgentCommittedRevisionCache()
                 if (data?.revisionId && data.revisionId !== entityId) {
+                    // Capture the OUTGOING revision's parameters before switching, so the config
+                    // panel can show what the agent changed (per-section indicators + summary).
+                    const prevParameters = store.get(
+                        workflowMolecule.selectors.configuration(entityId),
+                    )
+                    setAgentCommitSignal({
+                        revisionId: data.revisionId,
+                        version: data.version,
+                        prevParameters: prevParameters ?? null,
+                        at: Date.now(),
+                    })
                     switchEntity({currentEntityId: entityId, newEntityId: data.revisionId})
                 }
             }
         }
-    }, [messages, entityId, switchEntity])
+    }, [messages, entityId, switchEntity, store, setAgentCommitSignal])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const markStopped = useCallback(() => {

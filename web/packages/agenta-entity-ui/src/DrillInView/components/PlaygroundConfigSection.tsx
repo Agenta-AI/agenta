@@ -658,15 +658,35 @@ function PlaygroundConfigSection({
 
     // Schema for model config popover
     const schemaAtom = useMemo(() => mol.atoms.agConfigSchema(revisionId), [mol, revisionId])
-    const schema = useAtomValue(schemaAtom)
+    const schemaLive = useAtomValue(schemaAtom)
 
     // Choose the best available data for loading checks
-    const activeData = useMemo(() => {
+    const activeDataLive = useMemo(() => {
         if (useServerData) return serverData
         if (hasParameters(data)) return data
         if (hasParameters(serverData)) return serverData
         return data ?? serverData
     }, [useServerData, data, serverData])
+
+    // Revision switches (e.g. the agent committing itself) keep this component mounted and
+    // swap `revisionId` in place. While the NEW revision's data/schema queries are pending,
+    // keep rendering the LAST renderable snapshot instead of dropping to the loading skeleton
+    // — the sections then update their values in place when the data lands (no teardown, no
+    // collapsed→open replay). The snapshot ref resets with the component, so keyed usages
+    // (per-variant configs in prompt playgrounds) are unaffected.
+    const renderSnapshotRef = useRef<{data: typeof activeDataLive; schema: typeof schemaLive}>({
+        data: null,
+        schema: null,
+    })
+    if (hasRenderableConfigSections(activeDataLive)) {
+        renderSnapshotRef.current = {data: activeDataLive, schema: schemaLive}
+    }
+    const holdPrevious =
+        schemaQuery.isPending &&
+        !hasRenderableConfigSections(activeDataLive) &&
+        hasRenderableConfigSections(renderSnapshotRef.current.data)
+    const activeData = holdPrevious ? renderSnapshotRef.current.data : activeDataLive
+    const schema = holdPrevious ? renderSnapshotRef.current.schema : schemaLive
 
     const parameters = (activeData?.parameters ?? {}) as Record<string, unknown>
 

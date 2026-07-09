@@ -378,7 +378,15 @@ const PlaygroundMainView = ({
                                 ) : configEntityIds.length > 0 ? (
                                     configEntityIds.map((variantId, index) => (
                                         <div
-                                            key={`variant-config-${variantId}`}
+                                            // Agents get a STABLE key (like the chat host): a
+                                            // self-commit switches the revision in place, so the
+                                            // config panel must update as a prop change — a remount
+                                            // replays the sections' collapsed→open entrance.
+                                            key={
+                                                renderAgentGenerationHost
+                                                    ? "agent-config-host"
+                                                    : `variant-config-${variantId}`
+                                            }
                                             className={clsx([
                                                 {
                                                     "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
