@@ -262,16 +262,6 @@ const AgentMessage = ({
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
         .join("")
-    const handleCopy = async () => {
-        try {
-            await navigator.clipboard.writeText(fullText)
-            setCopied(true)
-            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
-            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-        } catch {
-            setCopied(false)
-        }
-    }
     const sources = message.parts.filter((p) => p.type === "source-url") as {
         type: "source-url"
         url: string
@@ -311,6 +301,21 @@ const AgentMessage = ({
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
     const isError = noResponse && showError
+
+    // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
+    // failure) so the button isn't a no-op when the agent only returned an error.
+    const copyText = [fullText, errorText].filter(Boolean).join("\n\n")
+    const handleCopy = async () => {
+        if (!copyText) return
+        try {
+            await navigator.clipboard.writeText(copyText)
+            setCopied(true)
+            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
+            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+        } catch {
+            setCopied(false)
+        }
+    }
 
     // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
     // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
