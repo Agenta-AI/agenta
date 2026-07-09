@@ -9,12 +9,13 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
+import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {MoreOutlined} from "@ant-design/icons"
-import {Trash} from "@phosphor-icons/react"
+import {Robot, Trash, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
@@ -115,6 +116,20 @@ const PlaygroundVariantConfigHeader = ({
     ).isPending
     const showAgentHeader = isAgentEffective || variantQueryPending
 
+    // Agent self-commit tag: lives in this fixed-height bar (not above the sections) so the
+    // notice can't shift the config layout. Dismiss clears the shared signal, which also
+    // clears the per-section teal dots.
+    const [agentCommitSignal, setAgentCommitSignal] = useAtom(agentSelfCommitSignalAtom)
+    const agentCommitTag =
+        agentCommitSignal && variantId && agentCommitSignal.revisionId === variantId
+            ? agentCommitSignal
+            : null
+    const agentCommitVersion = agentCommitTag?.version
+        ? String(agentCommitTag.version).startsWith("v")
+            ? String(agentCommitTag.version)
+            : `v${agentCommitTag.version}`
+        : null
+
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments
     const deploymentEntityId = (runnableData?.id as string) || ""
@@ -203,9 +218,32 @@ const PlaygroundVariantConfigHeader = ({
                     // agent name), so this bar reads as the config panel's "Configuration" header.
                     // Also the neutral header while agent-ness is unknown, so the prompt chrome below
                     // never flashes on load for an agent.
-                    <span className="text-[13px] font-semibold text-[var(--ant-color-text)]">
-                        Configuration
-                    </span>
+                    <>
+                        <span className="text-[13px] font-semibold text-[var(--ant-color-text)]">
+                            Configuration
+                        </span>
+                        {agentCommitTag ? (
+                            <Tooltip
+                                title={`The agent committed ${agentCommitVersion ?? "a new revision"} — the sections it changed carry a teal dot`}
+                            >
+                                <span className="flex min-w-0 shrink items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--ag-c-13C2C2,#13c2c2)_14%,transparent)] px-2 py-0.5 text-[11px] leading-4 text-[var(--ag-c-13C2C2,#13c2c2)]">
+                                    <Robot size={11} weight="fill" className="shrink-0" />
+                                    <span className="truncate">
+                                        Updated by agent
+                                        {agentCommitVersion ? ` · ${agentCommitVersion}` : ""}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        aria-label="Dismiss agent update notice"
+                                        className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-inherit opacity-70 hover:opacity-100"
+                                        onClick={() => setAgentCommitSignal(null)}
+                                    >
+                                        <X size={10} weight="bold" />
+                                    </button>
+                                </span>
+                            </Tooltip>
+                        ) : null}
+                    </>
                 ) : (
                     <>
                         {!embedded && !isLocalDraftVariant && (

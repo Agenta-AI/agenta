@@ -36,7 +36,11 @@ import {
 } from "@agenta/entities/workflow/commitDiff"
 import {agentSelfCommitSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
-import {ConfigAccordionSection, sectionIndicatorColor} from "@agenta/ui/components/presentational"
+import {
+    ConfigAccordionSection,
+    sectionIndicatorColor,
+    type SectionIndicatorTone,
+} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -289,7 +293,7 @@ export function AgentTemplateControl({
     // NEW revision, diff the configs per section and mark the changed ones. The computed
     // set is FROZEN on first non-empty result so the user's own subsequent edits don't
     // drift into the "agent changed this" indication. Dismiss (or the next commit) clears.
-    const [commitSignal, setCommitSignal] = useAtom(agentSelfCommitSignalAtom)
+    const commitSignal = useAtomValue(agentSelfCommitSignalAtom)
     const frozenAgentDiffRef = useRef<{signalAt: number; keys: Set<string>} | null>(null)
     const agentChangedKeys = useMemo(() => {
         if (!commitSignal || !revisionId || commitSignal.revisionId !== revisionId) return null
@@ -317,13 +321,15 @@ export function AgentTemplateControl({
         }
     }, [commitSignal, revisionId, value])
     const agentChangeIndicator = useCallback(
-        (sectionKey: string) =>
-            agentChangedKeys?.has(sectionKey)
-                ? {
-                      tone: "draft" as const,
-                      tooltip: `Updated by the agent${commitSignal?.version ? ` in ${commitSignal.version}` : ""}`,
-                  }
-                : undefined,
+        (sectionKey: string) => {
+            if (!agentChangedKeys?.has(sectionKey)) return undefined
+            const raw = commitSignal?.version ? String(commitSignal.version) : null
+            const version = raw ? (raw.startsWith("v") ? raw : `v${raw}`) : null
+            return {
+                tone: "agent" as const,
+                tooltip: `Updated by the agent${version ? ` in ${version}` : ""}`,
+            }
+        },
         [agentChangedKeys, commitSignal?.version],
     )
     // Triggers bound to this agent (for the section count badge). The section body and the header
@@ -741,7 +747,7 @@ export function AgentTemplateControl({
         title: React.ReactNode
         summary?: React.ReactNode
         extra?: React.ReactNode
-        indicator?: {tone: "draft" | "invalid" | "incomplete"; tooltip?: string}
+        indicator?: {tone: SectionIndicatorTone; tooltip?: string}
         defaultOpen?: boolean
         onOpen?: () => void
         content: React.ReactNode
@@ -766,26 +772,6 @@ export function AgentTemplateControl({
 
     return (
         <div className={cn("flex flex-col", className)}>
-            {agentChangedKeys ? (
-                <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-[color-mix(in_srgb,var(--ag-colorInfo)_10%,transparent)] px-3 py-1.5">
-                    <Typography.Text className="text-xs text-[var(--ag-colorText)]">
-                        Agent updated this configuration
-                        {commitSignal?.version ? ` (${commitSignal.version})` : ""} — the marked
-                        sections changed
-                    </Typography.Text>
-                    <Button
-                        type="text"
-                        aria-label="Dismiss agent update notice"
-                        className="!h-5 !px-1 !text-xs"
-                        onClick={() => {
-                            frozenAgentDiffRef.current = null
-                            setCommitSignal(null)
-                        }}
-                    >
-                        Dismiss
-                    </Button>
-                </div>
-            ) : null}
             {sections.length === 0 ? (
                 <Typography.Text type="secondary" className="text-xs">
                     No agent configuration fields are available for this schema.

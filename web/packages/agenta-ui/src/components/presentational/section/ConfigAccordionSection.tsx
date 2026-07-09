@@ -36,18 +36,22 @@ import {HeightCollapse} from "../../HeightCollapse"
 
 const {Text} = Typography
 
-export type SectionIndicatorTone = "draft" | "invalid" | "incomplete"
+export type SectionIndicatorTone = "draft" | "invalid" | "incomplete" | "agent"
 
 /**
  * The accent token for a section/item change indicator. Single source of truth for the
  * tone→token mapping, shared by the section header and the config panel's item indicators.
+ * "agent" (the agent changed this in a self-commit) is deliberately DISTINCT from "draft"
+ * blue — it uses the agent teal so it can't be read as the user's own unsaved edits.
  */
 export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
     return tone === "invalid"
         ? "var(--ag-colorError)"
         : tone === "incomplete"
           ? "var(--ag-colorWarning)"
-          : "var(--ag-colorInfo)"
+          : tone === "agent"
+            ? "var(--ag-c-13C2C2, #13c2c2)"
+            : "var(--ag-colorInfo)"
 }
 
 export interface ConfigAccordionSectionProps {
@@ -103,7 +107,7 @@ export interface ConfigAccordionSectionProps {
      * agent config panel to flag sections with unsaved edits (`"draft"`), a blocking problem
      * (`"invalid"`), or an optional gap (`"incomplete"`).
      */
-    indicator?: {tone: "draft" | "invalid" | "incomplete"; tooltip?: ReactNode}
+    indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode}
     /** Only show `summary` while the section is collapsed. @default false (always). */
     summaryCollapsedOnly?: boolean
     /**
