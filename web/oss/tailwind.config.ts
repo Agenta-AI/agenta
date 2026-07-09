@@ -103,6 +103,7 @@ const themeAwareColors = {
     colorSplit: v("colorSplit"),
     colorPrimary: v("colorPrimary"),
     colorPrimaryText: v("colorPrimaryText"),
+    colorPrimaryBg: v("colorPrimaryBg"),
     colorSuccess: v("colorSuccess"),
     colorWarning: v("colorWarning"),
     colorWarningText: v("colorWarningText"),

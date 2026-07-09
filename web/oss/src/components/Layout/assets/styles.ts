@@ -7,7 +7,7 @@ export type StyleProps = MainStyleProps
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
     layout: ({themeMode}: StyleProps) => ({
         display: "flex",
-        background: themeMode === "dark" ? "#141414" : "#ffffff",
+        background: themeMode === "dark" ? "#000" : "#ffffff",
         height: "100%",
         minHeight: "100vh",
         position: "relative",
@@ -27,7 +27,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "space-between",
         width: "100%",
         padding: "8px 1.5rem",
-        borderBottom: `1px solid ${theme.colorBorderSecondary}`,
+        borderBottom: `1px solid ${theme.colorSplit}`,
     },
     topRightBar: {
         display: "flex",

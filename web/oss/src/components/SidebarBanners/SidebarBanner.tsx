@@ -29,7 +29,7 @@ const SidebarBanner = ({banner, onDismiss}: SidebarBannerProps) => {
     // If custom content is provided, render it instead
     if (banner.customContent) {
         return (
-            <section className="p-4 rounded-lg flex flex-col gap-2 bg-[var(--ag-c-F5F7FA)] relative">
+            <section className="p-4 rounded-lg flex flex-col gap-2 bg-colorPrimaryBg relative">
                 {banner.dismissible && onDismiss && (
                     <button
                         onClick={onDismiss}
@@ -45,7 +45,7 @@ const SidebarBanner = ({banner, onDismiss}: SidebarBannerProps) => {
     }
 
     return (
-        <section className="p-4 rounded-lg flex flex-col gap-2 bg-[var(--ag-c-F5F7FA)] relative">
+        <section className="p-4 rounded-lg flex flex-col gap-2 bg-colorPrimaryBg relative">
             {banner.dismissible && onDismiss && (
                 <button
                     onClick={onDismiss}

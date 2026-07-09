@@ -79,7 +79,7 @@ const stripComponentColors = <T extends Record<string, Record<string, unknown>>>
 const DARK_TOKEN_OVERRIDES = {
     // Brand accent — the light navy primary (#1c2c3d) is invisible on dark, so the
     // accent becomes the Agenta brand yellow (logo color).
-    colorPrimary: "#f2f25c",
+    colorPrimary: "#F2F25C",
     colorSuccess: "#52c41a",
     colorWarning: "#faad14",
     colorError: "#ff4d4f",
@@ -87,9 +87,9 @@ const DARK_TOKEN_OVERRIDES = {
     // darkAlgorithm falls back to a harsh default blue. Pin a softer, dark-tuned
     // link blue (GitHub-style) so every antd link (Typography.Link, type="link",
     // anchors) reads as a clickable affordance without the jarring tone.
-    colorLink: "#58a6ff",
-    colorLinkHover: "#79b8ff",
-    colorLinkActive: "#3b8eea",
+    colorLink: "#F2F25C",
+    colorLinkHover: "#C2C24A",
+    colorLinkActive: "#919137",
     // Overlay elevation. antd's default drop-shadows are invisible on a dark
     // surface, so popovers/dropdowns/selects/tooltips/modals blended into the
     // page with no depth. Lead every elevation shadow with a 1px light ring
@@ -123,7 +123,7 @@ const DARK_TOKEN_OVERRIDES = {
     // Lift the overlay surface a touch more above the page so popups read as a
     // distinct layer, not just a ring (container is ~#141414; default elevated
     // ~#1f1f1f is only marginally lighter).
-    colorBgElevated: "#242424",
+    colorBgElevated: "#11100F",
     // Placeholder text. darkAlgorithm derives colorTextPlaceholder at 25% white,
     // which is barely legible against the dark input surface. Lift it to 38% so
     // placeholders read clearly everywhere (Input/Select/TextArea/DatePicker/
@@ -131,11 +131,15 @@ const DARK_TOKEN_OVERRIDES = {
     // all placeholders in one place instead of per-input patches.
     colorTextPlaceholder: "rgba(255, 255, 255, 0.38)",
     // Surfaces / text / border come from darkAlgorithm by default. Uncomment to tune:
-    // colorBgContainer: "#141414",
+    colorBgBase: "#000000",
+    colorBgContainer: "#11100F",
     // colorBgElevated: "#1f1f1f",
     // colorBgLayout: "#000000",
-    // colorText: "rgba(255, 255, 255, 0.85)",
-    // colorBorder: "#424242",
+    colorText: "#F6F4F3",
+    colorBorder: "#52504E",
+    colorBorderSecondary: "#1F1E1D",
+    colorSplit: "#1F1E1D",
+    colorPrimaryBg: "#303012",
 }
 // On a bright yellow primary, antd's default light-solid (#fff) label is unreadable —
 // force dark text on primary-colored buttons in dark mode.

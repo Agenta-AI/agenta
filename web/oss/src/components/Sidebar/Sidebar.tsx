@@ -90,7 +90,7 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
     }, [openKeys[0]])
 
     return (
-        <div className="border-0 border-r border-solid border-gray-100">
+        <div className="border-0 border-r border-solid border-colorSplit">
             <Sider
                 theme={appTheme}
                 className="sticky top-0 bottom-0 h-screen bg-[var(--ag-sidebar-bg)]"

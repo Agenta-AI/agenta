@@ -9,7 +9,7 @@ interface WelcomeCardProps {
 }
 
 const welcomeCardContainerClass =
-    "flex flex-col w-full flex-1 border border-colorBorderSecondary rounded-[10px] bg-colorBgContainer shadow-[0_1px_2px_0_rgba(0,0,0,0.03),0_1px_6px_-1px_rgba(0,0,0,0.02),0_2px_4px_0_rgba(0,0,0,0.02)] cursor-pointer transition-colors duration-200 hover:bg-colorFillTertiary"
+    "flex flex-col w-full flex-1 border border-solid border-colorBorderSecondary rounded-[10px] bg-colorBgContainer shadow-[0_1px_2px_0_rgba(0,0,0,0.03),0_1px_6px_-1px_rgba(0,0,0,0.02),0_2px_4px_0_rgba(0,0,0,0.02)] cursor-pointer transition-colors duration-200 hover:bg-colorFillTertiary"
 
 const WelcomeCard = ({title, subtitle, onClick, hidden}: WelcomeCardProps) => {
     return (
