@@ -1,242 +1,203 @@
 # Context: Trigger "Latest" binding
 
+README.md explains how trigger binding and fire-time resolution work. This file
+explains why the project exists, what it will and will not do, and each design
+decision with its trade-offs.
+
 ## The problem
 
-A trigger (a cron **schedule** or a provider-event **subscription**) binds to a workflow
-so it knows what to run when it fires. Today a trigger can bind three ways in intent, but
-the product only exposes two:
+A trigger can bind to a workflow in three ways. The product exposes two:
 
-- **Pinned** — run one exact revision, frozen. The UI supports this.
-- **Deployed** — run whatever revision is deployed to an environment. The UI supports
-  this.
-- **Latest** — run the newest revision of a variant, re-resolved on every fire. **The UI
-  cannot express or render this**, even though the backend already implements it.
+- **Pinned**: run one exact revision, frozen. The UI supports this.
+- **Deployed**: run whatever is deployed to an environment. The UI supports this.
+- **Latest**: run the newest revision of a variant, resolved at each fire. The backend
+  supports this. The UI cannot express it, and it renders triggers that use it as
+  broken.
 
-The backend follows-latest whenever the stored references name a variant (or artifact)
-but no revision: the dispatcher rebuilds the invoke request from the *raw stored
-references* on every fire, and the workflow service resolves the variant HEAD fresh when
-no revision ref is present (see research.md §1). Agent-created triggers already rely on
-this — the `create_schedule` / `create_subscription` ops context-bind only the variant id.
+Three frontend defects cause this:
 
-Three things broke because the frontend never modeled Latest:
+1. **Edit mis-renders a variant-only trigger.** The drawer prefill takes the variant id
+   from the stored references and puts it in a revision field. Revision lookups fail on
+   a variant id, so the drawer shows an empty, required "Select workflow revision"
+   field. The trigger has a valid binding; the UI says it has none. Saving is blocked,
+   even for a name-only edit.
 
-1. **The FE mis-renders a variant-only trigger.** Edit-prefill takes the variant id out of
-   `application_variant.id` and feeds it to revision-only selectors, which return null, so
-   the "Which version runs?" section shows an empty "Select workflow revision" placeholder
-   under a required asterisk — as if the trigger had no binding, when it has a perfectly
-   valid follow-latest binding.
+2. **The frontend never reads the `workflow_*` reference keys.** The drawers read
+   `application_revision`, then `application_variant`, then `workflow_revision`. The
+   settings list reads a similar chain. Neither reads `workflow_variant`. Agent-created
+   triggers store exactly `{workflow_variant: {id}}`, so the UI treats them as unbound
+   and the settings list shows "-".
 
-2. **The FE read paths never read the `workflow_*` reference family** — and agent-created
-   triggers store exactly `{workflow_variant: {id}}` (research.md §10). The drawer
-   prefills read `application_revision ?? application_variant ?? workflow_revision`; the
-   settings list reads `application ?? application_variant ?? application_revision`.
-   Neither reads `workflow_variant`. The `fe4a01f` pin "fixed" agent triggers only
-   because, being prefix-agnostic, it wrote `workflow_revision` — which the drawers DO
-   read. So a plain revert with `application_*`-only FE work would leave an agent trigger
-   prefilling null, rendering the empty required picker, blocking even a name-only edit
-   on submit validation, and showing "-" in the settings list. The FE classifier must be
-   **prefix-symmetric** (decision D2).
+3. **A backend workaround hid the frontend gaps.** PR #5103 made the create and edit
+   endpoints pin a bare variant reference to its head revision at save time. The
+   frontend then always found a revision key it could read. But the trigger stopped
+   following new commits, which defeats the point of a variant-only binding. Mahmoud
+   closed that PR on 2026-07-09. The pin commit still sits on its local lane; Phase A
+   removes it.
 
-3. **A backend workaround was added to hide those FE gaps.** Commit `fe4a01f` (lane
-   `fix/trigger-revision-default-head`, PR #5103) made `_validate_references` **pin** a
-   bare variant reference to its current HEAD revision at create/edit time, so the FE
-   always receives a revision key it reads. That freezes follow-latest at save time — it
-   trades a correct-but-unrendered binding for a wrong-but-rendered one. It must be
-   reverted; the fix belongs on the frontend (render Latest, read all prefixes), not on
-   the write path.
+The fix belongs on the frontend read paths, not on the backend write path.
 
 ## Goals
 
-- Add a first-class **Latest** binding mode to both trigger drawers: the user picks a
-  variant and the trigger follows its newest revision, resolved at each fire.
-- Correctly **round-trip** all three modes through create → edit → save without losing or
-  corrupting the binding — **for every reference prefix the backend accepts**
+- Add a first-class **Latest** mode to both trigger drawers. The user picks a variant;
+  the trigger follows its newest revision.
+- Round-trip all three modes through create, edit, and save without corrupting the
+  binding. This must work for every reference prefix the backend accepts
   (`application_*`, `workflow_*`, `evaluator_*`), so agent-created triggers render too.
-- **Revert** the create-time pin so variant-only means follow-latest again, while keeping
-  the unrelated-but-good fix from the same lane (typed `TriggerReferenceInvalid` → HTTP
-  422 on the *subscription* create/edit endpoints, which previously surfaced 500s; the
-  schedule endpoints already had the handler — research.md §3).
-- **Render** Latest triggers honestly in the settings list ("Bound workflow" column),
-  using the same prefix-symmetric classifier as the drawers.
-- **Fix the wording** in the op catalog: post-revert, the `commit_revision` description's
-  claim that "existing schedules and subscriptions keep pointing at the old revision" is
-  actively wrong for the common agent case (a variant-bound self-schedule DOES pick up
-  the new commit). This is a correctness fix, not polish (research.md §9).
+- Keep the pin out of the codebase, and salvage the one good fix from the closed PR:
+  the subscription create and edit endpoints should return 422, not 500, when a
+  reference does not resolve. The schedule endpoints already return 422.
+- Show Latest triggers honestly in the settings list, using the same classification
+  logic as the drawers.
+- Fix the SDK op-catalog descriptions. Without the pin, the claim that "existing
+  schedules and subscriptions keep pointing at the old revision" is wrong for
+  variant-bound triggers: they pick up new commits on the next fire. An agent that
+  trusts the current text will reason wrongly about its own schedules.
 
-## Non-goals (explicitly out of scope)
+## Non-goals
 
-- **Recording which revision actually ran on each delivery** — issue **#5110**, assigned
-  to jp. Latest triggers resolve HEAD at fire time; the delivery record does not yet
-  capture the resolved revision. Out of scope here; mentioned so a reader does not expect
-  it.
-- **Scoping the settings-mode picker to the trigger's own app.** The Pinned/Latest picker
-  in settings lists *every* application workflow in the project (unscoped) — part of the
-  "weird options" complaint. Real, but orthogonal to Latest. **Defer to a follow-up
-  issue** to keep this PR tight (see decision D5).
-- **Two pre-existing dangling-reference render gaps** (acknowledged so they are not
-  mistaken for regressions from this work): a **Pinned** trigger whose revision was
-  archived renders an empty picker, and a **Deployed** trigger whose environment was
-  deleted renders a blank select. Both predate this project and are unchanged by it.
-- **A data migration.** None is needed (see decision D6).
-- **A new wire field / explicit binding marker.** Considered and declined for now
-  (see decision D2).
+- **Recording which revision actually ran on each delivery.** Latest triggers resolve
+  the head at fire time, and the delivery record does not capture the result. That is
+  issue #5110, assigned to jp.
+- **Scoping the version picker to the trigger's own app.** In settings, the picker
+  lists every application workflow in the project. Real problem, unrelated to Latest.
+  Deferred to a follow-up issue (decision D5).
+- **Two pre-existing render gaps for dangling references.** A Pinned trigger whose
+  revision was archived shows an empty picker. A Deployed trigger whose environment was
+  deleted shows a blank select. Both predate this project and stay unchanged. Listed so
+  nobody mistakes them for regressions.
+- **A data migration.** None is needed (decision D6).
+- **A new wire field or binding marker.** Considered and declined for now (decision
+  D2).
 
 ## Design decisions
 
-### D1 — UX: a third rail item ("Latest" | "Pinned" | "Deployed")
+### D1: The control is a third rail item, "Latest | Pinned | Deployed"
 
-The "Which version runs?" control is a left rail of mutually exclusive modes with a
-mode-specific control on the right (`RunVersionField.tsx`). Today the rail has two items:
-`Pinned` (a workflow→variant→revision cascader) and `Deployed` (an environment select).
+The "Which version runs?" control (`RunVersionField.tsx`) is a left rail of modes with
+a mode-specific control on the right. Today the rail has two items: Pinned (a workflow
+to variant to revision cascader) and Deployed (an environment select).
 
-**Recommendation: add a third peer rail item, `Latest`.** Order: `Latest | Pinned |
-Deployed`.
+We add Latest as a third peer item, first in the list. When selected, the right side
+shows a variant picker: workflow, then variant, no revision level.
 
-Why a peer rail item rather than a leaf inside the Pinned picker or a checkbox:
+Why a peer item and not something smaller:
 
-- The three modes are three **binding policies** (follow-head / frozen / follow-deployment).
-  A rail already means "pick a policy." Making Latest a peer keeps the policy explicit and
-  visible, and it round-trips cleanly because the mode is derivable from the stored
-  reference shape.
-- A "Latest revision" *leaf inside the Pinned cascader* would bury the policy inside a
-  tree whose other leaves are frozen revisions, and it complicates the picker's value
-  model (a variant node and a revision node mean different things). Rejected.
-- A *checkbox* ("follow latest") is a hidden modifier on Pinned; users miss it and it
-  muddies the "one control, one policy" model. Rejected.
-- Note **Deployed is already a kind of "floating" binding** — it also re-resolves at fire
-  time, just against an environment instead of a variant HEAD. Latest is the variant-HEAD
-  sibling of that idea, so a third peer is conceptually consistent.
+- The three modes are three binding policies: follow the head, freeze, follow a
+  deployment. A rail already means "pick a policy". A peer item keeps the policy
+  visible.
+- A "Latest" leaf inside the Pinned cascader would bury the policy in a tree of frozen
+  revisions, and it would give the picker two value types that mean different things.
+  Rejected.
+- A "follow latest" checkbox is a hidden modifier on Pinned. Users would miss it.
+  Rejected.
+- Deployed already re-resolves at fire time. Latest is the same idea aimed at a variant
+  head instead of an environment, so a third peer reads as consistent.
 
-Copy:
+Hint copy:
 
-- **Latest** — hint: *"Always runs the newest committed revision of this variant
-  (ignores environments)."* The parenthetical disambiguates from Deployed, which is also
-  a floating binding. Right-side control: a variant picker (workflow → variant; no
-  revision leaf). The selection resolves to the variant node.
-- **Pinned** — hint (unchanged): *"Runs one exact variant + revision."* Cascader unchanged.
-- **Deployed** — hint (unchanged): *"Follows the revision deployed to an environment."*
+- Latest: "Always runs the newest committed revision of this variant (ignores
+  environments)." The parenthetical separates it from Deployed, which also floats.
+- Pinned (unchanged): "Runs one exact variant + revision."
+- Deployed (unchanged): "Follows the revision deployed to an environment."
 
-**Default mode — OPEN QUESTION for Mahmoud (do not decide silently).** Recommendation:
-new triggers default to **Latest** (the most common intent and the shape agent-created
-triggers already use). But when the drawer opens from a context carrying a *concrete
-revision* — e.g. the playground positioned on a specific revision — should it instead
-open **Pinned**, pre-selected to that revision? Note the current create-mode default-bind
-already discards the revision context (it seeds the selection with the variant id and a
-hardcoded `revision: 0` — `TriggerScheduleDrawer.tsx:496-507`). Recommendation: **yes**,
-honor a concrete revision context as Pinned-preselected; plain contexts default to
-Latest. Flagged as Mahmoud's call in status.md.
+**Open question for Mahmoud: the default mode.** Recommendation: new triggers default
+to Latest. It is the most common intent, and it is the shape agent-created triggers
+already use. But when the drawer opens from a context that carries a concrete revision
+(for example, the playground positioned on a specific revision), it should probably
+open in Pinned with that revision pre-selected. Today the code discards that context
+and hardcodes `revision: 0` (`TriggerScheduleDrawer.tsx:496-507`). Recommendation:
+honor a concrete revision as Pinned; default to Latest everywhere else.
 
-Implementation note: `buildRunVersionReferences` already emits a variant-only ref when the
-selected leaf id equals the variant id (`isRevision = !!meta.variantId && leafId !==
-meta.variantId`, research.md §4). So "Latest" is largely a matter of letting the user
-*select the variant node* and tagging the mode, not new reference-assembly logic.
+### D2: No new wire field; leaving out the revision IS the "latest" signal; reads accept all prefixes
 
-### D2 — Reference shape: no new field; absence of a revision ref IS the policy; reads are prefix-symmetric
+The three modes map to three reference shapes the drawers submit:
 
-Classified by semantic role (per the design-interfaces skill), all three are
-**routing / binding-policy** references, owned by the trigger author, changed only on
-edit:
+| Mode     | Submitted references                              |
+|----------|---------------------------------------------------|
+| Latest   | `{application: {id}, application_variant: {id}}`  |
+| Pinned   | `{application: {id}, application_revision: {id}}` |
+| Deployed | `{environment: {slug}, application: {slug}}`      |
 
-| Mode     | Submitted references (FE drawers)                     |
-|----------|-------------------------------------------------------|
-| Latest   | `{application: {id}, application_variant: {id}}`       |
-| Pinned   | `{application: {id}, application_revision: {id}}`      |
-| Deployed | `{environment: {slug}, application: {slug}}`           |
+The absence of a revision reference means "resolve the head at fire time". The backend
+already enforces exactly this contract (research.md §1). No new field is required.
 
-The **absence of a revision reference is the follow-latest signal.** This is already the
-contract the backend enforces (`_ensure_request_revision` resolves HEAD when
-`request.data.revision` is absent and no revision ref is present — research.md §1). No new
-field is required.
+**The marker question, flagged for Mahmoud.** Should Latest instead carry an explicit
+marker, such as `binding: "latest"`? Recommendation: no, not now. The shape is
+unambiguous, and the backend already keys off it. A marker would be a second source of
+truth for one fact, and the two could drift apart. The one real risk of shape-only is
+that a reader mistakes a variant-only reference for an unfinished binding rather than a
+deliberate one. That exact misread produced the pin PR. The remedy is rendering: show a
+Latest tag so the binding looks intentional. Revisit the marker only if we ever need a
+policy the shape cannot express, for example "freeze at whatever was deployed when I
+created this trigger".
 
-**Prefix rule — writes are `application_*`, reads are prefix-symmetric.** The trigger
-drawers and `buildRunVersionReferences` *write* the `application_*` family. But
-agent-created triggers *store* `workflow_variant` (research.md §10), and the backend is
-prefix-agnostic — it detects the prefix among `application` / `evaluator` / `workflow`
-(`api/oss/src/core/triggers/service.py:782-789`) and follows-latest identically for all.
-So every FE **read path** (drawer prefill, settings-list rendering) must classify with
-**one shared prefix-symmetric classifier**, mirroring the backend's own prefix detection:
+**The prefix rule: write `application_*`, read every prefix.** The drawers write the
+`application_*` family. Agent-created triggers store `workflow_variant`. The backend
+accepts three prefixes (`application`, `workflow`, `evaluator`) and treats them alike
+(`api/oss/src/core/triggers/service.py:782-789`). So every frontend read must classify
+references through one shared, prefix-symmetric function:
 
-> for `prefix` in `{application, workflow, evaluator}`:
-> `{prefix}_revision` present → **Pinned** carrying that revision id;
-> `{prefix}_variant` present with no `{prefix}_revision` → **Latest** carrying that
-> variant id; `environment` present → **Deployed**.
+> For each prefix in {application, workflow, evaluator}: a `{prefix}_revision` key
+> means Pinned with that revision; a `{prefix}_variant` key with no `{prefix}_revision`
+> means Latest with that variant; an `environment` key means Deployed.
 
-This classifier is shared by both drawers AND both settings sections (plan.md Phases
-B–D). An earlier draft of this decision said "FE work stays on `application_*`" — that
-sentence encoded the agent-trigger rendering bug and is retracted.
+Both drawers and both settings tables use this one function (plan.md, Phases B to D).
+An earlier draft kept frontend work on `application_*` only. That draft encoded the
+agent-trigger rendering bug and is retracted.
 
-**Accepted silent prefix migration on re-pick.** The resubmit path is already safe:
-editing without re-picking echoes the stored references verbatim
-(`RunVersionField.tsx:63` `fallbackReferences`, fed from the stored refs at
-`TriggerScheduleDrawer.tsx:622` / `TriggerSubscriptionDrawer.tsx:697`), so a
-`workflow_variant` trigger keeps its shape across a name-only edit. An active re-pick in
-the drawer rewrites the references to `application_*` — harmless, since the backend is
-prefix-agnostic. We accept this as a deliberate, silent prefix migration on user edit; no
-code needs to preserve the `workflow_*` prefix on write.
+**Accepted: a re-pick silently migrates the prefix.** Editing a trigger without
+touching the picker resubmits the stored references verbatim
+(`RunVersionField.tsx:63`), so a `workflow_variant` trigger keeps its shape across a
+name-only edit. If the user actively re-picks in the drawer, the references are
+rewritten to `application_*`. The backend does not care, so we accept this instead of
+adding prefix-preserving write logic.
 
-**The marker question (flagged explicitly).** Should Latest carry an explicit marker, e.g.
-`binding: "latest"`, instead of relying on the absence of a revision ref?
+### D3: Edit opens in the mode the stored shape implies
 
-- **Recommendation: no, not now.** The shape is already unambiguous and the backend
-  already keys off it. A marker would be a *second* source of truth for one policy and
-  could drift from the ref shape (the classic two-fields-one-fact bug).
-- The one real risk the marker would remove: a future reader (human or code) misreading
-  variant-only as "incomplete / binding not finished" rather than "intentionally latest."
-  That is exactly the misread that produced the `fe4a01f` workaround. **But the correct
-  remedy for that is FE rendering** — show a "Latest" tag so the binding reads as
-  deliberate — not a wire marker.
-- **When to revisit:** if we ever need a policy that the ref shape *cannot* express — e.g.
-  "freeze at the revision deployed at create time" (which is neither today's Pinned nor
-  Deployed), or per-trigger opt-out of follow-latest while still naming a variant. At that
-  point an explicit `binding` enum earns its keep. Until then, absence-of-revision is
-  canonical and consistent with the rest of the workflow-invoke contract.
+Prefill classifies the stored references with the shared function from D2, instead of
+flattening everything into one revision-id field:
 
-### D3 — Edit round-trip
+- An `environment` reference: open in Deployed. This already works.
+- A `{prefix}_revision` reference, any prefix: open in Pinned, with that revision shown
+  as selected in the picker. The picker component already supports showing a selected
+  value (`selectedValue` / `displayRender`, research.md §7); the drawer just never
+  passes it.
+- A `{prefix}_variant` reference with no revision, any prefix: open in Latest with that
+  variant selected. Do not put the variant id in the revision field; that is the
+  current bug (research.md §5).
 
-Prefill must **classify the stored shape into a mode** via the shared prefix-symmetric
-classifier (D2), instead of flattening everything into one revision-id field:
+Switching modes rebuilds the references through `buildRunVersionReferences`. Submit
+validation gains a Latest arm: Latest with no variant selected is an error ("Pick a
+variant").
 
-- `environment` ref present → **Deployed** (existing behavior, correct).
-- `{prefix}_revision` present (any prefix) → **Pinned**; `workflowRevId = revision id`;
-  the picker highlights it via `selectedValue` (the `EntityPicker` supports
-  `selectedValue` / `displayRender` — research.md §7 — the drawer just never passes them).
-- `{prefix}_variant` present (any prefix) with **no** revision → **Latest**; store the
-  variant id in its own state (`variantId`), set mode to `latest`. **Do not** assign the
-  variant id to `workflowRevId` (that is the current bug — research.md §5).
+### D4: The settings list names the workflow and tags the mode
 
-Switching modes rebuilds the correct references via `buildRunVersionReferences`. Submit
-validation gets a `latest` arm (mode `latest` && no variant selected → "Pick a variant").
+The "Bound workflow" column classifies with the same shared function, resolves the
+workflow's display name, and appends a mode tag:
 
-### D4 — Settings list rendering ("Bound workflow" column)
+- Latest: workflow name plus a `Latest` tag.
+- Pinned: workflow name plus `v<n>`, or just the name if the version cannot be
+  resolved.
+- Deployed: workflow name plus `@ <environment>`.
 
-The column must use the **same shared classifier** as the drawers (D2) — so agent-created
-`workflow_variant` triggers get a workflow name + Latest tag, not a bare id or "-". Then
-resolve the display name and append a mode tag:
+Today the column prints a raw id, or "-" for agent-created triggers. If name resolution
+proves heavy inside the table, the floor is: resolved-name-or-id plus the mode tag.
+Never a bare id with no tag.
 
-- Latest → `<workflow name>` + a `Latest` tag.
-- Pinned → `<workflow name> · v<n>` (or just the name if the version isn't resolvable).
-- Deployed → `<workflow name> @ <env>`.
+### D5: Defer the picker-scoping fix
 
-Resolve the display name (workflow molecule `artifactName` / variant selectors, as the
-drawers do) rather than showing a raw id; the raw-id rendering is part of what this
-project fixes. If name resolution proves heavy in the table context, the floor is:
-resolved-or-id **plus the mode tag**, never a bare undifferentiated id.
+The settings-mode picker lists every application workflow in the project, not just the
+trigger's own app. Real problem (part of the "weird options" complaint), unrelated to
+Latest. Deferred to a follow-up issue to keep this project tight.
 
-### D5 — Cascader scoping: defer
+### D6: No migration
 
-The settings-mode picker uses `applicationRevisionAdapter`
-(`createWorkflowRevisionAdapter({workflowListAtom: appWorkflowsListQueryStateAtom})`),
-which lists **every** application workflow in the project, unscoped to the trigger's app —
-part of the "weird options" complaint. This is a pre-existing issue orthogonal to Latest.
-**Defer to a follow-up issue.** Keep this PR tight.
-
-### D6 — Migration / compatibility: none
-
-- Triggers pinned by `fe4a01f` in the last day (dev stacks) carry an explicit
-  `{prefix}_revision` (including `workflow_revision` for agent triggers). After the revert
-  they simply render as **Pinned** via the prefix-symmetric classifier — correct and
-  harmless; they stay pinned until re-pointed.
-- Agent-created and pre-pin variant-only triggers become correctly-rendered **Latest**.
-- A re-pick in the drawer silently migrates `workflow_*` refs to `application_*` (accepted
-  — see D2).
-- No stored data changes shape. **No migration.**
+- Triggers that the closed PR's pin touched on dev stacks carry an explicit revision
+  reference. They classify as Pinned, render correctly, and stay pinned until someone
+  re-points them. Correct and harmless.
+- Older variant-only triggers, including all agent-created ones, classify as Latest and
+  finally render correctly.
+- A re-pick in the drawer silently migrates `workflow_*` references to `application_*`
+  (accepted, see D2).
+- Stored data never changes shape. No migration.
