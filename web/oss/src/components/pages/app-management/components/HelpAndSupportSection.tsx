@@ -8,7 +8,7 @@ const {Text, Title} = Typography
 // inherit antd's colorLink (blue in dark). Use neutral text color (text-colorText)
 // so the cards read as content, not links.
 const helperCardClass =
-    "max-w-[400px] flex-1 gap-3 cursor-pointer flex items-center transition-all duration-[25ms] ease-in border border-colorBorderSecondary rounded-md p-3 text-colorText [&_span.ant-typography]:overflow-hidden [&_span.ant-typography]:text-ellipsis [&_span.ant-typography]:whitespace-nowrap [&_span.ant-typography]:text-base [&_span.ant-typography]:font-medium [&_span.ant-typography]:leading-normal [&_span.ant-typography]:flex-1 hover:shadow-[0_1px_2px_0_rgba(0,0,0,0.03),0_1px_6px_-1px_rgba(0,0,0,0.02),0_2px_4px_0_rgba(0,0,0,0.02)]"
+    "max-w-[400px] flex-1 gap-3 cursor-pointer flex items-center transition-all duration-[25ms] ease-in border border-solid border-colorBorderSecondary rounded-md p-3 text-colorText [&_span.ant-typography]:overflow-hidden [&_span.ant-typography]:text-ellipsis [&_span.ant-typography]:whitespace-nowrap [&_span.ant-typography]:text-base [&_span.ant-typography]:font-medium [&_span.ant-typography]:leading-normal [&_span.ant-typography]:flex-1 hover:shadow-[0_1px_2px_0_rgba(0,0,0,0.03),0_1px_6px_-1px_rgba(0,0,0,0.02),0_2px_4px_0_rgba(0,0,0,0.02)]"
 
 const HelpAndSupportSection = () => {
     return (

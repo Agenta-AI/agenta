@@ -41,6 +41,7 @@
     --ag-colorSplit: rgba(5, 23, 41, 0.06);
     --ag-colorPrimary: #1c2c3d;
     --ag-colorPrimaryText: #1c2c3d;
+    --ag-colorPrimaryBg: #f5f7fa;
     --ag-colorSuccess: #389e0d;
     --ag-colorWarning: #faad14;
     --ag-colorWarningText: #faad14;
@@ -123,6 +124,7 @@
     --ag-colorSplit: var(--ant-color-split);
     --ag-colorPrimary: var(--ant-color-primary);
     --ag-colorPrimaryText: var(--ant-color-primary-text);
+    --ag-colorPrimaryBg: var(--ant-color-primary-bg);
     --ag-colorSuccess: var(--ant-color-success);
     --ag-colorWarning: var(--ant-color-warning);
     --ag-colorWarningText: var(--ant-color-warning-text);
@@ -470,7 +472,7 @@
     --ag-sidebar-bg: #ffffff;
 }
 .dark {
-    --ag-sidebar-bg: #0d0d0d;
+    --ag-sidebar-bg: #11100F;
 }
 
 /* Evaluations "Application" cell (app name + variant slug + version chip). The
