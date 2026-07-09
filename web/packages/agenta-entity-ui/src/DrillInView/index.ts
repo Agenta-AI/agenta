@@ -48,6 +48,8 @@ export {
 // gate (PlaygroundVariantConfig's loadingFallback) and the lazy AgentTemplateControl's
 // Suspense fallback, so both gates render the identical frame.
 export {default as AgentConfigSkeleton} from "./SchemaControls/agentTemplate/AgentConfigSkeleton"
+// Idle warm-up for the code-split agent-template control chunk.
+export {preloadAgentTemplateControl} from "./SchemaControls/SchemaPropertyRenderer"
 export type {
     MoleculeDrillInProviderProps,
     PlaygroundConfigSectionProps,
