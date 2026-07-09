@@ -1,247 +1,64 @@
 /**
- * ToolItemControl
+ * Tool Item Control
  *
- * Schema-driven control for rendering a single tool definition.
- * Handles both custom function tools and provider-specific builtin tools
+ * Replaces the legacy PlaygroundTool component.
+ * Handles tool rendering for both custom function tools and builtin tools
  * (OpenAI, Anthropic, Google Gemini).
  *
- * Replaces the legacy PlaygroundTool component with a schema-driven approach
- * that doesn't depend on playground atoms or enhanced values.
+ * Architecture:
+ * - Uses SharedEditor for JSON editing (injected via context).
+ * - Falls back to a plain textarea when SharedEditor is not injected.
+ * - Builtin tools: read-only JSON view with provider metadata.
+ * - Custom tools: editable JSON with TOOL_SCHEMA validation.
+ * - Gateway tools: detected by function name pattern `tools__{provider}__...`.
  *
- * Features:
- * - JSON editor for tool definition
- * - Header with function name/description (custom) or provider icon/label (builtin)
- * - Delete and minimize controls
- * - Builtin tool detection via tools.specs.json
- * - JSON5 parsing for forgiving input
+ * @module agenta-entity-ui/DrillInView/SchemaControls/ToolItemControl
  */
 
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
-
-import {safeStringify} from "@agenta/shared/utils"
-import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
-import {useDrillInUI} from "@agenta/ui/drill-in"
-import {getProviderIcon} from "@agenta/ui/select-llm-provider"
-import {CopySimple, MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
-import clsx from "clsx"
-
-import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
+import React, {memo, useCallback, useMemo, useRef, useState} from "react"
+import {Typography} from "antd"
+import {clsx} from "clsx"
+import {useDrillInContext} from "../DrillInContext"
+import {useSharedEditor} from "../../SharedEditor/SharedEditorContext"
+import {getProviderIcon} from "../../icons"
+import {
+    TOOL_SCHEMA,
+    TOOL_PROVIDERS_META,
+    TOOL_SPECS,
+    ToolObj,
+    parseGatewayFunctionName,
+    GatewayToolParsed,
+} from "./toolUtils"
 
 // ============================================================================
-// JSON HELPERS
+// COLLAPSE STYLE HELPER
 // ============================================================================
 
-/** Stable stringify — sorts keys recursively for reliable deep comparison */
-function stableStringify(input: unknown): string {
-    const seen = new WeakSet()
-    function sortKeys(value: unknown): unknown {
-        if (value && typeof value === "object") {
-            if (seen.has(value as object)) return null
-            seen.add(value as object)
-            if (Array.isArray(value)) return value.map(sortKeys)
-            const out: Record<string, unknown> = {}
-            Object.keys(value as Record<string, unknown>)
-                .sort()
-                .forEach((k) => {
-                    out[k] = sortKeys((value as Record<string, unknown>)[k])
-                })
-            return out
-        }
-        return value
-    }
-    try {
-        return JSON.stringify(sortKeys(input))
-    } catch {
-        return ""
-    }
-}
-
-function deepEqual(a: unknown, b: unknown): boolean {
-    return stableStringify(a) === stableStringify(b)
-}
-
-function toToolObj(value: unknown): ToolObj {
-    try {
-        if (typeof value === "string") {
-            if (!value) return {}
-            // Use standard JSON.parse as fallback — JSON5 would be ideal but
-            // we avoid adding the dependency to entity-ui. The SharedEditor
-            // provides JSON5 parsing on its own.
-            return JSON.parse(value) as ToolObj
-        }
-        if (value && typeof value === "object") return value as ToolObj
-        return {}
-    } catch {
-        return {}
-    }
+function getCollapseStyle(minimized: boolean): React.CSSProperties {
+    return minimized
+        ? {
+              overflow: "hidden",
+              maxHeight: 0,
+              opacity: 0,
+              transition: "max-height 0.2s ease, opacity 0.2s ease",
+              pointerEvents: "none",
+          }
+        : {
+              overflow: "visible",
+              maxHeight: 2000,
+              opacity: 1,
+              transition: "max-height 0.3s ease, opacity 0.3s ease",
+          }
 }
 
 // ============================================================================
-// BUILTIN TOOL DETECTION
+// TOOL SCHEMA
 // ============================================================================
 
-function formatBuiltinLabel(value: string): string {
-    return value
-        .split("_")
-        .filter(Boolean)
-        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-        .join(" ")
-}
-
-function inferIsBuiltinTool(toolObj: ToolObj): boolean {
-    if (!toolObj || typeof toolObj !== "object") return false
-    const keys = Object.keys(toolObj)
-    if (keys.length === 0) return false
-    const typeValue = (toolObj as Record<string, unknown>).type
-    const hasFunction =
-        typeValue === "function" || "function" in (toolObj as Record<string, unknown>)
-    if (hasFunction) return false
-    if (typeof typeValue === "string") return true
-    return keys.some((key) => key !== "type")
-}
-
-function inferBuiltinLabel(toolObj: ToolObj): string | undefined {
-    if (!toolObj || typeof toolObj !== "object") return undefined
-    const typeValue = (toolObj as Record<string, unknown>).type
-    if (typeof typeValue === "string" && typeValue !== "function") {
-        return formatBuiltinLabel(typeValue)
-    }
-    const keys = Object.keys(toolObj).filter((key) => key !== "type" && key !== "function")
-    if (keys.length === 0) return undefined
-    return formatBuiltinLabel(keys[0])
-}
-
-interface BuiltinToolInfo {
-    providerKey?: string
-    toolCode?: string
-}
-
-function matchesToolPayload(toolObj: ToolObj, payload: Record<string, unknown>): boolean {
-    if (!toolObj || typeof toolObj !== "object" || !payload) return false
-    const toolObjAny = toolObj as Record<string, unknown>
-    if (typeof payload.type === "string" && toolObjAny.type === payload.type) return true
-    if (typeof payload.name === "string" && toolObjAny.name === payload.name) return true
-    const payloadKeys = Object.keys(payload)
-    if (
-        payloadKeys.length === 1 &&
-        payloadKeys[0] !== "type" &&
-        payloadKeys[0] !== "name" &&
-        payloadKeys[0] in toolObjAny
-    )
-        return true
-    return false
-}
-
-function inferBuiltinToolInfo(toolObj: ToolObj): BuiltinToolInfo | undefined {
-    if (!toolObj || typeof toolObj !== "object") return undefined
-    for (const [providerKey, tools] of Object.entries(TOOL_SPECS)) {
-        for (const [toolCode, toolSpec] of Object.entries(tools)) {
-            const payloads = Array.isArray(toolSpec) ? toolSpec : [toolSpec]
-            for (const payload of payloads) {
-                if (matchesToolPayload(toolObj, payload as Record<string, unknown>)) {
-                    return {providerKey, toolCode}
-                }
-            }
-        }
-    }
-    return undefined
-}
-
-// ============================================================================
-// TOOL STATE HOOK
-// ============================================================================
-
-function useToolState(
-    initialValue: unknown,
-    isReadOnly: boolean,
-    onChange?: (obj: ToolObj) => void,
-) {
-    const [toolObj, setToolObj] = useState<ToolObj>(() => toToolObj(initialValue))
-    const [editorText, setEditorText] = useState<string>(() => safeStringify(toolObj ?? {}))
-    const [editorValid, setEditorValid] = useState(true)
-
-    const lastSentSerializedRef = useRef<string>(stableStringify(toolObj))
-
-    useEffect(() => {
-        if (isReadOnly || !onChange) return
-        const current = stableStringify(toolObj)
-        if (current !== lastSentSerializedRef.current) {
-            lastSentSerializedRef.current = current
-            onChange(toolObj)
-        }
-    }, [toolObj, onChange, isReadOnly])
-
-    const lastPropValueRef = useRef<string>(stableStringify(toToolObj(initialValue)))
-    useEffect(() => {
-        const nextParsed = toToolObj(initialValue)
-        const nextSerialized = stableStringify(nextParsed)
-        if (nextSerialized !== lastPropValueRef.current) {
-            lastPropValueRef.current = nextSerialized
-            setToolObj(nextParsed)
-            setEditorText(safeStringify(nextParsed ?? {}))
-            setEditorValid(true)
-        }
-    }, [initialValue])
-
-    const onEditorChange = useCallback(
-        (text: string) => {
-            if (isReadOnly) return
-            setEditorText(text)
-            try {
-                const parsed = text ? (JSON.parse(text) as ToolObj) : {}
-                setEditorValid(true)
-                setToolObj((prev) => (deepEqual(prev, parsed) ? prev : parsed))
-            } catch {
-                setEditorValid(false)
-            }
-        },
-        [isReadOnly],
-    )
-
-    return {toolObj, editorText, editorValid, onEditorChange}
-}
 
 // ============================================================================
 // TOOL HEADER
 // ============================================================================
-
-/** JSON schema for custom function tool validation */
-export const TOOL_SCHEMA = {
-    type: "object",
-    properties: {
-        type: {type: "string", enum: ["function"]},
-        function: {
-            type: "object",
-            properties: {
-                name: {type: "string"},
-                description: {type: "string"},
-                parameters: {
-                    type: "object",
-                    properties: {
-                        type: {type: "string", enum: ["object"]},
-                        properties: {
-                            type: "object",
-                            additionalProperties: {
-                                type: "object",
-                                properties: {
-                                    type: {type: "string"},
-                                    description: {type: "string"},
-                                },
-                                required: ["type"],
-                            },
-                        },
-                        required: {type: "array", items: {type: "string"}},
-                        additionalProperties: {type: "boolean"},
-                    },
-                    required: ["type", "properties", "required", "additionalProperties"],
-                },
-            },
-            required: ["name", "description", "parameters"],
-        },
-    },
-    required: ["type", "function"],
-}
 
 interface ToolHeaderProps {
     name: string
@@ -251,86 +68,17 @@ interface ToolHeaderProps {
     onToggleMinimize: () => void
     onDelete?: () => void
     onDuplicate?: () => void
-    isBuiltinTool?: boolean
+    isBuiltinTool: boolean
     builtinProviderLabel?: string
     builtinToolLabel?: string
     builtinIcon?: React.ReactNode
     gatewayHeader?: React.ReactNode
-    containerRef?: React.RefObject<HTMLElement | null>
+    containerRef: React.RefObject<HTMLDivElement | null>
 }
 
-function GatewayToolHeaderIdentity({
-    integrationKey,
-    actionLabel,
-    connectionLabel,
-    logo,
-}: {
-    integrationKey: string
-    actionLabel: string
-    connectionLabel: string
-    logo?: string
-}) {
-    return (
-        <div className="flex items-center gap-1.5 min-w-0">
-            {logo ? (
-                <img
-                    src={logo}
-                    alt={integrationKey}
-                    className="h-6 w-6 rounded object-contain shrink-0"
-                />
-            ) : null}
-            <Typography.Text className="truncate">
-                {integrationKey} / {actionLabel} / {connectionLabel}
-            </Typography.Text>
-        </div>
-    )
-}
-
-function GatewayToolHeaderWithHook({
-    integrationKey,
-    actionLabel,
-    connectionLabel,
-    useIntegrationInfo,
-}: {
-    integrationKey: string
-    actionLabel: string
-    connectionLabel: string
-    useIntegrationInfo: NonNullable<
-        NonNullable<ReturnType<typeof useDrillInUI>["gatewayTools"]>["useIntegrationInfo"]
-    >
-}) {
-    const info = useIntegrationInfo(integrationKey)
-    return (
-        <GatewayToolHeaderIdentity
-            integrationKey={integrationKey}
-            actionLabel={actionLabel}
-            connectionLabel={connectionLabel}
-            logo={info.logo}
-        />
-    )
-}
-
-function GatewayToolHeader({
-    integrationKey,
-    actionLabel,
-    connectionLabel,
-    logo,
-}: {
-    integrationKey: string
-    actionLabel: string
-    connectionLabel: string
-    logo?: string
-}) {
-    return (
-        <GatewayToolHeaderIdentity
-            integrationKey={integrationKey}
-            actionLabel={actionLabel}
-            connectionLabel={connectionLabel}
-            logo={logo}
-        />
-    )
-}
-
+/**
+ * Header for a tool item showing name, description, and action buttons.
+ */
 const ToolHeader = memo(function ToolHeader({
     name,
     desc,
@@ -347,93 +95,173 @@ const ToolHeader = memo(function ToolHeader({
     containerRef,
 }: ToolHeaderProps) {
     return (
-        <div className="w-full flex items-start justify-between py-1">
-            <div className="grow min-w-0">
-                {gatewayHeader ? (
-                    gatewayHeader
-                ) : isBuiltinTool ? (
-                    <div className="flex items-center gap-1">
-                        <div className="flex items-center">
-                            {builtinIcon && (
-                                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
-                                    {builtinIcon}
-                                </span>
-                            )}
-                            {builtinProviderLabel && (
-                                <Typography.Text>{builtinProviderLabel}</Typography.Text>
-                            )}
-                        </div>
+        <div className="flex items-start justify-between gap-2 px-1">
+            <div className="flex items-start gap-2 min-w-0">
+                {/* Builtin tool icon */}
+                {isBuiltinTool && builtinIcon && (
+                    <div className="mt-0.5 shrink-0">{builtinIcon}</div>
+                )}
 
-                        {builtinToolLabel && (
-                            <>
-                                {builtinProviderLabel && <Typography.Text>/</Typography.Text>}
-                                <Typography.Text type="secondary">
+                <div className="min-w-0">
+                    {/* Tool name */}
+                    <Typography.Text
+                        strong
+                        className="text-sm block truncate"
+                        title={name}
+                    >
+                        {name || "Untitled Tool"}
+                    </Typography.Text>
+
+                    {/* Description */}
+                    <Typography.Text
+                        type="secondary"
+                        className="text-xs block truncate"
+                        title={desc}
+                    >
+                        {desc || "No description"}
+                    </Typography.Text>
+
+                    {/* Builtin tool labels */}
+                    {isBuiltinTool && (builtinProviderLabel || builtinToolLabel) && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                            {builtinProviderLabel && (
+                                <Typography.Text className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--ag-c-gray-100)] text-[var(--ag-c-gray-600)]">
+                                    {builtinProviderLabel}
+                                </Typography.Text>
+                            )}
+                            {builtinToolLabel && (
+                                <Typography.Text className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--ag-c-blue-50)] text-[var(--ag-c-blue-600)]">
                                     {builtinToolLabel}
                                 </Typography.Text>
-                            </>
-                        )}
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-0.5">
-                        <Typography.Text strong className="text-sm truncate">
-                            {name || "Function Name"}
-                        </Typography.Text>
-                        {desc ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {desc}
-                            </Typography.Text>
-                        ) : (
-                            <Typography.Text type="secondary" className="text-xs opacity-50">
-                                Function Description
-                            </Typography.Text>
-                        )}
-                    </div>
-                )}
+                            )}
+                        </div>
+                    )}
+
+                    {/* Gateway tool header */}
+                    {gatewayHeader}
+                </div>
             </div>
 
-            <div className="flex items-center gap-1 invisible group-hover/tool:visible shrink-0">
+            {/* Action buttons */}
+            <div className="flex items-center gap-1 shrink-0">
+                <button
+                    type="button"
+                    onClick={onToggleMinimize}
+                    className="p-1 rounded hover:bg-[var(--ag-c-gray-100)] transition-colors"
+                    title={minimized ? "Expand" : "Collapse"}
+                >
+                    <svg
+                        className={clsx(
+                            "w-4 h-4 text-[var(--ag-c-gray-500)] transition-transform",
+                            minimized && "rotate-180",
+                        )}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                        />
+                    </svg>
+                </button>
+
                 {!isReadOnly && onDuplicate && (
-                    <Tooltip title="Duplicate">
-                        <Button
-                            icon={<CopySimple size={14} />}
-                            type="text"
-                            onClick={onDuplicate}
-                            size="small"
-                        />
-                    </Tooltip>
+                    <button
+                        type="button"
+                        onClick={onDuplicate}
+                        className="p-1 rounded hover:bg-[var(--ag-c-gray-100)] transition-colors"
+                        title="Duplicate"
+                    >
+                        <svg
+                            className="w-4 h-4 text-[var(--ag-c-gray-500)]"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            />
+                        </svg>
+                    </button>
                 )}
+
                 {!isReadOnly && onDelete && (
-                    <Tooltip title="Remove">
-                        <Button
-                            icon={<MinusCircle size={14} />}
-                            type="text"
-                            onClick={onDelete}
-                            size="small"
-                        />
-                    </Tooltip>
+                    <button
+                        type="button"
+                        onClick={onDelete}
+                        className="p-1 rounded hover:bg-[var(--ag-c-red-50)] transition-colors"
+                        title="Delete"
+                    >
+                        <svg
+                            className="w-4 h-4 text-[var(--ag-c-red-500)]"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                        </svg>
+                    </button>
                 )}
-                <CollapseToggleButton
-                    collapsed={minimized}
-                    onToggle={onToggleMinimize}
-                    contentRef={containerRef}
-                />
             </div>
         </div>
     )
 })
 
 // ============================================================================
-// MAIN COMPONENT
+// PROVIDER ICON RENDERER
 // ============================================================================
 
-/**
- * Default provider icon renderer using getProviderIcon from @agenta/ui
- */
 function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
     const Icon = getProviderIcon(providerKey)
     if (!Icon) return null
     return <Icon className="w-4 h-4" />
 }
+
+// ============================================================================
+// PERMISSION SELECTOR
+// ============================================================================
+
+const PermissionSelector = memo(function PermissionSelector({
+    permission,
+    onChange,
+    disabled,
+}: {
+    permission?: "always" | "ask"
+    onChange?: (permission: "always" | "ask") => void
+    disabled?: boolean
+}) {
+    return (
+        <div className="flex items-center gap-2 px-3 py-1 border-t">
+            <Typography.Text type="secondary" className="text-xs">
+                Permission:
+            </Typography.Text>
+            <select
+                value={permission || "always"}
+                onChange={(e) => onChange?.(e.target.value as "always" | "ask")}
+                disabled={disabled}
+                className="text-xs border rounded px-2 py-0.5 bg-transparent"
+            >
+                <option value="always">Always</option>
+                <option value="ask">Ask</option>
+            </select>
+        </div>
+    )
+})
+
+// ============================================================================
+// PROPS
+// ============================================================================
 
 export interface ToolItemControlProps {
     /** Tool value (object or JSON string) */
@@ -450,8 +278,34 @@ export interface ToolItemControlProps {
     className?: string
     /** Optional LLM icon renderer — receives provider key, returns icon element */
     renderProviderIcon?: (providerKey: string) => React.ReactNode
+    /** Tool permission: "always" | "ask" */
+    permission?: "always" | "ask"
+    /** Called when permission changes */
+    onPermissionChange?: (permission: "always" | "ask") => void
 }
 
+// ============================================================================
+// TOOL ITEM CONTROL
+// ============================================================================
+
+/**
+ * Unified tool control for the DrillInView.
+ *
+ * Replaces legacy PlaygroundTool component.
+ * Handles:
+ * - Custom function tools (editable JSON with schema validation)
+ * - Builtin tools (read-only JSON view with provider metadata)
+ * - Gateway tools (detected by function name pattern)
+ *
+ * @example
+ * ```tsx
+ * <ToolItemControl
+ *   value={toolObj}
+ *   onChange={handleChange}
+ *   onDelete={handleDelete}
+ * />
+ * ```
+ */
 export const ToolItemControl = memo(function ToolItemControl({
     value,
     onChange,
@@ -460,24 +314,35 @@ export const ToolItemControl = memo(function ToolItemControl({
     disabled = false,
     className,
     renderProviderIcon,
+    permission,
+    onPermissionChange,
 }: ToolItemControlProps) {
-    const {SharedEditor, gatewayTools} = useDrillInUI()
+    const containerRef = useRef<HTMLDivElement>(null)
+    const [minimized, setMinimized] = useState(false)
+    const {SharedEditor} = useSharedEditor()
+    const drillIn = useDrillInContext()
 
-    // Use prop if provided, otherwise use default
-    const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
+    const isReadOnly = disabled || drillIn?.isReadOnly || false
 
-    const isReadOnly = disabled
-    const [minimized, setMinimized] = useState(() => {
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-            const obj = value as Record<string, unknown>
-            if (obj.agenta_metadata && typeof obj.agenta_metadata === "object") {
-                const meta = obj.agenta_metadata as Record<string, unknown>
-                return meta.source === "gateway" || meta.source === "builtin"
+    // -------------------------------------------------------------------------
+    // VALUE PARSING
+    // -------------------------------------------------------------------------
+
+    const toolObj = useMemo(() => {
+        if (!value) return null
+        if (typeof value === "string") {
+            try {
+                return JSON.parse(value) as Record<string, unknown>
+            } catch {
+                return null
             }
         }
-        return false
-    })
-    const containerRef = useRef<HTMLDivElement>(null)
+        return value as Record<string, unknown>
+    }, [value])
+
+    // -------------------------------------------------------------------------
+    // AGENTA METADATA EXTRACTION
+    // -------------------------------------------------------------------------
 
     // Strip agenta_metadata if present (re-attach on change)
     const {cleanedValue, agentaMetadata} = useMemo(() => {
@@ -491,129 +356,129 @@ export const ToolItemControl = memo(function ToolItemControl({
         return {cleanedValue: value, agentaMetadata: undefined}
     }, [value])
 
+    // -------------------------------------------------------------------------
+    // EDITOR TEXT
+    // -------------------------------------------------------------------------
+
+    const editorText = useMemo(() => {
+        if (!cleanedValue) return ""
+        return typeof cleanedValue === "string"
+            ? cleanedValue
+            : JSON.stringify(cleanedValue, null, 2)
+    }, [cleanedValue])
+
+    // -------------------------------------------------------------------------
+    // BUILTIN TOOL DETECTION
+    // -------------------------------------------------------------------------
+
+    const builtinMatch = useMemo(() => {
+        if (!toolObj) return null
+        const fn = (toolObj.function ?? {}) as Record<string, unknown>
+        const name = (fn.name ?? "") as string
+
+        for (const [provider, tools] of Object.entries(TOOL_SPECS)) {
+            for (const [toolCode, patterns] of Object.entries(tools)) {
+                for (const pattern of patterns) {
+                    const p = pattern as Record<string, unknown>
+                    if (p.type && p.type === fn.type) {
+                        return {provider, toolCode, pattern: p}
+                    }
+                    if (p.name && p.name === name) {
+                        return {provider, toolCode, pattern: p}
+                    }
+                    // Google single-key pattern
+                    const keys = Object.keys(p)
+                    if (keys.length === 1 && keys[0] in fn) {
+                        return {provider, toolCode, pattern: p}
+                    }
+                }
+            }
+        }
+        return null
+    }, [toolObj])
+
+    const isBuiltinTool = !!builtinMatch
+    const builtinProvider = builtinMatch?.provider
+    const builtinToolCode = builtinMatch?.toolCode
+
+    const providerLabel = builtinProvider
+        ? TOOL_PROVIDERS_META[builtinProvider]?.label
+        : undefined
+    const providerIcon = builtinProvider
+        ? (renderProviderIcon ?? defaultRenderProviderIcon)(builtinProvider)
+        : null
+
+    const toolLabel = builtinToolCode
+        ? builtinToolCode.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        : undefined
+
+    // -------------------------------------------------------------------------
+    // GATEWAY TOOL DETECTION
+    // -------------------------------------------------------------------------
+
+    const gatewayParsed = useMemo<GatewayToolParsed | null>(() => {
+        if (!toolObj) return null
+        const fn = (toolObj.function ?? {}) as Record<string, unknown>
+        return parseGatewayFunctionName(fn.name as string | undefined)
+    }, [toolObj])
+
+    const gatewayHeader = useMemo(() => {
+        if (!gatewayParsed) return null
+        return (
+            <div className="flex items-center gap-1 mt-0.5">
+                <Typography.Text className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--ag-c-purple-50)] text-[var(--ag-c-purple-600)]">
+                    {gatewayParsed.provider}
+                </Typography.Text>
+                <Typography.Text className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--ag-c-gray-100)] text-[var(--ag-c-gray-600)]">
+                    {gatewayParsed.integration}
+                </Typography.Text>
+                <Typography.Text className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--ag-c-blue-50)] text-[var(--ag-c-blue-600)]">
+                    {gatewayParsed.action}
+                </Typography.Text>
+            </div>
+        )
+    }, [gatewayParsed])
+
+    // -------------------------------------------------------------------------
+    // CHANGE HANDLERS
+    // -------------------------------------------------------------------------
+
+    const onEditorChange = useCallback(
+        (text: string) => {
+            if (!onChange) return
+            try {
+                const parsed = JSON.parse(text) as ToolObj
+                const merged = agentaMetadata
+                    ? {...parsed, agenta_metadata: agentaMetadata}
+                    : parsed
+                // Preserve permission in the tool object
+                if (permission && merged) {
+                    merged.permission = permission
+}
+                onChange(merged)
+            } catch {
+                // Invalid JSON — don't call onChange until valid
+            }
+        },
+        [onChange, agentaMetadata, permission],
+    )
+
     const handleChange = useCallback(
         (next: ToolObj) => {
             if (!onChange) return
             const merged = agentaMetadata ? {...next, agenta_metadata: agentaMetadata} : next
+            // Preserve permission in the tool object
+            if (permission && merged) {
+                merged.permission = permission
+}
             onChange(merged)
         },
-        [onChange, agentaMetadata],
+        [onChange, agentaMetadata, permission],
     )
 
-    const {
-        toolObj,
-        editorText,
-        editorValid: _editorValid,
-        onEditorChange,
-    } = useToolState(cleanedValue, isReadOnly, handleChange)
-
-    const functionName =
-        (toolObj as Record<string, unknown>)?.function &&
-        typeof (toolObj as Record<string, unknown>).function === "object"
-            ? (((toolObj as Record<string, unknown>).function as Record<string, unknown>).name as
-                  | string
-                  | undefined)
-            : undefined
-
-    // Builtin detection
-    const isBuiltinInferred = useMemo(() => inferIsBuiltinTool(toolObj), [toolObj])
-
-    // Check agenta_metadata for source
-    const isBuiltinFromMeta = useMemo(() => {
-        if (agentaMetadata && typeof agentaMetadata === "object") {
-            return (agentaMetadata as Record<string, unknown>).source === "builtin"
-        }
-        return false
-    }, [agentaMetadata])
-
-    const isBuiltinTool = isBuiltinFromMeta || isBuiltinInferred
-
-    const inferredToolInfo = useMemo(() => inferBuiltinToolInfo(toolObj), [toolObj])
-    const fallbackToolLabel = useMemo(() => inferBuiltinLabel(toolObj), [toolObj])
-    const parsedGatewayTool = useMemo(() => parseGatewayFunctionName(functionName), [functionName])
-    const isGatewayTool = useMemo(() => {
-        if (agentaMetadata && typeof agentaMetadata === "object") {
-            return (agentaMetadata as Record<string, unknown>).source === "gateway"
-        }
-        return Boolean(parsedGatewayTool)
-    }, [agentaMetadata, parsedGatewayTool])
-
-    // Provider metadata
-    const providerKey = useMemo(() => {
-        if (agentaMetadata && typeof agentaMetadata === "object") {
-            const meta = agentaMetadata as Record<string, unknown>
-            if (meta.provider) return meta.provider as string
-        }
-        if (parsedGatewayTool?.provider) return parsedGatewayTool.provider
-        return inferredToolInfo?.providerKey
-    }, [agentaMetadata, inferredToolInfo, parsedGatewayTool])
-
-    const providerConfig = providerKey ? TOOL_PROVIDERS_META[providerKey] : undefined
-
-    const providerLabel = useMemo(() => {
-        if (agentaMetadata && typeof agentaMetadata === "object") {
-            const meta = agentaMetadata as Record<string, unknown>
-            if (meta.providerLabel) return meta.providerLabel as string
-        }
-        return providerConfig?.label || providerKey
-    }, [agentaMetadata, providerConfig, providerKey])
-
-    const toolLabel = useMemo(() => {
-        if (agentaMetadata && typeof agentaMetadata === "object") {
-            const meta = agentaMetadata as Record<string, unknown>
-            if (meta.toolCode) return meta.toolCode as string
-            if (meta.toolLabel) return meta.toolLabel as string
-        }
-        return inferredToolInfo?.toolCode ?? fallbackToolLabel
-    }, [agentaMetadata, inferredToolInfo, fallbackToolLabel])
-
-    const providerIcon = useMemo(() => {
-        if (effectiveRenderProviderIcon && providerKey) {
-            return effectiveRenderProviderIcon(providerKey)
-        }
-        return null
-    }, [effectiveRenderProviderIcon, providerKey])
-
-    const gatewayHeader = useMemo(() => {
-        if (!isGatewayTool) return null
-
-        const meta =
-            agentaMetadata && typeof agentaMetadata === "object"
-                ? (agentaMetadata as Record<string, unknown>)
-                : undefined
-
-        const integrationKey =
-            (meta?.integrationKey as string | undefined) ?? parsedGatewayTool?.integration
-        const actionLabel =
-            (meta?.toolLabel as string | undefined) ??
-            (meta?.toolCode as string | undefined) ??
-            parsedGatewayTool?.action
-        const connectionLabel =
-            (meta?.connectionSlug as string | undefined) ?? parsedGatewayTool?.connection
-
-        if (!integrationKey || !actionLabel || !connectionLabel) return null
-
-        if (gatewayTools?.useIntegrationInfo) {
-            return (
-                <GatewayToolHeaderWithHook
-                    integrationKey={integrationKey}
-                    actionLabel={actionLabel}
-                    connectionLabel={connectionLabel}
-                    useIntegrationInfo={gatewayTools.useIntegrationInfo}
-                />
-            )
-        }
-
-        const info = gatewayTools?.renderIntegrationInfo?.(integrationKey)
-        return (
-            <GatewayToolHeader
-                integrationKey={integrationKey}
-                actionLabel={actionLabel}
-                connectionLabel={connectionLabel}
-                logo={info?.logo}
-            />
-        )
-    }, [agentaMetadata, gatewayTools, isGatewayTool, parsedGatewayTool])
+    // -------------------------------------------------------------------------
+    // RENDER
+    // -------------------------------------------------------------------------
 
     // Fallback when SharedEditor is not injected
     if (!SharedEditor) {
@@ -654,6 +519,13 @@ export const ToolItemControl = memo(function ToolItemControl({
                     gatewayHeader={gatewayHeader}
                     containerRef={containerRef}
                 />
+                {!minimized && (
+                    <PermissionSelector
+                        permission={permission}
+                        onChange={onPermissionChange}
+                        disabled={isReadOnly}
+                    />
+                )}
                 {!minimized && (
                     <textarea
                         className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
@@ -727,6 +599,13 @@ export const ToolItemControl = memo(function ToolItemControl({
                     />
                 }
             />
+            {!minimized && (
+                <PermissionSelector
+                    permission={permission}
+                    onChange={onPermissionChange}
+                    disabled={isReadOnly}
+                />
+            )}
         </div>
     )
 })

@@ -18,9 +18,9 @@ export interface ToolFunction {
 
 export type ToolObj = {
     function?: ToolFunction
+    permission?: "always" | "ask"
     [k: string]: unknown
 } | null
-
 export interface GatewayToolParsed {
     provider: string
     integration: string
@@ -84,4 +84,49 @@ export const TOOL_SPECS: Record<string, Record<string, Record<string, unknown>[]
         code_execution: [{code_execution: {}}],
         web_search: [{googleSearch: {}}],
     },
+}
+
+// ============================================================================
+// TOOL SCHEMA
+// ============================================================================
+
+export const TOOL_SCHEMA = {
+    type: "object",
+    properties: {
+        type: {type: "string", enum: ["function"]},
+        permission: {
+            type: "string",
+            enum: ["always", "ask"],
+            description: "Tool execution permission",
+        },
+        function: {
+            type: "object",
+            properties: {
+                name: {type: "string"},
+                description: {type: "string"},
+                parameters: {
+                    type: "object",
+                    properties: {
+                        type: {type: "string", enum: ["object"]},
+                        properties: {
+                            type: "object",
+                            additionalProperties: {
+                                type: "object",
+                                properties: {
+                                    type: {type: "string"},
+                                    description: {type: "string"},
+                                },
+                                required: ["type"],
+                            },
+                        },
+                        required: {type: "array", items: {type: "string"}},
+                        additionalProperties: {type: "boolean"},
+                    },
+                    required: ["type", "properties", "required", "additionalProperties"],
+                },
+            },
+            required: ["name", "description", "parameters"],
+        },
+    },
+    required: ["type", "function"],
 }

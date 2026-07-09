@@ -7,6 +7,7 @@
 
 /**
  * Recursively remove `agenta_metadata` and `__agenta_metadata` keys from objects.
+ * Preserves `permission` field if present (used for tool permission gating).
  */
 export function stripAgentaMetadataDeep<T = unknown>(value: T): T {
     if (Array.isArray(value)) {
@@ -16,7 +17,13 @@ export function stripAgentaMetadataDeep<T = unknown>(value: T): T {
     if (value && typeof value === "object") {
         const entries = Object.entries(value as Record<string, unknown>)
             .filter(([key]) => key !== "agenta_metadata" && key !== "__agenta_metadata")
-            .map(([key, val]) => [key, stripAgentaMetadataDeep(val)])
+            .map(([key, val]) => {
+                // Preserve permission field at tool level
+                if (key === "permission") {
+                    return [key, val]
+                }
+                return [key, stripAgentaMetadataDeep(val)]
+            })
 
         return Object.fromEntries(entries) as T
     }
