@@ -204,6 +204,64 @@ export interface MountStorageDeps {
   log?: (msg: string) => void;
 }
 
+/** The slice of `ChildProcess` the exit-race poll needs. */
+interface GeesefsChildHandle {
+  on(
+    event: "exit",
+    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
+  ): void;
+}
+
+/**
+ * Poll `checkMounted` for the mount to come alive, racing each tick against the spawned
+ * child's `exit` event. `-f` mode never exits while successfully mounted, so a child that
+ * exits before the mount is alive has given up for good (e.g. FATAL: no /dev/fuse in the
+ * container) — further polling is dead time. Aborts as soon as that happens instead of
+ * riding out the full `maxAttempts * intervalMs` ceiling; the ceiling still applies to the
+ * genuine still-starting case (mount takes a moment to come up but the child stays alive).
+ *
+ * Exported so tests can drive it directly with a fake child (no real geesefs/fusermount).
+ */
+export async function pollGeesefsMount(
+  cwd: string,
+  child: GeesefsChildHandle,
+  opts: {
+    checkMounted?: (cwd: string) => Promise<boolean>;
+    maxAttempts?: number;
+    intervalMs?: number;
+    log?: (msg: string) => void;
+  } = {},
+): Promise<void> {
+  const log = opts.log ?? defaultLog;
+  const checkMounted = opts.checkMounted ?? ((c: string) => isMounted(c, log));
+  const maxAttempts = opts.maxAttempts ?? 30;
+  const intervalMs = opts.intervalMs ?? 500;
+
+  const exited = new Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+  }>((resolve) => {
+    child.on("exit", (code, signal) => resolve({ code, signal }));
+  });
+
+  for (let i = 0; i < maxAttempts; i++) {
+    if (await checkMounted(cwd)) return;
+    const tick = await Promise.race([
+      exited.then((r) => ({ kind: "exited" as const, ...r })),
+      new Promise<{ kind: "tick" }>((resolve) =>
+        setTimeout(() => resolve({ kind: "tick" }), intervalMs),
+      ),
+    ]);
+    if (tick.kind === "exited") {
+      log(
+        `geesefs exited before mount came alive (code=${tick.code ?? "null"}` +
+          `${tick.signal ? ` signal=${tick.signal}` : ""}); giving up early`,
+      );
+      return;
+    }
+  }
+}
+
 /**
  * geesefs-mount the durable prefix at `cwd` on this host (LOCAL sandbox).
  *
@@ -239,8 +297,10 @@ export async function mountStorage(
   const env = credEnv(creds);
 
   // geesefs runs FOREGROUND (-f): spawn it as a long-lived child and poll for the mount to come
-  // alive, rather than awaiting exit (it never exits). Detached + unref'd so it is not killed when
-  // this call returns but survives for the run; teardown unmounts it (fusermount -uz reaps it).
+  // alive, rather than awaiting exit (it never exits while mounted). Detached + unref'd so it is
+  // not killed when this call returns but survives for the run; teardown unmounts it (fusermount
+  // -uz reaps it). Poll up to ~15s normally (geesefs logs "successfully mounted" within ~1s), but
+  // abort as soon as the child exits first — see `pollGeesefsMount`.
   const run =
     deps.runGeesefs ??
     (async (a: string[], e: Record<string, string>) => {
@@ -254,12 +314,7 @@ export async function mountStorage(
         if (s) log(`geesefs stderr: ${s.slice(0, 400)}`);
       });
       child.unref();
-      // Poll up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
-      // within ~1s normally. Resolve as soon as it's alive; the caller re-verifies after.
-      for (let i = 0; i < 30; i++) {
-        if (await isMounted(cwd, () => {})) return;
-        await new Promise((r) => setTimeout(r, 500));
-      }
+      await pollGeesefsMount(cwd, child, { log });
     });
 
   try {

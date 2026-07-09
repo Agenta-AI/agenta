@@ -10,6 +10,7 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 
 import {
   signSessionMountCredentials,
@@ -17,6 +18,7 @@ import {
   unmountStorage,
   discoverTunnelEndpoint,
   mountStorageRemote,
+  pollGeesefsMount,
   type MountCredentials,
 } from "../../src/engines/sandbox_agent/mount.ts";
 
@@ -203,6 +205,59 @@ describe("mountStorage", () => {
       log: SILENT,
     });
     assert.equal(ok, false);
+  });
+
+  // The dead-mount case: geesefs cannot mount at all (no /dev/fuse in the container) and exits
+  // FATAL within ~10ms. Before this fix, mountStorage's poll never noticed the child died and
+  // burned the full ~15s ceiling before falling back — measured live as 15.3s of a 24s cold
+  // start. These two tests drive the real `pollGeesefsMount` (not a fully-replaced fake) via the
+  // `runGeesefs` seam, so they exercise the production exit-race logic.
+  it("aborts fast when geesefs exits before the mount comes alive (dead mount)", async () => {
+    const fakeChild = new EventEmitter();
+    const start = Date.now();
+    const ok = await mountStorage("/work/cwd", CREDS, {
+      checkMounted: async () => false, // never comes alive
+      runGeesefs: async () => {
+        // geesefs FATAL-ed almost instantly (e.g. no /dev/fuse) — mirror that with a short delay.
+        setTimeout(() => fakeChild.emit("exit", 1, null), 5);
+        await pollGeesefsMount("/work/cwd", fakeChild, {
+          checkMounted: async () => false,
+          intervalMs: 500, // the real per-tick interval; the exit race must preempt it
+          maxAttempts: 30, // the real ~15s ceiling (30 x 500ms)
+          log: SILENT,
+        });
+      },
+      log: SILENT,
+    });
+    const elapsedMs = Date.now() - start;
+    assert.equal(ok, false);
+    // Must abort on the child's exit, nowhere near the 30 x 500ms = 15s poll ceiling.
+    assert.ok(
+      elapsedMs < 2000,
+      `expected an early abort well under the 15s ceiling, took ${elapsedMs}ms`,
+    );
+  });
+
+  it("returns true once the mount comes alive mid-poll (still-starting case preserved)", async () => {
+    let calls = 0;
+    const checkMounted = async () => {
+      calls += 1;
+      return calls >= 3; // not mounted for the first two checks, alive on the third
+    };
+    const fakeChild = new EventEmitter(); // never exits — mirrors a live -f process
+    const ok = await mountStorage("/work/cwd", CREDS, {
+      checkMounted,
+      runGeesefs: async () => {
+        await pollGeesefsMount("/work/cwd", fakeChild, {
+          checkMounted,
+          intervalMs: 5,
+          maxAttempts: 30,
+          log: SILENT,
+        });
+      },
+      log: SILENT,
+    });
+    assert.equal(ok, true);
   });
 });
 
