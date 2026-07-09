@@ -940,7 +940,7 @@
             "colorBgContainer": "#ffffff",
             "subMenuItemBorderRadius": 6,
             "popupBg": "#ffffff",
-            "itemSelectedColor": "${colorText}",
+            "itemSelectedColor": "#1c2c3d",
             "itemSelectedBg": "#f5f7fa",
             "itemHoverColor": "#1c2c3d",
             "itemHoverBg": "rgba(5, 23, 41, 0.06)",
