@@ -127,11 +127,11 @@ describe("readKeepaliveConfig", () => {
     }
   });
 
-  it("defaults: off, 60s idle, 10m approval, cap 8", () => {
+  it("defaults: off, 60s idle, 5m approval, cap 8", () => {
     assert.deepEqual(readKeepaliveConfig(), {
       enabled: false,
       ttlMs: 60_000,
-      approvalTtlMs: 600_000,
+      approvalTtlMs: 300_000,
       poolMax: 8,
     });
   });
