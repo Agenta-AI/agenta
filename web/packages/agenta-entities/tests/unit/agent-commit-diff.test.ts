@@ -400,6 +400,12 @@ describe("parseGatewayToolName", () => {
             source: "Gmail",
         })
     })
+    it("humanizes the generic {source}__ACTION short form", () => {
+        expect(parseGatewayToolName("gmail__FETCH_EMAILS")).toEqual({
+            label: "Fetch emails",
+            source: "Gmail",
+        })
+    })
     it("humanizes a plain function name", () => {
         expect(parseGatewayToolName("gmail_search_emails")).toEqual({label: "Gmail search emails"})
     })
