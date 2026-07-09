@@ -21,6 +21,7 @@ from agenta.sdk.utils.logging import get_module_logger
 
 from agenta.sdk.agents.dtos import (
     RunContext,
+    RunContextProject,
     RunContextReference,
     RunContextTrace,
     RunContextWorkflow,
@@ -180,6 +181,25 @@ def _run_context_trace() -> Optional[RunContextTrace]:
     )
 
 
+def _run_context_project() -> Optional[RunContextProject]:
+    """The run's owning project id, read from the request's OTel baggage — authorization-gated.
+
+    The source is the OTel ``baggage`` on :class:`TracingContext` (``request.state.otel``). The id
+    itself arrives on the caller's W3C ``baggage`` header; what makes it trustworthy is that the
+    auth middleware scopes its permissions check on that SAME ``project_id`` and denies any request
+    whose credential is not authorized for it, so a forged id cannot cross tenants. Do not weaken
+    that auth check: it backstops the runner's keep-alive pool key. The id is never read from the
+    request body (mirrors
+    :class:`~agenta.sdk.agents.connections.models.RuntimeAuthContext.project_id`). The runner uses
+    it as the preferred project scope for session keep-alive. Best-effort: no baggage / no
+    ``project_id`` returns ``None`` and the field is simply omitted."""
+    baggage = TracingContext.get().baggage or {}
+    project_id = baggage.get("project_id")
+    if not project_id:
+        return None
+    return RunContextProject(id=str(project_id))
+
+
 def run_context() -> Optional[RunContext]:
     """Capture the run's own context for tool bindings and run-kind propagation.
 
@@ -191,9 +211,15 @@ def run_context() -> Optional[RunContext]:
     Best-effort: any failure (or an entirely empty context) returns ``None`` so the run proceeds and
     the ``runContext`` key is simply omitted.
 
-    The workflow and the trace are captured as INDEPENDENT failure domains: a failure reading the
-    workflow references must not drop an otherwise-valid ``trace`` (and vice versa), so a trace-only
-    run still ships ``runContext.trace``."""
+    The project, the workflow, and the trace are captured as INDEPENDENT failure domains: a failure
+    reading one must not drop the others, so a run still ships whichever parts it holds (a
+    trace-only run still ships ``runContext.trace``; a run with only a project scope still ships
+    ``runContext.project``)."""
+    project = None
+    try:
+        project = _run_context_project()
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: failed to capture run-context project", exc_info=True)
     workflow = None
     try:
         workflow = _run_context_workflow()
@@ -204,9 +230,9 @@ def run_context() -> Optional[RunContext]:
         trace = _run_context_trace()
     except Exception:  # pylint: disable=broad-except
         log.warning("agent: failed to capture run-context trace", exc_info=True)
-    if workflow is None and trace is None:
+    if project is None and workflow is None and trace is None:
         return None
-    return RunContext(workflow=workflow, trace=trace)
+    return RunContext(project=project, workflow=workflow, trace=trace)
 
 
 def record_usage(usage: Optional[Dict[str, Any]]) -> None:

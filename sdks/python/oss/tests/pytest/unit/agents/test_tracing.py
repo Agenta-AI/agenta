@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from agenta.sdk.agents import RunContextTrace, RunContextWorkflow
+from agenta.sdk.agents import (
+    RunContextProject,
+    RunContextTrace,
+    RunContextWorkflow,
+)
 
 from agenta.sdk.agents import tracing
 
@@ -50,8 +54,10 @@ def test_run_context_keeps_workflow_when_trace_capture_fails(monkeypatch):
     assert ctx.workflow == RunContextWorkflow(is_draft=True)
 
 
-def test_run_context_none_when_both_empty(monkeypatch):
-    # No workflow identity and no trace -> no run context at all (the key is omitted on the wire).
+def test_run_context_none_when_all_empty(monkeypatch):
+    # No project, no workflow identity, and no trace -> no run context at all (the key is omitted
+    # on the wire).
+    monkeypatch.setattr(tracing, "_run_context_project", lambda: None)
     monkeypatch.setattr(tracing, "_run_context_workflow", lambda: None)
     monkeypatch.setattr(tracing, "_run_context_trace", lambda: None)
     assert tracing.run_context() is None
@@ -84,3 +90,59 @@ def test_run_context_workflow_normalizes_application_references(monkeypatch):
     assert workflow.revision.id == "revision-id"
     assert workflow.revision.version == "v2"
     assert workflow.is_draft is False
+
+
+def test_run_context_project_stamped_from_server_baggage(monkeypatch):
+    # The owning project id is read from the SERVER-derived request context (the authenticated
+    # OTel baggage on TracingContext), never from anything the caller sends. This is the source
+    # the runner trusts to scope its keep-alive pool.
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(baggage={"project_id": "proj-42"}),
+    )
+
+    project = tracing._run_context_project()
+
+    assert project == RunContextProject(id="proj-42")
+
+
+def test_run_context_project_none_without_baggage(monkeypatch):
+    # No baggage / no project_id in the request state -> no project scope; the field is omitted
+    # and the runner falls back to the mount-derived scope.
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(baggage=None),
+    )
+    assert tracing._run_context_project() is None
+
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(baggage={"other": "x"}),
+    )
+    assert tracing._run_context_project() is None
+
+
+def test_run_context_keeps_project_when_workflow_and_trace_fail(monkeypatch):
+    # The project scope is its own failure domain: a run that holds only a project id (no workflow,
+    # no trace) still ships `runContext.project` so the runner can key its keep-alive pool on it.
+    def boom():
+        raise RuntimeError("unavailable")
+
+    monkeypatch.setattr(
+        tracing,
+        "_run_context_project",
+        lambda: RunContextProject(id="proj-42"),
+    )
+    monkeypatch.setattr(tracing, "_run_context_workflow", boom)
+    monkeypatch.setattr(tracing, "_run_context_trace", boom)
+
+    ctx = tracing.run_context()
+    assert ctx is not None
+    assert ctx.project == RunContextProject(id="proj-42")
+    assert ctx.workflow is None
+    assert ctx.trace is None
+    # The project rides the wire under the snake_case `project.id` binding namespace.
+    assert ctx.to_wire() == {"project": {"id": "proj-42"}}

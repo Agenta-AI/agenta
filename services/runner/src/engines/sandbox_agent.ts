@@ -437,7 +437,8 @@ export interface SessionEnvironment {
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;
   mountCreds: MountCredentials | null;
-  /** The mount's owning project id (keep-alive pool key scope); undefined when there is no mount. */
+  /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
+   * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
   sessionDestroyRequested: boolean;
@@ -477,12 +478,14 @@ export type AcquireEnvironmentResult =
 
 /**
  * Sign the session's durable mount up front so keep-alive can build a pool key (the mount's
- * owning `projectId`) and credential epoch without acquiring the whole environment. Returns
+ * owning `projectId`, the FALLBACK project scope when the run carries no service-stamped
+ * `runContext.project.id`) and credential epoch without acquiring the whole environment. Returns
  * exactly what the sign yielded: `null` when there is no session/credential to sign with, or
  * the sign returned no usable mount (store unconfigured, 503, ephemeral fallback). The caller
  * threads the result — null included — into `acquireEnvironment` as `presignedMount`, so the
- * mount is signed exactly once per run on every path; a null result additionally means there is
- * NO safe project key and the request must never park.
+ * mount is signed exactly once per run on every path. A null result no longer forces a cold run
+ * on its own: the request still parks when the run context supplied a project scope, and only
+ * skips parking when NEITHER source yields one (`poolKeyFor` returns null).
  */
 export async function resolveKeepaliveMount(
   request: AgentRunRequest,

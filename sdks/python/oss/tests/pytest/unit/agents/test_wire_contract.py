@@ -28,6 +28,7 @@ from agenta.sdk.agents import (
     PiAgentTemplate,
     ResolvedConnection,
     RunContext,
+    RunContextProject,
     RunContextReference,
     RunContextRun,
     RunContextTrace,
@@ -149,6 +150,9 @@ def _pi_payload():
         # not run context.
         run_context=RunContext(
             run=RunContextRun(kind="test"),
+            # The owning project id, stamped server-side (F5): the trustworthy scope the runner
+            # prefers when keying its keep-alive pool, over the mount-derived fallback.
+            project=RunContextProject(id="proj_abc"),
             workflow=RunContextWorkflow(
                 artifact=RunContextReference(id="wf_abc"),
                 variant=RunContextReference(id="var_abc", slug="weather-agent"),
@@ -267,6 +271,9 @@ def test_request_to_wire_pi_matches_golden(golden):
     # by `to_wire`. The conversation id is NOT here — it rides the top-level `sessionId`.
     assert payload["runContext"] == {
         "run": {"kind": "test"},
+        # The server-stamped project scope (F5), snake_case inner key `project.id` — the
+        # `$ctx.project.id` binding namespace and the runner's preferred keep-alive pool scope.
+        "project": {"id": "proj_abc"},
         "workflow": {
             "artifact": {"id": "wf_abc"},
             "variant": {"id": "var_abc", "slug": "weather-agent"},

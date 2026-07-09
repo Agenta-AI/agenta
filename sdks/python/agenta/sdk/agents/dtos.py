@@ -466,6 +466,22 @@ class RunContextRun(BaseModel):
     kind: Optional[str] = None
 
 
+class RunContextProject(BaseModel):
+    """The run's owning project identity inside ``runContext`` (so ``$ctx.project.id`` is
+    addressable, mirroring how the workflow references nest).
+
+    ``id`` is the project id the service stamps from its own request state (the OTel baggage),
+    never from the request body. The value textually arrives on the caller's baggage header, but
+    it is authorization-gated: the auth middleware denies any request whose credential is not
+    authorized for that ``project_id``, so a forged id cannot cross tenants (do not weaken that
+    check — it backstops the pool key below). It is the project scope the runner trusts for
+    session keep-alive — the runner keys its parked-session pool on it so a live session can never
+    be resumed across a project boundary. See :class:`RuntimeAuthContext` for the same "from the
+    request state, never the request body" discipline."""
+
+    id: Optional[str] = None
+
+
 class RunContext(BaseModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; see ``projects/direct-call-tools/run-context.md``).
@@ -481,9 +497,14 @@ class RunContext(BaseModel):
     id is NOT carried here — it rides the top-level ``sessionId`` field, and the runner owns the
     live id across turns; duplicating it in run context would only let it go stale. ``to_wire``
     emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
-    (and the serializer omits the key entirely)."""
+    (and the serializer omits the key entirely).
+
+    ``project`` carries the run's owning project id, stamped server-side (see
+    :class:`RunContextProject`). It is the trustworthy project scope for session keep-alive: the
+    runner prefers it over the mount-derived scope when keying its parked-session pool."""
 
     run: Optional[RunContextRun] = None
+    project: Optional[RunContextProject] = None
     workflow: Optional[RunContextWorkflow] = None
     trace: Optional[RunContextTrace] = None
 
@@ -497,6 +518,14 @@ class RunContext(BaseModel):
             }
             if run:
                 out["run"] = run
+        if self.project is not None:
+            project = {
+                key: value
+                for key, value in self.project.model_dump().items()
+                if value is not None
+            }
+            if project:
+                out["project"] = project
         if self.workflow is not None:
             workflow: Dict[str, Any] = {}
             for entity in ("artifact", "variant", "revision"):

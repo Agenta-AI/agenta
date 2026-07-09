@@ -33,9 +33,10 @@ export interface MountCredentials {
   expiresAt?: string;
   /**
    * The mount's owning project id, surfaced from the sign response's `mount` object. It is the
-   * only project scope the runner can trust for this request (the /run wire carries no project
-   * id today), so session keep-alive keys its pool on `<projectId>:<sessionId>`. Absent when the
-   * response omitted the mount object; keep-alive then refuses to park (no safe key source).
+   * FALLBACK project scope for session keep-alive: the pool prefers the service-stamped
+   * `runContext.project.id` and falls back to this mount scope when the run carries no stamped
+   * project (see `poolKeyFor`). Absent when the response omitted the mount object; keep-alive
+   * then parks only if the run context supplied a scope, and refuses to park when neither does.
    */
   projectId?: string;
 }

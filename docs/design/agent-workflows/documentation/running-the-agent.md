@@ -178,8 +178,12 @@ sections).
   (a `0` would re-disable auto-stop and reintroduce the leak).
 - `AGENTA_RUNNER_SESSION_KEEPALIVE`. Gates session keep-alive: after a turn ends, the runner
   parks the live harness session and continues it on the next matching message in the same
-  conversation, instead of cold-replaying the transcript. Default off. Local sandbox only;
-  requires mount signing (no mount scope means the session never parks). Design:
+  conversation, instead of cold-replaying the transcript. Default off. Local sandbox only. The
+  parked-session pool is keyed by project scope so a live session never crosses a project
+  boundary. That scope comes from the project id the service stamps into the run context
+  (`runContext.project.id`, derived server-side from the request's auth, never from a
+  caller-supplied field); the mount's owning project id is the fallback when a run carries no
+  stamped project. A run with no project scope from either source never parks. Design:
   `docs/design/agent-workflows/projects/session-keepalive/plan.md`.
 - `AGENTA_RUNNER_SESSION_TTL_MS`. How long an idle parked session lives before it is
   destroyed. Default `60000`.

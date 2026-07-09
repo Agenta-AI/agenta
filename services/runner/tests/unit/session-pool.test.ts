@@ -422,12 +422,52 @@ describe("credential epoch", () => {
 });
 
 describe("poolKeyFor", () => {
-  it("is <projectId>:<sessionId> when both present", () => {
-    assert.equal(poolKeyFor({ sessionId: "s1" }, "proj-1"), "proj-1:s1");
+  it("prefers the run-context project scope over the mount scope", () => {
+    // Both sources present: the service-stamped run-context id wins, and the source is reported.
+    assert.deepEqual(
+      poolKeyFor(
+        { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
+        "mount-proj",
+      ),
+      { key: "rc-proj:s1", source: "run-context" },
+    );
   });
-  it("is null without a session id or a mount project id (never park)", () => {
+  it("uses the run-context project scope even when there is no mount scope", () => {
+    assert.deepEqual(
+      poolKeyFor(
+        { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
+        undefined,
+      ),
+      { key: "rc-proj:s1", source: "run-context" },
+    );
+  });
+  it("falls back to the mount scope when the run context has no project", () => {
+    assert.deepEqual(poolKeyFor({ sessionId: "s1" }, "mount-proj"), {
+      key: "mount-proj:s1",
+      source: "mount",
+    });
+    // An empty/whitespace run-context id does not count as a scope: fall back to the mount.
+    assert.deepEqual(
+      poolKeyFor(
+        { sessionId: "s1", runContext: { project: { id: "  " } } },
+        "mount-proj",
+      ),
+      { key: "mount-proj:s1", source: "mount" },
+    );
+  });
+  it("is null when neither source yields a project scope (never park)", () => {
     assert.equal(poolKeyFor({ sessionId: "s1" }, undefined), null);
-    assert.equal(poolKeyFor({}, "proj-1"), null);
+    assert.equal(
+      poolKeyFor({ sessionId: "s1", runContext: { project: {} } }, undefined),
+      null,
+    );
+  });
+  it("is null without a session id even when a project scope exists (never park)", () => {
+    assert.equal(poolKeyFor({}, "mount-proj"), null);
+    assert.equal(
+      poolKeyFor({ runContext: { project: { id: "rc-proj" } } }, undefined),
+      null,
+    );
   });
 });
 

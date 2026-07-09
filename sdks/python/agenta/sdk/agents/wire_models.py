@@ -202,6 +202,15 @@ class WireRunContextRun(_WireModel):
     kind: Optional[str] = None
 
 
+class WireRunContextProject(_WireModel):
+    """The run's owning project identity inside ``runContext`` (mirrors ``RunContextProject``).
+    ``id`` is the service-stamped project id — never read from the request body, and
+    authorization-gated at the auth middleware (see ``RunContextProject``). The keys stay
+    snake_case on purpose — see ``WireRunContext``."""
+
+    id: Optional[str] = None
+
+
 class WireRunContext(_WireModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; mirrors ``RunContext.to_wire``).
@@ -216,6 +225,7 @@ class WireRunContext(_WireModel):
     ``runContext`` on the request."""
 
     run: Optional[WireRunContextRun] = None
+    project: Optional[WireRunContextProject] = None
     workflow: Optional[WireRunContextWorkflow] = None
     trace: Optional[WireRunContextTrace] = None
 

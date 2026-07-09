@@ -442,6 +442,32 @@ describe("runWithKeepalive: never-park rules", () => {
     assert.equal(ctx.pool.size(), 0, "nothing parked without a safe key");
   });
 
+  it("no mount but a run-context project scope => the turn parks mount-less (never fails)", async () => {
+    // resolveKeepaliveMount legitimately returns null (store unconfigured / 503) while the
+    // request carries the service-stamped runContext.project.id, so poolKeyFor still yields a
+    // key. Regression (F5 review B1): the dispatch used to dereference the null mount
+    // (`signed!`.expiresAt) and throw, FAILING the turn — but a keep-alive gap may only ever
+    // cost a cold restart, never a failed turn. Mount-less parking is the design-correct
+    // behavior: the epoch just has no mount expiry and the acquire runs on an ephemeral cwd.
+    const { engine, calls } = makeEngine({ signReturnsNull: true });
+    const ctx = makeCtx(engine);
+    const req: AgentRunRequest = {
+      ...turn1(),
+      runContext: { project: { id: "proj-rc" } },
+    };
+    const r = await runWithKeepalive(req, undefined, undefined, ctx);
+    assert.equal(r.ok, true, "the turn must not fail on a missing mount");
+    assert.equal(r.output, "ok", "ran via the park path, not runCold");
+    assert.equal(calls.resolveMount, 1, "signed exactly once");
+    assert.equal(calls.cold, 0, "not the cold never-park path");
+    assert.equal(calls.acquire, 1, "acquired through the park path");
+    assert.equal(ctx.pool.size(), 1, "the session parked without a mount");
+    assert.ok(
+      ctx.pool.get("proj-rc:s1"),
+      "the pool key scope is the run-context project id",
+    );
+  });
+
   it("a mount without a project id => never parks; the presigned creds are threaded (single sign)", async () => {
     const { engine, calls } = makeEngine({ mountProjectId: null });
     const ctx = makeCtx(engine);

@@ -228,10 +228,15 @@ export interface KeepaliveEngine {
   resolveKeepaliveMount(
     request: AgentRunRequest,
   ): Promise<MountCredentials | null>;
+  /**
+   * `presignedMount` follows the same convention as `runCold`: a value threads the up-front
+   * sign in, null = signed with no mount (do not re-sign, run mount-less), undefined = the
+   * up-front sign attempt threw (the acquire retries the sign itself).
+   */
   acquireEnvironment(
     request: AgentRunRequest,
     signal: AbortSignal | undefined,
-    presignedMount: MountCredentials | null,
+    presignedMount: MountCredentials | null | undefined,
   ): Promise<
     { ok: true; env: SessionEnvironment } | { ok: false; error: string }
   >;
@@ -350,24 +355,32 @@ export async function runWithKeepalive(
     return engine.runCold(request, emit, signal);
   }
 
-  // Sign the mount once, up front. The mount's owning project is the only trustworthy project
-  // scope; no mount (store unconfigured, 503) or no projectId => no safe pool key => never park,
-  // and the sign result — null included — is threaded into the cold path so it never re-signs.
+  // Sign the mount once, up front. The mount's owning project is the FALLBACK project scope; the
+  // preferred scope is the service-stamped `runContext.project.id` (see `poolKeyFor`). No scope
+  // from either source => no safe pool key => never park, and the sign result — null included — is
+  // threaded into the cold path so it never re-signs.
   let signed: MountCredentials | null | undefined;
   try {
     signed = await engine.resolveKeepaliveMount(request);
   } catch {
     signed = undefined; // sign attempt failed outright: let the cold acquire retry it
   }
-  const key = poolKeyFor(request, signed?.projectId);
-  if (!key) {
-    klog(`miss (no mount project scope) session=${sessionId}; cold`);
+  const scope = poolKeyFor(request, signed?.projectId);
+  if (!scope) {
+    klog(`miss (no project scope) session=${sessionId}; cold`);
     return engine.runCold(request, emit, signal, signed);
   }
-  const mountCreds = signed!;
+  const key = scope.key;
+  klog(`scope=${scope.source} key=${key} session=${sessionId}`);
 
+  // The mount may be null here (store unconfigured, 503, ephemeral fallback) or undefined (the
+  // sign attempt threw) when the run-context scope produced the key. A mount-less session still
+  // parks: the epoch simply carries no mount expiry, and the acquire receives `signed` verbatim
+  // (null = do not re-sign; undefined = the acquire retries the sign itself). Never dereference
+  // the mount unconditionally past this point — a keep-alive gap may only ever cost a cold
+  // restart, never a failed turn.
   const cfgFp = configFingerprint(request);
-  const incomingEpoch = computeCredentialEpoch(request, mountCreds.expiresAt);
+  const incomingEpoch = computeCredentialEpoch(request, signed?.expiresAt);
 
   // The fingerprint the NEXT request's prior conversation is expected to hash to (slice 1's
   // prediction; the same one works for an approval park, whose gated tool_call id the FE folds
@@ -488,7 +501,7 @@ export async function runWithKeepalive(
   };
 
   const coldAndPark = async (): Promise<AgentRunResult> => {
-    const acq = await engine.acquireEnvironment(request, signal, mountCreds);
+    const acq = await engine.acquireEnvironment(request, signal, signed);
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
     let result: AgentRunResult;

@@ -342,20 +342,40 @@ export function credentialEpochValid(
   return credentialEpochMismatch(parked, incoming, now) === undefined;
 }
 
+/** Which project-scope source produced a pool key: the service-stamped run context, or the mount. */
+export type PoolScopeSource = "run-context" | "mount";
+
+/** A pool key plus the scope source that produced it (for the greppable `[keepalive] scope=` log). */
+export interface PoolScope {
+  key: string;
+  source: PoolScopeSource;
+}
+
 /**
- * The pool key: `<projectId>:<sessionId>`. The project scope is the mount's owning project id,
- * the only project scope the runner can trust (the /run wire carries no project id). Returns
- * null when there is no session id or no mount project id — such a request MUST NOT park (there
- * is no safe key that separates callers), and the dispatch runs it fully cold.
+ * The pool key: `<projectId>:<sessionId>`. The project scope is PREFERRED from the run context the
+ * service stamps server-side (`runContext.project.id`), and FALLS BACK to the mount's owning
+ * project id when the run context carries none. The run-context id is the trustworthy source: the
+ * service derives it from its own request state (never from a caller-supplied wire field), so it
+ * does not depend on a durable mount existing. The mount scope stays as the fallback for the
+ * transition and for runs without a stamped project.
+ *
+ * Returns null when there is no session id, or when NEITHER source yields a project scope — such a
+ * request MUST NOT park (there is no safe key that separates callers), and the dispatch runs it
+ * fully cold. This no-scope-no-park rule is the keep-alive safety invariant and is unchanged.
  */
 export function poolKeyFor(
   request: AgentRunRequest,
   mountProjectId: string | undefined,
-): string | null {
+): PoolScope | null {
   const sessionId = request.sessionId?.trim();
-  const project = mountProjectId?.trim();
-  if (!sessionId || !project) return null;
-  return `${project}:${sessionId}`;
+  if (!sessionId) return null;
+  const runContextProject = request.runContext?.project?.id?.trim();
+  if (runContextProject) {
+    return { key: `${runContextProject}:${sessionId}`, source: "run-context" };
+  }
+  const mount = mountProjectId?.trim();
+  if (mount) return { key: `${mount}:${sessionId}`, source: "mount" };
+  return null;
 }
 
 // --- The pool --------------------------------------------------------------- //

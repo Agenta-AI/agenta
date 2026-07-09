@@ -122,6 +122,9 @@ describe("wire contract: requests (vs Python golden)", () => {
     // platform's artifact / variant / revision entities. The runner fills a tool's `call.context`
     // from this blob at dispatch (see tools/direct.ts `assembleBody`); the model never reads it.
     assert.equal(req.runContext!.run!.kind, "test");
+    // The server-stamped owning project scope (F5). The runner prefers `runContext.project.id`
+    // over the mount-derived scope when keying its keep-alive pool (see `poolKeyFor`).
+    assert.equal(req.runContext!.project!.id, "proj_abc");
     assert.equal(req.runContext!.workflow!.variant!.id, "var_abc");
     assert.equal(req.runContext!.workflow!.variant!.slug, "weather-agent");
     assert.equal(req.runContext!.workflow!.revision!.id, "rev_abc123");
