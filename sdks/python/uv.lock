@@ -8,6 +8,7 @@ version = "0.104.3"
 source = { editable = "." }
 dependencies = [
     { name = "agenta-client" },
+    { name = "boto3" },
     { name = "daytona" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -29,7 +30,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "boto3" },
     { name = "click" },
     { name = "pexpect" },
     { name = "posthog" },
@@ -47,6 +47,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "agenta-client", editable = "../../clients/python" },
+    { name = "boto3", specifier = ">=1,<2" },
     { name = "daytona", specifier = ">=0.187,<0.188" },
     { name = "fastapi", specifier = ">=0.137,<0.138" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
@@ -68,7 +69,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "boto3", specifier = ">=1,<2" },
     { name = "click", specifier = ">=8,<9" },
     { name = "pexpect", specifier = ">=4,<5" },
     { name = "posthog", specifier = ">=7,<8" },
