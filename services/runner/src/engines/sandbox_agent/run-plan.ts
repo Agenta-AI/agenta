@@ -429,7 +429,7 @@ export function buildRunPlan(
       isPi,
       isDaytona,
       prompt,
-      turnText: buildTurnText(request),
+      turnText: buildTurnText(request, log),
       agentsMd: request.agentsMd?.trim() || undefined,
       secrets,
       legacyHarnessApiKeyVar,
