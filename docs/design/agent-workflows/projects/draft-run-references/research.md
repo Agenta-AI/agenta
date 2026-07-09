@@ -153,7 +153,7 @@ const isCommittedRevisionRun =
 const references = isCommittedRevisionRun ? fullReferences : null
 ```
 
-(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:355-359`)
+(`web/packages/agenta-playground/src/state/execution/agentRequest.ts`, before this fix)
 
 This is an all-or-nothing gate. If the config panel is clean (no unsaved edits) and there is
 a real committed revision, the run forwards **all** references. Otherwise it forwards
@@ -283,7 +283,7 @@ The frontend comment gives a second reason for dropping the variant:
 > The resolver also re-resolves a bare variant ref to its latest revision, so the variant
 > must be dropped too.
 
-(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:349-350`)
+(`web/packages/agenta-playground/src/state/execution/agentRequest.ts`, before this fix)
 
 If that were true for our case, the recommended fix would be wrong. Forwarding a bare variant
 would make the backend resolve it to the variant's HEAD revision, which would set
@@ -319,7 +319,7 @@ requestBody: {
 }
 ```
 
-(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:391-398`)
+(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:406-410`)
 
 So `request_has_parameters` is always true for a playground run, `needs_reference_hydration`
 is always false, and `resolve_references_with_info` never runs. The variant is never
@@ -346,7 +346,7 @@ const url = withQuery(invocationUrl, {
 })
 ```
 
-(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:378-386`)
+(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:393-398`)
 
 So the app is never lost on a dirty run. Only the variant and revision identities are
 dropped. The fix restores the variant while leaving the app scoping untouched.
