@@ -100,12 +100,9 @@ function canonicalJson(value: unknown): string {
  */
 function normalizeJsonish(value: unknown): unknown {
   if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (isJsonContainer(parsed)) return normalizeJsonish(parsed);
-    } catch {
-      // Not a JSON-encoded object/array; keep the string literal.
-    }
+    const parsed = parseJsonContainer(value);
+    if (parsed !== undefined) return normalizeJsonish(parsed);
+    // Not a JSON-encoded object/array; keep the string literal.
     return value;
   }
   if (Array.isArray(value)) return value.map(normalizeJsonish);
@@ -124,6 +121,35 @@ function isJsonContainer(
   value: unknown,
 ): value is unknown[] | Record<string, unknown> {
   return Array.isArray(value) || isPlainObject(value);
+}
+
+/** How many stray trailing `}`/`]` characters `parseJsonContainer` tolerates. */
+const MAX_TRAILING_CLOSERS_TRIMMED = 3;
+
+/**
+ * Parse a string to a JSON object/array, tolerating a small trailing-closer imbalance.
+ * Models copying object args out of the flattened replay transcript sometimes add a stray
+ * trailing `}` or `]` (cold-replay failure report, turn 6d34b1ea round 5); a strict parse
+ * throws and the raw string hashes past the stored approval key. Only trailing whitespace
+ * and closers are trimmed, so a string that is genuinely not JSON still returns undefined
+ * and keeps its literal value.
+ */
+function parseJsonContainer(
+  value: string,
+): unknown[] | Record<string, unknown> | undefined {
+  let candidate = value;
+  for (let trimmed = 0; trimmed <= MAX_TRAILING_CLOSERS_TRIMMED; trimmed++) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      return isJsonContainer(parsed) ? parsed : undefined;
+    } catch {
+      candidate = candidate.trimEnd();
+      const last = candidate[candidate.length - 1];
+      if (last !== "}" && last !== "]") return undefined;
+      candidate = candidate.slice(0, -1);
+    }
+  }
+  return undefined;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
