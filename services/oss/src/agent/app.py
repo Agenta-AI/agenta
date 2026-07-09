@@ -29,7 +29,7 @@ from agenta.sdk.agents.handler import (
 )
 from agenta.sdk.agents.platform import resolve_connection
 
-from agenta.sdk.decorators.tracing import auto_instrument
+from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.engines.running.utils import (
     register_handler,
     register_interface,
@@ -147,8 +147,12 @@ def create_agent_app():
     # are resolved by the frontend via `x-ag-harness-ref` on the agent-config harness field — the
     # same catalog/ref mechanism as every other type. The agent service still imports the SDK
     # capability table directly for its server-side reject; it never publishes it on inspect.
+    # `ignore_inputs`: the normalizer fills `request`, `inputs`, and `parameters` from the
+    # same request body that `messages` comes from, so recording all four puts three extra
+    # copies of the conversation under `ag.data.inputs` (inputs.messages, request.data.
+    # inputs.messages) plus a duplicate of `ag.data.parameters`. Only `messages` is signal.
     register_handler(
-        auto_instrument(_agent),
+        instrument(ignore_inputs=["request", "inputs", "parameters"])(_agent),
         uri=AGENT_URI,
     )
     register_interface(
