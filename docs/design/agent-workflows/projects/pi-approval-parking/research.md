@@ -60,8 +60,21 @@ All merged and live behind `AGENTA_RUNNER_SESSION_KEEPALIVE` (#5156, #5158).
   (`:658-676`). Inside `runTurn`, the resume answers the held request via
   `env.session.respondPermission` (`sandbox_agent.ts:1389`) and awaits the original
   `promptPromise`.
-- **The reply mapping.** `decisionToReply` (`src/responder.ts:485-493`) hard-falls-back to
-  `"once"`/`"reject"`. This matters below: the Pi dialog's option ids are `"yes"`/`"no"`.
+- **The reply mapping needs no change.** `decisionToReply` (`src/responder.ts:485-493`)
+  produces `"once"`/`"reject"`, and that is correct for Pi too: the runner talks to the
+  sandbox-agent daemon, whose `respondPermission(id, reply)` takes `reply` in
+  `{once, always, reject}` and maps it to the request's option BY KIND internally
+  (`permissionReplyToResponse`, `sandbox-agent/dist/chunk-TVCDKGSM.js:2811`;
+  `PermissionReply`, `index.d.ts:2976`). The raw `yes`/`no` option ids the spike saw came
+  from driving `pi-acp` directly, below the daemon. A literal `respondPermission(id, "yes")`
+  would fall to the mapper's else branch and select a REJECT option: approvals would become
+  denials. Do not map ids; do not widen the reply types.
+- **The stored-decisions object is shared but write-closed.** The responder and the relay
+  consume the SAME per-turn `ConversationDecisions` object (built once,
+  `sandbox_agent.ts:1218`; consumed at `:1225` and `:1268`), which is what makes the
+  double-gate bridge possible. But it exposes only `take`/`peek` over private
+  `decisionQueues` (`responder.ts:209-237`); the bridge needs a new FIFO append API
+  (plan.md, slice 2).
 
 ## 3. Where ACP permission requests are classified
 
@@ -114,7 +127,9 @@ facts:
   (`dist/index.js:448-452`). One live run through the sandbox-agent daemon is the recorded
   residual and this plan's slice 0.
 - The dialog's ACP options are `[{optionId:"yes", kind:"allow_once"}, {optionId:"no",
-  kind:"reject_once"}]` (`CONFIRM_PERMISSION_OPTIONS`), not Claude's `once`/`reject`.
+  kind:"reject_once"}]` (`CONFIRM_PERMISSION_OPTIONS`). The runner never sees those ids:
+  the daemon's kind-based reply mapping (§2) absorbs the difference, so the existing
+  `once`/`reject` replies are already correct.
 
 ## 5. What the kill-and-resume experiments bound
 
@@ -141,5 +156,9 @@ and both transports coexist in one extension during rollout.
   mode within it. The pool does not park Daytona sandboxes (keep-alive slice 3 deferred).
 - `AGENTA_AGENT_TOOLS_RELAY_TIMEOUT` sets the relay poll deadline (`relay.ts:61-63`). The
   dialog path never touches it.
-- Runner env flags are read in `run-plan.ts` and passed into the sandbox env; that is the
-  existing pattern for the new transport flag.
+- The extension's env is built by `buildPiExtensionEnv` (`pi-assets.ts:67-78`), which is
+  where `AGENTA_AGENT_BUILTIN_GATING` and the relay dir are set; the new transport flag
+  follows that pattern (runner `AGENTA_RUNNER_PI_DIALOG_GATE` -> sandbox
+  `AGENTA_AGENT_PI_DIALOG_GATE`), not `run-plan.ts`.
+- Whether a run starts the relay at all is `useToolRelay` (`run-plan.ts:447`); a
+  builtin-only run under the dialog flag no longer needs it.
