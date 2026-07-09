@@ -339,24 +339,36 @@ export async function buildAgentRequest(
         | null
         | undefined
 
-    // Whether the run may CLAIM its committed identity. The service derives draft-ness purely
-    // from a resolved committed-revision reference — `services/oss/src/agent/tracing.py`
-    // `_run_context_workflow`: `is_draft = revision is None` — and a self-targeting "update myself"
-    // tool binds the revision/variant that reference resolves to. So the run may forward the
-    // reference family ONLY when it is actually running that committed revision unchanged:
-    //  - dirty (unsaved left-panel edits): the run is an inline-config draft; forwarding the
-    //    revision would wrongly mark it non-draft and bind a tool to a revision whose config
-    //    differs from what's running. The resolver also re-resolves a bare variant ref to its
-    //    latest revision, so the variant must be dropped too — send no references at all.
-    //  - uncommitted local draft (no real revision UUID): same inline-config-draft case.
-    // This matches the service's documented contract: "a playground run of an unsaved inline
-    // config carries no revision reference, so is_draft is True". App scoping rides the
-    // `application_id` URL query (derived below), so a draft run stays associated with its app.
+    // Field-level reference gate. The service derives draft-ness purely from the revision
+    // reference — `services/oss/src/agent/tracing.py` `_run_context_workflow`:
+    // `is_draft = revision is None` — so ONLY `application_revision` is gated on cleanliness:
+    //  - dirty (unsaved left-panel edits) or an uncommitted local draft (no real revision UUID):
+    //    the run is an inline-config draft, so the revision reference is withheld to keep
+    //    `is_draft` true.
+    // `application` and `application_variant` are forwarded whenever they exist, independent of
+    // dirtiness: the variant identifies WHICH variant is running, which is orthogonal to
+    // draft-ness, and a self-targeting tool (e.g. `commit_revision`) needs that variant to bind
+    // to even on a draft run. Forwarding a bare variant does not resurrect `is_draft`: the
+    // backend only re-resolves a variant reference to its HEAD revision when the request carries
+    // no `data.parameters` (`resolver.py` `needs_reference_hydration`), and a playground run
+    // always sends `data.parameters` — see the "invariant guard" test for this file.
     const fullReferences = buildAgentReferences(entity)
     const isDirty = store.get(workflowMolecule.selectors.isDirty(entityId)) as boolean
     const isCommittedRevisionRun =
         !isDirty && typeof fullReferences?.application_revision?.id === "string"
-    const references = isCommittedRevisionRun ? fullReferences : null
+    const gatedReferences = fullReferences
+        ? {
+              ...(fullReferences.application ? {application: fullReferences.application} : {}),
+              ...(fullReferences.application_variant
+                  ? {application_variant: fullReferences.application_variant}
+                  : {}),
+              ...(isCommittedRevisionRun
+                  ? {application_revision: fullReferences.application_revision}
+                  : {}),
+          }
+        : null
+    const references =
+        gatedReferences && Object.keys(gatedReferences).length > 0 ? gatedReferences : null
 
     const headersFactory = store.get(executionHeadersAtom)
     // Negotiation 1 (transport): the Accept header picks the response channel `/invoke`
