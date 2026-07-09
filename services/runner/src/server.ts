@@ -403,8 +403,8 @@ export async function runWithKeepalive(
   };
 
   // A parked prompt that REJECTS while the session sits in awaiting_approval means the harness
-  // or sandbox died mid-park; the dead session must not occupy a pool slot until the 10-minute
-  // approval TTL (plan Q4 lists a rejected parked prompt as a teardown trigger). Identity-checked:
+  // or sandbox died mid-park; the dead session must not occupy a pool slot until the approval TTL
+  // (5 minutes by default) (plan Q4 lists a rejected parked prompt as a teardown trigger). Identity-checked:
   // the handler evicts only while THIS exact entry is still parked at the key. A rejection that
   // lands after a successful checkout (the resume is in flight and owns the environment; its own
   // try/catch handles the failure) or after a supersede is not ours and does nothing. `evict` is
