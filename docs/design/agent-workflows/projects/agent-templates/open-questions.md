@@ -1,9 +1,14 @@
 # Agent templates: open questions
 
-Six decisions for Mahmoud. Each states the context, the options with their trade-offs, and a
-recommendation. #1 and #5 gate the frontend work (WP3); #2 and #3 gate scope.
+Six decisions, all resolved on 2026-07-10 in the PR #5188 review: Mahmoud accepted every
+recommendation. #2 carries a rider: file an issue for Arda to add a real `default` field to the
+elicitation protocol, and note in the issue that the template playbooks must adopt it once it
+ships. The sections below keep the original context, options, and trade-offs for the record;
+each now opens with its decision.
 
 ## 1. The category set: six categories versus the strip's five-plus-All ceiling
+
+**Decided: measure first.** Ship five categories (fold Monitoring into Engineering), keep the six-way grouping in the source, revisit with click data.
 
 **Context.** The inventory groups the 28 templates into six categories (Engineering, Support,
 Sales, Monitoring, Knowledge, Ops). The strip category tabs do not wrap or scroll, and the
@@ -29,6 +34,8 @@ is click data. This avoids frontend tab work now and keeps the option open.
 
 ## 2. request_input defaults: live with the workaround or extend the protocol
 
+**Decided: live with the workaround.** Enum-first "figure it out" plus guidance in descriptions. A real `default` field goes to Arda as a separate issue; playbooks adopt it when it ships.
+
 **Context.** The elicitation form has no `default` field; a `default` in the schema is silently
 dropped ([research.md](research.md) Section 4, `elicitation.ts:56`). The playbooks want to
 propose values the user can accept or edit. Today they do it with an enum-first "figure it out"
@@ -51,6 +58,8 @@ real improvement but should not gate the template fix. Revisit after the playboo
 is evidence the missing prefill actually hurts completion.
 
 ## 3. Ship the eight CHECK templates now or verify their toolkits first
+
+**Decided: ship all 28 with CHECK rows degraded to their SOLID fallback.** The CHECK integration stays display-only until its toolkit verifies.
 
 **Context.** Eight rows depend on a Composio toolkit this pass did not verify (datadog, newrelic,
 pagerduty, intercom, confluence, gitlab, attio) or on a specific access (a CI-run event, a
@@ -77,6 +86,8 @@ WP4.
 
 ## 4. Flag-off legacy surfaces: freeze, adapt, or delete
 
+**Decided: freeze, with two carve-outs.** Cap the OnboardingConfigPanel list and delete the dead TemplateCategoryChips. Full delete is a follow-up.
+
 **Context.** The live surfaces are strip-era. The classic gallery, the setup drawer, the
 onboarding quick-pick list, and the IDE-handoff modal are reachable only with a flag flipped off
 ([research.md](research.md) Section 5). The gallery's Create is already a stub. The drawer's
@@ -101,6 +112,8 @@ path is confirmed as the permanent surface, but it should not ride this change.
 
 ## 5. Display logos versus required-to-run integrations
 
+**Decided: separate fields.** Add display-only `logoSlugs`; narrow `requiredIntegrations` to what the agent needs.
+
 **Context.** In `templates.ts` today, `requiredIntegrations` does double duty: it supplies the
 card logos and it is a hard connect gate in the flag-off drawer, hitting the live Composio
 catalog and requiring every listed integration connected before Create
@@ -122,6 +135,8 @@ lets a card advertise its ecosystem without demanding every connection, and is t
 inventory table already assumes.
 
 ## 6. Analytics continuity on key and category renames
+
+**Decided: rename freely.** Mark the cutover date in the dashboard.
 
 **Context.** Every template pick writes `templateId` (key), `templateCategory` (category), and
 `intentValue = category || name` to PostHog ([research.md](research.md) Section 5). Nothing parses

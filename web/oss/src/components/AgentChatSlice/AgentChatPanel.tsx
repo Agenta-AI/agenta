@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    invalidateAgentCommittedRevisionCache,
+    workflowBuildKitOverlayReadyAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
@@ -1331,6 +1335,22 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     handleSubmitRef.current = handleSubmit
     const autoStartedSeedRef = useRef(false)
     const seedWasBlockedRef = useRef(false)
+    // Turn 1 must run WITH the build-kit overlay, but the overlay fetch can resolve after the seed
+    // lands — so gate the auto-send on the overlay having settled (present or definitively absent).
+    const overlayReady = useAtomValue(workflowBuildKitOverlayReadyAtomFamily(entityId))
+    // Bounded wait: a broken overlay endpoint must not hang the first turn forever. Once a seed is
+    // pending, wait at most 10s for the overlay, then send anyway (kit-less) with a warning.
+    const [overlayWaitElapsed, setOverlayWaitElapsed] = useState(false)
+    useEffect(() => {
+        if (!firstRunPrompt || overlayReady) return
+        const timer = setTimeout(() => {
+            console.warn(
+                "[AgentChat] build-kit overlay not ready after 10s; sending seed without it",
+            )
+            setOverlayWaitElapsed(true)
+        }, 10_000)
+        return () => clearTimeout(timer)
+    }, [firstRunPrompt, overlayReady])
     useEffect(() => {
         if (!firstRunPrompt || autoStartedSeedRef.current) return
         if (modelBlocked) {
@@ -1338,9 +1358,18 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             return
         }
         if ((!seedWasBlockedRef.current && !firstRunAutoSend) || messages.length > 0) return
+        // Hold the auto-send until the build-kit overlay settles (or the 10s bound elapses).
+        if (!overlayReady && !overlayWaitElapsed) return
         autoStartedSeedRef.current = true
         handleSubmitRef.current(firstRunPrompt)
-    }, [firstRunPrompt, firstRunAutoSend, modelBlocked, messages.length])
+    }, [
+        firstRunPrompt,
+        firstRunAutoSend,
+        modelBlocked,
+        messages.length,
+        overlayReady,
+        overlayWaitElapsed,
+    ])
 
     const handleRewind = useCallback(
         (message: UIMessage) => {

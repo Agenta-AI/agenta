@@ -105,15 +105,16 @@ per playbook so the builder agent can classify an incoming ask and open the righ
 ```markdown
 # Agent template playbooks
 
-Match the user's ask to a row, then read the named playbook. If no row matches, fall back to
-the generic build loop in the skill body.
+Match the user's ask to a row, then read the named playbook file for the full setup.
 
-| Ask looks like | Category | Playbook |
-|---|---|---|
-| turn merged PRs into release notes | Engineering | agent-templates/changelog-writer.md |
-| review opened pull requests | Engineering | agent-templates/issue-triage.md |
-| answer questions from our docs | Knowledge | agent-templates/docs-qa.md |
-| ... | ... | ... |
+| Template | Category | When it matches | Playbook file |
+|---|---|---|---|
+| Changelog writer | Engineering | Turn merged pull requests into release notes... | references/agent-templates/changelog-writer.md |
+| Issue triage | Engineering | Label new issues by area and priority... | references/agent-templates/issue-triage.md |
+| Docs Q&A | Knowledge | Answer questions from our docs or workspace... | references/agent-templates/docs-qa.md |
+| ... | ... | ... | ... |
+
+No match? Use the generic loop in SKILL.md.
 ```
 
 The table lives in the index file (read on demand), not in the skill body, because the body is

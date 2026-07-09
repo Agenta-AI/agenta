@@ -1,5 +1,8 @@
 # Agent templates: plan
 
+> Implementation landed via PR [#5188](https://github.com/Agenta-AI/agenta/pull/5188). See
+> [status.md](status.md) for what shipped and what deferred.
+
 Read [context.md](context.md) and [research.md](research.md) first. This plan assumes their
 facts and cites the code anchors from research.md without repeating the reasoning. Several open
 questions gate the frontend and authoring work; read [open-questions.md](open-questions.md)
