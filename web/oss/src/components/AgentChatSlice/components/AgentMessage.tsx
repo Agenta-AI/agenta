@@ -561,6 +561,8 @@ const AgentMessage = ({
         icon: <ArrowUUpLeft size={14} />,
         onItemClick: () => onRewind(message),
     }
+    // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
+    const rewindItems = isLastMessage ? [] : [rewindAction]
 
     // Restored turns have no first-seen stamp (a reload isn't their send time), so until their
     // trace time arrives the slot holds a placeholder — never a wrong "just now". Settled with no
@@ -574,7 +576,7 @@ const AgentMessage = ({
     const toolbar = isUser ? (
         <>
             {timestamp}
-            <Actions variant="borderless" items={[rewindAction]} />
+            {rewindItems.length > 0 && <Actions variant="borderless" items={rewindItems} />}
         </>
     ) : (
         <>
@@ -596,7 +598,7 @@ const AgentMessage = ({
                         icon: copied ? <Check size={14} /> : <Copy size={14} />,
                         onItemClick: handleCopy,
                     },
-                    rewindAction,
+                    ...rewindItems,
                     ...(traceId
                         ? [
                               {
