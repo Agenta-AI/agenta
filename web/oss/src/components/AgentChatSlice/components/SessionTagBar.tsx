@@ -14,11 +14,16 @@ import {
 
 import SessionTabLabel from "./SessionTabLabel"
 
-const STATUS_META: Record<SessionRunStatus, {dot: string; pulse: boolean; title: string}> = {
-    running: {dot: "bg-colorInfo", pulse: true, title: "Running"},
-    awaiting: {dot: "bg-colorWarning", pulse: true, title: "Waiting for approval"},
-    error: {dot: "bg-colorError", pulse: false, title: "Last run failed"},
-    idle: {dot: "bg-colorTextQuaternary", pulse: false, title: "Idle"},
+/** `attention` states need the user (approval / input) or flag a failure — their semantic colour
+ * outranks the active tab's clean white dot, so it's never masked on the session you're viewing. */
+const STATUS_META: Record<
+    SessionRunStatus,
+    {dot: string; pulse: boolean; attention: boolean; title: string}
+> = {
+    running: {dot: "bg-colorInfo", pulse: true, attention: false, title: "Running"},
+    awaiting: {dot: "bg-colorWarning", pulse: true, attention: true, title: "Needs your input"},
+    error: {dot: "bg-colorError", pulse: false, attention: true, title: "Last run failed"},
+    idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
 
 /** A session's run-state dot. Subscribes to just that session's status atom so a streaming
@@ -32,9 +37,22 @@ export const SessionStatusDot = ({
 }) => {
     const status = useAtomValue(sessionStatusAtomFamily(sessionId))
     const meta = STATUS_META[status]
-    const dotClassName = clsx(meta.dot, active && "dark:bg-white")
+    // Whiten the dot to match the active tab's white text ONLY for non-attention states; an
+    // awaiting/error session keeps its warning/error colour even when active so the "needs you"
+    // signal survives on the tab you're looking at.
+    const dotClassName = clsx(meta.dot, active && !meta.attention && "dark:bg-white")
     return (
-        <span className="relative flex h-1.5 w-1.5 shrink-0" title={meta.title}>
+        <span
+            className={clsx(
+                "relative flex h-1.5 w-1.5 shrink-0",
+                // A halo ring makes an attention dot read as a badge even at 6px, so it stands out
+                // across a row of running/idle tabs without enlarging the dot itself.
+                meta.attention && "rounded-full ring-2 ring-offset-0",
+                status === "awaiting" && "ring-colorWarningBorder",
+                status === "error" && "ring-colorErrorBorder",
+            )}
+            title={meta.title}
+        >
             {meta.pulse && (
                 <span
                     className={clsx(
