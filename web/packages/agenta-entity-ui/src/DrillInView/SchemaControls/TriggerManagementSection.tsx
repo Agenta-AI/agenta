@@ -31,7 +31,6 @@ import {
     useTriggerSchedules,
     useTriggerSubscription,
     useTriggerSubscriptions,
-    type TriggerReference,
     type TriggerSchedule,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
@@ -69,6 +68,12 @@ import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubsc
 
 import {AddTextLink} from "./AddTextLink"
 import {CollapsibleProviderGroup, SubSectionHeader} from "./sectionGroups"
+import {
+    addAgentTriggerOriginMeta,
+    agentTriggerMatchesContext,
+    buildAgentTriggerOrigin,
+    getAgentTriggerContext,
+} from "./triggerScope"
 
 // Persisted per-agent expand state for provider groups (key = `${entityId}:${providerKey}`).
 const triggerGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
@@ -282,18 +287,6 @@ export interface TriggerManagementSectionProps {
     disabled?: boolean
 }
 
-/** Whether any id in a trigger's `data.references` matches one of the agent's ids. */
-function referencesMatch(
-    references: Record<string, TriggerReference> | null | undefined,
-    agentIds: Set<string>,
-): boolean {
-    if (!references || agentIds.size === 0) return false
-    for (const ref of Object.values(references)) {
-        if (ref?.id && agentIds.has(ref.id)) return true
-    }
-    return false
-}
-
 /**
  * Resolve the agent's matchable ids, its `defaultReferences`, and the project triggers
  * scoped to it. Shared by the section body and the header count badge / add-dropdown in
@@ -307,6 +300,11 @@ export function useAgentTriggers(entityId: string | null) {
     )
     const appId = revision?.workflow_id ?? null
     const variantId = revision?.workflow_variant_id ?? revision?.variant_id ?? null
+    const triggerContext = useMemo(
+        () => getAgentTriggerContext(entityId, revision),
+        [entityId, revision],
+    )
+    const triggerOrigin = useMemo(() => buildAgentTriggerOrigin(triggerContext), [triggerContext])
     // The app slug — needed for "By environment" binding, which resolves via the
     // application slug + environment (see triggers/service.py `_normalize_references`).
     const appSlug = (revision as {slug?: string} | null)?.slug ?? null
@@ -339,17 +337,18 @@ export function useAgentTriggers(entityId: string | null) {
     const {schedules} = useTriggerSchedules()
 
     const scopedSubscriptions = useMemo(
-        () => subscriptions.filter((s) => referencesMatch(s.data?.references, agentIds)),
-        [subscriptions, agentIds],
+        () => subscriptions.filter((s) => agentTriggerMatchesContext(s, triggerContext, agentIds)),
+        [subscriptions, triggerContext, agentIds],
     )
     const scopedSchedules = useMemo(
-        () => schedules.filter((s) => referencesMatch(s.data?.references, agentIds)),
-        [schedules, agentIds],
+        () => schedules.filter((s) => agentTriggerMatchesContext(s, triggerContext, agentIds)),
+        [schedules, triggerContext, agentIds],
     )
 
     return {
         defaultReferences,
         defaultBoundLabel,
+        defaultMeta: addAgentTriggerOriginMeta(null, triggerOrigin),
         scopedSubscriptions,
         scopedSchedules,
         count: scopedSubscriptions.length + scopedSchedules.length,
@@ -471,8 +470,14 @@ function TriggerRow({
 }
 
 export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, count, defaultReferences, defaultBoundLabel} =
-        useAgentTriggers(entityId)
+    const {
+        scopedSubscriptions,
+        scopedSchedules,
+        count,
+        defaultReferences,
+        defaultBoundLabel,
+        defaultMeta,
+    } = useAgentTriggers(entityId)
 
     const {connections} = useTriggerConnectionsQuery()
     const {integrations} = useTriggerCatalogIntegrations()
@@ -742,6 +747,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                                 ? () =>
                                                       openSubscriptionDrawer({
                                                           defaultReferences,
+                                                          defaultMeta,
                                                           defaultBoundLabel,
                                                           playgroundEntityId: entityId ?? undefined,
                                                           integrationKey: group.key,
@@ -869,7 +875,7 @@ export function AddTriggerDropdown({
     /** Custom trigger element (e.g. an inline text-link for an empty state). Defaults to a `+`. */
     trigger?: ReactNode
 }) {
-    const {defaultReferences, defaultBoundLabel} = useAgentTriggers(entityId)
+    const {defaultReferences, defaultBoundLabel, defaultMeta} = useAgentTriggers(entityId)
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
 
@@ -890,6 +896,7 @@ export function AddTriggerDropdown({
                         onSelect: () =>
                             openSubscriptionDrawer({
                                 defaultReferences,
+                                defaultMeta,
                                 defaultBoundLabel,
                                 playgroundEntityId: entityId ?? undefined,
                             }),
@@ -903,6 +910,7 @@ export function AddTriggerDropdown({
                         onSelect: () =>
                             openScheduleDrawer({
                                 defaultReferences,
+                                defaultMeta,
                                 defaultBoundLabel,
                                 playgroundEntityId: entityId ?? undefined,
                             }),

@@ -654,6 +654,7 @@ function ScheduleForm({
             } else {
                 const body: TriggerScheduleCreate = {
                     name: name || null,
+                    meta: state?.defaultMeta ?? null,
                     data,
                     // Honor the Active toggle at creation (otherwise the BE defaults to active).
                     flags: {is_active: enabled},
@@ -688,6 +689,7 @@ function ScheduleForm({
         schedule,
         name,
         enabled,
+        state?.defaultMeta,
         edit,
         create,
         onClose,
