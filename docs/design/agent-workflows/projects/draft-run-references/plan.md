@@ -6,9 +6,10 @@ Tracking issue: https://github.com/Agenta-AI/agenta/issues/5162
 
 ## The decision in one line
 
-Stop dropping the variant reference on a dirty run. Keep dropping only the revision
-reference, because the revision is what marks a run as non-draft. The variant says which
-variant is running, and `commit_revision` needs it.
+Stop dropping the variant and application references on a dirty run. Keep withholding only
+the revision reference, because the revision is what marks a run as non-draft. The variant
+says which variant is running, the application says which app it belongs to, and
+`commit_revision` needs the variant.
 
 ## What must stay true
 
@@ -134,15 +135,18 @@ follow.
    identity is forwarded on every run regardless of `isDirty`, so a second commit in the same
    conversation has its target. The loop described in research.md is broken at the source. No
    reload is required for correctness.
-2. **Should the frontend adopt the new revision so the panel re-syncs and `isDirty` resets?**
-   This is a display concern, not a correctness one. After a self-commit, the loaded panel
-   still shows the pre-commit inline edits, which now genuinely differ from the new HEAD, so
-   the run stays a draft (`is_draft` true). That is honest. Adopting the new revision (reload
-   or sync the panel, bump the version chip) would make the UI reflect the new committed state
-   and reset `isDirty`. It is a nice follow-up for UI accuracy, but it must stay decoupled
-   from the run-context fix. Option 1 makes the run robust whether or not the panel re-syncs,
-   so the two concerns do not entangle. We record the panel-adoption follow-up as optional in
-   status.md.
+2. **Does the panel re-sync to the new revision on its own?** Yes, in the common case it
+   already does. A mechanism added in issue #4920 repoints the panel after a self-commit: the
+   backend emits a `data-committed-revision` event from the `commit_revision` output, and the
+   chat panel reacts by switching the loaded entity to the new revision id (research.md,
+   "After a self-commit, the panel already repoints to the new revision"). The new revision
+   has no draft overlay, so `isDirty` resets to false and the version chip reflects the new
+   committed state. This is a display improvement, not a correctness requirement, and it is
+   not fully reliable: if the stream is aborted or the event is missed, the panel stays on the
+   old revision and reads as dirty. Option 1 is what makes the run correct in that case,
+   because it forwards the variant regardless of panel state. The two concerns stay decoupled:
+   the repointing keeps the UI honest, and Option 1 keeps `commit_revision` working even when
+   the repointing does not land.
 
 Draft-mode semantics do not regress under Option 1. A clean run sends all three references
 and stays non-draft. A dirty run sends the variant but not the revision and stays a draft.

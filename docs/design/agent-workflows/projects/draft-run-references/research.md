@@ -157,16 +157,27 @@ const references = isCommittedRevisionRun ? fullReferences : null
 
 This is an all-or-nothing gate. If the config panel is clean (no unsaved edits) and there is
 a real committed revision, the run forwards **all** references. Otherwise it forwards
-**none**.
+**none**, including the `application` and `application_variant` references.
 
-The intent is documented right above it: a dirty run is an inline-config draft, so forwarding
-the revision would wrongly mark the run as non-draft. The comment then goes one step further
-and drops the variant too. That extra step is what breaks `commit_revision`, because the
-variant is exactly what the tool needs.
+Dropping those two on a dirty run is the bug. The gate had one good reason and one wrong
+reason to withhold the revision reference, and it then swept the variant and app references
+along with it:
+
+- The good reason: a dirty run is an inline-config draft, so forwarding the revision would
+  wrongly mark the run as non-draft. Draft-ness keys only on the revision reference
+  (`tracing.py:165`), so the revision must stay out of a dirty run. That part is correct.
+- The wrong reason: the code comment claimed the backend would re-resolve a bare variant
+  reference to its latest revision, so it dropped the variant too, out of caution. The next
+  section proves that claim does not hold for a playground run. The caution is what removed
+  the variant, and the variant is exactly what `commit_revision` needs.
+
+The application reference should never have been dropped at all. It carries no draft signal.
+This PR changes the gate to forward `application` and `application_variant` on every run and
+to gate only `application_revision` on cleanliness. See plan.md, Option 1.
 
 ## Worked example: the reference block, clean versus dirty
 
-**Clean run (panel matches the committed HEAD, `isDirty` is false).** The request sends:
+**Clean run (the loaded revision has no unsaved edits, `isDirty` is false).** The request sends:
 
 ```json
 "references": {
@@ -179,7 +190,7 @@ variant is exactly what the tool needs.
 Run context: artifact set, variant set, revision set. `is_draft` is false. `variant.id` is
 bound. `commit_revision` works.
 
-**Dirty run today (panel has unsaved edits, `isDirty` is true).** The request sends:
+**Dirty run today (the loaded revision has unsaved edits, `isDirty` is true).** The request sends:
 
 ```json
 "references": null
@@ -188,22 +199,82 @@ bound. `commit_revision` works.
 Run context: no workflow identity at all. `variant.id` is undefined. `commit_revision`
 throws the reported error.
 
-## The loop: why it works, then stops
+## What "dirty" means, and why the loop happens
 
-This explains the "works, then stops working in the same conversation" symptom.
+This section answers the "works, then stops working in the same conversation" symptom. It
+first pins down what `isDirty` actually compares, because the mechanism is not the one an
+early reading of this bug assumed.
 
-1. You load the agent. The panel matches the committed HEAD. `isDirty` is false.
-2. You ask for a change. The agent calls `commit_revision`. References are sent in full.
-   The commit works and creates a **new** revision. The HEAD moves forward.
-3. The panel you loaded now lags the new HEAD. The dirty check compares the panel against
-   the current HEAD and flips `isDirty` to true.
-4. You ask for another change in the same conversation. Because `isDirty` is now true, the
-   request sends `references: null`. `commit_revision` fails.
-5. Every later commit fails the same way, until the page reloads and the panel re-syncs to
-   the new HEAD.
+### The dirty check compares a revision against its own snapshot
 
-The successful commit is what poisons the next one. The agent's own success flips the dirty
-flag, and the dirty flag drops the variant.
+`isDirty` comes from `workflowMolecule.selectors.isDirty`, which reads
+`workflowIsDirtyAtomFamily`
+(`web/packages/agenta-entities/src/workflow/state/store.ts:1897-1934, 2011-2034`). For the
+loaded revision, it compares two things:
+
+- the draft overlay for that revision (`workflowBaseEntityAtomFamily(workflowId)`), which
+  holds the user's unsaved edits to the config panel, and
+- that same revision's own fetched server snapshot
+  (`workflowServerDataSelectorFamily(workflowId)` → `workflowQueryAtomFamily`, store.ts:2192-2221
+  and 1050-1077; react-query key `["workflows","revision",revisionId,projectId]`, staleTime 30s).
+
+Both sides are keyed by the **same** revision id. Revisions are immutable, so the snapshot
+never moves. There is no comparison against the variant's latest revision. That latest-revision
+query (`["workflows","latestRevision",...]`) is a different family used elsewhere. If the
+loaded revision has no draft overlay, `isDirty` returns false right away (store.ts:1903-1908).
+
+So "dirty" means one thing only: **the loaded revision carries a draft overlay.** It does not
+mean the panel lags a newer HEAD. A revision reads as dirty when the user edited the config
+panel, or when an event that should have repointed the panel was missed, or when the panel
+held unsaved edits before the conversation even started. Whenever the loaded revision is
+dirty, the old gate dropped every reference, and `commit_revision` failed.
+
+### After a self-commit, the panel already repoints to the new revision
+
+A self-commit creates a new revision. A mechanism added in issue #4920 already moves the panel
+onto that new revision, so the panel does not sit on a stale one.
+
+The backend's Vercel stream adapter derives a `data-committed-revision` event from the
+`commit_revision` tool output
+(`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:242-249, 729-756`). The chat panel
+reacts to that event (`web/oss/src/components/AgentChatSlice/AgentChatPanel.tsx:851-873`): it
+invalidates the latest-revision and inspect caches (store.ts:2632-2641) and calls
+`switchEntity`
+(`web/packages/agenta-playground/src/state/controllers/playgroundController.ts:2296-2308`) to
+repoint the loaded entity id to the new revision id. The new id has no draft overlay, so
+`isDirty` is false right away. The request builder reads the current entity through a ref at
+send time (`AgentChatPanel.tsx:380-386`), so the next run in the conversation uses the new
+revision.
+
+When everything goes right, one self-commit runs like this:
+
+1. You load a committed agent. The loaded revision has no draft overlay. `isDirty` is false.
+2. The agent calls `commit_revision`. A new revision is created.
+3. The `data-committed-revision` event arrives. `switchEntity` repoints the panel to the new
+   revision id. That id has no overlay, so `isDirty` stays false.
+4. The next commit in the same conversation runs against the new revision and works.
+
+### Why the loop was still reported
+
+The loop happens whenever the loaded revision is dirty at the moment a run is sent, for any
+reason. Two common causes:
+
+- The user edited the config panel before or during the conversation. The overlay makes the
+  revision dirty.
+- The `data-committed-revision` repointing did not complete. If the stream is aborted, the
+  event is missed, or the commit and the event race, the panel stays on the old revision id,
+  which still carries its overlay and reads as dirty.
+
+Either way, once the loaded revision is dirty, the old all-or-nothing gate sent
+`references: null`, the run context had no variant, and `commit_revision` threw the reported
+error. The observed failing turns carried `references: null` on the failing commit, which
+tells us the panel was dirty when the run was sent.
+
+This is why the run itself must always carry the variant identity, independent of panel state.
+The #4920 repointing removes one cause of a stale panel, but it depends on the stream event
+arriving and being processed by the panel's effect. Anything that interrupts the stream leaves
+the old revision loaded. The fix in plan.md makes `commit_revision` work regardless, by
+forwarding the variant on every run.
 
 ## The claim we must verify before recommending the frontend fix
 
