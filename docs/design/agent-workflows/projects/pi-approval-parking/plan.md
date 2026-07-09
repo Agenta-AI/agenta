@@ -135,49 +135,28 @@ non-matching title takes today's path untouched.
   browser-fulfilled pause semantics through the relay (`dispatch.ts:239`, `relay.ts:214`);
   permission-gating a client tool via the dialog would be wrong. The dialog gate applies to
   `callback` (and `code`) specs; `client` specs keep today's path untouched.
-- Double-gate handling: the relay watcher still runs `permissions.decide` on the execution
-  request (`relay.ts:240-264`). After a dialog allow, that second check must pass. The
-  premise holds: the responder and the relay share the SAME `ConversationDecisions` object,
-  built once per turn (`sandbox_agent.ts:1218`, consumed at `:1225` and `:1268`). But
-  `ConversationDecisions` exposes only `take`/`peek` over private `decisionQueues`
-  (`responder.ts:209-237`); there is no public write. The mechanism therefore is:
-  - Add a FIFO append API to `ConversationDecisions` (a decision pushed onto the queue for a
-    `(toolName, canonical args)` key, consumed by the next matching `take`).
-  - On the COLD dialog path (a stored decision answers the dialog instantly), the dialog's
-    `decide` call consumed one queued decision; append exactly one back for the relay
-    execution check. Consume-1-append-1, so no stale decision survives to a LATER identical
-    gate in the same turn.
-  - The key-parity invariant, stated as a tested invariant, not an assumption:
-    `envelope.toolName === spec.name` and `envelope.input` is the exact `execute` params
-    object, so the approved-call key matches what the relay reads (`dispatch.ts:84` writes
-    `args: params ?? {}`; `relay.ts:245` reads `req.args`).
-  - The WARM-RESUME path bypasses the responder entirely (the resume calls
-    `respondPermission` directly, `sandbox_agent.ts:1389`), so nothing on that path appends
-    to the queue by construction. Slice task: verify whether `extractApprovalDecisions`
-    already seeds the turn's stored map from the resume request's transcript (the FE folds
-    the decision into the resume request). If it does, the relay check consumes that seeded
-    decision and nothing more is needed; if it does not, add an explicit append on the
-    resume branch just before `:1389`. Either way, cover it with the
-    dialog-allow-then-relay-execute dispatch test on the RESUME path, not only the instant
-    path.
-  This keeps the relay as defense-in-depth with one source of truth. The alternative (skip
-  relay enforcement when the dialog plane is on) removes the second check entirely; rejected
-  because a bug in the extension flag plumbing would then leave zero gates.
-- Flag: `AGENTA_RUNNER_PI_DIALOG_GATE` (runner side, default off), exported into the sandbox
-  as `AGENTA_AGENT_PI_DIALOG_GATE` by `buildPiExtensionEnv` (`pi-assets.ts:67-78`, the same
-  place `AGENTA_AGENT_BUILTIN_GATING` is set), which is where the extension env is actually
-  built. One flag controls both sides coherently because the runner installs the extension
-  per run (research.md §6).
-- Relay scope note: once the flag is on, a builtin-only run (no custom tools) no longer needs
-  the relay at all; `useToolRelay` (`run-plan.ts:447`) can be tightened to skip it. Document
-  now, tighten in this slice if trivial, otherwise record as part of the deletion follow-up.
+- Single enforcement point (final, 2026-07-10): the dialog gate is the ONLY Pi permission
+  check. The relay's permission plane (the watcher's `permissions.decide` on execution
+  requests, `handlePermissionRelayRequest`, `relayPermissionCheck`, the `kind: "permission"`
+  record protocol) is DELETED, and the relay carries tool execution and results only. The
+  earlier draft kept the relay check as flag-gated defense-in-depth and bridged the double
+  gate with a FIFO re-append into `ConversationDecisions`; with the dialog gate unconditional
+  there is no flag plumbing whose failure the second check would catch, so the check guarded
+  nothing and the bridge was its only cost. Both are gone.
+- No flag: the dialog gate is the unconditional behavior for every Pi run. Envelope detection
+  on the runner is scoped to Pi runs structurally (the responder receives the resolved-specs
+  map only on Pi runs; its presence turns detection on), so a Claude gate whose ACP title
+  collides with the dialog title still takes the base path.
+- Relay scope: a builtin-only run (no custom tools) starts no relay at all; `useToolRelay`
+  (`run-plan.ts`) is `toolSpecs.length > 0`.
 - Tests: extension-level unit tests run through the existing extension test seams (dialog
-  raised for callback specs, NOT raised for client specs, fail-closed false on cancel); a
-  dispatch-level test that a dialog-allowed custom tool executes exactly once through the
-  relay (instant path and resume path); consume-1-append-1 accounting.
+  raised for callback specs, NOT raised for client specs, fail-closed false on cancel, args
+  validated before the dialog); classification tests for the fail-closed identities (unknown
+  builtin, unresolved custom tool, malformed envelope) and the Claude title-collision
+  passthrough.
 
-Deliverable: with the flag on, both Pi gates ride the dialog plane end to end; asks still
-pause-and-destroy (parking arrives in slice 3). Behavior with the flag off is byte-identical.
+Deliverable: both Pi gates ride the dialog plane end to end; asks still pause-and-destroy
+(parking arrives in slice 3).
 
 ### Slice 3: park and resume
 
@@ -214,31 +193,30 @@ regression tests.
 
 | Area | Removed (flag on) | Kept | Added |
 |---|---|---|---|
-| Extension (`agenta.ts`) | the `relayPermissionCheck` call in the builtin hook; the naked `runResolvedTool` for gated NON-CLIENT custom tools | tool registration; `runResolvedTool` relay EXECUTION (results still flow over the relay files); client tools' browser-fulfilled path untouched; the old permission path behind the flag for rollback | the dialog gate (`ctx.ui.confirm` + envelope) at both gates, non-client specs only |
-| Relay (`relay.ts`, `dispatch.ts`, `run-plan.ts`) | nothing yet (`relayPermissionCheck` and `handlePermissionRelayRequest` become dead when the flag is on; delete after a bake period, recorded follow-up; a builtin-only run can stop starting the relay, `useToolRelay` `run-plan.ts:447`) | the watcher, execution dispatch, `permissions.decide` defense-in-depth | none |
+| Extension (`agenta.ts`) | the `relayPermissionCheck` call in the builtin hook; the naked `runResolvedTool` for gated NON-CLIENT custom tools | tool registration; `runResolvedTool` relay EXECUTION (results still flow over the relay files); client tools' browser-fulfilled path untouched | the dialog gate (`ctx.ui.confirm` + envelope) at both gates, non-client specs only, unconditional |
+| Relay (`relay.ts`, `dispatch.ts`, `run-plan.ts`) | the whole permission plane: `relayPermissionCheck`, `handlePermissionRelayRequest`, the `kind: "permission"` record protocol, `RelayPermissions` and the watcher's `permissions.decide` enforcement; builtin-only runs stop starting the relay (`useToolRelay` = custom tools only) | the watcher and execution dispatch (execute requests + results, client-tool pass-through) | none |
 | Responder seam (`acp-interactions.ts`) | nothing | all pause/park/reply mechanics | envelope detection + tool-call id normalization at the top of `handleRequest` + `GateDescriptor` from envelope with runner-side spec lookup + card payload synthesis + malformed-envelope reject |
 | Reply mapping (`responder.ts`) | nothing | everything (`decisionToReply` is already correct; the daemon maps `{once, always, reject}` to the dialog option by kind) | nothing |
 | Park record (`sandbox_agent.ts`, `server.ts`) | nothing | everything | `gateType` union widened to include `"pi-dialog-permission"` (`sandbox_agent.ts:368`) + the `server.ts:628` gate-type guard accepts it + envelope identity in `parkedApproval` |
-| Stored decisions (`responder.ts` `ConversationDecisions`) | nothing | keying (name + canonical args), `take`/`peek` | a FIFO append API; consume-1-append-1 on the cold dialog path; warm-resume seeding (verify `extractApprovalDecisions`, else an explicit resume-branch append) |
-| Config | nothing | `AGENTA_RUNNER_SESSION_KEEPALIVE`, TTLs, pool cap | `AGENTA_RUNNER_PI_DIALOG_GATE` -> sandbox `AGENTA_AGENT_PI_DIALOG_GATE` via `buildPiExtensionEnv` (`pi-assets.ts:67-78`); default off, flip after slice 4 greens |
+| Stored decisions (`responder.ts` `ConversationDecisions`) | nothing | keying (name + canonical args), `take`/`peek` (the dialog gate's cold decision map) | nothing (the planned double-gate FIFO append died with the relay permission plane) |
+| Config | nothing | `AGENTA_RUNNER_SESSION_KEEPALIVE`, TTLs, pool cap | nothing (no flag: the dialog gate is the unconditional Pi behavior) |
 | Wire contract | nothing | everything (`interaction_request` shape unchanged; card payload uses existing fields) | nothing (assert with the existing wire-contract test) |
 
 ## The warm/cold behavior matrix
 
 "Warm" means keep-alive on, session parked, answer inside the approval TTL. Every other cell
-is cold. Flag names: KA = `AGENTA_RUNNER_SESSION_KEEPALIVE`, DG = `AGENTA_RUNNER_PI_DIALOG_GATE`.
+is cold. The dialog gate itself has no flag (always on for Pi); KA =
+`AGENTA_RUNNER_SESSION_KEEPALIVE` still gates the pool and the parking.
 
 | Scenario | Behavior |
 |---|---|
-| Warm approve (KA+DG on, within TTL) | The resume answers the held dialog; the hook returns allow; the original call runs with its original arguments inside the original `prompt()`; call N+1 carries the real result for the original id. Byte-exact. |
+| Warm approve (KA on, within TTL) | The resume answers the held dialog; the hook returns allow; the original call runs with its original arguments inside the original `prompt()`; call N+1 carries the real result for the original id. Byte-exact. |
 | Warm deny | The resume answers `no`; the hook returns `blockReason`; the tool call reports failed; the turn continues live on the same session (Pi handles the block in-loop). Nothing executes. |
 | Approve after TTL (cold) | The park expired and the session was destroyed (the held dialog died with it, fail-closed). The decision lands on today's cold path: cold replay, the model re-issues the call, `decide` consumes the stored decision by name plus canonical args. After harness session resume lands, the same but with full structured history (rubric B); either way the decision map absorbs drift by re-firing the gate on mismatch. |
 | Deny after TTL (cold) | Same path; the stored deny blocks the re-issued call. |
 | ACP transport drop mid-pending | The spike's drop scenario: `pi-acp` and Pi die cleanly, nothing executes. The pool's parked-promise rejection evicts the slot; the next message runs cold. Degradation target is tier-2 session resume once that project lands (the pending call is already on Pi's disk). |
 | TTL expiry racing an approval | The pool's existing race handling: expiry destroys and the late decision misses the pool (`approval-mismatch`/pool-miss path) and degrades to the cold decision map. The durable row was written at pause time, so the answer always lands. No new code; covered by an existing-pattern test. |
-| KA on, DG off | Exactly today: relay-poll gates, pause destroys the session, cold decision-map resume. |
-| KA off, DG on | The dialog gate still works (instant allow/deny from the responder; better card identity), but an ask pauses and destroys the session (no pool), and the dialog dies with it, fail-closed. Cold resume as today. Acceptable, but flip DG on only where KA is on to avoid a confusing half-state; state this in the rollout note. |
-| Both off | Byte-identical to today. |
+| KA off | The dialog gate still decides instantly (allow/deny from the responder, real card identity), but an ask pauses and destroys the session (no pool), and the held dialog dies with it, fail-closed. Cold decision-map resume: the durable path. |
 | Daytona (any flags) | The pool does not park Daytona sandboxes (keep-alive slice 3 deferred), so every Daytona ask is the "KA off" row: pause, destroy, cold decision-map resume. The dialog transport itself works on Daytona (the extension and env flow are identical, research.md §6), so when slice 3 lands, Daytona parking needs no Pi-specific work. |
 
 ## Rollout and compatibility
@@ -247,9 +225,10 @@ is cold. Flag names: KA = `AGENTA_RUNNER_SESSION_KEEPALIVE`, DG = `AGENTA_RUNNER
   bundle (research.md §6); runner and extension deploy atomically. The only mixed state is a
   session created before a deploy and resumed after it; the pool's config fingerprint and the
   restart-drains-pool behavior make that a cold resume, which both transports handle.
-- **Flag order.** Ship slices 1-3 dark, then enable `AGENTA_RUNNER_PI_DIALOG_GATE` on the dev
-  stack with keep-alive already on, run slice 4, then default it on. The old relay permission
-  path stays in the code one release as the rollback lever, then gets deleted (follow-up).
+- **On by default, no flag.** The dialog gate is the only Pi permission path; the relay
+  permission plumbing is deleted in the same change (the runner installs the extension per
+  run, so both sides switch atomically). Keep-alive off still degrades every ask to the cold
+  durable-decision path, so the fail-closed story does not depend on the pool.
 - **pi-acp is pinned** (0.0.29). The dialog reaper behavior and the extension-UI translation
   are version-load-bearing; a Pi or pi-acp upgrade must re-run the spike's hold scenario
   (this is in the risks of the parkable-gates design; repeat it in the upgrade checklist).
@@ -258,16 +237,16 @@ is cold. Flag names: KA = `AGENTA_RUNNER_SESSION_KEEPALIVE`, DG = `AGENTA_RUNNER
 
 1. Upstream a structured-metadata field to `pi-acp` (maintainer Sergii Kozak, svkozak/pi-acp)
    or carry a pnpm patch, retiring the envelope encoding.
-2. Delete `relayPermissionCheck` / `handlePermissionRelayRequest` after the bake period.
-3. Daytona parking (keep-alive slice 3) picks up Pi parking for free; verify then.
+2. Daytona parking (keep-alive slice 3) picks up Pi parking for free; verify then.
 
 ## Test inventory (summary)
 
 - Unit: envelope build/parse round-trip (incl. the spike's hostile probe string), request
   classification (envelope vs non-matching title), tool-call id normalization everywhere the
   id is read, runner-side spec lookup parity (author-allow instant, author-deny instant,
-  read-only builtin auto-allow), malformed-envelope reject (fail closed), decisions FIFO
-  append + consume-1-append-1 accounting, client-spec exclusion from the dialog gate.
+  read-only builtin auto-allow), malformed-envelope reject (fail closed), unknown builtin and
+  unresolved custom-tool reject (fail closed), client-spec exclusion from the dialog gate,
+  the Claude title-collision passthrough.
 - Dispatch (fake session): Pi ask parks; resume-approve runs original call once (instant AND
   warm-resume decision seeding for the relay's second check); resume-deny blocks; TTL expiry
   -> cold; approval-mismatch evicts; multi-gate refuses the park and degrades cold

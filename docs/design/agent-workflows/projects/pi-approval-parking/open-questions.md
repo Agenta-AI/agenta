@@ -30,11 +30,10 @@ state a working default. #1 still gates slice order.
    explicitly on the resume branch before `sandbox_agent.ts:1389`. Details in plan.md
    slice 2.
 
-4. **Flag coupling. OPEN, decide at slice 2 review.** `AGENTA_RUNNER_PI_DIALOG_GATE`
-   (sandbox-side `AGENTA_AGENT_PI_DIALOG_GATE` via `buildPiExtensionEnv`) works without
-   keep-alive but produces a half-state (better gates, no parking). Working default:
-   independent flags, documented advice to enable the dialog gate only where keep-alive is
-   on. Alternative: check keep-alive runner-side and refuse the half-state.
+4. **Flag coupling. RESOLVED (2026-07-10): there is no flag.** The dialog gate shipped as
+   the unconditional Pi behavior and the relay permission plumbing was deleted with it, so
+   the half-state question dissolved: without keep-alive the gate still decides instantly
+   with real card identity, and an ask degrades to the cold durable-decision path.
 
 5. **Deny-warm UX. OPEN, a product call, not a mechanism question.** On a warm deny the hook
    returns `blockReason` and Pi continues its loop on the live session; the model sees the
