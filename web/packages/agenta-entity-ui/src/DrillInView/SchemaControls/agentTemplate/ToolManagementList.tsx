@@ -19,9 +19,9 @@ import {atomWithStorage} from "jotai/utils"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {CollapsibleProviderGroup, SubSectionHeader} from "../sectionGroups"
-import {parseGatewayFunctionName} from "../toolUtils"
+import {parseGatewayTool} from "../toolUtils"
 
-import {describeTool, isFunctionTool, toolName} from "./itemDescriptors"
+import {describeTool, isFunctionTool} from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemChildRow, ItemRow, type ItemRowStatus} from "./ItemRow"
 
@@ -250,7 +250,7 @@ export function ToolManagementList({
                 references.push({item, index})
                 return
             }
-            const gw = parseGatewayFunctionName(toolName(item))
+            const gw = parseGatewayTool(item)
             if (gw) {
                 let group = groups.get(gw.integration)
                 if (!group) {

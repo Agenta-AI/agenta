@@ -5,7 +5,7 @@
  */
 import {FileText, GraphIcon, Plugs} from "@phosphor-icons/react"
 
-import {parseGatewayFunctionName, type ToolObj} from "../toolUtils"
+import {parseGatewayTool, type ToolObj} from "../toolUtils"
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
 export interface ItemDescriptor {
@@ -171,8 +171,8 @@ export function describeTool(tool: unknown): ItemDescriptor {
         }
     }
 
-    // Third-party / gateway tool: tools__provider__integration__action__connection.
-    const gateway = fnName ? parseGatewayFunctionName(fnName) : null
+    // Third-party / gateway tool: canonical object or legacy slug.
+    const gateway = parseGatewayTool(t)
     if (gateway) {
         // Some action keys repeat the integration (GITHUB_ADD_...) — drop it; the group header
         // already names the app. Then humanize the key into a readable label.
