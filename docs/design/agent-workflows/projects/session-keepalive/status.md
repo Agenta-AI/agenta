@@ -55,6 +55,33 @@ invariant the same day, and its ownership section now states that the Pi relay i
 client-tool hold-open must land on top of (or inside) JP's backend warm-session move and
 harness-session-resume work.
 
+## Review round on the parkable-gates rewrite (2026-07-09, later the same day)
+
+Mahmoud left four inline comments on the rewritten design (PR #5153). Addressing them surfaced
+two factual corrections, both verified in code and folded into the design text:
+
+- **The Pi pause is destroy-first, not timeout-first.** On an ask, the relay watcher fires the
+  pause immediately and the pause controller destroys the Pi session
+  (`sandbox_agent.ts:1135-1157, 1272-1293`); only the Claude ACP hook records the
+  `parkedApproval` that exempts a session. The in-sandbox poll dies of teardown, not of its
+  60-second deadline. The earlier text implied the poll spins out its deadline. The design's
+  "why keep-alive does not park it today" now names the three Claude-shaped code pieces
+  (park decision, resume verb, poll deadline), which is also the direct answer to Mahmoud's
+  "why does today's design not work while warm" question, and frames Option B as exactly those
+  three deltas (his hold-while-warm, write-the-file-on-approval model).
+- **Option C is not blocked on Pi upstream work.** Pi extensions get `ctx.ui.confirm`
+  (dialog-capable in RPC mode), and the `pi-acp` bridge already translates that dialog into a
+  real ACP `session/request_permission` (`pi-acp/dist/index.js:1106-1128`). `pi-acp` is a
+  third-party MIT adapter by Sergii Kozak (svkozak/pi-acp, 0.0.29 bundled); Pi itself is Mario
+  Zechner's. The genuine gaps are payload fidelity (the bridge forwards dialog fields, not the
+  gated call's id/args) and an unproven end-to-end hop. The recommendation changed from
+  "B ships, C is a far north star" to "spike C's hop first; C if the payload survives, else B."
+
+The round also added a per-gate warm/cold pairing section ("The cold path: every gate, when
+the answer comes after the park is gone") answering the how-does-cold-work comment, and a
+turn-versus-prompt clarification (no new prompt is issued on a warm resume; the new `/run`
+request only transports the decision and adopts the resumed stream).
+
 ## Measured costs and mechanism research (2026-07-08)
 
 Recorded here as the source for the numbers now cited in the design docs.

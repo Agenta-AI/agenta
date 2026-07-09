@@ -65,7 +65,7 @@ So the tiers rank like this, and only the first is exact:
 This ranking is the reason this design exists. Warm parking is not a latency optimization; it
 is the only tier that meets the invariant. Session resume (which makes tier 2 real) does not
 replace it and cannot, by harness policy rather than by lost state. That makes extending
-parking to the remaining gates worth a relay restructure, and it makes the durable-decision
+parking to the remaining gates worth real gate changes, and it makes the durable-decision
 cold path the permanent answer for anything past the warm TTL, such as an overnight approval.
 
 ---
@@ -115,78 +115,157 @@ throw new Error("tool relay timed out for <name>")             // dispatch.ts:11
 
 `RELAY_TIMEOUT_MS` defaults to 60000 and is set by `AGENTA_AGENT_TOOLS_RELAY_TIMEOUT`
 (`relay.ts:61-63`). On the runner side, `startToolRelay` (`relay.ts:449`) watches the same
-directory and writes the response file. For a tool marked `ask`, the runner records a durable
-pending interaction and has no verdict yet, so it writes nothing; the in-sandbox poll spins to
-its deadline and throws, the harness turns the throw into a tool error, and the turn ends.
+directory and writes the response file.
 
-This whole wait runs in the Pi process, inside the sandbox. It is process memory. When the turn
-ends and the session is torn down, the poll is gone.
+For a tool marked `ask`, the sequence is faster and harsher than a timeout. The relay watcher
+sees the request, emits the approval event, records the durable pending interaction, writes no
+response, and fires the pause controller (`relay.ts:255-263`, `sandbox_agent.ts:1272-1293`).
+The pause controller ends the turn `paused` and immediately destroys the Pi session
+(`sandbox_agent.ts:1135-1157`): its keep-alive exemption keeps a session alive only when
+`env.parkedApproval` was recorded, and the only code that records it is the Claude ACP
+permission hook (`sandbox_agent.ts:1321-1338`). So the in-sandbox poll never reaches its
+60-second deadline on an ask; it dies of teardown, moments after the ask is recorded. The
+deadline matters only as a backstop on calls where nothing pauses (a slow callback response).
 
-### Why it is not parkable
+### Why keep-alive does not park it today
 
-The runner holds no handle. By the time the turn ends, the Pi side is either still spinning on a
-file that will never appear or has already thrown. There is no promise in the runner's memory to
-answer later, the way there is for a Claude ACP request. The decision to pause is expressed by
-*the absence of a response file*, which is not a handle anyone can hold.
+The natural question: within the warm window, why not simply hold the request open until the
+response arrives, the same behavior the Claude ACP gate has, and go cold only when the session
+does? That is exactly the right end state, and nothing structural prevents it. The runner
+already holds everything a handle needs (the sandbox, the relay directory, the tool-call id,
+the recorded interaction), and the in-sandbox poll would keep waiting as long as the sandbox
+lives. The reason it does not work today is not the timeout; it is that three specific pieces
+of code are Claude-shaped:
+
+1. **The park decision destroys Pi first.** The pause path keeps a session alive only when the
+   Claude hook recorded `parkedApproval`; a Pi ask never records one, so the session (and the
+   poll inside it) is destroyed the moment the pause fires (`sandbox_agent.ts:1145-1157`).
+   Raising `RELAY_TIMEOUT_MS` to match the warm TTL changes nothing here: the poll does not
+   die of its deadline, it dies of this teardown.
+2. **The resume has no write-the-file action.** When the approval arrives, the dispatch's only
+   live-resume verb is `session.respondPermission` (`server.ts`), which answers a
+   harness-raised ACP request. No code path maps "human approved tool-call X" to "execute the
+   callback and write X's response file into the parked sandbox."
+3. **The poll deadline is shorter than the park window.** Once 1 and 2 exist, the in-sandbox
+   deadline must cover the approval TTL on keep-alive runs (and stay bounded, fail-closed,
+   everywhere else).
+
+These are deltas to the existing mechanism, not a redesign. Option B below is precisely these
+three deltas and nothing more.
 
 ### Options
 
-**Option A: raise or remove `RELAY_TIMEOUT_MS`.** Give the in-sandbox poll a much longer, or
-unbounded, deadline so it does not throw while a human deliberates.
+**Option A: raise or remove `RELAY_TIMEOUT_MS` and change nothing else.** Give the in-sandbox
+poll a deadline that matches the warm window, so it does not give up while a human deliberates.
 
-- Trade-off: this changes nothing about parkability. The poll is still process memory inside the
-  sandbox. Today the session is destroyed at turn end, so a longer poll dies with it just the
-  same. Worse, an unbounded poll with no other change would block Pi's `prompt()` forever if the
-  answer never comes, which is the run-hang failure the approval model already learned to avoid.
-  A bigger number moves no handle into the runner. Rejected.
+- Trade-off: the timeout is not what kills the wait; the destroy-on-pause is (piece 1 above).
+  A poll with a week-long deadline still dies moments after the ask, when the pause controller
+  destroys the session. And on any run that cannot park (keep-alive off, pool full), a long or
+  unbounded deadline would block Pi's `prompt()` with no one ever coming to answer, which is
+  the run-hang failure the approval model already learned to avoid. A bigger number, alone,
+  fixes nothing and adds a hang risk. Rejected as a standalone change; the deadline change is
+  real but it is piece 3 of Option B, valid only alongside pieces 1 and 2.
 
-**Option B: invert the relay so the runner owns the pending decision and the sandbox wait is
-held open across a park.** Two things change together. First, the runner stops treating "no
-response file" as a timeout to wait out. When `startToolRelay` sees an `ask` request, it records
-a **runner-held pending handle** keyed by the tool-call id (the relay's analog of
-`pendingPermissionRequests`) and does not write a response. Second, the in-sandbox poll becomes
-park-aware: instead of a fixed 60-second deadline, it waits without timing out **while
-keep-alive holds the Pi session alive**, and the runner writes the response file into that same
-still-living sandbox when the human answers. The blocked `execute` callback reads it and returns
-its real result, so Pi continues the original call with its original arguments. No new agent
-re-issues anything.
+**Option B: park the relay wait: keep the session alive, write the response file on approval.**
+This is the hold-until-answered behavior stated plainly, built as the three deltas from "why
+keep-alive does not park it today":
 
-- Trade-off: this is a relay change, not a one-line config change. The poll must gain a
-  park-aware, keep-alive-gated wait (unbounded only while the session is parkable, still bounded
-  and fail-closed otherwise, so a non-keep-alive run keeps today's safety). The runner must emit
-  a `paused` stop for the egress stream while the Pi `prompt()` is genuinely still in flight
-  inside the blocked `execute`; the Claude path ends a turn while holding an out-of-band request,
-  whereas here the turn ends while an in-band tool call is suspended. That ordering is the novel
-  part and the main risk. In return, the Pi relay gate becomes as parkable as the Claude gate,
-  on the transport that already exists.
+1. The pause path records a Pi park (the analog of `parkedApproval`: gate type, tool-call id,
+   the relay directory) instead of destroying the session, under the same keep-alive park-mode
+   conditions the Claude gate uses.
+2. The approval-resume dispatch, when the parked gate is a Pi relay gate, executes the approved
+   callback and **writes the response file into the still-living sandbox** (a deny writes a
+   deny), instead of calling `respondPermission`. The blocked `execute` callback reads it and
+   returns its real result, so Pi continues the original call with its original arguments. No
+   new agent re-issues anything.
+3. The in-sandbox deadline covers the park window on keep-alive runs (approval TTL plus
+   margin), and keeps today's bounded fail-closed behavior everywhere else.
 
-**Option C: give Pi a first-class permission plane, the way Claude has one.** Stop expressing Pi
-approvals through the relay files at all. Pi's ACP bridge would raise a real permission request
-that the runner holds as a promise, exactly like Claude's ACP gate, and Gate 2 answers it with
-no relay involved.
+To be precise about what "turn" means here, because it is where the mechanism is easy to
+misread: no new prompt is ever sent to Pi on this path. Pi's original `prompt()` stays in
+flight the whole time, suspended inside the blocked `execute`. The "new turn" is only the
+transport of the human's decision: the frontend delivers the approval as a new `/run` request,
+and that request's stream adopts the resumed events, exactly as the Claude resume already does.
+Pi itself sees one uninterrupted turn. Only when the park is gone (TTL expired, session died)
+does the decision arrive at a genuinely new agent turn, the cold path below.
 
-- Trade-off: this is the cleanest end state. It removes the whole "pause expressed as a missing
-  file" awkwardness and makes the two harnesses share one gate mechanism. But Pi's bridge reports
-  `permissions: false` today (`how-approvals-work.md`, Pi's row); it has no answerable permission
-  plane, and adding one is upstream work in Pi, not something the runner can build alone. It is
-  the right north star and the wrong thing to depend on now.
+- Trade-off: the changes live in three places (pause path, resume dispatch, poll deadline)
+  rather than one, and the egress must emit a `paused` stop while Pi's `prompt()` is genuinely
+  still in flight inside a blocked tool call; the Claude path ends a turn while holding an
+  out-of-band request, whereas here the turn ends while an in-band call is suspended. That
+  ordering is the novel part and the main risk. In return, everything stays in our code, on the
+  transport that already exists, with no new dependency.
+
+**Option C: route Pi approvals over the ACP permission plane the bridge already has.** Stop
+expressing Pi approvals through the relay files at all; raise them as real ACP permission
+requests the runner holds as promises, exactly like Claude's gate. The relay files stay for
+tool execution only.
+
+An earlier draft dismissed this as upstream work inside Pi. That was wrong on both counts, and
+the corrected picture makes C much closer than "north star":
+
+- **Pi already has the hooks.** Every Pi extension event handler receives a `ctx.ui` with
+  `confirm(title, message): Promise<boolean>` plus `select`/`input`/`notify`
+  (`pi-coding-agent/dist/core/extensions/types.d.ts:208-214, 804`), and dialog UI is available
+  in RPC mode, the mode the bridge runs Pi in. Our in-sandbox extension's `tool_call` hook and
+  a custom tool's `execute` can await a dialog the same way they await the file poll today.
+- **The bridge already translates that dialog into a real ACP permission request.** `pi-acp`
+  maps an extension `confirm` event to `session/request_permission` with yes/no options and
+  feeds the answer back to the blocked `ctx.ui.confirm`
+  (`pi-acp/dist/index.js:1106-1128`, `handleExtensionConfirm` -> `conn.requestPermission`).
+  The `permissions: false` note in how-approvals-work.md is about Pi's own tool executions
+  never consulting the client; the extension-UI dialog path does consult it, today.
+- **So the missing piece is neither Pi nor the protocol.** If our extension asked
+  `ctx.ui.confirm` at the gate instead of polling the relay, the runner would receive the same
+  parkable, answerable ACP request it gets from Claude, and slice 2's park machinery (hold the
+  request, park the session, `respondPermission` on resume) would apply with a new gate type
+  and almost no new mechanism.
+
+What is actually missing, verified against the bundled packages:
+
+- **Payload fidelity.** `pi-acp` synthesizes the ACP tool call from the dialog: id
+  `pi-ui-<n>`, `rawInput` limited to title/message/options (`index.js:565, 1130-1144`). The
+  real tool-call id and arguments do not ride the request natively, and the approval card and
+  decision map key on them. Either encode them in the confirm message and parse runner-side,
+  or make a small `pi-acp` change forwarding structured metadata.
+- **Ownership.** Pi (`@earendil-works/pi-coding-agent`) is Mario Zechner's; `pi-acp` is a
+  separate MIT adapter by Sergii Kozak (`svkozak/pi-acp`, v0.0.29 bundled). Neither is ours.
+  A small upstream PR is the clean route, and this repo already `pnpm patch`es
+  `sandbox-agent`, so a patch is the normal escape hatch, not a blocker.
+- **An unproven hop.** Nobody has driven `ctx.ui.confirm` through the sandbox-agent daemon to
+  the runner's permission listener. The Daytona trust prompt rides the same dialog channel, so
+  the path exists, but the gate use needs a spike.
+
+- Trade-off: C reuses the proven Claude park machinery unchanged (one gate mechanism for both
+  harnesses, no relay-timeout surgery, no write-file resume verb) and removes the "pause
+  expressed as a missing file" awkwardness. Against that, it puts a correctness-critical path
+  through a third-party bridge and needs the payload-fidelity gap closed by encoding or by an
+  upstream change. It shares Option B's novel ordering (the turn still ends while Pi's
+  `prompt()` hangs inside a blocked hook), so that risk is common to both.
 
 ### Recommended option
 
-**Option B, with Option C as the stated north star.** Option B reaches the same parkability the
-Claude gate has, using the relay files already in place, and it degrades cleanly: with keep-alive
-off, or on any run that cannot park, the poll keeps its bounded fail-closed deadline and the gate
-stays exactly as correct as today. It is the "relay restructure" this project is willing to do.
-Option C is where the design should end up if Pi's bridge ever grows a native permission plane;
-until then, B is what ships.
+**Spike Option C's wire hop first; ship C if the payload survives, otherwise B.** The two
+options reach the same parkability and share the same cold fall-back and the same novel
+ordering risk. They differ in where the pending handle lives: C reuses the exact ACP request
+the Claude park already holds (smallest delta from slice 2, one gate mechanism for both
+harnesses, but a third-party bridge in the path and a payload gap to close); B keeps everything
+in our own code on the existing relay files (no new dependency, but three code deltas and a new
+resume verb). The C spike is small: one Pi session under the bridge, a `tool_call` hook that
+awaits `ctx.ui.confirm`, and a check of what the runner's permission listener receives. If the
+tool name and arguments survive that hop (natively, by encoding, or by a small accepted
+upstream change), C is the better build; if not, B ships and C stays the end state. Either way
+the gate degrades cleanly: with keep-alive off, or on any run that cannot park, the bounded
+fail-closed behavior of today remains.
 
-Before/after, one Pi approval, against the invariant:
+Before/after, one Pi approval, against the invariant (the warm mechanics shown are Option B's;
+under C the file write is replaced by `respondPermission` resolving the held dialog):
 
-- Today (tier 3): Pi calls a gated tool. The runner records a durable interaction and writes no
-  response. The in-sandbox poll spins for 60 seconds and throws. The turn ends. The human clicks
-  Approve. A fresh Pi session cold-replays the transcript, and the model re-issues the call from
-  text as a NEW `tool_use`; the runner matches it against the stored decision by name plus
-  canonical arguments. If the regenerated arguments drift, the gate re-fires. The LLM call
+- Today (tier 3): Pi calls a gated tool. The runner records a durable interaction, writes no
+  response, ends the turn `paused`, and destroys the session (the poll dies with it). The human
+  clicks Approve. A fresh Pi session cold-replays the transcript, and the model re-issues the
+  call from text as a NEW `tool_use`; the runner matches it against the stored decision by name
+  plus canonical arguments. If the regenerated arguments drift, the gate re-fires. The LLM call
   sequence differs from the warm one.
 - With Option B (tier 1, inside the approval TTL): Pi calls a gated tool. The runner records a
   runner-held handle and emits `paused`; keep-alive parks the live Pi session, and the blocked
@@ -200,30 +279,46 @@ Before/after, one Pi approval, against the invariant:
 ### How it pauses today
 
 Pi's builtins (bash, read, write) are not relayed for execution; they run inside Pi. To gate
-them, a Pi `tool_call` hook (`agenta.ts:181-207`) runs before the builtin and blocks synchronously
-on `relayPermissionCheck` (`dispatch.ts:131-213`). That function writes a permission request into
+them, a Pi `tool_call` hook (`agenta.ts:181-207`) runs before the builtin and blocks on
+`relayPermissionCheck` (`dispatch.ts:131-213`). That function writes a permission request into
 the same relay directory and polls for a permission response, on the same `RELAY_TIMEOUT_MS`
 deadline (`dispatch.ts:176`). It is fail-closed by construction: the comment at `dispatch.ts:129`
 states it "must fail closed because returning nothing lets Pi execute the builtin." On timeout or
 any unparseable answer it returns a deny, so an unanswered gate blocks the builtin rather than
 letting it run.
 
-### Why it is not parkable
+On an ask, the runner side does not stay silent the way it does for Gate 1. The watcher answers
+the permission request immediately with `verdict: "pendingApproval"` (`relay.ts:433-446`) and
+fires the same pause; the hook has no third outcome to express that with, so it maps anything
+but an allow to a `blockReason`, a deny (`agenta.ts:199-200`). The pause then destroys the
+session the same way as Gate 1. So today an ask on a builtin is answered instantly, as a
+blocked call, and the turn ends `paused` with the session gone.
 
-Same reason as Gate 1, one level in. The wait is a synchronous block inside the Pi process, on
-the same in-sandbox file poll. The runner holds nothing. A synchronous in-process block cannot by
-itself survive a turn boundary.
+### Why keep-alive does not park it today
+
+Gate 1's three Claude-shaped pieces, one level in, plus a vocabulary gap of its own: the hook's
+reply protocol has only allow and deny, so even a parked session would have no way to tell the
+hook "suspend and wait." The wait itself is as holdable as Gate 1's: it is the same file poll,
+alive as long as the session is.
 
 ### Options and recommendation
 
-The mechanism is the relay, so the options are Gate 1's options. Recommended: **Option B**, the
-same inverted, park-aware relay, shared with the custom-tool gate. One extra constraint applies
-here. The hook's paused state must not be expressed as a `blockReason` (a deny), because
-fail-closed treats a deny as final. Parking has to be a genuine third outcome (suspend and wait),
-distinct from allow and deny, held open only while keep-alive holds the session. When keep-alive
-cannot park, the hook keeps today's fail-closed timeout, so a builtin never runs unapproved.
+The mechanism is the relay, so the options are Gate 1's options, and the same recommendation
+applies: spike C's hop; C if the payload survives, else B. One extra constraint applies here
+under B. The paused state must become a genuine third outcome (suspend and keep polling),
+distinct from allow and deny, held open only while keep-alive holds the session; the watcher
+must stop answering an ask instantly with `pendingApproval`, because fail-closed makes the hook
+treat that as final. When keep-alive cannot park, the hook keeps today's fail-closed timeout,
+so a builtin never runs unapproved. Under C the constraint disappears: the hook awaits
+`ctx.ui.confirm` and the answer is the answer.
 
-Because both Pi gates ride the same relay, they should be built as one change, not two.
+The same turn-versus-prompt reading from Gate 1 applies: on the warm path nothing new is ever
+prompted into Pi. The approval arrives as a new `/run` request, the runner writes the
+permission response (B) or resolves the held dialog (C), the blocked hook returns, and the
+builtin runs inside the original still-open `prompt()`. A genuinely new agent turn happens only
+on the cold path.
+
+Because both Pi gates ride the same mechanism, they should be built as one change, not two.
 
 One fact the experiments added: Pi flushes the assistant message carrying the pending tool call
 to disk on `message_end`, strictly before this hook runs. So at the moment a Pi gate parks, the
@@ -304,6 +399,35 @@ rather than promise a park the transport cannot hold.
 
 ---
 
+## The cold path: every gate, when the answer comes after the park is gone
+
+Every gate needs the pair: a warm path (the park above) and a cold path for when the park
+cannot help: keep-alive off, pool full, approval TTL expired, sandbox died, human answered
+overnight. The cold path is not something this design builds; it exists today for all four
+gates and stays the universal fall-back. What makes it work is that the park is only a cache.
+The durable record is written at pause time regardless: the `session_interactions` row, plus
+the approval card in the conversation whose decision the frontend folds into the next request
+(the decision map). A late answer always finds that record.
+
+| Gate | Durable at pause | Cold resume today | After session resume lands | What the user sees |
+|---|---|---|---|---|
+| Claude ACP permission | interaction row + the decision in the next request | cold replay; the model re-issues the call; the decision map matches it by name plus canonical arguments and answers the fresh gate | `session/load` continues with full structured history; the parked call is settled as errored, the model re-issues, the decision map answers it | click Approve, wait a cold rebuild (tens of seconds), then the tool runs |
+| Pi custom-tool relay | same | cold replay; Pi re-issues; the relay's `decide()` consults the decision map and executes on a match | same shape, without the flatten loss | same |
+| Pi builtin | same | cold replay; the hook's permission check hits the decision map and allows | same shape | same |
+| Client-tool MCP | interaction row + the browser-fulfilled output in the next request | cold replay; Claude re-issues the client tool; the relay answers it with the fulfilled output (`relay.ts:229-237`) | same shape | fulfill in the browser, then a cold rebuild folds the output in |
+
+Two facts bound this table. First, the experiments settled what the "after session resume"
+column can ever be: rubric B. The re-issued call carries full structured context but a new id
+and regenerated arguments; no load path answers the original call (report, Verdicts). So every
+cold resume, today and after session resume, carries the drift risk the decision map exists to
+absorb: a re-issued call whose arguments drift re-fires the gate instead of running
+unapproved. Fail-closed, never wrong, sometimes one extra click. Second, the warm path must
+never consume the durable record. The row and the decision map are written at pause time
+whether or not a park exists, so whoever answers first wins and a late answer still lands.
+That is already slice 2's behavior for the Claude gate, and the new gates inherit it.
+
+---
+
 ## How this composes with keep-alive, session resume, and the interactions plane
 
 These gates only become parkable inside keep-alive; a parked handle is worthless if the session
@@ -311,9 +435,10 @@ that owns it was torn down. So this work sits on top of keep-alive slices 1 and 
 into the tier model above, which extends the two-tier picture in architecture-notes.md with the
 middle tier the experiments defined.
 
-- **The parked handle is tier 1, the fast in-memory tier.** A runner-held relay handle (Pi) or a
-  held MCP socket (client tool) resumes the original call with no replay, valid for the approval
-  TTL. The only byte-exact tier.
+- **The parked handle is tier 1, the fast in-memory tier.** A parked Pi gate (a relay handle
+  under Option B, a held ACP permission request under Option C) or a held MCP socket (client
+  tool) resumes the original call with no replay, valid for the approval TTL. The only
+  byte-exact tier.
 - **Harness session resume is tier 2.** When the parked process is gone but the harness session
   file survives, `session/load` continues the conversation with full structured history; the
   parked call is settled and re-issued. This tier belongs to the harness-session-resume project,
@@ -357,39 +482,45 @@ This is an incremental follow-up **after** keep-alive slices 1 and 2 have run in
 not part of shipping keep-alive. And it is not a standalone build: the warm-session machinery is
 moving into the backend, and harness session resume (tier 2) is in progress, both owned by JP.
 Those two efforts reshape the same pause, park, and resume code this design would touch. So the
-Pi relay inversion and the client-tool hold-open land on top of, or inside, that work, on its
+Pi gate park and the client-tool hold-open land on top of, or inside, that work, on its
 schedule; building them against the current runner-local pool would produce a conflict, not a
 head start. Parkable gates and session resume are two tiers of one invariant, not two features,
 and they should be planned as one roadmap.
 
-- **v-next (the relay restructure).** Options B for both Pi gates, built as one change to the
-  relay: a runner-held pending handle, a park-aware keep-alive-gated wait replacing the fixed
-  60-second deadline, and the response-into-parked-sandbox resume. This is the larger and
-  higher-value piece, because Pi has no tier-1 path today at all, and because a relay
-  restructure is an accepted cost for this work. Coordinate with the backend warm-session move;
-  the pending-handle registry should live wherever the pool lands.
+- **v-next (the Pi gate park).** Both Pi gates as one change, with the mechanism decided by the
+  small Option C spike: either the extension-UI permission plane (C: the gate awaits
+  `ctx.ui.confirm`, the bridge raises a real ACP permission request, and slice 2's park
+  machinery holds it) or the parked relay wait (B: park instead of destroy, the write-the-file
+  resume verb, a park-length poll deadline). This is the larger and higher-value piece, because
+  Pi has no tier-1 path today at all. Coordinate with the backend warm-session move; the park
+  record should live wherever the pool lands.
 - **v-next (client tools), gated on a measurement.** Option A for the client-tool MCP pause: hold
   the socket open. Ship it only after measuring Claude's MCP client request timeout and confirming
   it covers at least the idle TTL. If it does not, hold for the idle TTL only and keep cold-replay
   for the approval TTL.
-- **later (the north star).** Option C for Pi: a first-class Pi permission plane that makes the
-  relay files unnecessary, once Pi's bridge can raise an answerable permission request. Out of our
-  hands until Pi changes; recorded so the relay restructure is understood as a bridge to it, not a
-  final shape.
+- **later (the cleanup).** If C ships on encoded payloads, upstream the structured-metadata
+  change to `pi-acp` (or carry it as a pnpm patch) so the encoding disappears. If B ships, C
+  stays the recorded end state, now known to be reachable through the existing bridge rather
+  than blocked on Pi.
 
 ---
 
 ## Risks and open questions
 
 - **Ending a turn while an in-band tool call is suspended (Pi).** The Claude gate ends a turn while
-  holding an out-of-band request. Option B ends a turn while Pi's `prompt()` is still inside a
-  blocked `execute`. The egress must emit `paused` and stop streaming without Pi emitting an error
-  or a spurious result. This is the least-proven part and deserves a spike (drive one Pi session,
-  block a tool, park it a minute, answer it, and confirm the original call resumes) before the full
-  build, mirroring the slice-2 spike. The experiments narrowed the blast radius of getting it
-  wrong: Pi's session file already holds the pending call mid-block, so a park that dies degrades
-  to a tier-2 continuation, not to a lost turn. They did not test the park itself; the spike
-  still must.
+  holding an out-of-band request. Options B and C alike end a turn while Pi's `prompt()` is still
+  inside a blocked hook or `execute`. The egress must emit `paused` and stop streaming without Pi
+  emitting an error or a spurious result. This is the least-proven part and deserves a spike
+  (drive one Pi session, block a tool, park it a minute, answer it, and confirm the original call
+  resumes) before the full build, mirroring the slice-2 spike. The experiments narrowed the blast
+  radius of getting it wrong: Pi's session file already holds the pending call mid-block, so a
+  park that dies degrades to a tier-2 continuation, not to a lost turn. They did not test the
+  park itself; the spike still must.
+- **The Option C hop and its payload.** Nobody has driven `ctx.ui.confirm` from an in-sandbox Pi
+  extension through the sandbox-agent daemon to the runner's permission listener, and `pi-acp`
+  forwards only the dialog fields, not the gated call's id and arguments. The C spike must show
+  the hop works end to end and that the payload survives (by encoding or a small upstream
+  change); until it does, Option B is the default build.
 - **Claude's MCP client timeout (client tools).** Whether Option A survives the idle TTL and the
   approval TTL depends entirely on a timeout the runner does not own. It is still unmeasured; the
   2026-07-09 experiments covered kill-and-resume behavior, not this. Measure it before committing
