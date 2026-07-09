@@ -8,7 +8,11 @@ import assert from "node:assert/strict";
 
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
-import type { GateDescriptor, PermissionPlan } from "../../src/permission-plan.ts";
+import type {
+  GateDescriptor,
+  PermissionPlan,
+} from "../../src/permission-plan.ts";
+import { decide } from "../../src/permission-plan.ts";
 import {
   ApprovalResponder,
   ConversationDecisions,
@@ -82,7 +86,10 @@ describe("approvedCallKey", () => {
 
   it("normalizes absent args to {} so a no-arg tool resumes", () => {
     assert.ok(approvedCallKey("edit", {}));
-    assert.equal(approvedCallKey("edit", undefined), approvedCallKey("edit", {}));
+    assert.equal(
+      approvedCallKey("edit", undefined),
+      approvedCallKey("edit", {}),
+    );
     assert.equal(approvedCallKey("edit", null), approvedCallKey("edit", {}));
     assert.notEqual(
       approvedCallKey("edit", { path: "a" }),
@@ -212,10 +219,17 @@ describe("ApprovalResponder", () => {
   it("allows and denies from the effective permission before stored decisions", async () => {
     const key = approvedCallKey("edit", { path: "a.txt" })!;
     const stored = new Map<string, unknown>([[key, "allow"]]);
-    const deny = new ApprovalResponder(plan("deny"), new ConversationDecisions(stored));
+    const deny = new ApprovalResponder(
+      plan("deny"),
+      new ConversationDecisions(stored),
+    );
 
     assert.deepEqual(await permissionVerdict(deny, gate()), { kind: "deny" });
-    assert.equal(stored.has(key), true, "effective deny does not consume stale allow");
+    assert.equal(
+      stored.has(key),
+      true,
+      "effective deny does not consume stale allow",
+    );
 
     const allow = new ApprovalResponder(
       plan("allow"),
@@ -231,7 +245,9 @@ describe("ApprovalResponder", () => {
       new ConversationDecisions(new Map([[key, "allow"]])),
     );
 
-    assert.deepEqual(await permissionVerdict(responder, gate()), { kind: "allow" });
+    assert.deepEqual(await permissionVerdict(responder, gate()), {
+      kind: "allow",
+    });
     assert.deepEqual(await permissionVerdict(responder, gate()), {
       kind: "pendingApproval",
     });
@@ -244,12 +260,17 @@ describe("ApprovalResponder", () => {
       new ConversationDecisions(new Map([[key, "deny"]])),
     );
 
-    assert.deepEqual(await permissionVerdict(responder, gate()), { kind: "deny" });
+    assert.deepEqual(await permissionVerdict(responder, gate()), {
+      kind: "deny",
+    });
     assert.deepEqual(await permissionVerdict(responder, gate()), {
       kind: "pendingApproval",
     });
 
-    const noStored = new ApprovalResponder(plan("ask"), new ConversationDecisions(new Map()));
+    const noStored = new ApprovalResponder(
+      plan("ask"),
+      new ConversationDecisions(new Map()),
+    );
     assert.deepEqual(await permissionVerdict(noStored, gate()), {
       kind: "pendingApproval",
     });
@@ -276,7 +297,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client tools peek at stored output by default", async () => {
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
@@ -300,7 +323,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client tools consume stored output when the relay fulfills", async () => {
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
@@ -323,7 +348,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client tools support peek then consume for the Claude two-read flow", async () => {
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
@@ -348,7 +375,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client explicit ask consumes stored deny; stored allow still forwards to the browser", async () => {
-    const denyKey = approvedCallKey("request_connection", { integration: "slack" })!;
+    const denyKey = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const denyResponder = new ApprovalResponder(
       plan("allow"),
       new ConversationDecisions(new Map([[denyKey, "deny"]])),
@@ -359,17 +388,23 @@ describe("ApprovalResponder", () => {
       specPermission: "ask",
       args: { integration: "slack" },
     });
-    assert.deepEqual(await denyResponder.onClientTool({ id: "tool-1", gate: client }), {
-      kind: "deny",
-    });
+    assert.deepEqual(
+      await denyResponder.onClientTool({ id: "tool-1", gate: client }),
+      {
+        kind: "deny",
+      },
+    );
 
     const allowResponder = new ApprovalResponder(
       plan("allow"),
       new ConversationDecisions(new Map([[denyKey, "allow"]])),
     );
-    assert.deepEqual(await allowResponder.onClientTool({ id: "tool-1", gate: client }), {
-      kind: "pendingApproval",
-    });
+    assert.deepEqual(
+      await allowResponder.onClientTool({ id: "tool-1", gate: client }),
+      {
+        kind: "pendingApproval",
+      },
+    );
   });
 });
 
@@ -412,8 +447,13 @@ describe("extractApprovalDecisions", () => {
     };
 
     const decisions = extractApprovalDecisions(request);
-    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a.txt" })!), ["allow"]);
-    assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), ["deny"]);
+    assert.deepEqual(
+      decisions.get(approvedCallKey("edit", { path: "a.txt" })!),
+      ["allow"],
+    );
+    assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), [
+      "deny",
+    ]);
     assert.equal(decisions.has("edit"), false);
     assert.equal(decisions.has("tc-1"), false);
   });
@@ -535,7 +575,9 @@ describe("extractApprovalDecisions", () => {
       ],
     };
 
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     // A raw browser output is NOT an approval decision; it lives only in the client store.
     assert.equal(extractApprovalDecisions(request).has(key), false);
     assert.deepEqual(extractClientToolOutputs(request).get(key), [
@@ -549,7 +591,11 @@ describe("extractApprovalDecisions", () => {
         {
           role: "tool",
           content: [
-            { type: "tool_result", toolCallId: "tc-9", output: "the weather is 24C" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-9",
+              output: "the weather is 24C",
+            },
             { type: "tool_result", toolCallId: "tc-10", output: { temp: 24 } },
             { type: "text", text: "hello" },
           ],
@@ -569,7 +615,9 @@ describe("extractApprovalDecisions", () => {
 });
 
 describe("client-tool output store (separate from approvals)", () => {
-  const clientGate = (input: unknown = { integration: "slack" }): GateDescriptor => ({
+  const clientGate = (
+    input: unknown = { integration: "slack" },
+  ): GateDescriptor => ({
     executor: "client",
     toolName: "request_connection",
     args: input,
@@ -610,7 +658,9 @@ describe("client-tool output store (separate from approvals)", () => {
       ],
     };
     const outputs = extractClientToolOutputs(request);
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     assert.deepEqual(outputs.get(key), [
       { connected: true, account: "first" },
       { connected: true, account: "second" },
@@ -619,7 +669,9 @@ describe("client-tool output store (separate from approvals)", () => {
     assert.equal(outputs.has(approvedCallKey("edit", { path: "a" })!), false);
     // ...and lives only in the approval store.
     const decisions = extractApprovalDecisions(request);
-    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), ["allow"]);
+    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), [
+      "allow",
+    ]);
   });
 
   it("resolves two identical client calls from the FIFO store, in order", async () => {
@@ -656,18 +708,27 @@ describe("client-tool output store (separate from approvals)", () => {
     );
     const request1 = { id: "i-1", toolCallId: "live-1", gate: clientGate() };
     // First call consumes the first output; the second identical call consumes the second.
-    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
-      kind: "fulfilled",
-      output: { account: "first" },
-    });
-    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
-      kind: "fulfilled",
-      output: { account: "second" },
-    });
+    assert.deepEqual(
+      await responder.onClientTool(request1, { consume: true }),
+      {
+        kind: "fulfilled",
+        output: { account: "first" },
+      },
+    );
+    assert.deepEqual(
+      await responder.onClientTool(request1, { consume: true }),
+      {
+        kind: "fulfilled",
+        output: { account: "second" },
+      },
+    );
     // A third identical call has no stored output left -> forward to the browser (pause).
-    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
-      kind: "pendingApproval",
-    });
+    assert.deepEqual(
+      await responder.onClientTool(request1, { consume: true }),
+      {
+        kind: "pendingApproval",
+      },
+    );
   });
 
   it("does NOT fulfill a new identical call from a PRIOR turn's output (cross-turn)", async () => {
@@ -771,7 +832,7 @@ describe("client-tool output store (separate from approvals)", () => {
     );
   });
 
-  it("returns a client output literally \"allow\" as output, never as a permission decision", async () => {
+  it('returns a client output literally "allow" as output, never as a permission decision', async () => {
     const request: AgentRunRequest = {
       sessionId: "s-client",
       messages: [
@@ -846,5 +907,224 @@ describe("emitEvent", () => {
     const ev = run.events().find((e) => e.type === "data");
     assert.ok(ev);
     assert.equal((ev as any).name, "weather");
+  });
+});
+
+describe("ConversationDecisions.appendDecision (Pi double-gate bridge)", () => {
+  const relayGate: GateDescriptor = {
+    executor: "relay",
+    toolName: "park_probe",
+    args: { token: "T" },
+  };
+
+  it("re-appended decision is consumed by the next take on the same call", () => {
+    const decisions = new ConversationDecisions(new Map());
+    decisions.appendDecision(relayGate, "allow");
+    assert.equal(decisions.take(relayGate), "allow");
+    assert.equal(decisions.take(relayGate), undefined, "consumed once");
+  });
+
+  it("front-inserts so the relay's take gets THIS call's decision, not a later one", () => {
+    // Two identical-arg calls with DIFFERENT decisions (allow then deny), FIFO order.
+    const key = approvedCallKey("park_probe", { token: "T" })!;
+    const decisions = new ConversationDecisions(
+      new Map([[key, ["allow", "deny"]]]),
+    );
+    // Call A: the dialog takes "allow" then re-appends it for the relay.
+    assert.equal(decisions.take(relayGate), "allow");
+    decisions.appendDecision(relayGate, "allow");
+    // The relay's immediate next take must see A's "allow", not B's "deny".
+    assert.equal(decisions.take(relayGate), "allow");
+    // Call B: the dialog takes "deny", re-appends, the relay takes "deny".
+    assert.equal(decisions.take(relayGate), "deny");
+    decisions.appendDecision(relayGate, "deny");
+    assert.equal(decisions.take(relayGate), "deny");
+  });
+});
+
+describe("ApprovalResponder: Pi custom-tool double-gate accounting", () => {
+  const askPlan: PermissionPlan = { default: "ask", rules: [] };
+  const bridge = { bridgeRelayDoubleGate: true };
+  const relayGate: GateDescriptor = {
+    executor: "relay",
+    toolName: "park_probe",
+    args: { token: "T" },
+  };
+
+  it("a stored-answered relay gate re-appends so the relay's decide still allows", async () => {
+    const key = approvedCallKey("park_probe", { token: "T" })!;
+    const decisions = new ConversationDecisions(new Map([[key, ["allow"]]]));
+    const responder = new ApprovalResponder(
+      askPlan,
+      decisions,
+      undefined,
+      bridge,
+    );
+
+    const verdict = await responder.onPermission({
+      id: "p",
+      availableReplies: ["once", "reject"],
+      gate: relayGate,
+    });
+    assert.equal(
+      verdict.kind,
+      "allow",
+      "the dialog gate allowed from the stored decision",
+    );
+    // The relay's SECOND check on the same call still finds an allow (consume-1-append-1).
+    assert.equal(decide(relayGate, askPlan, decisions).kind, "allow");
+  });
+
+  it("does NOT append with the bridge OFF (default), even for a relay ask allow", async () => {
+    // The Claude shape: a relay-executor gate but no relay enforcement (`enforce: plan.isPi`),
+    // so nothing consumes an appended decision; it would leak the allow to a LATER identical
+    // call — a flag-off behavior change. The default responder never appends.
+    const key = approvedCallKey("park_probe", { token: "T" })!;
+    const decisions = new ConversationDecisions(new Map([[key, ["allow"]]]));
+    const responder = new ApprovalResponder(askPlan, decisions);
+
+    const verdict = await responder.onPermission({
+      id: "p",
+      availableReplies: ["once", "reject"],
+      gate: relayGate,
+    });
+    assert.equal(verdict.kind, "allow");
+    // Consumed once, nothing re-appended: a later identical gate re-prompts.
+    assert.equal(decide(relayGate, askPlan, decisions).kind, "pendingApproval");
+  });
+
+  it("does NOT re-append a DENY (the extension short-circuits; no relay consumer)", async () => {
+    // On a deny the custom tool's execute() returns the deny text WITHOUT relaying, so nothing
+    // consumes an appended deny; it would linger and auto-deny a later identical call that
+    // should re-prompt instead.
+    const key = approvedCallKey("park_probe", { token: "T" })!;
+    const decisions = new ConversationDecisions(new Map([[key, ["deny"]]]));
+    const responder = new ApprovalResponder(
+      askPlan,
+      decisions,
+      undefined,
+      bridge,
+    );
+
+    const verdict = await responder.onPermission({
+      id: "p",
+      availableReplies: ["once", "reject"],
+      gate: relayGate,
+    });
+    assert.equal(verdict.kind, "deny");
+    assert.equal(
+      decide(relayGate, askPlan, decisions).kind,
+      "pendingApproval",
+      "the deny was consumed once and NOT re-appended; a later identical call re-prompts",
+    );
+  });
+
+  it("does NOT append for a builtin (harness executor) — no relay second gate", async () => {
+    const key = approvedCallKey("Bash", { command: "ls" })!;
+    const decisions = new ConversationDecisions(new Map([[key, ["allow"]]]));
+    const responder = new ApprovalResponder(
+      askPlan,
+      decisions,
+      undefined,
+      bridge,
+    );
+    const harnessGate: GateDescriptor = {
+      executor: "harness",
+      toolName: "Bash",
+      args: { command: "ls" },
+    };
+
+    const verdict = await responder.onPermission({
+      id: "p",
+      availableReplies: ["once", "reject"],
+      gate: harnessGate,
+    });
+    assert.equal(verdict.kind, "allow");
+    // Consumed once; nothing re-appended, so a second take finds nothing.
+    assert.equal(
+      decide(harnessGate, askPlan, decisions).kind,
+      "pendingApproval",
+    );
+  });
+
+  it("does NOT append when the policy (allow) decided without consulting stored", async () => {
+    const allowPlan: PermissionPlan = { default: "allow", rules: [] };
+    const decisions = new ConversationDecisions(new Map());
+    const responder = new ApprovalResponder(
+      allowPlan,
+      decisions,
+      undefined,
+      bridge,
+    );
+    const verdict = await responder.onPermission({
+      id: "p",
+      availableReplies: ["once", "reject"],
+      gate: relayGate,
+    });
+    assert.equal(verdict.kind, "allow");
+    // A policy allow never consumed a stored decision, so none is re-appended (the relay's own
+    // policy-allow decide also passes without needing one).
+    assert.equal(decide(relayGate, allowPlan, decisions).kind, "allow");
+  });
+
+  it("does NOT append when the gate pauses (no stored decision consumed)", async () => {
+    const decisions = new ConversationDecisions(new Map());
+    const responder = new ApprovalResponder(
+      askPlan,
+      decisions,
+      undefined,
+      bridge,
+    );
+    const verdict = await responder.onPermission({
+      id: "p",
+      availableReplies: ["once", "reject"],
+      gate: relayGate,
+    });
+    assert.equal(verdict.kind, "pendingApproval");
+    assert.equal(decide(relayGate, askPlan, decisions).kind, "pendingApproval");
+  });
+
+  it("warm resume: the folded {approved} envelope seeds the relay's execution check", () => {
+    // On a warm approval resume the FE folds the gated tool_call + the {approved} decision into the
+    // request. The resume turn builds ConversationDecisions from it; the relay's decide (the second
+    // gate after the dialog resolves via respondPermission) must find an allow for the SAME key.
+    const resumeRequest: AgentRunRequest = {
+      harness: "pi",
+      messages: [
+        { role: "user", content: "do it" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "call_REAL",
+              toolName: "park_probe",
+              input: { token: "T" },
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "call_REAL",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+    const decisions = new ConversationDecisions(
+      extractApprovalDecisions(resumeRequest),
+    );
+    // The relay gate the in-sandbox execution raises: same name + exact params (key parity).
+    const relayGate: GateDescriptor = {
+      executor: "relay",
+      toolName: "park_probe",
+      specPermission: "ask",
+      args: { token: "T" },
+    };
+    assert.equal(decide(relayGate, askPlan, decisions).kind, "allow");
   });
 });

@@ -6,9 +6,25 @@ import {
   type Responder,
 } from "../../responder.ts";
 import {
+  piBuiltinIdentity,
   PendingApprovalLatch,
   type GateDescriptor,
 } from "../../permission-plan.ts";
+import {
+  parsePiGateEnvelope,
+  type PiGateEnvelope,
+} from "./pi-gate-envelope.ts";
+
+/** The parkable gate types a paused turn can record (widened for the Pi dialog gate). */
+export type ParkedApprovalGateType =
+  "claude-acp-permission" | "pi-dialog-permission";
+
+/** The permission metadata the runner recovers per tool for a Pi dialog gate (identity-only
+ *  envelope carries no policy). Keyed by resolved tool name. */
+export interface PiToolSpecMeta {
+  permission?: ToolPermission;
+  readOnly?: boolean;
+}
 
 export interface AttachPermissionResponderInput {
   session: any;
@@ -34,11 +50,11 @@ export interface AttachPermissionResponderInput {
   /** Called after a stored decision was successfully forwarded to the harness. */
   onResolveInteraction?: (token: string) => void;
   /**
-   * Fires for EVERY Claude ACP permission gate (harness executor) that resolves to
-   * pendingApproval, BEFORE the single-pause latch. Slice 2 keep-alive uses it to record the
-   * parked permission id / tool-call id (for a live resume via `respondPermission`) and to count
-   * how many gates are pending this turn (a multi-gate pause does not park). It never fires for a
-   * client-tool gate (`pauseClientTool`), so only Claude ACP permission gates can park.
+   * Fires for EVERY parkable permission gate (a Claude ACP gate or a Pi dialog gate) that
+   * resolves to pendingApproval, BEFORE the single-pause latch. Keep-alive uses it to record
+   * the parked permission id / tool-call id (for a live resume via `respondPermission`) and to
+   * count how many gates are pending this turn (a multi-gate pause does not park). It never
+   * fires for a client-tool gate (`pauseClientTool`), which stays on the cold path.
    */
   onUserApprovalGate?: (info: {
     permissionId: string;
@@ -46,7 +62,22 @@ export interface AttachPermissionResponderInput {
     toolName: string | undefined;
     args: unknown;
     interactionToken: string;
+    /** Which gate paused, so the park record can resume it on the right plane. */
+    gateType: ParkedApprovalGateType;
   }) => void;
+  /**
+   * Detect Pi gate envelopes on incoming permission requests. ON only for a Pi run with the
+   * dialog gate active. It must stay OFF everywhere else: the pre-filter is the dialog TITLE,
+   * and a Claude gate whose ACP title happens to be the literal dialog title (editing a file
+   * named after it, a bash command equal to it) has no envelope and would be auto-rejected
+   * where today's path pauses or resolves it normally.
+   */
+  dialogGateEnabled?: boolean;
+  /**
+   * Resolved tool specs by name, for a Pi dialog gate. The envelope carries identity only, so
+   * the runner recovers `specPermission`/`readOnlyHint` here (relay parity). Absent for Claude.
+   */
+  piToolSpecsByName?: ReadonlyMap<string, PiToolSpecMeta>;
 }
 
 /** Wire ACP permission reverse-RPC into the runner's event stream and responder policy. */
@@ -62,6 +93,8 @@ export function attachPermissionResponder({
   onCreateInteraction,
   onResolveInteraction,
   onUserApprovalGate,
+  dialogGateEnabled,
+  piToolSpecsByName,
 }: AttachPermissionResponderInput): void {
   session.onPermissionRequest((req: any) => {
     void handleRequest(req).catch((err) => {
@@ -73,7 +106,9 @@ export function attachPermissionResponder({
   // The emitted payload carries a COPY of the ACP toolCall stamped with `resolvedName` (the
   // gate's stable anchor). The Vercel egress prefers it over the drift-prone title/kind
   // display fields, so the approval part names the tool exactly as the responder keys it.
-  // The inbound ACP object itself is never mutated.
+  // This stamping never mutates the inbound ACP object. (The one deliberate inbound mutation
+  // is the Pi dialog gate's id/args normalization in `handlePiGate`, which must happen in
+  // place so every downstream read sees the envelope's real identity.)
   const stampResolvedName = (toolCall: any, gate: GateDescriptor): any => {
     if (!toolCall || typeof toolCall !== "object" || !gate.toolName)
       return toolCall;
@@ -89,6 +124,7 @@ export function attachPermissionResponder({
     req: any,
     id: string,
     gate: GateDescriptor,
+    gateType: ParkedApprovalGateType,
   ): void => {
     // Signal the parkable gate BEFORE the latch so a keep-alive resume can record the pending
     // permission id and the multi-gate detector counts every pending gate (not just the first).
@@ -99,6 +135,7 @@ export function attachPermissionResponder({
       toolName: gate.toolName,
       args: gate.args,
       interactionToken: interactionEventId(id, gateToolCallId),
+      gateType,
     });
     if (!latch.tryAcquire()) return;
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
@@ -183,9 +220,112 @@ export function attachPermissionResponder({
     }
   };
 
+  // A bare reject that answers the harness WITHOUT touching the durable interactions plane (no
+  // row was created for a request the runner refuses before classifying it). Used for a
+  // malformed Pi gate envelope and an unknown builtin name: fail closed so an unapproved tool
+  // never runs. A request with no answerable id pauses instead (matching the base path), so the
+  // in-sandbox confirm dies with the teardown rather than hanging until the turn timeout.
+  const rejectRequest = async (
+    id: string,
+    availableReplies: string[],
+  ): Promise<void> => {
+    if (!id) {
+      onPause?.();
+      return;
+    }
+    try {
+      await session.respondPermission(
+        id,
+        decisionToReply("deny", availableReplies) as any,
+      );
+    } catch (err) {
+      log?.(`[HITL] reject failed id=${id}: ${errorMessage(err)}`);
+      onPause?.();
+    }
+  };
+
+  /**
+   * A Pi gate that rode `ctx.ui.confirm`: classify from the envelope identity, not from the
+   * spec-less dialog strings. The tool-call id is normalized to the envelope's REAL id BEFORE
+   * anything reads `req.toolCall` (the descriptor, pause bookkeeping, the emitted card, and the
+   * park record all key on it); the emitted card's `rawInput` is set to the real args so it
+   * renders like a relay-gate card rather than showing the envelope JSON.
+   */
+  const handlePiGate = async (
+    req: any,
+    id: string,
+    availableReplies: string[],
+    envelope: PiGateEnvelope,
+  ): Promise<void> => {
+    const toolCall = req?.toolCall;
+    if (toolCall && typeof toolCall === "object") {
+      toolCall.toolCallId = envelope.toolCallId;
+      toolCall.rawInput = envelope.input;
+    }
+    const gate = buildPiGateDescriptor(envelope, piToolSpecsByName);
+    // An unrecognized builtin name fails closed (relay parity: the relay denies unknown
+    // builtins outright). The envelope is sandbox-origin and untrusted; letting the raw name
+    // through would also put a fabricated tool name on the human's approval card.
+    if (!gate) {
+      log?.(
+        `[HITL] pi-gate unknown builtin ${JSON.stringify(envelope.toolName)} id=${id}; reject (fail closed)`,
+      );
+      await rejectRequest(id, availableReplies);
+      return;
+    }
+    if (log) {
+      log(
+        `[HITL] pi-gate id=${id} ` +
+          JSON.stringify({
+            gate: envelope.gate,
+            toolCallId: envelope.toolCallId,
+            toolName: gate.toolName,
+            executor: gate.executor,
+            specPermission: gate.specPermission,
+            readOnlyHint: gate.readOnlyHint,
+          }),
+      );
+    }
+    const verdict = await responder.onPermission({
+      id,
+      availableReplies,
+      gate,
+      raw: req,
+    });
+    if (verdict.kind === "pendingApproval" || !id) {
+      pauseUserApproval(req, id, gate, "pi-dialog-permission");
+      return;
+    }
+    await replyPermission(id, verdict.kind, availableReplies);
+  };
+
   async function handleRequest(req: any): Promise<void> {
     const id = stringValue(req?.id) ?? "";
     const availableReplies = stringArray(req?.availableReplies);
+
+    // A Pi gate rides `ctx.ui.confirm` under the fixed dialog title. Detect it FIRST, before the
+    // spec-less classification below: without this the gate would key as `agenta-approval` with
+    // dialog-string args (wrong identity on cards, the decision map, and policy). Detection runs
+    // ONLY when the dialog gate is live for this run (`dialogGateEnabled`): the pre-filter is the
+    // TITLE, so with the flag off a Claude gate whose title collides with the dialog title must
+    // take today's path, not the fail-closed reject. With detection on, a matching title whose
+    // envelope does not parse fails closed (reject), never falls through — under a default-allow
+    // plan a fallthrough would confirm an unapproved execution.
+    if (dialogGateEnabled) {
+      const piGate = parsePiGateEnvelope(req);
+      if (piGate.matched) {
+        if (!piGate.envelope) {
+          log?.(
+            `[HITL] pi-gate malformed envelope id=${id}; reject (fail closed)`,
+          );
+          await rejectRequest(id, availableReplies);
+          return;
+        }
+        await handlePiGate(req, id, availableReplies, piGate.envelope);
+        return;
+      }
+    }
+
     const toolCall = req?.toolCall;
     const spec = resolvedSpecOf(toolCall);
     const gate = buildGateDescriptor(toolCall, run, serverPermissions);
@@ -233,11 +373,49 @@ export function attachPermissionResponder({
       raw: req,
     });
     if (verdict.kind === "pendingApproval" || !id) {
-      pauseUserApproval(req, id, gate);
+      pauseUserApproval(req, id, gate, "claude-acp-permission");
       return;
     }
     await replyPermission(id, verdict.kind, availableReplies);
   }
+}
+
+/**
+ * Build the `GateDescriptor` for a Pi dialog gate from the envelope identity plus the runner's
+ * own resolved specs (the envelope carries identity, never policy).
+ *
+ * `pi-builtin` maps to `executor: "harness"` with the builtin's canonical rule name and
+ * read-only hint (matching `handlePermissionRelayRequest` in relay.ts); an UNKNOWN builtin
+ * name returns undefined so the caller rejects it (the relay denies unknown builtins outright,
+ * and the sandbox-origin envelope must not put a fabricated name on the approval card).
+ * `pi-custom-tool` maps to `executor: "relay"` with the spec's author permission and read-only
+ * hint recovered by name (matching the relay gate in relay.ts), so an author-allow tool stays
+ * instant-allow, an author-deny tool stays instant-deny, and a read-only builtin auto-allows —
+ * relay parity.
+ */
+export function buildPiGateDescriptor(
+  envelope: PiGateEnvelope,
+  piToolSpecsByName: ReadonlyMap<string, PiToolSpecMeta> | undefined,
+): GateDescriptor | undefined {
+  if (envelope.gate === "pi-builtin") {
+    const identity = piBuiltinIdentity(envelope.toolName);
+    if (!identity) return undefined;
+    return {
+      executor: "harness",
+      toolName: identity.ruleName,
+      readOnlyHint: identity.readOnly,
+      args: envelope.input,
+    };
+  }
+  const spec = piToolSpecsByName?.get(envelope.toolName);
+  return {
+    executor: "relay",
+    toolName: envelope.toolName,
+    specPermission: toolPermission(spec?.permission),
+    readOnlyHint:
+      typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
+    args: envelope.input,
+  };
 }
 
 /**

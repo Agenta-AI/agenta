@@ -8,9 +8,21 @@ import assert from "node:assert/strict";
 
 import type { AgentEvent } from "../../src/protocol.ts";
 import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
-import type { Verdict } from "../../src/permission-plan.ts";
+import {
+  ApprovalResponder,
+  ConversationDecisions,
+} from "../../src/responder.ts";
+import type { PermissionPlan, Verdict } from "../../src/permission-plan.ts";
 import { PendingApprovalLatch } from "../../src/permission-plan.ts";
-import { attachPermissionResponder } from "../../src/engines/sandbox_agent/acp-interactions.ts";
+import {
+  attachPermissionResponder,
+  type PiToolSpecMeta,
+} from "../../src/engines/sandbox_agent/acp-interactions.ts";
+import {
+  buildPiGateEnvelope,
+  PI_GATE_DIALOG_TITLE,
+  type PiGateKind,
+} from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 
 function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -449,5 +461,351 @@ describe("attachPermissionResponder", () => {
     await flushPromises();
 
     assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+});
+
+// -------------------------------------------------------------------------- //
+// Pi approval parking: a gate rides ctx.ui.confirm and arrives as an ACP      //
+// permission request carrying the JSON envelope through rawInput.message.     //
+// -------------------------------------------------------------------------- //
+
+/** An ACP permission request the pi-acp bridge synthesizes from a `ctx.ui.confirm` dialog: a
+ *  synthetic `pi-ui-<uuid>` tool-call id and the real gate identity tunneled through the message. */
+function piGateRequest(opts: {
+  gate: PiGateKind;
+  toolName: string;
+  toolCallId: string;
+  input: unknown;
+  message?: string;
+  title?: string;
+}) {
+  const message =
+    opts.message ??
+    buildPiGateEnvelope({
+      gate: opts.gate,
+      toolName: opts.toolName,
+      toolCallId: opts.toolCallId,
+      input: opts.input,
+    });
+  return {
+    id: "perm-pi",
+    availableReplies: ["once", "reject"],
+    toolCall: {
+      toolCallId: "pi-ui-synthetic-uuid",
+      kind: "other",
+      status: "pending",
+      title: opts.title ?? PI_GATE_DIALOG_TITLE,
+      rawInput: { method: "confirm", title: PI_GATE_DIALOG_TITLE, message },
+    },
+  };
+}
+
+function permissionPlan(
+  defaultMode: PermissionPlan["default"],
+): PermissionPlan {
+  return { default: defaultMode, rules: [] };
+}
+
+describe("attachPermissionResponder: Pi dialog gate", () => {
+  it("normalizes the synthetic id to the envelope's REAL id everywhere it is read", async () => {
+    const { session, emit } = makeSession();
+    const events: AgentEvent[] = [];
+    const pausedToolCalls: string[] = [];
+    const gates: any[] = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: (event) => events.push(event) },
+      responder: fakeResponder({ kind: "pendingApproval" }),
+      latch: new PendingApprovalLatch(),
+      dialogGateEnabled: true,
+      onPausedToolCall: (id) => pausedToolCalls.push(id),
+      onUserApprovalGate: (info) => gates.push(info),
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "park_probe",
+        toolCallId: "call_REAL_123",
+        input: { token: "T" },
+      }),
+    );
+    await flushPromises();
+
+    // pause bookkeeping, the park record, and the emitted card ALL key on the real id.
+    assert.deepEqual(pausedToolCalls, ["call_REAL_123"]);
+    assert.equal(gates[0].toolCallId, "call_REAL_123");
+    assert.equal(gates[0].gateType, "pi-dialog-permission");
+    const payload = (events[0] as any).payload;
+    assert.equal(payload.toolCallId, "call_REAL_123");
+    assert.equal(payload.toolCall.toolCallId, "call_REAL_123");
+    // the card shows the REAL args (resolvedName + rawInput), not the envelope JSON.
+    assert.equal(payload.toolCall.resolvedName, "park_probe");
+    assert.deepEqual(payload.toolCall.rawInput, { token: "T" });
+  });
+
+  it("a malformed envelope under the matching title rejects (fail closed), no pause", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    const created: unknown[] = [];
+    let pauses = 0;
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: (event) => events.push(event) },
+      // A default-allow responder: if the malformed request fell through it would ALLOW.
+      responder: fakeResponder({ kind: "allow" }),
+      latch: new PendingApprovalLatch(),
+      dialogGateEnabled: true,
+      onPause: () => {
+        pauses += 1;
+      },
+      onCreateInteraction: (token) => created.push(token),
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "x",
+        toolCallId: "c",
+        input: {},
+        message: "{ not valid json",
+      }),
+    );
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-pi", reply: "reject" }]);
+    assert.equal(pauses, 0, "a malformed gate never pauses");
+    assert.deepEqual(events, [], "no interaction_request emitted");
+    assert.deepEqual(
+      created,
+      [],
+      "no durable interaction created for a rejected request",
+    );
+  });
+
+  it("a non-matching dialog title is untouched (takes today's spec-less path)", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      latch: new PendingApprovalLatch(),
+      dialogGateEnabled: true,
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "park_probe",
+        toolCallId: "call_x",
+        input: {},
+        title: "not-agenta-approval",
+      }),
+    );
+    await flushPromises();
+
+    // Classified by the title (today's path), NOT by the envelope.
+    assert.equal(seen.permission?.[0].gate.toolName, "not-agenta-approval");
+  });
+
+  it("recovers permission metadata so author-allow is instant-allow and author-deny instant-deny", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const piToolSpecsByName = new Map<string, PiToolSpecMeta>([
+      ["author_allow", { permission: "allow" }],
+      ["author_deny", { permission: "deny" }],
+    ]);
+    const responder = new ApprovalResponder(
+      permissionPlan("ask"),
+      new ConversationDecisions(new Map()),
+    );
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder,
+      latch: new PendingApprovalLatch(),
+      dialogGateEnabled: true,
+      piToolSpecsByName,
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "author_allow",
+        toolCallId: "c1",
+        input: {},
+      }),
+    );
+    await flushPromises();
+    assert.deepEqual(replies, [{ id: "perm-pi", reply: "once" }]);
+
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "author_deny",
+        toolCallId: "c2",
+        input: {},
+      }),
+    );
+    await flushPromises();
+    assert.deepEqual(replies[1], { id: "perm-pi", reply: "reject" });
+  });
+
+  it("a read-only builtin auto-allows under allow_reads (no pause)", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    let pauses = 0;
+    const responder = new ApprovalResponder(
+      permissionPlan("allow_reads"),
+      new ConversationDecisions(new Map()),
+    );
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder,
+      latch: new PendingApprovalLatch(),
+      dialogGateEnabled: true,
+      onPause: () => {
+        pauses += 1;
+      },
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-builtin",
+        toolName: "read",
+        toolCallId: "c",
+        input: { path: "a" },
+      }),
+    );
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-pi", reply: "once" }]);
+    assert.equal(
+      pauses,
+      0,
+      "a read-only builtin never pauses under allow_reads",
+    );
+  });
+
+  it("a write builtin under allow_reads pauses for a human", async () => {
+    const { session, emit } = makeSession();
+    let pauses = 0;
+    const gates: any[] = [];
+    const responder = new ApprovalResponder(
+      permissionPlan("allow_reads"),
+      new ConversationDecisions(new Map()),
+    );
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder,
+      latch: new PendingApprovalLatch(),
+      dialogGateEnabled: true,
+      onPause: () => {
+        pauses += 1;
+      },
+      onUserApprovalGate: (info) => gates.push(info),
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-builtin",
+        toolName: "bash",
+        toolCallId: "c",
+        input: { command: "rm -rf /" },
+      }),
+    );
+    await flushPromises();
+
+    assert.equal(pauses, 1);
+    assert.equal(gates[0].gateType, "pi-dialog-permission");
+    assert.equal(gates[0].toolName, "Bash");
+  });
+
+  it("an unknown builtin name in the envelope rejects (fail closed, relay parity)", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    let pauses = 0;
+    // A default-allow responder: if the fabricated name fell through it would ALLOW.
+    const responder = fakeResponder({ kind: "allow" });
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: (event) => events.push(event) },
+      responder,
+      latch: new PendingApprovalLatch(),
+      dialogGateEnabled: true,
+      onPause: () => {
+        pauses += 1;
+      },
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-builtin",
+        toolName: "fabricated_tool",
+        toolCallId: "c",
+        input: {},
+      }),
+    );
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-pi", reply: "reject" }]);
+    assert.equal(pauses, 0, "an unknown builtin never pauses");
+    assert.deepEqual(events, [], "no approval card for a fabricated name");
+  });
+
+  it("with detection OFF, a Claude gate whose title collides with the dialog title takes today's path", async () => {
+    // The MF-1 regression: attachPermissionResponder is shared by Claude and Pi. With the
+    // dialog gate off, a Claude gate titled literally "agenta-approval" (editing a file with
+    // that name, a bash command equal to it) has no envelope and must pause/resolve exactly as
+    // on the base path, never auto-reject.
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    const gates: any[] = [];
+    let pauses = 0;
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: (event) => events.push(event) },
+      responder: fakeResponder({ kind: "pendingApproval" }),
+      latch: new PendingApprovalLatch(),
+      // dialogGateEnabled intentionally absent (flag off / Claude run).
+      onPause: () => {
+        pauses += 1;
+      },
+      onUserApprovalGate: (info) => gates.push(info),
+    });
+    emit({
+      id: "perm-claude",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tc-claude",
+        title: PI_GATE_DIALOG_TITLE,
+        kind: "execute",
+        rawInput: { command: "cat agenta-approval" },
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, [], "never auto-rejected");
+    assert.equal(pauses, 1, "paused exactly as the base path does");
+    assert.equal(gates[0].gateType, "claude-acp-permission");
+    assert.equal(events.length, 1, "the approval card was emitted");
+    assert.equal((events[0] as any).payload.toolCallId, "tc-claude");
   });
 });

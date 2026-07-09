@@ -12,7 +12,13 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -32,7 +38,26 @@ const TOOL_ENV = [
   "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
   "AGENTA_AGENT_BUILTIN_GATING",
   "AGENTA_AGENT_BUILTIN_GRANTS",
+  "AGENTA_AGENT_PI_DIALOG_GATE",
 ];
+
+/** A fake extension UI context whose `confirm` records its calls and returns a scripted answer. */
+function fakeDialogCtx(answer: boolean | (() => Promise<boolean>)) {
+  const calls: Array<{ title: string; message: string }> = [];
+  return {
+    calls,
+    ctx: {
+      mode: "rpc" as const,
+      hasUI: true,
+      ui: {
+        async confirm(title: string, message: string) {
+          calls.push({ title, message });
+          return typeof answer === "function" ? await answer() : answer;
+        },
+      },
+    },
+  };
+}
 
 function fakePi(opts: { activeTools?: string[]; allTools?: string[] } = {}) {
   const registered: any[] = [];
@@ -95,15 +120,27 @@ describe("agenta extension tool registration", () => {
     const math = pi.registered[0];
     assert.equal(math.description, "qa math", "carries the description");
     assert.ok(
-      math.parameters && math.parameters.properties && math.parameters.properties.x,
+      math.parameters &&
+        math.parameters.properties &&
+        math.parameters.properties.x,
       "passes the JSON Schema through to Pi",
     );
-    assert.equal(math.promptSnippet, "qa math", "opts the tool into Pi's Available tools prompt");
+    assert.equal(
+      math.promptSnippet,
+      "qa math",
+      "opts the tool into Pi's Available tools prompt",
+    );
     assert.ok(
-      math.promptGuidelines.some((line: string) => line.includes("required argument(s): x")),
+      math.promptGuidelines.some((line: string) =>
+        line.includes("required argument(s): x"),
+      ),
       "adds prompt guidance for required arguments",
     );
-    assert.equal(typeof math.execute, "function", "each tool has an execute() that relays");
+    assert.equal(
+      typeof math.execute,
+      "function",
+      "each tool has an execute() that relays",
+    );
 
     const noSchema = pi.registered[1];
     assert.ok(
@@ -236,7 +273,9 @@ describe("agenta extension tool registration", () => {
 
   it("does not register when specs are present but the relay dir is missing", () => {
     clearEnv();
-    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([{ name: "x" }]);
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "x" },
+    ]);
     const pi = fakePi();
     factory(pi as any);
     assert.equal(
@@ -263,5 +302,157 @@ describe("readOtlpAuthFile", () => {
   it("returns undefined for a missing path without throwing", () => {
     assert.equal(readOtlpAuthFile(undefined), undefined);
     assert.equal(readOtlpAuthFile("/nonexistent/agenta-otlp-auth"), undefined);
+  });
+});
+
+describe("agenta extension: Pi dialog gate (approval parking)", () => {
+  function builtinEvent(toolName: string, input: unknown) {
+    return { type: "tool_call", toolName, toolCallId: "tc-b", input };
+  }
+
+  it("builtin gate rides ctx.ui.confirm with the envelope; allow -> undefined", async () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-unused";
+    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const hook = pi.handlers.tool_call![0];
+    const { calls, ctx } = fakeDialogCtx(true);
+
+    const result = await hook(builtinEvent("bash", { command: "ls" }), ctx);
+    assert.equal(result, undefined, "allow -> the builtin proceeds");
+    assert.equal(calls.length, 1, "the dialog was raised (not the relay)");
+    assert.equal(calls[0].title, "agenta-approval");
+    const envelope = JSON.parse(calls[0].message);
+    assert.equal(envelope.kind, "agenta.gate");
+    assert.equal(envelope.gate, "pi-builtin");
+    assert.equal(envelope.toolName, "bash");
+    assert.deepEqual(envelope.input, { command: "ls" });
+  });
+
+  it("builtin gate: deny -> block, and a thrown/absent dialog fails closed (block)", async () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
+    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const hook = pi.handlers.tool_call![0];
+
+    const denied = await hook(
+      builtinEvent("bash", {}),
+      fakeDialogCtx(false).ctx,
+    );
+    assert.equal(denied.block, true, "deny -> block");
+
+    const threw = await hook(
+      builtinEvent("bash", {}),
+      fakeDialogCtx(async () => {
+        throw new Error("dialog transport gone");
+      }).ctx,
+    );
+    assert.equal(threw.block, true, "a thrown dialog fails closed");
+
+    const noUi = await hook(builtinEvent("bash", {}), {
+      mode: "rpc",
+      hasUI: false,
+    });
+    assert.equal(noUi.block, true, "no UI plane fails closed");
+  });
+
+  it("custom-tool gate: a deny returns the reason WITHOUT relaying (early return)", async () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "park_probe", description: "echo", kind: "callback" },
+    ]);
+    // A relay dir that does not exist: if the deny path relayed, the poll would hang/fail. It must
+    // not be reached.
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR =
+      "/tmp/agenta-relay-must-not-be-used";
+    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const tool = pi.registered[0];
+    const { calls, ctx } = fakeDialogCtx(false);
+
+    const result = await tool.execute(
+      "call_1",
+      { token: "T" },
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.length, 1, "the dialog was raised before the relay");
+    const envelope = JSON.parse(calls[0].message);
+    assert.equal(envelope.gate, "pi-custom-tool");
+    assert.equal(envelope.toolName, "park_probe");
+    assert.deepEqual(envelope.input, { token: "T" });
+    assert.ok(
+      result.content[0].text.toLowerCase().includes("denied"),
+      "a denied custom tool returns the deny reason as its result",
+    );
+  });
+
+  it("custom-tool gate: a CLIENT spec is NOT dialog-gated (keeps its relay path)", async () => {
+    clearEnv();
+    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));
+    // Pre-seed the relay response so the client tool's relay returns immediately.
+    writeFileSync(
+      join(dir, "cclient.res.json"),
+      JSON.stringify({ ok: true, text: "browser-fulfilled" }),
+      "utf-8",
+    );
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "request_connection", description: "connect", kind: "client" },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = dir;
+    process.env.AGENTA_AGENT_PI_DIALOG_GATE = "1";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const tool = pi.registered[0];
+    const { calls, ctx } = fakeDialogCtx(false);
+
+    const result = await tool.execute(
+      "cclient",
+      { integration: "slack" },
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.length, 0, "a client tool is never dialog-gated");
+    assert.equal(
+      result.content[0].text,
+      "browser-fulfilled",
+      "it took the relay path",
+    );
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("with the dialog flag OFF, the builtin gate keeps the relay path (no dialog raised)", async () => {
+    clearEnv();
+    const dir = mkdtempSync(join(tmpdir(), "agenta-relay-off-"));
+    process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = dir;
+    // AGENTA_AGENT_PI_DIALOG_GATE intentionally unset.
+
+    const pi = fakePi();
+    factory(pi as any);
+    const hook = pi.handlers.tool_call![0];
+    const { calls, ctx } = fakeDialogCtx(true);
+
+    // Pre-seed the relay permission response (allow) so the relay path resolves without a runner.
+    writeFileSync(
+      join(dir, "tc-b.res.json"),
+      JSON.stringify({ kind: "permission", ok: true, verdict: "allow" }),
+      "utf-8",
+    );
+    const result = await hook(builtinEvent("bash", { command: "ls" }), ctx);
+    assert.equal(calls.length, 0, "flag off: the dialog is never raised");
+    assert.equal(result, undefined, "the relay allow let the builtin proceed");
+    rmSync(dir, { recursive: true, force: true });
   });
 });

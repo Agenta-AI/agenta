@@ -94,7 +94,10 @@ import {
   PendingApprovalLatch,
   permissionsFromRequest,
 } from "../permission-plan.ts";
-import { attachPermissionResponder } from "./sandbox_agent/acp-interactions.ts";
+import {
+  attachPermissionResponder,
+  type ParkedApprovalGateType,
+} from "./sandbox_agent/acp-interactions.ts";
 import {
   PAUSED,
   PendingApprovalPauseController,
@@ -134,6 +137,14 @@ export { toAcpMcpServers } from "./sandbox_agent/mcp.ts";
 
 function log(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
+}
+
+/** Pi approval parking flag (runner side, default OFF). Only a few explicit truthy spellings. */
+function piDialogGateEnabled(): boolean {
+  const raw = (process.env.AGENTA_RUNNER_PI_DIALOG_GATE ?? "")
+    .trim()
+    .toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
 }
 
 /** Extract the run credential from the OTLP export headers (initial value, constant for the run). */
@@ -359,15 +370,16 @@ interface CurrentTurn {
 }
 
 /**
- * A Claude ACP permission gate that paused the turn and can be answered later on the SAME live
- * session (slice 2 keep-alive). Recorded ONLY for a harness ACP permission gate (never a Pi relay
- * gate, a Pi builtin gate, or a client-tool MCP pause — those cannot be answered across a turn
- * boundary and stay on the cold path). Existence of this record is what makes the dispatch park a
- * paused session in `awaiting_approval` instead of tearing it down.
+ * A permission gate that paused the turn and can be answered later on the SAME live session.
+ * Recorded for a Claude ACP permission gate (keep-alive slice 2) or a Pi dialog permission gate
+ * (Pi approval parking, which rides `ctx.ui.confirm` onto the same ACP permission plane). NOT
+ * recorded for a Pi file-relay gate or a client-tool MCP pause — those cannot be answered across
+ * a turn boundary and stay on the cold path. Existence of this record is what makes the dispatch
+ * park a paused session in `awaiting_approval` instead of tearing it down.
  */
 export interface ParkedApproval {
-  /** Marks the pending-gate shape; the dispatch treats any other shape as a cold-fallback. */
-  gateType: "claude-acp-permission";
+  /** Which gate paused; the dispatch resumes only a recognized type and treats others as cold. */
+  gateType: ParkedApprovalGateType;
   /** The ACP permission-request id, answered later via `session.respondPermission`. */
   permissionId: string;
   /** The gated tool call's id — matched against the incoming approval envelope's toolCallId. */
@@ -591,6 +603,9 @@ export async function acquireEnvironment(
         otlpAuthFilePath,
         builtinGatingActive: plan.builtinGatingActive,
         builtinGrants: plan.builtinGrants,
+        // Pi approval parking: route both Pi gates over the parkable dialog plane. Runner-side
+        // flag, default off; flag-off keeps the byte-identical relay path.
+        dialogGateActive: piDialogGateEnabled(),
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
         // records which skills loaded (F-029); local Pi self-instruments, so the runner's
         // sandbox-agent otel has no span to stamp here.
@@ -1226,7 +1241,12 @@ export async function runTurn(
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
-      new ApprovalResponder(permissionPlan, decisions, logger);
+      new ApprovalResponder(permissionPlan, decisions, logger, {
+        // The Pi double-gate bridge: only where the dialog gate is live AND the relay enforces
+        // (Pi). On any other run the relay never consumes a re-appended decision, so appending
+        // would leak it to a later identical call.
+        bridgeRelayDoubleGate: plan.isPi && piDialogGateEnabled(),
+      });
     // Every pause seeds the durable interactions plane, whichever gate paused.
     const recordPendingInteraction = (
       token: string,
@@ -1262,7 +1282,9 @@ export async function runTurn(
         return;
       void resolveInteraction(sessionId, token, () => cred);
     };
-    // Exactly one gate per call: the harness gate on Claude, the relay on Pi.
+    // The harness gate decides on Claude; the relay decides on Pi. Under the Pi dialog gate a
+    // custom tool is checked twice (dialog + relay execution check); the responder's
+    // bridgeRelayDoubleGate accounting keeps the two consuming one human decision.
     const relayPermissions: RelayPermissions = {
       enforce: plan.isPi,
       decide: (gate) => decide(gate, permissionPlan, decisions),
@@ -1312,9 +1334,24 @@ export async function runTurn(
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: resolveInteractionToken,
-      // Slice 2: record the parkable Claude ACP permission gate (only in keep-alive park mode) so
-      // the dispatch can resume it live. Fires per pending gate (before the latch) so a parallel
-      // gate is counted; the single-gate resume records only the FIRST gate's answer target.
+      // Envelope detection is scoped to a Pi run with the dialog gate live. Flag off (or any
+      // Claude run) never parses: a Claude gate whose title collides with the dialog title must
+      // take today's path, not the fail-closed reject.
+      dialogGateEnabled: plan.isPi && piDialogGateEnabled(),
+      // Recover permission metadata for a Pi dialog gate: the envelope names the tool, the runner
+      // fills specPermission/readOnlyHint from the run's own resolved specs (relay parity). Pi only.
+      piToolSpecsByName: plan.isPi
+        ? new Map(
+            plan.toolSpecs.map((spec) => [
+              spec.name,
+              { permission: spec.permission, readOnly: spec.readOnly },
+            ]),
+          )
+        : undefined,
+      // Record the parkable permission gate (only in keep-alive park mode) so the dispatch can
+      // resume it live. Fires per pending gate (before the latch) so a parallel gate is counted;
+      // the single-gate resume records only the FIRST gate's answer target. `info.gateType` names
+      // the plane (Claude ACP vs Pi dialog) so the resume answers on the right one.
       onUserApprovalGate: opts.approvalParkMode
         ? (info) => {
             env.approvalGateCount += 1;
@@ -1324,7 +1361,7 @@ export async function runTurn(
               info.toolCallId
             ) {
               env.parkedApproval = {
-                gateType: "claude-acp-permission",
+                gateType: info.gateType,
                 permissionId: info.permissionId,
                 toolCallId: info.toolCallId,
                 toolName: info.toolName,

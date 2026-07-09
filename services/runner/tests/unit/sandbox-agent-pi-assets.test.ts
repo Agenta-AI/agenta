@@ -46,7 +46,8 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: {
@@ -67,7 +68,9 @@ describe("buildPiExtensionEnv", () => {
             properties: { x: { type: "string" } },
           },
           callRef: "server-secret-ref",
-          contextBindings: { "target.workflow_variant_id": "$ctx.workflow.variant.id" },
+          contextBindings: {
+            "target.workflow_variant_id": "$ctx.workflow.variant.id",
+          },
           timeoutMs: 120000,
           env: { SECRET: "do-not-expose" },
           kind: "callback",
@@ -161,6 +164,28 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
   });
 
+  it("sets the Pi dialog gate flag only when active (default off = byte-identical)", () => {
+    // Flag off (undefined): no dialog env, so the extension keeps the relay path.
+    assert.equal(
+      buildPiExtensionEnv({} as AgentRunRequest, false, {})
+        .AGENTA_AGENT_PI_DIALOG_GATE,
+      undefined,
+    );
+    assert.equal(
+      buildPiExtensionEnv({} as AgentRunRequest, false, {
+        dialogGateActive: false,
+      }).AGENTA_AGENT_PI_DIALOG_GATE,
+      undefined,
+    );
+    // Flag on: exports the sandbox-side switch.
+    assert.equal(
+      buildPiExtensionEnv({} as AgentRunRequest, false, {
+        dialogGateActive: true,
+      }).AGENTA_AGENT_PI_DIALOG_GATE,
+      "1",
+    );
+  });
+
   it("accepts snake_case tool schemas from older Python wire payloads", () => {
     const env = buildPiExtensionEnv(
       {
@@ -192,7 +217,8 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: { capture: { content: { enabled: true } } },
@@ -212,14 +238,16 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: { capture: { content: { enabled: true } } },
     } as AgentRunRequest;
 
     assert.equal(
-      buildPiExtensionEnv(request, true, { skills: [] }).AGENTA_AGENT_SKILLS_LOADED,
+      buildPiExtensionEnv(request, true, { skills: [] })
+        .AGENTA_AGENT_SKILLS_LOADED,
       undefined,
     );
     assert.equal(
