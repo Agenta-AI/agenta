@@ -82,6 +82,23 @@ the answer comes after the park is gone") answering the how-does-cold-work comme
 turn-versus-prompt clarification (no new prompt is issued on a warm resume; the new `/run`
 request only transports the decision and adopts the resumed stream).
 
+## Option C spike (2026-07-09, evening): PROVEN, recommendation flipped to C
+
+The spike proposed in the review round ran the same evening against a real Pi session under
+the real `pi-acp` bridge (five scenarios: allow, deny, 3-minute hold, transport drop, clean
+reject). Evidence lives at `followups/parkable-gates/spike-option-c/` (protocol.md, report.md,
+the spike extension, the ACP client, raw wire transcripts under `evidence/`). Results:
+`ctx.ui.confirm` from a `tool_call` hook surfaces as a real ACP `session/request_permission`
+mid-gate; a JSON envelope through the dialog message round-trips byte-exact; the held gate
+survived 180067 ms with no reaper and the late allow ran the original call with its original
+arguments in one uninterrupted `prompt()`; deny/reject/drop are all fail-closed; the
+sandbox-agent leg is source-verified (one live daemon run recorded as the residual). Most
+surprising: the unbounded fail-closed wait Option B would have to engineer into the relay is
+the dialog path's default behavior. The design now recommends Option C, shipping with the
+envelope (two runner work items: envelope parsing into the real gate identity, and switching
+the in-sandbox extension to raise the dialog at the gate); Option B stays documented as the
+not-chosen fallback.
+
 ## Measured costs and mechanism research (2026-07-08)
 
 Recorded here as the source for the numbers now cited in the design docs.

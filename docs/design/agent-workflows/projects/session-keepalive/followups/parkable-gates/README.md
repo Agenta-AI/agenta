@@ -18,6 +18,12 @@ harnesses, but neither harness will answer it on load; both settle it as errored
 So harness session resume gives faithful continuation, not exact resumption, and this folder's
 work (extending the warm park to the remaining gates) cannot be replaced by it.
 
+For the two Pi gates the mechanism is decided and proven live: Option C, routing the approval
+over the ACP permission plane the `pi-acp` bridge already has (`ctx.ui.confirm` at the gate, a
+JSON envelope carrying the real tool identity, the runner's slice-2 park machinery holding the
+request). The [spike-option-c report](spike-option-c/report.md) has the evidence, including a
+three-minute held gate that resumed the original call with its original arguments.
+
 ## Who should read this
 
 - Anyone extending keep-alive past slice 2.
@@ -40,6 +46,8 @@ work (extending the warm park to the remaining gates) cannot be replaced by it.
 ## Files
 
 - [design.md](design.md): the full design. The invariant, the measured tier ranking, each of
-  the three gates (how it pauses today, why it is not parkable, the options, the choice), how
-  the result composes with keep-alive, session resume, and the interactions plane, ownership
-  and ordering, and risks.
+  the three gates (how it pauses today, why it is not parkable, the options, the choice), the
+  per-gate cold paths, how the result composes with keep-alive, session resume, and the
+  interactions plane, ownership and ordering, and risks.
+- [spike-option-c/](spike-option-c/): the live spike that proved Option C. Protocol, report,
+  the spike extension, the ACP client, and the raw wire transcripts.
