@@ -106,3 +106,21 @@ describe("buildFormFieldsFromSchema — formats flag", () => {
         expect(byName.rows.itemChildren?.[0]?.format).toBe("date")
     })
 })
+
+describe("buildFormFieldsFromSchema — openEnums flag", () => {
+    // CRITICAL regression: gateway-tool execution forms call without opts — enums stay strict, so
+    // no `allowCustomEnum` key may appear with the flag off.
+    it("flag off (default): no allowCustomEnum key anywhere", () => {
+        const off = buildFormFieldsFromSchema(schemaWithFormats())
+        expect(off.some((f) => "allowCustomEnum" in f)).toBe(false)
+        expect(off).toEqual(buildFormFieldsFromSchema(schemaWithFormats(), "", {openEnums: false}))
+    })
+
+    it("flag on: enum fields get allowCustomEnum; non-enum fields do not", () => {
+        const fields = buildFormFieldsFromSchema(schemaWithFormats(), "", {openEnums: true})
+        const byName = Object.fromEntries(fields.map((f) => [f.name, f]))
+        expect(byName.level.allowCustomEnum).toBe(true)
+        expect("allowCustomEnum" in byName.note).toBe(false)
+        expect("allowCustomEnum" in byName.count).toBe(false)
+    })
+})

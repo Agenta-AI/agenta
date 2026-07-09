@@ -171,6 +171,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 schema={parsed.payload.requestedSchema as unknown as Record<string, unknown>}
                 form={form}
                 formats
+                openEnums
             />
 
             <div className="flex items-center gap-2">

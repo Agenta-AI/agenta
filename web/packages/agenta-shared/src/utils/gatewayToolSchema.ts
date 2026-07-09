@@ -10,6 +10,8 @@ export interface FormFieldDescriptor {
     enumValues?: string[]
     /** Known string format (date/date-time/email/uri/multiline) — set only under `{formats: true}` */
     format?: string
+    /** Render enum with an "Other…" custom-value escape hatch — set only under `{openEnums: true}`. */
+    allowCustomEnum?: boolean
     children?: FormFieldDescriptor[] // nested fields for object type
     /** For arrays: schema of each item (JSON Schema) */
     itemSchema?: Record<string, unknown>
@@ -22,6 +24,8 @@ export interface FormFieldDescriptor {
 export interface BuildFormFieldsOptions {
     /** Opt-in: surface known string formats so renderers can map them to dedicated controls. */
     formats?: boolean
+    /** Opt-in (elicitation): let enum fields accept a custom "Other…" value beyond the listed options. */
+    openEnums?: boolean
 }
 
 /**
@@ -111,6 +115,7 @@ export function buildFormFieldsFromSchema(
             default: prop.default,
             enumValues: prop.enum as string[] | undefined,
             ...(format !== undefined ? {format} : {}),
+            ...(opts?.openEnums && fieldType === "enum" ? {allowCustomEnum: true} : {}),
             children,
             itemSchema,
             itemChildren,

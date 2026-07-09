@@ -29,13 +29,19 @@ interface Props {
     flat?: boolean
     /** Opt-in `format` handling (date/date-time/multiline/email/uri) — see BuildFormFieldsOptions. */
     formats?: boolean
+    /** Opt-in: render enum fields with an "Other…" custom-value escape hatch (elicitation forms). */
+    openEnums?: boolean
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
-    ({schema, form, disabled, jsonMode, flat, formats}, ref) => {
+    ({schema, form, disabled, jsonMode, flat, formats, openEnums}, ref) => {
         const fields = useMemo(
-            () => buildFormFieldsFromSchema(schema, "", {formats: !!formats}),
-            [schema, formats],
+            () =>
+                buildFormFieldsFromSchema(schema, "", {
+                    formats: !!formats,
+                    openEnums: !!openEnums,
+                }),
+            [schema, formats, openEnums],
         )
         const requiredFields = useMemo(() => fields.filter((f) => f.required), [fields])
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
@@ -235,6 +241,62 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
     )
 }
 
+const OTHER_ENUM_OPTION = "__ag_enum_other__"
+
+/** Enum control with an "Other…" entry that reveals a free-text input (elicitation escape hatch). */
+function EnumWithOther({
+    value,
+    onChange,
+    options,
+    placeholder,
+    allowClear,
+    disabled,
+}: {
+    value?: string
+    onChange?: (v: string | undefined) => void
+    options: string[]
+    placeholder?: string
+    allowClear?: boolean
+    disabled?: boolean
+}) {
+    const inOptions = value != null && options.includes(value)
+    const [otherMode, setOtherMode] = useState(value != null && !inOptions)
+    const selectValue = otherMode ? OTHER_ENUM_OPTION : inOptions ? value : undefined
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Select
+                placeholder={placeholder}
+                allowClear={allowClear}
+                disabled={disabled}
+                value={selectValue}
+                onChange={(next) => {
+                    if (next === OTHER_ENUM_OPTION) {
+                        setOtherMode(true)
+                        onChange?.(undefined)
+                    } else {
+                        setOtherMode(false)
+                        onChange?.(next)
+                    }
+                }}
+                options={[
+                    ...options.map((v) => ({value: v, label: v})),
+                    {value: OTHER_ENUM_OPTION, label: "Other…"},
+                ]}
+            />
+            {otherMode && (
+                <Input
+                    autoFocus
+                    disabled={disabled}
+                    placeholder="Type your answer"
+                    value={value ?? ""}
+                    onChange={(e) => onChange?.(e.target.value || undefined)}
+                />
+            )}
+        </div>
+    )
+}
+
 function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?: number}) {
     const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
     const label = <FieldLabel field={field} />
@@ -341,11 +403,19 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                     rules={rules}
                     initialValue={field.default}
                 >
-                    <Select
-                        placeholder={field.label}
-                        allowClear={!field.required}
-                        options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
-                    />
+                    {field.allowCustomEnum ? (
+                        <EnumWithOther
+                            options={field.enumValues ?? []}
+                            placeholder={field.label}
+                            allowClear={!field.required}
+                        />
+                    ) : (
+                        <Select
+                            placeholder={field.label}
+                            allowClear={!field.required}
+                            options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
+                        />
+                    )}
                 </Form.Item>
             )
 
