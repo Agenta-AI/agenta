@@ -4,6 +4,11 @@ Everything here is verified against `services/runner/src` as of 2026-07-09 (post
 #5183 merges) unless a package path says otherwise. A reader should be able to implement from
 this file plus plan.md without re-deriving the mechanics.
 
+Landed note (2026-07-10, PR #5185): the mechanics in §1 describe the code this feature
+REPLACED. The relay permission plane (§1's `relayPermissionCheck`, the watcher's permission
+handling) is deleted; both Pi gates now ride `ctx.ui.confirm` unconditionally, with no flag
+(the §7 flag paragraph is historical).
+
 ## 1. How the two Pi gates pause today (the code being replaced)
 
 Pi tools and gates ride a file relay because the in-sandbox Pi process cannot reach Agenta.
@@ -157,8 +162,8 @@ and both transports coexist in one extension during rollout.
 - `AGENTA_AGENT_TOOLS_RELAY_TIMEOUT` sets the relay poll deadline (`relay.ts:61-63`). The
   dialog path never touches it.
 - The extension's env is built by `buildPiExtensionEnv` (`pi-assets.ts:67-78`), which is
-  where `AGENTA_AGENT_BUILTIN_GATING` and the relay dir are set; the new transport flag
-  follows that pattern (runner `AGENTA_RUNNER_PI_DIALOG_GATE` -> sandbox
-  `AGENTA_AGENT_PI_DIALOG_GATE`), not `run-plan.ts`.
-- Whether a run starts the relay at all is `useToolRelay` (`run-plan.ts:447`); a
-  builtin-only run under the dialog flag no longer needs it.
+  where `AGENTA_AGENT_BUILTIN_GATING` is set. (Historical: the plan draft routed the new
+  transport through a flag pair here; the landed change has no flag, the dialog transport is
+  unconditional for Pi.)
+- Whether a run starts the relay at all is `useToolRelay` (`run-plan.ts`); with the dialog
+  transport a builtin-only run starts no relay (custom tools only).

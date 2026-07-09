@@ -78,8 +78,30 @@ open-questions.md the same day. All findings were code-verified by the reviewer:
   concurrency (safe degrade documented), warm-deny mechanics (sound after B2; the UX product
   call stays open as #5).
 
+## Implementation (2026-07-09/10, lane feat/pi-approval-parking, PR #5185)
+
+Slices 0-3 implemented; slice 4 (live QA) runs as a separate stage.
+
+- Slice 0 PASSED both criteria live through the sandbox-agent daemon on the dev box: the
+  envelope arrived byte-exact at a runner-side `onPermissionRequest` handler (hostile probe
+  string included), and a plain `respondPermission(id, "once")` resolved the held dialog to
+  allow so the original `park_probe` ran with its original token, immediately and after a
+  180-second hold with no reaper. The daemon exposed `availableReplies: ["once","reject"]`,
+  confirming B1 (no reply mapping); the synthetic `pi-ui-<uuid>` id on the ACP request
+  confirmed B2 (normalization required).
+- Slices 1-3 landed per plan.md, then two review rounds (an internal Opus review, a Codex
+  xhigh review, CodeRabbit) tightened the fail-closed identities: unknown builtin AND
+  unresolved custom-tool names reject; envelope detection is scoped to Pi runs structurally.
+- Scope change (Mahmoud, 2026-07-10): the dialog gate shipped WITHOUT a feature flag as the
+  only Pi permission path, and the relay permission plane was deleted (extension
+  `relayPermissionCheck` poll, `handlePermissionRelayRequest`, the `kind: "permission"`
+  record protocol, `RelayPermissions` enforcement, the planned double-gate FIFO bridge).
+  The relay carries tool execution and results only; a builtin-only run starts no relay.
+  `ParkedApproval.gateType` for the Pi plane is `"pi-acp-permission"` (symmetric with
+  `"claude-acp-permission"`).
+
 ## Next steps
 
-1. Slice 0: the live daemon confidence run (reuse the committed spike assets).
-2. Coordination check with JP on where the pool/park machinery lives before slice 3.
-3. Slices 1-4 per plan.md.
+1. Slice 4: the live warm/cold matrix on the dev box (separate QA stage).
+2. JP coordination: the park record moves with the pool wherever the backend warm-session
+   work lands (checked 2026-07-09: no active migration in flight).
