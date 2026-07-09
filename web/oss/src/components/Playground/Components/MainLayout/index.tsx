@@ -211,8 +211,12 @@ const PlaygroundMainView = ({
     const earlyIsAgent = useAtomValue(playgroundEarlyAgentStateAtom) === "agent"
     const isAgentConfig =
         useAtomValue(isAgentModeAtomFamily(primaryConfigId)) || (!isComparisonView && earlyIsAgent)
+    // Agent max = default on purpose: the summary panel mounts at its cap, so the drag handle only
+    // shrinks it. (A larger max just teased a few px of "expansion" — antd counts px sizes against
+    // the full container INCLUDING the 12px gutter bar, whose overflow flex-shrink taxes both
+    // panels, so the panel never even reached the old 450.)
     const configDefaultSize = isAgentConfig ? 440 : "50%"
-    const configMaxSize = isAgentConfig ? 450 : "70%"
+    const configMaxSize = isAgentConfig ? 440 : "70%"
     // Let the runs panel auto-fill in agent mode. A px config default + a "50%" runs default
     // don't sum to 100%, so antd scales BOTH up to fill the container — pushing config past its
     // px max on mount, which then snaps down on the first drag. An undefined runs default fills
@@ -235,13 +239,15 @@ const PlaygroundMainView = ({
     const prevMaximizedRef = useRef(chatMaximized)
     const [holdAnimate, setHoldAnimate] = useState(false)
     const justToggled = prevMaximizedRef.current !== chatMaximized
+    // Deps = toggle value ONLY: with `justToggled` in deps, the holdAnimate re-render re-ran the
+    // effect and its cleanup cancelled the timer — the class stuck on and every drag lagged.
     useEffect(() => {
-        if (!justToggled) return
+        if (prevMaximizedRef.current === chatMaximized) return
         prevMaximizedRef.current = chatMaximized
         setHoldAnimate(true)
         const t = setTimeout(() => setHoldAnimate(false), 280)
         return () => clearTimeout(t)
-    }, [justToggled, chatMaximized])
+    }, [chatMaximized])
     const animateSplit = justToggled || holdAnimate
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])

@@ -211,7 +211,7 @@ body {
    Chat canvas — a real ~12px channel (not a hairline) that says "two workspaces". Widen the bar and
    tint it the near-black/soft-grey gutter tone; the grip pseudo-elements above still read as the
    handle. */
-.playground-splitter-agent .ant-splitter-bar {
+.playground-splitter-agent > .ant-splitter-bar {
     background: var(--ag-surface-gutter) !important;
     flex-basis: 12px !important;
     width: 12px !important;
@@ -396,21 +396,30 @@ body {
    inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off
    during drag, so resizing stays 1:1). Gated on `prefers-reduced-motion` for parity with the rail's
    `motion-safe:` animations. */
+/* Splitters NEST in agent mode (the chat panel hosts its own rail splitter inside MainLayout's),
+   so every state-dependent bar/panel rule below is scoped to DIRECT children — a collapsed outer
+   splitter must not hide the inner one's live drag bar. */
 @media (prefers-reduced-motion: no-preference) {
-    .playground-splitter-animated .ant-splitter-panel {
+    .playground-splitter-animated > .ant-splitter-panel {
         transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .playground-splitter .ant-splitter-bar {
-        transition: opacity 200ms ease;
+    .playground-splitter > .ant-splitter-bar {
+        transition:
+            opacity 200ms ease,
+            flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1),
+            width 240ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 }
 
-/* Full-screen chat: hide the (now inert) split bar. End state stays unguarded so the bar is hidden
-   even under reduced motion — only the fade above is motion-gated. */
-.playground-splitter-collapsed .ant-splitter-bar {
+/* Collapsed pane's split bar: hidden AND width 0 — opacity alone leaves an invisible 12px strip of
+   dead space beside the surviving pane. End state stays unguarded so the bar is gone even under
+   reduced motion — only the fades above are motion-gated. */
+.playground-splitter-collapsed > .ant-splitter-bar {
     opacity: 0;
     pointer-events: none;
+    flex-basis: 0 !important;
+    width: 0 !important;
 }
 
 /* Ensure onboarding overlay stays above modals */

@@ -7,6 +7,7 @@ import {
     useMemo,
     useRef,
     useState,
+    type MutableRefObject,
 } from "react"
 
 import {markTraceAsFresh} from "@agenta/entities/trace"
@@ -33,10 +34,12 @@ import {
     UploadSimple,
 } from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
-import {App, Button, Modal, Tabs, Tag, Tooltip} from "antd"
+import {App, Button, Modal, Splitter, Tabs, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
+import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
-import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
+import {useRouter} from "next/router"
+import {Virtuoso, type Components, type StateSnapshot, type VirtuosoHandle} from "react-virtuoso"
 
 import {
     IDE_INSTALL_COMMAND,
@@ -124,6 +127,21 @@ const SessionRail = lazy(() => import("./components/SessionRail"))
  * Next.js dev Runtime Error overlay (F-033). */
 const ignoreStreamRejection = () => {}
 
+// Virtuoso state (measured row heights + scrollTop) per session, captured before a route
+// change unmounts the transcript. A fresh Virtuoso mount otherwise renders with height
+// ESTIMATES, measures the real rows async, then corrects — a visible reshuffle on every
+// re-entry (rows here span 85–1022px, so the correction is large). Restoring the snapshot
+// paints the transcript at its true geometry and scroll position in the first frame.
+const virtStateBySession = new Map<string, StateSnapshot>()
+
+// Unsent composer drafts per session — survive pane remounts (route re-entry, tab
+// close/reopen), so switching back to a session restores its in-progress message.
+const composerDraftBySession = new Map<string, string>()
+
+// Pending (not yet sent) attachments per session — same lifetime as the drafts. In-memory
+// only: `UploadFile.originFileObj` holds live File blobs, which can't be serialized anyway.
+const attachmentsBySession = new Map<string, UploadFile[]>()
+
 /** Height of the top-edge fade, in px. Shared by the CSS mask and the SC-1 pin so a pinned turn
  * lands BELOW the fade (otherwise the freshly-asked question renders partially faded). */
 const TOP_FADE_PX = 28
@@ -143,9 +161,13 @@ const CHAT_COLUMN = "mx-auto w-full max-w-[880px]"
  * while off neither the styling nor the measurement runs. Typed `boolean` so the guards aren't
  * flagged as always-false. Under Virtuoso it must stay off regardless (it corrupts item measurement). */
 const CONTENT_VISIBILITY_ENABLED = false as boolean
-/** Full-screen session rail width. The rail slides between this and 0 (rather than mounting) so the
- * Build/Chat transition stays cohesive with the config pane's animated collapse. */
-const RAIL_WIDTH = 248
+/** Chat-mode session rail: default/min/max widths of its resizable splitter pane. The pane
+ * collapses to 0 in build mode (rather than unmounting) so the Build/Chat toggle animates in
+ * lockstep with the config pane. Min also pins the rail's content width, so collapsing clips
+ * instead of squishing. */
+const RAIL_WIDTH = 300
+const RAIL_MIN_WIDTH = 240
+const RAIL_MAX_WIDTH = 480
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -321,7 +343,16 @@ const WorkingDots = () => (
     </span>
 )
 
-const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
+const AgentConversation = ({
+    entityId,
+    sessionId,
+    revealPlayedRef,
+}: {
+    entityId: string
+    sessionId: string
+    /** Shared across the panel's session panes: the composer entrance plays only once. */
+    revealPlayedRef: MutableRefObject<boolean>
+}) => {
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
@@ -337,7 +368,15 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         if (!buildMode && inspectorOpen) openTurnInspector(null)
     }, [buildMode, inspectorOpen, openTurnInspector])
 
-    const [files, setFiles] = useState<UploadFile[]>([])
+    // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
+    // pending attachments survive alongside the composer draft. Rejections stay transient.
+    const [files, setFiles] = useState<UploadFile[]>(
+        () => attachmentsBySession.get(sessionId) ?? [],
+    )
+    useEffect(() => {
+        if (files.length > 0) attachmentsBySession.set(sessionId, files)
+        else attachmentsBySession.delete(sessionId)
+    }, [files, sessionId])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
@@ -366,6 +405,44 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const [modal, modalContextHolder] = Modal.useModal()
 
     const richInputRef = useRef<RichChatInputHandle>(null)
+
+    // Composer entrance plays once per PANEL mount — additional session panes mount the
+    // composer fully shown (the replayed fade read as a "composer reload" on session switch).
+    // Frozen at mount: recomputing per render would flip Reveal's `enabled` mid-entrance
+    // (the latch effect below runs before the fade completes).
+    const [playComposerEntrance] = useState(() => !revealPlayedRef.current)
+    useEffect(() => {
+        revealPlayedRef.current = true
+    }, [revealPlayedRef])
+
+    // Per-session unsent draft: restore once at mount (initialMarkdown is mount-only) and
+    // capture edits debounced — markdown is read from the handle at capture time, not per
+    // keystroke (serialization isn't free).
+    const [initialDraft] = useState(() => composerDraftBySession.get(sessionId))
+    const draftTimerRef = useRef(0)
+    const handleComposerChange = useCallback(
+        (text: string) => {
+            window.clearTimeout(draftTimerRef.current)
+            draftTimerRef.current = window.setTimeout(() => {
+                const md = richInputRef.current?.getMarkdown() ?? text
+                if (md.trim()) composerDraftBySession.set(sessionId, md)
+                else composerDraftBySession.delete(sessionId)
+            }, 400)
+        },
+        [sessionId],
+    )
+    useEffect(
+        () => () => {
+            window.clearTimeout(draftTimerRef.current)
+            // Best-effort final capture on unmount (guarded — the editor may be detached).
+            const md = richInputRef.current?.getMarkdown()
+            if (md !== undefined) {
+                if (md.trim()) composerDraftBySession.set(sessionId, md)
+                else composerDraftBySession.delete(sessionId)
+            }
+        },
+        [sessionId],
+    )
     const scrollRef = useRef<HTMLDivElement>(null)
     // ── SPIKE(react-virtuoso): windowing variant, evaluated against content-visibility. ──
     // Controlled live from the playground settings dropdown (Virtualization section). When on, the
@@ -377,6 +454,29 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     const virtOverscan = useAtomValue(agentChatOverscanAtom)
     const virtItemEstimate = useAtomValue(agentChatItemEstimateAtom)
     const virtuosoRef = useRef<VirtuosoHandle>(null)
+    // Snapshot captured by a previous mount of this session (route re-entry). Read once at
+    // mount — `restoreStateFrom` is a mount-time-only Virtuoso prop.
+    const [virtRestoreState] = useState(() =>
+        useVirtuoso ? virtStateBySession.get(sessionId) : undefined,
+    )
+    const router = useRouter()
+    useEffect(() => {
+        if (!useVirtuoso) return
+        const capture = () => {
+            // getState is synchronous; guard the handle for the unmount-cleanup path.
+            virtuosoRef.current?.getState((snapshot) => {
+                virtStateBySession.set(sessionId, snapshot)
+            })
+        }
+        // routeChangeStart fires while the transcript is still mounted and measured — the
+        // reliable capture point. The cleanup capture is best-effort (the handle may already
+        // be detached there), covering non-route unmounts like a revision-type swap.
+        router.events.on("routeChangeStart", capture)
+        return () => {
+            router.events.off("routeChangeStart", capture)
+            capture()
+        }
+    }, [useVirtuoso, sessionId, router])
     // Stick to the bottom of the scrollable area. This is the ONE source of truth for auto-scroll:
     // the active turn reserves a viewport (min-h-full), so "bottom" puts the latest question at the
     // top with the answer streaming into the space below — the pin is emergent, not computed. A real
@@ -767,6 +867,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         messages,
         stopped,
         sendQueued,
+        sessionId,
     })
     // Latch the last non-empty queue so the row keeps its content while it animates closed on release.
     const shownQueuedRef = useRef(queued)
@@ -1096,6 +1197,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             if (CONTENT_VISIBILITY_ENABLED) {
                 for (const e of entries) {
                     const node = e.target as HTMLElement
+                    if (node === el) continue // the viewport itself is not a row — never pin it
                     const check = node.checkVisibility as
                         | ((o?: {contentVisibilityAuto?: boolean}) => boolean)
                         | undefined
@@ -1135,6 +1237,10 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             }
         }
         const ro = new ResizeObserver(onResize)
+        // Observe the VIEWPORT too: the lazy composer/session-bar regions outside it hydrate a
+        // beat after mount and change this element's clientHeight — rows alone don't resize then,
+        // so without this the clamp shifts the view (following → re-pin; reading → hold anchor).
+        ro.observe(el)
         el.querySelectorAll("[data-mid]").forEach((w) => ro.observe(w))
         return () => ro.disconnect()
     }, [messages.length, scrollToBottom, useVirtuoso])
@@ -1345,6 +1451,9 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         setStopped(false)
         // One path: `submit` sends now or queues behind held messages via the shared release gate.
         submit({text: trimmed, fileParts})
+        // The message left the composer — drop its persisted draft (and any pending capture).
+        window.clearTimeout(draftTimerRef.current)
+        composerDraftBySession.delete(sessionId)
         // Sending consumes the template provenance along with the composer text.
         if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
         setFiles([])
@@ -1572,10 +1681,17 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                 bottom: Math.round(virtOverscan * 0.66),
                             }}
                             defaultItemHeight={virtItemEstimate}
-                            initialTopMostItemIndex={{
-                                index: Math.max(0, activeStart - 1),
-                                align: "end",
-                            }}
+                            // A prior mount's snapshot restores true row heights + scroll in the
+                            // first frame; only a genuinely first visit anchors by index (the two
+                            // props conflict, so exactly one is passed).
+                            {...(virtRestoreState
+                                ? {restoreStateFrom: virtRestoreState}
+                                : {
+                                      initialTopMostItemIndex: {
+                                          index: Math.max(0, activeStart - 1),
+                                          align: "end" as const,
+                                      },
+                                  })}
                             computeItemKey={(_i, m) => m.id}
                             itemContent={(index, m) => (
                                 <div className="px-3 pb-3">{renderMessage(m, index)}</div>
@@ -1589,7 +1705,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                 footer:
                                     activeStart < messages.length ? (
                                         <div
-                                            className={`flex flex-col gap-3 px-3 pb-6${reserveActive ? " pt-8" : ""}`}
+                                            // `pb-8` ≥ the 28px bottom fade so the meta row clears it at rest.
+                                            className={`flex flex-col gap-3 px-3 pb-8${reserveActive ? " pt-8" : ""}`}
                                             // Explicit viewport-height reserve (min-h-full is inert in the
                                             // Footer) so scrolling to bottom pins the question to the top.
                                             style={
@@ -1620,10 +1737,11 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                             role="log"
                             aria-live="polite"
                             aria-label="Agent conversation"
-                            // `pt-8` (32px) ≥ the 28px fade so the first message clears it at rest; `pb-6`
+                            // `pt-8`/`pb-8` (32px) ≥ the 28px fades so the first message and the last turn's
+                            // meta row (Inspect turn + streaming dots) clear them at rest; the bottom pad
                             // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
                             // anchoring off so our pin/anchor logic owns the scroll position).
-                            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-6 [overflow-anchor:none]"
+                            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-8 [overflow-anchor:none]"
                             // Fade content into the top edge (under the tab bar) and the bottom edge (into the
                             // composer) as it scrolls. A gradient mask on the scroll container: transparent at
                             // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
@@ -1727,7 +1845,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 {/* The whole composer fades + rises in ONCE on mount (Reveal), so the input joins the
                     empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                     onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
-                <Reveal className="px-3">
+                <Reveal className="px-3" enabled={playComposerEntrance}>
                     {/* Agent empty-chat strip (S6): docked above the composer, unmounts once a
                         message exists or a first-run prompt is pending. Build-mode + fresh-agent
                         only — never in maximized chat mode, and gone for good after any commit. */}
@@ -1798,6 +1916,8 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                                       ? "Connect a model to start chatting…"
                                       : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                             }
+                            initialMarkdown={initialDraft}
+                            onChange={handleComposerChange}
                             onPasteFile={(pasted) => addFiles(Array.from(pasted))}
                             sendForceEnabled={files.length > 0}
                             streaming={busy}
@@ -1925,6 +2045,9 @@ const AgentChatPanel = ({
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    // Shared entrance latch: the composer's Reveal plays for the first conversation this
+    // panel mounts; every additional session pane skips it (no per-switch flash).
+    const composerRevealPlayedRef = useRef(false)
 
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode.
@@ -1953,67 +2076,109 @@ const AgentChatPanel = ({
         setPendingRun({text: pendingRun.text, nonce: pendingRun.nonce})
     }, [pendingRun, addSession, setPendingRun])
 
+    // Same render-time toggle detection as MainLayout's config pane: the `-animated` class must land
+    // in the SAME commit as the size flip (else it snaps), then held ~280ms; off during drag/resize.
+    const prevMaximizedRef = useRef(chatMaximized)
+    const [holdAnimate, setHoldAnimate] = useState(false)
+    const justToggled = prevMaximizedRef.current !== chatMaximized
+    // Deps = toggle value ONLY: with `justToggled` in deps, the holdAnimate re-render re-ran the
+    // effect and its cleanup cancelled the timer — the class stuck on and every drag lagged.
+    useEffect(() => {
+        if (prevMaximizedRef.current === chatMaximized) return
+        prevMaximizedRef.current = chatMaximized
+        setHoldAnimate(true)
+        const t = setTimeout(() => setHoldAnimate(false), 280)
+        return () => clearTimeout(t)
+    }, [chatMaximized])
+    const animateRailSplit = justToggled || holdAnimate
+
     return (
-        <div className="flex h-full min-h-0 min-w-0 w-full flex-row">
-            {/* Rail stays mounted and slides (width 0↔RAIL_WIDTH) so it animates in lockstep with the
-                config pane instead of snapping. Clipped while collapsed; `inert` drops it from tab
-                order + a11y when hidden. */}
-            <div
-                className="h-full shrink-0 overflow-hidden motion-safe:transition-[width] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                style={{width: chatMaximized ? RAIL_WIDTH : 0}}
-                inert={!chatMaximized}
+        // The rail gets the SAME resizable splitter treatment as the build-mode config pane (gutter
+        // bar + grip). It lives INSIDE the chat panel (not MainLayout's config pane) on purpose: the
+        // revision drawer also hosts this panel with its own chat scope, and the rail must follow it.
+        <Splitter
+            className={clsx(
+                "h-full min-h-0 min-w-0 w-full playground-splitter playground-splitter-agent",
+                {
+                    // Build mode: rail pane pinned to 0, bar hidden — mirrors the config pane's collapse.
+                    "playground-splitter-collapsed": !chatMaximized,
+                    "playground-splitter-animated": animateRailSplit,
+                },
+            )}
+        >
+            <Splitter.Panel
+                defaultSize={RAIL_WIDTH}
+                size={chatMaximized ? undefined : 0}
+                min={RAIL_MIN_WIDTH}
+                max={RAIL_MAX_WIDTH}
+                collapsible={false}
+                className="!overflow-hidden !p-0"
             >
-                {/* Rail is width-0 unless maximized, so no visible fallback is needed while it loads. */}
-                <Suspense fallback={null}>
-                    <SessionRail activeId={activeId} className="h-full w-[248px]" />
-                </Suspense>
-            </div>
-            <Tabs
-                animated={false}
-                className="flex min-h-0 min-w-0 flex-1 flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
-                activeKey={activeId}
-                onChange={setActiveSession}
-                renderTabBar={() => (
-                    // Kept mounted in ALL states so its height ANIMATES on transitions rather than the node
-                    // mounting at full height (which snapped the content down). Collapsed to 0 in chat mode
-                    // (controls live in the SessionRail) AND during onboarding (single ephemeral session);
-                    // expands to 48 when the committed build view takes over — same eased height transition
-                    // as the rail/config panes.
-                    <div
-                        className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                        style={{height: chromeHidden || chatMaximized ? 0 : 48}}
-                    >
-                        {/* Region fallback = the same bar skeleton the pane-level gates render,
+                {/* `inert` drops the clipped rail from tab order + a11y while collapsed. */}
+                <div className="h-full w-full" inert={!chatMaximized}>
+                    {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
+                    <Suspense fallback={null}>
+                        {/* min-w matches RAIL_MIN_WIDTH (Tailwind needs the literal). */}
+                        <SessionRail activeId={activeId} className="h-full w-full min-w-[240px]" />
+                    </Suspense>
+                </div>
+            </Splitter.Panel>
+            <Splitter.Panel collapsible={false} className="!overflow-hidden !p-0">
+                <Tabs
+                    animated={false}
+                    className="flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
+                    activeKey={activeId}
+                    onChange={setActiveSession}
+                    renderTabBar={() => (
+                        // Kept mounted in ALL states so its height ANIMATES on transitions rather than the node
+                        // mounting at full height (which snapped the content down). Collapsed to 0 in chat mode
+                        // (controls live in the SessionRail) AND during onboarding (single ephemeral session);
+                        // expands to 48 when the committed build view takes over — same eased height transition
+                        // as the rail/config panes.
+                        <div
+                            className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                            style={{height: chromeHidden || chatMaximized ? 0 : 48}}
+                        >
+                            {/* Region fallback = the same bar skeleton the pane-level gates render,
                             so the strip's lane holds its shape while this chunk loads. */}
-                        <Suspense fallback={<SessionBarSkeleton />}>
-                            <SessionTagBar
-                                sessions={sessions}
-                                activeId={activeId}
-                                onSelect={setActiveSession}
-                                onAdd={addSession}
-                                onClose={closeSession}
-                                onRename={(id, title) => renameSession({id, title})}
-                                showSessions={!chatMaximized}
-                                extra={
-                                    chatMaximized ? undefined : (
-                                        <>
-                                            <SessionInspectorButton sessionId={activeId ?? null} />
-                                            <SessionHistoryMenu />
-                                        </>
-                                    )
-                                }
+                            <Suspense fallback={<SessionBarSkeleton />}>
+                                <SessionTagBar
+                                    sessions={sessions}
+                                    activeId={activeId}
+                                    onSelect={setActiveSession}
+                                    onAdd={addSession}
+                                    onClose={closeSession}
+                                    onRename={(id, title) => renameSession({id, title})}
+                                    showSessions={!chatMaximized}
+                                    extra={
+                                        chatMaximized ? undefined : (
+                                            <>
+                                                <SessionInspectorButton
+                                                    sessionId={activeId ?? null}
+                                                />
+                                                <SessionHistoryMenu />
+                                            </>
+                                        )
+                                    }
+                                />
+                            </Suspense>
+                        </div>
+                    )}
+                    items={sessions.map((session) => ({
+                        key: session.id,
+                        // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
+                        label: null,
+                        children: (
+                            <AgentConversation
+                                entityId={entityId}
+                                sessionId={session.id}
+                                revealPlayedRef={composerRevealPlayedRef}
                             />
-                        </Suspense>
-                    </div>
-                )}
-                items={sessions.map((session) => ({
-                    key: session.id,
-                    // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
-                    label: null,
-                    children: <AgentConversation entityId={entityId} sessionId={session.id} />,
-                }))}
-            />
-        </div>
+                        ),
+                    }))}
+                />
+            </Splitter.Panel>
+        </Splitter>
     )
 }
 

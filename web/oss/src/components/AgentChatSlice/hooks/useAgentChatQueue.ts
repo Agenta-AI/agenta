@@ -20,7 +20,13 @@ interface UseAgentChatQueueArgs {
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
+    /** Persist held messages under this key across pane remounts (route re-entry, tab
+     * close/reopen) — a restored queue releases normally once the conversation settles. */
+    sessionId?: string
 }
+
+// In-memory, page-session lifetime — same as the composer drafts it accompanies.
+const queuedBySession = new Map<string, QueuedMessage[]>()
 
 /**
  * Holds user messages typed while a turn is in flight and releases them ONE AT A TIME once the
@@ -38,8 +44,18 @@ export const useAgentChatQueue = ({
     messages,
     stopped,
     sendQueued,
+    sessionId,
 }: UseAgentChatQueueArgs) => {
-    const [queued, setQueued] = useState<QueuedMessage[]>([])
+    const [queued, setQueued] = useState<QueuedMessage[]>(
+        () => (sessionId && queuedBySession.get(sessionId)) || [],
+    )
+
+    // Mirror every queue change into the per-session store so a remount restores it.
+    useEffect(() => {
+        if (!sessionId) return
+        if (queued.length > 0) queuedBySession.set(sessionId, queued)
+        else queuedBySession.delete(sessionId)
+    }, [queued, sessionId])
 
     // Settled = the stream is over (done or failed). A stop lands here (abort → "ready").
     const settled = status === "ready" || status === "error"
