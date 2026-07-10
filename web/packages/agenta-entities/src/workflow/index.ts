@@ -61,6 +61,7 @@ export {
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
 } from "./state"
 

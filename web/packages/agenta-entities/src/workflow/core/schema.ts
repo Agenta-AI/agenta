@@ -276,8 +276,16 @@ export const workflowSchema = z
         // Slug
         slug: z.string().nullable().optional(),
 
-        // Version (present on revisions — backend returns as string, coerce to number)
-        version: z.coerce.number().nullable().optional(),
+        // Version (present on revisions). DB revisions carry a numeric version (3 or "3");
+        // the static catalog serves reserved __ag__* workflows as "vN" (e.g. "v1"). Strip the
+        // "v" prefix before coercing so both shapes parse to a number instead of NaN.
+        version: z
+            .preprocess(
+                (v) => (typeof v === "string" && /^v\d+$/i.test(v) ? v.slice(1) : v),
+                z.coerce.number(),
+            )
+            .nullable()
+            .optional(),
 
         // Header
         name: z.string().nullable().optional(),
