@@ -304,7 +304,9 @@ function EnumWithOther({
                 onChange={(next) => {
                     if (next === OTHER_ENUM_OPTION) {
                         setOtherMode(true)
-                        onChange?.(undefined)
+                        // No no-op change: emitting undefined here would fire the required rule
+                        // the instant the user picks Other…, before they can type.
+                        if (value !== undefined) onChange?.(undefined)
                     } else {
                         setOtherMode(false)
                         onChange?.(next)
@@ -379,7 +381,12 @@ function MultiEnumWithOther({
                 onChange={(next: string[]) => {
                     const {values, openOther} = splitOtherFromSelection(next)
                     if (openOther) setOtherDraft("")
-                    onChange?.(values)
+                    // Opening the Other… draft is not a value change — a no-op onChange would
+                    // fire the required rule before the user can type.
+                    const unchanged =
+                        (values ?? []).length === selected.length &&
+                        (values ?? []).every((v, i) => v === selected[i])
+                    if (!unchanged) onChange?.(values)
                 }}
                 options={selectOptionsWithOther(options)}
             />
@@ -398,11 +405,11 @@ function MultiEnumWithOther({
     )
 }
 
+// Selected state: primary border + the filled indicator only — a full primary-bg fill reads
+// far too heavy in the dark theme (dogfooding feedback).
 const choiceCardCls = (selected: boolean) =>
     `flex cursor-pointer items-start gap-2 rounded-lg border border-solid p-3 transition-colors ${
-        selected
-            ? "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
-            : "border-colorBorderSecondary hover:border-colorPrimary"
+        selected ? "border-colorPrimary" : "border-colorBorderSecondary hover:border-colorPrimary"
     }`
 
 /** Presentational check/dot — the CARD is the single interactive element (no nested input). */
