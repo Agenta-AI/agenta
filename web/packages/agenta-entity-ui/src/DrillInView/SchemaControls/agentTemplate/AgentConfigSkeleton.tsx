@@ -20,7 +20,8 @@ const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
 ]
 
 const AgentConfigSkeleton = () => (
-    <div className="flex flex-col px-4" aria-busy aria-label="Loading agent configuration">
+    // No padding of its own: the surrounding field/fallback wrapper provides the 16px inset.
+    <div className="flex flex-col" aria-busy aria-label="Loading agent configuration">
         {ROWS.map((row, i) => (
             <div
                 key={i}

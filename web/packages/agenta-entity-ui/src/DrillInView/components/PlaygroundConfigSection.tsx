@@ -375,6 +375,18 @@ function hasRenderableConfigSections(data: unknown): boolean {
     return SIBLING_GROUP_KEYS.some((group) => record[group] !== undefined)
 }
 
+// Best-available data for render/loading decisions: draft-merged data, else server data.
+function pickActiveData<T extends {parameters?: Record<string, unknown>}>(
+    useServerData: boolean,
+    data: T | null,
+    serverData: T | null,
+): T | null {
+    if (useServerData) return serverData
+    if (hasParameters(data)) return data
+    if (hasParameters(serverData)) return serverData
+    return data ?? serverData
+}
+
 // Route tagged `__siblingData` payloads to `actions.update`; otherwise treat as parameter updates.
 const configUpdateRouterAtom = atom(
     null,
@@ -626,7 +638,7 @@ export interface PlaygroundConfigSectionProps {
 }
 
 function PlaygroundConfigSection({
-    revisionId,
+    revisionId: targetRevisionId,
     disabled = false,
     useServerData = false,
     className,
@@ -638,11 +650,38 @@ function PlaygroundConfigSection({
 }: PlaygroundConfigSectionProps) {
     const {llmProviderConfig} = useDrillInUI()
 
+    const mol = moleculeAdapter ?? defaultAdapter
+    const dispatchUpdate = useSetAtom(mol.reducers.update)
+
+    // ── Revision-switch latch (id, not data) ──
+    // The playground keeps this component mounted and swaps `revisionId` in place (e.g. the
+    // agent committing itself). Everything below — including the drill-in view, which resolves
+    // data/schema BY ID — must stay on one consistent revision, so rendering the target id
+    // before its data lands drops the drill-in to an empty state and remounts every section.
+    // Keep rendering the PREVIOUS id until the target is renderable (or its query settles),
+    // then swap in one commit so the sections update their values in place.
+    const targetSchemaQuery = useAtomValue(
+        useMemo(() => mol.atoms.schemaQuery(targetRevisionId), [mol, targetRevisionId]),
+    )
+    const targetActiveData = pickActiveData(
+        useServerData,
+        useAtomValue(useMemo(() => mol.atoms.data(targetRevisionId), [mol, targetRevisionId])),
+        useAtomValue(
+            useMemo(() => mol.atoms.serverData(targetRevisionId), [mol, targetRevisionId]),
+        ),
+    )
+    const renderIdRef = useRef(targetRevisionId)
+    if (
+        renderIdRef.current !== targetRevisionId &&
+        (hasRenderableConfigSections(targetActiveData) || !targetSchemaQuery.isPending)
+    ) {
+        renderIdRef.current = targetRevisionId
+    }
+    const revisionId = renderIdRef.current
+
     // Feedback config mode (shared with FeedbackConfigurationControl via atom)
     const feedbackModeAtom = useMemo(() => feedbackConfigModeAtomFamily(revisionId), [revisionId])
     const [feedbackMode, setFeedbackMode] = useAtom(feedbackModeAtom)
-    const mol = moleculeAdapter ?? defaultAdapter
-    const dispatchUpdate = useSetAtom(mol.reducers.update)
 
     // ========== DATA ==========
     const dataAtom = useMemo(() => mol.atoms.data(revisionId), [mol, revisionId])
@@ -658,35 +697,10 @@ function PlaygroundConfigSection({
 
     // Schema for model config popover
     const schemaAtom = useMemo(() => mol.atoms.agConfigSchema(revisionId), [mol, revisionId])
-    const schemaLive = useAtomValue(schemaAtom)
+    const schema = useAtomValue(schemaAtom)
 
     // Choose the best available data for loading checks
-    const activeDataLive = useMemo(() => {
-        if (useServerData) return serverData
-        if (hasParameters(data)) return data
-        if (hasParameters(serverData)) return serverData
-        return data ?? serverData
-    }, [useServerData, data, serverData])
-
-    // Revision switches (e.g. the agent committing itself) keep this component mounted and
-    // swap `revisionId` in place. While the NEW revision's data/schema queries are pending,
-    // keep rendering the LAST renderable snapshot instead of dropping to the loading skeleton
-    // — the sections then update their values in place when the data lands (no teardown, no
-    // collapsed→open replay). The snapshot ref resets with the component, so keyed usages
-    // (per-variant configs in prompt playgrounds) are unaffected.
-    const renderSnapshotRef = useRef<{data: typeof activeDataLive; schema: typeof schemaLive}>({
-        data: null,
-        schema: null,
-    })
-    if (hasRenderableConfigSections(activeDataLive)) {
-        renderSnapshotRef.current = {data: activeDataLive, schema: schemaLive}
-    }
-    const holdPrevious =
-        schemaQuery.isPending &&
-        !hasRenderableConfigSections(activeDataLive) &&
-        hasRenderableConfigSections(renderSnapshotRef.current.data)
-    const activeData = holdPrevious ? renderSnapshotRef.current.data : activeDataLive
-    const schema = holdPrevious ? renderSnapshotRef.current.schema : schemaLive
+    const activeData = pickActiveData(useServerData, data, serverData)
 
     const parameters = (activeData?.parameters ?? {}) as Record<string, unknown>
 
@@ -777,15 +791,26 @@ function PlaygroundConfigSection({
     // Derive a stable flag so the effect fires when draft is discarded (becomes null)
     const isDraftEmpty = draft === null || draft === undefined
 
-    // Track discard events to force re-mount of Form/YAML editors whose internal
+    // Track DISCARD events to force re-mount of Form/YAML editors whose internal
     // state (Lexical editor, local control state) may not fully reset via prop
     // changes alone. Computed during render to avoid useEffect/setState loops.
+    //
+    // Revision-scoped on purpose: this component can now survive a revision SWITCH
+    // (the agent playground's stable config host swaps `revisionId` in place), and a
+    // switch from a drafted revision to a clean one flips `isDraftEmpty` false→true
+    // exactly like a discard — bumping the version there remounted the whole form
+    // (replaying the sections' entrance) for a plain switch. Only a draft emptying
+    // on the SAME revision is a discard; a revision change just re-seeds the tracker.
     const discardVersionRef = useRef(0)
-    const prevIsDraftEmptyRef = useRef(isDraftEmpty)
-    if (isDraftEmpty && !prevIsDraftEmptyRef.current) {
+    const draftTrackerRef = useRef({revisionId, isDraftEmpty})
+    if (
+        draftTrackerRef.current.revisionId === revisionId &&
+        isDraftEmpty &&
+        !draftTrackerRef.current.isDraftEmpty
+    ) {
         discardVersionRef.current += 1
     }
-    prevIsDraftEmptyRef.current = isDraftEmpty
+    draftTrackerRef.current = {revisionId, isDraftEmpty}
 
     // Eagerly sync rawEditorValue during render when entering a raw mode.
     // Without this, switching Form → YAML/JSON after a revision change renders
@@ -1833,7 +1858,10 @@ function PlaygroundConfigSection({
 
     if (isConfigLoading) {
         if (loadingFallback) {
-            return <div className={className}>{loadingFallback}</div>
+            // px-4 py-3 mirrors the field-content wrapper the real sections (and the lazy
+            // control's Suspense fallback) render inside — without it the fallback skeleton
+            // sits 16px wider / 12px higher and visibly shifts when the schema lands.
+            return <div className={clsx("px-4 py-3", className)}>{loadingFallback}</div>
         }
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
