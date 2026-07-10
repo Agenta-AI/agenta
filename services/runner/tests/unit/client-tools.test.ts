@@ -1,7 +1,7 @@
 /**
  * Unit tests for the shared client-tool seam (engines/sandbox_agent/client-tools.ts):
  * the ACP tool-call correlation index, the single client_tool interaction payload, and
- * buildClientToolRelay (emits + latches + marks the paused call on pendingApproval, returns
+ * buildClientToolRelay (emits a widget per pending client tool + marks each paused call, returns
  * the responder's verdict as a relay outcome, and delegates onPause to the pause controller).
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/client-tools.test.ts)
@@ -259,12 +259,29 @@ describe("buildClientToolRelay", () => {
     assert.equal((s.events[0] as any).payload.toolCall.id, "acp-real");
   });
 
-  it("latch already held: no second interaction, still pendingApproval", async () => {
+  it("emits a widget for EACH pending client tool (several connections in one turn)", async () => {
     const s = seam({ kind: "pendingApproval" });
     assert.equal(await s.relay.onClientTool(req), "pendingApproval");
-    assert.equal(await s.relay.onClientTool({ ...req, id: "i-2" }), "pendingApproval");
-    assert.equal(s.events.length, 1, "only the first pending gate emits");
-    assert.equal(s.recorded.length, 1);
+    assert.equal(
+      await s.relay.onClientTool({
+        ...req,
+        id: "i-2",
+        toolCallId: "tc-2",
+        input: { integration: "github" },
+      }),
+      "pendingApproval",
+    );
+    assert.equal(
+      s.events.length,
+      2,
+      "each pending client tool parks its own widget (not just the first)",
+    );
+    assert.equal(s.recorded.length, 2);
+    assert.deepEqual(
+      s.pausedToolCalls,
+      ["tc-1", "tc-2"],
+      "each parked call is marked so it is not force-settled as a deferred sibling",
+    );
   });
 
   it("does NOT emit when the responder fulfills (resume) or denies", async () => {
