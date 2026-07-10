@@ -22,7 +22,14 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {ArrowClockwise, CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    CheckCircle,
+    Hourglass,
+    Plugs,
+    Spinner,
+    Warning,
+} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -41,6 +48,14 @@ const {Text} = Typography
 const CONNECT_TIMEOUT_MS = 180_000
 /** Popup-closed poll cadence, matching the existing ConnectModal. */
 const POPUP_POLL_MS = 1000
+
+/**
+ * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
+ * force-settled with this sentinel and RE-REQUESTED next turn (services/runner otel.ts
+ * `TOOL_NOT_EXECUTED_PAUSED`). It is a deferral, not a failure — render it quietly with no Retry, so
+ * the user waits for the agent's re-ask instead of starting a flow that races it.
+ */
+const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
 /** The settled call's reference shape (what the runner re-resolves against). */
 interface ConnectOutput {
@@ -76,6 +91,14 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
     const mode = input.mode === "api_key" ? "api_key" : "oauth"
     const label = prettyIntegration(integration)
+
+    // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
+    // connection failure); see DEFERRED_SENTINEL.
+    const partErrorText = (meta.part as {errorText?: unknown}).errorText
+    const deferredByRunner =
+        meta.state === "output-error" &&
+        typeof partErrorText === "string" &&
+        partErrorText.startsWith(DEFERRED_SENTINEL)
 
     const {handleCreate, invalidate} = useToolsConnections(integration)
 
@@ -273,6 +296,17 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                     icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
                 >
                     <Text className="!text-xs">{label} connected</Text>
+                </ChipRow>
+            )
+        }
+        // Deferred by the runner (another connection was requested the same turn): the agent
+        // re-asks next turn, so show a quiet note with NO Retry — a Retry here races that re-ask.
+        if (deferredByRunner) {
+            return (
+                <ChipRow icon={<Hourglass size={13} className="text-colorTextTertiary" />}>
+                    <Text type="secondary" className="!text-xs !text-colorTextTertiary">
+                        Connecting {label} next…
+                    </Text>
                 </ChipRow>
             )
         }
