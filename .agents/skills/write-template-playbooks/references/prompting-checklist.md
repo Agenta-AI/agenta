@@ -44,15 +44,15 @@ builder-reliability findings, or design reasoning).
 
 - `[E]` Minimize required fields. Completion drops sharply as field count rises. Keep required
   to one to four.
-- `[J]` Separate REQUIRED context (must ask) from RESEARCHABLE context (offer "figure it out"
-  as the first enum option) explicitly in the playbook. Do not leave the ask/research boundary
+- `[J]` Separate REQUIRED context (must ask) from RESEARCHABLE context ("figure it out" as
+  the default enum option) explicitly in the playbook. Do not leave the ask/research boundary
   to the model.
-- `[J]` Put the recommended value in the field DESCRIPTION or title. Prefilled defaults do not
-  exist (`ElicitationFieldSchema` declares `default?: never`); a schema default is silently
-  dropped. See the platform facts in SKILL.md.
-- `[J]` For a researchable value, make "Figure it out, use your best judgment" the FIRST enum
-  option. Listing it first is the only way to signal the recommended path; there is no
-  selected-by-default marker.
+- `[J]` Propose values via the field's `default` — the form prefills and the user can accept
+  everything in one click. The default must match the field type; empty defaults are stripped;
+  date/date-time fields ignore defaults. See the platform facts in SKILL.md.
+- `[J]` For a researchable value, include a "Figure it out, use your best judgment" enum
+  option and set it as the `default`. The built-in Other… escape hatch covers custom values,
+  so keep option lists short and likely.
 - `[J]` Surface the speed trade-off in the description: handing information over is faster than
   "figure it out," because research takes time. Let the user choose to save the round trip.
 - `[J]` Never request secrets via `request_input`; route credentials to `request_connection`.
@@ -61,8 +61,9 @@ builder-reliability findings, or design reasoning).
   trigger) so the user can veto. Commit and trigger are approval gates; pre-state what is
   coming.
 
-Field types are `string`, `number`, `integer`, `boolean` only. No arrays, no nested objects,
-no multi-select. Formats: `date`, `date-time`, `email`, `uri`, `multiline`.
+Field types are `string`, `number`, `integer`, `boolean`, and the multi-pick array
+`{type: "array", items: {type: "string", enum: [...]}}`. No nested objects. Formats: `date`,
+`date-time`, `email`, `uri`, `multiline` (date fields ignore defaults).
 
 ## Verification (against our runtime)
 
