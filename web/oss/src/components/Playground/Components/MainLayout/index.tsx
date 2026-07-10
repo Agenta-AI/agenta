@@ -210,8 +210,24 @@ const PlaygroundMainView = ({
     // Single-view only (agents are excluded from comparison); the per-entity value still
     // wins once the config revision resolves.
     const earlyIsAgent = useAtomValue(playgroundEarlyAgentStateAtom) === "agent"
-    const isAgentConfig =
-        useAtomValue(isAgentModeAtomFamily(primaryConfigId)) || (!isComparisonView && earlyIsAgent)
+    // Same latch as the agent HOST above: a freshly committed revision reads non-agent while its
+    // flags load, and `earlyIsAgent` can't always bridge the gap (the onboarding flow rewrites the
+    // URL via history.replaceState, so the router-derived app id — and with it the early signal —
+    // never resolves). Unlatched, `splitterKey` flips agent→std→agent on an agent self-commit and
+    // remounts the whole Splitter twice.
+    const isPrimaryAgentEntity = useAtomValue(isAgentModeAtomFamily(primaryConfigId))
+    const primaryConfigQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(primaryConfigId), [primaryConfigId]),
+    )
+    const agentConfigRef = useRef(false)
+    if (!primaryConfigId) {
+        agentConfigRef.current = false
+    } else if (isPrimaryAgentEntity) {
+        agentConfigRef.current = true
+    } else if (!primaryConfigQuery.isPending) {
+        agentConfigRef.current = false
+    }
+    const isAgentConfig = agentConfigRef.current || (!isComparisonView && earlyIsAgent)
     // Agent max = default on purpose: the summary panel mounts at its cap, so the drag handle only
     // shrinks it. (A larger max just teased a few px of "expansion" — antd counts px sizes against
     // the full container INCLUDING the 12px gutter bar, whose overflow flex-shrink taxes both
