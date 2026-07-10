@@ -42,11 +42,14 @@ import {
 } from "../tracing/otel.ts";
 import {
   localRelayHost,
+  redactContextBoundArgs,
   sandboxRelayHost,
   startToolRelay,
+  type RelayExecutionGuard,
 } from "../tools/relay.ts";
 import {
   ApprovalResponder,
+  ApprovedExecutionGrants,
   ConversationDecisions,
   extractApprovalDecisions,
   extractClientToolOutputs,
@@ -89,6 +92,7 @@ import {
   writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
+  decide,
   PendingApprovalLatch,
   permissionsFromRequest,
 } from "../permission-plan.ts";
@@ -1225,6 +1229,10 @@ export async function runTurn(
       storedDecisionMap,
       extractClientToolOutputs(request),
     );
+    const executionGrants = new ApprovedExecutionGrants();
+    // The guard's decide() must never consume this turn's stored decisions — the DIALOG is their
+    // consumer (it runs first). An empty store makes every `ask` route to the grant ledger.
+    const relayGuardDecisions = new ConversationDecisions(new Map());
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
@@ -1293,10 +1301,22 @@ export async function runTurn(
         ? new Map(
             plan.toolSpecs.map((spec) => [
               spec.name,
-              { permission: spec.permission, readOnly: spec.readOnly },
+              {
+                permission: spec.permission,
+                readOnly: spec.readOnly,
+                // callRef tools only: bound paths are runner-filled at execution, so the
+                // approval card and decision keys must not carry the model's values for them.
+                contextBindings: spec.callRef
+                  ? spec.contextBindings
+                  : undefined,
+              },
             ]),
           )
         : undefined,
+      // A resolved custom-tool allow becomes an execution grant the relay guard consumes, so
+      // only a dialog-approved (or policy-allowed) call ever executes from the relay dir.
+      onPiGateAllowed: (info) =>
+        executionGrants.grant(info.toolName, info.args),
       // Record the parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume it live. Fires per pending gate (before the latch) so a parallel gate is counted;
       // the single-gate resume records only the FIRST gate's answer target. `info.gateType` names
@@ -1334,6 +1354,44 @@ export async function runTurn(
       log: logger,
     });
 
+    // Pi only: the dialog gate lives in the sandbox, so the relay re-checks every execute record
+    // runner-side (a forged record must not run an ask/deny tool). Claude keeps today's behavior:
+    // its harness gates fire before a call reaches the relay, and its relay was never re-checked.
+    const relayGuard: RelayExecutionGuard | undefined = plan.isPi
+      ? (spec, req) => {
+          const verdict = decide(
+            {
+              executor: "relay",
+              toolName: spec.name,
+              specPermission: spec.permission,
+              readOnlyHint: spec.readOnly,
+              args: req.args,
+            },
+            permissionPlan,
+            relayGuardDecisions,
+          );
+          if (verdict.kind === "allow") return { allow: true };
+          if (verdict.kind === "deny") {
+            return {
+              allow: false,
+              reason: `Tool '${spec.name}' is denied by the permission policy.`,
+            };
+          }
+          return executionGrants.consume(
+            spec.name,
+            redactContextBoundArgs(
+              req.args,
+              spec.callRef ? spec.contextBindings : undefined,
+            ),
+          )
+            ? { allow: true }
+            : {
+                allow: false,
+                reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
+              };
+        }
+      : undefined;
+
     if (plan.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
@@ -1344,6 +1402,7 @@ export async function runTurn(
         request.toolCallback as ToolCallbackContext | undefined,
         request.runContext,
         env.clientToolRelayRef.current,
+        relayGuard,
       );
     }
 
@@ -1368,6 +1427,13 @@ export async function runTurn(
       });
       promptPromise = Promise.resolve(opts.resume.promptPromise);
       promptPromise.catch(() => {});
+      // A parked Pi dialog gate resumes on a FRESH turn whose relay and grant ledger are new;
+      // grant the approved call here so the extension's execute record (written right after the
+      // confirm resolves) passes the relay guard. Claude resumes grant too — harmlessly, no
+      // guard consults it.
+      if (opts.resume.reply === "once") {
+        executionGrants.grant(opts.resume.toolName, opts.resume.args);
+      }
       await env.session.respondPermission(
         opts.resume.permissionId,
         opts.resume.reply,

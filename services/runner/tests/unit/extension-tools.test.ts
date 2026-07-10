@@ -391,6 +391,37 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
     );
   });
 
+  it("custom-tool gate: a malformed call errors to the model BEFORE the dialog is raised", async () => {
+    // Argument validation precedes the gate: a missing required argument must never reach a
+    // human as an approval prompt (and never relay as a no-op).
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      {
+        name: "park_probe",
+        description: "echo",
+        kind: "callback",
+        inputSchema: {
+          type: "object",
+          properties: { token: { type: "string" } },
+          required: ["token"],
+        },
+      },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR =
+      "/tmp/agenta-relay-must-not-be-used";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const tool = pi.registered[0];
+    const { calls, ctx } = fakeDialogCtx(true);
+
+    await assert.rejects(
+      () => tool.execute("call_1", {}, undefined, undefined, ctx),
+      /missing required argument\(s\): token/,
+    );
+    assert.equal(calls.length, 0, "the dialog was never raised");
+  });
+
   it("custom-tool gate: a CLIENT spec is NOT dialog-gated (keeps its relay path)", async () => {
     clearEnv();
     const dir = mkdtempSync(join(tmpdir(), "agenta-relay-client-"));

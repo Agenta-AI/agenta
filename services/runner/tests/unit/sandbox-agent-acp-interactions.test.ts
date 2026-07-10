@@ -812,6 +812,134 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
     assert.deepEqual(events, [], "no approval card for a fabricated name");
   });
 
+  it("redacts context-bound argument paths from the approval card and the park record", async () => {
+    // Bound paths are overwritten from runContext at execution; the card must not show the
+    // model's values for them, and the park record (grant key) must match the redacted shape.
+    const { session, emit } = makeSession();
+    const events: AgentEvent[] = [];
+    const gates: any[] = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: (event) => events.push(event) },
+      responder: fakeResponder({ kind: "pendingApproval" }),
+      latch: new PendingApprovalLatch(),
+      piToolSpecsByName: piSpecs([
+        [
+          "test_run",
+          {
+            contextBindings: {
+              "target.workflow_variant_id": "$ctx.workflow.variant.id",
+            },
+          },
+        ],
+      ]),
+      onUserApprovalGate: (info) => gates.push(info),
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "test_run",
+        toolCallId: "call_1",
+        input: {
+          target: { workflow_variant_id: "model-sent" },
+          inputs: { city: "Berlin" },
+        },
+      }),
+    );
+    await flushPromises();
+
+    const payload = (events[0] as any).payload;
+    // Bound path gone; its now-empty ancestor object pruned.
+    assert.deepEqual(payload.toolCall.rawInput, { inputs: { city: "Berlin" } });
+    assert.deepEqual(gates[0].args, { inputs: { city: "Berlin" } });
+  });
+
+  it("onPiGateAllowed fires for an allowed custom tool with the redacted args", async () => {
+    const { session, emit } = makeSession();
+    const allowed: Array<{ toolName: string; args: unknown }> = [];
+    const responder = new ApprovalResponder(
+      permissionPlan("ask"),
+      new ConversationDecisions(new Map()),
+    );
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder,
+      latch: new PendingApprovalLatch(),
+      piToolSpecsByName: piSpecs([
+        [
+          "author_allow",
+          {
+            permission: "allow",
+            contextBindings: {
+              "target.workflow_variant_id": "$ctx.workflow.variant.id",
+            },
+          },
+        ],
+      ]),
+      onPiGateAllowed: (info) => allowed.push(info),
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "author_allow",
+        toolCallId: "c1",
+        input: {
+          target: { workflow_variant_id: "model-sent" },
+          inputs: { city: "Berlin" },
+        },
+      }),
+    );
+    await flushPromises();
+
+    assert.deepEqual(allowed, [
+      { toolName: "author_allow", args: { inputs: { city: "Berlin" } } },
+    ]);
+  });
+
+  it("onPiGateAllowed never fires on a deny or for an allowed builtin gate", async () => {
+    const { session, emit } = makeSession();
+    const allowed: unknown[] = [];
+    const responder = new ApprovalResponder(
+      permissionPlan("allow_reads"),
+      new ConversationDecisions(new Map()),
+    );
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder,
+      latch: new PendingApprovalLatch(),
+      piToolSpecsByName: piSpecs([["author_deny", { permission: "deny" }]]),
+      onPiGateAllowed: (info) => allowed.push(info),
+    });
+    emit(
+      piGateRequest({
+        gate: "pi-custom-tool",
+        toolName: "author_deny",
+        toolCallId: "c1",
+        input: {},
+      }),
+    );
+    await flushPromises();
+    assert.deepEqual(allowed, [], "a denied custom tool grants nothing");
+
+    // A read-only builtin auto-allows under allow_reads, but builtins never reach the relay,
+    // so no execution grant is recorded for them.
+    emit(
+      piGateRequest({
+        gate: "pi-builtin",
+        toolName: "read",
+        toolCallId: "c2",
+        input: { path: "a" },
+      }),
+    );
+    await flushPromises();
+    assert.deepEqual(allowed, [], "an allowed builtin grants nothing");
+  });
+
   it("a Claude run (no Pi specs) never enters envelope detection, even on a title collision", async () => {
     // attachPermissionResponder is shared by Claude and Pi. On a Claude run (piToolSpecsByName
     // absent), a gate titled literally "agenta-approval" (editing a file with that name, a bash

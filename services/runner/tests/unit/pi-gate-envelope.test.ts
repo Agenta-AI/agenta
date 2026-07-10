@@ -258,6 +258,35 @@ describe("buildPiGateDescriptor (runner-side metadata recovery)", () => {
     assert.deepEqual(g!.args, { a: 1, b: 2 });
   });
 
+  it("a spec with contextBindings redacts the bound path from the gate args", () => {
+    // Bound paths are runner-filled at execution; the descriptor (card + decision key) must not
+    // carry the model's value for them, and the emptied ancestor object is pruned.
+    const g = buildPiGateDescriptor(
+      {
+        v: 1,
+        kind: "agenta.gate",
+        gate: "pi-custom-tool",
+        toolName: "test_run",
+        toolCallId: "c",
+        input: {
+          target: { workflow_variant_id: "model-sent" },
+          inputs: { city: "Berlin" },
+        },
+      },
+      new Map([
+        [
+          "test_run",
+          {
+            contextBindings: {
+              "target.workflow_variant_id": "$ctx.workflow.variant.id",
+            },
+          },
+        ],
+      ]),
+    );
+    assert.deepEqual(g!.args, { inputs: { city: "Berlin" } });
+  });
+
   it("an unknown name yields NO descriptor (the caller must reject it)", () => {
     // The sandbox-origin envelope must not resolve a fabricated name against the default
     // permission or put it on the approval card: a builtin outside the canonical set and a

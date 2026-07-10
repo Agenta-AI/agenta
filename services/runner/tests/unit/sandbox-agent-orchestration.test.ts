@@ -703,6 +703,9 @@ describe("runSandboxAgent orchestration", () => {
       Object.keys((calls.toolRelayArgs?.[5] ?? {}) as object).sort(),
       ["onClientTool", "onPause"],
     );
+    // A Pi run passes the execution guard: the relay dir is sandbox-writable, so every execute
+    // record is re-checked runner-side (a forged record must not run an ask/deny tool).
+    assert.equal(typeof calls.toolRelayArgs?.[6], "function");
     assert.equal(
       calls.toolRelayStops,
       2,
@@ -734,7 +737,9 @@ describe("runSandboxAgent orchestration", () => {
       true,
       "the run succeeds; gateway tools reach Claude",
     );
-    // The relay carries execution only; Claude's own ACP gates decide before a call reaches it.
+    // The relay carries execution only; Claude's own ACP gates decide before a call reaches it,
+    // so a Claude run never gets the Pi execution guard.
+    assert.equal(calls.toolRelayArgs?.[6], undefined);
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
     assert.equal(

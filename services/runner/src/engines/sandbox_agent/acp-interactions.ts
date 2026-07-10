@@ -14,6 +14,7 @@ import {
   parsePiGateEnvelope,
   type PiGateEnvelope,
 } from "./pi-gate-envelope.ts";
+import { redactContextBoundArgs } from "../../tools/relay.ts";
 
 /** The parkable gate types a paused turn can record (the Claude ACP and Pi ACP gates). */
 export type ParkedApprovalGateType =
@@ -24,6 +25,9 @@ export type ParkedApprovalGateType =
 export interface PiToolSpecMeta {
   permission?: ToolPermission;
   readOnly?: boolean;
+  /** Present only for callRef tools; drives approval-args redaction (bound paths are overwritten
+   *  from runContext at execution, so the card and decision keys must not show the model's values). */
+  contextBindings?: Record<string, string>;
 }
 
 export interface AttachPermissionResponderInput {
@@ -65,6 +69,10 @@ export interface AttachPermissionResponderInput {
     /** Which gate paused, so the park record can resume it on the right plane. */
     gateType: ParkedApprovalGateType;
   }) => void;
+  /** Fires when a Pi CUSTOM-TOOL gate resolves to allow (author/policy/stored-decision). The
+   *  runner records an execution grant so the relay guard accepts exactly this approved call;
+   *  builtins never reach the relay, so they do not fire it. */
+  onPiGateAllowed?: (info: { toolName: string; args: unknown }) => void;
   /**
    * Resolved tool specs by name for the Pi gates. PRESENCE marks a Pi run and turns Pi gate
    * envelope detection on; it must stay absent for Claude. The pre-filter is the dialog TITLE,
@@ -90,6 +98,7 @@ export function attachPermissionResponder({
   onCreateInteraction,
   onResolveInteraction,
   onUserApprovalGate,
+  onPiGateAllowed,
   piToolSpecsByName,
 }: AttachPermissionResponderInput): void {
   session.onPermissionRequest((req: any) => {
@@ -103,8 +112,9 @@ export function attachPermissionResponder({
   // gate's stable anchor). The Vercel egress prefers it over the drift-prone title/kind
   // display fields, so the approval part names the tool exactly as the responder keys it.
   // This stamping never mutates the inbound ACP object. (The one deliberate inbound mutation
-  // is the Pi gate's id/args normalization in `handlePiGate`, which must happen in
-  // place so every downstream read sees the envelope's real identity.)
+  // is the Pi gate's id/args normalization in `handlePiGate`, which must happen in place so
+  // every downstream read sees the envelope's real identity — with `rawInput` set to the
+  // gate's REDACTED args, never the model's values for context-bound paths.)
   const stampResolvedName = (toolCall: any, gate: GateDescriptor): any => {
     if (!toolCall || typeof toolCall !== "object" || !gate.toolName)
       return toolCall;
@@ -244,8 +254,9 @@ export function attachPermissionResponder({
    * A Pi gate that rode `ctx.ui.confirm`: classify from the envelope identity, not from the
    * spec-less dialog strings. The tool-call id is normalized to the envelope's REAL id BEFORE
    * anything reads `req.toolCall` (the descriptor, pause bookkeeping, the emitted card, and the
-   * park record all key on it); the emitted card's `rawInput` is set to the real args so it
-   * renders like a relay-gate card rather than showing the envelope JSON.
+   * park record all key on it); the emitted card's `rawInput` is set to the gate's REDACTED
+   * args (bound paths stripped for a contextBindings tool, verbatim otherwise) so it renders
+   * like a relay-gate card without showing model values the execution will overwrite.
    */
   const handlePiGate = async (
     req: any,
@@ -253,11 +264,6 @@ export function attachPermissionResponder({
     availableReplies: string[],
     envelope: PiGateEnvelope,
   ): Promise<void> => {
-    const toolCall = req?.toolCall;
-    if (toolCall && typeof toolCall === "object") {
-      toolCall.toolCallId = envelope.toolCallId;
-      toolCall.rawInput = envelope.input;
-    }
     const gate = buildPiGateDescriptor(envelope, piToolSpecsByName);
     // An unrecognized tool name (builtin OR custom) fails closed. The envelope is
     // sandbox-origin and untrusted; letting the raw name through would resolve it against the
@@ -269,6 +275,11 @@ export function attachPermissionResponder({
       );
       await rejectRequest(id, availableReplies);
       return;
+    }
+    const toolCall = req?.toolCall;
+    if (toolCall && typeof toolCall === "object") {
+      toolCall.toolCallId = envelope.toolCallId;
+      toolCall.rawInput = gate.args;
     }
     if (log) {
       log(
@@ -292,6 +303,11 @@ export function attachPermissionResponder({
     if (verdict.kind === "pendingApproval" || !id) {
       pauseUserApproval(req, id, gate, "pi-acp-permission");
       return;
+    }
+    // The grant must exist BEFORE the harness reply: the extension writes the execute record
+    // the moment the confirm resolves, and the relay guard consumes the grant to accept it.
+    if (verdict.kind === "allow" && envelope.gate === "pi-custom-tool") {
+      onPiGateAllowed?.({ toolName: gate.toolName!, args: gate.args });
     }
     await replyPermission(id, verdict.kind, availableReplies);
   };
@@ -414,7 +430,9 @@ export function buildPiGateDescriptor(
     specPermission: toolPermission(spec?.permission),
     readOnlyHint:
       typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
-    args: envelope.input,
+    // Context-bound paths are overwritten from runContext at execution; the approval card and
+    // the stored-decision key must not carry the model's values for them.
+    args: redactContextBoundArgs(envelope.input, spec?.contextBindings),
   };
 }
 

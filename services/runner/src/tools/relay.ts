@@ -96,6 +96,74 @@ export interface ExecuteRelayResponse {
 export type RelayResponse = ExecuteRelayResponse;
 const PAUSED = Symbol("paused");
 
+/**
+ * Runner-side authorization for one relay execute record. The relay dir is sandbox-writable,
+ * so a record can be forged without ever passing the in-sandbox approval dialog; this re-check
+ * is the runner-side enforcement the dialog cannot provide. The deny reason becomes the tool's
+ * result text, so the model loop continues (same shape as a dialog deny).
+ */
+export type RelayExecutionGuard = (
+  spec: ResolvedToolSpec,
+  req: ExecuteRelayRequest,
+) => { allow: true } | { allow: false; reason: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cloneJsonish(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => cloneJsonish(item));
+  if (!isRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = cloneJsonish(item);
+  }
+  return out;
+}
+
+function pruneEmptyAncestors(
+  target: Record<string, unknown>,
+  path: string,
+): void {
+  const parts = path.split(".");
+  const ancestors: Array<{ owner: Record<string, unknown>; key: string }> = [];
+  let cursor = target;
+  for (const part of parts.slice(0, -1)) {
+    const next = cursor[part];
+    if (!isRecord(next)) return;
+    ancestors.push({ owner: cursor, key: part });
+    cursor = next;
+  }
+  for (const { owner, key } of ancestors.reverse()) {
+    const value = owner[key];
+    if (!isRecord(value) || Object.keys(value).length > 0) return;
+    delete owner[key];
+  }
+}
+
+/**
+ * Strip context-bound argument paths from a tool call's args. Bound paths are overwritten from
+ * runContext at execution, so approval display and stored-decision keys must not include the
+ * model's values for them: a card would show a value that never executes, and a decision keyed
+ * on it would not match the same call re-keyed after redaction. Empty ancestor objects left by
+ * a deleted path are pruned so the redacted shape is canonical.
+ */
+export function redactContextBoundArgs(
+  args: unknown,
+  contextBindings: Record<string, string> | undefined,
+): unknown {
+  if (!contextBindings || Object.keys(contextBindings).length === 0)
+    return args;
+  if (!isRecord(args)) return args;
+  const redacted = cloneJsonish(args);
+  if (!isRecord(redacted)) return redacted;
+  for (const path of Object.keys(contextBindings)) {
+    deepDelete(redacted, path);
+    pruneEmptyAncestors(redacted, path);
+  }
+  return redacted;
+}
+
 /** Make a tool-call id safe to use as a filename (and bounded). */
 export function sanitizeRelayId(id: string): string {
   return id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120) || "tool";
@@ -161,6 +229,7 @@ async function executeRelayedTool(
   callback: ToolCallbackContext | undefined,
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
+  guard: RelayExecutionGuard | undefined,
 ): Promise<string | typeof PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
@@ -186,6 +255,14 @@ async function executeRelayedTool(
       return `Client tool '${spec.name}' was denied.`;
     }
     return JSON.stringify(decision.output ?? {});
+  }
+
+  // Client tools keep their own browser-fulfilled pause semantics above; everything else is
+  // re-checked here because the request file is sandbox-writable and proves nothing about the
+  // dialog gate having run.
+  if (guard) {
+    const verdict = guard(spec, req);
+    if (!verdict.allow) return verdict.reason;
   }
 
   return executeAllowedRelayedTool(spec, req, callback, runContext);
@@ -249,6 +326,7 @@ export function startToolRelay(
   callback: ToolCallbackContext | undefined,
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
+  guard?: RelayExecutionGuard,
 ): { stop: () => Promise<void> } {
   let active = true;
   const seen = new Set<string>();
@@ -269,6 +347,7 @@ export function startToolRelay(
         callback,
         runContext,
         clientToolRelay,
+        guard,
       );
       if (text === PAUSED) return;
       res = { ok: true, text };

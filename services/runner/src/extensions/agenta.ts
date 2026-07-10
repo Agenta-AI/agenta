@@ -304,6 +304,8 @@ function registerTools(pi: ExtensionAPI): void {
       promptGuidelines: promptGuidelines(spec),
       // Pi accepts plain JSON Schema here (non-TypeBox validation path).
       parameters: (specInputSchema(spec) as any) ?? EMPTY_OBJECT_SCHEMA,
+      // The positional shape (ctx 5th) is pi-coding-agent's registerTool execute contract. If
+      // upstream changes the arity, the gate fails closed (no ui -> block); it never fails open.
       async execute(
         toolCallId: string,
         params: unknown,
