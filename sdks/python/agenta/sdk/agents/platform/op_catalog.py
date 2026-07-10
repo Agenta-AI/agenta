@@ -813,9 +813,18 @@ _ANNOTATE_TRACE_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 _DISCOVER_TRIGGERS_DESCRIPTION = (
-    "Discover trigger events that fit plain-language use cases. Returns the best-match "
-    "event per use case with event_key, trigger_config schema, sample payload, connection "
-    "state and connection instructions, alternatives, and setup guidance."
+    "Find trigger events (external happenings that can start this agent) for "
+    "plain-language use cases. Returns the best-match event per use case with "
+    "event_key, trigger_config schema, sample payload, connection state and "
+    "connection instructions, plus close alternatives. Matching is keyword search "
+    "over the provider catalog, not semantic: always confirm the returned "
+    "integration and event description actually fit the use case before wiring an "
+    "event_key. When nothing matches confidently, the closest events are returned "
+    "in alternatives with a note; if the integration you asked about never appears, "
+    "the provider has no triggers for it. To browse an integration, pass its name "
+    "alone as the use case (e.g. 'slack') and raise limit_alternatives (e.g. to 20): "
+    "results are always capped by limit_alternatives, so never treat the returned "
+    "list as complete."
 )
 _DISCOVER_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -823,8 +832,10 @@ _DISCOVER_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
         "use_cases": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "One short fragment per trigger the agent needs "
-            "(e.g. 'new github issue opened').",
+            "description": "One short fragment per trigger the agent needs, naming "
+            "the integration and the event (e.g. 'new github issue created', "
+            "'slack channel message received'). An integration name alone returns "
+            "its closest events, capped by limit_alternatives.",
         },
         "provider": {
             "type": "string",
@@ -835,7 +846,8 @@ _DISCOVER_TRIGGERS_INPUT_SCHEMA: Dict[str, Any] = {
             "type": "integer",
             "default": 3,
             "minimum": 0,
-            "description": "Max alternative events to return per use case.",
+            "description": "Max alternative events to return per use case. Raise it "
+            "(e.g. to 20) when browsing an integration's catalog.",
         },
     },
     "required": ["use_cases"],

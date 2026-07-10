@@ -626,6 +626,13 @@ class ComposioConfig(BaseModel):
     webhook_replay_window_seconds: int = int(
         os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
     )
+    # Full trigger-types catalog: project-agnostic cache TTL + whole-fetch deadline.
+    catalog_cache_ttl_seconds: int = int(
+        os.getenv("COMPOSIO_CATALOG_CACHE_TTL_SECONDS") or 24 * 60 * 60
+    )
+    catalog_fetch_deadline_seconds: float = float(
+        os.getenv("COMPOSIO_CATALOG_FETCH_DEADLINE_SECONDS") or 30
+    )
 
     @property
     def enabled(self) -> bool:
