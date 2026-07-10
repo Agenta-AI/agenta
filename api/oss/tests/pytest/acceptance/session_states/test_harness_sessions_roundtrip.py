@@ -5,9 +5,8 @@ The continuity fields (latest_agent_session_id / harness_sessions / latest_turn_
 inside the existing `data` JSON column, so NO migration is required -- `session_states.data`
 already exists.
 
-NOT RUN in this pass: requires a live stack (AGENTA_API_URL/AGENTA_AUTH_KEY). A running
-docker-compose stack was found locally but its image predates this change, so these are
-delivered unrun -- see the pytest.ini `acceptance` marker.
+Requires a live stack (AGENTA_API_URL/AGENTA_AUTH_KEY) -- see the pytest.ini `acceptance`
+marker.
 """
 
 import uuid

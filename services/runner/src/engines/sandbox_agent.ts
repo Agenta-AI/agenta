@@ -475,6 +475,15 @@ export interface RunTurnOptions {
 }
 
 /**
+ * Send only the new user text (not the full cold transcript) when the harness already holds the
+ * prior turns: a live continuation, or a session rehydrated via `session/load`. `runTurn` calls
+ * this, so a test that pins it pins the shipped decision.
+ */
+export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
+  return Boolean(opts.continuation || opts.loaded);
+}
+
+/**
  * A session-scoped environment that can serve many turns. Everything expensive to build lives
  * here (sandbox, session, internal tool-MCP server, mounted cwd, relay/temp dirs); `destroy()`
  * is the one complete idempotent teardown the pool, the shutdown handler, and the cold path all
@@ -1326,10 +1335,8 @@ export async function runTurn(
 
   try {
     const promptText = resolvePromptText(request);
-    // Cold: replay the full transcript (plan.turnText). Continuation (live keep-alive) or loaded
-    // (session/load rehydration): the harness already has prior turns, send only new text.
-    const sendLastMessageOnly = opts.continuation || opts.loaded;
-    const turnText = sendLastMessageOnly ? promptText : plan.turnText;
+    // Cold: replay the full transcript (plan.turnText). Continuation or loaded: send only new text.
+    const turnText = sendLastMessageOnly(opts) ? promptText : plan.turnText;
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,

@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import {
   messageTranscript,
   buildTurnText,
-  type RunTurnOptions,
+  sendLastMessageOnly,
 } from "../../src/engines/sandbox_agent.ts";
 import {
   resolveRunSessionId,
@@ -76,15 +76,9 @@ describe("buildTurnText", () => {
 });
 
 // S3: on any successful resume rung (HOT continuation OR S1 session/load) the ACP prompt is
-// last-message-only; buildTurnText only runs on the cold path. `runTurn`'s own decision is
-// `sendLastMessageOnly = opts.continuation || opts.loaded` (engines/sandbox_agent.ts); this
-// mirrors that boolean surface via the exported `RunTurnOptions` type without reaching into
-// `runTurn`'s private internals (which need a full SessionEnvironment to invoke).
+// last-message-only; buildTurnText only runs on the cold path. This imports `runTurn`'s own
+// decision function, so the pin fails if the shipped rule drifts.
 describe("S3 skip-flatten: sendLastMessageOnly = continuation || loaded", () => {
-  function sendLastMessageOnly(opts: RunTurnOptions): boolean {
-    return Boolean(opts.continuation || opts.loaded);
-  }
-
   it("cold turn (neither flag): the full transcript is sent, not last-message-only", () => {
     assert.equal(sendLastMessageOnly({}), false);
   });
