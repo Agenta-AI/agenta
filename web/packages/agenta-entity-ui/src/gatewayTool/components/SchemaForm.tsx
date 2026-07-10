@@ -53,10 +53,12 @@ interface Props {
     formats?: boolean
     /** Opt-in: render enum fields with an "Other…" custom-value escape hatch (elicitation forms). */
     openEnums?: boolean
+    /** Fires with ALL current values on any field change (e.g. draft persistence). */
+    onValuesChange?: (values: Record<string, unknown>) => void
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
-    ({schema, form, disabled, jsonMode, flat, formats, openEnums}, ref) => {
+    ({schema, form, disabled, jsonMode, flat, formats, openEnums, onValuesChange}, ref) => {
         const fields = useMemo(
             () =>
                 buildFormFieldsFromSchema(schema, "", {
@@ -163,6 +165,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 layout="vertical"
                 disabled={disabled}
                 requiredMark={false}
+                // Raw values on purpose: cleanFormValues would recurse into (and destroy) dayjs
+                // objects and JSON.parse typed strings — wrong for a draft snapshot.
+                onValuesChange={onValuesChange ? (_, all) => onValuesChange(all) : undefined}
                 className={
                     flat
                         ? "[&_.ant-form-item]:!mb-3 [&_.ant-form-item-label]:!pb-1 [&_.ant-form-item-label>label]:!h-auto [&_.ant-form-item-label>label]:!text-xs"

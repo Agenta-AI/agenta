@@ -15,6 +15,7 @@ import {
     hasPriorElicitationDegradation,
     normalizeStringFormat,
     parseElicitationPayload,
+    partitionElicitationDraft,
     serializeElicitationContent,
 } from "../../src/utils/elicitation"
 
@@ -535,6 +536,37 @@ describe("serializeElicitationContent", () => {
         expect(serializeElicitationContent(result.payload, {at: {toISOString: () => iso}})).toEqual(
             {at: iso},
         )
+    })
+})
+
+describe("partitionElicitationDraft", () => {
+    const payload = {
+        message: "m",
+        requestedSchema: {
+            type: "object" as const,
+            properties: {
+                due: {type: "string" as const, format: "date"},
+                at: {type: "string" as const, format: "date-time"},
+                name: {type: "string" as const},
+            },
+        },
+    }
+
+    it("routes ISO strings on date fields to dates (caller revives), the rest to plain", () => {
+        const {plain, dates} = partitionElicitationDraft(payload, {
+            due: "2026-07-11",
+            at: "2026-07-11T09:00:00.000Z",
+            name: "Ada",
+            ghost: "kept",
+        })
+        expect(dates).toEqual({due: "2026-07-11", at: "2026-07-11T09:00:00.000Z"})
+        expect(plain).toEqual({name: "Ada", ghost: "kept"})
+    })
+
+    it("non-string values on date fields stay plain (tolerant)", () => {
+        const {plain, dates} = partitionElicitationDraft(payload, {due: 42})
+        expect(dates).toEqual({})
+        expect(plain).toEqual({due: 42})
     })
 })
 

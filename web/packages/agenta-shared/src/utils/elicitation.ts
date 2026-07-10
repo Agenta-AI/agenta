@@ -319,6 +319,26 @@ export function hasPriorElicitationDegradation(
     )
 }
 
+/**
+ * Split a persisted form draft for restore: date/date-time fields serialized as ISO strings must
+ * be revived to date objects by the caller (antd DatePicker rejects strings); everything else
+ * restores as-is. Unknown keys stay in `plain` (tolerant — the schema may have changed).
+ */
+export function partitionElicitationDraft(
+    payload: ElicitationRequestPayload,
+    draft: Record<string, unknown>,
+): {plain: Record<string, unknown>; dates: Record<string, string>} {
+    const plain: Record<string, unknown> = {}
+    const dates: Record<string, string> = {}
+    for (const [name, value] of Object.entries(draft)) {
+        const format = payload.requestedSchema.properties[name]?.format
+        if ((format === "date" || format === "date-time") && typeof value === "string")
+            dates[name] = value
+        else plain[name] = value
+    }
+    return {plain, dates}
+}
+
 const isDateLike = (value: unknown): value is {toISOString: () => string} =>
     typeof value === "object" &&
     value !== null &&
