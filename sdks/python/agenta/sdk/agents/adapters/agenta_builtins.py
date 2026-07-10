@@ -647,10 +647,15 @@ Do not discover tools or triggers for an ask that does not need them.
 7. Add a trigger only if asked. For schedules, cron is UTC, five fields, with a one-minute floor;
    convert the user's timezone yourself, then stop for approval before `create_schedule`: say what
    you are about to create and wait for the gate. After approval, call `create_schedule`, then
-   confirm with `list_schedules`. For events, call `discover_triggers`, ensure the integration is
-   connected, then stop for approval before `create_subscription`: say what you are about to create
-   and wait for the gate. After approval, call `create_subscription`, and confirm with
-   `list_deliveries`. `test_subscription` waits for a real event, so warn the user before using it
+   confirm with `list_schedules`. For events, call `discover_triggers` and check that the returned
+   integration and event description actually fit the ask — matching is keyword search, not
+   semantic. A no-match still lists the closest events as alternatives, and a bare integration
+   name ("slack") browses its closest events — both capped by `limit_alternatives` (default 3),
+   so raise it before concluding an event does not exist. If the integration you asked about
+   never appears at all, the provider has no trigger for it: say so instead of wiring the
+   closest keyword hit. Then ensure the integration is connected, and stop for approval before
+   `create_subscription`: say what you are about to create and wait for the gate. After
+   approval, call `create_subscription`, and confirm with `list_deliveries`. `test_subscription` waits for a real event, so warn the user before using it
    in a chat turn. Use `remove_schedule` or `remove_subscription` only when cleaning up a wrong
    trigger. Shape the run's inputs with `inputs_fields` (see `references/trigger-inputs.md`).
    Triggers do NOT follow a new revision: after any later `commit_revision`, existing schedules and

@@ -38,11 +38,6 @@ import type {
   RunContext,
   ToolCallbackContext,
 } from "../protocol.ts";
-import {
-  piBuiltinIdentity,
-  type GateDescriptor,
-  type Verdict,
-} from "../permission-plan.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 
@@ -76,7 +71,6 @@ export const RELAY_POLL_MAX_MS = Number(
 export const RELAY_POLL_IDLE_GROW_AFTER = Number(
   process.env.AGENTA_AGENT_TOOLS_RELAY_IDLE_GROW_AFTER ?? 5,
 );
-export const RELAY_PERMISSION_PROTOCOL = 1;
 
 /** The next poll delay given the count of consecutive idle polls (no new request seen). */
 export function relayPollDelayMs(idlePolls: number): number {
@@ -91,14 +85,7 @@ export interface ExecuteRelayRequest {
   toolCallId: string;
   args: unknown;
 }
-export interface PermissionRelayRequest {
-  kind: "permission";
-  protocol: typeof RELAY_PERMISSION_PROTOCOL;
-  toolName: string;
-  toolCallId: string;
-  args: unknown;
-}
-export type RelayRequest = ExecuteRelayRequest | PermissionRelayRequest;
+export type RelayRequest = ExecuteRelayRequest;
 
 export interface ExecuteRelayResponse {
   kind?: "execute";
@@ -107,28 +94,75 @@ export interface ExecuteRelayResponse {
   error?: string;
 }
 export type RelayResponse = ExecuteRelayResponse;
-export type PermissionRelayVerdict = "allow" | "deny" | "pendingApproval";
-export interface PermissionRelayResponse {
-  kind: "permission";
-  ok: boolean;
-  verdict: PermissionRelayVerdict;
-  reason?: string;
-}
-export type RelayRecordResponse =
-  ExecuteRelayResponse | PermissionRelayResponse;
-export interface RelayPermissions {
-  /** False when the harness raises its own gates first (Claude); the relay then executes
-   *  what reaches it. True when the relay is the only gate (Pi). */
-  enforce: boolean;
-  decide: (gate: GateDescriptor) => Verdict;
-  /** Called when an ask pauses at the relay: emit the approval event and pause the turn. */
-  onPendingApproval: (info: {
-    toolCallId: string;
-    toolName: string;
-    args: unknown;
-  }) => { emitted: boolean };
-}
 const PAUSED = Symbol("paused");
+
+/**
+ * Runner-side authorization for one relay execute record. The relay dir is sandbox-writable,
+ * so a record can be forged without ever passing the in-sandbox approval dialog; this re-check
+ * is the runner-side enforcement the dialog cannot provide. The deny reason becomes the tool's
+ * result text, so the model loop continues (same shape as a dialog deny).
+ */
+export type RelayExecutionGuard = (
+  spec: ResolvedToolSpec,
+  req: ExecuteRelayRequest,
+) => { allow: true } | { allow: false; reason: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cloneJsonish(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => cloneJsonish(item));
+  if (!isRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = cloneJsonish(item);
+  }
+  return out;
+}
+
+function pruneEmptyAncestors(
+  target: Record<string, unknown>,
+  path: string,
+): void {
+  const parts = path.split(".");
+  const ancestors: Array<{ owner: Record<string, unknown>; key: string }> = [];
+  let cursor = target;
+  for (const part of parts.slice(0, -1)) {
+    const next = cursor[part];
+    if (!isRecord(next)) return;
+    ancestors.push({ owner: cursor, key: part });
+    cursor = next;
+  }
+  for (const { owner, key } of ancestors.reverse()) {
+    const value = owner[key];
+    if (!isRecord(value) || Object.keys(value).length > 0) return;
+    delete owner[key];
+  }
+}
+
+/**
+ * Strip context-bound argument paths from a tool call's args. Bound paths are overwritten from
+ * runContext at execution, so approval display and stored-decision keys must not include the
+ * model's values for them: a card would show a value that never executes, and a decision keyed
+ * on it would not match the same call re-keyed after redaction. Empty ancestor objects left by
+ * a deleted path are pruned so the redacted shape is canonical.
+ */
+export function redactContextBoundArgs(
+  args: unknown,
+  contextBindings: Record<string, string> | undefined,
+): unknown {
+  if (!contextBindings || Object.keys(contextBindings).length === 0)
+    return args;
+  if (!isRecord(args)) return args;
+  const redacted = cloneJsonish(args);
+  if (!isRecord(redacted)) return redacted;
+  for (const path of Object.keys(contextBindings)) {
+    deepDelete(redacted, path);
+    pruneEmptyAncestors(redacted, path);
+  }
+  return redacted;
+}
 
 /** Make a tool-call id safe to use as a filename (and bounded). */
 export function sanitizeRelayId(id: string): string {
@@ -137,24 +171,6 @@ export function sanitizeRelayId(id: string): string {
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
-
-export function parsePermissionRelayResponse(
-  value: unknown,
-): PermissionRelayResponse | undefined {
-  if (!isRecord(value)) return undefined;
-  if (value.kind !== "permission") return undefined;
-  if (typeof value.ok !== "boolean") return undefined;
-  if (!isPermissionRelayVerdict(value.verdict)) return undefined;
-  if (value.reason !== undefined && typeof value.reason !== "string") {
-    return undefined;
-  }
-  return {
-    kind: "permission",
-    ok: value.ok,
-    verdict: value.verdict,
-    ...(value.reason === undefined ? {} : { reason: value.reason }),
-  };
-}
 
 export interface RelayHost {
   list: (dir: string) => Promise<string[]>;
@@ -203,13 +219,17 @@ export function sandboxRelayHost(sandbox: any): RelayHost {
   };
 }
 
+// The relay carries EXECUTION only. Permission gates never ride these files: Claude raises its
+// own ACP gates before a call reaches the relay, and a Pi gate rides the extension's
+// `ctx.ui.confirm` dialog onto the ACP permission plane (Pi approval parking), decided and
+// parked by the runner's permission responder before the extension writes an execute request.
 async function executeRelayedTool(
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
   callback: ToolCallbackContext | undefined,
-  permissions: RelayPermissions,
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
+  guard: RelayExecutionGuard | undefined,
 ): Promise<string | typeof PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
@@ -237,31 +257,12 @@ async function executeRelayedTool(
     return JSON.stringify(decision.output ?? {});
   }
 
-  if (permissions.enforce) {
-    const gate: GateDescriptor = {
-      executor: "relay",
-      toolName: spec.name,
-      specPermission: spec.permission,
-      readOnlyHint: spec.readOnly,
-      args: req.args,
-    };
-    const verdict = permissions.decide(gate);
-    if (verdict.kind === "deny") {
-      if (spec.permission === "deny") {
-        return authoredDenyReason(spec.name);
-      }
-      return permissionPolicyDenyReason(spec.name);
-    }
-    if (verdict.kind === "pendingApproval") {
-      // Pi file-relay approvals are recorded here. Claude's approval card is
-      // harness-rendered before this point, so this relay cannot redact it.
-      permissions.onPendingApproval({
-        toolCallId: req.toolCallId,
-        toolName: spec.name,
-        args: pendingApprovalArgs(spec, req.args),
-      });
-      return PAUSED;
-    }
+  // Client tools keep their own browser-fulfilled pause semantics above; everything else is
+  // re-checked here because the request file is sandbox-writable and proves nothing about the
+  // dialog gate having run.
+  if (guard) {
+    const verdict = guard(spec, req);
+    if (!verdict.allow) return verdict.reason;
   }
 
   return executeAllowedRelayedTool(spec, req, callback, runContext);
@@ -318,142 +319,14 @@ async function executeAllowedRelayedTool(
  * the in-sandbox extension is waiting on. Returns `stop()` to end the loop and drain any
  * in-flight executions; call it once the prompt resolves.
  */
-function permissionPolicyDenyReason(toolName: string): string {
-  return `Tool '${toolName}' is denied by the permission policy.`;
-}
-
-function authoredDenyReason(toolName: string): string {
-  return `Tool '${toolName}' is denied by policy.`;
-}
-
-function permissionProtocolMismatchReason(): string {
-  return "Permission check denied because of a runner/extension version mismatch.";
-}
-
-function logPermissionRelayError(message: string): void {
-  process.stderr.write(`[tool-relay] ERROR ${message}\n`);
-}
-
-function permissionDenyResponse(reason: string): PermissionRelayResponse {
-  return { kind: "permission", ok: true, verdict: "deny", reason };
-}
-
-function isPermissionRelayVerdict(
-  value: unknown,
-): value is PermissionRelayVerdict {
-  return value === "allow" || value === "deny" || value === "pendingApproval";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function cloneJsonish(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map((item) => cloneJsonish(item));
-  if (!isRecord(value)) return value;
-  const out: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) {
-    out[key] = cloneJsonish(item);
-  }
-  return out;
-}
-
-function pruneEmptyAncestors(target: Record<string, unknown>, path: string): void {
-  const parts = path.split(".");
-  const ancestors: Array<{ owner: Record<string, unknown>; key: string }> = [];
-  let cursor = target;
-  for (const part of parts.slice(0, -1)) {
-    const next = cursor[part];
-    if (!isRecord(next)) return;
-    ancestors.push({ owner: cursor, key: part });
-    cursor = next;
-  }
-  for (const { owner, key } of ancestors.reverse()) {
-    const value = owner[key];
-    if (!isRecord(value) || Object.keys(value).length > 0) return;
-    delete owner[key];
-  }
-}
-
-function pendingApprovalArgs(
-  spec: ResolvedToolSpec,
-  args: unknown,
-): unknown {
-  if (!spec.callRef || !spec.contextBindings || !isRecord(args)) return args;
-  const displayArgs = cloneJsonish(args);
-  if (!isRecord(displayArgs)) return displayArgs;
-  for (const path of Object.keys(spec.contextBindings)) {
-    deepDelete(displayArgs, path);
-    pruneEmptyAncestors(displayArgs, path);
-  }
-  return displayArgs;
-}
-
-async function handlePermissionRelayRequest(
-  req: Partial<PermissionRelayRequest> & {
-    kind: "permission";
-    protocol?: unknown;
-  },
-  fallbackId: string,
-  permissions: RelayPermissions,
-): Promise<PermissionRelayResponse> {
-  const toolName =
-    typeof req.toolName === "string" ? req.toolName : "<unknown>";
-  if (req.protocol !== RELAY_PERMISSION_PROTOCOL) {
-    logPermissionRelayError(
-      `permission protocol mismatch for ${toolName}: got ${JSON.stringify(
-        req.protocol,
-      )}, expected ${RELAY_PERMISSION_PROTOCOL}; denying`,
-    );
-    return permissionDenyResponse(permissionProtocolMismatchReason());
-  }
-
-  const identity = piBuiltinIdentity(toolName);
-  if (!identity) {
-    logPermissionRelayError(
-      `unknown builtin permission tool ${toolName}; denying`,
-    );
-    return permissionDenyResponse(permissionPolicyDenyReason(toolName));
-  }
-
-  const gate: GateDescriptor = {
-    executor: "harness",
-    toolName: identity.ruleName,
-    readOnlyHint: identity.readOnly,
-    args: req.args,
-  };
-  const verdict = permissions.decide(gate);
-  if (verdict.kind === "allow") {
-    return { kind: "permission", ok: true, verdict: "allow" };
-  }
-  if (verdict.kind === "deny") {
-    return permissionDenyResponse(permissionPolicyDenyReason(toolName));
-  }
-
-  const pending = permissions.onPendingApproval({
-    toolCallId:
-      typeof req.toolCallId === "string" ? req.toolCallId : fallbackId,
-    toolName,
-    args: req.args,
-  });
-  return {
-    kind: "permission",
-    ok: true,
-    verdict: "pendingApproval",
-    reason: pending.emitted
-      ? `Waiting for approval of ${toolName}.`
-      : "Another approval is pending; retry after it resolves.",
-  };
-}
-
 export function startToolRelay(
   host: RelayHost,
   relayDir: string,
   specs: ResolvedToolSpec[],
   callback: ToolCallbackContext | undefined,
-  permissions: RelayPermissions,
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
+  guard?: RelayExecutionGuard,
 ): { stop: () => Promise<void> } {
   let active = true;
   const seen = new Set<string>();
@@ -462,45 +335,27 @@ export function startToolRelay(
 
   const handle = async (reqName: string): Promise<void> => {
     const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
-    let res: RelayRecordResponse;
-    let permissionReqName: string | undefined;
+    let res: RelayResponse;
     try {
       const raw = await host.read(`${relayDir}/${reqName}`);
       const req = JSON.parse(raw) as RelayRequest;
-      if (req.kind === "permission") {
-        permissionReqName =
-          typeof req.toolName === "string" ? req.toolName : undefined;
-        res = await handlePermissionRelayRequest(req, id, permissions);
-      } else {
-        const spec = specsByName.get(req.toolName);
-        if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
-        const text = await executeRelayedTool(
-          spec,
-          { ...req, toolCallId: req.toolCallId ?? id },
-          callback,
-          permissions,
-          runContext,
-          clientToolRelay,
-        );
-        if (text === PAUSED) return;
-        res = { ok: true, text };
-      }
+      const spec = specsByName.get(req.toolName);
+      if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
+      const text = await executeRelayedTool(
+        spec,
+        { ...req, toolCallId: req.toolCallId ?? id },
+        callback,
+        runContext,
+        clientToolRelay,
+        guard,
+      );
+      if (text === PAUSED) return;
+      res = { ok: true, text };
     } catch (err) {
-      if (permissionReqName !== undefined) {
-        logPermissionRelayError(
-          `permission request for ${permissionReqName} failed: ${
-            err instanceof Error ? err.message : String(err)
-          }; denying`,
-        );
-        res = permissionDenyResponse(
-          permissionPolicyDenyReason(permissionReqName),
-        );
-      } else {
-        res = {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
+      res = {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
     try {
       await host.write(
