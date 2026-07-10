@@ -30,35 +30,43 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         removeVariantFromSelection(variantId)
     }, [removeVariantFromSelection, variantId])
 
-    const handleDiscardDraft: NonNullable<MenuProps["onClick"]> = (e) => {
-        e?.domEvent?.stopPropagation()
-        if (!variantId) return
-        try {
-            workflowMolecule.set.discard(variantId)
-            message.success("Draft changes discarded")
-        } catch (err) {
-            message.error("Failed to discard draft changes")
-            console.error(err)
-        }
-    }
-
-    const handleCopyRawConfig: NonNullable<MenuProps["onClick"]> = (e) => {
-        e?.domEvent?.stopPropagation()
-        if (!variantId) return
-        // Read lazily so the menu doesn't re-render on every config edit.
-        const config = getDefaultStore().get(workflowMolecule.selectors.configuration(variantId))
-        if (!config) {
-            message.error("No raw configuration available to copy")
-            return
-        }
-        navigator.clipboard
-            .writeText(JSON.stringify(config, null, 2))
-            .then(() => message.success("Raw configuration copied to clipboard"))
-            .catch((err) => {
-                message.error("Failed to copy raw configuration")
+    const handleDiscardDraft = useCallback<NonNullable<MenuProps["onClick"]>>(
+        (e) => {
+            e?.domEvent?.stopPropagation()
+            if (!variantId) return
+            try {
+                workflowMolecule.set.discard(variantId)
+                message.success("Draft changes discarded")
+            } catch (err) {
+                message.error("Failed to discard draft changes")
                 console.error(err)
-            })
-    }
+            }
+        },
+        [variantId],
+    )
+
+    const handleCopyRawConfig = useCallback<NonNullable<MenuProps["onClick"]>>(
+        (e) => {
+            e?.domEvent?.stopPropagation()
+            if (!variantId) return
+            // Read lazily so the menu doesn't re-render on every config edit.
+            const config = getDefaultStore().get(
+                workflowMolecule.selectors.configuration(variantId),
+            )
+            if (!config) {
+                message.error("No raw configuration available to copy")
+                return
+            }
+            navigator.clipboard
+                .writeText(JSON.stringify(config, null, 2))
+                .then(() => message.success("Raw configuration copied to clipboard"))
+                .catch((err) => {
+                    message.error("Failed to copy raw configuration")
+                    console.error(err)
+                })
+        },
+        [variantId],
+    )
 
     const items: MenuProps["items"] = useMemo(
         () => [
