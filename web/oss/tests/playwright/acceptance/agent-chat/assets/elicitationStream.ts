@@ -18,10 +18,16 @@
 
 /** The flat elicitation payload the mocked `request_input` call carries (drives the form). */
 export interface ElicitationFieldFixture {
-    type: "string" | "number" | "integer" | "boolean"
+    type: "string" | "number" | "integer" | "boolean" | "array"
     title?: string
     enum?: string[]
+    /** Context-ful options (oneOf+const) — descriptions upgrade the control to choice cards. */
+    oneOf?: {const: string; title?: string; description?: string}[]
+    /** Multi-select: the one admitted array shape (string items, optional enum/oneOf). */
+    items?: {type: "string"; enum?: string[]; oneOf?: {const: string; title?: string}[]}
     format?: string
+    /** Proposed value prefilling the field (one-click accept). */
+    default?: string | number | boolean | string[]
 }
 
 export interface ElicitationPayloadFixture {
@@ -44,6 +50,50 @@ export const ELICITATION_PAYLOAD: ElicitationPayloadFixture = {
             notes: {type: "string", title: "Notes", format: "multiline"},
         },
         required: ["name"],
+    },
+}
+
+/**
+ * The full-dialect payload (defaults + multi-select + choice cards) for the one-click-accept
+ * spec: every field carries a proposed default, so Accept with no edits must resume with
+ * exactly these values. The `release_process` oneOf descriptions upgrade it to choice cards.
+ */
+export const RICH_ELICITATION_PAYLOAD: ElicitationPayloadFixture = {
+    message: "Confirm the setup — I proposed sensible defaults.",
+    requestedSchema: {
+        type: "object",
+        properties: {
+            release_process: {
+                type: "string",
+                title: "Release process",
+                oneOf: [
+                    {
+                        const: "merge_main",
+                        title: "Merge to main",
+                        description: "A daily trigger checks merged PRs.",
+                    },
+                    {
+                        const: "gh_releases",
+                        title: "GitHub releases",
+                        description: "Runs when a release is published.",
+                    },
+                ],
+                default: "gh_releases",
+            },
+            notify_on: {
+                type: "array",
+                title: "Notify on",
+                items: {type: "string", enum: ["success", "failure", "skipped"]},
+                default: ["failure"],
+            },
+            task_manager: {
+                type: "string",
+                title: "Task management system",
+                enum: ["todoist", "notion", "asana"],
+                default: "notion",
+            },
+        },
+        required: ["release_process"],
     },
 }
 

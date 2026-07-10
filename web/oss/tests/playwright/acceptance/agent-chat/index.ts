@@ -15,7 +15,7 @@ import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
 
-import {ELICITATION_PAYLOAD} from "./assets/elicitationStream"
+import {ELICITATION_PAYLOAD, RICH_ELICITATION_PAYLOAD} from "./assets/elicitationStream"
 import {test as baseAgentChatTest} from "./tests"
 
 const scenarios = createScenarios(baseAgentChatTest)
@@ -247,6 +247,63 @@ const agentChatTests = () => {
                     timeout: 30000,
                 })
                 await expect(page.getByText("First Name: Ada")).toBeVisible()
+            })
+        },
+    )
+
+    // ── Spec 5: one-click accept — defaults + multi-select + choice cards (full dialect) ─────────
+    // The agent-templates headline (#5190): every field ships a proposed default, so Accept with
+    // ZERO edits must resume carrying exactly those values. Also pins the card upgrade: oneOf
+    // descriptions render as choice cards (option titles + descriptions visible), not a Select.
+    baseAgentChatTest(
+        "Elicitation one-click accept: proposed defaults ride the resume unchanged",
+        {tag: elicitationTags},
+        async ({
+            page,
+            seedAgentChatApp,
+            navigateToAgentPlayground,
+            mockElicitationInvoke,
+            sendChatMessage,
+        }) => {
+            baseAgentChatTest.setTimeout(120000)
+            let mock!: Awaited<ReturnType<typeof mockElicitationInvoke>>
+
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
+
+            await scenarios.and("a full-dialect elicitation run is open", async () => {
+                const appId = await seedAgentChatApp()
+                await navigateToAgentPlayground(appId)
+                mock = await mockElicitationInvoke(RICH_ELICITATION_PAYLOAD)
+                mock.setResumeText("Set up: GitHub releases · notify on failure · notion")
+                await sendChatMessage("set it up")
+            })
+
+            await scenarios.then("options with descriptions render as choice cards", async () => {
+                await expect(page.getByText(RICH_ELICITATION_PAYLOAD.message)).toBeVisible({
+                    timeout: 30000,
+                })
+                await expect(page.getByText("GitHub releases")).toBeVisible()
+                await expect(page.getByText("Runs when a release is published.")).toBeVisible()
+                await expect(page.getByText("Merge to main")).toBeVisible()
+            })
+
+            await scenarios.when("the user accepts without editing anything", async () => {
+                await page.getByRole("button", {name: "Accept", exact: true}).click()
+            })
+
+            await scenarios.then("the resume carries exactly the proposed defaults", async () => {
+                await expect(page.getByText("Provided the requested input.")).toBeVisible({
+                    timeout: 30000,
+                })
+                expect(mock.calls.length).toBeGreaterThanOrEqual(2)
+                const resumeBody = JSON.stringify(mock.calls[1] ?? {})
+                expect(resumeBody).toContain("gh_releases")
+                expect(resumeBody).toContain("failure")
+                expect(resumeBody).toContain("notion")
+                // The Other… UI sentinel must never leak into the accepted content.
+                expect(resumeBody).not.toContain("__ag_enum_other__")
             })
         },
     )
