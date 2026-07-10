@@ -1079,33 +1079,41 @@ class SharedManager:
     @classmethod
     @handle_exceptions()
     def commit(
-        cls,
-        *,
-        parameters: dict,
-        variant_slug: str,
-        #
-        app_id: Optional[str] = None,
-        app_slug: Optional[str] = None,
-    ):
-        variant = cls._resolve_variant(
-            app_id=app_id,
-            app_slug=app_slug,
-            variant_slug=variant_slug,
-        )
+    cls,
+    *,
+    parameters: dict,
+    variant_slug: str,
+    #
+    app_id: Optional[str] = None,
+    app_slug: Optional[str] = None,
+    message: Optional[str] = None,  # <-- ADD THIS LINE
+):
+            variant = cls._resolve_variant(
+        app_id=app_id,
+        app_slug=app_slug,
+        variant_slug=variant_slug,
+    )
+
+    # Generate a proper commit message if none provided  # <-- ADD THESE LINES
+    if not message:
+        message = f"feat(agent): update {variant_slug}"
+        if app_slug:
+            message += f" in {app_slug}"
 
         response = authed_api()(
             method="POST",
             endpoint="/applications/revisions/commit",
-            json={
-                "application_revision": {
-                    "application_id": variant.get("application_id")
-                    or variant.get("artifact_id"),
-                    "application_variant_id": variant.get("application_variant_id")
-                    or variant.get("id"),
-                    "slug": uuid4().hex[:12],
-                    "data": {"parameters": parameters},
-                }
-            },
+                    json={
+            "application_revision": {
+                "application_id": variant.get("application_id")
+                or variant.get("artifact_id"),
+                "application_variant_id": variant.get("application_variant_id")
+                or variant.get("id"),
+                "slug": uuid4().hex[:12],
+                "data": {"parameters": parameters},
+                "message": message,  # <-- ADD THIS LINE
+            }
+        },
         )
         _raise_for_status(response)
 
