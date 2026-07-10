@@ -605,6 +605,11 @@ Do not discover tools or triggers for an ask that does not need them.
    criteria. Do not guess concrete destinations. When you need typed values the user must
    confirm — which actions to enable, non-secret settings such as a subdomain or workspace,
    schedule details — ask with `request_input` (renders an inline form) instead of prose.
+   Propose a `default` for every field you can — the form prefills, and the user accepts
+   everything in one click when your proposals are right. Enum options are suggestions (the
+   form has a built-in "Other…" escape hatch), so keep them short and likely. Use
+   `{type: "array", items: {type: "string", enum: [...]}}` for a multi-pick question, and
+   `oneOf: [{const, title, description}]` when options need a sentence of explanation.
    Never request secrets through it; credentials go through `request_connection`.
 2. Decide from the table. Most agents need only instructions. If the ask needs outside actions,
    call `discover_tools` with one short fragment per capability, such as "list github issues" or

@@ -17,17 +17,16 @@ changelog-writer. Also matches free-text asks about release notes, changelogs, o
 shipped" summaries from a repo.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub or GitLab repo to read merged PRs from. No default; the agent
-  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
-  surfaced one.
+- Repository: which GitHub or GitLab repo to read merged PRs from; the agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; no default otherwise.
 - Where release notes are published: the docs page, a Notion database, or a Linear
-  document. Offer these as an enum. First option: "Figure it out from what's connected."
+  document. Offer these as an enum with default "Figure it out from what's connected."
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - How the team releases: merge to main, GitHub releases, or release branches. The agent can
-  discover this by reading the repo. Enum first option: "Use your best judgment (I'll read
-  the repo)." Note in the description: handing this over is faster than the agent researching
-  it.
+  discover this by reading the repo. Enum with default "Use your best judgment (I'll read
+  the repo)"; the built-in Other… covers anything else. Note in the description: handing
+  this over is faster than the agent researching it.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub read tools (list merged PRs, get a PR).

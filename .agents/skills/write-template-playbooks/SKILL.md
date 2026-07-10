@@ -36,13 +36,14 @@ One line: when this playbook applies. The card key plus the shape of the ask, in
 free-text asks that match no card.
 
 ## Required context (ask via one request_input form)
-- <field>: why the agent cannot proceed without it. Put the recommended value in the
-  description ("Recommended: <guess>"), never in a default field. [required]
+- <field>: why the agent cannot proceed without it. When the agent can propose a value, set
+  it as the field's `default` (prefilled, one-click acceptable); no default otherwise. [required]
 Only fields the agent genuinely cannot proceed without. One to four. Secrets never go here.
 
-## Researchable context (ask, but the first enum option is "figure it out")
-- <field>: the agent can discover this. Enum whose FIRST option is "Use your best judgment"
-  or "Figure it out from what's connected." Note the speed trade-off in the description.
+## Researchable context (ask, defaulting to "figure it out")
+- <field>: the agent can discover this. Enum with a "Use your best judgment" or "Figure it
+  out from what's connected" option set as the `default`; the built-in Other… covers custom
+  values. Note the speed trade-off in the description.
 
 ## Explore first (read before proposing)
 - Which read tools to discover_tools and wire.
@@ -82,15 +83,17 @@ and the trigger test, Report to the final step.
 
 These are counterintuitive and every first draft gets them backwards. State them correctly.
 
-1. **`request_input` has NO default field, and there is no prefill.** A schema `default` is
-   silently dropped and the field renders empty; pressing Enter on an empty field submits
-   nothing. So never tell the agent to "press Enter to accept" a value the form does not
-   contain. Put the proposed value in the field description as something the user can type
-   ("Recommended: owner/repo-guess"), or state the explicit behavior when the field is left
-   empty ("Leave empty to use UTC"). For a researchable choice, use an enum whose FIRST option
-   is "Figure it out, use your best judgment" and put the proposed value in the description.
-   Listing it first is the only way to signal the default. When issue #5190 lands (real
-   defaults), playbooks migrate to a real default field.
+1. **`request_input` HAS a real `default` field (#5190, shipped) — use it.** A field's
+   `default` prefills the form so the user can accept every proposal in one click; set one
+   whenever the agent can propose a value. Rules: the default must match the field type
+   (array of strings on a multi-select); an empty default (`""`/`[]`) means "no proposal" and
+   is stripped; **date/date-time fields ignore defaults** — do not set them there. For a
+   researchable choice, include a "Figure it out, use your best judgment" enum option and set
+   it as the `default`. Enum options are SUGGESTIONS: every enum renders a built-in "Other…"
+   free-text escape hatch, so keep lists short and likely, not exhaustive. Multi-pick
+   questions use `{type: "array", items: {type: "string", enum: [...]}}`; options needing a
+   sentence of explanation use `oneOf: [{const, title, description}]`, which renders as
+   selectable choice cards.
 2. **`test_run` exercises uncommitted tools** through its in-memory delta
    (`delta.set.parameters.agent.tools` carries the FULL tools list, lists replace wholesale).
    So exploration does NOT require commit-and-stop-turn. Explore the real repo or workspace
