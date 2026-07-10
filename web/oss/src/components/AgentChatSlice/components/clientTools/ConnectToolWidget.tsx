@@ -9,7 +9,9 @@
  *
  * Security (hard requirement, design §"Security"): the popup posts back a `tools:oauth:complete`
  * message; we trust it ONLY when `event.origin` equals the Agenta API origin (the callback page's
- * origin) and the payload shape matches. Everything else is dropped.
+ * origin) and the payload shape matches. Everything else is dropped. The callback also tags the
+ * message with the connection's `slug`/`integration`, so when several connect widgets are live at
+ * once each settles only on its OWN completion (never on a sibling's).
  *
  * Settle on every terminal path (design §"Settle on every path"), so the run never hangs:
  *   success → {connected:true, integration, slug} · cancel/abandon → {connected:false,
@@ -166,8 +168,24 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 const onMessage = (event: MessageEvent) => {
                     // HARD requirement: only trust the callback from the Agenta API origin.
                     if (apiOrigin && event.origin !== apiOrigin) return
-                    const data = event.data as {type?: unknown} | null
+                    const data = event.data as {
+                        type?: unknown
+                        slug?: unknown
+                        integration?: unknown
+                    } | null
                     if (!data || data.type !== "tools:oauth:complete") return
+                    // Several connect widgets can be live at once (an agent may ask for
+                    // multiple connections in one turn). The callback tags the completion with
+                    // its connection identity, so a widget settles ONLY on its own completion —
+                    // otherwise the first finished flow would mark every open widget connected.
+                    // A legacy callback without identity keeps the prior single-flow behavior.
+                    if (typeof data.slug === "string" && data.slug !== slug) return
+                    else if (
+                        typeof data.slug !== "string" &&
+                        typeof data.integration === "string" &&
+                        data.integration !== integration
+                    )
+                        return
                     succeeded = true
                     teardown()
                     onSuccess()
