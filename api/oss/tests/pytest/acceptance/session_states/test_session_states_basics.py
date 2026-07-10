@@ -3,6 +3,16 @@
 import uuid
 
 
+def _data(**fields):
+    """A full `SessionStateData` body: unset fields serialize as explicit null."""
+    return {
+        "latest_agent_session_id": None,
+        "latest_turn_index": None,
+        "harness_sessions": None,
+        **fields,
+    }
+
+
 class TestSessionStatesBasics:
     """GET / PUT / POST /sessions/states/?session_id=... — happy paths."""
 
@@ -19,7 +29,7 @@ class TestSessionStatesBasics:
     def test_put_creates_state(self, authed_api):
         session_id = str(uuid.uuid4())
         payload = {
-            "data": {"localId": session_id, "agentSessionId": "agent-abc"},
+            "data": {"latest_agent_session_id": "agent-abc"},
             "sandbox_id": "sandbox-001",
         }
 
@@ -34,12 +44,15 @@ class TestSessionStatesBasics:
         assert body["count"] == 1
         state = body["session_state"]
         assert state["session_id"] == session_id
-        assert state["data"]["agentSessionId"] == "agent-abc"
+        assert state["data"]["latest_agent_session_id"] == "agent-abc"
         assert state["sandbox_id"] == "sandbox-001"
 
     def test_get_returns_persisted_state(self, authed_api):
         session_id = str(uuid.uuid4())
-        payload = {"data": {"localId": session_id}, "sandbox_id": "sbx-999"}
+        payload = {
+            "data": {"latest_agent_session_id": "agent-abc"},
+            "sandbox_id": "sbx-999",
+        }
 
         authed_api(
             "PUT",
@@ -64,25 +77,25 @@ class TestSessionStatesBasics:
             "PUT",
             "/sessions/states/",
             params={"session_id": session_id},
-            json={"data": {"version": 1}},
+            json={"data": {"latest_turn_index": 1}},
         )
 
         response = authed_api(
             "PUT",
             "/sessions/states/",
             params={"session_id": session_id},
-            json={"data": {"version": 2}, "sandbox_id": "sbx-v2"},
+            json={"data": {"latest_turn_index": 2}, "sandbox_id": "sbx-v2"},
         )
         assert response.status_code == 200
         state = response.json()["session_state"]
-        assert state["data"]["version"] == 2
+        assert state["data"]["latest_turn_index"] == 2
         assert state["sandbox_id"] == "sbx-v2"
 
         # GET should reflect the latest upsert
         get_resp = authed_api(
             "GET", "/sessions/states/", params={"session_id": session_id}
         )
-        assert get_resp.json()["session_state"]["data"]["version"] == 2
+        assert get_resp.json()["session_state"]["data"]["latest_turn_index"] == 2
 
     def test_set_sandbox_id_endpoint(self, authed_api):
         session_id = str(uuid.uuid4())
@@ -92,7 +105,7 @@ class TestSessionStatesBasics:
             "PUT",
             "/sessions/states/",
             params={"session_id": session_id},
-            json={"data": {"localId": session_id}},
+            json={"data": {"latest_agent_session_id": "agent-abc"}},
         )
 
         # update sandbox_id independently
@@ -105,7 +118,7 @@ class TestSessionStatesBasics:
         assert response.status_code == 200
         state = response.json()["session_state"]
         assert state["sandbox_id"] == "sbx-new"
-        assert state["data"] == {"localId": session_id}
+        assert state["data"] == _data(latest_agent_session_id="agent-abc")
 
     def test_set_sandbox_id_clear(self, authed_api):
         session_id = str(uuid.uuid4())
@@ -163,7 +176,12 @@ class TestSessionStatesBasics:
             "PUT",
             "/sessions/states/",
             params={"session_id": session_id},
-            json={"data": {"version": 1, "localId": session_id}},
+            json={
+                "data": {
+                    "latest_turn_index": 1,
+                    "latest_agent_session_id": "agent-abc",
+                }
+            },
         )
 
         response = authed_api(
@@ -176,7 +194,9 @@ class TestSessionStatesBasics:
         assert response.status_code == 200
         state = response.json()["session_state"]
         assert state["sandbox_id"] == "sbx-preserved"
-        assert state["data"] == {"version": 1, "localId": session_id}
+        assert state["data"] == _data(
+            latest_turn_index=1, latest_agent_session_id="agent-abc"
+        )
 
     def test_sandbox_id_accepts_runner_post(self, authed_api):
         session_id = str(uuid.uuid4())
