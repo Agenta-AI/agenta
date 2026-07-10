@@ -11,8 +11,10 @@ import {SidebarConfig, SidebarMenuProps} from "./types"
 
 type MenuItem = NonNullable<MenuProps["items"]>[number]
 
+// The ::before stretches the anchor over the whole menu row (icon + padding),
+// so middle-click / ctrl+click open in a new tab anywhere on the item.
 const MENU_LINK_CLASS_NAME =
-    "w-full !text-inherit hover:!text-inherit focus:!text-inherit active:!text-inherit no-underline"
+    "w-full !text-inherit hover:!text-inherit focus:!text-inherit active:!text-inherit no-underline before:absolute before:inset-0 before:content-['']"
 
 const SidebarMenu: React.FC<SidebarMenuProps> = ({
     items,
@@ -129,7 +131,8 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 tabIndex={isInlineMode ? 0 : -1}
                                 aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.title}`}
                                 className={clsx(
-                                    "flex h-[22px] w-7 mr-1 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors",
+                                    // z-[1] keeps the toggle clickable above the stretched link anchor
+                                    "relative z-[1] flex h-[22px] w-7 mr-1 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors",
                                     isInlineMode
                                         ? "hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-white/10"
                                         : "pointer-events-none",
@@ -167,6 +170,9 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             label: submenuLabel,
                             children: transformItems(item.submenu),
                             popupClassName:
+                                // The popup is a portal, so the row-positioning rules on the root
+                                // Menu don't reach it; repeat them for the stretched link anchors.
+                                "[&_.ant-menu-item]:relative [&_.ant-menu-submenu-title]:relative [&_.ant-menu-item-disabled_a]:pointer-events-none [&_.ant-menu-submenu-disabled_a]:pointer-events-none " +
                                 "max-h-[min(70vh,560px)] max-w-[min(50vw,220px)] relative !overflow-visible !shadow-none before:pointer-events-none before:absolute before:left-[-6px] before:top-6 before:z-10 before:block before:size-3 before:rotate-45 before:border-b before:border-l before:border-solid before:border-[var(--ant-color-border-secondary)] before:bg-[var(--ant-color-bg-elevated)] before:content-[''] [&_.ant-menu]:max-h-[min(70vh,560px)] [&_.ant-menu]:overflow-y-auto [&_.ant-menu]:!shadow-[8px_8px_24px_rgba(15,23,42,0.10),0_2px_8px_rgba(15,23,42,0.06)] [&_.ant-menu-sub_>_.ant-menu-item]:flex [&_.ant-menu-sub_>_.ant-menu-item]:items-center",
                             className: clsx("ag-sidebar-submenu", {
                                 "ag-sidebar-submenu-inline": mode === "inline",
@@ -287,6 +293,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 "!bg-transparent [&_.ant-menu-sub]:!bg-transparent",
                 "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",
                 "[&_.ant-menu-submenu-title]:flex [&_.ant-menu-submenu-title]:items-center",
+                // Anchor the links' stretched ::before to the row, and keep
+                // disabled rows inert even though they contain a full-row anchor.
+                "[&_.ant-menu-item]:relative [&_.ant-menu-submenu-title]:relative",
+                "[&_.ant-menu-item-disabled_a]:pointer-events-none [&_.ant-menu-submenu-disabled_a]:pointer-events-none",
                 "[&_.ant-menu-item]:!rounded-md [&_.ant-menu-submenu-title]:!rounded-md",
                 "[&_.ant-menu-item-icon]:!shrink-0",
                 "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
@@ -301,7 +311,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 {
                     "[&_.ant-menu-item]:!px-2 [&_.ant-menu-item]:!w-[28px] [&_.ant-menu-item]:!mx-auto [&_.ant-menu-item]:!flex [&_.ant-menu-item]:!items-center [&_.ant-menu-item]:!justify-center":
                         collapsed,
-                    "[&_.ant-menu-title-content]:!opacity-0 [&_.ant-menu-title-content]:!duration-0 [&_.ant-menu-title-content]:absolute [&_.ant-menu-title-content]:top-0 [&_.ant-menu-title-content]:left-0 [&_.ant-menu-title-content]:right-0 [&_.ant-menu-title-content]:bottom-0":
+                    "[&_.ant-menu-title-content]:!opacity-0 [&_.ant-menu-title-content]:!duration-0 [&_.ant-menu-title-content]:absolute [&_.ant-menu-title-content]:top-0 [&_.ant-menu-title-content]:left-0 [&_.ant-menu-title-content]:right-0 [&_.ant-menu-title-content]:bottom-0 [&_.ant-menu-title-content]:!w-full":
                         collapsed,
                     "[&_.ant-menu-submenu-title]:!w-[28px] [&_.ant-menu-submenu-title]:!mx-auto [&_.ant-menu-submenu-title]:!p-2 [&_.ant-menu-submenu-title]:!flex [&_.ant-menu-submenu-title]:!items-center [&_.ant-menu-submenu-title]:!justify-center":
                         collapsed,

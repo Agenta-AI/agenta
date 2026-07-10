@@ -9,8 +9,13 @@ import {
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
 
-import {recentAppIdAtom, routerAppNavigationAtom} from "@/oss/state/app/atoms/fetcher"
+import {
+    appSwitchHrefAtom,
+    recentAppIdAtom,
+    routerAppNavigationAtom,
+} from "@/oss/state/app/atoms/fetcher"
 import {
     currentWorkflowContextAtom,
     EVALUATOR_FULL_PAGE_NAV_ENABLED,
@@ -70,6 +75,7 @@ export const useWorkflowSwitcher = () => {
     const recentAppId = useAtomValue(recentAppIdAtom)
     const recentEvaluatorId = useAtomValue(recentEvaluatorIdAtom)
     const navigateToWorkflow = useSetAtom(routerAppNavigationAtom)
+    const buildWorkflowHref = useAtomValue(appSwitchHrefAtom)
 
     // Product decision: the workflow switcher is intentionally narrower than
     // full-page routing. It includes non-deterministic automatic evaluators
@@ -116,18 +122,41 @@ export const useWorkflowSwitcher = () => {
         evaluators,
     })
 
+    // Real anchor per item so middle-click / ctrl+click open a new tab; plain
+    // left clicks preventDefault and stay on the antd onClick (SPA) path.
+    const handleItemLinkClick = useCallback((event: React.MouseEvent) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+            event.stopPropagation()
+            setOpen(false)
+            return
+        }
+        event.preventDefault()
+    }, [])
+
     const menuItems = useMemo<MenuProps["items"]>(() => {
         const toMenuItem = (entity: Workflow, isEvaluator: boolean) => {
             const label = entity.name ?? entity.slug ?? entity.id
+            const identity = (
+                <WorkflowIdentity
+                    workflowId={entity.id}
+                    name={label}
+                    isEvaluator={isEvaluator}
+                    selected={entity.id === workflowId}
+                />
+            )
+            const href = buildWorkflowHref(entity.id)
             return {
                 key: entity.id,
-                label: (
-                    <WorkflowIdentity
-                        workflowId={entity.id}
-                        name={label}
-                        isEvaluator={isEvaluator}
-                        selected={entity.id === workflowId}
-                    />
+                label: href ? (
+                    <Link
+                        className="block w-full !text-inherit hover:!text-inherit no-underline"
+                        href={href}
+                        onClick={handleItemLinkClick}
+                    >
+                        {identity}
+                    </Link>
+                ) : (
+                    identity
                 ),
             }
         }
@@ -142,7 +171,7 @@ export const useWorkflowSwitcher = () => {
             .map(({entity, isEvaluator}) => toMenuItem(entity, isEvaluator))
 
         return children
-    }, [apps, switcherEvaluators, workflowId])
+    }, [apps, buildWorkflowHref, handleItemLinkClick, switcherEvaluators, workflowId])
 
     const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key}) => {

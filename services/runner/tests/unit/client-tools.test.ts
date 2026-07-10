@@ -9,8 +9,14 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
+import {
+  ApprovalResponder,
+  ConversationDecisions,
+  extractApprovalDecisions,
+  extractClientToolOutputs,
+} from "../../src/responder.ts";
 import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.ts";
 import { PendingApprovalLatch } from "../../src/permission-plan.ts";
 import {
@@ -327,5 +333,94 @@ describe("buildClientToolRelay", () => {
         opts: { consume: true },
       },
     ]);
+  });
+});
+
+/**
+ * Layer-B integration: the relay driven by the REAL responder built from run history, exactly
+ * as a live /run wires it (extract{Approval,ClientTool} → ConversationDecisions → ApprovalResponder
+ * → buildClientToolRelay). The mock-responder tests above pin the relay's mechanics; this pins the
+ * whole emit/pause/resume decision end to end — the seam where the coalescing bug lived (a FE-only
+ * mock could not have caught it). See docs/design/agent-chat-interaction-kinds/decisions.md.
+ */
+describe("buildClientToolRelay with the real responder (history-driven)", () => {
+  const input = {
+    message: "What is your city?",
+    requestedSchema: { type: "object", properties: { city: { type: "string" } } },
+  };
+  const liveReq: ClientToolRelayRequest = {
+    id: "i-live",
+    toolCallId: "tc-live",
+    toolName: "request_input",
+    input,
+    spec: { name: "request_input", kind: "client", render: { kind: "elicitation" } },
+  };
+
+  // A prior turn's request_input call and its answer, correlated by id. The tool_result carries
+  // no args (the real wire shape) — the store recovers them from the tool_call via the shape index.
+  const priorTurn = (output: unknown) => [
+    {
+      role: "assistant" as const,
+      content: [{ type: "tool_call", toolCallId: "c-1", toolName: "request_input", input }],
+    },
+    {
+      role: "tool" as const,
+      content: [{ type: "tool_result", toolCallId: "c-1", toolName: "request_input", output }],
+    },
+  ];
+
+  function realSeam(request: AgentRunRequest) {
+    const events: AgentEvent[] = [];
+    const paused: string[] = [];
+    const responder = new ApprovalResponder(
+      { default: "allow", rules: [] },
+      new ConversationDecisions(
+        extractApprovalDecisions(request),
+        extractClientToolOutputs(request),
+      ),
+    );
+    const relay = buildClientToolRelay({
+      responder,
+      run: { emitEvent: (e) => events.push(e) },
+      latch: new PendingApprovalLatch(),
+      pause: { markPausedToolCall: (id) => paused.push(id), pause: () => {} },
+      recordPendingInteraction: () => {},
+    });
+    return { relay, events, paused };
+  }
+
+  it("pauses (emits a fresh form) for a new identical call in a later turn, not reusing the prior answer", async () => {
+    const request: AgentRunRequest = {
+      sessionId: "s",
+      messages: [
+        { role: "user", content: "ask" },
+        ...priorTurn({ action: "accept", content: { city: "Berlin" } }),
+        { role: "user", content: "ask again" }, // latest user msg: the prior answer is a past turn
+      ],
+    };
+    const s = realSeam(request);
+    const outcome = await s.relay.onClientTool(liveReq);
+    assert.equal(outcome, "pendingApproval", "a fresh identical call must pause for a new answer");
+    assert.equal(s.events.length, 1, "the client_tool interaction is emitted for the new form");
+    assert.equal((s.events[0] as { kind: string }).kind, "client_tool");
+    assert.deepEqual((s.events[0] as { payload: { render: unknown } }).payload.render, {
+      kind: "elicitation",
+    });
+    assert.deepEqual(s.paused, ["tc-live"]);
+  });
+
+  it("fulfills an in-turn resume from its own output without emitting a new form", async () => {
+    const request: AgentRunRequest = {
+      sessionId: "s",
+      messages: [
+        { role: "user", content: "ask" },
+        ...priorTurn({ action: "accept", content: { city: "Berlin" } }),
+      ],
+    };
+    const s = realSeam(request);
+    const outcome = await s.relay.onClientTool(liveReq);
+    assert.deepEqual(outcome, { output: { action: "accept", content: { city: "Berlin" } } });
+    assert.equal(s.events.length, 0, "a genuine resume must not emit a new form");
+    assert.deepEqual(s.paused, []);
   });
 });
