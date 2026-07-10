@@ -533,6 +533,19 @@ left a STARTED sandbox behind (deleted by hand twice; `autoStopInterval` is the 
 **Why it matters.** Chat-only Daytona works, but any tool-using agent on Daytona through the
 deployed app fails, and every failure costs sandbox credits until auto-stop kicks in.
 
+**Root cause (2026-07-10, playground repro).** Remote sandboxes reach the file store through the
+ngrok tunnel service (compose profile `remote`, `discoverTunnelEndpoint` in
+`services/runner/src/engines/sandbox_agent/mount.ts`). The dev box has no `NGROK_AUTHTOKEN` and
+the ngrok service is not running, so discovery fails — but instead of the documented
+"remote mount is skipped, not fatal", geesefs still starts inside the sandbox against the
+unreachable `seaweedfs:8333` and produces a ZOMBIE FUSE mount: registered, never serving. Any
+file I/O under it blocks forever with no timeout — a playground run hung eternally on reading
+`/home/sandbox/.pi/agent/skills/build-an-agent/SKILL.md`, holding its sandbox (and a second one)
+STARTED until deleted by hand. Two sub-defects: (a) the no-tunnel path must skip or fail loud,
+never zombie-mount; (b) an in-sandbox mount needs a liveness probe + I/O timeout. Unblocking the
+dev box needs an ngrok authtoken in `hosting/docker-compose/ee/.env.ee.dev` and
+`--profile remote up -d ngrok`.
+
 ## How to add a finding during a run
 
 Copy the F-001 block, bump the id, and fill every field. Required: the environment, harness,
