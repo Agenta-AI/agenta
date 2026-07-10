@@ -72,6 +72,7 @@ import {
     validateIncoming,
 } from "./assets/attachments"
 import {filesToParts} from "./assets/files"
+import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
@@ -542,6 +543,33 @@ const AgentConversation = ({
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
+    // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
+    // messages (a session this browser never ran, or after a storage clear), hydrate once from the
+    // server (`queryRecords` → v6 messages) and seed. Locally-cached sessions skip the fetch, so no
+    // regression for own runs.
+    const hydratedRef = useRef(false)
+    useEffect(() => {
+        if (hydratedRef.current || initialMessages.length > 0) return
+        hydratedRef.current = true
+        let cancelled = false
+        loadSessionMessages(sessionId).then((msgs) => {
+            if (cancelled || !msgs || msgs.length === 0) return
+            // Restored history renders settled (no live fade-in) and pinned to the bottom.
+            msgs.forEach((m) => {
+                seenIdsRef.current.add(m.id)
+                restoredIdsRef.current.add(m.id)
+            })
+            armBottomRef.current = true
+            setMessages(msgs)
+            persistMessages({id: sessionId, messages: msgs})
+        })
+        return () => {
+            cancelled = true
+        }
+        // Seed once per mounted session tab; `sessionId` is stable for this instance.
+    }, [sessionId])
 
     // True once the user settles a gate (approval response / client-tool output) in THIS mount —
     // i.e. the SDK's auto-resume genuinely is imminent, so the queue's pre-resume hold applies.
