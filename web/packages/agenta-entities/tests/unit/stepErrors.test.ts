@@ -33,4 +33,12 @@ describe("extractStepError", () => {
             }),
         ).toBeNull()
     })
+
+    it("normalizes status casing", () => {
+        expect(extractStepError({status: "ERROR", error: {message: "boom"}})?.message).toBe("boom")
+    })
+
+    it("returns null for terminal status without an error payload", () => {
+        expect(extractStepError({status: "failed"})).toBeNull()
+    })
 })
