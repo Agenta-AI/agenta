@@ -13,11 +13,13 @@ The provider lists are the REAL harness facts, derived from
 ``docs/design/agent-workflows/projects/provider-model-auth/harness-provider-matrix.md``:
 
 - **Pi** reaches eight Agenta-vault-mapped providers directly (the ones whose ``provider_key``
-  secret drives a Pi provider via its env-key map). Pi also reaches ~24 more providers that have
-  no Agenta vault kind; those are out of scope unless a ``custom_provider`` secret is made for
-  them, so they are not enumerated here. Pi's cloud deployments (azure/bedrock/vertex) are
-  *declared* but Pi *consumption* of them stages with the model-config sibling, so v1 fails loud:
-  ``deployments`` is ``["direct"]`` for the live reach.
+  secret drives a Pi provider via its env-key map), plus ``openai-codex`` (OpenAI's ChatGPT/Codex
+  subscription), which Pi reaches through its own OAuth login rather than a vault key — usable
+  under ``self_managed`` (and the ``agenta`` default's ``runtime_provided`` fallback). Pi also
+  reaches ~24 more providers that have no Agenta vault kind; those are out of scope unless a
+  ``custom_provider`` secret is made for them, so they are not enumerated here. Pi's cloud
+  deployments (azure/bedrock/vertex) are *declared* but Pi *consumption* of them stages with the
+  model-config sibling, so v1 fails loud: ``deployments`` is ``["direct"]`` for the live reach.
 - **Claude** reaches anthropic only, direct, via a custom gateway, or through Anthropic on
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
@@ -50,6 +52,36 @@ PI_VAULT_PROVIDERS: List[str] = [
     "together_ai",
     "openrouter",
 ]
+
+# Subscription/OAuth-only providers Pi also reaches. ``openai-codex`` is OpenAI's ChatGPT/Codex
+# subscription: Pi authenticates it with an OAuth login (``~/.pi/agent/auth.json``, ``pi`` then
+# ``/login``), NOT an Agenta vault ``provider_key`` (no vault secret kind maps to it). ``self_managed``
+# is broader than this one provider: it covers any way a harness signs itself in without an
+# Agenta-stored key, including machine credentials such as environment variables. This provider's
+# on-ramp under ``self_managed`` happens to be the subscription OAuth. It is also reachable under
+# the ``agenta`` default's ``runtime_provided`` fallback, so it belongs in Pi's reachable providers
+# even though it carries no vault key. Its model ids are carried explicitly below because they are
+# not in the litellm-derived ``supported_llm_models`` catalog. See
+# ``docs/design/agent-workflows/projects/provider-model-auth/harness-provider-matrix.md`` and the
+# subscription-sidecar recipe.
+PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
+    # Bare ids (like the ``openai`` catalog); the ``openai-codex`` provider disambiguates from the
+    # plain ``openai`` models that share these names. The runner normalizes any of these onto the
+    # harness's ``openai-codex/<id>`` model. This is the full ``openai-codex`` model set Pi's
+    # vendored catalog exposes (``@earendil-works/pi-ai`` ``models.generated`` ->
+    # ``openai-codex``, served via ``chatgpt.com/backend-api``); keep it in sync when the pinned
+    # Pi version changes its codex model list.
+    "openai-codex": [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.3-codex-spark",
+    ],
+}
+PI_SUBSCRIPTION_PROVIDERS: List[str] = list(PI_SUBSCRIPTION_MODELS)
 
 # Claude Code selects a model by alias, not a ``provider/id`` string. These are the aliases the
 # Claude harness accepts (``default``/``sonnet``/``opus``/``haiku``) plus their ``[1m]``
@@ -88,17 +120,25 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 
 
 def _pi_models() -> Dict[str, List[str]]:
-    """The per-provider model ids Pi reaches: the catalog entry for each vault provider.
+    """The per-provider model ids Pi reaches: the catalog entry for each vault provider, plus the
+    explicit ids for the subscription/OAuth providers (``openai-codex``) that the shared catalog
+    does not list.
 
     Defensive against a provider missing from ``supported_llm_models`` (skip it) so a catalog
-    edit never breaks the capability document. The ids are provider-prefixed (``openai/gpt-...``),
+    edit never breaks the capability document. The ids match the shared catalog's shape (mostly
+    provider-prefixed like ``anthropic/...``; some, e.g. ``openai``, are bare like ``gpt-5.5``),
     the same shape the playground model picker already renders.
     """
-    return {
+    models = {
         provider: list(supported_llm_models[provider])
         for provider in PI_VAULT_PROVIDERS
         if provider in supported_llm_models
     }
+    # The subscription/OAuth providers are not in the litellm-derived catalog, so carry their ids
+    # explicitly (like the Claude alias set).
+    for provider, ids in PI_SUBSCRIPTION_MODELS.items():
+        models[provider] = list(ids)
+    return models
 
 
 class HarnessConnectionCapabilities(BaseModel):
@@ -127,14 +167,14 @@ class HarnessConnectionCapabilities(BaseModel):
 
 HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
     "pi_core": HarnessConnectionCapabilities(
-        providers=list(PI_VAULT_PROVIDERS),
+        providers=list(PI_VAULT_PROVIDERS) + list(PI_SUBSCRIPTION_PROVIDERS),
         deployments=["direct"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
         models=_pi_models(),
     ),
     "pi_agenta": HarnessConnectionCapabilities(
-        providers=list(PI_VAULT_PROVIDERS),
+        providers=list(PI_VAULT_PROVIDERS) + list(PI_SUBSCRIPTION_PROVIDERS),
         deployments=["direct"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
