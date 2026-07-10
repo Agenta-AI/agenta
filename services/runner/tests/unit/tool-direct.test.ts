@@ -579,11 +579,6 @@ async function relayOnce(
       dir,
       [spec],
       callback,
-      {
-        enforce: false,
-        decide: () => ({ kind: "allow" }),
-        onPendingApproval: () => ({ emitted: false }),
-      },
       runContext,
     );
     const resPath = join(dir, `${id}.res.json`);

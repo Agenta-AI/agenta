@@ -351,8 +351,8 @@ export async function runWithKeepalive(
       env.lastTurnToolCallIds ?? [],
     );
 
-  // Whether a paused turn holds a single, parkable Claude ACP permission gate. Only such a gate
-  // carries a `respondPermission`-answerable id; a Pi relay/builtin gate or a client-tool MCP
+  // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi
+  // ACP gate). Only such a gate carries a `respondPermission`-answerable id; a client-tool MCP
   // pause never records `parkedApproval`, and more than one pending gate cannot be answered by
   // the single-gate resume — both stay on the cold path, logged.
   const approvalToPark = (
@@ -361,7 +361,7 @@ export async function runWithKeepalive(
   ): boolean => {
     if (result.stopReason !== "paused") return false;
     if (!env.parkedApproval) {
-      klog(`non-claude-gate-no-park key=${key}`);
+      klog(`non-parkable-gate-no-park key=${key}`);
       return false;
     }
     if ((env.approvalGateCount ?? 0) > 1) {
@@ -586,8 +586,14 @@ export async function runWithKeepalive(
       : undefined;
     const priorFp = historyFingerprint(priorConversation(request));
     let mismatch: string | undefined;
-    if (!parked || parked.gateType !== "claude-acp-permission") {
-      mismatch = "not-claude-gate"; // defensive: only a Claude ACP gate ever parks here
+    if (
+      !parked ||
+      (parked.gateType !== "claude-acp-permission" &&
+        parked.gateType !== "pi-acp-permission")
+    ) {
+      // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
+      // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
+      mismatch = "unrecognized-gate-type";
     } else if (!decision) {
       mismatch = "no-matching-approval"; // fresh user text, or an approval for another id
     } else if (priorFp !== existing.historyFingerprint) {

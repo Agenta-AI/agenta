@@ -8,7 +8,10 @@ import assert from "node:assert/strict";
 
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
-import type { GateDescriptor, PermissionPlan } from "../../src/permission-plan.ts";
+import type {
+  GateDescriptor,
+  PermissionPlan,
+} from "../../src/permission-plan.ts";
 import {
   ApprovalResponder,
   ConversationDecisions,
@@ -82,7 +85,10 @@ describe("approvedCallKey", () => {
 
   it("normalizes absent args to {} so a no-arg tool resumes", () => {
     assert.ok(approvedCallKey("edit", {}));
-    assert.equal(approvedCallKey("edit", undefined), approvedCallKey("edit", {}));
+    assert.equal(
+      approvedCallKey("edit", undefined),
+      approvedCallKey("edit", {}),
+    );
     assert.equal(approvedCallKey("edit", null), approvedCallKey("edit", {}));
     assert.notEqual(
       approvedCallKey("edit", { path: "a" }),
@@ -212,10 +218,17 @@ describe("ApprovalResponder", () => {
   it("allows and denies from the effective permission before stored decisions", async () => {
     const key = approvedCallKey("edit", { path: "a.txt" })!;
     const stored = new Map<string, unknown>([[key, "allow"]]);
-    const deny = new ApprovalResponder(plan("deny"), new ConversationDecisions(stored));
+    const deny = new ApprovalResponder(
+      plan("deny"),
+      new ConversationDecisions(stored),
+    );
 
     assert.deepEqual(await permissionVerdict(deny, gate()), { kind: "deny" });
-    assert.equal(stored.has(key), true, "effective deny does not consume stale allow");
+    assert.equal(
+      stored.has(key),
+      true,
+      "effective deny does not consume stale allow",
+    );
 
     const allow = new ApprovalResponder(
       plan("allow"),
@@ -231,7 +244,9 @@ describe("ApprovalResponder", () => {
       new ConversationDecisions(new Map([[key, "allow"]])),
     );
 
-    assert.deepEqual(await permissionVerdict(responder, gate()), { kind: "allow" });
+    assert.deepEqual(await permissionVerdict(responder, gate()), {
+      kind: "allow",
+    });
     assert.deepEqual(await permissionVerdict(responder, gate()), {
       kind: "pendingApproval",
     });
@@ -244,12 +259,17 @@ describe("ApprovalResponder", () => {
       new ConversationDecisions(new Map([[key, "deny"]])),
     );
 
-    assert.deepEqual(await permissionVerdict(responder, gate()), { kind: "deny" });
+    assert.deepEqual(await permissionVerdict(responder, gate()), {
+      kind: "deny",
+    });
     assert.deepEqual(await permissionVerdict(responder, gate()), {
       kind: "pendingApproval",
     });
 
-    const noStored = new ApprovalResponder(plan("ask"), new ConversationDecisions(new Map()));
+    const noStored = new ApprovalResponder(
+      plan("ask"),
+      new ConversationDecisions(new Map()),
+    );
     assert.deepEqual(await permissionVerdict(noStored, gate()), {
       kind: "pendingApproval",
     });
@@ -276,7 +296,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client tools peek at stored output by default", async () => {
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
@@ -300,7 +322,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client tools consume stored output when the relay fulfills", async () => {
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
@@ -323,7 +347,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client tools support peek then consume for the Claude two-read flow", async () => {
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const output = { connected: true };
     const responder = new ApprovalResponder(
       plan("deny"),
@@ -348,7 +374,9 @@ describe("ApprovalResponder", () => {
   });
 
   it("client explicit ask consumes stored deny; stored allow still forwards to the browser", async () => {
-    const denyKey = approvedCallKey("request_connection", { integration: "slack" })!;
+    const denyKey = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     const denyResponder = new ApprovalResponder(
       plan("allow"),
       new ConversationDecisions(new Map([[denyKey, "deny"]])),
@@ -359,17 +387,23 @@ describe("ApprovalResponder", () => {
       specPermission: "ask",
       args: { integration: "slack" },
     });
-    assert.deepEqual(await denyResponder.onClientTool({ id: "tool-1", gate: client }), {
-      kind: "deny",
-    });
+    assert.deepEqual(
+      await denyResponder.onClientTool({ id: "tool-1", gate: client }),
+      {
+        kind: "deny",
+      },
+    );
 
     const allowResponder = new ApprovalResponder(
       plan("allow"),
       new ConversationDecisions(new Map([[denyKey, "allow"]])),
     );
-    assert.deepEqual(await allowResponder.onClientTool({ id: "tool-1", gate: client }), {
-      kind: "pendingApproval",
-    });
+    assert.deepEqual(
+      await allowResponder.onClientTool({ id: "tool-1", gate: client }),
+      {
+        kind: "pendingApproval",
+      },
+    );
   });
 });
 
@@ -412,8 +446,13 @@ describe("extractApprovalDecisions", () => {
     };
 
     const decisions = extractApprovalDecisions(request);
-    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a.txt" })!), ["allow"]);
-    assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), ["deny"]);
+    assert.deepEqual(
+      decisions.get(approvedCallKey("edit", { path: "a.txt" })!),
+      ["allow"],
+    );
+    assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), [
+      "deny",
+    ]);
     assert.equal(decisions.has("edit"), false);
     assert.equal(decisions.has("tc-1"), false);
   });
@@ -535,7 +574,9 @@ describe("extractApprovalDecisions", () => {
       ],
     };
 
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     // A raw browser output is NOT an approval decision; it lives only in the client store.
     assert.equal(extractApprovalDecisions(request).has(key), false);
     assert.deepEqual(extractClientToolOutputs(request).get(key), [
@@ -549,7 +590,11 @@ describe("extractApprovalDecisions", () => {
         {
           role: "tool",
           content: [
-            { type: "tool_result", toolCallId: "tc-9", output: "the weather is 24C" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-9",
+              output: "the weather is 24C",
+            },
             { type: "tool_result", toolCallId: "tc-10", output: { temp: 24 } },
             { type: "text", text: "hello" },
           ],
@@ -569,7 +614,9 @@ describe("extractApprovalDecisions", () => {
 });
 
 describe("client-tool output store (separate from approvals)", () => {
-  const clientGate = (input: unknown = { integration: "slack" }): GateDescriptor => ({
+  const clientGate = (
+    input: unknown = { integration: "slack" },
+  ): GateDescriptor => ({
     executor: "client",
     toolName: "request_connection",
     args: input,
@@ -610,7 +657,9 @@ describe("client-tool output store (separate from approvals)", () => {
       ],
     };
     const outputs = extractClientToolOutputs(request);
-    const key = approvedCallKey("request_connection", { integration: "slack" })!;
+    const key = approvedCallKey("request_connection", {
+      integration: "slack",
+    })!;
     assert.deepEqual(outputs.get(key), [
       { connected: true, account: "first" },
       { connected: true, account: "second" },
@@ -619,7 +668,9 @@ describe("client-tool output store (separate from approvals)", () => {
     assert.equal(outputs.has(approvedCallKey("edit", { path: "a" })!), false);
     // ...and lives only in the approval store.
     const decisions = extractApprovalDecisions(request);
-    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), ["allow"]);
+    assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), [
+      "allow",
+    ]);
   });
 
   it("resolves two identical client calls from the FIFO store, in order", async () => {
@@ -656,18 +707,27 @@ describe("client-tool output store (separate from approvals)", () => {
     );
     const request1 = { id: "i-1", toolCallId: "live-1", gate: clientGate() };
     // First call consumes the first output; the second identical call consumes the second.
-    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
-      kind: "fulfilled",
-      output: { account: "first" },
-    });
-    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
-      kind: "fulfilled",
-      output: { account: "second" },
-    });
+    assert.deepEqual(
+      await responder.onClientTool(request1, { consume: true }),
+      {
+        kind: "fulfilled",
+        output: { account: "first" },
+      },
+    );
+    assert.deepEqual(
+      await responder.onClientTool(request1, { consume: true }),
+      {
+        kind: "fulfilled",
+        output: { account: "second" },
+      },
+    );
     // A third identical call has no stored output left -> forward to the browser (pause).
-    assert.deepEqual(await responder.onClientTool(request1, { consume: true }), {
-      kind: "pendingApproval",
-    });
+    assert.deepEqual(
+      await responder.onClientTool(request1, { consume: true }),
+      {
+        kind: "pendingApproval",
+      },
+    );
   });
 
   it("does NOT fulfill a new identical call from a PRIOR turn's output (cross-turn)", async () => {
@@ -771,7 +831,7 @@ describe("client-tool output store (separate from approvals)", () => {
     );
   });
 
-  it("returns a client output literally \"allow\" as output, never as a permission decision", async () => {
+  it('returns a client output literally "allow" as output, never as a permission decision', async () => {
     const request: AgentRunRequest = {
       sessionId: "s-client",
       messages: [
