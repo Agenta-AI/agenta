@@ -43,7 +43,7 @@ def _api_key() -> str:
         return key
     # Fall back to the hotel-agent draft env, which authenticates cross-project in this
     # workspace (see feature-matrix-test.md).
-    repo = pathlib.Path(__file__).resolve().parents[5]
+    repo = pathlib.Path(__file__).resolve().parents[6]
     envf = repo / "examples/python/hotel_agent/draft/.env"
     for line in envf.read_text().splitlines():
         if line.startswith("AGENTA_API_KEY="):
@@ -72,6 +72,13 @@ SECRET_MATH = {
 def reply_text(body: dict) -> str:
     out = (body.get("data") or {}).get("outputs") or {}
     if isinstance(out, dict):
+        # Current wire shape: outputs.messages[] (last assistant message).
+        messages = out.get("messages")
+        if isinstance(messages, list) and messages:
+            for msg in reversed(messages):
+                if isinstance(msg, dict) and msg.get("role") == "assistant":
+                    return msg.get("content") or ""
+        # Legacy shape: outputs.content.
         return out.get("content") or ""
     return str(out)
 

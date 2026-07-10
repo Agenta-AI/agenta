@@ -4,9 +4,9 @@
   "capability": "builtin bash",
   "env_label": "E3",
   "sandbox": "daytona",
-  "harness": "pi",
-  "model": "gpt-4o-mini",
-  "ts": "2026-06-20T11:02:49.133906+00:00",
+  "harness": "pi_core",
+  "model": "openai/gpt-4o-mini",
+  "ts": "2026-07-10T18:02:34.569075+00:00",
   "request": {
     "data": {
       "inputs": {
@@ -19,9 +19,9 @@
       },
       "parameters": {
         "agent": {
-          "harness": "pi",
+          "harness": "pi_core",
           "sandbox": "daytona",
-          "model": "gpt-4o-mini",
+          "model": "openai/gpt-4o-mini",
           "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
           "tools": [
             {
@@ -35,8 +35,9 @@
   },
   "http_status": 200,
   "response": {
-    "span_id": "5fc4483660ed338c",
-    "trace_id": "b6026a64a4a94ea48359943198dedcc6",
+    "session_id": "8d1e481a4c4f4912a8baa07bac698844",
+    "span_id": "3f359efd692c7f19",
+    "trace_id": "09d435c9e343cee024c10c6b15c5ade3",
     "version": "2025.07.14",
     "status": {
       "code": 200,
@@ -44,8 +45,13 @@
     },
     "data": {
       "outputs": {
-        "role": "assistant",
-        "content": "QA-BASH-x86_64"
+        "messages": [
+          {
+            "role": "assistant",
+            "content": "QA-BASH-x86_64"
+          }
+        ],
+        "stop_reason": "end_turn"
       }
     }
   },
