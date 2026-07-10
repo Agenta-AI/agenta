@@ -484,6 +484,55 @@ already calls for the Claude adapter to log-and-drop; live, only the drop happen
 **What was done.** A visible warning is emitted at the adapter boundary when skills are dropped
 on a non-Pi harness.
 
+### F-016 run_matrix sent the pre-migration flat agent template; every selector silently fell back to defaults (false-green E3)
+
+**Status:** fixed (driver), open (silent fallback)
+**Severity:** major (QA integrity; silent config drop)
+**Triage:** fix-now for the driver (done); defer the service-side silent fallback
+**Added:** 2026-07-10
+**Commit:** lane `chore/qa-driver-wire-shape` (branch `gitbutler/workspace`)
+**Found in:** E3 sandbox-agent daytona, harness `pi_core`, capability chat
+**Source:** `qa/scripts/run_matrix.py` (request builder); `sdks/python/agenta/sdk/agents/dtos.py`
+(`_parse_run_selection` / `_parse_agent_fields`)
+
+**The problem.** The agent template moved to nested sections (`harness.kind`, `sandbox.kind`,
+`llm.model`, `instructions.agents_md`); the QA driver still sent the flat pre-migration keys
+(`harness`, `sandbox`, `model`, `agents_md`). `from_params` ignores unknown flat keys and falls
+back to defaults (`pi_core` / `local` / `gpt-5.5` / no instructions), so an "E3 daytona" run
+executed in the LOCAL sandbox and passed. Sidecar logs proved it: session
+`f37c4002a3394bddb4a06bb685501007` ran `sandbox=local`, `resolved model=gpt-5.5`. The
+before/after sandbox count (0/0) was consistent with "no sandbox ever created", not "cleaned up".
+
+**Why it matters.** A whole environment axis of the QA matrix can go green without ever touching
+the environment under test, and a user-supplied config in the old shape degrades silently (the
+same silent-drop class as F-001/F-007/F-012/F-015). The reply parser was equally stale
+(`outputs.content` vs the current `outputs.messages[]`), masking real replies as failures.
+
+**What was done.** The driver now builds the nested template and parses `outputs.messages[]`;
+real E3 runs verified via sidecar logs (`sandbox=daytona`, daytonaproxy ACP traffic).
+**Deferred:** make the template parser fail loud (or warn) on unrecognized flat selector keys.
+
+### F-017 E3 pi builtin-bash run breaks the invoke stream after `tunnel discovery failed`; error-path Daytona sandboxes leak until auto-stop
+
+**Status:** open
+**Severity:** major (E3 tool runs unusable through the deployed app)
+**Triage:** defer (needs the tunnel design; spans runner + services)
+**Added:** 2026-07-10
+**Commit:** workspace @ b94346f1fc
+**Found in:** E3 sandbox-agent daytona, harness `pi_core`, capability builtin bash
+**Source:** sidecar log `[sandbox-agent] tunnel discovery failed: fetch failed`; services-side
+httpx stream abort → HTTP 500; capture `qa/runs/E3__builtin_bash_pi.json`
+
+**The problem.** With the daemon-carrying snapshot (`agenta-sandbox-pi`), an E3 chat run passes
+end to end, but the builtin-bash scenario dies mid-stream: the sidecar logs
+`tunnel discovery failed: fetch failed`, ingests the first `tool_call`, then the services-side
+stream aborts with an httpx `ReadError` and `/invoke` returns 500. Repro:
+`uv run run_matrix.py --env-label E3 --sandbox daytona --only builtin_bash_pi`. Each failed run
+left a STARTED sandbox behind (deleted by hand twice; `autoStopInterval` is the only backstop).
+
+**Why it matters.** Chat-only Daytona works, but any tool-using agent on Daytona through the
+deployed app fails, and every failure costs sandbox credits until auto-stop kicks in.
+
 ## How to add a finding during a run
 
 Copy the F-001 block, bump the id, and fill every field. Required: the environment, harness,

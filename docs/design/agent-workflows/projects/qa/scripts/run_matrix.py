@@ -237,12 +237,19 @@ SCENARIOS = [
 
 
 def run(sc: dict, sandbox: str, env_label: str, timeout: float) -> dict:
+    # The agent template uses nested sections (harness.kind / sandbox.kind / llm.model /
+    # instructions.agents_md). Flat selectors are silently ignored and fall back to the
+    # defaults (pi_core / local / gpt-5.5 / no instructions) — the source of a false-green
+    # "E3" pass that never left the local sandbox.
     agent = {
-        "harness": sc["harness"],
-        "sandbox": sandbox,
-        "model": MODEL,
+        "harness": {"kind": sc["harness"]},
+        "sandbox": {"kind": sandbox},
+        "llm": {"model": MODEL},
     }
-    agent.update(sc.get("agent", {}))
+    overrides = dict(sc.get("agent", {}))
+    if "agents_md" in overrides:
+        agent["instructions"] = {"agents_md": overrides.pop("agents_md")}
+    agent.update(overrides)
     body = {
         "data": {
             "inputs": {"messages": [{"role": "user", "content": sc["msg"]}]},

@@ -6,7 +6,7 @@
   "sandbox": "daytona",
   "harness": "pi_core",
   "model": "openai/gpt-4o-mini",
-  "ts": "2026-07-10T18:02:34.569075+00:00",
+  "ts": "2026-07-10T20:13:52.938577+00:00",
   "request": {
     "data": {
       "inputs": {
@@ -19,10 +19,18 @@
       },
       "parameters": {
         "agent": {
-          "harness": "pi_core",
-          "sandbox": "daytona",
-          "model": "openai/gpt-4o-mini",
-          "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
+          "harness": {
+            "kind": "pi_core"
+          },
+          "sandbox": {
+            "kind": "daytona"
+          },
+          "llm": {
+            "model": "openai/gpt-4o-mini"
+          },
+          "instructions": {
+            "agents_md": "Use the bash tool when asked to run a command. Report only its stdout."
+          },
           "tools": [
             {
               "type": "builtin",
@@ -33,30 +41,32 @@
       }
     }
   },
-  "http_status": 200,
+  "http_status": 500,
   "response": {
-    "session_id": "8d1e481a4c4f4912a8baa07bac698844",
-    "span_id": "3f359efd692c7f19",
-    "trace_id": "09d435c9e343cee024c10c6b15c5ade3",
+    "session_id": "1666f968d5d541208d774e42a970759f",
+    "span_id": "6f71cebadf56ab0b",
+    "trace_id": "8ec5ab000cadb3aa8832f0838a803fff",
     "version": "2025.07.14",
     "status": {
-      "code": 200,
-      "message": "Success"
-    },
-    "data": {
-      "outputs": {
-        "messages": [
-          {
-            "role": "assistant",
-            "content": "QA-BASH-x86_64"
-          }
-        ],
-        "stop_reason": "end_turn"
-      }
+      "code": 500,
+      "message": "Agent run failed: Stream Error",
+      "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+      "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 292, in __call__\n    normalized = await self._normalize_response(response, flags=flags)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 152, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/decorators/tracing.py\", line 256, in awrapper\n    result = await handler(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/app/oss/src/agent/app.py\", line 120, in _agent\n    return await handler(\n           ^^^^^^^^^^^^^^\n        request=request, inputs=inputs, messages=messages, parameters=parameters\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/handler.py\", line 326, in _agent\n    return await agent_batch(\n           ^^^^^^^^^^^^^^^^^^\n    ...<5 lines>...\n    )\n    ^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/handler.py\", line 384, in agent_batch\n    async for event in run:\n        events.append({\"type\": event.type, \"data\": event.data})\n",
+        "  File \"/sdks/python/agenta/sdk/agents/streaming.py\", line 75, in __aiter__\n    self._result = result_from_wire(record.get(\"result\") or {})\n                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/sdks/python/agenta/sdk/agents/utils/wire.py\", line 170, in result_from_wire\n    raise RuntimeError(\n        f\"Agent run failed: {sanitize_runner_error(data.get('error'))}\"\n    )\n",
+        "RuntimeError: Agent run failed: Stream Error\n"
+      ]
     }
   },
-  "reply": "QA-BASH-x86_64",
-  "status_message": "Success",
-  "passed": true,
+  "reply": "",
+  "status_message": "Agent run failed: Stream Error",
+  "passed": false,
   "expect": "QA-BASH-<arch from uname -m>"
 }
