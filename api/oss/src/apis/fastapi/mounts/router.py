@@ -15,6 +15,7 @@ from oss.src.core.mounts.types import (
     MountDataInvalid,
     MountFileNotFound,
     MountImmutableField,
+    MountNameInvalid,
     MountNotFound,
     MountPathInvalid,
     MountSlugConflict,
@@ -55,6 +56,11 @@ def handle_mount_exceptions():
                     detail=e.message,
                 ) from e
             except MountPathInvalid as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=e.message,
+                ) from e
+            except MountNameInvalid as e:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,

@@ -317,7 +317,7 @@ export function classifyAgentChanges(localParams: unknown, remoteParams: unknown
         ),
         instructionsSection(local, remote),
         toolsSection(local, remote),
-        listSection("mcps", "MCP servers", local.mcps, remote.mcps),
+        listSection("mcps", "MCPs", local.mcps, remote.mcps),
         listSection("skills", "Skills", local.skills, remote.skills),
         scalarSection("params", "Advanced", advancedBucket(local), advancedBucket(remote)),
     ].filter((s): s is ChangeSection => s !== null)

@@ -8,7 +8,6 @@ from .builtin_tool_config_permission import BuiltinToolConfigPermission
 
 
 class BuiltinToolConfig(UniversalBaseModel):
-    needs_approval: typing.Optional[bool] = None
     render: typing.Optional[typing.Dict[str, typing.Any]] = None
     permission: typing.Optional[BuiltinToolConfigPermission] = None
     name: str

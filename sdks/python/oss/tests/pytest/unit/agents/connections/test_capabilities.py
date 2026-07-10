@@ -54,10 +54,11 @@ def test_pi_and_agenta_reach_the_openai_codex_subscription_provider():
         assert harness_allows_provider("claude", "openai-codex") is False
 
 
-def test_unknown_harness_is_permissive():
-    assert harness_allows_provider("some-future-harness", "openai") is True
-    assert harness_allows_mode("some-future-harness", "agenta") is True
-    assert harness_allows_deployment("some-future-harness", "bedrock") is True
+def test_unknown_harness_is_closed():
+    # An unmapped harness gets no capability: fail closed, not permissive.
+    assert harness_allows_provider("some-future-harness", "openai") is False
+    assert harness_allows_mode("some-future-harness", "agenta") is False
+    assert harness_allows_deployment("some-future-harness", "bedrock") is False
 
 
 def test_two_modes_supported_on_all_known_harnesses():

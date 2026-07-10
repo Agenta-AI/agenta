@@ -8,6 +8,7 @@
  */
 export interface SessionRecordIngestRequest {
     session_id: string;
+    record_id?: string | null;
     record_index?: number | null;
     timestamp?: string | null;
     record_type?: string | null;

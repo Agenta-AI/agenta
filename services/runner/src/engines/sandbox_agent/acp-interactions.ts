@@ -121,6 +121,9 @@ export function attachPermissionResponder({
     return { ...toolCall, resolvedName: gate.toolName };
   };
 
+  // Only a paused gate creates a durable row; resolving an auto-allowed gate's id would 404.
+  const createdInteractionIds = new Set<string>();
+
   // A pause sends NO harness reply, ever. Replying `reject` would make Claude emit a failed
   // tool call ("User refused permission") whose `tool_result {isError}` overwrites the
   // approval prompt on the same tool-call id (the F-024 clobber). The turn instead ends via
@@ -158,6 +161,7 @@ export function attachPermissionResponder({
         options: req?.options,
       },
     });
+    createdInteractionIds.add(eventId);
     onCreateInteraction?.(eventId, gate.toolName, gate.args, "user_approval");
     onPause?.();
   };
@@ -184,8 +188,15 @@ export function attachPermissionResponder({
         render: spec.render,
       },
     });
+    createdInteractionIds.add(eventId);
     onCreateInteraction?.(eventId, gate.toolName, gate.args, "client_tool");
     onPause?.();
+  };
+
+  // Resolve the durable row this gate created, if it created one.
+  const resolveIfCreated = (id: string): void => {
+    if (!createdInteractionIds.delete(id)) return;
+    onResolveInteraction?.(id);
   };
 
   const replyPermission = async (
@@ -205,7 +216,7 @@ export function attachPermissionResponder({
       onPause?.();
       return;
     }
-    onResolveInteraction?.(id);
+    resolveIfCreated(id);
   };
 
   const replyClientTool = async (
@@ -223,7 +234,9 @@ export function attachPermissionResponder({
         `[HITL] reply failed id=${id} decision=${verdict.kind}: ${errorMessage(err)}`,
       );
       onPause?.();
+      return;
     }
+    resolveIfCreated(id);
   };
 
   // A bare reject that answers the harness WITHOUT touching the durable interactions plane (no

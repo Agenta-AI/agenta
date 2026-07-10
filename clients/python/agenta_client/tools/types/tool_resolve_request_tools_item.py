@@ -13,7 +13,6 @@ from ...types.gateway_tool_config_permission import GatewayToolConfigPermission
 
 class ToolResolveRequestToolsItem_Builtin(UniversalBaseModel):
     type: typing.Literal["builtin"] = "builtin"
-    needs_approval: typing.Optional[bool] = None
     render: typing.Optional[typing.Dict[str, typing.Any]] = None
     permission: typing.Optional[BuiltinToolConfigPermission] = None
     name: str
@@ -27,7 +26,6 @@ class ToolResolveRequestToolsItem_Builtin(UniversalBaseModel):
             extra = pydantic.Extra.allow
 class ToolResolveRequestToolsItem_Gateway(UniversalBaseModel):
     type: typing.Literal["gateway"] = "gateway"
-    needs_approval: typing.Optional[bool] = None
     render: typing.Optional[typing.Dict[str, typing.Any]] = None
     permission: typing.Optional[GatewayToolConfigPermission] = None
     provider: typing.Optional[str] = None

@@ -3,7 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 /**
- * The ``find_capabilities`` response (Agenta-native).
+ * The ``discover_tools`` response (Agenta-native).
  */
 export interface CapabilitiesResult {
     capabilities?: AgentaApi.Capability[] | undefined;

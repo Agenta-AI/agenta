@@ -10,8 +10,7 @@
  *    `owner:session:<id>` affinity key so control signals route to the box running the turn.
  *  - `turn_id`    — the current TURN's id (one per execution). Proves alive-lock ownership.
  *
- * Port of the PoC sidecar's `run-lock.js` `startRefresher` pattern, adapted to use
- * the HTTP API instead of direct Redis (the API is the single Redis writer).
+ * Uses the HTTP API instead of direct Redis (the API is the single Redis writer).
  *
  * Key contract constants mirror `sessions/contract.ts`; do not duplicate them.
  */
@@ -29,7 +28,7 @@ const REFRESH_INTERVAL_MS = HEARTBEAT_INTERVAL_SECONDS * 1000;
  * uuid per process. Distinct from any turn id — many turns share one replica_id, and with 2+
  * containers each holds its own, so affinity routing can find the box running a session.
  */
-const REPLICA_ID =
+export const REPLICA_ID =
   process.env.AGENTA_RUNNER_REPLICA_ID?.trim() || randomUUID();
 
 import { refreshCredential } from "./auth.ts";
@@ -83,6 +82,46 @@ async function sendHeartbeat(
     log(
       `heartbeat failed session=${sessionId} turn=${turnId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
+  }
+}
+
+/**
+ * Claim (or read) this session's owner affinity before serving it, and return the ACTUAL owner
+ * replica id (single-runner-local guard). Sends one heartbeat with no `turn_id` — the API
+ * claims the `owner` key without stealing from a live different owner and reports the winner in
+ * `replica_id`, but establishes no alive/running lock (that needs a turn_id). Returns
+ * `{replicaId, ownerReplicaId}`; `ownerReplicaId` is undefined only when the call itself fails
+ * (network/HTTP error) — a fail-open, matching "never worse than today" (no silent WRONG-host
+ * start, but a transient API blip does not block a legitimate owner).
+ */
+export async function claimSessionOwnership(
+  sessionId: string,
+  authorization: string,
+): Promise<{ replicaId: string; ownerReplicaId: string | undefined }> {
+  try {
+    const url = `${apiBase()}/sessions/streams/heartbeat`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization },
+      body: JSON.stringify({
+        session_id: sessionId,
+        replica_id: REPLICA_ID,
+        is_running: true,
+      }),
+    });
+    if (!res.ok) {
+      log(`ownership claim HTTP ${res.status} session=${sessionId}`);
+      return { replicaId: REPLICA_ID, ownerReplicaId: undefined };
+    }
+    const body = (await res.json()) as { replica_id?: unknown };
+    const owner =
+      typeof body.replica_id === "string" ? body.replica_id : undefined;
+    return { replicaId: REPLICA_ID, ownerReplicaId: owner };
+  } catch (err) {
+    log(
+      `ownership claim failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+    );
+    return { replicaId: REPLICA_ID, ownerReplicaId: undefined };
   }
 }
 

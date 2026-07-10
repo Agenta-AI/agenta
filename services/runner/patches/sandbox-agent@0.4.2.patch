@@ -1,0 +1,132 @@
+diff --git a/dist/chunk-TVCDKGSM.js b/dist/chunk-TVCDKGSM.js
+index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..32ccd013cdb22295485f3f40eee10a4680a8cbf3 100644
+--- a/dist/chunk-TVCDKGSM.js
++++ b/dist/chunk-TVCDKGSM.js
+@@ -738,6 +738,7 @@ var LiveAcpConnection = class _LiveAcpConnection {
+   pendingReplayByLocalSessionId = /* @__PURE__ */ new Map();
+   lastAdapterExit = null;
+   lastAdapterExitAt = 0;
++  loadSessionSupported = false;
+   onObservedEnvelope;
+   onPermissionRequest;
+   constructor(agent, connectionId, acp, onObservedEnvelope, onPermissionRequest) {
+@@ -791,6 +792,7 @@ var LiveAcpConnection = class _LiveAcpConnection {
+     if (initResult.authMethods && initResult.authMethods.length > 0) {
+       await autoAuthenticate(acp, initResult.authMethods);
+     }
++    live.loadSessionSupported = initResult.agentCapabilities?.loadSession === true;
+     return live;
+   }
+   async close() {
+@@ -837,6 +839,12 @@ var LiveAcpConnection = class _LiveAcpConnection {
+       throw error;
+     }
+   }
++  async loadRemoteSession(localSessionId, agentSessionId, sessionInit) {
++    const loadParams = buildLoadSessionParams(agentSessionId, sessionInit);
++    const response = await this.acp.loadSession(loadParams);
++    this.bindSession(localSessionId, response.sessionId ?? agentSessionId);
++    return response;
++  }
+   async sendSessionMethod(localSessionId, method, params, options) {
+     const agentSessionId = this.sessionByLocalId.get(localSessionId);
+     if (!agentSessionId) {
+@@ -1330,9 +1338,27 @@ var SandboxAgent = class _SandboxAgent {
+     if (existing.lastConnectionId === live.connectionId && live.hasBoundSession(id, existing.agentSessionId)) {
+       return this.upsertSessionHandle(existing);
+     }
++    const sessionInit = normalizeSessionInit(existing.sessionInit, void 0, this.sandboxProvider?.defaultCwd);
++    if (live.loadSessionSupported && existing.agentSessionId) {
++      try {
++        const loaded = await live.loadRemoteSession(existing.id, existing.agentSessionId, sessionInit);
++        const updated2 = {
++          ...existing,
++          agentSessionId: loaded.sessionId ?? existing.agentSessionId,
++          lastConnectionId: live.connectionId,
++          destroyedAt: void 0,
++          configOptions: cloneConfigOptions(loaded.configOptions),
++          modes: cloneModes(loaded.modes)
++        };
++        await this.persist.updateSession(updated2);
++        live.bindSession(updated2.id, updated2.agentSessionId);
++        return this.upsertSessionHandle(updated2);
++      } catch {
++      }
++    }
+     const replaySource = await this.collectReplayEvents(existing.id, this.replayMaxEvents);
+     const replayText = buildReplayText(replaySource, this.replayMaxChars);
+-    const recreated = await live.createRemoteSession(existing.id, normalizeSessionInit(existing.sessionInit, void 0, this.sandboxProvider?.defaultCwd));
++    const recreated = await live.createRemoteSession(existing.id, sessionInit);
+     const updated = {
+       ...existing,
+       agentSessionId: recreated.sessionId,
+@@ -2504,6 +2530,25 @@ function normalizeSessionInit(value, cwdShorthand, providerDefaultCwd) {
+     mcpServers: value.mcpServers ?? []
+   };
+ }
++function buildLoadSessionParams(agentSessionId, sessionInit) {
++  const meta = sessionInit._meta ?? {};
++  const claudeCode = meta.claudeCode ?? {};
++  const claudeCodeOptions = claudeCode.options ?? {};
++  return {
++    ...sessionInit,
++    sessionId: agentSessionId,
++    _meta: {
++      ...meta,
++      claudeCode: {
++        ...claudeCode,
++        options: {
++          ...claudeCodeOptions,
++          resume: agentSessionId
++        }
++      }
++    }
++  };
++}
+ function mapSessionParams(params, agentSessionId) {
+   return {
+     ...params,
+diff --git a/dist/providers/local.js b/dist/providers/local.js
+index 3e68d70c340ded6b2f99cf3142e951b804a4a8a2..103851397d0f575f103644002a94ab46306034d5 100644
+--- a/dist/providers/local.js
++++ b/dist/providers/local.js
+@@ -53,6 +53,7 @@ async function spawnSandboxAgent(options, fetcher) {
+   const args = ["server", "--host", bindHost, "--port", String(port), "--token", token];
+   const child = spawn(binaryPath, args, {
+     stdio,
++    detached: true,
+     env: {
+       ...process.env,
+       ...options.env ?? {}
+@@ -67,10 +68,10 @@ async function spawnSandboxAgent(options, fetcher) {
+       cleanup.dispose();
+       return;
+     }
+-    child.kill("SIGTERM");
++    killGroup(child, "SIGTERM");
+     const exited = await waitForExit(child, 5e3);
+     if (!exited) {
+-      child.kill("SIGKILL");
++      killGroup(child, "SIGKILL");
+     }
+     cleanup.dispose();
+   };
+@@ -163,10 +164,17 @@ async function waitForExit(child, timeoutMs) {
+     });
+   });
+ }
++function killGroup(child, signal) {
++  if (typeof child.pid !== "number") return;
++  try {
++    process.kill(-child.pid, signal);
++  } catch {
++  }
++}
+ function registerProcessCleanup(child) {
+   const handler = () => {
+     if (child.exitCode === null) {
+-      child.kill("SIGTERM");
++      killGroup(child, "SIGTERM");
+     }
+   };
+   process.once("exit", handler);
