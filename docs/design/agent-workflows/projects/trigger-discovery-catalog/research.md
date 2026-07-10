@@ -67,9 +67,9 @@ Per use case, worst case, all sequential:
 | `get_event` detail for the primary match | 1 |
 | `get_integration` auth-scheme check per surfaced integration | up to 4 |
 
-That is up to ~50 round trips per use case, each a live HTTP call with a 30-second
-timeout budget and no caching. Three use cases means ~150 sequential calls. At the
-measured ~0.55 s per Composio round trip, that is 30 to 80 seconds of pure network wait.
+That sums to up to 60 round trips per use case, each a live HTTP call with a 30-second
+timeout budget and no caching. Three use cases means up to 180 sequential calls. At the
+measured ~0.55 s per Composio round trip, that is 30 to 90+ seconds of pure network wait.
 
 `discover_tools`, for comparison, makes **one** Composio call for all use cases combined,
 and caches it (`_cached_search`, `api/oss/src/core/tools/service.py`).

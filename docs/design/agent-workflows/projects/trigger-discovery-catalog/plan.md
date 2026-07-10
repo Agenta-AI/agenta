@@ -5,10 +5,13 @@
 Fetch the complete Composio trigger-types catalog (351 items, 8 pages, ~4.3 s) through
 the existing adapter, cache it in Redis with a 24-hour TTL, and rewrite
 `_discover_events_for_use_case` to score all items in memory. The scoring functions
-(`_score_trigger_match`, `_has_primary_evidence`, `_discovery_terms`) stay as they are.
-The per-use-case keyword paging (`_candidate_integrations`, `_candidate_events`) and the
-follow-up `get_event` detail call all disappear. The wire contract of `discover_triggers`
-does not change: same request, same `TriggerCapabilitiesResult`.
+(`_score_trigger_match`, `_has_primary_evidence`, `_discovery_terms`) carry over, with
+one addition found during live verification: an adjacency bonus that replaces the
+provider's relevance ordering on score ties (decision D7 in
+[`status.md`](status.md)). The per-use-case keyword paging
+(`_candidate_integrations`, `_candidate_events`) and the follow-up `get_event` detail
+call all disappear. The wire contract of `discover_triggers` does not change: same
+request, same `TriggerCapabilitiesResult`.
 
 ## How the pieces map to the current code
 
@@ -83,7 +86,7 @@ note (existing `_TRIGGER_DISCOVERY_NO_MATCH_NOTE` path).
 
 **Phase 3 — verify against the live stack.** `cd api && py-run-tests` for the unit
 suite. Then on the dev stack: call `discover_triggers` twice with 2 to 3 realistic use
-cases ("when a new github issue is created", "new slack message in a channel"). Confirm
+cases ("when a new GitHub issue is created", "new Slack message in a channel"). Confirm
 cold call completes in single-digit seconds, warm call in under a second, and the
 surfaced events match a before/after capture from the current implementation.
 
@@ -101,8 +104,11 @@ lookup, per the keep-docs-in-sync skill.
   this; noted as optional hardening, not in v1.
 - **Scoring drift**: the integration description leaves the haystack (D5). The term
   weights already favor event fields (5) and event key (3) over integration key (2), and
-  toolkit slug + name remain. Phase 3's before/after capture is the check that ranking
-  did not regress on realistic queries.
+  toolkit slug + name remain. Phase 3's live capture was the check, and it caught a real
+  case: score ties that the provider's relevance ordering used to break now broke by
+  catalog order, surfacing the GitHub issue-comment event over the issue-created event.
+  Resolved with the adjacency bonus (D7 in [`status.md`](status.md)) plus a unit test
+  that pins the case.
 
 ## Verification summary
 

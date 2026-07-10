@@ -1,7 +1,7 @@
 # Trigger discovery: cached catalog dump
 
 Planning workspace for making `discover_triggers` fast. Today the operation takes 30 to 60
-seconds because it pages through the Composio catalog with up to 50 sequential HTTP calls
+seconds because it pages through the Composio catalog with up to 60 sequential HTTP calls
 per use case. The fix: fetch the full trigger catalog once (351 items, about 4 seconds),
 cache it in Redis for a day, and score every use case in memory. Warm calls drop to under
 a second.
@@ -28,3 +28,6 @@ The whole Composio trigger catalog is 351 items across 41 toolkits, and each ite
 carries its config schema and a sample payload. Fetch it once, cache it for a day, score
 in memory: cold discovery costs one 4-second fetch per deployment per day, and every other
 call returns in under a second.
+
+Implemented and verified live on 2026-07-10: cold 5.06 s, warm 0.71 s, against 30 to 60
+seconds before. See [`status.md`](status.md).

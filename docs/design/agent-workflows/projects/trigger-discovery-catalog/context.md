@@ -29,7 +29,7 @@ triggers. So the v1 implementation emulates search by paging the catalog with ke
 
 Every one of those calls is a live HTTP round trip. None are cached. None run
 concurrently: each `await` sits inside a plain `for` loop, so latencies add up instead of
-overlapping. The worst case is roughly 50 sequential round trips per use case. At 0.5
+overlapping. The worst case is up to 60 sequential round trips per use case. At 0.5
 seconds per round trip, three use cases cost over a minute.
 
 So the problem is not algorithmic complexity in CPU terms. It is a sequential HTTP
