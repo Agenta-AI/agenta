@@ -26,7 +26,7 @@
  * </ConfigAccordionSection>
  * ```
  */
-import {type ReactNode, useCallback, useEffect, useState} from "react"
+import {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
 
 import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
 import {Tooltip, Typography} from "antd"
@@ -180,6 +180,10 @@ export function ConfigAccordionSection({
     }, [revealOnMount, revealDelayMs])
     // Indicator (unsaved edits / validation) takes precedence over the completion `status`.
     const indicatorColor = indicator ? sectionIndicatorColor(indicator.tone) : null
+    // Keep the last tone's color while the dot scales out, so it doesn't flash colorless.
+    const lastIndicatorColorRef = useRef<string | null>(null)
+    if (indicatorColor) lastIndicatorColorRef.current = indicatorColor
+    const dotColor = indicatorColor ?? lastIndicatorColorRef.current
     // The glyph gets a soft, desaturated tint; the full accent lives on the dot so it still reads.
     const iconColor = indicatorColor
         ? `color-mix(in srgb, ${indicatorColor} 45%, var(--ag-colorTextTertiary))`
@@ -248,16 +252,20 @@ export function ConfigAccordionSection({
                     {icon ? (
                         <Tooltip title={indicator?.tooltip}>
                             <span
-                                className="relative flex shrink-0 items-center"
+                                className="relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-300"
                                 style={{color: iconColor}}
                             >
                                 {icon}
-                                {indicator ? (
-                                    <span
-                                        className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-[var(--ag-colorBgContainer)]"
-                                        style={{background: indicatorColor ?? undefined}}
-                                    />
-                                ) : null}
+                                {/* Always mounted: state changes play as scale/opacity/color
+                                    transitions instead of the dot popping in and out. */}
+                                <span
+                                    className={cn(
+                                        "absolute -right-1 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-[var(--ag-colorBgContainer)]",
+                                        "motion-safe:transition-[transform,opacity,background-color] motion-safe:duration-300 motion-safe:ease-out",
+                                        indicator ? "scale-100 opacity-100" : "scale-0 opacity-0",
+                                    )}
+                                    style={{background: dotColor ?? undefined}}
+                                />
                             </span>
                         </Tooltip>
                     ) : null}
