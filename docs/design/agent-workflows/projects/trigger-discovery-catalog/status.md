@@ -61,6 +61,25 @@ Last updated: 2026-07-10.
   the real channel-message events, because the integration name prefixes every event
   key of that integration. `matched_terms` and the primary-evidence gate are untouched.
   Two unit tests pin the GitHub and Slack cases with the wrong event listed first.
+- **D8 — Discovery quality pass, validated by an 891-query experiment.** A live check
+  after the cache shipped showed browse-shaped asks ("slack triggers") returning
+  nothing. We measured instead of patching: `scripts/discovery_eval.py` replays the
+  real scoring functions (AST-extracted, no copy drift) over the real catalog with
+  templated, browse, and hand-written query families (research §7). Four changes won
+  the A/B and shipped together: (1) meta and question words became stopwords —
+  "triggers" is noise, and "what"/"can" substring-match WHATSAPP/CANVAS; (2) a use case
+  that names a platform is restricted to that platform's events, because a
+  perfectly-worded event on the wrong platform is unusable ("discord message received"
+  must never return Slack); (3) events whose description starts with DEPRECATED lose 25
+  points, so live replacements always outrank them; (4) the no-match path returns the
+  closest-scoring events as alternatives with an honest note, instead of an empty list.
+  Browse queries went from 25% empty / 14% wrong toolkit to 100% right toolkit; the
+  templated ground-truth sets held at 98% top-1 / 100% top-4. Rejected with data (so
+  they are not re-tried blind): plural fallback, "new" as a content word, description
+  down-weighting, and a large question-word list — each regressed a measured case
+  (research §7). The tool description in the SDK op catalog and the build-agent skill
+  were updated in the same pass: matching is keyword search, confirm integration +
+  description before wiring, bare integration name browses its events.
 
 ## Notes for future sessions
 

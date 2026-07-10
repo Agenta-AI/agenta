@@ -103,3 +103,65 @@ server-side, which is ordinary API usage. This became decision D1.
 The practical loss is small. A vendored file would only have bought us discovery with
 zero Composio calls ever, and discovery is useless without a Composio key anyway (the
 connection-state half of the response needs one).
+
+## 7. Discovery quality experiment (891 queries, 2026-07-10)
+
+After the catalog cache shipped, a live check showed "slack triggers" returning nothing
+at all. Rather than patch that one case, we measured what agents actually get. The
+harness (`scripts/discovery_eval.py`) extracts the real scoring functions from
+`service.py` via AST, so there is no copy drift, and replays them over the real
+351-event catalog with four query families:
+
+- **usecase / fragment** (343 each): natural phrasings templated from every live
+  event's own name ("when a message is posted in slack", "slack channel message
+  received"). Ground truth is known by construction.
+- **browse** (164): menu-shaped asks agents genuinely type, with spaced names the way
+  people write them ("google calendar triggers", "what triggers does slack support").
+- **hand** (41): realistic asks written independently of the catalog, including
+  platforms the catalog does not have (telegram, dropbox) and vocabulary mismatches
+  ("when a pull request is merged" — Composio only has state-changed).
+
+What the baseline got wrong, with numbers:
+
+| Failure | Baseline | Cause |
+| --- | --- | --- |
+| Browse queries fully empty | 25% | "triggers"/"events" match nothing; 2-term gate fails; no-match path returns zero alternatives |
+| Browse queries wrong toolkit | 14% | "what" is a substring of WHATSAPP, "can" of CANVAS |
+| Wrong platform as primary | "discord message received" → Slack | event-key word hits outweigh platform identity |
+| Deprecated events surfaced | 6 corpus hits | nothing demotes "DEPRECATED: use X instead" items |
+| Hand asks with right answer nowhere in top 4 | 4.9% | combination of the above |
+
+Nine scorer variants were A/B tested on the same corpus. The winner (shipped) combines
+four changes: meta and question words become stopwords; a use case that names a
+platform is restricted to it; deprecated events lose 25 score points; and the no-match
+path returns the closest-scoring events as alternatives instead of nothing. Results:
+
+| Metric | Baseline | Shipped |
+| --- | --- | --- |
+| usecase/fragment top-1 | 98.0% | 98.0% (top-4 stays 100%) |
+| browse right toolkit | 61% | 100% |
+| browse empty | 25% | 0% |
+| hand: right answer missing from top 4 | 4.9% | 0% |
+| deprecated events surfaced | 6 | 0 |
+
+Variants that measured worse and were rejected, so nobody re-tries them blind:
+
+- **Singular/plural fallback matching**: hand top-1 dropped 46% → 41% (extra noise
+  outweighs the few plural saves).
+- **Treating "new" as a content word**: templated top-1 hit 100%, but it regressed the
+  pinned live case — "new slack message in a channel" flipped to the direct-message
+  event because its verbose description mentions "new" and "channels".
+- **Down-weighting description-only hits**: fixed the case above but dropped "when
+  someone stars my github repo" out of the top 4 entirely (the description is the only
+  place "stars" appears; the event is named STARGAZER). A right answer nowhere in the
+  surfaced set is the worst failure class, so this lost to keeping description weight.
+- **A large question-word stopword list** (list, show, get, support, have...): those
+  words appear inside real event names, and templated top-1 fell 2.7 points. Only the
+  minimal hazard set shipped.
+
+Residual, accepted: when the named platform has no triggers in the catalog at all
+("new telegram message received"), generic words can still pass the 2-term gate and
+surface a wrong-platform primary. The tool description and the build-agent skill both
+instruct the agent to confirm the integration and the event description before wiring
+anything, and the no-match note says explicitly that an absent integration means the
+provider has no triggers for it.

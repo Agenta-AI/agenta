@@ -22,6 +22,7 @@ from oss.src.core.triggers.dtos import (
 from oss.src.core.triggers.exceptions import AdapterError
 from oss.src.core.triggers.service import (
     TriggersService,
+    _TRIGGER_DISCOVERY_NO_CONFIDENT_MATCH_NOTE,
     _discovery_terms,
     _has_primary_evidence,
     _match_signal,
@@ -543,6 +544,146 @@ async def test_discover_triggers_adjacency_bonus_ignores_integration_name_bigram
     assert "SLACK_MESSAGE_REACTION_ADDED" in [
         alt.event_key for alt in capability.alternatives
     ]
+
+
+async def test_discover_triggers_browse_query_returns_alternatives_without_primary():
+    # Browse-shaped ask: "triggers" is meta-vocabulary, so only "slack" remains as a
+    # term. The gate fails (one term, no exact phrase) but the closest slack events
+    # must still come back as alternatives instead of an empty capability.
+    service = _discovery_service(
+        events=[
+            _event(
+                "SLACK_NEW_CHANNEL_CREATED",
+                "Channel Created",
+                "Fires when a channel is created",
+                integration="slack",
+            ),
+            _event(
+                "SLACK_CHANNEL_MESSAGE_RECEIVED",
+                "Channel Message Received",
+                "Fires when a message is posted to a channel",
+                integration="slack",
+            ),
+            _event(
+                "GITHUB_ISSUE_CREATED_TRIGGER",
+                "Issue Created",
+                "Fires when a new issue is created",
+                integration="github",
+            ),
+        ],
+        integration_names={"slack": "Slack", "github": "GitHub"},
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["slack triggers"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event is None
+    assert capability.alternatives
+    assert all(alt.integration == "slack" for alt in capability.alternatives)
+    assert capability.note == _TRIGGER_DISCOVERY_NO_CONFIDENT_MATCH_NOTE
+
+
+async def test_discover_triggers_named_integration_beats_cross_platform_keywords():
+    # Naming a platform hard-constrains discovery to it: slack's keyword-rich
+    # message event must not outrank (or even accompany) the discord event.
+    service = _discovery_service(
+        events=[
+            _event(
+                "SLACK_CHANNEL_MESSAGE_RECEIVED",
+                "Channel Message Received",
+                "Triggered when a message is received in a channel",
+                integration="slack",
+            ),
+            _event(
+                "DISCORD_NEW_MESSAGE_TRIGGER",
+                "New Message",
+                "Triggered when a message is received in a discord server",
+                integration="discord",
+            ),
+        ],
+        integration_names={"slack": "Slack", "discord": "Discord"},
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["discord message received"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event.event_key == "DISCORD_NEW_MESSAGE_TRIGGER"
+    assert all("SLACK" not in alt.event_key for alt in capability.alternatives)
+
+
+async def test_discover_triggers_question_words_do_not_match_substrings():
+    # "what" is a substring of WHATSAPP and "can" of CANVAS; as stopwords they must
+    # not pull in the wrong integration when the agent asks a question about gmail.
+    service = _discovery_service(
+        events=[
+            _event(
+                "WHATSAPP_NEW_MESSAGE",
+                "New Message",
+                "Triggered when a new whatsapp message arrives",
+                integration="whatsapp",
+            ),
+            _event(
+                "GMAIL_NEW_GMAIL_MESSAGE",
+                "New Email",
+                "Triggered when a new email arrives in the inbox",
+                integration="gmail",
+            ),
+        ],
+        integration_names={"whatsapp": "WhatsApp", "gmail": "Gmail"},
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["what events can gmail trigger on"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    surfaced_keys = ([capability.event.event_key] if capability.event else []) + [
+        alt.event_key for alt in capability.alternatives
+    ]
+    assert surfaced_keys[0] == "GMAIL_NEW_GMAIL_MESSAGE"
+    assert "WHATSAPP_NEW_MESSAGE" not in surfaced_keys
+
+
+async def test_discover_triggers_deprecated_event_ranks_below_live_equivalent():
+    # Equal term hits, deprecated event first in catalog order: without the demotion
+    # the stable sort would surface the deprecated event as primary.
+    service = _discovery_service(
+        events=[
+            _event(
+                "GITHUB_ISSUE_CREATED_LEGACY_TRIGGER",
+                "Issue Created (Legacy)",
+                "DEPRECATED: use GITHUB_ISSUE_CREATED_TRIGGER instead.",
+            ),
+            _event(
+                "GITHUB_ISSUE_CREATED_TRIGGER",
+                "Issue Created",
+                "Triggered when a new issue is created",
+            ),
+        ],
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["github issue created"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event.event_key == "GITHUB_ISSUE_CREATED_TRIGGER"
 
 
 async def test_discovery_connection_state_increments_slug_on_collision():
