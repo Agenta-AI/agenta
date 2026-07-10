@@ -546,6 +546,21 @@ never zombie-mount; (b) an in-sandbox mount needs a liveness probe + I/O timeout
 dev box needs an ngrok authtoken in `hosting/docker-compose/ee/.env.ee.dev` and
 `--profile remote up -d ngrok`.
 
+**Second layer (2026-07-10, tunnel up).** With ngrok running (`NGROK_AUTHTOKEN` set in
+`.env.ee.dev.local`, tunnel verified discoverable from the runner), geesefs inside the Daytona
+sandbox now mounts successfully — and then EVERY E3 run fails, including plain chat, with
+`Agent run failed: Stream Error`. Timeline is deterministic: geesefs logs "successfully
+mounted" at t+7s, but the runner's long-lived toolbox process stream for it dies at t+67s
+(`remote mount exit=null` surfaces the t+7s line 60 seconds late), and immediately after,
+`workspace mkdir skipped: Stream Error` and ACP `ECONNRESET` — the stream death takes the
+sandbox's toolbox/daemon connection with it. Looks like a Daytona proxy ~60s idle-stream
+timeout on the quiet geesefs process killing the shared connection; the per-run teardown does
+fire on this path (no sandbox leaked across 4 failed runs). Net: without the tunnel, chat works
+and file I/O hangs; with the tunnel, mounts work for ~60s and then the whole session dies.
+Candidate fixes belong in the runner/sandbox-agent seam (detach or heartbeat the mount process
+stream; reconnect toolbox on stream death) — same territory as the sandbox-agent fork plan
+(PR #5172). The dev box is left with ngrok UP: fail-fast beats eternal zombie-mount hangs.
+
 ## How to add a finding during a run
 
 Copy the F-001 block, bump the id, and fill every field. Required: the environment, harness,
