@@ -132,6 +132,7 @@ import {
   discoverTunnelEndpoint,
   mountHarnessSessionDirs,
   harnessSessionMounts,
+  storeReachableFromSandbox,
   type MountCredentials,
 } from "./sandbox_agent/mount.ts";
 import {
@@ -987,13 +988,17 @@ export async function acquireEnvironment(
       await mountLocalDurableCwd("initial");
     }
     if (environment.mountCreds && plan.isDaytona) {
-      const endpoint = await (
-        deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint
-      )({
-        log: logger,
-      });
+      // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
+      // back to the tunnel only for an in-network store. No tunnel + in-network store => skip.
+      const storeEndpoint = environment.mountCreds.endpoint;
+      const endpoint = storeReachableFromSandbox(storeEndpoint)
+        ? undefined
+        : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+            log: logger,
+          })) ?? undefined);
+      const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
       if (
-        endpoint &&
+        canMount &&
         (await (deps.mountStorageRemote ?? mountStorageRemote)(
           environment.sandbox,
           plan.cwd,
@@ -1011,7 +1016,7 @@ export async function acquireEnvironment(
       // byte-identical. Opt-out via env, default on wherever a durable cwd mount is active (no
       // separate credential/session-id path from the cwd mount).
       if (
-        endpoint &&
+        canMount &&
         sessionForMount &&
         runCred &&
         process.env.AGENTA_SESSION_HARNESS_MOUNTS !== "false"

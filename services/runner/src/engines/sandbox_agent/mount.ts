@@ -177,6 +177,29 @@ function endpointArgs(endpoint?: string): string[] {
   return endpoint ? ["--endpoint", endpoint] : [];
 }
 
+/** True if a remote sandbox can reach the store directly (public S3); false for in-network stores that need the tunnel. */
+export function storeReachableFromSandbox(endpoint?: string): boolean {
+  if (!endpoint) return true;
+  let host: string;
+  try {
+    host = new URL(endpoint).hostname;
+  } catch {
+    return false;
+  }
+  if (host === "localhost" || host.endsWith(".local")) return false;
+  if (!host.includes(".")) return false; // compose service name
+  if (
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    /^169\.254\./.test(host)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * The geesefs argv for mounting `bucket:prefix` at `cwd`. Endpoint is overridable so the remote
  * path can substitute the public tunnel URL for the in-network one. `--fsync-on-close` favors
@@ -186,6 +209,7 @@ function geesefsArgs(
   creds: MountCredentials,
   cwd: string,
   endpoint?: string,
+  foreground = true,
 ): string[] {
   return [
     ...endpointArgs(endpoint ?? creds.endpoint),
@@ -193,11 +217,9 @@ function geesefsArgs(
     creds.region,
     "--no-detect",
     "--fsync-on-close",
-    // -f keeps geesefs in the FOREGROUND as a tracked child of the runner. Without it geesefs
-    // double-forks into a detached daemon that is reparented to init and dies under write-heavy
-    // load (a `git clone`'s pack write/rename drops the FUSE channel -> ENOTCONN). Foreground
-    // survives the same workload; the runner owns the process and tears it down on teardown.
-    "-f",
+    // -f keeps geesefs foreground as a tracked child locally (a detached daemon dies under
+    // write-heavy load -> ENOTCONN); remote it must detach, else the blocking RPC times out.
+    ...(foreground ? ["-f"] : []),
     "-o",
     "allow_other",
     `${creds.bucket}:${creds.prefix}`,
@@ -453,23 +475,42 @@ export interface SandboxExec {
     cwd?: string;
     env?: Record<string, string>;
     timeoutMs?: number;
-  }) => Promise<{ exitCode?: number; stderr?: unknown } | undefined>;
+  }) => Promise<
+    { exitCode?: number; stderr?: unknown; result?: unknown } | undefined
+  >;
 }
 
 export interface MountStorageRemoteDeps {
-  /** Public endpoint geesefs uses from inside the sandbox (the tunnel URL). */
-  endpoint: string;
+  /** Tunnel URL for an in-network store; omit for a public store (geesefs uses `creds.endpoint`). */
+  endpoint?: string;
   mountTimeoutMs?: number;
+  /** Liveness poll budget (attempts x 500ms). Lowered by tests. */
+  aliveAttempts?: number;
   log?: (msg: string) => void;
 }
 
+/** Poll a remote mountpoint until it serves I/O, mirroring the local `isMounted` loop. */
+async function remoteMountAlive(
+  sandbox: SandboxExec,
+  cwd: string,
+  attempts: number,
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    const res = await sandbox.runProcess({
+      command: "sh",
+      args: ["-c", `mountpoint -q ${cwd} && ls ${cwd} >/dev/null 2>&1`],
+      timeoutMs: 10_000,
+    });
+    if (res?.exitCode === 0) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
 /**
- * geesefs-mount the durable prefix at `cwd` INSIDE a remote sandbox (Daytona/E2B).
- *
- * geesefs runs in the sandbox, so the store endpoint is the public tunnel URL (not the
- * in-network one). The scoped credentials cross into the sandbox via the process env — they
- * are short-lived and prefix-scoped, the one place creds reach agent-adjacent space, by design.
- * Best-effort: a non-zero exit returns false and the run proceeds on the plain cwd.
+ * geesefs-mount the durable prefix at `cwd` INSIDE a remote sandbox (Daytona/E2B). geesefs must
+ * detach (no `-f`) because `runProcess` blocks until the command exits. Best-effort: a failed
+ * mount returns false and the run proceeds on the plain cwd.
  */
 export async function mountStorageRemote(
   sandbox: SandboxExec,
@@ -485,9 +526,14 @@ export async function mountStorageRemote(
       args: ["-c", `mkdir -p ${cwd}`],
       timeoutMs: 30_000,
     });
+    // Background geesefs with its logs to a file so the RPC returns immediately.
+    const args = geesefsArgs(creds, cwd, deps.endpoint, false);
+    const logFile = "/tmp/geesefs-mount.log";
+    const geefsCmd = `geesefs --log-file ${logFile} ${args.join(" ")} >>${logFile} 2>&1 &`;
+    log(`remote geesefs argv: ${args.join(" ")}`);
     const res = await sandbox.runProcess({
-      command: "geesefs",
-      args: geesefsArgs(creds, cwd, deps.endpoint),
+      command: "sh",
+      args: ["-c", geefsCmd],
       env: credEnv(creds),
       timeoutMs: deps.mountTimeoutMs ?? 60_000,
     });
@@ -497,7 +543,20 @@ export async function mountStorageRemote(
       );
       return false;
     }
-    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd}`);
+    // The daemon backgrounds before the FUSE channel serves I/O, so wait for it.
+    if (!(await remoteMountAlive(sandbox, cwd, deps.aliveAttempts ?? 30))) {
+      const tail = await sandbox.runProcess({
+        command: "sh",
+        args: ["-c", "tail -5 /tmp/geesefs-mount.log 2>/dev/null"],
+        timeoutMs: 10_000,
+      });
+      log(
+        `remote mount not alive ${creds.bucket}:${creds.prefix} -> ${cwd}` +
+          `; geesefs: ${String(tail?.result ?? tail?.stderr ?? "").slice(-400)}`,
+      );
+      return false;
+    }
+    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
     return true;
   } catch (err) {
     log(
@@ -528,7 +587,8 @@ export async function mountHarnessSessionDirs(
   sandbox: SandboxExec,
   sessionId: string,
   dirs: HarnessSessionMount[],
-  tunnelEndpoint: string,
+  // Tunnel URL for an in-network store; undefined for a public store (uses `creds.endpoint`).
+  tunnelEndpoint: string | undefined,
   deps: MountHarnessSessionDirsDeps,
 ): Promise<void> {
   if (dirs.length === 0) return;
