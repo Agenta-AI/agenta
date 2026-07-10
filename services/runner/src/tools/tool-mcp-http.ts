@@ -15,7 +15,7 @@
  *    USER stdio MCP servers. This endpoint launches nothing; it is served by the already-running
  *    runner process and is reachable only from loopback.
  *  - Reuses #4834's proven transport. Claude consumes a `type: "http"` MCP server natively (the
- *    bundled `@zed-industries/claude-agent-acp` maps it to the Claude SDK's HTTP MCP client).
+ *    bundled `@agentclientprotocol/claude-agent-acp` maps it to the Claude SDK's HTTP MCP client).
  *
  * This server is INDEPENDENT of the user MCP capability (`engines/sandbox_agent/mcp.ts`
  * `toAcpMcpServers`): user stdio MCP stays disabled, user HTTP MCP is unchanged, and this

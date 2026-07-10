@@ -20,6 +20,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.58.1",
+    "@anthropic-ai/sdk": "0.111.0",
     "@daytonaio/sdk": "^0.187.0",
     "@earendil-works/pi-coding-agent": "0.80.6",
     "@opentelemetry/api": "1.9.0",
@@ -29,7 +31,6 @@
     "@opentelemetry/sdk-trace-base": "1.28.0",
     "@opentelemetry/sdk-trace-node": "1.28.0",
     "@opentelemetry/semantic-conventions": "1.28.0",
-    "@zed-industries/claude-agent-acp": "^0.23.1",
     "pi-acp": "0.0.29",
     "sandbox-agent": "0.4.2",
     "undici": "8.3.0"
