@@ -12,7 +12,16 @@ import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 
-function fakeSandbox(sandboxId: string | undefined) {
+interface FakeOpts {
+  /** What the harness reports for the turn. `"paused"` must never park. */
+  stopReason?: string;
+  /** Throw from prompt(): a failed turn must never park. */
+  promptThrows?: boolean;
+  /** Reject the first start that carries a sandboxId (the dead rung: archived/deleted). */
+  reconnectThrows?: boolean;
+}
+
+function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
   const calls = {
     starts: [] as Array<{ sandboxId: string | undefined }>,
     paused: 0,
@@ -25,7 +34,11 @@ function fakeSandbox(sandboxId: string | undefined) {
     onEvent() {},
     onPermissionRequest() {},
     async prompt() {
-      return { stopReason: "complete", usage: { inputTokens: 1, outputTokens: 1 } };
+      if (opts.promptThrows) throw new Error("harness exploded");
+      return {
+        stopReason: opts.stopReason ?? "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      };
     },
   };
   const sandbox = {
@@ -54,8 +67,13 @@ function fakeSandbox(sandboxId: string | undefined) {
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: () => ({ provider: true }) as any,
     createPersist: () => ({}) as any,
-    startSandboxAgent: (async (opts: any) => {
-      calls.starts.push({ sandboxId: opts.sandboxId });
+    startSandboxAgent: (async (startOpts: any) => {
+      calls.starts.push({ sandboxId: startOpts.sandboxId });
+      // The dead rung: Daytona already archived/deleted the parked sandbox, so reconnect
+      // by id fails and the caller must fall through to a fresh create.
+      if (opts.reconnectThrows && startOpts.sandboxId) {
+        throw new Error("sandbox not found");
+      }
       return sandbox;
     }) as any,
     prepareWorkspace: (async () => ({ cleanup: async () => {} })) as any,
@@ -125,6 +143,16 @@ describe("remote sandbox reconnect ladder", () => {
     assert.equal(calls.starts[0].sandboxId, undefined);
   });
 
+  it("falls through to a fresh create when reconnect fails (dead rung)", async () => {
+    // Daytona's auto-archive/auto-delete timer won: the stored id no longer resolves.
+    const { calls, deps } = fakeSandbox("sbx-gone", { reconnectThrows: true });
+    const result = await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
+    assert.equal(result.ok, true, "a dead parked sandbox must not fail the run");
+    assert.equal(calls.starts.length, 2, "one doomed reconnect, then a fresh create");
+    assert.equal(calls.starts[0].sandboxId, "sbx-gone");
+    assert.equal(calls.starts[1].sandboxId, undefined, "the retry carries no id");
+  });
+
   it("writes the live sandbox id forward for the next turn", async () => {
     const { calls, deps } = fakeSandbox("sbx-99");
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
@@ -146,6 +174,23 @@ describe("remote sandbox park (warm) vs destroy", () => {
     controller.abort();
     await runSandboxAgent(daytonaRequest, undefined, controller.signal, deps);
     assert.equal(calls.paused, 0, "an aborted run must not park");
+    assert.equal(calls.destroyed, 1);
+  });
+
+  it("destroys (not parks) a paused turn", async () => {
+    // A pause has not finished authoring the turn: parking would resume a half-written one.
+    const { calls, deps } = fakeSandbox("sbx-99", { stopReason: "paused" });
+    await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
+    assert.equal(calls.paused, 0, "a paused turn must not park");
+    assert.equal(calls.destroyed, 1);
+  });
+
+  it("destroys (not parks) when the turn throws", async () => {
+    // The sandbox may be the thing that wedged: reconnecting it reuses the wedge.
+    const { calls, deps } = fakeSandbox("sbx-99", { promptThrows: true });
+    const result = await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
+    assert.equal(result.ok, false);
+    assert.equal(calls.paused, 0, "a failed turn must not park");
     assert.equal(calls.destroyed, 1);
   });
 

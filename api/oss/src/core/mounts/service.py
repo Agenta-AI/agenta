@@ -19,6 +19,7 @@ from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
     MountFileNotFound,
+    MountNameInvalid,
     MountNotFound,
     MountPathInvalid,
     MountSlugReserved,
@@ -49,6 +50,18 @@ def _slugify(value: str) -> str:
     return sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
 
 
+def validate_mount_name(name: str) -> None:
+    """A mount name must already BE its slug, so distinct names never share a row.
+
+    `_slugify` is lossy: 'claude projects', 'claude-projects' and 'claude_projects' all fold to
+    one slug, and a punctuation-only name folds to the empty string. Since the endpoint promises
+    each name is its own mount row and durable prefix, reject anything non-canonical instead of
+    silently aliasing it.
+    """
+    if not name or _slugify(name) != name:
+        raise MountNameInvalid(name)
+
+
 def mint_session_slug(*, session_id: str, name: str) -> str:
     """Stored slug for a session mount: __ag__<uuid5(session)>__<name>.
 
@@ -56,7 +69,8 @@ def mint_session_slug(*, session_id: str, name: str) -> str:
     project-unique without truncation, so the existing unique(project_id, slug)
     constraint holds for both session and non-session mounts.
     """
-    return f"{_RESERVED_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{_slugify(name)}"
+    validate_mount_name(name)
+    return f"{_RESERVED_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{name}"
 
 
 def reject_reserved_slug(slug: str) -> None:

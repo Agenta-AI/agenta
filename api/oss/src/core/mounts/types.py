@@ -24,6 +24,15 @@ class MountSlugReserved(MountError):
         self.slug = slug
 
 
+class MountNameInvalid(MountError):
+    def __init__(self, name: str = "name"):
+        super().__init__(
+            f"Mount name '{name}' is not a canonical slug: use lowercase letters, digits, "
+            "and single dashes (e.g. 'cwd', 'claude-projects')."
+        )
+        self.name = name
+
+
 class MountImmutableField(MountError):
     def __init__(self, field: str = "field"):
         super().__init__(f"Mount field '{field}' is immutable after creation.")

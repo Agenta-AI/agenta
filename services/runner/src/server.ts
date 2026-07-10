@@ -35,6 +35,7 @@ import {
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
+  shouldPark,
   type RunTurnOptions,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
@@ -217,12 +218,15 @@ export interface KeepaliveEngine {
    * Today's cold path (acquire -> runTurn -> teardown). Used when a request must not park.
    * `presignedMount` threads an already-signed mount in (null = signed, no mount — do not sign
    * again; undefined = not signed — acquire signs itself), so the mount is signed exactly once.
+   * `clientGone` feeds the same `shouldPark` policy the warm path uses: a remote sandbox is
+   * parked to warm only on a completed turn.
    */
   runCold(
     request: AgentRunRequest,
     emit?: EmitEvent,
     signal?: AbortSignal,
     presignedMount?: MountCredentials | null,
+    clientGone?: () => boolean,
   ): Promise<AgentRunResult>;
 }
 
@@ -234,7 +238,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
     runTurn(env, request, emit, signal, opts),
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
   // mount threaded through so an up-front keep-alive sign is never repeated.
-  runCold: async (request, emit, signal, presignedMount) => {
+  runCold: async (request, emit, signal, presignedMount, clientGone) => {
     const acquired = await acquireEnvironment(
       request,
       {},
@@ -242,34 +246,24 @@ const realKeepaliveEngine: KeepaliveEngine = {
       presignedMount,
     );
     if (!acquired.ok) return { ok: false, error: acquired.error };
+    let result: AgentRunResult | undefined;
     try {
-      return await runTurn(acquired.env, request, emit, signal, {
+      result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
       });
+      return result;
     } finally {
+      // A remote sandbox parks to warm on the same policy the warm path uses. `result` is
+      // undefined when runTurn threw, which is a failed turn: destroy.
       await acquired.env.destroy({
-        keepWarm: acquired.env.resumable && !signal?.aborted,
+        keepWarm:
+          acquired.env.resumable &&
+          result !== undefined &&
+          shouldPark(result, signal, clientGone),
       });
     }
   },
 };
-
-/**
- * Whether a completed turn's environment may be parked: never on abort, client disconnect,
- * pause, or failure. Session-owned streams survive disconnect WITHOUT aborting the run signal
- * (server policy), so the disconnect check needs the separate `clientGone` flag.
- */
-function shouldPark(
-  result: AgentRunResult,
-  signal: AbortSignal | undefined,
-  clientGone: (() => boolean) | undefined,
-): boolean {
-  if (signal?.aborted) return false; // aborted run: destroy, do not park
-  if (clientGone?.()) return false; // client disconnected mid-turn: destroy, do not park
-  if (!result.ok) return false; // failed turn: teardown as today
-  if (result.stopReason === "paused") return false; // a plain pause never parks
-  return true;
-}
 
 export interface KeepaliveContext {
   engine: KeepaliveEngine;
@@ -320,7 +314,7 @@ export async function runWithKeepalive(
   // Eligibility: session-owned + local sandbox. Otherwise never park; run cold as today
   // (no up-front sign happened, so the cold path signs itself: still exactly once).
   if (!sessionId || !isLocalSandbox(request)) {
-    return engine.runCold(request, emit, signal);
+    return engine.runCold(request, emit, signal, undefined, clientGone);
   }
 
   // Sign the mount once, up front. The mount's owning project is the only trustworthy project
@@ -335,7 +329,7 @@ export async function runWithKeepalive(
   const key = poolKeyFor(request, signed?.projectId);
   if (!key) {
     klog(`miss (no mount project scope) session=${sessionId}; cold`);
-    return engine.runCold(request, emit, signal, signed);
+    return engine.runCold(request, emit, signal, signed, clientGone);
   }
   const mountCreds = signed!;
 

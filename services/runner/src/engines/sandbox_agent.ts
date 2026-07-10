@@ -1732,6 +1732,9 @@ export async function runTurn(
     await run.flush();
 
     if (swallowedError) {
+      // A failed turn may have left a partial turn in the native transcript: the prior record
+      // is no longer a faithful resume point.
+      invalidateContinuity(sessionId, plan.harness, deps);
       return { ok: false, error: swallowedError };
     }
 
@@ -1761,6 +1764,9 @@ export async function runTurn(
           { authorization: syncCred, log: logger },
         );
       }
+    } else if (stopReason === "paused") {
+      // A pause stopped mid-turn, after the harness may have written a partial turn natively.
+      invalidateContinuity(sessionId, plan.harness, deps);
     }
 
     return {
@@ -1782,6 +1788,8 @@ export async function runTurn(
     const error = conciseError(err, plan.harness, request.provider);
     otel?.recordError(error, request.provider);
     otel?.emitEvent({ type: "error", message: error });
+    // An aborted turn may have left a partial turn in the native transcript.
+    invalidateContinuity(sessionId, plan.harness, deps);
     // finish() must not throw uncaught — tracing must not mask the run error.
     try {
       otel?.finish();
@@ -1805,6 +1813,41 @@ export async function runTurn(
  * one turn, then tear the environment down — exactly as the single `try/finally` did before the
  * split, so behavior here is byte-identical to pre-keep-alive.
  */
+/**
+ * Drop the harness's continuity record after a turn that did not complete. The harness may have
+ * written a partial turn into its native transcript, so a later `session/load` would resume a
+ * history the canonical request never sent. Dropping it falls back to cold replay.
+ */
+function invalidateContinuity(
+  sessionId: string | undefined,
+  harness: string,
+  deps: SandboxAgentDeps,
+): void {
+  if (!sessionId) return;
+  (deps.sessionContinuityStore ?? sessionContinuityStore).invalidate(
+    sessionId,
+    harness,
+  );
+}
+
+/**
+ * Whether a completed turn's environment may be parked: never on abort, client disconnect,
+ * pause, or failure. Session-owned streams survive disconnect WITHOUT aborting the run signal
+ * (server policy), so the disconnect check needs the separate `clientGone` flag. A wedged
+ * sandbox that failed its turn must be destroyed, not reconnected on the next one.
+ */
+export function shouldPark(
+  result: AgentRunResult,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): boolean {
+  if (signal?.aborted) return false; // aborted run: destroy, do not park
+  if (clientGone?.()) return false; // client disconnected mid-turn: destroy, do not park
+  if (!result.ok) return false; // failed turn: teardown as today
+  if (result.stopReason === "paused") return false; // a plain pause never parks
+  return true;
+}
+
 export async function runSandboxAgent(
   request: AgentRunRequest,
   emit?: EmitEvent,
@@ -1814,12 +1857,19 @@ export async function runSandboxAgent(
   const acquired = await acquireEnvironment(request, deps, signal);
   if (!acquired.ok) return { ok: false, error: acquired.error };
   const env = acquired.env;
+  let result: AgentRunResult | undefined;
   try {
-    return await runTurn(env, request, emit, signal, {
+    result = await runTurn(env, request, emit, signal, {
       loaded: env.loadedFromContinuity,
     });
+    return result;
   } finally {
-    // Park a remote session-owned sandbox to warm on a clean turn-end; an aborted run destroys.
-    await env.destroy({ keepWarm: env.resumable && !signal?.aborted });
+    // `result` is undefined when runTurn threw: a failed turn, so destroy.
+    await env.destroy({
+      keepWarm:
+        env.resumable &&
+        result !== undefined &&
+        shouldPark(result, signal, undefined),
+    });
   }
 }
