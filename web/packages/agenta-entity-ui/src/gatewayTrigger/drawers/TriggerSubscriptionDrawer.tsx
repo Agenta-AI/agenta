@@ -745,6 +745,7 @@ function SubscriptionForm({
             } else {
                 const body: TriggerSubscriptionCreate = {
                     name: name || null,
+                    meta: state?.defaultMeta ?? null,
                     connection_id: connectionId,
                     data,
                     // Honor the Active toggle at creation (BE defaults to active; is_valid
@@ -771,6 +772,7 @@ function SubscriptionForm({
         subscription,
         name,
         enabled,
+        state?.defaultMeta,
         edit,
         create,
         onClose,
