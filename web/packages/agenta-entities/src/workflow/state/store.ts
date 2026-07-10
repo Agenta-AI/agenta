@@ -619,6 +619,14 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
                         ["workflows", "latestRevision", workflowId, projectId],
                         latestByRecency,
                     )
+                    // Persist agent-ness for the next cold load (playgroundEarlyAgentStateAtom).
+                    // This priming DISABLES the dedicated latest-revision query (its only other
+                    // writer), so without writing here the map starves and every cold load
+                    // mounts the prompt 50% split before snapping to the agent geometry.
+                    writePersistedAgentType(
+                        workflowId,
+                        deriveWorkflowTypeFromRevision(latestByRecency),
+                    )
                 }
 
                 // Return thin references only — full data is in the detail cache
@@ -1119,8 +1127,21 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
             queryKey: ["workflows", "revision", revisionId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !revisionId) return null
+                // Persist agent-ness wherever a revision is learned, keyed by its WORKFLOW id
+                // (playgroundEarlyAgentStateAtom reads this on the next cold load). Covers cold
+                // loads that resolve a `?revisions=` id directly, without the list query.
+                const persistType = (revision: Workflow | null): Workflow | null => {
+                    const workflowId = (revision as {workflow_id?: string} | null)?.workflow_id
+                    if (revision && workflowId) {
+                        writePersistedAgentType(
+                            String(workflowId),
+                            deriveWorkflowTypeFromRevision(revision),
+                        )
+                    }
+                    return revision
+                }
                 const cached = findWorkflowRevisionInCache(queryClient, projectId, revisionId)
-                if (cached) return cached
+                if (cached) return persistType(cached)
                 // Dedup vs the revisions-by-workflow list: that query primes this revision's detail
                 // cache under the SAME key (primeWorkflowRevisionDetailCache), so on a cold first
                 // paint the current app's displayed revision would otherwise be fetched twice — once
@@ -1140,12 +1161,12 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                             projectId,
                             revisionId,
                         )
-                        if (primed) return primed
+                        if (primed) return persistType(primed)
                     }
                 } catch {
                     // fall through to the direct fetch below
                 }
-                return workflowRevisionBatchFetcher({projectId, revisionId})
+                return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
             enabled:
