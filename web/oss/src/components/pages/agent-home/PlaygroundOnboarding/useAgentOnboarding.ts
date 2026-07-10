@@ -21,7 +21,10 @@ import {App} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
-import {resetScopeAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
+import {
+    adoptScopeSessionsAtom,
+    resetScopeAtomFamily,
+} from "@/oss/components/AgentChatSlice/state/sessions"
 import {urlAtom} from "@/oss/state/url"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
@@ -45,6 +48,11 @@ export interface AgentOnboardingResult {
     renderConfigOverride: ReactNode
     /** Onboarding context to wrap the playground with; null when inactive. */
     contextValue: OnboardingContextValue | null
+    /**
+     * Chat scope for the onboarding surface: the fixed onboarding key pre-commit, the created
+     * app's own scope once real (the commit adopts the session into it in the same update).
+     */
+    chatScopeKey: string
 }
 
 /**
@@ -62,8 +70,11 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const {baseAppURL} = useAtomValue(urlAtom)
     const resetOnboardingScope = useSetAtom(resetScopeAtomFamily(ONBOARDING_SCOPE_KEY))
 
+    const adoptScopeSessions = useSetAtom(adoptScopeSessionsAtom)
+
     const [entityId, setEntityId] = useState<string | null>(null)
     const [realEntityId, setRealEntityId] = useState<string | null>(null)
+    const [realAppId, setRealAppId] = useState<string | null>(null)
     const [committing, setCommitting] = useState(false)
     const [committingSeed, setCommittingSeed] = useState<string | null>(null)
     const [browseAll, setBrowseAll] = useState(false)
@@ -157,6 +168,14 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 autoSendSeed: true,
                 onCommitted: ({appId, revisionId}) => {
                     committed = true
+                    // Adopt the founding conversation into the new app's chat scope, in the SAME
+                    // batched update as the `chatScopeKey` flip below (`setRealAppId`): the mounted
+                    // panel re-reads identical sessions under the new key, so nothing remounts —
+                    // and after a reload the app playground finds the session (previously it was
+                    // stranded under the fixed onboarding scope, which the next onboarding entry
+                    // wipes — permanently destroying the conversation).
+                    adoptScopeSessions({from: ONBOARDING_SCOPE_KEY, to: appId})
+                    setRealAppId(appId)
                     // Flip the onboarding state urgently — the settling skeleton, the `chromeRevealed`
                     // timer, and the commit-failure recovery all read `realEntityId` synchronously.
                     setRealEntityId(revisionId)
@@ -181,7 +200,15 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 if (!committed) setCommittingSeed(null)
             })
         },
-        [entityId, committing, realEntityId, createAgent, setEntityIds, baseAppURL],
+        [
+            entityId,
+            committing,
+            realEntityId,
+            createAgent,
+            setEntityIds,
+            baseAppURL,
+            adoptScopeSessions,
+        ],
     )
 
     const contextValue = useMemo<OnboardingContextValue | null>(
@@ -254,5 +281,6 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         agentPanel: null,
         renderConfigOverride,
         contextValue,
+        chatScopeKey: realAppId ?? ONBOARDING_SCOPE_KEY,
     }
 }

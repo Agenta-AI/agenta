@@ -12,10 +12,7 @@ import dynamic from "next/dynamic"
 // Synchronous thin frame (Splitter + Tabs + region slots): its real structure paints immediately;
 // the heavy conversation body / bar / rail are lazy leaves inside it, each behind its own skeleton.
 import AgentChatPanel from "@/oss/components/AgentChatSlice/AgentChatPanel"
-import {
-    AgentChatScopeProvider,
-    ONBOARDING_SCOPE_KEY,
-} from "@/oss/components/AgentChatSlice/state/scope"
+import {AgentChatScopeProvider} from "@/oss/components/AgentChatSlice/state/scope"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {OnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
@@ -145,9 +142,11 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     // and scope the agent-chat state to a dedicated key. The onboarding runs on the app-less project
     // route, whose default chat scope is the shared `__global__` bucket — isolating it here (paired with
     // the reset in `useAgentOnboarding`) keeps a prior visit's persisted session from being restored.
+    // Once the app is committed, `chatScopeKey` flips to the app's own scope in the same update that
+    // adopts the session into it — so post-commit chat state lands where the app playground reads it.
     return agentOnboarding.contextValue ? (
         <OnboardingContext.Provider value={agentOnboarding.contextValue}>
-            <AgentChatScopeProvider scopeKey={ONBOARDING_SCOPE_KEY}>
+            <AgentChatScopeProvider scopeKey={agentOnboarding.chatScopeKey}>
                 {content}
             </AgentChatScopeProvider>
         </OnboardingContext.Provider>

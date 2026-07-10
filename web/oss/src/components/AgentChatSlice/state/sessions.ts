@@ -243,6 +243,46 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
 )
 
 /**
+ * Move one scope's session state (history, open tabs, active id) into another scope.
+ *
+ * Used by the onboarding commit: the founding conversation lives under the fixed `onboarding`
+ * scope until the real app exists, then is adopted by the app's own scope in the SAME React
+ * update that flips the scope provider — the mounted panel re-reads identical sessions under
+ * the new key (so nothing remounts), a reload on the app route finds the conversation, and a
+ * later onboarding entry's `resetScopeAtomFamily` wipe can no longer destroy it. Messages are
+ * keyed by session id (no scope dimension), so they don't move.
+ */
+export const adoptScopeSessionsAtom = atom(
+    null,
+    (get, set, {from, to}: {from: string; to: string}) => {
+        if (!from || !to || from === to) return
+        const sessions = get(sessionsByAppAtom)
+        const moved = sessions[from] ?? []
+        if (moved.length === 0) return
+
+        const movedIds = new Set(moved.map((s) => s.id))
+        const nextSessions = {...sessions}
+        delete nextSessions[from]
+        nextSessions[to] = [...moved, ...(sessions[to] ?? []).filter((s) => !movedIds.has(s.id))]
+        set(sessionsByAppAtom, nextSessions)
+
+        // Resolve the source's open set through the pre-upgrade fallback (everything open).
+        const movedOpen = currentOpenIds(get, from)
+        const open = get(openIdsByAppAtom)
+        const nextOpen = {...open}
+        delete nextOpen[from]
+        nextOpen[to] = [...movedOpen, ...(open[to] ?? []).filter((id) => !movedOpen.includes(id))]
+        set(openIdsByAppAtom, nextOpen)
+
+        const active = get(activeByAppAtom)
+        const nextActive = {...active}
+        delete nextActive[from]
+        if (active[from]) nextActive[to] = active[from]
+        set(activeByAppAtom, nextActive)
+    },
+)
+
+/**
  * Wipe a whole scope clean: drop its session history, open tabs, active id, and every message
  * belonging to those sessions. Used to guarantee a fresh start for a surface that reuses a FIXED
  * scope key across visits (the onboarding playground) — otherwise a prior visit's stale or failed
