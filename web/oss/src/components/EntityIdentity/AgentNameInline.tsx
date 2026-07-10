@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {PencilSimple} from "@phosphor-icons/react"
-import {Input, Typography} from "antd"
+import {Button, Input, Typography} from "antd"
 
 import {useRenameApp} from "./useRenameApp"
 
@@ -71,24 +71,31 @@ const AgentNameInline = ({workflowId, name, onRenamed}: AgentNameInlineProps) =>
     }
 
     return (
-        <button
-            type="button"
-            aria-label="Rename agent"
-            onDoubleClick={startEditing}
-            className="group/name -mx-1.5 flex min-w-0 items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5"
-        >
-            <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+        <div className="flex min-w-0 items-center gap-1">
+            <Typography
+                className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]"
+                onDoubleClick={startEditing}
+            >
                 {name || "Agent"}
             </Typography>
-            <PencilSimple
-                size={13}
+
+            <Button
+                type="text"
+                size="small"
+                aria-label="Rename agent"
                 onClick={(e) => {
                     e.stopPropagation()
                     startEditing()
                 }}
-                className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 cursor-pointer"
+                className="group/name flex min-w-0 items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5"
+                icon={
+                    <PencilSimple
+                        size={13}
+                        className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100"
+                    />
+                }
             />
-        </button>
+        </div>
     )
 }
 
