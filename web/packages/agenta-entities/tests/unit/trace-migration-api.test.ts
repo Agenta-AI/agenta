@@ -15,16 +15,16 @@ const querySpans = vi.fn()
 const queryTraces = vi.fn()
 const querySpansAnalytics = vi.fn()
 
-vi.mock("@agenta/sdk", () => ({
-    getAgentaSdkClient: () => ({
-        traces: {
-            querySpansSessions,
-            deleteTrace,
-            fetchTrace,
-            querySpans,
-            queryTraces,
-            querySpansAnalytics,
-        },
+// The per-resource split moved the traces client to `@agenta/sdk/resources`; the SUT
+// reaches it through `trace/api/client.ts`, so that is the module to intercept.
+vi.mock("@agenta/sdk/resources", () => ({
+    getTracesClient: () => ({
+        querySpansSessions,
+        deleteTrace,
+        fetchTrace,
+        querySpans,
+        queryTraces,
+        querySpansAnalytics,
     }),
 }))
 

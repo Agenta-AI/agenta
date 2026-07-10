@@ -12,10 +12,15 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const fernRetrieve = vi.fn()
 
-// Mock `@agenta/sdk` so we can replace the Fern client method without
-// constructing a real client (which would try to read env vars and
-// initialize transport). `getAgentaSdkClient` returns the same fake
-// every call, so per-test state lives on `fernRetrieve`.
+// Mock the Fern client so no real transport is constructed. The per-resource split moved
+// `retrieveWorkflowRevision` onto `getWorkflowsClient()` from `@agenta/sdk/resources`;
+// `@agenta/sdk` stays mocked because the same module imports `getAgentaSdkClient` too.
+vi.mock("@agenta/sdk/resources", () => ({
+    getWorkflowsClient: () => ({
+        retrieveWorkflowRevision: fernRetrieve,
+    }),
+}))
+
 vi.mock("@agenta/sdk", () => ({
     getAgentaSdkClient: () => ({
         workflows: {
