@@ -444,7 +444,9 @@ export function buildRunPlan(
       executableToolSpecs: executableToolSpecsForRun,
       builtinGrants,
       builtinGatingActive,
-      useToolRelay: toolSpecs.length > 0 || builtinGatingActive,
+      // The relay carries tool EXECUTION only (permission gates ride the extension's
+      // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
+      useToolRelay: toolSpecs.length > 0,
       systemPrompt,
       appendSystemPrompt,
       hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),

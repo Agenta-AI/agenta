@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from ..skills import SkillFile, SkillTemplate
+from .agent_templates import build_agent_template_skill_files
 
 # The base AGENTS.md preamble. The author's own ``instructions`` are appended after this, so
 # the final AGENTS.md is ``AGENTA_PREAMBLE`` + the author's project conventions.
@@ -555,6 +556,10 @@ yourself: the committed template you edit is the agent that will keep running. O
 fewest calls and the least time. A simple no-tool ask is two actions: write better
 `instructions.agents_md`, then call `commit_revision`.
 
+Before anything else, check `references/agent-templates/index.md` for a playbook matching the
+ask. When one matches, read it and follow it: a playbook layers this use case onto the loop
+below and never replaces its approval stops. When none matches, follow the generic loop below.
+
 ## When to use
 
 Use this when the user asks you to build, set up, configure, or automate an agent.
@@ -642,10 +647,15 @@ Do not discover tools or triggers for an ask that does not need them.
 7. Add a trigger only if asked. For schedules, cron is UTC, five fields, with a one-minute floor;
    convert the user's timezone yourself, then stop for approval before `create_schedule`: say what
    you are about to create and wait for the gate. After approval, call `create_schedule`, then
-   confirm with `list_schedules`. For events, call `discover_triggers`, ensure the integration is
-   connected, then stop for approval before `create_subscription`: say what you are about to create
-   and wait for the gate. After approval, call `create_subscription`, and confirm with
-   `list_deliveries`. `test_subscription` waits for a real event, so warn the user before using it
+   confirm with `list_schedules`. For events, call `discover_triggers` and check that the returned
+   integration and event description actually fit the ask — matching is keyword search, not
+   semantic. A no-match still lists the closest events as alternatives, and a bare integration
+   name ("slack") browses its closest events — both capped by `limit_alternatives` (default 3),
+   so raise it before concluding an event does not exist. If the integration you asked about
+   never appears at all, the provider has no trigger for it: say so instead of wiring the
+   closest keyword hit. Then ensure the integration is connected, and stop for approval before
+   `create_subscription`: say what you are about to create and wait for the gate. After
+   approval, call `create_subscription`, and confirm with `list_deliveries`. `test_subscription` waits for a real event, so warn the user before using it
    in a chat turn. Use `remove_schedule` or `remove_subscription` only when cleaning up a wrong
    trigger. Shape the run's inputs with `inputs_fields` (see `references/trigger-inputs.md`).
    Triggers do NOT follow a new revision: after any later `commit_revision`, existing schedules and
@@ -724,6 +734,8 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         SkillFile(
             path="references/trigger-inputs.md", content=_TRIGGER_INPUTS_REFERENCE
         ),
+        # One playbook per template plus the generated router index (references/agent-templates/).
+        *build_agent_template_skill_files(),
     ],
 )
 

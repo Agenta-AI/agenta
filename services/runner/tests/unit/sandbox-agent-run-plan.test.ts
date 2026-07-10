@@ -86,7 +86,10 @@ describe("buildRunPlan", () => {
     // cwd: an ephemeral sibling whose leaf is the cwd basename.
     assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
     assert.ok(result.plan.relayDir.endsWith("/agenta/relay/local-cwd"));
-    assert.equal(result.plan.usageOutPath, `${result.plan.relayDir}/.agenta-usage.json`);
+    assert.equal(
+      result.plan.usageOutPath,
+      `${result.plan.relayDir}/.agenta-usage.json`,
+    );
     assert.equal(result.plan.prompt, " ship it ");
     assert.equal(result.plan.agentsMd, "instructions");
     assert.equal(result.plan.systemPrompt, "system");
@@ -137,7 +140,8 @@ describe("buildRunPlan", () => {
     if (!result.ok) return;
     assert.deepEqual(result.plan.builtinGrants, ["read", "write"]);
     assert.equal(result.plan.builtinGatingActive, true);
-    assert.equal(result.plan.useToolRelay, true);
+    // Builtin gating rides the ACP dialog plane, not the relay: no custom tools, no relay.
+    assert.equal(result.plan.useToolRelay, false);
   });
 
   it("turns builtin gating on when grants include Pi-nondefault builtins", () => {
@@ -218,7 +222,7 @@ describe("buildRunPlan", () => {
     assert.equal(omitted.plan.builtinGatingActive, false);
     assert.deepEqual(none.plan.builtinGrants, []);
     assert.equal(none.plan.builtinGatingActive, true);
-    assert.equal(none.plan.useToolRelay, true);
+    assert.equal(none.plan.useToolRelay, false);
   });
 
   it("turns builtin gating on when the permission kill switch is set", () => {
@@ -242,7 +246,7 @@ describe("buildRunPlan", () => {
       "write",
     ]);
     assert.equal(result.plan.builtinGatingActive, true);
-    assert.equal(result.plan.useToolRelay, true);
+    assert.equal(result.plan.useToolRelay, false);
   });
 
   it("turns builtin gating on when an all-allow policy has a builtin rule", () => {
@@ -586,8 +590,15 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, false);
       if (result.ok) return;
       assert.match(result.error, /non-Pi harness on a remote sandbox/);
-      assert.match(result.error, /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//);
-      assert.equal(created, false, "fails before any cwd is created (up-front gate)");
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//,
+      );
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
     });
 
     it("refuses claude x UNKNOWN remote provider x tools (fails closed, not open)", () => {
@@ -692,7 +703,11 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, false);
       if (result.ok) return;
       assert.match(result.error, /non-Pi harness on a remote sandbox/);
-      assert.equal(created, false, "fails before any cwd is created (up-front gate)");
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
@@ -956,8 +971,13 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.cwd, "/home/sandbox/agenta/mounts/proj-1/mount-abc");
-    assert.deepEqual(daytonaCwdCalls, ["/home/sandbox/agenta/mounts/proj-1/mount-abc"]);
+    assert.equal(
+      result.plan.cwd,
+      "/home/sandbox/agenta/mounts/proj-1/mount-abc",
+    );
+    assert.deepEqual(daytonaCwdCalls, [
+      "/home/sandbox/agenta/mounts/proj-1/mount-abc",
+    ]);
   });
 
   it("falls back to ephemeral cwd when durableCwd is absent (non-session / sign failed)", () => {
@@ -991,7 +1011,10 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     function makePlan() {
       return buildRunPlan(
-        { harness: "claude", messages: [{ role: "user", content: "hi" }] } as AgentRunRequest,
+        {
+          harness: "claude",
+          messages: [{ role: "user", content: "hi" }],
+        } as AgentRunRequest,
         {
           durableCwd: localPath,
           createLocalCwd: (durable) => durable ?? "/tmp/fallback",

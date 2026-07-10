@@ -67,6 +67,7 @@ export {
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,

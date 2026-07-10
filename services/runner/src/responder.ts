@@ -77,6 +77,34 @@ export function approvedCallKey(
 }
 
 /**
+ * Per-turn ledger of approval-equivalent allows for Pi relay executions. The dialog gate (or a
+ * parked-approval resume) grants; the relay execution guard consumes one grant per matching
+ * record. Keyed by `approvedCallKey(toolName, args)` with a count, so N approvals permit exactly
+ * N executions and a forged or replayed record for an `ask` tool fails closed.
+ */
+export class ApprovedExecutionGrants {
+  private counts = new Map<string, number>();
+
+  /** Record one approval-equivalent allow. No-op when the call is unkeyable (fails closed). */
+  grant(toolName: string | undefined, args: unknown): void {
+    const key = approvedCallKey(toolName, args);
+    if (!key) return;
+    this.counts.set(key, (this.counts.get(key) ?? 0) + 1);
+  }
+
+  /** Consume one grant for this exact call; false when absent, exhausted, or unkeyable. */
+  consume(toolName: string | undefined, args: unknown): boolean {
+    const key = approvedCallKey(toolName, args);
+    if (!key) return false;
+    const count = this.counts.get(key) ?? 0;
+    if (count <= 0) return false;
+    if (count === 1) this.counts.delete(key);
+    else this.counts.set(key, count - 1);
+    return true;
+  }
+}
+
+/**
  * Order-independent, stable serialization of tool args so the same call hashes the same.
  * Returns `undefined` for any value that is not plain JSON so the caller can fail closed
  * rather than collide.

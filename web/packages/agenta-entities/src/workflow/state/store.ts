@@ -1355,6 +1355,34 @@ export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string
     atom<boolean>(true),
 )
 
+/**
+ * Has the build-kit overlay for this revision settled? True once the overlay is either resolved
+ * (present) or definitively absent — i.e. the underlying fetch(es) are no longer pending. The
+ * onboarding auto-send reads this so turn 1 doesn't fire kit-less while the overlay is still in
+ * flight (mirrors the resolution order of `workflowAgentTemplateOverlayAtomFamily`).
+ */
+export const workflowBuildKitOverlayReadyAtomFamily = atomFamily((revisionId: string) =>
+    atom<boolean>((get) => {
+        const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
+        const baseEntity = get(workflowBaseEntityAtomFamily(revisionId))
+        const explicitIsAgent = revisionData?.flags?.is_agent ?? baseEntity?.flags?.is_agent
+        const targetUri = revisionData?.data?.uri ?? baseEntity?.data?.uri
+        const isAgent = explicitIsAgent ?? isAgentBuiltinUri(targetUri)
+        // Not an agent, or no session to fetch under — nothing to wait for.
+        if (!isAgent || !get(sessionAtom)) return true
+
+        const slugQuery = get(agentBuildKitOverlayAtom)
+        if (isAgentTemplateOverlay(slugQuery.data)) return true
+        // Reserved-slug fetch still in flight — not settled.
+        if (slugQuery.isPending) return false
+
+        // Slug fetch settled without an overlay — the per-app fallback decides.
+        const applicationId = revisionData?.workflow_id ?? baseEntity?.workflow_id ?? null
+        if (!applicationId) return true
+        return !get(simpleApplicationQueryAtomFamily(applicationId)).isPending
+    }),
+)
+
 // ============================================================================
 // AG-TYPE SCHEMA QUERY (resolves x-ag-type-ref targets into full schemas)
 // ============================================================================

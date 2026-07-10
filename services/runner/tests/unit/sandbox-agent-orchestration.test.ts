@@ -14,6 +14,7 @@ import {
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
+import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -36,7 +37,7 @@ interface FakeOptions {
   streamUsage?: Record<string, number>;
   output?: string;
   promptError?: Error;
-  permissionDecision?: PermissionDecision;
+  permissionDecision?: PermissionDecision | "pendingApproval";
   emitPermission?: boolean;
   permissionToolCallId?: string;
   permissionToolName?: string;
@@ -695,17 +696,16 @@ describe("runSandboxAgent orchestration", () => {
       [{ name: "server_tool", kind: "callback" }],
       undefined,
     ]);
-    const relayPermissions = calls.toolRelayArgs?.[4] as any;
-    assert.equal(relayPermissions.enforce, true, "Pi enforces at the relay");
-    assert.equal(typeof relayPermissions.decide, "function");
-    assert.equal(typeof relayPermissions.onPendingApproval, "function");
-    // No runContext on the request.
-    assert.equal(calls.toolRelayArgs?.[5], undefined);
+    // The relay carries execution only (no permissions argument): no runContext here.
+    assert.equal(calls.toolRelayArgs?.[4], undefined);
     // Trailing arg is the relay callbacks object (client-tool + park handlers).
     assert.deepEqual(
-      Object.keys((calls.toolRelayArgs?.[6] ?? {}) as object).sort(),
+      Object.keys((calls.toolRelayArgs?.[5] ?? {}) as object).sort(),
       ["onClientTool", "onPause"],
     );
+    // A Pi run passes the execution guard: the relay dir is sandbox-writable, so every execute
+    // record is re-checked runner-side (a forged record must not run an ask/deny tool).
+    assert.equal(typeof calls.toolRelayArgs?.[6], "function");
     assert.equal(
       calls.toolRelayStops,
       2,
@@ -737,11 +737,9 @@ describe("runSandboxAgent orchestration", () => {
       true,
       "the run succeeds; gateway tools reach Claude",
     );
-    assert.equal(
-      (calls.toolRelayArgs?.[4] as any)?.enforce,
-      false,
-      "Claude gates before the relay, so the relay does not re-enforce",
-    );
+    // The relay carries execution only; Claude's own ACP gates decide before a call reaches it,
+    // so a Claude run never gets the Pi execution guard.
+    assert.equal(calls.toolRelayArgs?.[6], undefined);
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
     assert.equal(
@@ -1483,9 +1481,11 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     );
   });
 
-  it("drops teardown tool updates after a Pi relay approval pause while keeping other ids", async () => {
-    const relayPause = { fire: () => {} };
-    const { calls, deps } = fakeHarness({
+  it("drops teardown tool updates after a Pi approval pause while keeping other ids", async () => {
+    // The Pi ask arrives as an ACP permission request carrying the gate envelope (the dialog
+    // plane); the pause must suppress the GATED call's teardown updates while the sibling is
+    // settled deterministically.
+    const { deps } = fakeHarness({
       promptEvents: [
         {
           payload: {
@@ -1506,7 +1506,28 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
           },
         },
       ],
-      afterPromptEvents: () => relayPause.fire(),
+      emitPermission: true,
+      permissionDecision: "pendingApproval",
+      permissionRequests: [
+        {
+          id: "perm-pi",
+          availableReplies: ["once", "reject"],
+          toolCall: {
+            toolCallId: "pi-ui-synthetic",
+            title: "agenta-approval",
+            rawInput: {
+              method: "confirm",
+              title: "agenta-approval",
+              message: buildPiGateEnvelope({
+                gate: "pi-custom-tool",
+                toolName: "approval_needed",
+                toolCallId: "tool-1",
+                input: { path: "a" },
+              }),
+            },
+          },
+        },
+      ],
       postPermissionEvents: [
         {
           payload: {
@@ -1531,14 +1552,6 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
       ],
     });
     deps.createOtel = createSandboxAgentOtel as any;
-    relayPause.fire = () => {
-      const relayPermissions = calls.toolRelayArgs?.[4] as any;
-      relayPermissions.onPendingApproval({
-        toolCallId: "tool-1",
-        toolName: "approval_needed",
-        args: { path: "a" },
-      });
-    };
 
     const result = await runSandboxAgent(
       {
@@ -1560,8 +1573,12 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     assert.deepEqual(
       result.events
         ?.filter((event) => event.type === "interaction_request")
-        .map((event) => ({ id: (event as any).id, kind: (event as any).kind })),
-      [{ id: "tool-1", kind: "user_approval" }],
+        .map((event) => ({
+          id: (event as any).id,
+          kind: (event as any).kind,
+          toolCallId: (event as any).payload?.toolCallId,
+        })),
+      [{ id: "perm-pi", kind: "user_approval", toolCallId: "tool-1" }],
     );
     assert.deepEqual(
       result.events

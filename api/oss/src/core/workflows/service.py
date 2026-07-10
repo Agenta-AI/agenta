@@ -95,6 +95,7 @@ from oss.src.core.git.types import (
 )
 from oss.src.core.workflows.build_kit import BUILD_KIT_WORKFLOW_SLUG
 from oss.src.core.workflows.interfaces import StaticWorkflowProvider
+from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     StaticWorkflowSlug,
@@ -1486,7 +1487,9 @@ class WorkflowsService:
                 return False
             if ref.slug is not None and ref.slug != resolved_slug:
                 return False
-            if ref.version is not None and ref.version != revision.version:
+            if ref.version is not None and normalize_static_version(
+                ref.version
+            ) != normalize_static_version(revision.version):
                 return False
         return True
 
