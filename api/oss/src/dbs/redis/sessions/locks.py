@@ -12,6 +12,7 @@ from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
     ATTACHED_TTL_SECONDS,
+    CLAIM_OWNER_LUA,
     OWNER_TTL_SECONDS,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
@@ -233,32 +234,6 @@ async def get_attached_owner(
 # ---------------------------------------------------------------------------
 
 
-async def set_owner(
-    engine: LockEngine,
-    *,
-    session_id: str,
-    replica_id: str,
-) -> None:
-    """Record which replica owns this session."""
-    key = owner_key(session_id)
-    await engine.set(key, replica_id.encode(), ex=OWNER_TTL_SECONDS)
-
-
-async def refresh_owner(
-    engine: LockEngine,
-    *,
-    session_id: str,
-    replica_id: str,
-) -> bool:
-    """Refresh the owner TTL if replica_id is still the owner."""
-    key = owner_key(session_id)
-    current = await engine.get(key)
-    if current and current.decode() == replica_id:
-        await engine.expire(key, OWNER_TTL_SECONDS)
-        return True
-    return False
-
-
 async def get_owner(
     engine: LockEngine,
     *,
@@ -268,6 +243,28 @@ async def get_owner(
     key = owner_key(session_id)
     current = await engine.get(key)
     return current.decode() if current else None
+
+
+async def claim_owner(
+    engine: LockEngine,
+    *,
+    session_id: str,
+    replica_id: str,
+) -> str:
+    """Atomically claim ownership iff unowned or already ours, and return the actual owner.
+
+    Never steals from a live different owner: if another replica holds it, its id is
+    returned so the caller can refuse to serve a local session on the wrong host.
+    """
+    key = owner_key(session_id)
+    result = await engine.eval(
+        CLAIM_OWNER_LUA,
+        1,
+        key.encode(),
+        replica_id.encode(),
+        str(OWNER_TTL_SECONDS).encode(),
+    )
+    return result.decode() if isinstance(result, (bytes, bytearray)) else str(result)
 
 
 async def clear_owner(

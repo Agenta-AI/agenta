@@ -26,20 +26,20 @@ from oss.src.dbs.redis.sessions.contract import (
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
+    claim_owner,
     clear_running,
     force_cancel_alive,
     get_session_liveness,
     refresh_alive,
-    refresh_owner,
     refresh_running,
     release_attached,
-    set_owner,
     steal_attached,
 )
 
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionHeartbeatRequest,
+    SessionHeartbeatResult,
     SessionStream,
     SessionStreamCommandRequest,
     SessionStreamCommandResponse,
@@ -217,25 +217,20 @@ class SessionStreamsService:
         *,
         project_id: UUID,
         request: SessionHeartbeatRequest,
-    ) -> SessionStream:
+    ) -> SessionHeartbeatResult:
         _validate_session_id(request.session_id)
 
-        # replica_id refreshes affinity (which container owns the session);
-        # turn_id refreshes the alive/running TTLs (proving this turn still owns the lock).
-        if not await refresh_owner(
+        # replica_id claims affinity without stealing from a live different owner; turn_id
+        # separately refreshes the alive/running TTLs. `owner` is the actual winner (this
+        # replica if it won or already held it, another replica otherwise).
+        owner = await claim_owner(
             self._lock,
             session_id=request.session_id,
             replica_id=request.replica_id,
-        ):
-            await set_owner(
-                self._lock,
-                session_id=request.session_id,
-                replica_id=request.replica_id,
-            )
+        )
         if request.turn_id and request.is_running:
-            # Acquire-then-refresh: the runner heartbeats directly and never calls
-            # _start_turn, so the FIRST heartbeat must establish the nest locks itself.
-            # acquire_* is nx=True — a no-op if _start_turn already holds them.
+            # Acquire-then-refresh: the first heartbeat must establish the nest locks
+            # itself (acquire_* is nx=True — a no-op if _start_turn already holds them).
             if not await refresh_alive(
                 self._lock,
                 session_id=request.session_id,
@@ -257,9 +252,8 @@ class SessionStreamsService:
                     turn_id=request.turn_id,
                 )
         elif not request.is_running:
-            # The release beat (turn finished): drop ONLY running. The sandbox is not
-            # killed when a turn ends, so `alive` stays (it has its own TTL and is cleared
-            # only by kill). This is what makes the session reattachable across turns.
+            # Turn ended: drop only `running`. `alive` outlives the turn (own TTL, cleared
+            # only by kill) — this is what makes the session reattachable.
             await clear_running(self._lock, session_id=request.session_id)
 
         liveness = await get_session_liveness(self._lock, session_id=request.session_id)
@@ -291,7 +285,10 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 stream=SessionStreamEdit(flags=flags, turn_id=request.turn_id),
             )
-        return stream
+        return SessionHeartbeatResult(
+            stream=stream,
+            replica_id=owner,
+        )
 
     async def fetch(
         self,

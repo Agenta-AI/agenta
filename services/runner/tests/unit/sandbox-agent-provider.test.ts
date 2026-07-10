@@ -1,5 +1,6 @@
 /**
- * Unit tests for the Layer 2 network policy -> Daytona create field mapping (S1b).
+ * Unit tests for the Layer 2 network policy -> Daytona create field mapping and the
+ * five-state lifecycle intervals.
  *
  * The mapping is tested directly because the real `daytona()` provider closes over its
  * create object and constructs a Daytona client (needs API-key env), so it cannot be
@@ -13,19 +14,27 @@ import assert from "node:assert/strict";
 
 import {
   DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
+  DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES,
+  DEFAULT_DAYTONA_AUTODELETE_MINUTES,
   buildDaytonaCreate,
   buildSandboxProvider,
   daytonaAutoStopMinutes,
+  daytonaAutoArchiveMinutes,
+  daytonaAutoDeleteMinutes,
   daytonaNetworkFields,
 } from "../../src/engines/sandbox_agent/provider.ts";
 
-const AUTOSTOP_ENV = "DAYTONA_AUTOSTOP";
-const previousAutoStop = process.env[AUTOSTOP_ENV];
+const LIFECYCLE_ENVS = ["DAYTONA_AUTOSTOP", "DAYTONA_AUTOARCHIVE", "DAYTONA_AUTODELETE"];
+const previous = Object.fromEntries(LIFECYCLE_ENVS.map((k) => [k, process.env[k]]));
 
 afterEach(() => {
-  if (previousAutoStop === undefined) delete process.env[AUTOSTOP_ENV];
-  else process.env[AUTOSTOP_ENV] = previousAutoStop;
+  for (const k of LIFECYCLE_ENVS) {
+    if (previous[k] === undefined) delete process.env[k];
+    else process.env[k] = previous[k];
+  }
 });
+
+const AUTOSTOP_ENV = "DAYTONA_AUTOSTOP";
 
 describe("daytonaNetworkFields", () => {
   it("blocks all egress for network:off", () => {
@@ -67,64 +76,59 @@ describe("daytonaNetworkFields", () => {
   });
 });
 
-describe("daytonaAutoStopMinutes (leak backstop)", () => {
-  it("uses the env value when it is a positive integer", () => {
+describe("daytona lifecycle interval parsers", () => {
+  it("use the env value when it is a positive integer", () => {
     assert.equal(daytonaAutoStopMinutes("30"), 30);
+    assert.equal(daytonaAutoArchiveMinutes("90"), 90);
+    assert.equal(daytonaAutoDeleteMinutes("2880"), 2880);
   });
 
-  it("floors a fractional env value to whole minutes", () => {
+  it("floor a fractional env value to whole minutes", () => {
     assert.equal(daytonaAutoStopMinutes("12.9"), 12);
   });
 
-  it("falls back to the default when the env is unset", () => {
-    assert.equal(
-      daytonaAutoStopMinutes(undefined),
-      DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
-    );
+  it("fall back to their defaults when the env is unset", () => {
+    assert.equal(daytonaAutoStopMinutes(undefined), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
+    assert.equal(daytonaAutoArchiveMinutes(undefined), DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES);
+    assert.equal(daytonaAutoDeleteMinutes(undefined), DEFAULT_DAYTONA_AUTODELETE_MINUTES);
   });
 
-  it("falls back to the default for a non-numeric env value", () => {
-    assert.equal(
-      daytonaAutoStopMinutes("soon"),
-      DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
-    );
+  it("fall back to the default for a non-numeric env value", () => {
+    assert.equal(daytonaAutoStopMinutes("soon"), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
   });
 
-  it("clamps 0 to the default so auto-stop is never re-disabled (the leak)", () => {
-    // 0 would mean auto-stop OFF, which pairs with ephemeral to leak forever — exactly the bug.
+  it("clamp 0 and negatives to the default (a disabled reaper would leak)", () => {
     assert.equal(daytonaAutoStopMinutes("0"), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
+    assert.equal(daytonaAutoDeleteMinutes("-5"), DEFAULT_DAYTONA_AUTODELETE_MINUTES);
   });
 
-  it("clamps a negative env value to the default", () => {
-    assert.equal(
-      daytonaAutoStopMinutes("-5"),
-      DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
-    );
-  });
-
-  it("the default is a positive backstop (auto-stop stays ON)", () => {
+  it("order the defaults stop < archive < delete (states advance, never regress)", () => {
     assert.ok(DEFAULT_DAYTONA_AUTOSTOP_MINUTES >= 1);
+    assert.ok(DEFAULT_DAYTONA_AUTOSTOP_MINUTES < DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES);
+    assert.ok(DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES < DEFAULT_DAYTONA_AUTODELETE_MINUTES);
   });
 });
 
-describe("buildDaytonaCreate (leak backstop on the create object)", () => {
-  it("carries a positive auto-stop interval + ephemeral by default (self-reaps a leak)", () => {
-    delete process.env[AUTOSTOP_ENV];
+describe("buildDaytonaCreate (five-state lifecycle on the create object)", () => {
+  it("carries the three lifecycle intervals and ephemeral:false by default", () => {
+    for (const k of LIFECYCLE_ENVS) delete process.env[k];
     const create = buildDaytonaCreate({}, {}, undefined);
-    // ephemeral auto-deletes ON STOP; a non-zero auto-stop is what makes a leaked sandbox stop.
-    assert.equal(create.ephemeral, true);
+    // ephemeral:false so a stop PARKS (warm) instead of deleting; the intervals are the reapers.
+    assert.equal(create.ephemeral, false);
     assert.equal(create.autoStopInterval, DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
-    assert.ok(
-      (create.autoStopInterval as number) > 0,
-      "auto-stop must be > 0 or the ephemeral auto-delete never fires (the leak)",
-    );
+    assert.equal(create.autoArchiveInterval, DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES);
+    assert.equal(create.autoDeleteInterval, DEFAULT_DAYTONA_AUTODELETE_MINUTES);
   });
 
-  it("carries the env-configured auto-stop interval", () => {
-    process.env[AUTOSTOP_ENV] = "42";
+  it("carries the env-configured intervals", () => {
+    process.env["DAYTONA_AUTOSTOP"] = "5";
+    process.env["DAYTONA_AUTOARCHIVE"] = "30";
+    process.env["DAYTONA_AUTODELETE"] = "120";
     const create = buildDaytonaCreate({}, {}, undefined);
-    assert.equal(create.autoStopInterval, 42);
-    assert.equal(create.ephemeral, true);
+    assert.equal(create.autoStopInterval, 5);
+    assert.equal(create.autoArchiveInterval, 30);
+    assert.equal(create.autoDeleteInterval, 120);
+    assert.equal(create.ephemeral, false);
   });
 });
 

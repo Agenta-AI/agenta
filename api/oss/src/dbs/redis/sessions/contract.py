@@ -84,6 +84,18 @@ else
 end
 """.strip()
 
+# Atomic claim-or-read: take ownership iff the key is absent or already ours (refreshing the
+# TTL), never steal it from another replica. Returns the actual owner after the operation, so
+# the caller learns who won without a second racy read.
+CLAIM_OWNER_LUA = """
+local current = redis.call('GET', KEYS[1])
+if current == false or current == ARGV[1] then
+    redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+    return ARGV[1]
+end
+return current
+""".strip()
+
 # ---------------------------------------------------------------------------
 # Concurrency cap
 # ---------------------------------------------------------------------------

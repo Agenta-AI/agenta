@@ -8,11 +8,9 @@
  *
  * This module covers the LOCAL sandbox: the daemon runs on this host, so the cwd is a host
  * directory and geesefs mounts on-host — the signed credentials never enter agent-reachable
- * space. The remote (Daytona/E2B) path mounts INSIDE the sandbox and is layered on top of
- * this in M9.
+ * space. The remote (Daytona/E2B) path mounts INSIDE the sandbox and is layered on top of this.
  *
- * Mirrors the PoC recipe in `poc-persistent-sessions/sessions/demo/sidecar/sandbox-provider.js`
- * (`geesefsScript`), but with scoped STS credentials instead of the bucket-wide master key.
+ * Uses scoped STS credentials instead of a bucket-wide master key.
  */
 
 import { execFile, spawn } from "node:child_process";
@@ -53,18 +51,22 @@ function defaultLog(msg: string): void {
 }
 
 /**
- * Bind-and-sign the session's durable cwd mount. The API upserts the one `cwd` mount for the
- * session (get-or-create) and returns credentials scoped to its prefix. Returns null when the
- * store is not configured (503) or the call fails — the caller then runs on an ephemeral cwd,
- * never aborting the turn for a missing mount.
+ * Bind-and-sign one of the session's durable mounts. The API upserts the named mount for the
+ * session (get-or-create) and returns credentials scoped to its own prefix. `name` defaults to
+ * `"cwd"` (the original single-mount case, byte-identical call shape); any other name signs an
+ * ADDITIONAL session-scoped mount with its own `mount_id` and prefix — same shape, same sign
+ * endpoint, just a different name (per-harness transcript mounts use this). Returns null when
+ * the store is not configured (503) or the call fails — the caller then runs without this mount,
+ * never aborting the turn for a missing one.
  */
 export async function signSessionMountCredentials(
   sessionId: string,
   deps: SignMountDeps,
+  name: string = "cwd",
 ): Promise<MountCredentials | null> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
-  const url = `${deps.apiBase}/sessions/mounts/sign?session_id=${encodeURIComponent(sessionId)}`;
+  const url = `${deps.apiBase}/sessions/mounts/sign?session_id=${encodeURIComponent(sessionId)}&name=${encodeURIComponent(name)}`;
   try {
     const res = await doFetch(url, {
       method: "POST",
@@ -74,9 +76,9 @@ export async function signSessionMountCredentials(
       },
     });
     if (!res.ok) {
-      // 503 = storage not configured (mounts disabled). Any non-2xx → run without a mount.
+      // 503 = storage not configured (mounts disabled). Any non-2xx → run without this mount.
       log(
-        `sign HTTP ${res.status} session=${sessionId} — running without a durable cwd`,
+        `sign HTTP ${res.status} session=${sessionId} name=${name} — running without this mount`,
       );
       return null;
     }
@@ -122,6 +124,54 @@ export async function signSessionMountCredentials(
   }
 }
 
+// --- per-harness session-scoped transcript mounts --- //
+//
+// Beyond cwd, each harness keeps its own on-disk session/transcript directory that
+// `session/load` reads back. That directory must survive sandbox teardown the same way cwd
+// does: same shape (sign -> geesefs-mount), its own `mount_id`/prefix per (session, harness,
+// dir). Credentials are explicitly EXCLUDED — the runner re-injects managed creds per run
+// (`daemon.ts`), so persisting auth to the durable store is a real risk, not a convenience.
+//
+// Direct-mount is the default: the harness writes straight through geesefs at the mounted
+// path, accepting append-heavy-JSONL write amplification. Copy-around-lifecycle (stage
+// locally, sync in/out at turn boundaries) is a documented fallback ONLY if direct-mount shows
+// ENOTCONN/perf problems in practice — not implemented here; the seam is
+// `HarnessSessionMount.path`, which any future copy-around step would stage into instead of
+// mounting live.
+
+/** One harness's durable session/transcript directory to mount, relative to `$HOME`. */
+export interface HarnessSessionMount {
+  /** Mount name passed to `POST /sessions/mounts/sign?name=...`; unique per (session, harness, dir). */
+  name: string;
+  /** Absolute in-sandbox/on-host path this mount binds to (home-relative, credentials excluded). */
+  path: string;
+}
+
+/**
+ * The session-scoped directories a harness needs durable, EXCLUDING credential/auth files.
+ * `homeDir` is the resolved `$HOME` for the sandbox (differs local vs Daytona); each entry's
+ * `path` is `${homeDir}/<harness transcript dir>`. Returns `[]` for a harness with nothing to
+ * mount (unknown/unlisted harness) — callers then mount only cwd, unchanged from today.
+ *
+ * Claude: `~/.claude/projects` (session transcripts) — explicitly NOT `~/.claude` whole (that
+ * would sweep in `.credentials.json` / the OAuth cache). Pi: `~/.pi/agent/sessions`, or
+ * `$PI_CODING_AGENT_DIR/sessions` when that env overrides Pi's home-relative default.
+ */
+export function harnessSessionMounts(
+  acpAgent: string,
+  homeDir: string,
+  piAgentDir?: string,
+): HarnessSessionMount[] {
+  if (acpAgent === "claude") {
+    return [{ name: "claude-projects", path: `${homeDir}/.claude/projects` }];
+  }
+  if (acpAgent === "pi") {
+    const base = piAgentDir?.trim() || `${homeDir}/.pi/agent`;
+    return [{ name: "pi-sessions", path: `${base}/sessions` }];
+  }
+  return [];
+}
+
 /** geesefs endpoint flag: an empty endpoint means real AWS S3 (geesefs default). */
 function endpointArgs(endpoint?: string): string[] {
   return endpoint ? ["--endpoint", endpoint] : [];
@@ -129,8 +179,8 @@ function endpointArgs(endpoint?: string): string[] {
 
 /**
  * The geesefs argv for mounting `bucket:prefix` at `cwd`. Endpoint is overridable so the remote
- * path can substitute the public tunnel URL for the in-network one. `--fsync-on-close` matches
- * the PoC: durability over latency, so a turn's writes land before teardown.
+ * path can substitute the public tunnel URL for the in-network one. `--fsync-on-close` favors
+ * durability over latency, so a turn's writes land before teardown.
  */
 function geesefsArgs(
   creds: MountCredentials,
@@ -210,7 +260,7 @@ export interface MountStorageDeps {
  * Idempotent: a no-op when `cwd` is already a mountpoint. The scoped credentials ride the
  * child env (AWS_*), never the argv, so they do not leak to the process table. Returns true
  * when the mount is live, false when it could not be established — the caller proceeds on the
- * plain (ephemeral) cwd rather than aborting, mirroring the PoC's best-effort behavior.
+ * plain (ephemeral) cwd rather than aborting (best-effort).
  */
 export async function mountStorage(
   cwd: string,
@@ -359,7 +409,7 @@ export interface TunnelDeps {
 /**
  * Resolve the public tunnel URL for the in-network store endpoint. A remote sandbox cannot
  * reach `seaweedfs:8333` on the compose network, so geesefs there must hit a public URL; the
- * `ngrok` service (M9 compose profile `remote`) tunnels the store, and its agent API lists the
+ * `ngrok` service (compose profile `remote`) tunnels the store, and its agent API lists the
  * active tunnels. Returns null when no tunnel is up (then the remote mount is skipped, not fatal).
  */
 export async function discoverTunnelEndpoint(
@@ -429,7 +479,7 @@ export async function mountStorageRemote(
 ): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   try {
-    // Idempotent + ensure the dir exists, mirroring the PoC's geesefs script preamble.
+    // Idempotent + ensure the dir exists before mounting.
     await sandbox.runProcess({
       command: "sh",
       args: ["-c", `mkdir -p ${cwd}`],
@@ -454,5 +504,57 @@ export async function mountStorageRemote(
       `remote mount failed: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
     return false;
+  }
+}
+
+export interface MountHarnessSessionDirsDeps {
+  apiBase: string;
+  authorization: string;
+  fetchImpl?: typeof fetch;
+  log?: (msg: string) => void;
+  signSessionMountCredentials?: typeof signSessionMountCredentials;
+  mountStorageRemote?: typeof mountStorageRemote;
+}
+
+/**
+ * Sign and mount every durable session-scoped dir a harness needs, INSIDE a remote sandbox.
+ * Local runs call none of this: `~/.claude` there is the runner container's own disk (see
+ * module doc), so this function is Daytona/remote-only by construction (it always mounts
+ * INSIDE the given sandbox, mirroring `mountStorageRemote`). Each dir is its own sign call +
+ * its own geesefs mount, same shape as the cwd mount, additive and best-effort: a failed sign
+ * or mount for one dir is logged and skipped, never aborts the turn or blocks the other dirs.
+ */
+export async function mountHarnessSessionDirs(
+  sandbox: SandboxExec,
+  sessionId: string,
+  dirs: HarnessSessionMount[],
+  tunnelEndpoint: string,
+  deps: MountHarnessSessionDirsDeps,
+): Promise<void> {
+  if (dirs.length === 0) return;
+  const log = deps.log ?? defaultLog;
+  const signMount =
+    deps.signSessionMountCredentials ?? signSessionMountCredentials;
+  const mountRemote = deps.mountStorageRemote ?? mountStorageRemote;
+
+  for (const dir of dirs) {
+    const creds = await signMount(
+      sessionId,
+      {
+        apiBase: deps.apiBase,
+        authorization: deps.authorization,
+        fetchImpl: deps.fetchImpl,
+        log,
+      },
+      dir.name,
+    );
+    if (!creds) {
+      log(`harness session mount '${dir.name}' not signed — skipping ${dir.path}`);
+      continue;
+    }
+    await mountRemote(sandbox, dir.path, creds, {
+      endpoint: tunnelEndpoint,
+      log,
+    });
   }
 }

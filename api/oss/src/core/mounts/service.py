@@ -144,6 +144,34 @@ class MountsService:
             mount_create=mount_create,
         )
 
+    async def get_or_create_session_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+        name: str = _SESSION_CWD_NAME,
+    ) -> Mount:
+        """Bind (idempotently) one durable mount for a session, keyed by `name`.
+
+        The minted session slug is deterministic per (session_id, name), so the upsert
+        keys on unique(project_id, slug): the same (session, name) always resolves to the
+        same row and the same durable storage prefix. No explicit create/edit, no 409
+        dance. `name="cwd"` is the original single-mount case; any other name (e.g. a
+        harness's transcript dir) is an additional session-scoped mount sharing the same
+        shape with its own prefix.
+        """
+        mount_create = MountCreate(
+            slug=mint_session_slug(session_id=session_id, name=name),
+            name=name,
+            session_id=session_id,
+        )
+        return await self.mounts_dao.upsert_mount(
+            project_id=project_id,
+            user_id=user_id,
+            mount_create=mount_create,
+        )
+
     async def get_or_create_session_cwd(
         self,
         *,
@@ -151,21 +179,13 @@ class MountsService:
         user_id: UUID,
         session_id: str,
     ) -> Mount:
-        """Bind (idempotently) the one durable `cwd` mount for a session.
-
-        The minted session slug is deterministic, so the upsert keys on
-        unique(project_id, slug): the same session always resolves to the same row and
-        the same durable storage prefix. No explicit create/edit, no 409 dance.
-        """
-        mount_create = MountCreate(
-            slug=mint_session_slug(session_id=session_id, name=_SESSION_CWD_NAME),
-            name=_SESSION_CWD_NAME,
-            session_id=session_id,
-        )
-        return await self.mounts_dao.upsert_mount(
+        """Bind (idempotently) the one durable `cwd` mount for a session. Thin alias of
+        `get_or_create_session_mount` kept for call-site clarity at the cwd sign endpoint."""
+        return await self.get_or_create_session_mount(
             project_id=project_id,
             user_id=user_id,
-            mount_create=mount_create,
+            session_id=session_id,
+            name=_SESSION_CWD_NAME,
         )
 
     async def fetch_mount(

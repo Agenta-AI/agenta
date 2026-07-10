@@ -1,5 +1,5 @@
 /**
- * WP-8 sandbox-agent harness driver.
+ * sandbox-agent harness driver.
  *
  * Drives a coding harness (Pi, Claude Code, ...) over the Agent Client Protocol (ACP)
  * through the `sandbox-agent` daemon, instead of the bespoke Pi SDK calls in the pi
@@ -79,6 +79,7 @@ import { buildDaemonEnv, resolveDaemonBinary } from "./sandbox_agent/daemon.ts";
 import {
   createCookieFetch,
   prepareDaytonaPiAssets,
+  DAYTONA_PI_DIR,
 } from "./sandbox_agent/daytona.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
 import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
@@ -108,6 +109,7 @@ import {
   resolveInteraction,
   buildWorkflowReferences,
 } from "../sessions/interactions.ts";
+import { claimSessionOwnership, REPLICA_ID } from "../sessions/alive.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import {
   buildRunPlan,
@@ -123,8 +125,26 @@ import {
   mountStorageRemote,
   unmountStorage,
   discoverTunnelEndpoint,
+  mountHarnessSessionDirs,
+  harnessSessionMounts,
   type MountCredentials,
 } from "./sandbox_agent/mount.ts";
+import {
+  hydrateHarnessSessionFromDurable,
+  syncHarnessSessionDurable,
+} from "./sandbox_agent/session-continuity-durable.ts";
+import {
+  readStoredSandboxId,
+  writeSandboxId,
+} from "./sandbox_agent/sandbox-reconnect.ts";
+import {
+  assertLocalRunnerOwnership,
+  eligibleAgentSessionId,
+  nextTurnIndex,
+  sessionContinuityStore,
+  type SessionContinuityStore,
+} from "./sandbox_agent/session-continuity.ts";
+import { resolvesToLocalProvider } from "./sandbox_agent/session-pool.ts";
 
 export {
   buildTurnText,
@@ -160,11 +180,10 @@ function serverPermissionsFromRequest(
 type Log = (message: string) => void;
 const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
 
-// In-flight sandbox handles, by run. The per-run `finally` deletes the sandbox on every normal /
-// error / client-disconnect path, but a process KILL (docker stop / SIGTERM / OOM mid-run) skips
-// the `finally` entirely — so a shutdown signal handler (see `server.ts`) drains this set to
-// best-effort delete any still-running sandbox before exit. Remote (Daytona) sandboxes also carry
-// the auto-stop backstop in `provider.ts` for the cases a signal can never reach (SIGKILL/OOM).
+// In-flight sandbox handles, by run. A process KILL (docker stop / SIGTERM / OOM mid-run) skips
+// the per-run teardown — so a shutdown signal handler (see `server.ts`) drains this set to
+// best-effort delete any still-running sandbox before exit. Remote (Daytona) sandboxes that even a
+// signal can never reach (SIGKILL/OOM) self-reap via the lifecycle reapers in `provider.ts`.
 const inFlightSandboxes = new Set<{
   destroySandbox?: () => Promise<unknown>;
 }>();
@@ -272,6 +291,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createCookieFetch?: typeof createCookieFetch;
   createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
+  prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
   startToolRelay?: typeof startToolRelay;
@@ -282,10 +302,42 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   mountStorageRemote?: typeof mountStorageRemote;
   unmountStorage?: typeof unmountStorage;
   discoverTunnelEndpoint?: typeof discoverTunnelEndpoint;
+  /** Per-harness transcript mounts (remote only; see mount.ts). */
+  mountHarnessSessionDirs?: typeof mountHarnessSessionDirs;
   responderFactory?: (request: AgentRunRequest) => Responder;
   resolveRunLimits?: typeof resolveRunLimits;
   createRunLimits?: typeof createRunLimits;
+  /** Session-continuity store override (tests inject their own; default is the process singleton). */
+  sessionContinuityStore?: SessionContinuityStore;
+  /** Durable read-back/write-forward of the continuity store (tests inject fakes). */
+  hydrateHarnessSessionFromDurable?: typeof hydrateHarnessSessionFromDurable;
+  syncHarnessSessionDurable?: typeof syncHarnessSessionDurable;
+  /** Durable read/write of the sandbox id, for the remote reconnect ladder (tests inject fakes). */
+  readStoredSandboxId?: typeof readStoredSandboxId;
+  writeSandboxId?: typeof writeSandboxId;
+  /**
+   * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
+   * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
+   * replica. The default claims the `owner` affinity key via the coordination plane and reads
+   * back the actual owner (`claimSessionOwnership`); tests inject their own. `authorization` is
+   * the run credential (the claim authenticates as the invoke caller).
+   */
+  resolveLocalRunnerOwner?: (
+    sessionId: string,
+    authorization: string,
+  ) => Promise<{ replicaId: string; ownerReplicaId: string | undefined }>;
   log?: Log;
+}
+
+async function defaultResolveLocalRunnerOwner(
+  sessionId: string,
+  authorization: string,
+): Promise<{ replicaId: string; ownerReplicaId: string | undefined }> {
+  // No credential ⇒ the claim would 401; treat as "no known owner" (pass), never worse than today.
+  if (!authorization) {
+    return { replicaId: REPLICA_ID, ownerReplicaId: undefined };
+  }
+  return claimSessionOwnership(sessionId, authorization);
 }
 
 function isTransportEndpointDisconnected(err: unknown): boolean {
@@ -360,7 +412,7 @@ interface CurrentTurn {
 
 /**
  * A Claude ACP permission gate that paused the turn and can be answered later on the SAME live
- * session (slice 2 keep-alive). Recorded ONLY for a harness ACP permission gate (never a Pi relay
+ * session (keep-alive). Recorded ONLY for a harness ACP permission gate (never a Pi relay
  * gate, a Pi builtin gate, or a client-tool MCP pause — those cannot be answered across a turn
  * boundary and stay on the cold path). Existence of this record is what makes the dispatch park a
  * paused session in `awaiting_approval` instead of tearing it down.
@@ -398,6 +450,14 @@ export interface RunTurnOptions {
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**
+   * The session was rehydrated via `session/load` (the patched `resumeSession`), so the harness
+   * already holds the prior turns natively. Like `continuation`, the prompt is only the new user
+   * text; `buildTurnText` must not run. Distinct field from `continuation` because the two arrive
+   * through different acquire paths (live pool checkout vs a fresh cold acquire that loaded an
+   * old session) — `runTurn` treats them identically for the text-selection decision.
+   */
+  loaded?: boolean;
+  /**
    * Keep-alive approval park mode: on a Claude ACP permission gate the pause keeps the session
    * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
    * relay, client tool) still tears down exactly as today, so this is safe to set on any eligible
@@ -433,6 +493,12 @@ export interface SessionEnvironment {
   mountCreds: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key scope); undefined when there is no mount. */
   mountProjectId?: string;
+  /** This acquire resumed the harness's native session via `session/load` (not cold). */
+  loadedFromContinuity: boolean;
+  /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
+  resumable: boolean;
+  /** The conversation turn index this acquire's continuity record was read/written at. */
+  continuityTurnIndex: number | undefined;
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
   sessionDestroyRequested: boolean;
   mountedCwd: string | undefined;
@@ -448,9 +514,9 @@ export interface SessionEnvironment {
    */
   lastTurnToolCallIds: string[];
   /**
-   * The Claude ACP permission gate the LAST turn paused on (slice 2), or undefined. Set only for a
-   * harness ACP permission gate, reset at each turn start; the dispatch reads it after a paused
-   * turn to decide whether to park in `awaiting_approval` and, on the next request, how to resume.
+   * The Claude ACP permission gate the LAST turn paused on, or undefined. Set only for a harness
+   * ACP permission gate, reset at each turn start; the dispatch reads it after a paused turn to
+   * decide whether to park in `awaiting_approval` and, on the next request, how to resume.
    */
   parkedApproval?: ParkedApproval;
   /**
@@ -460,8 +526,8 @@ export interface SessionEnvironment {
    */
   approvalGateCount: number;
   destroyed: boolean;
-  /** Complete, idempotent teardown (all the finalizers the old per-run `finally` ran). */
-  destroy: () => Promise<void>;
+  /** Complete, idempotent teardown. `keepWarm` parks a remote sandbox instead of deleting it. */
+  destroy: (opts?: { keepWarm?: boolean }) => Promise<void>;
   /** End the active turn: clear the current-turn sink (called before a park). */
   clearTurn: () => void;
 }
@@ -514,6 +580,29 @@ export async function acquireEnvironment(
   presignedMount?: MountCredentials | null,
 ): Promise<AcquireEnvironmentResult> {
   const logger = deps.log ?? log;
+
+  // Local multi-runner fails loudly. Session-owned + local-sandbox only (a non-session run
+  // has no cross-replica identity to protect, and a remote sandbox has no runner-local pooled
+  // state to protect it FROM). The resolver claims the `owner` affinity key and reads the actual
+  // owner back; a KNOWN different owner throws (never a silent wrong-host cold start).
+  const continuitySessionForOwnership = request.sessionId?.trim();
+  if (
+    continuitySessionForOwnership &&
+    resolvesToLocalProvider(request.sandbox)
+  ) {
+    const { replicaId, ownerReplicaId } = await (
+      deps.resolveLocalRunnerOwner ?? defaultResolveLocalRunnerOwner
+    )(continuitySessionForOwnership, runCredential(request));
+    try {
+      assertLocalRunnerOwnership(
+        continuitySessionForOwnership,
+        replicaId,
+        ownerReplicaId,
+      );
+    } catch (err) {
+      return { ok: false, error: conciseError(err, request.harness ?? "") };
+    }
+  }
 
   // Sign BEFORE buildRunPlan so the prefix is available for the durable cwd derivation.
   // Inputs (sessionId, apiBase, credential) are independent of the plan. Best-effort: null on
@@ -592,8 +681,8 @@ export async function acquireEnvironment(
         builtinGatingActive: plan.builtinGatingActive,
         builtinGrants: plan.builtinGrants,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
-        // records which skills loaded (F-029); local Pi self-instruments, so the runner's
-        // sandbox-agent otel has no span to stamp here.
+        // records which skills loaded; local Pi self-instruments, so the runner's sandbox-agent
+        // otel has no span to stamp here.
         skills: plan.skillDirs.map((s) => s.name),
       })
     : {};
@@ -651,6 +740,9 @@ export async function acquireEnvironment(
     otlpAuthFilePath,
     mountCreds,
     mountProjectId: mountCreds?.projectId,
+    loadedFromContinuity: false,
+    resumable: false,
+    continuityTurnIndex: undefined,
     sessionDestroyRequested: false,
     mountedCwd: undefined,
     durableCwdSafeToDelete: true,
@@ -679,7 +771,7 @@ export async function acquireEnvironment(
   // The one complete, idempotent teardown — the same steps the old per-run `finally` ran, in the
   // same order. Every resource is null-checked, so it is safe after a partial acquire and safe to
   // call twice (the guard returns on a second call). It must never throw.
-  environment.destroy = async () => {
+  environment.destroy = async (opts?: { keepWarm?: boolean }) => {
     if (environment.destroyed) return;
     environment.destroyed = true;
     await environment.runtimeRemount?.catch(() => {});
@@ -688,15 +780,21 @@ export async function acquireEnvironment(
     // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
     environment.mcpAbort.abort();
     await environment.closeToolMcp?.().catch(() => {});
-    // Send a graceful `session/cancel` BEFORE tearing down the daemon (the ACP child process
-    // leak, dev-box incident 2026-07-06): destroySandbox hard-kills the sandbox-agent server but
-    // does not cascade to the ACP adapter subprocess it spawned, which then reparents to PID 1
-    // and never exits. Skip if the pause path already sent it (`sessionDestroyRequested`).
+    // Graceful `session/cancel` BEFORE tearing down the daemon, or the ACP adapter subprocess
+    // reparents to PID 1 and never exits. Skip if the pause path already sent it.
     if (environment.session && !environment.sessionDestroyRequested)
       await environment.sandbox
         ?.destroySession?.(environment.session.id)
         .catch(() => {});
-    await environment.sandbox?.destroySandbox().catch(() => {});
+    // keepWarm pauses a remote sandbox (parked, resumable) instead of deleting it; falls back to destroy.
+    const parked =
+      opts?.keepWarm && plan.isDaytona && environment.sandbox?.pauseSandbox
+        ? await environment.sandbox
+            .pauseSandbox()
+            .then(() => true)
+            .catch(() => false)
+        : false;
+    if (!parked) await environment.sandbox?.destroySandbox().catch(() => {});
     await environment.sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
     // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete: rmSync must
@@ -801,15 +899,16 @@ export async function acquireEnvironment(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
-    environment.sandbox = await startSandboxAgent({
-      sandbox: (deps.buildSandboxProvider ?? buildSandboxProvider)(
-        plan.sandboxId,
-        env,
-        binaryPath,
-        piExtEnv,
-        plan.secrets,
-        plan.sandboxPermission,
-      ),
+    const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
+      plan.sandboxId,
+      env,
+      binaryPath,
+      piExtEnv,
+      plan.secrets,
+      plan.sandboxPermission,
+    );
+    const startOptions = {
+      sandbox: sandboxProvider,
       persist,
       // Propagate caller cancellation (a client disconnect on the streaming HTTP edge) so an
       // in-flight run aborts instead of finishing unobserved. `destroy` still disposes.
@@ -819,14 +918,47 @@ export async function acquireEnvironment(
       fetch: plan.isDaytona
         ? (deps.createCookieFetch ?? createCookieFetch)()
         : (deps.createAcpFetch ?? createAcpFetch)(),
-    });
+    };
+    // Reconnect a parked remote sandbox by id; any failure falls through to a fresh create.
+    const storedSandboxId =
+      plan.isDaytona && sessionForMount && runCred
+        ? await (deps.readStoredSandboxId ?? readStoredSandboxId)(
+            sessionForMount,
+            { authorization: runCred, log: logger },
+          )
+        : undefined;
+    if (storedSandboxId) {
+      try {
+        environment.sandbox = await startSandboxAgent({
+          ...startOptions,
+          sandboxId: storedSandboxId,
+        });
+        logger(`reconnected sandbox=${storedSandboxId} session=${sessionForMount}`);
+      } catch (err) {
+        logger(
+          `reconnect failed sandbox=${storedSandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
+        );
+      }
+    }
+    if (!environment.sandbox) {
+      environment.sandbox = await startSandboxAgent(startOptions);
+    }
+    // Record the live sandbox id so the next turn can reconnect it.
+    if (sessionForMount && runCred) {
+      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
+      void (deps.writeSandboxId ?? writeSandboxId)(sessionForMount, liveSandboxId, {
+        authorization: runCred,
+        log: logger,
+      });
+    }
+    environment.resumable = Boolean(plan.isDaytona && sessionForMount);
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment.sandbox);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     if (plan.isDaytona) {
-      await prepareDaytonaPiAssets({
+      await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
         sandbox: environment.sandbox,
         plan,
         log: logger,
@@ -858,6 +990,33 @@ export async function acquireEnvironment(
         ))
       ) {
         logger(`remote durable cwd active for session=${sessionForMount}`);
+      }
+      // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
+      // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
+      // byte-identical. Opt-out via env, default on wherever a durable cwd mount is active (no
+      // separate credential/session-id path from the cwd mount).
+      if (
+        endpoint &&
+        sessionForMount &&
+        runCred &&
+        process.env.AGENTA_SESSION_HARNESS_MOUNTS !== "false"
+      ) {
+        const dirs = harnessSessionMounts(
+          plan.acpAgent,
+          "/home/sandbox",
+          DAYTONA_PI_DIR,
+        );
+        await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
+          environment.sandbox,
+          sessionForMount,
+          dirs,
+          endpoint,
+          {
+            apiBase: apiBase(),
+            authorization: runCred,
+            log: logger,
+          },
+        );
       }
     }
 
@@ -931,11 +1090,72 @@ export async function acquireEnvironment(
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
 
-    environment.session = await environment.sandbox.createSession({
-      agent: plan.acpAgent,
-      cwd: plan.cwd,
-      sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
-    });
+    // If this harness authored the conversation's most recent turn (staleness-guarded) and we
+    // still remember its native `agentSessionId`, seed the fresh persist driver with a synthetic
+    // record and resume-by-id so the patched `resumeSession` reaches `session/load` instead of
+    // `session/new`. Any failure inside `resumeSession` already degrades to a plain new session
+    // internally (the patch's own `catch {}` around `loadRemoteSession`), so this call is safe to
+    // attempt unconditionally whenever we have an eligible id — worst case it is exactly today's
+    // cold `createSession`.
+    const continuitySessionKey = request.sessionId?.trim();
+    const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
+    // Seed the in-memory store from the durable row before consulting it, so a resume after a
+    // runner restart (in-memory map lost) still sees the prior turn's eligibility. No-op (and
+    // cheap) when the store already has a live in-process record.
+    if (continuitySessionKey && runCred) {
+      await (
+        deps.hydrateHarnessSessionFromDurable ?? hydrateHarnessSessionFromDurable
+      )(continuitySessionKey, plan.harness, continuityStore, {
+        authorization: runCred,
+        log: logger,
+      });
+    }
+    const priorAgentSessionId = continuitySessionKey
+      ? eligibleAgentSessionId(continuitySessionKey, plan.harness, continuityStore)
+      : undefined;
+    const localSessionId = continuitySessionKey
+      ? `${continuitySessionKey}:${plan.harness}`
+      : undefined;
+    // The index THIS turn will occupy once it completes: recorded post-turn against the SAME
+    // index read here, so a turn that authors turn N leaves the store agreeing with itself.
+    environment.continuityTurnIndex = continuitySessionKey
+      ? nextTurnIndex(continuitySessionKey, continuityStore)
+      : undefined;
+    let loadedFromContinuity = false;
+    if (priorAgentSessionId && localSessionId) {
+      await persist.updateSession({
+        id: localSessionId,
+        agent: plan.acpAgent,
+        agentSessionId: priorAgentSessionId,
+        lastConnectionId: "",
+        createdAt: Date.now(),
+        sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+      });
+      try {
+        environment.session =
+          await environment.sandbox.resumeSession(localSessionId);
+        loadedFromContinuity =
+          environment.session.agentSessionId === priorAgentSessionId;
+        logger(
+          `[continuity] session/load attempted session=${continuitySessionKey} ` +
+            `harness=${plan.harness} loaded=${loadedFromContinuity}`,
+        );
+      } catch (err) {
+        logger(
+          `[continuity] resumeSession failed, falling back to cold createSession: ` +
+            `${conciseError(err, plan.harness)}`,
+        );
+      }
+    }
+    environment.loadedFromContinuity = loadedFromContinuity;
+    if (!environment.session) {
+      environment.session = await environment.sandbox.createSession({
+        ...(localSessionId ? { id: localSessionId } : {}),
+        agent: plan.acpAgent,
+        cwd: plan.cwd,
+        sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+      });
+    }
     environment.sessionId = resolveRunSessionId(
       request,
       environment.session.id,
@@ -1100,8 +1320,10 @@ export async function runTurn(
 
   try {
     const promptText = resolvePromptText(request);
-    // Cold: replay the full transcript (plan.turnText). Continuation: only the new user text.
-    const turnText = opts.continuation ? promptText : plan.turnText;
+    // Cold: replay the full transcript (plan.turnText). Continuation (live keep-alive) or loaded
+    // (session/load rehydration): the harness already has prior turns, send only new text.
+    const sendLastMessageOnly = opts.continuation || opts.loaded;
+    const turnText = sendLastMessageOnly ? promptText : plan.turnText;
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
@@ -1130,7 +1352,7 @@ export async function runTurn(
     });
 
     const pause = new PendingApprovalPauseController(() => {
-      // The F-024 sibling settle runs UNCONDITIONALLY, park mode or not: latch-loser tool calls
+      // The sibling settle runs UNCONDITIONALLY, park mode or not: latch-loser tool calls
       // announced before the winning gate can never execute this turn, and skipping the settle
       // here would leave them as orphaned open parts whenever the dispatch later refuses the park
       // (multi-gate, pool full) — `env.destroy()` does not re-run it. The exclusion keeps the
@@ -1139,11 +1361,11 @@ export async function runTurn(
         (id) => pause.isPausedToolCall(id),
         TOOL_NOT_EXECUTED_PAUSED,
       );
-      // Slice 2 park mode: a parkable Claude ACP permission gate recorded `env.parkedApproval`
-      // BEFORE firing this pause (the onUserApprovalGate hook runs before the single-pause latch).
-      // Keep the live session — the gated tool runs on the resume — so skip ONLY the mcpAbort and
-      // the destroySession. The teardown is not lost: the dispatch either parks the session or,
-      // if it decides not to (multi-gate, pool full), calls `env.destroy()` which runs them. A
+      // Park mode: a parkable Claude ACP permission gate recorded `env.parkedApproval` BEFORE
+      // firing this pause (the onUserApprovalGate hook runs before the single-pause latch). Keep
+      // the live session — the gated tool runs on the resume — so skip ONLY the mcpAbort and the
+      // destroySession. The teardown is not lost: the dispatch either parks the session or, if it
+      // decides not to (multi-gate, pool full), calls `env.destroy()` which runs them. A
       // non-parkable pause (flag off, Pi relay/builtin gate, client tool) never records
       // `parkedApproval`, so it still tears down here exactly as today.
       if (opts.approvalParkMode && env.parkedApproval) return;
@@ -1312,8 +1534,8 @@ export async function runTurn(
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: resolveInteractionToken,
-      // Slice 2: record the parkable Claude ACP permission gate (only in keep-alive park mode) so
-      // the dispatch can resume it live. Fires per pending gate (before the latch) so a parallel
+      // Record the parkable Claude ACP permission gate (only in keep-alive park mode) so the
+      // dispatch can resume it live. Fires per pending gate (before the latch) so a parallel
       // gate is counted; the single-gate resume records only the FIRST gate's answer target.
       onUserApprovalGate: opts.approvalParkMode
         ? (info) => {
@@ -1462,6 +1684,34 @@ export async function runTurn(
       return { ok: false, error: swallowedError };
     }
 
+    // Capture this harness's native session id for the next turn's setup. Only on a turn that
+    // actually completed (not paused mid-turn — a park has not finished authoring the turn, so
+    // it must not be marked authoritative) and only when the harness surfaced one.
+    if (
+      stopReason !== "paused" &&
+      env.continuityTurnIndex !== undefined &&
+      sessionId &&
+      env.session?.agentSessionId
+    ) {
+      (deps.sessionContinuityStore ?? sessionContinuityStore).record(
+        sessionId,
+        plan.harness,
+        env.session.agentSessionId,
+        env.continuityTurnIndex,
+      );
+      // Mirror the record durably so it survives a runner restart; fire-and-forget.
+      const syncCred = runCredential(request);
+      if (syncCred) {
+        void (deps.syncHarnessSessionDurable ?? syncHarnessSessionDurable)(
+          sessionId,
+          plan.harness,
+          env.session.agentSessionId,
+          env.continuityTurnIndex,
+          { authorization: syncCred, log: logger },
+        );
+      }
+    }
+
     return {
       ok: true,
       output,
@@ -1514,8 +1764,11 @@ export async function runSandboxAgent(
   if (!acquired.ok) return { ok: false, error: acquired.error };
   const env = acquired.env;
   try {
-    return await runTurn(env, request, emit, signal);
+    return await runTurn(env, request, emit, signal, {
+      loaded: env.loadedFromContinuity,
+    });
   } finally {
-    await env.destroy();
+    // Park a remote session-owned sandbox to warm on a clean turn-end; an aborted run destroys.
+    await env.destroy({ keepWarm: env.resumable && !signal?.aborted });
   }
 }

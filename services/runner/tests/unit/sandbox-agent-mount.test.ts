@@ -17,6 +17,8 @@ import {
   unmountStorage,
   discoverTunnelEndpoint,
   mountStorageRemote,
+  harnessSessionMounts,
+  mountHarnessSessionDirs,
   type MountCredentials,
 } from "../../src/engines/sandbox_agent/mount.ts";
 
@@ -73,8 +75,11 @@ describe("signSessionMountCredentials", () => {
     assert.equal(creds.secretKey, "SCOPED-SK");
     assert.equal(creds.sessionToken, "SCOPED-TOK");
     assert.equal(creds.endpoint, "http://seaweedfs:8333");
-    // session_id rides the query; auth header is forwarded.
-    assert.match(calledUrl, /\/sessions\/mounts\/sign\?session_id=sess-1$/);
+    // session_id rides the query; name defaults to "cwd" (S4); auth header is forwarded.
+    assert.match(
+      calledUrl,
+      /\/sessions\/mounts\/sign\?session_id=sess-1&name=cwd$/,
+    );
     assert.equal(calledAuth, "ApiKey abc");
   });
 
@@ -111,6 +116,110 @@ describe("signSessionMountCredentials", () => {
       log: SILENT,
     });
     assert.equal(creds, null);
+  });
+
+  it("passes a non-default name through to the sign URL (S4 per-harness mounts)", async () => {
+    let calledUrl = "";
+    await signSessionMountCredentials(
+      "sess-1",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        fetchImpl: (async (url: string) => {
+          calledUrl = url;
+          return okResponse(SIGNED_BODY);
+        }) as unknown as typeof fetch,
+        log: SILENT,
+      },
+      "claude-projects",
+    );
+    assert.match(
+      calledUrl,
+      /\/sessions\/mounts\/sign\?session_id=sess-1&name=claude-projects$/,
+    );
+  });
+});
+
+describe("harnessSessionMounts (S4)", () => {
+  it("claude mounts ~/.claude/projects only, never the credentials file", () => {
+    const dirs = harnessSessionMounts("claude", "/home/agent");
+    assert.deepEqual(dirs, [
+      { name: "claude-projects", path: "/home/agent/.claude/projects" },
+    ]);
+    assert.ok(
+      !dirs.some((d) => d.path.includes(".credentials.json")),
+      "credentials file must never appear in the mount list",
+    );
+  });
+
+  it("pi mounts <homeDir>/.pi/agent/sessions by default", () => {
+    const dirs = harnessSessionMounts("pi", "/home/agent");
+    assert.deepEqual(dirs, [
+      { name: "pi-sessions", path: "/home/agent/.pi/agent/sessions" },
+    ]);
+  });
+
+  it("pi honors PI_CODING_AGENT_DIR override for its base dir", () => {
+    const dirs = harnessSessionMounts("pi", "/home/agent", "/custom/pi-dir");
+    assert.deepEqual(dirs, [
+      { name: "pi-sessions", path: "/custom/pi-dir/sessions" },
+    ]);
+  });
+
+  it("an unknown/unlisted harness mounts nothing (callers fall back to cwd only)", () => {
+    assert.deepEqual(harnessSessionMounts("unknown-harness", "/home/agent"), []);
+  });
+});
+
+describe("mountHarnessSessionDirs (S4, remote-only)", () => {
+  it("signs and mounts each dir independently; a failed sign for one does not block another", async () => {
+    const signedNames: string[] = [];
+    const mountedPaths: string[] = [];
+    const dirs = [
+      { name: "claude-projects", path: "/home/agent/.claude/projects" },
+      { name: "pi-sessions", path: "/home/agent/.pi/agent/sessions" },
+    ];
+    const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
+
+    await mountHarnessSessionDirs(sandbox, "sess-1", dirs, "https://tunnel.example", {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      log: SILENT,
+      signSessionMountCredentials: async (_sessionId, _deps, name) => {
+        signedNames.push(name ?? "cwd");
+        if (name === "pi-sessions") return null; // simulate one failed sign
+        return {
+          region: "us-east-1",
+          bucket: "agenta-store",
+          prefix: `mounts/proj-1/${name}`,
+          accessKey: "AK",
+          secretKey: "SK",
+        };
+      },
+      mountStorageRemote: async (_sandbox, path) => {
+        mountedPaths.push(path);
+        return true;
+      },
+    });
+
+    assert.deepEqual(signedNames, ["claude-projects", "pi-sessions"]);
+    // Only the successfully-signed dir got mounted; the failed one was skipped, not fatal.
+    assert.deepEqual(mountedPaths, ["/home/agent/.claude/projects"]);
+  });
+
+  it("is a no-op for an empty dir list", async () => {
+    let called = false;
+    const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
+    await mountHarnessSessionDirs(sandbox, "sess-1", [], "https://tunnel.example", {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      log: SILENT,
+      signSessionMountCredentials: async () => {
+        called = true;
+        return null;
+      },
+    });
+    assert.equal(called, false);
   });
 });
 

@@ -50,6 +50,7 @@ import {
   poolKeyFor,
   priorConversation,
   readKeepaliveConfig,
+  resolvesToLocalProvider,
   SessionPool,
   tailIsFreshUserMessage,
   type KeepaliveConfig,
@@ -132,7 +133,7 @@ function isAuthorized(req: IncomingMessage): boolean {
  * Per-run flags the HTTP edge passes alongside the request. `clientGone` reports whether the
  * streaming client has disconnected: session-owned runs survive disconnect (the run `signal` is
  * deliberately NOT aborted), so the keep-alive park decision needs this separate channel to obey
- * "disconnect means destroy, never park" (plan Q4).
+ * "disconnect means destroy, never park".
  */
 export interface RunAgentOptions {
   clientGone?: () => boolean;
@@ -181,36 +182,6 @@ function apiBaseFromRequest(request: AgentRunRequest): string | undefined {
   const idx = endpoint.indexOf(marker);
   if (idx === -1) return undefined;
   return endpoint.slice(0, idx).replace(/\/+$/, "");
-}
-
-/**
- * Persist the session's sandbox id to the durable session-state row (best-effort), so the
- * inspector's States tab shows which sandbox backs the session. Authenticated AS the invoke
- * caller; project scope is resolved server-side. Defaults to "local" when no provider is set.
- */
-async function persistSandboxId(
-  sessionId: string,
-  sandboxId: string,
-  authorization: string,
-): Promise<void> {
-  const base = apiBase();
-  try {
-    const res = await fetch(
-      `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,
-      {
-        method: "PUT",
-        headers: { "content-type": "application/json", authorization },
-        body: JSON.stringify({ sandbox_id: sandboxId }),
-      },
-    );
-    process.stderr.write(
-      `[sessions/states] sandbox-id ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} sandbox=${sandboxId}\n`,
-    );
-  } catch (err) {
-    process.stderr.write(
-      `[sessions/states] sandbox-id failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}\n`,
-    );
-  }
 }
 
 // --- Session keep-alive dispatch (flag-gated OFF by default) ---------------- //
@@ -272,9 +243,13 @@ const realKeepaliveEngine: KeepaliveEngine = {
     );
     if (!acquired.ok) return { ok: false, error: acquired.error };
     try {
-      return await runTurn(acquired.env, request, emit, signal, {});
+      return await runTurn(acquired.env, request, emit, signal, {
+        loaded: acquired.env.loadedFromContinuity,
+      });
     } finally {
-      await acquired.env.destroy();
+      await acquired.env.destroy({
+        keepWarm: acquired.env.resumable && !signal?.aborted,
+      });
     }
   },
 };
@@ -292,7 +267,7 @@ function shouldPark(
   if (signal?.aborted) return false; // aborted run: destroy, do not park
   if (clientGone?.()) return false; // client disconnected mid-turn: destroy, do not park
   if (!result.ok) return false; // failed turn: teardown as today
-  if (result.stopReason === "paused") return false; // slice 1 never parks a paused session
+  if (result.stopReason === "paused") return false; // a plain pause never parks
   return true;
 }
 
@@ -306,13 +281,11 @@ export interface KeepaliveContext {
 
 /**
  * True when the request resolves to exactly the `local` provider (the same resolution
- * `buildRunPlan` uses). Keep-alive is local-only in slice 1, and an unknown/future REMOTE
- * provider must fail closed to cold rather than park, so anything not literally "local" is out.
+ * `buildRunPlan` uses). Keep-alive is local-only, and an unknown/future REMOTE provider must
+ * fail closed to cold rather than park, so anything not literally "local" is out.
  */
 function isLocalSandbox(request: AgentRunRequest): boolean {
-  const provider =
-    request.sandbox || process.env.SANDBOX_AGENT_PROVIDER || "local";
-  return provider === "local";
+  return resolvesToLocalProvider(request.sandbox);
 }
 
 /**
@@ -369,18 +342,18 @@ export async function runWithKeepalive(
   const cfgFp = configFingerprint(request);
   const incomingEpoch = computeCredentialEpoch(request, mountCreds.expiresAt);
 
-  // The fingerprint the NEXT request's prior conversation is expected to hash to (slice 1's
-  // prediction; the same one works for an approval park, whose gated tool_call id the FE folds
-  // back into the resume request's assistant turn).
+  // The fingerprint the NEXT request's prior conversation is expected to hash to; the same
+  // one works for an approval park, whose gated tool_call id the FE folds back into the
+  // resume request's assistant turn.
   const nextHistoryFp = (env: SessionEnvironment): string =>
     expectedNextHistoryFingerprint(
       request.messages ?? [],
       env.lastTurnToolCallIds ?? [],
     );
 
-  // Whether a paused turn holds a single, parkable Claude ACP permission gate (slice 2). Only such
-  // a gate carries a `respondPermission`-answerable id; a Pi relay/builtin gate or a client-tool
-  // MCP pause never records `parkedApproval`, and more than one pending gate cannot be answered by
+  // Whether a paused turn holds a single, parkable Claude ACP permission gate. Only such a gate
+  // carries a `respondPermission`-answerable id; a Pi relay/builtin gate or a client-tool MCP
+  // pause never records `parkedApproval`, and more than one pending gate cannot be answered by
   // the single-gate resume — both stay on the cold path, logged.
   const approvalToPark = (
     env: SessionEnvironment,
@@ -396,20 +369,20 @@ export async function runWithKeepalive(
       return false;
     }
     // An approval park waits for the HUMAN, who is still on the page even if the streaming client
-    // dropped right after the pause frame (plan Q4). So, unlike a normal park, do NOT consult
-    // clientGone or the abort signal here; the approval TTL bounds the wait and an expiry degrades
-    // to the cold decision-map path.
+    // dropped right after the pause frame. So, unlike a normal park, do NOT consult clientGone or
+    // the abort signal here; the approval TTL bounds the wait and an expiry degrades to the cold
+    // decision-map path.
     return true;
   };
 
   // A parked prompt that REJECTS while the session sits in awaiting_approval means the harness
   // or sandbox died mid-park; the dead session must not occupy a pool slot until the approval TTL
-  // (5 minutes by default) (plan Q4 lists a rejected parked prompt as a teardown trigger). Identity-checked:
-  // the handler evicts only while THIS exact entry is still parked at the key. A rejection that
-  // lands after a successful checkout (the resume is in flight and owns the environment; its own
-  // try/catch handles the failure) or after a supersede is not ours and does nothing. `evict` is
-  // idempotent through the session's one destroy, so no double-destroy is possible. The promise
-  // already carries runTurn's swallowing catch, so no unhandled rejection is introduced.
+  // (5 minutes by default) expires. Identity-checked: the handler evicts only while THIS exact
+  // entry is still parked at the key. A rejection that lands after a successful checkout (the
+  // resume is in flight and owns the environment; its own try/catch handles the failure) or
+  // after a supersede is not ours and does nothing. `evict` is idempotent through the session's
+  // one destroy, so no double-destroy is possible. The promise already carries runTurn's
+  // swallowing catch, so no unhandled rejection is introduced.
   const watchParkedPrompt = (env: SessionEnvironment): void => {
     const promptPromise = env.parkedApproval?.promptPromise;
     const entry = pool.get(key);
@@ -497,6 +470,7 @@ export async function runWithKeepalive(
       // tearing down. A non-parkable pause (Pi relay/builtin, client tool) still destroys as today.
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
+        loaded: env.loadedFromContinuity,
       });
     } catch (err) {
       await env.destroy();
@@ -589,7 +563,7 @@ export async function runWithKeepalive(
     }
     // checkout lost a race; fall through to cold.
   } else if (existing && existing.state === "awaiting_approval") {
-    // Slice 2: an approval-parked session. A validated approval decision that matches the parked
+    // An approval-parked session. A validated approval decision that matches the parked
     // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
     //
     // Unlike the idle-continuation branch above, this branch does NOT require the resume request's
@@ -787,9 +761,9 @@ async function runAndStreamWithApiBaseResolved(
   } else {
     // Session-owned: the run signal is deliberately NOT aborted (the run must survive the
     // disconnect and finish), but keep-alive's park decision must still see the disconnect —
-    // a disconnected client's session is destroyed at turn end, never parked (plan Q4). The
-    // flag is only read while the run is in flight, so the close that follows a normal
-    // `res.end()` (after the run resolved) can never affect a park decision.
+    // a disconnected client's session is destroyed at turn end, never parked. The flag is
+    // only read while the run is in flight, so the close that follows a normal `res.end()`
+    // (after the run resolved) can never affect a park decision.
     res.on("close", () => {
       clientDisconnected = true;
     });
@@ -823,12 +797,6 @@ async function runAndStreamWithApiBaseResolved(
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own). Best-effort, never blocks the turn.
     void cancelStaleInteractions(sessionId, turnId, watchdog.credential);
-    // Record which sandbox backs this session (best-effort) so the States tab is populated.
-    void persistSandboxId(
-      sessionId,
-      request.sandbox?.trim() || "local",
-      watchdog.credential(),
-    );
     const {
       emit: persistingEmit,
       persist,
@@ -850,9 +818,8 @@ async function runAndStreamWithApiBaseResolved(
       clientGone: () => clientDisconnected,
     });
     // A failed engine run ({ok:false}) already emitted its own error EVENT through the
-    // persisting emitter (see sandbox_agent.ts), so no extra persist here (it would
-    // duplicate the record).
-    // Drain all queued persists before the sandbox tears down.
+    // persisting emitter, so no extra persist here (it would duplicate the record). Drain
+    // all queued persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
     const message =
@@ -863,7 +830,6 @@ async function runAndStreamWithApiBaseResolved(
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
   } finally {
-    // Release the alive lock and mark the stream row ended.
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
   }
 

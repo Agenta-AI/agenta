@@ -53,6 +53,37 @@ agentRunner:
     installPi: false
 ```
 
+## Sandbox lifecycle
+
+Idle Daytona sandboxes move through four states so a resumed session restarts fast while an
+abandoned one is reaped. Each threshold is idle minutes, measured from the sandbox's last
+activity and reset on every turn:
+
+- **Stopped (warm)** after `DAYTONA_AUTOSTOP` minutes (default 5). Disk is preserved, restart
+  is fast, and there's no compute billing while stopped.
+- **Archived (cold)** after `DAYTONA_AUTOARCHIVE` minutes (default 15). The sandbox moves to
+  cold storage and restores more slowly.
+- **Deleted (dead)** after `DAYTONA_AUTODELETE` minutes (default 30). The sandbox is removed.
+  The next turn respawns it and reloads the working directory from durable storage.
+
+Idle sandboxes bill at the stopped or archived rate, not the running rate.
+
+```bash
+DAYTONA_AUTOSTOP=5
+DAYTONA_AUTOARCHIVE=15
+DAYTONA_AUTODELETE=30
+```
+
+For Helm:
+
+```yaml
+agentRunner:
+  daytona:
+    autostopDelay: 5
+    autoarchiveDelay: 15
+    autodeleteDelay: 30
+```
+
 ## Store endpoint for remote sandboxes
 
 Daytona sandboxes run in the cloud and mount durable storage over the public internet. The
