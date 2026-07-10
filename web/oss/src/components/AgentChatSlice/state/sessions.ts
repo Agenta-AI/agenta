@@ -5,6 +5,8 @@ import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
+import {clearSessionEphemera} from "./sessionEphemera"
+
 /**
  * Multi-session model for the agent chat slice. The playground hosts several parallel agent
  * conversations as top-level dynamic tabs (no side rail); this holds the session history, which
@@ -235,6 +237,8 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
             delete messages[id]
             set(sessionMessagesAtom, messages)
         }
+
+        clearSessionEphemera(id)
     }),
 )
 
@@ -275,6 +279,7 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
                     delete messages[id]
                     changed = true
                 }
+                clearSessionEphemera(id)
             }
             if (changed) set(sessionMessagesAtom, messages)
         }

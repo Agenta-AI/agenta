@@ -29,8 +29,16 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
     useEffect(() => {
         if (active) {
             setRender(true)
-            const raf = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)))
-            return () => cancelAnimationFrame(raf)
+            // Cancel BOTH frames: killing only the outer id lets an already-scheduled inner
+            // rAF flash the notice back in after the hide branch ran.
+            let innerRaf = 0
+            const raf = requestAnimationFrame(() => {
+                innerRaf = requestAnimationFrame(() => setShown(true))
+            })
+            return () => {
+                cancelAnimationFrame(raf)
+                cancelAnimationFrame(innerRaf)
+            }
         }
         setShown(false)
         const t = window.setTimeout(() => setRender(false), 240)

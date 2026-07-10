@@ -42,7 +42,7 @@ import {App, Button, Modal, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
-import {Virtuoso, type Components, type StateSnapshot, type VirtuosoHandle} from "react-virtuoso"
+import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 
 import {
     IDE_INSTALL_COMMAND,
@@ -91,6 +91,11 @@ import {agentFirstRunSeedAtom} from "./state/firstRunSeed"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useChatScopeKey} from "./state/scope"
 import {
+    attachmentsBySession,
+    composerDraftBySession,
+    virtStateBySession,
+} from "./state/sessionEphemera"
+import {
     type SessionRunStatus,
     activeSessionIdAtomFamily,
     persistSessionMessagesAtom,
@@ -118,21 +123,6 @@ const RichChatInput = lazy(() =>
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
  * Next.js dev Runtime Error overlay (F-033). */
 const ignoreStreamRejection = () => {}
-
-// Virtuoso state (measured row heights + scrollTop) per session, captured before a route
-// change unmounts the transcript. A fresh Virtuoso mount otherwise renders with height
-// ESTIMATES, measures the real rows async, then corrects — a visible reshuffle on every
-// re-entry (rows here span 85–1022px, so the correction is large). Restoring the snapshot
-// paints the transcript at its true geometry and scroll position in the first frame.
-const virtStateBySession = new Map<string, StateSnapshot>()
-
-// Unsent composer drafts per session — survive pane remounts (route re-entry, tab
-// close/reopen), so switching back to a session restores its in-progress message.
-const composerDraftBySession = new Map<string, string>()
-
-// Pending (not yet sent) attachments per session — same lifetime as the drafts. In-memory
-// only: `UploadFile.originFileObj` holds live File blobs, which can't be serialized anyway.
-const attachmentsBySession = new Map<string, UploadFile[]>()
 
 /** Height of the top-edge fade, in px. Shared by the CSS mask and the SC-1 pin so a pinned turn
  * lands BELOW the fade (otherwise the freshly-asked question renders partially faded). */
