@@ -27,6 +27,19 @@ import {
 } from "antd"
 import type {FormInstance} from "antd"
 
+import {
+    OTHER_ENUM_OPTION,
+    commitCustomValue,
+    enumOptionsOf,
+    isOffOptionsValue,
+    partitionCustomValues,
+    selectOptionsWithOther,
+    splitOtherFromSelection,
+    toggleCardSelection,
+    wantsChoiceCards,
+    type EnumOption,
+} from "./schemaFormOptions"
+
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
 }
@@ -252,20 +265,6 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
     )
 }
 
-const OTHER_ENUM_OPTION = "__ag_enum_other__"
-
-/** A renderable option: bare enum values get {value}, oneOf options add label/description. */
-interface EnumOption {
-    value: string
-    label?: string
-    description?: string
-}
-
-const selectOptionsWithOther = (options: EnumOption[]) => [
-    ...options.map((o) => ({value: o.value, label: o.label ?? o.value})),
-    {value: OTHER_ENUM_OPTION, label: "Other…"},
-]
-
 /** Enum control with an "Other…" entry that reveals a free-text input (elicitation escape hatch). */
 function EnumWithOther({
     value,
@@ -282,15 +281,14 @@ function EnumWithOther({
     allowClear?: boolean
     disabled?: boolean
 }) {
-    const values = options.map((o) => o.value)
-    const inOptions = value != null && values.includes(value)
-    const [otherMode, setOtherMode] = useState(value != null && !inOptions)
+    const offOptions = isOffOptionsValue(value, options)
+    const [otherMode, setOtherMode] = useState(offOptions)
     // An off-options value can also arrive AFTER mount (schema `default` via Form initialValue,
     // or a replayed draft) — it must open Other-mode with the text prefilled.
     useEffect(() => {
-        if (value != null && !values.includes(value)) setOtherMode(true)
-    }, [value, values])
-    const selectValue = otherMode ? OTHER_ENUM_OPTION : inOptions ? value : undefined
+        if (isOffOptionsValue(value, options)) setOtherMode(true)
+    }, [value, options])
+    const selectValue = otherMode ? OTHER_ENUM_OPTION : offOptions ? undefined : value
 
     return (
         <div className="flex flex-col gap-2">
@@ -362,9 +360,9 @@ function MultiEnumWithOther({
     }
 
     const commitDraft = () => {
-        const custom = otherDraft?.trim()
+        const commit = commitCustomValue(selected, otherDraft, true)
         setOtherDraft(null)
-        if (custom && !selected.includes(custom)) onChange?.([...selected, custom])
+        if (commit.changed) onChange?.(commit.value as string[])
     }
 
     return (
@@ -375,11 +373,9 @@ function MultiEnumWithOther({
                 disabled={disabled}
                 value={selected}
                 onChange={(next: string[]) => {
-                    if (next.includes(OTHER_ENUM_OPTION)) {
-                        setOtherDraft("")
-                        next = next.filter((v) => v !== OTHER_ENUM_OPTION)
-                    }
-                    onChange?.(next.length ? next : undefined)
+                    const {values, openOther} = splitOtherFromSelection(next)
+                    if (openOther) setOtherDraft("")
+                    onChange?.(values)
                 }}
                 options={selectOptionsWithOther(options)}
             />
@@ -397,17 +393,6 @@ function MultiEnumWithOther({
         </div>
     )
 }
-
-/** Merge enumValues with oneOf option metadata into the renderable option list. */
-const enumOptionsOf = (field: FormFieldDescriptor): EnumOption[] => {
-    const metas = field.enumOptions ?? []
-    const values = field.enumValues ?? metas.map((m) => m.value)
-    return values.map((v) => metas.find((m) => m.value === v) ?? {value: v})
-}
-
-/** Any option description upgrades the control from a Select to choice cards. */
-const wantsChoiceCards = (field: FormFieldDescriptor): boolean =>
-    !!field.enumOptions?.some((o) => o.description)
 
 const choiceCardCls = (selected: boolean) =>
     `flex cursor-pointer items-start gap-2 rounded-lg border border-solid p-3 transition-colors ${
@@ -440,28 +425,17 @@ function ChoiceCards({
         : value != null
           ? [value as string]
           : []
-    const optionValues = options.map((o) => o.value)
-    const customValues = selected.filter((v) => !optionValues.includes(v))
+    const customValues = partitionCustomValues(selected, options)
     const isChecked = (v: string) => selected.includes(v)
 
     const pick = (v: string) => {
         if (disabled) return
-        if (multiple) {
-            const next = isChecked(v) ? selected.filter((x) => x !== v) : [...selected, v]
-            onChange?.(next.length ? next : undefined)
-        } else {
-            onChange?.(v)
-        }
+        onChange?.(toggleCardSelection(selected, v, !!multiple))
     }
     const commitDraft = () => {
-        const custom = otherDraft?.trim()
+        const commit = commitCustomValue(selected, otherDraft, !!multiple)
         setOtherDraft(null)
-        if (!custom) return
-        if (multiple) {
-            if (!isChecked(custom)) onChange?.([...selected, custom])
-        } else {
-            onChange?.(custom)
-        }
+        if (commit.changed) onChange?.(commit.value)
     }
     const otherActive = otherDraft !== null || customValues.length > 0
     const Control = multiple ? Checkbox : Radio
