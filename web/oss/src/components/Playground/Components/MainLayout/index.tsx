@@ -26,6 +26,7 @@ import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
+import AgentCommitNotice from "../AgentCommitNotice"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
 const PlaygroundFocusDrawer = dynamic(() => import("../PlaygroundFocusDrawerAdapter"), {
@@ -354,64 +355,75 @@ const PlaygroundMainView = ({
                         collapsible={splitCollapsible}
                         key={`${splitterKey}-splitter-panel-config`}
                     >
-                        <section
-                            ref={setConfigPanelRef}
-                            className={clsx([
-                                {
-                                    "grow w-full h-full overflow-y-auto": !isComparisonView,
-                                    "grow w-full h-full overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
-                                        isComparisonView,
-                                    // Config = the raised authoring surface.
-                                    "ag-panel-raised": isAgentConfig,
-                                },
-                            ])}
+                        {/* Column: [scrolling config sections][bottom-pinned agent-commit notice].
+                            The notice lives OUTSIDE the scroller, so it sits at the pane's bottom
+                            edge regardless of content height or scroll position. */}
+                        <div
+                            className={clsx("flex h-full min-h-0 w-full flex-col", {
+                                // Config = the raised authoring surface (covers the notice too).
+                                "ag-panel-raised": isAgentConfig,
+                            })}
                         >
-                            <>
-                                {isComparisonView && hasDisplayedEntities && (
-                                    <PromptComparisonVariantNavigation
-                                        className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
-                                        handleScroll={handleScroll}
-                                    />
-                                )}
-                                {renderConfigOverride && !isComparisonView ? (
-                                    renderConfigOverride
-                                ) : configEntityIds.length > 0 ? (
-                                    configEntityIds.map((variantId, index) => (
-                                        <div
-                                            // Agents get a STABLE key (like the chat host): a
-                                            // self-commit switches the revision in place, so the
-                                            // config panel must update as a prop change — a remount
-                                            // replays the sections' collapsed→open entrance.
-                                            key={
-                                                renderAgentGenerationHost
-                                                    ? "agent-config-host"
-                                                    : `variant-config-${variantId}`
-                                            }
-                                            className={clsx([
-                                                {
-                                                    "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
-                                                        isComparisonView,
-                                                },
-                                            ])}
-                                            ref={(el) => {
-                                                variantRefs.current[index] = el
-                                            }}
-                                        >
-                                            <PlaygroundVariantConfig
-                                                variantId={variantId}
-                                                embedded={embedded}
-                                                externalViewMode={configViewMode}
-                                                onViewModeChange={onConfigViewModeChange}
-                                            />
+                            <section
+                                ref={setConfigPanelRef}
+                                className={clsx([
+                                    {
+                                        "grow w-full min-h-0 overflow-y-auto": !isComparisonView,
+                                        "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
+                                            isComparisonView,
+                                    },
+                                ])}
+                            >
+                                <>
+                                    {isComparisonView && hasDisplayedEntities && (
+                                        <PromptComparisonVariantNavigation
+                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FFFFFF)]"
+                                            handleScroll={handleScroll}
+                                        />
+                                    )}
+                                    {renderConfigOverride && !isComparisonView ? (
+                                        renderConfigOverride
+                                    ) : configEntityIds.length > 0 ? (
+                                        configEntityIds.map((variantId, index) => (
+                                            <div
+                                                // Agents get a STABLE key (like the chat host): a
+                                                // self-commit switches the revision in place, so the
+                                                // config panel must update as a prop change — a remount
+                                                // replays the sections' collapsed→open entrance.
+                                                key={
+                                                    renderAgentGenerationHost
+                                                        ? "agent-config-host"
+                                                        : `variant-config-${variantId}`
+                                                }
+                                                className={clsx([
+                                                    {
+                                                        "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] relative":
+                                                            isComparisonView,
+                                                    },
+                                                ])}
+                                                ref={(el) => {
+                                                    variantRefs.current[index] = el
+                                                }}
+                                            >
+                                                <PlaygroundVariantConfig
+                                                    variantId={variantId}
+                                                    embedded={embedded}
+                                                    externalViewMode={configViewMode}
+                                                    onViewModeChange={onConfigViewModeChange}
+                                                />
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="h-full w-full p-4">
+                                            <div className="h-[260px] rounded-lg border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-FFFFFF)]" />
                                         </div>
-                                    ))
-                                ) : (
-                                    <div className="h-full w-full p-4">
-                                        <div className="h-[260px] rounded-lg border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-c-FFFFFF)]" />
-                                    </div>
-                                )}
-                            </>
-                        </section>
+                                    )}
+                                </>
+                            </section>
+                            {!isComparisonView && isAgentConfig && primaryConfigId ? (
+                                <AgentCommitNotice revisionId={primaryConfigId} />
+                            ) : null}
+                        </div>
                     </SplitterPanel>
 
                     <SplitterPanel
