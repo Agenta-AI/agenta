@@ -4,12 +4,10 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .builtin_tool_config_permission import BuiltinToolConfigPermission
 
 
-class BuiltinToolConfig(UniversalBaseModel):
-    render: typing.Optional[typing.Dict[str, typing.Any]] = None
-    permission: typing.Optional[BuiltinToolConfigPermission] = None
+class ToolCatalogCategory(UniversalBaseModel):
+    id: str
     name: str
     
     if IS_PYDANTIC_V2:

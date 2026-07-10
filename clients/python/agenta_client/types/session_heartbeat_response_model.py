@@ -4,13 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .builtin_tool_config_permission import BuiltinToolConfigPermission
+from .session_stream import SessionStream
 
 
-class BuiltinToolConfig(UniversalBaseModel):
-    render: typing.Optional[typing.Dict[str, typing.Any]] = None
-    permission: typing.Optional[BuiltinToolConfigPermission] = None
-    name: str
+class SessionHeartbeatResponseModel(UniversalBaseModel):
+    stream: typing.Optional[SessionStream] = None
+    replica_id: str
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

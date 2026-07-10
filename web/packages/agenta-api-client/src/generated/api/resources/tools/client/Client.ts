@@ -205,6 +205,7 @@ export class ToolsClient {
             provider_key: providerKey,
             search,
             sort_by: sortBy,
+            category,
             limit,
             cursor,
             full_details: fullDetails,
@@ -212,6 +213,7 @@ export class ToolsClient {
         const _queryParams: Record<string, unknown> = {
             search,
             sort_by: sortBy,
+            category,
             limit,
             cursor,
             full_details: fullDetails,
@@ -267,6 +269,83 @@ export class ToolsClient {
             _response.rawResponse,
             "GET",
             "/tools/catalog/providers/{provider_key}/integrations/",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.ListToolCategoriesRequest} request
+     * @param {ToolsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.tools.listToolCategories({
+     *         provider_key: "provider_key"
+     *     })
+     */
+    public listToolCategories(
+        request: AgentaApi.ListToolCategoriesRequest,
+        requestOptions?: ToolsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.ToolCatalogCategoriesResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__listToolCategories(request, requestOptions));
+    }
+
+    private async __listToolCategories(
+        request: AgentaApi.ListToolCategoriesRequest,
+        requestOptions?: ToolsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.ToolCatalogCategoriesResponse>> {
+        const { provider_key: providerKey } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `tools/catalog/providers/${core.url.encodePathParam(providerKey)}/categories/`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.ToolCatalogCategoriesResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/tools/catalog/providers/{provider_key}/categories/",
         );
     }
 

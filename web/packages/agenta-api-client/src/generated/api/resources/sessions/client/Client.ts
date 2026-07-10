@@ -402,14 +402,14 @@ export class SessionsClient {
     public heartbeatSessionStream(
         request: AgentaApi.SessionHeartbeatRequestModel,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionStreamResponseModel> {
+    ): core.HttpResponsePromise<AgentaApi.SessionHeartbeatResponseModel> {
         return core.HttpResponsePromise.fromPromise(this.__heartbeatSessionStream(request, requestOptions));
     }
 
     private async __heartbeatSessionStream(
         request: AgentaApi.SessionHeartbeatRequestModel,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionStreamResponseModel>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SessionHeartbeatResponseModel>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -437,7 +437,10 @@ export class SessionsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SessionStreamResponseModel, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as AgentaApi.SessionHeartbeatResponseModel,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {
@@ -1079,9 +1082,10 @@ export class SessionsClient {
         request: AgentaApi.SignSessionMountCredentialsRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.MountCredentialsResponse>> {
-        const { session_id: sessionId } = request;
+        const { session_id: sessionId, name } = request;
         const _queryParams: Record<string, unknown> = {
             session_id: sessionId,
+            name,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(

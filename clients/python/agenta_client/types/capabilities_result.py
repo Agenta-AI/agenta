@@ -11,7 +11,7 @@ from .connection_requirement import ConnectionRequirement
 
 class CapabilitiesResult(UniversalBaseModel):
     """
-    The ``find_capabilities`` response (Agenta-native).
+    The ``discover_tools`` response (Agenta-native).
     """
     capabilities: typing.Optional[typing.List[Capability]] = None
     connections: typing.Optional[typing.List[ConnectionRequirement]] = None

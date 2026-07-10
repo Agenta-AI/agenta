@@ -4,13 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .builtin_tool_config_permission import BuiltinToolConfigPermission
+from .tool_catalog_category import ToolCatalogCategory
 
 
-class BuiltinToolConfig(UniversalBaseModel):
-    render: typing.Optional[typing.Dict[str, typing.Any]] = None
-    permission: typing.Optional[BuiltinToolConfigPermission] = None
-    name: str
+class ToolCatalogCategoriesResponse(UniversalBaseModel):
+    count: typing.Optional[int] = None
+    categories: typing.Optional[typing.List[ToolCatalogCategory]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
