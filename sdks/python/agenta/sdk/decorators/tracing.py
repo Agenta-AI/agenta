@@ -544,9 +544,15 @@ class instrument:  # pylint: disable=invalid-name
             )
 
             if span.parent is None:
+                # Unbounded flattening of a resolved agent config (tools with full JSON
+                # schemas) yields hundreds of leaf attributes, overflowing the span
+                # attribute limit and evicting the oldest attributes (ag.refs.*).
+                # Depth 3 keeps one `@ag.type=json:` attribute per config section
+                # (configuration.agent.tools, .llm, ...) instead of one per leaf.
                 span.set_attributes(
                     attributes={"configuration": context.parameters or {}},
                     namespace="meta",
+                    max_depth=3,
                 )
 
             _inputs = self._redact(

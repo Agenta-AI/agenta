@@ -13,7 +13,7 @@ from opentelemetry.trace import (
     StatusCode,
 )
 from opentelemetry.sdk import trace
-from opentelemetry.sdk.trace import Span, Tracer, TracerProvider
+from opentelemetry.sdk.trace import Span, SpanLimits, Tracer, TracerProvider
 from opentelemetry.sdk.resources import Resource
 
 
@@ -91,8 +91,12 @@ class Tracing(metaclass=Singleton):
             self.headers["Authorization"] = f"ApiKey {api_key}"
 
         # TRACER PROVIDER
+        # 256 doubles the OTel default (128). Attributes are set oldest-first and
+        # BoundedAttributes silently evicts the OLDEST on overflow, so a root span
+        # flooded by a large flattened config evicts its ag.refs.* references.
         self.tracer_provider = TracerProvider(
-            resource=Resource(attributes={"service.name": "agenta-sdk"})
+            resource=Resource(attributes={"service.name": "agenta-sdk"}),
+            span_limits=SpanLimits(max_attributes=256),
         )
 
         # TRACE PROCESSORS -- OTLP
