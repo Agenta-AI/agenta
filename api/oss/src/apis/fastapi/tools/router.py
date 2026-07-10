@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -1450,6 +1450,13 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 
 
+def _json_for_inline_script(value: Any) -> str:
+    # `json.dumps` leaves `<` intact, so a value containing `</script>` would terminate
+    # the inline <script> block (the HTML parser ignores JS string boundaries). Escape it
+    # for every JSON payload embedded in a script tag.
+    return json.dumps(value).replace("<", "\\u003c")
+
+
 def _oauth_card(
     *,
     success: bool,
@@ -1472,7 +1479,7 @@ def _oauth_card(
         parsed_agenta_url = urlsplit(agenta_url)
         if parsed_agenta_url.scheme and parsed_agenta_url.netloc:
             agenta_origin = f"{parsed_agenta_url.scheme}://{parsed_agenta_url.netloc}"
-    agenta_post_message_origin_js = json.dumps(agenta_origin)
+    agenta_post_message_origin_js = _json_for_inline_script(agenta_origin)
 
     # Tag the completion message with the connection's identity so the opener can tell
     # WHICH connection finished. The playground can have several connect flows live at
@@ -1484,7 +1491,7 @@ def _oauth_card(
         oauth_complete_payload["slug"] = slug
     if integration_key:
         oauth_complete_payload["integration"] = integration_key
-    oauth_complete_message_js = json.dumps(oauth_complete_payload)
+    oauth_complete_message_js = _json_for_inline_script(oauth_complete_payload)
 
     accent = "#16a34a" if success else "#dc2626"
     agenta_favicon = (
