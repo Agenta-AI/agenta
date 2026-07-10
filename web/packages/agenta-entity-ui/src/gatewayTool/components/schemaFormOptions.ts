@@ -35,9 +35,10 @@ export const selectOptionsWithOther = (options: EnumOption[]) => [
     {value: OTHER_ENUM_OPTION, label: "Other…"},
 ]
 
-/** True when the current value is set but not one of the options (default/replay off-menu). */
+/** True when the current value is set but not one of the options (default/replay off-menu).
+ * An empty string counts as unset — it must not mount the control in Other-mode. */
 export const isOffOptionsValue = (value: string | null | undefined, options: EnumOption[]) =>
-    value != null && !options.some((o) => o.value === value)
+    value != null && value !== "" && !options.some((o) => o.value === value)
 
 /**
  * Multi-select Select onChange: strip the "Other…" sentinel (it opens the draft input, it is

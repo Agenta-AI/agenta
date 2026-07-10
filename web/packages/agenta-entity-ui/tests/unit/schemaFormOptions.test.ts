@@ -86,6 +86,10 @@ describe("isOffOptionsValue (Other-mode trigger for defaults/replays)", () => {
         expect(isOffOptionsValue(null, options)).toBe(false)
         expect(isOffOptionsValue("red", options)).toBe(false)
     })
+
+    it("REGRESSION: an empty-string value must not open Other-mode", () => {
+        expect(isOffOptionsValue("", options)).toBe(false)
+    })
 })
 
 describe("splitOtherFromSelection (multi Select onChange)", () => {

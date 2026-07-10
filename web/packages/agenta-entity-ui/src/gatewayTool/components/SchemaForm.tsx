@@ -173,7 +173,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                     <SchemaFormField key={field.name} field={field} />
                 ))}
 
-                {flat
+                {/* The collapse de-emphasizes optional EXTRAS below required fields; with no
+                    required fields there is nothing to de-emphasize, so render inline. */}
+                {flat || requiredFields.length === 0
                     ? optionalFields.map((field) => (
                           <SchemaFormField key={field.name} field={field} />
                       ))
@@ -185,6 +187,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                               items={[
                                   {
                                       key: "optional",
+                                      // Collapsed Form.Items must still register their
+                                      // initialValues (schema defaults) — without forceRender an
+                                      // untouched submit silently drops every collapsed default.
+                                      forceRender: true,
                                       label: (
                                           <Typography.Text type="secondary" className="text-xs">
                                               Optional ({optionalFields.length})

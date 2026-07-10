@@ -195,6 +195,18 @@ describe("parseElicitationPayload", () => {
         expect(parseElicitationPayload(ok).ok).toBe(true)
     })
 
+    it("strips empty defaults ('' and []) — models emit them to mean 'no proposal'", () => {
+        const payload = validPayload()
+        const props = payload.requestedSchema.properties as Record<string, unknown>
+        props.level = {type: "string", enum: ["low", "high"], default: ""}
+        props.tags = {type: "array", items: {type: "string"}, default: []}
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect("default" in result.payload.requestedSchema.properties.level).toBe(false)
+        expect("default" in result.payload.requestedSchema.properties.tags).toBe(false)
+    })
+
     it("rejects enum/oneOf on non-string scalar types", () => {
         const enumCase = validPayload()
         ;(enumCase.requestedSchema.properties as Record<string, unknown>).x = {

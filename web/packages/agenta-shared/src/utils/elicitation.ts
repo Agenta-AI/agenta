@@ -222,6 +222,13 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
             const canonical = normalizeStringFormat(field.format)
             if (canonical) field.format = canonical
             else delete field.format
+            // An empty default ("" or []) means "no proposal" — models emit these when they
+            // cannot pick; kept, they would mount enum fields in Other-mode with an empty input.
+            if (
+                field.default === "" ||
+                (Array.isArray(field.default) && field.default.length === 0)
+            )
+                delete field.default
             if (field.type === "array" && field.items) {
                 field.items = {
                     ...field.items,
