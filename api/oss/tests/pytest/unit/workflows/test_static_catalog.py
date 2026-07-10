@@ -943,13 +943,24 @@ def test_request_input_matches_golden_request_fixture():
     requested = golden["requestedSchema"]
     assert requested["type"] == "object"
     for name, prop in requested["properties"].items():
+        if prop["type"] == "array":
+            # Multi-select: the ONE admitted array shape — string items, optional enum.
+            items = prop["items"]
+            assert items["type"] == "string", name
+            assert "properties" not in items and "items" not in items, name
+            if "default" in prop:
+                assert isinstance(prop["default"], list), name
+                assert all(isinstance(v, str) for v in prop["default"]), name
+            continue
         assert prop["type"] in _ELICITATION_PRIMITIVES, name
         assert "properties" not in prop and "items" not in prop, name
         if "default" in prop:
             assert isinstance(prop["default"], (str, int, float, bool)), name
     assert set(requested.get("required", [])) <= set(requested["properties"])
-    # The golden must exercise a prefilled field (defaults are part of the dialect, #5190).
+    # The golden must exercise a prefilled field (defaults are part of the dialect, #5190)
+    # and a multi-select field (the one admitted array shape).
     assert any("default" in prop for prop in requested["properties"].values())
+    assert any(prop["type"] == "array" for prop in requested["properties"].values())
 
 
 def test_request_input_matches_golden_response_fixture():

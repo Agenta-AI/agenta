@@ -186,6 +186,49 @@ describe("parseElicitationPayload", () => {
         expect(parseElicitationPayload(arr).ok).toBe(false)
     })
 
+    it("accepts multi-select arrays (string items, optional enum, array-of-strings default)", () => {
+        const payload = validPayload()
+        const props = payload.requestedSchema.properties as Record<string, unknown>
+        props.actions = {
+            type: "array",
+            title: "Actions",
+            items: {type: "string", enum: ["send", "list", "read"]},
+            default: ["send"],
+        }
+        props.repos = {type: "array", title: "Repos", items: {type: "string"}}
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.payload.requestedSchema.properties.actions.default).toEqual(["send"])
+    })
+
+    it("rejects array fields beyond the multi-select shape", () => {
+        const cases: [Record<string, unknown>, string][] = [
+            [{type: "array"}, 'property "bad" array items must be strings'],
+            [
+                {type: "array", items: {type: "number"}},
+                'property "bad" array items must be strings',
+            ],
+            [
+                {type: "array", items: {type: "string", items: {type: "string"}}},
+                'property "bad" is nested — flat dialect only',
+            ],
+            [
+                {type: "array", items: {type: "string", enum: [1]}},
+                'property "bad" items enum must be strings',
+            ],
+            [
+                {type: "array", items: {type: "string"}, default: "send"},
+                'property "bad" default must be an array of strings',
+            ],
+        ]
+        for (const [prop, reason] of cases) {
+            const payload = validPayload()
+            ;(payload.requestedSchema.properties as Record<string, unknown>).bad = prop
+            expect(parseElicitationPayload(payload)).toEqual({ok: false, reason})
+        }
+    })
+
     it("rejects secret-shaped fields by name and by title", () => {
         const byName = validPayload()
         ;(byName.requestedSchema.properties as Record<string, unknown>).api_key = {type: "string"}

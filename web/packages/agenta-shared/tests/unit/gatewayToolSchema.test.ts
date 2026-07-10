@@ -123,4 +123,33 @@ describe("buildFormFieldsFromSchema — openEnums flag", () => {
         expect("allowCustomEnum" in byName.note).toBe(false)
         expect("allowCustomEnum" in byName.count).toBe(false)
     })
+
+    it("flag on: string-items arrays become multi-select; object-items arrays do not", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                actions: {
+                    type: "array",
+                    items: {type: "string", enum: ["send", "list"]},
+                    default: ["send"],
+                },
+                repos: {type: "array", items: {type: "string"}},
+                rows: {type: "array", items: {type: "object", properties: {a: {type: "string"}}}},
+            },
+        }
+        const byName = Object.fromEntries(
+            buildFormFieldsFromSchema(schema, "", {openEnums: true}).map((f) => [f.name, f]),
+        )
+        expect(byName.actions.multiple).toBe(true)
+        expect(byName.actions.allowCustomEnum).toBe(true)
+        expect(byName.actions.enumValues).toEqual(["send", "list"])
+        expect(byName.actions.default).toEqual(["send"])
+        expect(byName.repos.multiple).toBe(true)
+        expect(byName.repos.enumValues).toBeUndefined()
+        expect("multiple" in byName.rows).toBe(false)
+
+        // Flag off (gateway forms): arrays keep the Form.List shape — no multiple key anywhere.
+        const off = buildFormFieldsFromSchema(schema)
+        expect(off.some((f) => "multiple" in f)).toBe(false)
+    })
 })

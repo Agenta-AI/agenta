@@ -12,6 +12,8 @@ export interface FormFieldDescriptor {
     format?: string
     /** Render enum with an "Other…" custom-value escape hatch — set only under `{openEnums: true}`. */
     allowCustomEnum?: boolean
+    /** Multi-select (string-items array) — set only under `{openEnums: true}`; options ride enumValues. */
+    multiple?: boolean
     children?: FormFieldDescriptor[] // nested fields for object type
     /** For arrays: schema of each item (JSON Schema) */
     itemSchema?: Record<string, unknown>
@@ -106,6 +108,13 @@ export function buildFormFieldsFromSchema(
         const format =
             opts?.formats && fieldType === "string" ? normalizeStringFormat(prop.format) : undefined
 
+        // Opt-in (elicitation): a string-items array renders as a multi-select control instead
+        // of the add/remove Form.List; its options ride enumValues (from items.enum).
+        const multiple =
+            !!opts?.openEnums &&
+            fieldType === "array" &&
+            (prop.items as Record<string, unknown> | undefined)?.type === "string"
+
         return {
             name: fullName,
             label: (prop.title as string) ?? name,
@@ -116,6 +125,13 @@ export function buildFormFieldsFromSchema(
             enumValues: prop.enum as string[] | undefined,
             ...(format !== undefined ? {format} : {}),
             ...(opts?.openEnums && fieldType === "enum" ? {allowCustomEnum: true} : {}),
+            ...(multiple
+                ? {
+                      multiple: true,
+                      allowCustomEnum: true,
+                      enumValues: (prop.items as {enum?: string[]}).enum,
+                  }
+                : {}),
             children,
             itemSchema,
             itemChildren,

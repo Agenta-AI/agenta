@@ -31,6 +31,12 @@
                 "type": "boolean",
                 "title": "Start active",
                 "default": true
+            },
+            "notify_on": {
+                "type": "array",
+                "title": "Notify on",
+                "items": {"type": "string", "enum": ["success", "failure", "skipped"]},
+                "default": ["failure"]
             }
         },
         "required": ["frequency", "time_of_day", "timezone"]

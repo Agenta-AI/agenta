@@ -312,6 +312,82 @@ function EnumWithOther({
     )
 }
 
+/**
+ * Multi-select with the same "Other…" escape hatch as EnumWithOther: picking Other… reveals a
+ * text input that appends ONE custom chip (repeatable). Without options (a free string list),
+ * it degrades to tags mode — plain typed entries. Off-options values (defaults, replays) render
+ * as chips natively.
+ */
+function MultiEnumWithOther({
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled,
+}: {
+    value?: string[]
+    onChange?: (v: string[] | undefined) => void
+    options: string[]
+    placeholder?: string
+    disabled?: boolean
+}) {
+    const [otherDraft, setOtherDraft] = useState<string | null>(null)
+    const selected = value ?? []
+
+    if (options.length === 0) {
+        return (
+            <Select
+                mode="tags"
+                placeholder={placeholder}
+                disabled={disabled}
+                value={selected}
+                onChange={(next: string[]) => onChange?.(next.length ? next : undefined)}
+                open={false}
+                suffixIcon={null}
+            />
+        )
+    }
+
+    const commitDraft = () => {
+        const custom = otherDraft?.trim()
+        setOtherDraft(null)
+        if (custom && !selected.includes(custom)) onChange?.([...selected, custom])
+    }
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Select
+                mode="multiple"
+                placeholder={placeholder}
+                disabled={disabled}
+                value={selected}
+                onChange={(next: string[]) => {
+                    if (next.includes(OTHER_ENUM_OPTION)) {
+                        setOtherDraft("")
+                        next = next.filter((v) => v !== OTHER_ENUM_OPTION)
+                    }
+                    onChange?.(next.length ? next : undefined)
+                }}
+                options={[
+                    ...options.map((v) => ({value: v, label: v})),
+                    {value: OTHER_ENUM_OPTION, label: "Other…"},
+                ]}
+            />
+            {otherDraft !== null && (
+                <Input
+                    autoFocus
+                    disabled={disabled}
+                    placeholder="Type a value and press Enter"
+                    value={otherDraft}
+                    onChange={(e) => setOtherDraft(e.target.value)}
+                    onPressEnter={commitDraft}
+                    onBlur={commitDraft}
+                />
+            )}
+        </div>
+    )
+}
+
 function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?: number}) {
     const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
     const label = <FieldLabel field={field} />
@@ -376,6 +452,20 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                 <JsonFieldEditor
                     placeholder={field.type === "object" ? '{"key": "value"}' : '[{"item": 1}]'}
                 />
+            </Form.Item>
+        )
+    }
+
+    // Multi-select (elicitation, openEnums): string-items arrays render as a chip picker.
+    if (field.type === "array" && field.multiple) {
+        return (
+            <Form.Item
+                name={field.name.split(".")}
+                label={label}
+                rules={rules}
+                initialValue={field.default}
+            >
+                <MultiEnumWithOther options={field.enumValues ?? []} placeholder={field.label} />
             </Form.Item>
         )
     }

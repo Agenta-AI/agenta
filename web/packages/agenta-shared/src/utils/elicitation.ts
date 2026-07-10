@@ -3,7 +3,8 @@
  *
  * The `elicitation` render kind lets a platform op request typed input mid-run: the wire
  * carries `{message, requestedSchema}` (the MCP-elicitation FLAT dialect — top-level
- * primitives/enums only, plus `x-ag-*` presentation hints), the chat renders a form, and the
+ * primitives/enums plus string multi-select arrays, with `x-ag-*` presentation hints), the chat
+ * renders a form, and the
  * settling tool result carries `{action: accept|decline|cancel, content?}`. This module is the
  * single source of truth for that contract on the TS side: payload validation (which doubles as
  * the fallback-tier dispatch check), the result envelope, and part-state derivation. Pinned by
@@ -48,13 +49,18 @@ export function normalizeStringFormat(format: unknown): string | undefined {
 }
 
 export interface ElicitationFieldSchema {
-    type: "string" | "number" | "integer" | "boolean"
+    type: "string" | "number" | "integer" | "boolean" | "array"
     title?: string
     description?: string
     enum?: string[]
     format?: string
+    /**
+     * Multi-select (`type: "array"` only): the ONE array shape the dialect admits — string items,
+     * optionally constrained by an enum (the multi-pick options). Nothing deeper.
+     */
+    items?: {type: "string"; enum?: string[]}
     /** Proposed value prefilling the field, so the user can accept the whole form in one click. */
-    default?: string | number | boolean
+    default?: string | number | boolean | string[]
     minimum?: number
     maximum?: number
     minLength?: number
@@ -93,6 +99,9 @@ export type ElicitationParseResult =
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
+const isStringArray = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((v) => typeof v === "string")
+
 /**
  * Validate an incoming client-tool input as an elicitation payload (tolerant reader: unknown
  * extra keys are ignored; the hard rules below are the dialect). Failure reasons are stable
@@ -116,19 +125,35 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
     for (const [name, prop] of Object.entries(requestedSchema.properties)) {
         if (!isRecord(prop)) return {ok: false, reason: `property "${name}" is not an object`}
         const type = prop.type
-        if (typeof type !== "string" || !FIELD_TYPES.has(type))
+        if (typeof type !== "string" || (!FIELD_TYPES.has(type) && type !== "array"))
             return {ok: false, reason: `property "${name}" has unsupported type "${String(type)}"`}
-        if ("properties" in prop || "items" in prop)
+        if ("properties" in prop)
             return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
-        if (prop.enum !== undefined) {
-            if (!Array.isArray(prop.enum) || prop.enum.some((v) => typeof v !== "string"))
+        if (type === "array") {
+            // Multi-select: the ONE admitted array shape — string items, optional enum, no deeper.
+            const items = prop.items
+            if (!isRecord(items) || items.type !== "string")
+                return {ok: false, reason: `property "${name}" array items must be strings`}
+            if ("properties" in items || "items" in items)
+                return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
+            if (items.enum !== undefined && !isStringArray(items.enum))
+                return {ok: false, reason: `property "${name}" items enum must be strings`}
+            if (prop.default !== undefined && !isStringArray(prop.default))
+                return {
+                    ok: false,
+                    reason: `property "${name}" default must be an array of strings`,
+                }
+        } else {
+            if ("items" in prop)
+                return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
+            if (prop.enum !== undefined && !isStringArray(prop.enum))
                 return {ok: false, reason: `property "${name}" enum must be strings`}
+            if (
+                prop.default !== undefined &&
+                !["string", "number", "boolean"].includes(typeof prop.default)
+            )
+                return {ok: false, reason: `property "${name}" default must be a primitive`}
         }
-        if (
-            prop.default !== undefined &&
-            !["string", "number", "boolean"].includes(typeof prop.default)
-        )
-            return {ok: false, reason: `property "${name}" default must be a primitive`}
         const title = typeof prop.title === "string" ? prop.title : ""
         if (SECRET_FIELD_PATTERN.test(name) || SECRET_FIELD_PATTERN.test(title))
             return {ok: false, reason: `property "${name}" is secret-shaped — use a connect flow`}
