@@ -1,14 +1,13 @@
-import {type ReactNode, useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 
 import {workflowAppTypeAtomFamily, workflowArtifactQueryAtomFamily} from "@agenta/entities/workflow"
-import {Check, Copy} from "@phosphor-icons/react"
 import {Input, Modal, Typography} from "antd"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {CopyRow, FieldLabel, TypeBadge} from "@/oss/components/EntityIdentity/fields"
 import {useRenameApp} from "@/oss/components/EntityIdentity/useRenameApp"
 import {getAppTypeIcon} from "@/oss/components/pages/prompts/assets/iconHelpers"
-import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 
 import {closeEditAppModalAtom, editAppModalAtom} from "./store/editAppModalStore"
 
@@ -17,35 +16,6 @@ const APP_TYPE_LABEL: Record<string, string> = {
     chat: "Chat",
     completion: "Completion",
     custom: "Custom workflow",
-}
-
-const FieldLabel = ({children}: {children: ReactNode}) => (
-    <div className="mb-1.5 text-[12px] font-semibold text-colorTextSecondary">{children}</div>
-)
-
-/** Read-only value shown in a filled row with a copy-to-clipboard affordance. */
-const CopyRow = ({value, label}: {value: string; label: string}) => {
-    const [copied, setCopied] = useState(false)
-    const onCopy = () => {
-        copyToClipboard(value, false)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1400)
-    }
-    return (
-        <div className="flex items-center gap-2 rounded-lg border border-solid border-colorBorder bg-colorFillQuaternary px-2.5 py-1.5">
-            <span className="flex-1 truncate font-mono text-[11.5px] text-colorTextSecondary">
-                {value}
-            </span>
-            <button
-                type="button"
-                aria-label={label}
-                onClick={onCopy}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-solid border-colorBorder bg-colorBgContainer text-colorTextSecondary transition-colors hover:border-colorBorderSecondary hover:text-colorText"
-            >
-                {copied ? <Check size={13} /> : <Copy size={13} />}
-            </button>
-        </div>
-    )
 }
 
 /**
@@ -139,10 +109,7 @@ const EditAppModal = () => {
                             Edit name, description &amp; view details
                         </Typography.Text>
                     </div>
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-colorFillTertiary px-2 py-0.5 text-[11px] font-medium text-[var(--ag-c-13C2C2)]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-c-13C2C2)]" />
-                        {typeLabel}
-                    </span>
+                    <TypeBadge label={typeLabel} />
                 </div>
             }
         >

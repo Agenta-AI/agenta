@@ -1,11 +1,10 @@
 import {useState} from "react"
 
-import {Check, Copy, Robot} from "@phosphor-icons/react"
+import {Check} from "@phosphor-icons/react"
 import {Input} from "antd"
 import dayjs from "dayjs"
 
-import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-
+import {CopyRow, FieldLabel, TypeBadge} from "./fields"
 import {useRenameApp} from "./useRenameApp"
 
 interface AgentIdentityCardProps {
@@ -20,35 +19,11 @@ interface AgentIdentityCardProps {
     onRenamed?: (name: string) => void
 }
 
-const FieldLabel = ({children}: {children: React.ReactNode}) => (
-    <div className="mb-1.5 text-[11px] font-semibold capitalize text-colorTextTertiary">
-        {children}
-    </div>
-)
-
-const CopyButton = ({value, label}: {value: string; label: string}) => {
-    const [copied, setCopied] = useState(false)
-    const onCopy = () => {
-        copyToClipboard(value, false)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1400)
-    }
-    return (
-        <button
-            type="button"
-            aria-label={label}
-            onClick={onCopy}
-            className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md border border-solid border-colorBorder bg-colorBgContainer text-colorTextSecondary transition-colors hover:border-colorBorderSecondary hover:text-colorText"
-        >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-        </button>
-    )
-}
-
 /**
- * The agent's identity card — name and description edit inline (auto-save on blur/Enter, no OK
- * button), the slug is shown read-only because it does NOT change on rename, and type/version/
- * created sit alongside as context. Replaces the single-input rename modal on the playground.
+ * The agent's identity card shown in the playground header popover. Mirrors the rename modal's
+ * layout (name → description → details → slug/id) so the two rename surfaces read the same; the
+ * difference is behavior — here name/description auto-save on blur (no OK button), with a brief
+ * "Saved" flash. The slug is read-only because it does NOT change on rename.
  */
 const AgentIdentityCard = ({
     workflowId,
@@ -105,7 +80,7 @@ const AgentIdentityCard = ({
     }
 
     return (
-        <div className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-4">
             <div>
                 <FieldLabel>Name</FieldLabel>
                 <Input
@@ -123,19 +98,6 @@ const AgentIdentityCard = ({
                 {nameError && <div className="mt-1 text-xs text-colorError">{nameError}</div>}
             </div>
 
-            {slug && (
-                <div>
-                    <FieldLabel>Slug</FieldLabel>
-                    <div className="flex items-center gap-2">
-                        <Input value={slug} disabled className="!text-xs !font-mono" />
-                        <CopyButton value={slug} label="Copy slug" />
-                    </div>
-                    <div className="mt-1 text-[11px] text-colorTextTertiary">
-                        slug stays fixed on rename
-                    </div>
-                </div>
-            )}
-
             <div>
                 <FieldLabel>Description</FieldLabel>
                 <Input.TextArea
@@ -148,37 +110,44 @@ const AgentIdentityCard = ({
                 />
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-colorTextSecondary">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-colorFillTertiary px-2 py-0.5 font-medium text-[var(--ag-c-13C2C2)]">
-                    <Robot size={12} weight="fill" />
-                    Agent
-                </span>
-                {version != null && (
-                    <>
-                        <span className="text-colorTextTertiary">·</span>
-                        <span>v{version}</span>
-                    </>
+            <div className="flex flex-col gap-3 border-0 border-t border-solid border-colorBorderSecondary pt-3.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-colorTextSecondary">
+                    <TypeBadge label="Agent" />
+                    {version != null && (
+                        <>
+                            <span className="text-colorTextTertiary">·</span>
+                            <span>v{version}</span>
+                        </>
+                    )}
+                    {createdAt && (
+                        <>
+                            <span className="text-colorTextTertiary">·</span>
+                            <span>created {dayjs(createdAt).format("MMM D, YYYY")}</span>
+                        </>
+                    )}
+                    <span className="flex-1" />
+                    {showSaved && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--ag-c-13C2C2)]">
+                            <Check size={12} />
+                            Saved
+                        </span>
+                    )}
+                </div>
+                {slug && (
+                    <div>
+                        <FieldLabel>
+                            Slug{" "}
+                            <span className="font-normal text-colorTextTertiary">
+                                · fixed on rename
+                            </span>
+                        </FieldLabel>
+                        <CopyRow value={slug} label="Copy slug" />
+                    </div>
                 )}
-                {createdAt && (
-                    <>
-                        <span className="text-colorTextTertiary">·</span>
-                        <span>created {dayjs(createdAt).format("MMM D, YYYY")}</span>
-                    </>
-                )}
-            </div>
-
-            <div className="flex items-center gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-3">
-                <span className="font-mono text-[11px] text-colorTextTertiary">
-                    ID {workflowId.slice(0, 8)}…
-                </span>
-                <CopyButton value={workflowId} label="Copy ID" />
-                <span className="flex-1" />
-                {showSaved && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--ag-c-13C2C2)]">
-                        <Check size={12} />
-                        Saved
-                    </span>
-                )}
+                <div>
+                    <FieldLabel>Workflow ID</FieldLabel>
+                    <CopyRow value={workflowId} label="Copy workflow ID" />
+                </div>
             </div>
         </div>
     )
