@@ -15,6 +15,7 @@ import {
     describeUnreachableService,
     isHtmlBody,
 } from "@agenta/entities/shared/execution/invocationErrors"
+import {markTraceAsFresh} from "@agenta/entities/trace"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
@@ -966,6 +967,8 @@ async function executeViaFetch(params: {
                 }
             }
 
+            if (traceId) markTraceAsFresh(traceId)
+
             return {
                 executionId,
                 status: "error",
@@ -1007,6 +1010,10 @@ async function executeViaFetch(params: {
                 : undefined
 
         const sessionId = extractSessionIdFromPayload(responseData) ?? undefined
+
+        // The trace may not be ingested yet — mark it fresh so the summary/entity
+        // queries keep retrying through the ingestion lag.
+        if (trace?.id) markTraceAsFresh(trace.id)
 
         return {
             executionId,

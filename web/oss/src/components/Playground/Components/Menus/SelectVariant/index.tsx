@@ -27,7 +27,7 @@ import {playgroundController} from "@agenta/playground"
 import {DownOutlined} from "@ant-design/icons"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Popover, Space} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {selectedAppIdAtom} from "@/oss/state/app"
@@ -35,6 +35,18 @@ import {selectedAppIdAtom} from "@/oss/state/app"
 import RevisionChildTitle from "./components/RevisionChildTitle"
 import VariantGroupTitle from "./components/VariantGroupTitle"
 import {SelectVariantProps} from "./types"
+
+// Stable empty workflow-list state read in non-browse (scoped) mode. The combined
+// `workflowsListQueryStateAtom` fetches EVERY app + evaluator in the project; this
+// picker only needs it to label the trigger in BROWSE mode. On a scoped (app)
+// playground that label is null, so reading the real atom there pulls both full
+// catalogs for nothing — hold this empty instead.
+const EMPTY_WORKFLOWS_LIST_STATE_ATOM = atom({
+    data: [] as {id: string; name?: string | null}[],
+    isPending: false,
+    isError: false,
+    error: null as Error | null,
+})
 
 const SelectVariant = ({
     value,
@@ -333,8 +345,13 @@ const SelectVariant = ({
         return name && name.length > 0 ? name : null
     }, [selectedVariantId, workflowVariants])
 
-    // Look up the parent workflow name for browse mode trigger label
-    const workflowsList = useAtomValue(workflowsListQueryStateAtom)
+    // Look up the parent workflow name for the browse-mode trigger label. Only
+    // BROWSE mode uses this (scoped mode returns null below), so gate the
+    // full-catalog read on `mode` — otherwise an app playground fetches every app
+    // + evaluator just to render this picker's trigger.
+    const workflowsList = useAtomValue(
+        mode === "browse" ? workflowsListQueryStateAtom : EMPTY_WORKFLOWS_LIST_STATE_ATOM,
+    ) as {data: {id: string; name?: string | null}[]}
     const workflowName = useMemo(() => {
         if (mode !== "browse") return null
         if (!selectedWorkflowId) return null

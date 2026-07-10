@@ -211,6 +211,7 @@ export type {
 export {
     renderEvaluatorPickerLabelNode,
     buildEvaluatorPickerLabelNode,
+    useEnsureEvaluatorEnrichment,
     useEvaluatorEnrichedData,
     useEnrichedEvaluatorBrowseAdapter,
     useEnrichedEvaluatorOnlyAdapter,

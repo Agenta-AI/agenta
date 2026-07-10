@@ -7,6 +7,7 @@
  */
 
 import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
+import { DEFERRED_NOT_EXECUTED_PREFIX } from "./tracing/otel.ts";
 import {
   decide,
   effectivePermission,
@@ -394,6 +395,10 @@ export function extractClientToolOutputs(
   const callShapeById = buildCallShapeIndex(request);
   for (const block of currentTurnToolResultBlocks(request)) {
     if (approvalDecisionOf(block) !== undefined) continue; // an approval, not a client output
+    // A sibling force-settled while another interaction paused this turn was NOT executed
+    // (`DEFERRED_NOT_EXECUTED`). It must not fulfill the model's retry of the same call, or the
+    // re-request resolves against the deferral and never re-parks (no new widget).
+    if (isDeferredNotExecuted(block)) continue;
     const argsKey = coldReplayKey(block, callShapeById);
     if (!argsKey) continue;
     const list = outputs.get(argsKey) ?? [];
@@ -476,6 +481,18 @@ function coldReplayKey(
 
 function isPermissionDecision(value: unknown): value is PermissionDecision {
   return value === "allow" || value === "deny";
+}
+
+/**
+ * A sibling force-settle result: the turn paused on another interaction, so this client tool was
+ * never executed and carries the `DEFERRED_NOT_EXECUTED` sentinel. It is not a browser output — the
+ * model is meant to re-issue the same call, which must re-park rather than resolve against this.
+ */
+function isDeferredNotExecuted(block: ContentBlock): boolean {
+  return (
+    typeof block.output === "string" &&
+    block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
+  );
 }
 
 /**

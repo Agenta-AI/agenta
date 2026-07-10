@@ -66,10 +66,16 @@ export function isHitlPending(messages: MessageLike[]): boolean {
  * "ready" (turn done) and "error" (turn failed) are settled — releasing on "error" fires the
  * user's queued message as a fresh turn (which clears the error), so a failed turn can't strand
  * the queue forever. "submitted"/"streaming" are in-flight and hold.
+ *
+ * On "error" the pre-resume hold is VOID: an errored status means the auto-resume already fired
+ * and died (the resolved tool parts linger, so the resume predicate stays true forever — AGE-3937).
+ * There is no imminent resume left to protect, and no dock to unblock the user; holding would
+ * freeze the queue permanently. `isHitlPending` still holds — its dock IS the unblock UI.
  */
 export function canReleaseQueuedMessage(status: string, messages: MessageLike[]): boolean {
+    if (status === "error") return !isHitlPending(messages)
     return (
-        (status === "ready" || status === "error") &&
+        status === "ready" &&
         !isHitlPending(messages) &&
         !agentShouldResumeAfterApproval({messages})
     )

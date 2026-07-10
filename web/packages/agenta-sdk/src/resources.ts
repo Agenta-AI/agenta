@@ -16,16 +16,30 @@ import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
-import {buildClientOptions} from "./config"
+import {buildClientOptions, withLowPriorityFetch} from "./config"
 
 let _traces: TracesClient | undefined
 export function getTracesClient(): TracesClient {
     return (_traces ??= new TracesClient(buildClientOptions()))
 }
 
+let _tracesLowPriority: TracesClient | undefined
+/** Same host/auth as `getTracesClient`, but requests carry `priority: "low"` —
+ * for background hydration that must yield to render-critical traffic. */
+export function getLowPriorityTracesClient(): TracesClient {
+    return (_tracesLowPriority ??= new TracesClient(withLowPriorityFetch(buildClientOptions())))
+}
+
 let _tools: ToolsClient | undefined
 export function getToolsClient(): ToolsClient {
     return (_tools ??= new ToolsClient(buildClientOptions()))
+}
+
+let _toolsLowPriority: ToolsClient | undefined
+/** Same host/auth as `getToolsClient`, but requests carry `priority: "low"` — for secondary
+ * playground data (connections/catalog) that must yield to render-critical traffic. */
+export function getLowPriorityToolsClient(): ToolsClient {
+    return (_toolsLowPriority ??= new ToolsClient(withLowPriorityFetch(buildClientOptions())))
 }
 
 let _secrets: SecretsClient | undefined
@@ -36,6 +50,15 @@ export function getSecretsClient(): SecretsClient {
 let _workflows: WorkflowsClient | undefined
 export function getWorkflowsClient(): WorkflowsClient {
     return (_workflows ??= new WorkflowsClient(buildClientOptions()))
+}
+
+let _workflowsLowPriority: WorkflowsClient | undefined
+/** Same host/auth as `getWorkflowsClient`, but requests carry `priority: "low"` — for secondary
+ * playground data (e.g. the build-kit overlay) that must yield to render-critical traffic. */
+export function getLowPriorityWorkflowsClient(): WorkflowsClient {
+    return (_workflowsLowPriority ??= new WorkflowsClient(
+        withLowPriorityFetch(buildClientOptions()),
+    ))
 }
 
 let _testsets: TestsetsClient | undefined

@@ -172,6 +172,11 @@ export interface WorkflowReferenceBridge {
     enabled: boolean
     workflows: WorkflowReferenceUI[]
     workflowsLoading: boolean
+    /** Activate the workflow list + evaluator catalog behind this bridge. Lazy: the underlying
+     * project-wide list/catalog queries stay dormant (`workflows` empty) until a consumer that
+     * actually needs them calls this — on reference-picker open or when displaying an existing
+     * reference. One-way; stays warm after the first call. */
+    activate?: () => void
     /** Resolve the referenced workflow's input JSON-schema to pre-fill the tool's `input_schema`.
      * Returns null when unavailable; the caller falls back to an empty object schema. */
     resolveInputSchema: (workflow: WorkflowReferenceUI) => Promise<Record<string, unknown> | null>

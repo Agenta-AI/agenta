@@ -27,7 +27,7 @@ import type {
     ToolConnectionsResponse,
 } from "../core/types"
 
-import {getToolsClient, projectScopedRequest} from "./client"
+import {getLowPriorityToolsClient, getToolsClient, projectScopedRequest} from "./client"
 
 // --- Catalog browse ---
 
@@ -43,6 +43,7 @@ export const fetchToolIntegrations = async (
         category?: string
         limit?: number
         cursor?: string
+        lowPriority?: boolean
     },
 ): Promise<ToolCatalogIntegrationsResponse> => {
     // `category` isn't modelled on Fern's ListToolIntegrationsRequest yet (the
@@ -52,7 +53,8 @@ export const fetchToolIntegrations = async (
     const requestOptions = params?.category
         ? {queryParams: {...(scope?.queryParams ?? {}), category: params.category}}
         : scope
-    return getToolsClient().listToolIntegrations(
+    const client = params?.lowPriority ? getLowPriorityToolsClient() : getToolsClient()
+    return client.listToolIntegrations(
         {
             provider_key: providerKey,
             search: params?.search,
@@ -154,8 +156,10 @@ export const fetchToolActionDetail = async (
 export const queryToolConnections = async (params?: {
     provider_key?: string
     integration_key?: string
+    lowPriority?: boolean
 }): Promise<ToolConnectionsResponse> => {
-    return getToolsClient().queryToolConnections(
+    const client = params?.lowPriority ? getLowPriorityToolsClient() : getToolsClient()
+    return client.queryToolConnections(
         {
             provider_key: params?.provider_key,
             integration_key: params?.integration_key,

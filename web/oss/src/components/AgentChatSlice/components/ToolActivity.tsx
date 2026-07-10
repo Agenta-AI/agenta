@@ -16,6 +16,7 @@ import type {ToolUIPart} from "ai"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {partToolName, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 import {formatToolValue, stripFence} from "../assets/toolFormat"
 import {
     expandedValueAtomFamily,
@@ -25,18 +26,6 @@ import {
 } from "../state/expandState"
 
 const {Text} = Typography
-
-/** Friendly name for a tool part. `dynamic-tool` carries the name on `toolName`; the typed
- * tool parts encode it as `tool-<name>`. */
-const partToolName = (part: ToolUIPart): string => {
-    // `dynamic-tool` parts (name on `toolName`) reach here via the grouping cast in
-    // AgentMessage, but they're outside ToolUIPart's static union — read `type` as a string.
-    const type = part.type as string
-    if (type === "dynamic-tool") {
-        return (part as {toolName?: string}).toolName || "tool"
-    }
-    return type.replace(/^tool-/, "")
-}
 
 // A tool has finished when it produced output, errored, or was denied. Everything else
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.
@@ -80,9 +69,15 @@ const summarizeOutput = (output: unknown): string | null => {
     return String(output)
 }
 
-const rowSummary = (part: ToolUIPart): string | null => {
+const rowSummary = (part: ToolUIPart, display?: ToolDisplay): string | null => {
     if (part.state === "output-available") {
         if (isNotHandledOutput(part.output)) return "not handled by this client"
+        // A registered per-tool summary wins; run it through the generic normalizer for the
+        // same whitespace/length clamp. Falls back to shape heuristics when it returns null.
+        const custom = display?.summary?.((part as {input?: unknown}).input, part.output)
+        if (typeof custom === "string" && custom.trim()) {
+            return summarizeOutput(custom) ?? summarizeOutput(part.output)
+        }
         return summarizeOutput(part.output)
     }
     if (part.state === "output-error") {
@@ -147,6 +142,10 @@ const ToolRow = ({
     detailed?: boolean
 }) => {
     const name = partToolName(part)
+    // Build keeps the raw wire name (debuggers steer by it); Chat shows the humanized label with
+    // the raw name on the tooltip — same split the ApprovalDock made for HITL gates.
+    const display = resolveToolDisplay(name)
+    const shownName = detailed ? name : display.label
     const state = part.state as string
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
@@ -176,7 +175,7 @@ const ToolRow = ({
                           : notHandled
                             ? "not handled by this client"
                             : null
-                  : rowSummary(part)
+                  : rowSummary(part, display)
 
     // Track presence explicitly: a legit `null` output is real (don't hide it), and
     // `output-available` with no `output` key must not open an empty expander.
@@ -196,8 +195,13 @@ const ToolRow = ({
         <>
             <StatusIcon part={part} />
             <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
-                {name}
+                {shownName}
             </Text>
+            {!detailed && display.source ? (
+                <Text type="secondary" className="!text-[11px] shrink-0 whitespace-nowrap">
+                    {display.source}
+                </Text>
+            ) : null}
             {midText ? (
                 <Text
                     type={state === "output-error" && !deferred ? "danger" : "secondary"}
@@ -326,7 +330,10 @@ const ToolActivity = ({
             !isDeferredError((p as {errorText?: string}).errorText),
     ).length
     const count = parts.length
-    const label = count === 1 ? `Used ${partToolName(parts[0])}` : `Used ${count} tools`
+    const single = count === 1 ? resolveToolDisplay(partToolName(parts[0])) : null
+    const label = single
+        ? `Used ${single.label}${single.source ? ` · ${single.source}` : ""}`
+        : `Used ${count} tools`
     const SummaryIcon = failed > 0 ? Warning : CheckCircle
 
     return (
@@ -349,7 +356,7 @@ const ToolActivity = ({
                     weight="fill"
                     className={`shrink-0 ${failed > 0 ? "text-colorError" : "text-colorSuccess"}`}
                 />
-                <Text type="secondary" className="!text-xs">
+                <Text type="secondary" className="!text-xs" title={single?.raw}>
                     {label}
                     {failed > 0 ? ` · ${failed} failed` : ""}
                 </Text>

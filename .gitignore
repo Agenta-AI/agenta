@@ -106,3 +106,6 @@ hosting/kubernetes/**/values.*.yaml
 # IDE/LSP config (local tooling)
 pyrightconfig.json
 .gstack/
+
+# Agent skills lockfile (npx skills add)
+skills-lock.json

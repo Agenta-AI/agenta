@@ -9,7 +9,9 @@
  *
  * Security (hard requirement, design §"Security"): the popup posts back a `tools:oauth:complete`
  * message; we trust it ONLY when `event.origin` equals the Agenta API origin (the callback page's
- * origin) and the payload shape matches. Everything else is dropped.
+ * origin) and the payload shape matches. Everything else is dropped. The callback also tags the
+ * message with the connection's `slug`/`integration`, so when several connect widgets are live at
+ * once each settles only on its OWN completion (never on a sibling's).
  *
  * Settle on every terminal path (design §"Settle on every path"), so the run never hangs:
  *   success → {connected:true, integration, slug} · cancel/abandon → {connected:false,
@@ -20,7 +22,14 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {ArrowClockwise, CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    CheckCircle,
+    Hourglass,
+    Plugs,
+    Spinner,
+    Warning,
+} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -39,6 +48,14 @@ const {Text} = Typography
 const CONNECT_TIMEOUT_MS = 180_000
 /** Popup-closed poll cadence, matching the existing ConnectModal. */
 const POPUP_POLL_MS = 1000
+
+/**
+ * The runner parks only ONE interaction per turn; a second `request_connection` in the same step is
+ * force-settled with this sentinel and RE-REQUESTED next turn (services/runner otel.ts
+ * `TOOL_NOT_EXECUTED_PAUSED`). It is a deferral, not a failure — render it quietly with no Retry, so
+ * the user waits for the agent's re-ask instead of starting a flow that races it.
+ */
+const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
 /** The settled call's reference shape (what the runner re-resolves against). */
 interface ConnectOutput {
@@ -74,6 +91,19 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
     const mode = input.mode === "api_key" ? "api_key" : "oauth"
     const label = prettyIntegration(integration)
+    // A window name UNIQUE to this widget. Several connect widgets can be live at once; a shared
+    // name makes the second `window.open` reuse the first's popup, so the second flow's
+    // `tools:oauth:complete` message never reaches this widget and its popup-closed poll settles it
+    // as cancelled — "connected but shows failed". The tool-call id is unique per parked call.
+    const oauthWindowName = `tools_oauth_${meta.toolCallId}`
+
+    // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
+    // connection failure); see DEFERRED_SENTINEL.
+    const partErrorText = (meta.part as {errorText?: unknown}).errorText
+    const deferredByRunner =
+        meta.state === "output-error" &&
+        typeof partErrorText === "string" &&
+        partErrorText.startsWith(DEFERRED_SENTINEL)
 
     const {handleCreate, invalidate} = useToolsConnections(integration)
 
@@ -83,6 +113,10 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // part can't be re-resolved, but the connection now exists in the vault, so we flip the chip to
     // "connected" — the agent's re-ask resolves cleanly on its next turn.
     const [manuallyConnected, setManuallyConnected] = useState(false)
+    // The live flow's terminal result, held locally so the chip paints the instant we settle —
+    // `meta.settled` only flips a render later (after `addToolOutput` propagates), and without this
+    // the widget would stay on "Connecting…" until then.
+    const [outcome, setOutcome] = useState<{connected: boolean} | null>(null)
 
     // One-shot guard so the parked call settles exactly once, plus shared cleanup for the running
     // popup's listener/poll/timeout.
@@ -102,8 +136,15 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
             if (settledRef.current) return
             settledRef.current = true
             teardown()
-            if ("errorText" in result) settle({errorText: result.errorText})
-            else settle({output: result as Record<string, unknown>})
+            // Leave "connecting" and record the terminal result so the chip paints now.
+            setPhase("idle")
+            if ("errorText" in result) {
+                setOutcome({connected: false})
+                settle({errorText: result.errorText})
+            } else {
+                setOutcome({connected: result.connected === true})
+                settle({output: result as Record<string, unknown>})
+            }
         },
         [settle, teardown],
     )
@@ -150,7 +191,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
 
                 const popup = window.open(
                     redirectUrl,
-                    "tools_oauth",
+                    oauthWindowName,
                     "width=600,height=700,popup=yes",
                 )
                 if (!popup) {
@@ -166,8 +207,24 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 const onMessage = (event: MessageEvent) => {
                     // HARD requirement: only trust the callback from the Agenta API origin.
                     if (apiOrigin && event.origin !== apiOrigin) return
-                    const data = event.data as {type?: unknown} | null
+                    const data = event.data as {
+                        type?: unknown
+                        slug?: unknown
+                        integration?: unknown
+                    } | null
                     if (!data || data.type !== "tools:oauth:complete") return
+                    // Several connect widgets can be live at once (an agent may ask for
+                    // multiple connections in one turn). The callback tags the completion with
+                    // its connection identity, so a widget settles ONLY on its own completion —
+                    // otherwise the first finished flow would mark every open widget connected.
+                    // A legacy callback without identity keeps the prior single-flow behavior.
+                    if (typeof data.slug === "string" && data.slug !== slug) return
+                    else if (
+                        typeof data.slug !== "string" &&
+                        typeof data.integration === "string" &&
+                        data.integration !== integration
+                    )
+                        return
                     succeeded = true
                     teardown()
                     onSuccess()
@@ -210,7 +267,17 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 if (settleParkedCall) finish({connected: false, integration, slug, reason: message})
             }
         },
-        [phase, handleCreate, slug, mode, invalidate, finish, teardown, integration],
+        [
+            phase,
+            handleCreate,
+            slug,
+            mode,
+            invalidate,
+            finish,
+            teardown,
+            integration,
+            oauthWindowName,
+        ],
     )
 
     // Explicit cancel while the popup is open: settle the parked call as cancelled (or, for a manual
@@ -235,15 +302,26 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         )
     }
 
-    // ── Settled: the result chip (U1) ───────────────────────────────────────────────────────────
-    if (meta.settled) {
+    // ── Settled: the result chip (U1). `outcome` covers the render before `meta.settled` flips. ──
+    if (meta.settled || outcome) {
         const output = (meta.output ?? {}) as ConnectOutput
-        if (manuallyConnected || output.connected === true) {
+        if (manuallyConnected || output.connected === true || outcome?.connected === true) {
             return (
                 <ChipRow
                     icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
                 >
                     <Text className="!text-xs">{label} connected</Text>
+                </ChipRow>
+            )
+        }
+        // Deferred by the runner (another connection was requested the same turn): the agent
+        // re-asks next turn, so show a quiet note with NO Retry — a Retry here races that re-ask.
+        if (deferredByRunner) {
+            return (
+                <ChipRow icon={<Hourglass size={13} className="text-colorTextTertiary" />}>
+                    <Text type="secondary" className="!text-xs !text-colorTextTertiary">
+                        Connecting {label} next…
+                    </Text>
                 </ChipRow>
             )
         }

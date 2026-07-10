@@ -55,8 +55,12 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 
-export const TOOL_NOT_EXECUTED_PAUSED =
-  "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still required.";
+/** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
+ *  responder keys off this to keep the deferral out of the client-output store, and the web widget
+ *  keys off it to render the sibling as deferred rather than failed. */
+export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED";
+
+export const TOOL_NOT_EXECUTED_PAUSED = `${DEFERRED_NOT_EXECUTED_PREFIX}: paused for another approval; retry the same call if still required.`;
 
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure

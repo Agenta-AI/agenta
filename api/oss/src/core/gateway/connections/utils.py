@@ -18,14 +18,25 @@ def make_oauth_state(
     project_id: UUID,
     user_id: UUID,
     secret_key: str,
+    slug: Optional[str] = None,
+    integration_key: Optional[str] = None,
 ) -> str:
-    """Generate an HMAC-signed state token to embed in OAuth callback URLs."""
+    """Generate an HMAC-signed state token to embed in OAuth callback URLs.
+
+    ``slug``/``integration_key`` identify the connection so the callback can tell the
+    opener WHICH connection finished — the playground can have several connect flows
+    live at once (see ConnectToolWidget). They survive round-trip in the signed payload.
+    """
     payload = {
         "project_id": str(project_id),
         "user_id": str(user_id),
         "nonce": secrets.token_hex(8),
         "ts": int(time.time()),
     }
+    if slug:
+        payload["slug"] = slug
+    if integration_key:
+        payload["integration"] = integration_key
     payload_bytes = json.dumps(payload, sort_keys=True).encode()
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode().rstrip("=")
     sig = hmac.new(

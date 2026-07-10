@@ -168,8 +168,10 @@ interface PauseLike {
 export interface BuildClientToolRelayInput {
   responder: Responder;
   run: EmitRun;
-  /** One pause per turn: only the first pending gate emits its interaction and pauses. */
-  latch: LatchLike;
+  /** The approval-dialog latch. Client tools do NOT gate on it — each pending client tool parks
+   *  its own widget, and only the approval path (`acp-interactions.ts`) enforces one dialog per
+   *  turn. Kept in the shared input so the wiring stays symmetric; ignored here. */
+  latch?: LatchLike;
   /** The turn-ender: `pause()` cancels the prompt; `markPausedToolCall` suppresses late frames. */
   pause: PauseLike;
   /** Seeds the durable interactions plane for the pending call (fire-and-forget). */
@@ -189,14 +191,13 @@ export interface BuildClientToolRelayInput {
 /**
  * Build the `ClientToolRelay` both delivery paths use. `onClientTool` asks the responder
  * (consuming a stored browser output when one exists) and, on `pendingApproval`, emits the
- * `client_tool` interaction under the latch; `onPause` ends the turn. The consumer (relay loop
- * or MCP handler) calls `onClientTool` then, on a `pendingApproval` outcome, `onPause` — exactly
- * the previous inline engine behavior, so Pi is unchanged.
+ * `client_tool` interaction (a widget) for EACH pending call so several connections requested in
+ * one turn all render; `onPause` ends the turn once (idempotent). The consumer (relay loop or MCP
+ * handler) calls `onClientTool` then, on a `pendingApproval` outcome, `onPause`.
  */
 export function buildClientToolRelay({
   responder,
   run,
-  latch,
   pause,
   recordPendingInteraction,
   toolCallIndex,
@@ -234,22 +235,25 @@ export function buildClientToolRelay({
       const correlatedId =
         toolCallIndex?.lookup(request.toolName, request.input) ??
         request.toolCallId;
-      if (latch.tryAcquire()) {
-        pause.markPausedToolCall(correlatedId);
-        emitClientToolInteraction(run, {
-          id: request.id,
-          toolCallId: correlatedId,
-          toolName: request.toolName,
-          input: request.input,
-          render: request.spec.render,
-        });
-        recordPendingInteraction(
-          request.id,
-          request.toolName,
-          request.input,
-          "client_tool",
-        );
-      }
+      // Every pending client tool parks its OWN widget. Unlike an approval DIALOG (one at a time,
+      // gated by the latch), browser-fulfilled client tools are independent surfaces — an agent may
+      // request several connections in one turn, and each must render. The turn still ends exactly
+      // once: `pause.pause()` (via `onPause`) is idempotent, so N emits pause the turn once, and
+      // `markPausedToolCall` keeps each parked call from being force-settled as a deferred sibling.
+      pause.markPausedToolCall(correlatedId);
+      emitClientToolInteraction(run, {
+        id: request.id,
+        toolCallId: correlatedId,
+        toolName: request.toolName,
+        input: request.input,
+        render: request.spec.render,
+      });
+      recordPendingInteraction(
+        request.id,
+        request.toolName,
+        request.input,
+        "client_tool",
+      );
       return "pendingApproval";
     },
     onPause: () => pause.pause(),

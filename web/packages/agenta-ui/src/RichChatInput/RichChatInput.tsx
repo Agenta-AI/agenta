@@ -74,6 +74,8 @@ export interface RichChatInputProps {
     submitOnEnter?: boolean
     /** Reports the current plain text on every edit (e.g. to detect the composer going empty). */
     onChange?: (text: string) => void
+    /** Seed the editor once on mount (e.g. a restored per-session draft). Later changes ignored. */
+    initialMarkdown?: string
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -120,6 +122,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             hideShortcutHints = false,
             submitOnEnter = true,
             onChange,
+            initialMarkdown,
         },
         ref,
     ) {
@@ -131,6 +134,19 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             if (typeof navigator !== "undefined" && !/Mac|iPhone|iPad/.test(navigator.userAgent)) {
                 setModKey("Ctrl")
             }
+        }, [])
+
+        // Seed once at mount. EditorRefBridge (a child) binds the editor in its own effect,
+        // which runs before this one, so the ref is live here. Mount-only by design — the
+        // ref freezes the first value so a re-render can't re-apply it over user edits.
+        const initialMarkdownRef = useRef(initialMarkdown)
+        useEffect(() => {
+            const md = initialMarkdownRef.current
+            if (!md?.trim()) return
+            editorRef.current?.update(() => {
+                $convertFromMarkdownString(md, CHAT_TRANSFORMERS)
+                $getRoot().selectEnd()
+            })
         }, [])
 
         useImperativeHandle(

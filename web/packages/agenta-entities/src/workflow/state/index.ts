@@ -45,6 +45,8 @@ export {
     appWorkflowsListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
     agentWorkflowsListQueryStateAtom,
+    // Single workflow artifact by id (current-workflow resolution without listing all)
+    workflowDetailQueryAtomFamily,
     // Variant/Revision list queries (for 3-level hierarchy)
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
@@ -91,12 +93,17 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    // Static catalog schema (agent-template etc.) — exported for early prefetch
+    agTypeSchemaAtomFamily,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
     workflowArtifactScopedQueryAtomFamily,
     workflowVariantsScopedQueryAtomFamily,
     primeWorkflowArtifactCacheImperative,
 } from "./store"
+
+// Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
+export {readPersistedAgentType} from "./persistedAgentType"
 
 // Union atoms (app + evaluator combined)
 export {
@@ -189,6 +196,9 @@ export {
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
+    // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
+    evaluatorEnrichmentActivatedAtom,
+    activateEvaluatorEnrichmentAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,

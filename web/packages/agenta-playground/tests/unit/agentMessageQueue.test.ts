@@ -136,6 +136,18 @@ describe("canReleaseQueuedMessage", () => {
         ).toBe(false)
     })
 
+    it("RELEASES on error even in the post-approval pre-resume shape (the resume already fired and died)", () => {
+        // AGE-3937: the auto-resume send errored, leaving the `approval-responded` part lingering —
+        // the resume predicate stays true forever, there is no dock, and nothing will retry. On
+        // "error" the pre-resume hold is void so the queued message can recover the turn.
+        expect(
+            canReleaseQueuedMessage("error", [
+                user("do it"),
+                assistantWithTool("approval-responded", true),
+            ]),
+        ).toBe(true)
+    })
+
     it("does NOT release in the pre-resume window after a denial is answered", () => {
         // Deny also resumes (the runner gets the denial round-trip), so the queue must hold here too.
         expect(
