@@ -549,12 +549,20 @@ const AgentConversation = ({
 
     const busy = status === "submitted" || status === "streaming"
 
+    // True once the user settles a gate (approval response / client-tool output) in THIS mount —
+    // i.e. the SDK's auto-resume genuinely is imminent, so the queue's pre-resume hold applies.
+    // Without a live interaction, a tail that READS as "resume imminent" is an orphan restored
+    // from storage (reload / remount killed the run mid-resume): nothing will ever fire that
+    // resume, and holding for it froze the composer forever (AGE-3937).
+    const liveGateInteractionRef = useRef(false)
+
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
     // last turn and the resume predicate auto-resends. `tool` is only the typed-tools key — matching
     // is by id — so a cast onto the untyped UIMessage tool map is safe.
     const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
         ({toolName, toolCallId, output, errorText}) => {
+            liveGateInteractionRef.current = true
             if (errorText !== undefined) {
                 addToolOutput({
                     state: "output-error",
@@ -840,19 +848,45 @@ const AgentConversation = ({
         [sendMessage],
     )
 
+    // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
+    // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
+    // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events (approval
+    // response, tool output, stream finish) — never on mount — so this resume can't fire and
+    // must not hold the queue. Short-circuits cheap on the streaming hot path: any live send
+    // makes the tail non-restored.
+    const lastMessage = messages[messages.length - 1]
+    const resumeOrphaned =
+        !liveGateInteractionRef.current &&
+        !!lastMessage &&
+        restoredIdsRef.current.has(lastMessage.id) &&
+        agentShouldResumeAfterApproval({messages})
+
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
-    // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue).
+    // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue). An
+    // orphaned restored resume shape (reload mid-approval-resume) voids it the same way.
     const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
         status,
         messages,
         stopped,
+        resumeOrphaned,
         sendQueued,
         sessionId,
     })
     // Latch the last non-empty queue so the row keeps its content while it animates closed on release.
     const shownQueuedRef = useRef(queued)
     if (queued.length > 0) shownQueuedRef.current = queued
+
+    // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
+    // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
+    // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
+    const handleApprovalResponse = useCallback(
+        (args: {id: string; approved: boolean}) => {
+            liveGateInteractionRef.current = true
+            addToolApprovalResponse(args)
+        },
+        [addToolApprovalResponse],
+    )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
     // composer (not inline in the transcript, so a paused run can't scroll out of reach). Trace
@@ -1867,7 +1901,7 @@ const AgentConversation = ({
                     <ApprovalDock
                         className={CHAT_COLUMN}
                         approvals={pendingApprovals}
-                        onApprovalResponse={addToolApprovalResponse}
+                        onApprovalResponse={handleApprovalResponse}
                         onViewTrace={openPausedTurnTrace}
                         entityId={entityId}
                     />
