@@ -1,0 +1,23 @@
+/* Agenta Design System — radii, shadows, borders */
+
+:root {
+  /* ── Corner radii ─────────────────────────────────────────── */
+  --radius-sm: 8px;     /* buttons, badges (rect), app frames    */
+  --radius-md: 10px;    /* app toolbar chips, inputs, sidebar    */
+  --radius-lg: 12px;    /* pill-tab containers                   */
+  --radius-xl: 16px;    /* large showcase frames                 */
+  --radius-pill: 999px; /* badge pills                           */
+  /* NB: website section panels are SQUARE (radius 0, hairline border) */
+
+  /* ── Shadows ──────────────────────────────────────────────── */
+  /* app ring: 1px tinted ring + whisper of depth (cards, chips, inputs) */
+  --shadow-ring: 0px 0px 0px 1px rgba(63, 70, 75, 0.1), 0px 1px 3px 0px rgba(63, 70, 75, 0.1);
+  --shadow-ring-soft: 0px 0px 0px 1px rgba(72, 70, 68, 0.08), 0px 1px 3px 0px rgba(72, 70, 68, 0.08);
+  /* glossy top-light inside primary buttons */
+  --shadow-btn-primary: inset 0px 2px 6.4px 0px rgba(255, 255, 255, 0.8);
+  --shadow-btn-dark: inset 0px 2px 6.4px 0px rgba(255, 255, 255, 0.3);
+  --shadow-btn-outline: 0 0 0 1px var(--paper-150), inset 0px 2px 6px 0px #FFFFFF;
+  --shadow-badge: 0 0 0 1px var(--paper-150), inset 0px 2px 0.4px 0px #FFFFFF;
+  /* matted "frame" around showcase screenshots (double offset ring) */
+  --shadow-frame: 0px 0px 0px 1px rgba(72, 70, 68, 0.08), 0px 1px 3px 0px rgba(72, 70, 68, 0.02), 0px 0px 0px 6px #F6F4F2, 0px 0px 0px 7px #E7E5E3;
+}

@@ -1,0 +1,66 @@
+/* Agenta Design System — color tokens
+   Values lifted 1:1 from the Figma file "Agenta - Branding and Website". */
+
+:root {
+  /* ── Base: ink (warm black scale) ─────────────────────────── */
+  --ink-900: #242424;            /* primary text, dark buttons   */
+  --ink-700: #343434;            /* dark surface mid             */
+  --ink-600: #676770;            /* secondary text (web)         */
+  --ink-500: #848B8C;            /* tertiary text (app)          */
+  --ink-450: #595F61;            /* app secondary text           */
+  --ink-300: #A3A19F;            /* disabled / faint labels      */
+
+  /* ── Base: paper (warm white scale) ───────────────────────── */
+  --paper-0:   #FFFFFF;          /* cards, section panels        */
+  --paper-50:  #FCFBFA;          /* app background               */
+  --paper-100: #F6F5F3;          /* page background              */
+  --paper-150: #F0EFED;          /* soft hairline / chip border  */
+  --paper-200: #E5E5E3;          /* hairline border              */
+
+  /* ── Base: brand accents ──────────────────────────────────── */
+  --yellow-400: #F2F25C;         /* Agenta yellow                */
+  --yellow-500: #E7E712;         /* yellow gradient stop         */
+  --terracotta-500: #D97757;     /* chart / data accent          */
+
+  /* ── Base: dark section surfaces ──────────────────────────── */
+  --carbon-900: #1E1C1D;         /* near-black feature sections  */
+  --carbon-800: #242220;         /* app dark button              */
+  --carbon-700: #3C3A38;         /* dark section card fill       */
+
+  /* ── Semantic: text ───────────────────────────────────────── */
+  --text-heading: var(--ink-900);
+  --text-body: var(--ink-600);
+  --text-muted: rgba(2, 1, 17, 0.6);
+  --text-faint: var(--ink-300);
+  --text-on-dark: #FFFFFF;
+  --text-on-dark-muted: rgba(255, 255, 255, 0.64);
+  --text-on-yellow: var(--ink-900);
+
+  /* app (Geist UI) text */
+  --app-text-heading: #060402;
+  --app-text-body: #2A2C2D;
+  --app-text-secondary: #595F61;
+  --app-text-placeholder: #848B8C;
+
+  /* ── Semantic: surfaces ───────────────────────────────────── */
+  --surface-page: var(--paper-100);     /* outer gutter of the site  */
+  --surface-section: var(--paper-0);    /* white section panels      */
+  --surface-app: var(--paper-50);       /* product app chrome        */
+  --surface-card: var(--paper-0);
+  --surface-dark: var(--carbon-900);
+  --surface-cta: var(--yellow-400);     /* yellow CTA band           */
+  --surface-selected: #F0F0F0;          /* app sidebar selected item */
+
+  /* ── Semantic: borders ────────────────────────────────────── */
+  --border-default: var(--paper-200);
+  --border-soft: var(--paper-150);
+  --border-on-dark: rgba(229, 229, 227, 0.1);
+  --divider-app: #EFEFEF;
+
+  /* ── Semantic: interactive ────────────────────────────────── */
+  --accent-primary: var(--yellow-400);
+  --grad-btn-primary: linear-gradient(180deg, #F2F25C 0%, #E7E712 100%); /* @kind color */
+  --grad-btn-dark: linear-gradient(180deg, #4D4D4D 0%, #222222 100%); /* @kind color */
+  --grad-btn-outline: linear-gradient(180deg, rgba(246,245,243,0.4) 0%, rgba(229,229,227,0.4) 100%); /* @kind color */
+  --grad-chip: linear-gradient(180deg, #F4F2F0 0%, #E9E5E2 100%); /* @kind color */
+}

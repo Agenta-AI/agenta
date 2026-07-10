@@ -1,0 +1,12 @@
+{
+  "slug": "mahmoud-mabrouk",
+  "name": "Mahmoud Mabrouk",
+  "role": "Co-Founder Agenta & LLM Engineering Expert",
+  "avatar": "assets/blog/author-mahmoud.png",
+  "ogImage": "assets/blog/author-mahmoud-og.png",
+  "bio": "Co-founder of Agenta. Writes about LLMOps — prompt management, evaluation, and observability for teams shipping reliable AI applications.",
+  "socials": [
+    { "platform": "github", "url": "https://github.com/mmabrouk", "icon": "assets/icons/social-3.svg" },
+    { "platform": "linkedin", "url": "https://www.linkedin.com/in/mahmoud-mabrouk/", "icon": "assets/icons/social-4.svg" }
+  ]
+}

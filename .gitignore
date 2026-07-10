@@ -109,3 +109,8 @@ pyrightconfig.json
 
 # Agent skills lockfile (npx skills add)
 skills-lock.json
+
+# Licensed marketing-site fonts — NEVER commit (we may USE, not redistribute the binaries).
+# Injected at build time from R2; see website/AGENTS.md.
+website/public/fonts/GT-Alpina-*
+website/public/fonts/PPMondwest-*

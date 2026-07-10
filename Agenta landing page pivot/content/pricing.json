@@ -1,0 +1,161 @@
+{
+  "_note": "DESIGN PLACEHOLDER DATA. Prices, limits, and feature gates are illustrative — replace with Agenta's real plan data before launch. Shape is the contract; numbers are not.",
+  "billing": {
+    "defaultCycle": "monthly",
+    "annualDiscountLabel": "−20%"
+  },
+  "plans": [
+    {
+      "id": "hobby",
+      "name": "Hobby",
+      "popular": false,
+      "tagline": "For individuals exploring and self-hosting.",
+      "priceMonthly": 0,
+      "priceAnnual": 0,
+      "customPrice": "$0",
+      "unitMonthly": "forever",
+      "unitAnnual": "forever",
+      "cta": { "label": "Start for free", "href": "https://cloud.agenta.ai", "style": "outline" },
+      "includesLabel": "Includes",
+      "features": [
+        "2 team members",
+        "5k traces / month",
+        "Prompt playground & versioning",
+        "20 evaluations / month",
+        "Community support"
+      ]
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "popular": false,
+      "tagline": "For small teams shipping to production.",
+      "priceMonthly": 49,
+      "priceAnnual": 39,
+      "customPrice": null,
+      "unitMonthly": "/month",
+      "unitAnnual": "/mo, billed yearly",
+      "cta": { "label": "Start free trial", "href": "https://cloud.agenta.ai", "style": "outline" },
+      "includesLabel": "Everything in Hobby, plus",
+      "features": [
+        "Up to 10 members",
+        "100k traces / month",
+        "Unlimited evaluations",
+        "90-day data retention",
+        "Email support"
+      ]
+    },
+    {
+      "id": "business",
+      "name": "Business",
+      "popular": true,
+      "tagline": "For scaling teams that need control.",
+      "priceMonthly": 399,
+      "priceAnnual": 319,
+      "customPrice": null,
+      "unitMonthly": "/month",
+      "unitAnnual": "/mo, billed yearly",
+      "cta": { "label": "Start free trial", "href": "https://cloud.agenta.ai", "style": "primary" },
+      "includesLabel": "Everything in Pro, plus",
+      "features": [
+        "Up to 25 members",
+        "1M traces / month",
+        "Role-based access control",
+        "1-year retention",
+        "Priority support"
+      ]
+    },
+    {
+      "id": "enterprise",
+      "name": "Enterprise",
+      "popular": false,
+      "tagline": "For organizations with security needs.",
+      "priceMonthly": null,
+      "priceAnnual": null,
+      "customPrice": "Custom",
+      "unitMonthly": "",
+      "unitAnnual": "",
+      "cta": { "label": "Book a demo", "href": "/demo", "style": "outline" },
+      "includesLabel": "Everything in Business, plus",
+      "features": [
+        "Unlimited members",
+        "Custom trace volume",
+        "SSO / MFA, SOC 2, audit logs",
+        "Self-host or dedicated cloud",
+        "SLA & dedicated support"
+      ]
+    }
+  ],
+  "comparison": {
+    "columns": [
+      { "planId": "hobby", "name": "Hobby", "priceMonthly": "Free", "priceAnnual": "Free" },
+      { "planId": "pro", "name": "Pro", "priceMonthly": "$49/mo", "priceAnnual": "$39/mo" },
+      { "planId": "business", "name": "Business", "priceMonthly": "$399/mo", "priceAnnual": "$319/mo" },
+      { "planId": "enterprise", "name": "Enterprise", "priceMonthly": "Custom", "priceAnnual": "Custom" }
+    ],
+    "groups": [
+      {
+        "title": "Usage",
+        "rows": [
+          { "label": "Team members", "cells": ["2", "10", "25", "Unlimited"] },
+          { "label": "Traces per month", "cells": ["5k", "100k", "1M", "Custom"] },
+          { "label": "Data retention", "cells": ["7 days", "90 days", "1 year", "Custom"] },
+          { "label": "Deployment environments", "cells": ["1", "3", "Unlimited", "Unlimited"] }
+        ]
+      },
+      {
+        "title": "Build & collaborate",
+        "rows": [
+          { "label": "Prompt management & versioning", "cells": [true, true, true, true] },
+          { "label": "Playground & side-by-side compare", "cells": [true, true, true, true] },
+          { "label": "Skills, tools & agents registry", "cells": [true, true, true, true] },
+          { "label": "Role-based access control", "cells": [false, false, true, true] }
+        ]
+      },
+      {
+        "title": "Evaluate & observe",
+        "rows": [
+          { "label": "Evaluations per month", "cells": ["20", "Unlimited", "Unlimited", "Unlimited"] },
+          { "label": "LLM-as-a-judge & custom evaluators", "cells": [false, true, true, true] },
+          { "label": "Observability & tracing", "cells": [true, true, true, true] },
+          { "label": "Human annotation queues", "cells": [false, false, true, true] }
+        ]
+      },
+      {
+        "title": "Security & support",
+        "rows": [
+          { "label": "SSO / MFA", "cells": [false, false, false, true] },
+          { "label": "SOC 2 & audit logs", "cells": [false, false, false, true] },
+          { "label": "Self-hosting", "cells": ["Open source", false, false, true] },
+          { "label": "Support", "cells": ["Community", "Email", "Priority", "Dedicated + SLA"] }
+        ]
+      }
+    ]
+  },
+  "faqs": [
+    {
+      "question": "Is Agenta really open source?",
+      "answer": "Yes. The core platform is open source under a permissive license and you can self-host the full stack for free, forever. The cloud plans add managed hosting, higher limits, and team features on top."
+    },
+    {
+      "question": "What counts as a trace?",
+      "answer": "A trace is one end-to-end run of your LLM app or agent — every step, prompt, tool call, and response captured for observability. Plans are metered on traces per month, with pay-as-you-go for overages."
+    },
+    {
+      "question": "Can I switch plans or cancel anytime?",
+      "answer": "Yes. Upgrade, downgrade, or cancel from your workspace settings at any time. Annual plans are billed yearly at a 20% discount; monthly plans renew month to month."
+    },
+    {
+      "question": "Do you offer discounts for startups or academia?",
+      "answer": "We do. Early-stage startups, students, and researchers can apply for discounted or free access — reach out to the team and tell us about your project."
+    },
+    {
+      "question": "What happens when I hit my usage limit?",
+      "answer": "Nothing breaks. You can enable pay-as-you-go for extra traces and seats, or upgrade to the next plan. We notify you before you reach your limit so there are no surprises."
+    },
+    {
+      "question": "How does Enterprise self-hosting work?",
+      "answer": "Enterprise customers can deploy Agenta in their own cloud or on-prem with SSO/MFA, SOC 2, audit logs, and a dedicated SLA. Our team supports the rollout and ongoing operations."
+    }
+  ]
+}

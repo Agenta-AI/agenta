@@ -1,0 +1,38 @@
+/* Agenta Design System — typography tokens
+   GT Alpina Light = display serif (headlines)
+   PP Mondwest     = bitmap accent (one highlighted word, numerals)
+   Inter           = website body + labels
+   Geist           = product app UI
+   Geist Mono      = code, traces, data */
+
+:root {
+  --font-display: 'GT Alpina', Georgia, 'Times New Roman', serif;
+  --font-bitmap: 'PP Mondwest', 'Courier New', monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-ui: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ── Web type scale ───────────────────────────────────────── */
+  /* hero display — GT Alpina Light 300 */
+  --text-display-xl: 300 68px/72px var(--font-display);
+  /* section titles — GT Alpina Light 300 */
+  --text-display-lg: 300 48px/52px var(--font-display);
+  /* sub-section / CTA titles */
+  --text-display-md: 300 32px/38px var(--font-display);
+  /* card / FAQ titles — GT Alpina Regular 400 */
+  --text-title: 400 20px/24px var(--font-display);
+  /* body copy — Inter Regular */
+  --text-body-md: 400 16px/24px var(--font-sans);
+  --text-body-sm: 400 14px/20px var(--font-sans);
+  /* UI labels (buttons, nav) — Inter Medium */
+  --text-label: 500 14px/20px var(--font-sans);
+  /* badges, eyebrows — Inter Medium, +3% tracking */
+  --text-caption: 500 12px/18px var(--font-sans);
+  --tracking-caption: 0.03em;
+
+  /* ── App (product UI) type scale — Geist ──────────────────── */
+  --app-text-title: 500 16px/24px var(--font-ui);
+  --app-text-label: 500 14px/20px var(--font-ui);
+  --app-text-small: 500 12px/16px var(--font-ui);
+  --app-text-mono: 500 12px/16px var(--font-mono);
+}

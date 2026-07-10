@@ -1,0 +1,66 @@
+---
+import SectionTitle from "./SectionTitle.astro";
+
+const cards = [
+  {
+    title: "Skills",
+    desc: "Reusable capabilities your team shares and versions.",
+    mono: "S",
+  },
+  {
+    title: "Tools",
+    desc: "Connect an API or function once, use it everywhere.",
+    mono: "T",
+  },
+  {
+    title: "Agents",
+    desc: "Compose skills and tools into agents anyone can run.",
+    mono: "A",
+  },
+];
+---
+
+<section
+  data-screen-label="Collaborate"
+  class="ag-secpad"
+  style="background:#161518;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;"
+>
+  <div
+    class="ag-row"
+    style="display:flex;align-items:center;gap:80px;width:min(1072px,100%);margin:0 auto;"
+  >
+    <div style="flex:0 0 392px;display:flex;flex-direction:column;gap:24px;">
+      <SectionTitle
+        dark
+        align="left"
+        width="392px"
+        badge="Collaborate"
+        title="Build it with the whole team"
+        subtitle="Share skills, tools, and agents in one registry. PMs and domain experts iterate alongside engineers — every change versioned."
+      />
+      <span
+        style="display:inline-flex;align-items:center;width:fit-content;height:36px;padding:0 16px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;"
+        >Invite your team</span
+      >
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+      {
+        cards.map((item) => (
+          <div style="display:flex;align-items:center;gap:16px;padding:20px 22px;border-radius:12px;background:rgba(255,255,255,0.035);box-shadow:0 0 0 1px rgba(255,255,255,0.08);">
+            <span style="flex:0 0 auto;width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font:400 20px/1 var(--font-bitmap);color:var(--yellow-400);">
+              {item.mono}
+            </span>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <span style="font:var(--text-title);color:#F7F6F4;">
+                {item.title}
+              </span>
+              <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.58);">
+                {item.desc}
+              </span>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

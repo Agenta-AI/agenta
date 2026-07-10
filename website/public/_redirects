@@ -1,0 +1,59 @@
+# Cloudflare Workers Static Assets edge redirects.
+# https://developers.cloudflare.com/workers/static-assets/redirects/
+#
+# These give a hard 308 at the CDN edge (Astro's static `redirects` only emits a
+# client-side <meta http-equiv="refresh"> page). The pairs MUST stay in sync with
+# the `redirects` block in astro.config.mjs.
+#
+# Source of truth for destinations:
+#   docs/design/marketing-website/research/live-url-link-map.md
+
+# Legal policy slugs → docs (owner decision to unify to docs URLs, matching the
+# footer Legal links). Previously pointed to termly.io; updated 2026-06-27.
+# Footer uses the same docs URLs (see src/components/Footer.astro Legal column).
+/terms            https://agenta.ai/docs/administration/security/terms-of-service   308
+/privacy-policy   https://agenta.ai/docs/administration/security/privacy-policy     308
+
+# Campaign archive pages → blog (we do not rebuild the Framer launch-week pages).
+/launch-week-1    /blog   308
+/launch-week-2    /blog   308
+
+# ── Author trailing-slash note ────────────────────────────────────────────────
+#
+# PROBLEM: The live agenta.ai canonical for author profile pages is
+#   /authors/<slug>/   (WITH trailing slash)
+# but wrangler.jsonc sets html_handling: "drop-trailing-slash", which forces
+# a 308 redirect from /authors/<slug>/ → /authors/<slug> (no slash) for ALL
+# paths globally. A _redirects rule of the form:
+#   /authors/:slug   /authors/:slug/   308
+# would create a redirect LOOP: Cloudflare would immediately drop the slash
+# again before serving the asset. _redirects rules and html_handling both run
+# at the Workers asset layer, with html_handling taking precedence for trailing-
+# slash normalization.
+#
+# SOLUTION (must be wired at deploy time):
+# Add a Cloudflare Zone-level Transform Rule (URL Rewrite) in the dashboard:
+#   Match:  URI Path matches regex  ^/authors/[^/]+$   (no trailing slash)
+#   Action: Rewrite URL → concat(http.request.uri.path, "/")
+#
+# This rewrites the URL *before* it hits the Worker asset handler, so the
+# Worker sees the slash path and serves /authors/<slug>/index.html without
+# triggering its own trailing-slash redirect. Because the rewrite is
+# transparent (not a redirect), the browser canonical stays /authors/<slug>/
+# which matches the live site.
+#
+# Until that Transform Rule is wired, /authors/<slug>/ will 308 to /authors/<slug>
+# (no slash) at the Cloudflare edge — the page still loads, but the canonical
+# diverges from the live site (minor SEO gap, not a content gap).
+#
+# Transform Rule location:
+#   Cloudflare dashboard → agenta.ai zone → Rules → Transform Rules → URL Rewrite
+#
+# Alternative (simpler, at Workers layer, no dashboard access needed):
+# Change html_handling to "auto-trailing-slash" — Cloudflare will then
+# preserve existing trailing slashes, emit trailing-slash URLs for /authors/*,
+# and still serve non-slash URLs for all other pages (it reads the HTML to
+# decide). This is the recommended setting for mixed trailing-slash sites.
+# Only reason we have not flipped it: risk of unintended behaviour on the
+# other 45 pages. Test before switching.
+# ──────────────────────────────────────────────────────────────────────────────

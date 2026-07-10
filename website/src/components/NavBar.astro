@@ -1,0 +1,246 @@
+---
+// NavBar — shared top nav (ported from the dark landing nav).
+// Links match the LIVE agenta.ai site exactly (see
+// docs/design/marketing-website/research/live-url-link-map.md).
+//   - No "Product" dropdown in the nav (it is footer-only on the live site).
+//   - Resources / Community are real dropdowns with the live destinations.
+//   - Docs links to https://agenta.ai/docs (NOT docs.agenta.ai).
+//   - Community Slack uses the NAV invite token (zt-37pnbp5s6); the footer social
+//     icon uses a DIFFERENT token (zt-2yewk6o2b). Use each where the map says.
+const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
+const GET_STARTED = "https://cloud.agenta.ai/";
+
+type DropdownItem = { label: string; href: string };
+type NavLink = {
+  label: string;
+  href: string;
+  external?: boolean;
+  dropdown?: DropdownItem[];
+};
+
+const links: NavLink[] = [
+  { label: "Pricing", href: "/pricing" },
+  { label: "Docs", href: "https://agenta.ai/docs", external: true },
+  { label: "Blog", href: "/blog" },
+  {
+    label: "Resources",
+    href: "#",
+    dropdown: [
+      {
+        label: "Tutorial",
+        href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback",
+      },
+      { label: "Changelog", href: "https://agenta.ai/docs/changelog/main" },
+      { label: "Roadmap", href: "https://agenta.ai/docs/roadmap" },
+    ],
+  },
+  {
+    label: "Community",
+    href: "#",
+    dropdown: [
+      { label: "Github", href: "https://github.com/Agenta-AI/agenta/discussions" },
+      {
+        label: "Slack",
+        href: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
+      },
+      { label: "Youtube", href: "https://www.youtube.com/@agentaAI" },
+      { label: "Linkedin", href: "https://www.linkedin.com/company/agenta-ai/" },
+      { label: "X / Twitter", href: "https://twitter.com/agenta_ai" },
+    ],
+  },
+];
+
+const chevron = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
+const linkStyle =
+  "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;";
+const dropItemStyle =
+  "display:flex;align-items:center;height:38px;padding:0 14px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.78);text-decoration:none;white-space:nowrap;";
+---
+
+<nav
+  style="position:relative;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 24px;background:#100F11;border:1px solid rgba(255,255,255,0.07);box-sizing:border-box;"
+>
+  <a href="/" style="display:flex;align-items:center;">
+    <img
+      src="/logos/Agenta-logo-full-dark.svg"
+      alt="Agenta"
+      style="height:23px;display:block;"
+    />
+  </a>
+
+  <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
+    {
+      links.map((l) =>
+        l.dropdown ? (
+          <div class="ag-nav-dd" style="position:relative;">
+            <button
+              type="button"
+              class="ag-navlink ag-nav-dd-trigger"
+              aria-haspopup="true"
+              aria-expanded="false"
+              style={`${linkStyle}background:none;border:none;`}
+            >
+              {l.label}
+              <Fragment set:html={chevron} />
+            </button>
+            <div
+              class="ag-nav-dd-menu"
+              style="position:absolute;top:calc(100% + 6px);left:0;min-width:180px;display:none;flex-direction:column;gap:2px;padding:8px;border-radius:12px;background:#16151A;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.09),0 16px 40px rgba(0,0,0,0.5);z-index:50;"
+            >
+              {l.dropdown.map((d) => (
+                <a
+                  href={d.href}
+                  target="_blank"
+                  rel="noopener"
+                  style={dropItemStyle}
+                >
+                  {d.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <a
+            class="ag-navlink"
+            href={l.href}
+            target={l.external ? "_blank" : undefined}
+            rel={l.external ? "noopener" : undefined}
+            style={linkStyle}
+          >
+            {l.label}
+          </a>
+        ),
+      )
+    }
+  </div>
+
+  <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
+    <a
+      href={BOOK_DEMO}
+      target="_blank"
+      rel="noopener"
+      style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Book a demo</a
+    >
+    <a
+      href={GET_STARTED}
+      target="_blank"
+      rel="noopener"
+      style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Get started</a
+    >
+  </div>
+
+  <button
+    class="ag-menu"
+    id="ag-menu-toggle"
+    aria-label="Open menu"
+    aria-expanded="false"
+    style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);cursor:pointer;padding:0;"
+  >
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
+      ><path
+        d="M2 5h14M2 9h14M2 13h14"
+        stroke="#F7F6F4"
+        stroke-width="1.6"
+        stroke-linecap="round"></path></svg
+    >
+  </button>
+</nav>
+
+<div
+  class="ag-mobile-menu"
+  id="ag-mobile-menu"
+  style="flex-direction:column;gap:2px;padding:12px 16px 16px;background:#100F11;border:1px solid rgba(255,255,255,0.07);border-top:none;margin-top:-1px;"
+>
+  {
+    links.map((l) =>
+      l.dropdown ? (
+        <div style="display:flex;flex-direction:column;">
+          <span style="display:flex;align-items:center;height:42px;padding:0 12px;font:var(--text-caption);letter-spacing:0.03em;text-transform:uppercase;color:rgba(255,255,255,0.4);">
+            {l.label}
+          </span>
+          {l.dropdown.map((d) => (
+            <a
+              href={d.href}
+              target="_blank"
+              rel="noopener"
+              style="display:flex;align-items:center;height:40px;padding:0 24px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
+            >
+              {d.label}
+            </a>
+          ))}
+        </div>
+      ) : (
+        <a
+          href={l.href}
+          target={l.external ? "_blank" : undefined}
+          rel={l.external ? "noopener" : undefined}
+          style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
+        >
+          {l.label}
+        </a>
+      ),
+    )
+  }
+  <div style="display:flex;gap:10px;margin-top:10px;">
+    <a
+      href={BOOK_DEMO}
+      target="_blank"
+      rel="noopener"
+      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Book a demo</a
+    >
+    <a
+      href={GET_STARTED}
+      target="_blank"
+      rel="noopener"
+      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Get started</a
+    >
+  </div>
+</div>
+
+<style>
+  /* Desktop dropdown: open on hover and on keyboard focus-within. */
+  @media (min-width: 880px) {
+    .ag-nav-dd:hover .ag-nav-dd-menu,
+    .ag-nav-dd:focus-within .ag-nav-dd-menu {
+      display: flex;
+    }
+  }
+</style>
+
+<script>
+  // Lightweight hamburger toggle (no framework). Replaces the DC menuOpen state.
+  const toggle = document.getElementById("ag-menu-toggle");
+  const menu = document.getElementById("ag-mobile-menu");
+  toggle?.addEventListener("click", () => {
+    const open = menu?.classList.toggle("is-open");
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  // Desktop dropdowns: click-to-toggle as a fallback to the CSS hover (covers
+  // touch + keeps aria-expanded honest). CSS handles the hover-open path.
+  document.querySelectorAll<HTMLElement>(".ag-nav-dd").forEach((dd) => {
+    const trigger = dd.querySelector<HTMLButtonElement>(".ag-nav-dd-trigger");
+    const ddMenu = dd.querySelector<HTMLElement>(".ag-nav-dd-menu");
+    trigger?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = ddMenu?.style.display === "flex";
+      document
+        .querySelectorAll<HTMLElement>(".ag-nav-dd-menu")
+        .forEach((m) => (m.style.display = "none"));
+      if (ddMenu) ddMenu.style.display = isOpen ? "none" : "flex";
+      trigger.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    });
+  });
+  document.addEventListener("click", () => {
+    document
+      .querySelectorAll<HTMLElement>(".ag-nav-dd-menu")
+      .forEach((m) => (m.style.display = "none"));
+    document
+      .querySelectorAll<HTMLElement>(".ag-nav-dd-trigger")
+      .forEach((t) => t.setAttribute("aria-expanded", "false"));
+  });
+</script>
