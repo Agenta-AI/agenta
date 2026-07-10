@@ -61,8 +61,9 @@ builder-reliability findings, or design reasoning).
   trigger) so the user can veto. Commit and trigger are approval gates; pre-state what is
   coming.
 
-Field types are `string`, `number`, `integer`, `boolean` only. No arrays, no nested objects,
-no multi-select. Formats: `date`, `date-time`, `email`, `uri`, `multiline`.
+Field types are `string`, `number`, `integer`, `boolean`, and the multi-pick array
+`{type: "array", items: {type: "string", enum: [...]}}`. No nested objects. Formats: `date`,
+`date-time`, `email`, `uri`, `multiline` (date fields ignore defaults).
 
 ## Verification (against our runtime)
 
