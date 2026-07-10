@@ -1,8 +1,16 @@
-import {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react"
+import {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
-import {MinusCircle, Plus} from "@phosphor-icons/react"
+import {Check, MinusCircle, Plus} from "@phosphor-icons/react"
 import {
     Button,
     Collapse,
@@ -12,9 +20,23 @@ import {
     InputNumber,
     Switch,
     Select,
+    Tag,
     Typography,
 } from "antd"
 import type {FormInstance} from "antd"
+
+import {
+    OTHER_ENUM_OPTION,
+    commitCustomValue,
+    enumOptionsOf,
+    isOffOptionsValue,
+    partitionCustomValues,
+    selectOptionsWithOther,
+    splitOtherFromSelection,
+    toggleCardSelection,
+    wantsChoiceCards,
+    type EnumOption,
+} from "./schemaFormOptions"
 
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
@@ -29,13 +51,21 @@ interface Props {
     flat?: boolean
     /** Opt-in `format` handling (date/date-time/multiline/email/uri) — see BuildFormFieldsOptions. */
     formats?: boolean
+    /** Opt-in: render enum fields with an "Other…" custom-value escape hatch (elicitation forms). */
+    openEnums?: boolean
+    /** Fires with ALL current values on any field change (e.g. draft persistence). */
+    onValuesChange?: (values: Record<string, unknown>) => void
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
-    ({schema, form, disabled, jsonMode, flat, formats}, ref) => {
+    ({schema, form, disabled, jsonMode, flat, formats, openEnums, onValuesChange}, ref) => {
         const fields = useMemo(
-            () => buildFormFieldsFromSchema(schema, "", {formats: !!formats}),
-            [schema, formats],
+            () =>
+                buildFormFieldsFromSchema(schema, "", {
+                    formats: !!formats,
+                    openEnums: !!openEnums,
+                }),
+            [schema, formats, openEnums],
         )
         const requiredFields = useMemo(() => fields.filter((f) => f.required), [fields])
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
@@ -135,6 +165,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 layout="vertical"
                 disabled={disabled}
                 requiredMark={false}
+                // Raw values on purpose: cleanFormValues would recurse into (and destroy) dayjs
+                // objects and JSON.parse typed strings — wrong for a draft snapshot.
+                onValuesChange={onValuesChange ? (_, all) => onValuesChange(all) : undefined}
                 className={
                     flat
                         ? "[&_.ant-form-item]:!mb-3 [&_.ant-form-item-label]:!pb-1 [&_.ant-form-item-label>label]:!h-auto [&_.ant-form-item-label>label]:!text-xs"
@@ -145,7 +178,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                     <SchemaFormField key={field.name} field={field} />
                 ))}
 
-                {flat
+                {/* The collapse de-emphasizes optional EXTRAS below required fields; with no
+                    required fields there is nothing to de-emphasize, so render inline. */}
+                {flat || requiredFields.length === 0
                     ? optionalFields.map((field) => (
                           <SchemaFormField key={field.name} field={field} />
                       ))
@@ -157,6 +192,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                               items={[
                                   {
                                       key: "optional",
+                                      // Collapsed Form.Items must still register their
+                                      // initialValues (schema defaults) — without forceRender an
+                                      // untouched submit silently drops every collapsed default.
+                                      forceRender: true,
                                       label: (
                                           <Typography.Text type="secondary" className="text-xs">
                                               Optional ({optionalFields.length})
@@ -235,6 +274,299 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
     )
 }
 
+/** Enum control with an "Other…" entry that reveals a free-text input (elicitation escape hatch). */
+function EnumWithOther({
+    value,
+    onChange,
+    options,
+    placeholder,
+    allowClear,
+    disabled,
+}: {
+    value?: string
+    onChange?: (v: string | undefined) => void
+    options: EnumOption[]
+    placeholder?: string
+    allowClear?: boolean
+    disabled?: boolean
+}) {
+    const offOptions = isOffOptionsValue(value, options)
+    const [otherMode, setOtherMode] = useState(offOptions)
+    // An off-options value can also arrive AFTER mount (schema `default` via Form initialValue,
+    // or a replayed draft) — it must open Other-mode with the text prefilled.
+    useEffect(() => {
+        if (isOffOptionsValue(value, options)) setOtherMode(true)
+    }, [value, options])
+    const selectValue = otherMode ? OTHER_ENUM_OPTION : offOptions ? undefined : value
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Select
+                placeholder={placeholder}
+                allowClear={allowClear}
+                disabled={disabled}
+                value={selectValue}
+                onChange={(next) => {
+                    if (next === OTHER_ENUM_OPTION) {
+                        setOtherMode(true)
+                        // No no-op change: emitting undefined here would fire the required rule
+                        // the instant the user picks Other…, before they can type.
+                        if (value !== undefined) onChange?.(undefined)
+                    } else {
+                        setOtherMode(false)
+                        onChange?.(next)
+                    }
+                }}
+                options={selectOptionsWithOther(options)}
+            />
+            {otherMode && (
+                <Input
+                    // Focus only when the user picked "Other…" (value just cleared) — a form
+                    // mounting with an off-options default must not steal focus.
+                    autoFocus={value == null}
+                    disabled={disabled}
+                    placeholder="Type your answer"
+                    value={value ?? ""}
+                    onChange={(e) => onChange?.(e.target.value || undefined)}
+                />
+            )}
+        </div>
+    )
+}
+
+/**
+ * Multi-select with the same "Other…" escape hatch as EnumWithOther: picking Other… reveals a
+ * text input that appends ONE custom chip (repeatable). Without options (a free string list),
+ * it degrades to tags mode — plain typed entries. Off-options values (defaults, replays) render
+ * as chips natively.
+ */
+function MultiEnumWithOther({
+    value,
+    onChange,
+    options,
+    placeholder,
+    disabled,
+}: {
+    value?: string[]
+    onChange?: (v: string[] | undefined) => void
+    options: EnumOption[]
+    placeholder?: string
+    disabled?: boolean
+}) {
+    const [otherDraft, setOtherDraft] = useState<string | null>(null)
+    const selected = value ?? []
+
+    if (options.length === 0) {
+        return (
+            <Select
+                mode="tags"
+                placeholder={placeholder}
+                disabled={disabled}
+                value={selected}
+                onChange={(next: string[]) => onChange?.(next.length ? next : undefined)}
+                open={false}
+                suffixIcon={null}
+            />
+        )
+    }
+
+    const commitDraft = () => {
+        const commit = commitCustomValue(selected, otherDraft, true)
+        setOtherDraft(null)
+        if (commit.changed) onChange?.(commit.value as string[])
+    }
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Select
+                mode="multiple"
+                placeholder={placeholder}
+                disabled={disabled}
+                value={selected}
+                onChange={(next: string[]) => {
+                    const {values, openOther} = splitOtherFromSelection(next)
+                    if (openOther) setOtherDraft("")
+                    // Opening the Other… draft is not a value change — a no-op onChange would
+                    // fire the required rule before the user can type.
+                    const unchanged =
+                        (values ?? []).length === selected.length &&
+                        (values ?? []).every((v, i) => v === selected[i])
+                    if (!unchanged) onChange?.(values)
+                }}
+                options={selectOptionsWithOther(options)}
+            />
+            {otherDraft !== null && (
+                <Input
+                    autoFocus
+                    disabled={disabled}
+                    placeholder="Type a value and press Enter"
+                    value={otherDraft}
+                    onChange={(e) => setOtherDraft(e.target.value)}
+                    onPressEnter={commitDraft}
+                    onBlur={commitDraft}
+                />
+            )}
+        </div>
+    )
+}
+
+// Selected state: primary border + the filled indicator only — a full primary-bg fill reads
+// far too heavy in the dark theme (dogfooding feedback).
+const choiceCardCls = (selected: boolean) =>
+    `flex cursor-pointer items-start gap-2 rounded-lg border border-solid p-3 transition-colors ${
+        selected ? "border-colorPrimary" : "border-colorBorderSecondary hover:border-colorPrimary"
+    }`
+
+/** Presentational check/dot — the CARD is the single interactive element (no nested input). */
+const CardIndicator = ({checked, multiple}: {checked: boolean; multiple?: boolean}) => (
+    <span
+        aria-hidden
+        className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center border border-solid transition-colors ${
+            multiple ? "rounded" : "rounded-full"
+        } ${
+            checked
+                ? "border-colorPrimary bg-[var(--ant-color-primary)]"
+                : "border-colorBorder bg-colorBgContainer"
+        }`}
+    >
+        {checked &&
+            (multiple ? (
+                <Check size={9} weight="bold" className="text-white" />
+            ) : (
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+            ))}
+    </span>
+)
+
+/**
+ * Context-ful options rendered as selectable cards (radio semantics; checkbox when `multiple`) —
+ * used when any option carries a description a bare Select would flatten. Includes the same
+ * "Other…" escape hatch as the Select controls: the last card reveals a free-text input.
+ */
+function ChoiceCards({
+    value,
+    onChange,
+    options,
+    multiple,
+    disabled,
+    id,
+}: {
+    value?: string | string[]
+    onChange?: (v: string | string[] | undefined) => void
+    options: EnumOption[]
+    multiple?: boolean
+    disabled?: boolean
+    /** Injected by Form.Item so the field label associates with the group. */
+    id?: string
+}) {
+    const [otherDraft, setOtherDraft] = useState<string | null>(null)
+    const selected = multiple
+        ? ((value as string[] | undefined) ?? [])
+        : value != null
+          ? [value as string]
+          : []
+    const customValues = partitionCustomValues(selected, options)
+    const isChecked = (v: string) => selected.includes(v)
+
+    const pick = (v: string) => {
+        if (disabled) return
+        onChange?.(toggleCardSelection(selected, v, !!multiple))
+    }
+    const commitDraft = () => {
+        const commit = commitCustomValue(selected, otherDraft, !!multiple)
+        setOtherDraft(null)
+        if (commit.changed) onChange?.(commit.value)
+    }
+    const otherActive = otherDraft !== null || customValues.length > 0
+
+    return (
+        <div id={id} role={multiple ? "group" : "radiogroup"} className="flex flex-col gap-2">
+            {options.map((o) => (
+                <div
+                    key={o.value}
+                    role={multiple ? "checkbox" : "radio"}
+                    aria-checked={isChecked(o.value)}
+                    tabIndex={disabled ? -1 : 0}
+                    onClick={() => pick(o.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            pick(o.value)
+                        }
+                    }}
+                    className={choiceCardCls(isChecked(o.value))}
+                >
+                    <CardIndicator checked={isChecked(o.value)} multiple={multiple} />
+                    <div className="flex min-w-0 flex-col">
+                        <Typography.Text className="!text-xs font-medium">
+                            {o.label ?? o.value}
+                        </Typography.Text>
+                        {o.description && (
+                            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                                {o.description}
+                            </Typography.Text>
+                        )}
+                    </div>
+                </div>
+            ))}
+            <div
+                role={multiple ? "checkbox" : "radio"}
+                aria-checked={otherActive}
+                tabIndex={disabled ? -1 : 0}
+                onClick={() => {
+                    if (!disabled && otherDraft === null) setOtherDraft("")
+                }}
+                onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && otherDraft === null) {
+                        e.preventDefault()
+                        if (!disabled) setOtherDraft("")
+                    }
+                }}
+                className={choiceCardCls(otherActive)}
+            >
+                <CardIndicator checked={otherActive} multiple={multiple} />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <Typography.Text className="!text-xs font-medium">Other…</Typography.Text>
+                    {multiple && customValues.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                            {customValues.map((v) => (
+                                <Tag
+                                    key={v}
+                                    closable={!disabled}
+                                    onClose={(e) => {
+                                        e.preventDefault()
+                                        const next = selected.filter((x) => x !== v)
+                                        onChange?.(next.length ? next : undefined)
+                                    }}
+                                >
+                                    {v}
+                                </Tag>
+                            ))}
+                        </div>
+                    )}
+                    {!multiple && customValues.length > 0 && otherDraft === null && (
+                        <Typography.Text type="secondary" className="!text-[11px]">
+                            {customValues[0]}
+                        </Typography.Text>
+                    )}
+                    {otherDraft !== null && (
+                        <Input
+                            autoFocus
+                            disabled={disabled}
+                            placeholder="Type your answer"
+                            value={otherDraft}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setOtherDraft(e.target.value)}
+                            onPressEnter={commitDraft}
+                            onBlur={commitDraft}
+                        />
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
 function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?: number}) {
     const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
     const label = <FieldLabel field={field} />
@@ -303,6 +635,25 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
         )
     }
 
+    // Multi-select (elicitation, openEnums): string-items arrays render as a chip picker,
+    // upgraded to checkbox choice cards when the options carry descriptions.
+    if (field.type === "array" && field.multiple) {
+        return (
+            <Form.Item
+                name={field.name.split(".")}
+                label={label}
+                rules={rules}
+                initialValue={field.default}
+            >
+                {wantsChoiceCards(field) ? (
+                    <ChoiceCards multiple options={enumOptionsOf(field)} />
+                ) : (
+                    <MultiEnumWithOther options={enumOptionsOf(field)} placeholder={field.label} />
+                )}
+            </Form.Item>
+        )
+    }
+
     // Array with structured item schema → Form.List with add/remove
     if (field.type === "array") {
         return <ArrayField field={field} rules={rules} depth={depth} />
@@ -341,24 +692,31 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                     rules={rules}
                     initialValue={field.default}
                 >
-                    <Select
-                        placeholder={field.label}
-                        allowClear={!field.required}
-                        options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
-                    />
+                    {wantsChoiceCards(field) ? (
+                        <ChoiceCards options={enumOptionsOf(field)} />
+                    ) : field.allowCustomEnum ? (
+                        <EnumWithOther
+                            options={enumOptionsOf(field)}
+                            placeholder={field.label}
+                            allowClear={!field.required}
+                        />
+                    ) : (
+                        <Select
+                            placeholder={field.label}
+                            allowClear={!field.required}
+                            options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
+                        />
+                    )}
                 </Form.Item>
             )
 
         default:
             // Format-aware controls appear only when the host opted in via `formats`.
             if (field.format === "date" || field.format === "date-time") {
+                // No initialValue: a wire default is an ISO STRING and DatePicker requires dayjs —
+                // a string value crashes it. Date fields render empty; other types prefill.
                 return (
-                    <Form.Item
-                        name={field.name.split(".")}
-                        label={label}
-                        rules={rules}
-                        initialValue={field.default}
-                    >
+                    <Form.Item name={field.name.split(".")} label={label} rules={rules}>
                         <DatePicker
                             className="w-full"
                             showTime={field.format === "date-time"}
