@@ -745,9 +745,6 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
         stopped,
         sendQueued,
     })
-    // Latch the last non-empty queue so the row keeps its content while it animates closed on release.
-    const shownQueuedRef = useRef(queued)
-    if (queued.length > 0) shownQueuedRef.current = queued
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
     // composer (not inline in the transcript, so a paused run can't scroll out of reach). Trace
@@ -1722,7 +1719,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
                 <RevealCollapse open={queued.length > 0} className={CHAT_COLUMN}>
                     <div className="flex items-center gap-2 px-3 pb-2">
                         <QueuedMessages
-                            queued={shownQueuedRef.current}
+                            queued={queued}
                             onRemove={removeQueued}
                             onClear={clearQueue}
                         />
