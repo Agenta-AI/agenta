@@ -91,6 +91,11 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
     const mode = input.mode === "api_key" ? "api_key" : "oauth"
     const label = prettyIntegration(integration)
+    // A window name UNIQUE to this widget. Several connect widgets can be live at once; a shared
+    // name makes the second `window.open` reuse the first's popup, so the second flow's
+    // `tools:oauth:complete` message never reaches this widget and its popup-closed poll settles it
+    // as cancelled — "connected but shows failed". The tool-call id is unique per parked call.
+    const oauthWindowName = `tools_oauth_${meta.toolCallId}`
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
     // connection failure); see DEFERRED_SENTINEL.
@@ -186,7 +191,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
 
                 const popup = window.open(
                     redirectUrl,
-                    "tools_oauth",
+                    oauthWindowName,
                     "width=600,height=700,popup=yes",
                 )
                 if (!popup) {
@@ -262,7 +267,17 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 if (settleParkedCall) finish({connected: false, integration, slug, reason: message})
             }
         },
-        [phase, handleCreate, slug, mode, invalidate, finish, teardown, integration],
+        [
+            phase,
+            handleCreate,
+            slug,
+            mode,
+            invalidate,
+            finish,
+            teardown,
+            integration,
+            oauthWindowName,
+        ],
     )
 
     // Explicit cancel while the popup is open: settle the parked call as cancelled (or, for a manual
