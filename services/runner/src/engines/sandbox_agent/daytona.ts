@@ -15,13 +15,13 @@ type Log = (message: string) => void;
 export const DAYTONA_PI_DIR =
   process.env.AGENTA_AGENT_SANDBOX_PI_DIR ?? "/home/sandbox/.pi/agent";
 
-// Some Daytona images ship the pi-acp adapter but not the `pi` CLI, so by default we install
-// it into the sandbox at session time and point pi-acp at it. A custom snapshot that
-// pre-installs `pi` can set AGENTA_AGENT_SANDBOX_PI_INSTALLED=false.
+// Keep fresh bare images reliable by installing Pi at session time by default. A
+// snapshot that already bakes the pinned CLI can explicitly set
+// AGENTA_AGENT_SANDBOX_PI_INSTALLED=false to skip that work.
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
 export const DAYTONA_PI_INSTALL =
   process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED !== "false";
-export const DAYTONA_PI_VERSION = process.env.AGENTA_AGENT_SANDBOX_PI_VERSION ?? "0.79.4";
+export const DAYTONA_PI_VERSION = process.env.AGENTA_AGENT_SANDBOX_PI_VERSION ?? "0.80.6";
 
 /**
  * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
