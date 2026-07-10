@@ -276,8 +276,14 @@ export const workflowSchema = z
         // Slug
         slug: z.string().nullable().optional(),
 
-        // Version (present on revisions — backend returns as string, coerce to number)
-        version: z.coerce.number().nullable().optional(),
+        // Version (present on revisions — backend returns as string). Coerce to a
+        // number, but degrade a non-numeric value to null instead of failing the
+        // whole revision parse (a bad version tag must not blank the config).
+        version: z.preprocess((v) => {
+            if (v === null || v === undefined) return v
+            const n = Number(v)
+            return Number.isFinite(n) ? n : null
+        }, z.number().nullable().optional()),
 
         // Header
         name: z.string().nullable().optional(),
