@@ -24,6 +24,17 @@ vi.mock("@agenta/sdk", () => ({
     }),
 }))
 
+// The unit under test resolves its client via `@agenta/sdk/resources` (normal + low-priority
+// variants — the priority is a fetch hint, so both share the same fake).
+vi.mock("@agenta/sdk/resources", () => ({
+    getWorkflowsClient: () => ({
+        retrieveWorkflowRevision: fernRetrieve,
+    }),
+    getLowPriorityWorkflowsClient: () => ({
+        retrieveWorkflowRevision: fernRetrieve,
+    }),
+}))
+
 import {retrieveWorkflowRevision} from "../../src/workflow/api/api"
 
 beforeEach(() => {
