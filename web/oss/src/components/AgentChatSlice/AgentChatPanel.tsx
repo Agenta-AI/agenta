@@ -1341,8 +1341,22 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
     // Bounded wait: a broken overlay endpoint must not hang the first turn forever. Once a seed is
     // pending, wait at most 10s for the overlay, then send anyway (kit-less) with a warning.
     const [overlayWaitElapsed, setOverlayWaitElapsed] = useState(false)
+    // A new entity/session or a fresh pending seed restarts the bounded wait from zero.
     useEffect(() => {
-        if (!firstRunPrompt || overlayReady) return
+        setOverlayWaitElapsed(false)
+    }, [entityId, firstRunPrompt])
+    // Arm the timeout only when the auto-send is blocked on nothing BUT the overlay: a pending seed
+    // whose model is ready and which would otherwise fire this turn. Otherwise a still-gated model
+    // (or an already-sent seed) would burn the 10s window before the overlay ever mattered.
+    const sendBlockedOnlyOnOverlay =
+        Boolean(firstRunPrompt) &&
+        !autoStartedSeedRef.current &&
+        !modelBlocked &&
+        (seedWasBlockedRef.current || firstRunAutoSend) &&
+        messages.length === 0 &&
+        !overlayReady
+    useEffect(() => {
+        if (!sendBlockedOnlyOnOverlay || overlayWaitElapsed) return
         const timer = setTimeout(() => {
             console.warn(
                 "[AgentChat] build-kit overlay not ready after 10s; sending seed without it",
@@ -1350,7 +1364,7 @@ const AgentConversation = ({entityId, sessionId}: {entityId: string; sessionId: 
             setOverlayWaitElapsed(true)
         }, 10_000)
         return () => clearTimeout(timer)
-    }, [firstRunPrompt, overlayReady])
+    }, [sendBlockedOnlyOnOverlay, overlayWaitElapsed])
     useEffect(() => {
         if (!firstRunPrompt || autoStartedSeedRef.current) return
         if (modelBlocked) {

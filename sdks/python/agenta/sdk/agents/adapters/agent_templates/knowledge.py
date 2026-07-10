@@ -21,11 +21,11 @@ base" agent for teammates (not customers; see knowledge-chatbot for a customer-f
 
 ## Required context (ask via one request_input form)
 - Channel to answer @mentions in: which Slack channel(s) the agent should listen in and reply
-  in. No default; the agent cannot know this. Description: "press Enter to accept: #<guess>"
-  if one was mentioned.
+  in. No default; the agent cannot know this. Description: "Recommended: #<guess>" if one
+  was mentioned.
 - What counts as "the docs": the Notion space or top-level pages to search, if the connected
   workspace holds more than docs (product specs, meeting notes, and so on). Description:
-  "press Enter to search the whole connected workspace" as the proposed default.
+  "Leave empty to search the whole connected workspace."
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Additional sources beyond Notion: also search Confluence, Google Drive, or Slack history if
@@ -87,7 +87,7 @@ teammate-only bot, see docs-qa instead).
 - Where customers reach it: which Slack channel, Discord server/channel, or Telegram chat the
   agent should listen and reply in. No default; the agent cannot know this.
 - Which Notion content is customer-safe: the space or pages that are fine to show customers,
-  excluding anything internal-only. Description: "press Enter to search the whole connected
+  excluding anything internal-only. Description: "Leave empty to search the whole connected
   workspace" if there is no internal/external split.
 
 ## Researchable context (ask, but the first option is "figure it out")
@@ -149,7 +149,7 @@ this one).
 - Channel to answer @mentions in: which Slack channel new hires will ask in (often a
   #onboarding or #new-hires channel). No default; the agent cannot know this.
 - Which wiki counts as "the internal wiki": the Notion or Confluence space to search, if the
-  workspace holds more than onboarding content. Description: "press Enter to search the whole
+  workspace holds more than onboarding content. Description: "Leave empty to search the whole
   connected workspace" as the proposed default.
 
 ## Researchable context (ask, but the first option is "figure it out")
@@ -207,8 +207,7 @@ entry into social copy (this is a one-shot transform, not a standing Q&A bot).
 
 ## Required context (ask via one request_input form)
 - Source doc: the Notion page or Google Drive doc to repurpose. No default; the agent cannot
-  proceed without it. Description: "press Enter to accept the doc I found: <guess>" if a prior
-  read surfaced one.
+  proceed without it. Description: "Recommended: <guess>" if a prior read surfaced one.
 - Where to post drafts for review: a Slack channel or a Notion draft page. Offer as an enum,
   first option "Figure it out from what's connected."
 

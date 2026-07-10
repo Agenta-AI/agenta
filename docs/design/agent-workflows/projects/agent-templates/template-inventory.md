@@ -156,17 +156,19 @@ Seeds:
 
 ## Coverage and confidence
 
-F appears in 24 rows, J in 12, R in 13. The set is weighted to the founder while covering the
+F appears in 27 rows, J in 13, R in 14. The set is weighted to the founder while covering the
 junior-engineer dev workflow (Engineering plus Ops) and the freelancer knowledge and CRM work
 (Knowledge plus Sales). All 28 are buildable with Composio gateway tools plus schedules or
 subscriptions; none need exotic infrastructure.
 
-Eight rows are CHECK: ci-failure-triage, support-reply-drafter, crm-updater, meeting-followup,
-uptime-reporter, oncall-briefer, weekly-report, and the datadog/newrelic/pagerduty logos on the
-monitoring rows. Each hinges on a specific Composio toolkit existing (datadog, newrelic,
-pagerduty, intercom, confluence, gitlab, attio) or on a specific access (a CI-run event, a
-calendar read). Each falls back to the SOLID integration in its group. Whether to ship the
-CHECK rows before verifying their toolkits is [open-questions.md](open-questions.md) #3.
+Seven rows are CHECK: ci-failure-triage, support-reply-drafter, crm-updater, meeting-followup,
+uptime-reporter, oncall-briefer, and weekly-report. Each hinges on a specific Composio toolkit
+existing (datadog, newrelic, pagerduty, intercom, confluence, gitlab, attio) or on a specific
+access (a CI-run event, a calendar read). Confidence is set per template row, not per logo: the
+datadog, newrelic, and pagerduty display logos that also appear on SOLID monitoring rows
+(incident-responder, error-triage) are unverified but display-only there, so they do not make
+those rows CHECK. Each CHECK row falls back to the SOLID integration in its group. Whether to
+ship the CHECK rows before verifying their toolkits is [open-questions.md](open-questions.md) #3.
 
 ## The category-set trade-off
 

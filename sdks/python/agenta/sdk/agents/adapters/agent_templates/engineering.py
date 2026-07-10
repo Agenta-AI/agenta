@@ -24,8 +24,8 @@ shipped" summaries from a repo.
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub or GitLab repo to read merged PRs from. No default; the agent
-  cannot proceed without it. Description: "press Enter to accept the repo I found: <guess>"
-  when a prior read surfaced one.
+  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
+  surfaced one.
 - Where release notes are published: the docs page, a Notion database, or a Linear
   document. Offer these as an enum. First option: "Figure it out from what's connected."
 
@@ -92,8 +92,8 @@ repo.
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub or GitLab repo to review PRs on. No default; the agent cannot
-  proceed without it. Description: "press Enter to accept the repo I found: <guess>" when a
-  prior read surfaced one.
+  proceed without it. Description: "Recommended: <guess>" when a prior read surfaced
+  one.
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Review posture: comment only (advisory) or request changes when tests are missing
@@ -157,8 +157,8 @@ labeling.
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub or GitLab repo to triage issues on. No default; the agent cannot
-  proceed without it. Description: "press Enter to accept the repo I found: <guess>" when a
-  prior read surfaced one.
+  proceed without it. Description: "Recommended: <guess>" when a prior read surfaced
+  one.
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Label taxonomy: which area and priority labels to use. Enum first option: "Figure it out
@@ -216,8 +216,7 @@ workflow runs or broken builds.
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub repo's workflow runs to watch. No default; the agent cannot proceed
-  without it. Description: "press Enter to accept the repo I found: <guess>" when a prior read
-  surfaced one.
+  without it. Description: "Recommended: <guess>" when a prior read surfaced one.
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Where to notify: a comment on the PR or commit tagging the author, or also a Slack channel if
@@ -274,8 +273,8 @@ code Q&A bot. Card key code-qa. Also matches free-text asks for a repo-grounded 
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub or GitLab repo to answer questions about. No default; the agent
-  cannot proceed without it. Description: "press Enter to accept the repo I found: <guess>"
-  when a prior read surfaced one.
+  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
+  surfaced one.
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Where questions come in: a Slack channel mention or a GitHub issue/PR comment mention. Enum
@@ -335,8 +334,8 @@ key dependency-digest. Also matches free-text asks about tracking Dependabot or 
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub or GitLab repo to scan for dependency PRs. No default; the agent
-  cannot proceed without it. Description: "press Enter to accept the repo I found: <guess>"
-  when a prior read surfaced one.
+  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
+  surfaced one.
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Where to post the digest: a Slack channel if connected, or a comment on a pinned tracking

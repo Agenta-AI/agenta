@@ -26,8 +26,7 @@ incident-responder. Also matches free-text asks about incident response, alert t
 
 ## Required context (ask via one request_input form)
 - Sentry project or org to watch: no default; the agent cannot proceed without it.
-  Description: "press Enter to accept the project I found: <guess>" when a prior read
-  surfaced one.
+  Description: "Recommended: <guess>" when a prior read surfaced one.
 - Where to send alerts: the Slack channel to post to, and/or the PagerDuty escalation policy
   to page. No default; the agent cannot know who is on call or where the team looks for
   alerts without being told.
@@ -94,8 +93,7 @@ file a ticket for this error."
 
 ## Required context (ask via one request_input form)
 - Sentry project or org to watch: no default; the agent cannot proceed without it.
-  Description: "press Enter to accept the project I found: <guess>" when a prior read
-  surfaced one.
+  Description: "Recommended: <guess>" when a prior read surfaced one.
 - Where new tickets go: a Linear team or a Jira project. No default; the agent cannot guess
   the filing destination.
 
@@ -155,8 +153,7 @@ uptime-reporter. Also matches free-text asks about a daily status digest or an S
 
 ## Required context (ask via one request_input form)
 - Sentry project or org to summarize: no default; the agent cannot proceed without it.
-  Description: "press Enter to accept the project I found: <guess>" when a prior read
-  surfaced one.
+  Description: "Recommended: <guess>" when a prior read surfaced one.
 - Slack channel to post the daily summary to: no default; the agent cannot guess where the
   team wants it.
 
@@ -219,8 +216,7 @@ incident standup.
 
 ## Required context (ask via one request_input form)
 - Sentry project or org to watch: no default; the agent cannot proceed without it.
-  Description: "press Enter to accept the project I found: <guess>" when a prior read
-  surfaced one.
+  Description: "Recommended: <guess>" when a prior read surfaced one.
 - Where to post the briefing: a Slack channel or DM, and, if PagerDuty is connected, which
   escalation policy to read on-call from. No default; the agent cannot guess either.
 

@@ -87,6 +87,12 @@ Source of truth for progress. Keep this current.
   enum-first "figure it out" pattern plus guidance in the field description.
 - **The six-category split (Monitoring as its own tab) awaits click data** (decision #1).
   Monitoring stays a distinct SDK module but folds into Engineering in the visible tabs.
+- **Requirement groups (allOf/oneOf) for alternative destinations are not modeled.** A card's
+  `requiredIntegrations` now lists exactly the playbook's hard-required connections, keeping only
+  the primary/SOLID one of an "X or Y" alternative group (the alternative stays a display-only
+  `logoSlug`). Modeling a real pick-one group so the drawer could offer the alternatives as
+  interchangeable connect options — and the `TemplateEntry` / `overlayReady` naming suggestions
+  from the codex review — are follow-ups.
 
 ## Provenance
 

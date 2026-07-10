@@ -19,9 +19,15 @@ files that exist.
 
 from __future__ import annotations
 
+import re
 from typing import List, NamedTuple
 
 from ...skills import SkillFile
+
+# A card key doubles as the ``<key>.md`` filename and the frontend registry lookup key, so it must
+# be a kebab slug (lowercase alphanumerics separated by single hyphens): no spaces, path
+# separators, or casing that would break the filename or the FE match.
+_KEY_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
 class TemplateEntry(NamedTuple):
@@ -57,6 +63,11 @@ def _validate_entries(entries: List[TemplateEntry]) -> None:
     for entry in entries:
         if entry.key in seen_keys:
             raise ValueError(f"duplicate TemplateEntry key: {entry.key!r}")
+        if not _KEY_PATTERN.match(entry.key):
+            raise ValueError(
+                f"TemplateEntry key {entry.key!r} is not a kebab slug "
+                "(^[a-z0-9]+(-[a-z0-9]+)*$); it doubles as a filename and the frontend key"
+            )
         seen_keys.add(entry.key)
         for field_name in ("name", "match"):
             value = getattr(entry, field_name)

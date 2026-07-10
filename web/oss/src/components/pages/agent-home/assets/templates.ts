@@ -57,7 +57,13 @@ export interface AgentTemplate {
      * never gates Create. `requiredIntegrations` is the separate, functional connect/tools list.
      */
     logoSlugs?: string[]
-    /** Integrations the template's tools require — drive the "Required to run" connect rows. */
+    /**
+     * Exactly the connections the template's playbook hard-requires — drive the "Required to run"
+     * connect rows. Alternatives (the "X or Y" of a pick-one source/destination) and optional
+     * extensions are display-only `logoSlugs`, never listed here; only the primary/SOLID one of an
+     * alternative group is required. Mirrors each playbook's Connections section in
+     * `sdks/python/agenta/sdk/agents/adapters/agent_templates/*.py`.
+     */
     requiredIntegrations: RequiredIntegration[]
 }
 
@@ -411,7 +417,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
             "Drafts a reply to every new support ticket, using answers pulled from your docs.",
         instructions:
             "On a new ticket, draft a reply using answers from the docs workspace; leave it for review before sending.",
-        toolsSummary: "2 Slack tools",
+        toolsSummary: "2 Zendesk tools",
         trigger: "New ticket",
         triggerDescription: "Runs when a new support ticket comes in.",
         seedMessage:
@@ -419,20 +425,21 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         builderMessage:
             "Build an agent that drafts replies to new support tickets using answers from our docs.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["zendesk", "intercom", "notion", "confluence", "googledrive"],
+        logoSlugs: ["zendesk", "intercom", "notion", "confluence", "googledrive", "slack"],
         requiredIntegrations: [
             {
-                // CHECK row degraded to the Support group's SOLID fallback (slack, not zendesk).
-                slug: "slack",
-                scope: "Read threads, post draft replies",
+                // CHECK confidence; required to run is zendesk (the ticket source) only.
+                // intercom/notion/confluence/googledrive/slack are display-only extensions.
+                slug: "zendesk",
+                scope: "Read tickets, post draft replies",
                 tools: [
                     {
-                        name: "Fetch conversation history",
-                        description: "Read the new ticket thread.",
+                        name: "Get ticket",
+                        description: "Read the new ticket's subject, body, and history.",
                     },
                     {
-                        name: "Send message",
-                        description: "Post the drafted reply for review.",
+                        name: "Add comment",
+                        description: "Post the drafted reply as an internal comment for review.",
                     },
                 ],
             },
@@ -449,7 +456,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
             "Turns support complaints into Linear bug tickets, including repro steps pulled from the thread.",
         instructions:
             "When a bug is reported, extract repro steps from the thread and file a Linear ticket.",
-        toolsSummary: "2 Slack tools",
+        toolsSummary: "2 Slack + 2 Linear tools",
         trigger: "New message or mention",
         triggerDescription: "Runs on a new support message or mention.",
         seedMessage:
@@ -473,6 +480,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     },
                 ],
             },
+            {
+                // Linear is the primary bug tracker the playbook hard-requires; Jira and GitHub are
+                // alternatives and stay display-only.
+                slug: "linear",
+                scope: "Search & create issues",
+                tools: [
+                    {
+                        name: "Search issues",
+                        description: "Check for an existing ticket on the same bug.",
+                    },
+                    {
+                        name: "Create issue",
+                        description: "File the bug ticket with the extracted repro steps.",
+                    },
+                ],
+            },
         ],
     },
     {
@@ -485,7 +508,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         overview:
             "Each day, clusters new customer feedback into themes and logs the summary to Notion.",
         instructions: "Daily, gather new feedback, cluster it into themes, and log the summary.",
-        toolsSummary: "2 Slack tools",
+        toolsSummary: "2 Slack + 2 Notion tools",
         trigger: "Daily",
         triggerDescription: "Runs once a day on a schedule.",
         seedMessage:
@@ -506,6 +529,20 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     {
                         name: "Send message",
                         description: "Post the theme summary.",
+                    },
+                ],
+            },
+            {
+                slug: "notion",
+                scope: "Log clusters to a page or database",
+                tools: [
+                    {
+                        name: "Create page",
+                        description: "Log the day's clustered themes as a page.",
+                    },
+                    {
+                        name: "Update database",
+                        description: "Append the themes as rows to a tracker database.",
                     },
                 ],
             },
@@ -672,7 +709,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         description: "Daily digest of pipeline changes and stale deals.",
         overview: "Posts a daily digest of pipeline changes and stale deals to Slack.",
         instructions: "Daily, summarize pipeline changes and stale deals and post the digest.",
-        toolsSummary: "2 HubSpot tools",
+        toolsSummary: "2 HubSpot + 2 Slack tools",
         trigger: "Daily",
         triggerDescription: "Runs once a day on a schedule.",
         seedMessage:
@@ -696,6 +733,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     },
                 ],
             },
+            {
+                // HubSpot alternatives (Salesforce, Attio) stay display-only; Slack is the required
+                // post destination.
+                slug: "slack",
+                scope: "Post the pipeline digest",
+                tools: [
+                    {
+                        name: "List channels",
+                        description: "Resolve the target channel to post to.",
+                    },
+                    {
+                        name: "Send message",
+                        description: "Post the pipeline digest to the channel.",
+                    },
+                ],
+            },
         ],
     },
 
@@ -711,7 +764,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
             "Watches your alerts. Gathers related context and logs, summarizes the likely cause, and pages the on-call engineer.",
         instructions:
             "On an alert, gather context and logs, summarize the likely cause, and page the on-call engineer.",
-        toolsSummary: "2 Sentry tools",
+        toolsSummary: "2 Sentry + 2 Slack tools",
         trigger: "On alert",
         triggerDescription: "Runs when a new alert fires.",
         seedMessage:
@@ -735,6 +788,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     },
                 ],
             },
+            {
+                // Slack is the SOLID notify target the playbook always posts to; PagerDuty is the
+                // alternative page target and stays display-only.
+                slug: "slack",
+                scope: "Post the incident summary",
+                tools: [
+                    {
+                        name: "List channels",
+                        description: "Resolve the alerts channel to post to.",
+                    },
+                    {
+                        name: "Send message",
+                        description: "Post the incident summary to the channel.",
+                    },
+                ],
+            },
         ],
     },
     {
@@ -748,7 +817,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
             "Triages every new Sentry error by severity and files a ticket for the ones that are real.",
         instructions:
             "On a new error, assess severity; file a ticket only for errors that are real and actionable.",
-        toolsSummary: "2 Sentry tools",
+        toolsSummary: "2 Sentry + 2 Linear tools",
         trigger: "New error",
         triggerDescription: "Runs when a new Sentry error is captured.",
         seedMessage:
@@ -772,6 +841,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     },
                 ],
             },
+            {
+                // Linear is the primary filing destination the playbook hard-requires; Jira is the
+                // alternative and stays display-only.
+                slug: "linear",
+                scope: "Search & create issues",
+                tools: [
+                    {
+                        name: "Search issues",
+                        description: "Rule out a duplicate before filing.",
+                    },
+                    {
+                        name: "Create issue",
+                        description: "File a ticket for a real, actionable error.",
+                    },
+                ],
+            },
         ],
     },
     {
@@ -783,7 +868,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         description: "Daily uptime and error-rate summary to Slack.",
         overview: "Posts a daily summary of uptime and error rates to Slack.",
         instructions: "Daily, summarize uptime and error rates and post the digest.",
-        toolsSummary: "2 Sentry tools",
+        toolsSummary: "2 Sentry + 2 Slack tools",
         trigger: "Daily",
         triggerDescription: "Runs once a day on a schedule.",
         seedMessage: "Build an agent that posts a daily uptime and error-rate summary to Slack.",
@@ -792,7 +877,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         logoSlugs: ["datadog", "newrelic", "sentry", "slack"],
         requiredIntegrations: [
             {
-                // CHECK row degraded to the Monitoring group's SOLID fallback (sentry).
+                // Sentry is the required error source; Datadog and New Relic stay display-only
+                // context extensions.
                 slug: "sentry",
                 scope: "Read issues",
                 tools: [
@@ -803,6 +889,21 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     {
                         name: "Get issue",
                         description: "Check status of ongoing errors.",
+                    },
+                ],
+            },
+            {
+                // Slack is the required post destination the playbook posts every digest to.
+                slug: "slack",
+                scope: "Post the daily summary",
+                tools: [
+                    {
+                        name: "List channels",
+                        description: "Resolve the channel to post to.",
+                    },
+                    {
+                        name: "Send message",
+                        description: "Post the daily uptime and error-rate summary.",
                     },
                 ],
             },
@@ -819,7 +920,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
             "Every morning, briefs the on-call engineer with all open incidents and their status.",
         instructions:
             "On schedule, list open incidents and their status and post the on-call brief.",
-        toolsSummary: "2 Sentry tools",
+        toolsSummary: "2 Sentry + 2 Slack tools",
         trigger: "Daily at 09:00",
         triggerDescription: "Runs every day at 09:00.",
         seedMessage:
@@ -830,7 +931,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         logoSlugs: ["pagerduty", "sentry", "slack"],
         requiredIntegrations: [
             {
-                // CHECK row degraded to the Monitoring group's SOLID fallback (sentry).
+                // Sentry is the required incident source; PagerDuty stays a display-only extension
+                // for naming the on-call engineer.
                 slug: "sentry",
                 scope: "Read issues",
                 tools: [
@@ -841,6 +943,21 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     {
                         name: "Get issue",
                         description: "Read each incident's status.",
+                    },
+                ],
+            },
+            {
+                // Slack is the required post destination the playbook posts every briefing to.
+                slug: "slack",
+                scope: "Post the on-call briefing",
+                tools: [
+                    {
+                        name: "List channels",
+                        description: "Resolve the channel to post to.",
+                    },
+                    {
+                        name: "Send message",
+                        description: "Post the on-call briefing to the channel.",
                     },
                 ],
             },
@@ -895,7 +1012,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         overview: "Answers customer questions from your knowledge base, in chat or when mentioned.",
         instructions:
             "Answer customer questions by searching the knowledge base; return a concise, cited answer.",
-        toolsSummary: "2 Notion tools",
+        toolsSummary: "2 Notion + 2 Slack tools",
         trigger: "Mention or new message",
         triggerDescription: "Runs on mention or a new customer message.",
         seedMessage:
@@ -919,6 +1036,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     },
                 ],
             },
+            {
+                // Slack is the primary reply platform the playbook hard-requires; Discord and
+                // Telegram are alternatives and stay display-only.
+                slug: "slack",
+                scope: "Reply to customer questions",
+                tools: [
+                    {
+                        name: "Fetch conversation history",
+                        description: "Read the incoming question thread.",
+                    },
+                    {
+                        name: "Send message",
+                        description: "Reply in-thread with the cited answer.",
+                    },
+                ],
+            },
         ],
     },
     {
@@ -931,7 +1064,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         overview: "Answers new-hire questions by searching your internal wiki, on mention.",
         instructions:
             "When mentioned, search the internal wiki and answer the new hire's question.",
-        toolsSummary: "2 Notion tools",
+        toolsSummary: "2 Notion + 2 Slack tools",
         trigger: "Mention",
         triggerDescription: "Runs when the agent is @-mentioned.",
         seedMessage:
@@ -952,6 +1085,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     {
                         name: "Get page content",
                         description: "Read the page to answer accurately.",
+                    },
+                ],
+            },
+            {
+                // Notion alternative Confluence stays display-only; Slack is the required reply
+                // channel.
+                slug: "slack",
+                scope: "Answer @mentions in-thread",
+                tools: [
+                    {
+                        name: "Fetch conversation history",
+                        description: "Read the new hire's mention thread.",
+                    },
+                    {
+                        name: "Send message",
+                        description: "Reply in-thread with the cited answer.",
                     },
                 ],
             },
@@ -1002,7 +1151,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         description: "Weekly newsletter drafted from shipping activity.",
         overview: "Each week, drafts a newsletter summarizing recent shipping activity.",
         instructions: "Weekly, gather recent shipping activity and draft the newsletter.",
-        toolsSummary: "2 Notion tools",
+        toolsSummary: "2 Notion + 2 GitHub tools",
         trigger: "Weekly",
         triggerDescription: "Runs every week on a schedule.",
         seedMessage:
@@ -1023,6 +1172,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     {
                         name: "Create page",
                         description: "Draft the newsletter page.",
+                    },
+                ],
+            },
+            {
+                // A shipping source is required; GitHub is the primary one. Linear is the swappable
+                // alternative source and stays display-only.
+                slug: "github",
+                scope: "Read merged PRs",
+                tools: [
+                    {
+                        name: "List pull requests",
+                        description: "Fetch PRs merged since the last newsletter.",
+                    },
+                    {
+                        name: "Get pull request",
+                        description: "Read merge details to summarize what shipped.",
                     },
                 ],
             },
@@ -1076,7 +1241,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         description: "Twice-daily digest of issues, commits, and PRs.",
         overview: "Twice a day, posts a digest of new issues, commits, and PRs to Slack.",
         instructions: "Twice daily, summarize new issues, commits, and PRs and post the digest.",
-        toolsSummary: "2 GitHub tools",
+        toolsSummary: "2 GitHub + 2 Slack tools",
         trigger: "2x daily",
         triggerDescription: "Runs twice a day on a schedule.",
         seedMessage:
@@ -1100,6 +1265,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     },
                 ],
             },
+            {
+                // GitHub alternative GitLab and Slack alternative Discord stay display-only; Slack is
+                // the primary required post destination.
+                slug: "slack",
+                scope: "Post the repo digest",
+                tools: [
+                    {
+                        name: "List channels",
+                        description: "Resolve the channel to post to.",
+                    },
+                    {
+                        name: "Send message",
+                        description: "Post the grouped repo digest to the channel.",
+                    },
+                ],
+            },
         ],
     },
     {
@@ -1112,7 +1293,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         overview: "Mirrors new Linear issues into a Notion tracker on a schedule.",
         instructions:
             "On schedule, find new Linear issues and mirror them into the Notion tracker.",
-        toolsSummary: "2 Linear tools",
+        toolsSummary: "2 Linear + 2 Notion tools",
         trigger: "Hourly",
         triggerDescription: "Runs every hour on a schedule.",
         seedMessage:
@@ -1136,6 +1317,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     },
                 ],
             },
+            {
+                // Source alternative Jira and destination alternatives Confluence/GitHub stay
+                // display-only; Linear and Notion are the primary source and destination.
+                slug: "notion",
+                scope: "Create & update tracker pages",
+                tools: [
+                    {
+                        name: "Query database",
+                        description: "Find an existing mirror by the source issue id.",
+                    },
+                    {
+                        name: "Create page",
+                        description: "Upsert a tracker row for each new source issue.",
+                    },
+                ],
+            },
         ],
     },
     {
@@ -1149,7 +1346,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
             "Each week, compiles a report of shipping activity and product metrics to Notion.",
         instructions:
             "Weekly, gather shipping activity and product metrics and compile the report.",
-        toolsSummary: "2 GitHub tools",
+        toolsSummary: "2 GitHub + 2 Notion tools",
         trigger: "Weekly",
         triggerDescription: "Runs every week on a schedule.",
         seedMessage:
@@ -1160,7 +1357,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         logoSlugs: ["github", "linear", "posthog", "notion", "slack"],
         requiredIntegrations: [
             {
-                // CHECK row; github is already the Ops group's SOLID fallback (repo-slack-digest).
+                // GitHub is the required shipping source every report depends on; PostHog and Linear
+                // stay display-only optional extensions.
                 slug: "github",
                 scope: "Read pull requests",
                 tools: [
@@ -1171,6 +1369,22 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
                     {
                         name: "Get pull request",
                         description: "Read merge details for the report.",
+                    },
+                ],
+            },
+            {
+                // Notion is the primary required publish target; Slack is the alternative and stays
+                // display-only.
+                slug: "notion",
+                scope: "Publish the report",
+                tools: [
+                    {
+                        name: "Create page",
+                        description: "Publish the weekly report as a page.",
+                    },
+                    {
+                        name: "Update page",
+                        description: "Update an existing report page in place.",
                     },
                 ],
             },

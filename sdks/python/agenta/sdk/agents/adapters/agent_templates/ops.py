@@ -29,7 +29,7 @@ Slack or Discord channel since yesterday.
 - Post time: local time to send the digest. Enum first option: "09:00 local (default)."
   Note: handing over an exact time is faster than guessing.
 - Local timezone: needed to convert the daily post time into a UTC cron. Description:
-  "e.g. America/New_York. Press Enter to accept UTC if unsure."
+  "e.g. America/New_York. Leave empty to use UTC."
 
 ## Explore first (read before proposing)
 1. discover_tools for the channel-read tool (read channel messages) and the send-message
@@ -85,7 +85,7 @@ sent to a channel.
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub (or GitLab) repo to read activity from. No default; the agent
-  cannot proceed without it. Description: "press Enter to accept the repo I found: <guess>"
+  cannot proceed without it. Description: "Recommended: <guess>"
   when a prior read surfaced one.
 - Destination channel: which Slack (or Discord) channel to post the digest to. No default.
 

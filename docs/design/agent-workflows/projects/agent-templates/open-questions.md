@@ -57,11 +57,11 @@ separate, later lane. The workaround unblocks all 28 playbooks now; the protocol
 real improvement but should not gate the template fix. Revisit after the playbooks ship and there
 is evidence the missing prefill actually hurts completion.
 
-## 3. Ship the eight CHECK templates now or verify their toolkits first
+## 3. Ship the seven CHECK templates now or verify their toolkits first
 
 **Decided: ship all 28 with CHECK rows degraded to their SOLID fallback.** The CHECK integration stays display-only until its toolkit verifies.
 
-**Context.** Eight rows depend on a Composio toolkit this pass did not verify (datadog, newrelic,
+**Context.** Seven rows depend on a Composio toolkit this pass did not verify (datadog, newrelic,
 pagerduty, intercom, confluence, gitlab, attio) or on a specific access (a CI-run event, a
 calendar read). The Composio CDN never 404s, so a wrong slug ships a grey placeholder silently
 ([research.md](research.md) Section 5, [template-inventory.md](template-inventory.md)).
@@ -71,8 +71,8 @@ calendar read). The Composio CDN never 404s, so a wrong slug ships a grey placeh
 - **Ship all 28 now.** Full catalog immediately. Risk: a CHECK template whose toolkit does not
   exist shows a placeholder logo and its playbook wires a tool that will not resolve, so the
   builder run stalls on that template.
-- **Verify the eight toolkits first, ship the verified subset, add the rest as they clear.**
-  Ships 20 SOLID templates plus whichever CHECK rows verify. Slower to the full 28, but no broken
+- **Verify the seven toolkits first, ship the verified subset, add the rest as they clear.**
+  Ships 21 SOLID templates plus whichever CHECK rows verify. Slower to the full 28, but no broken
   card ships.
 - **Ship all 28 but degrade CHECK rows to their SOLID fallback.** Each CHECK row's playbook and
   required-to-run integration point at the SOLID fallback in its group (for example, monitoring

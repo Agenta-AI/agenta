@@ -60,9 +60,38 @@ def _frontend_template_keys() -> "set[str] | None":
         return None
     content = frontend_path.read_text()
     marker = "export const AGENT_TEMPLATES"
-    start = content.index(marker)
-    array_content = content[start:]
+    marker_pos = content.find(marker)
+    if marker_pos == -1:
+        pytest.fail(
+            f"{_FRONTEND_TEMPLATES_PATH} is missing the '{marker}' marker; the parity check "
+            "cannot locate the template registry"
+        )
+    array_content = _array_body_after(content, marker_pos, marker)
     return set(re.findall(r'key:\s*"([^"]+)"', array_content))
+
+
+def _array_body_after(content: str, marker_pos: int, marker: str) -> str:
+    """The ``[...]`` literal assigned to ``marker``, found by counting brackets from the first
+    ``[`` after the ``=`` until they balance. Starting at the ``=`` skips the ``[]`` of the
+    ``AgentTemplate[]`` type annotation; scoping to the array body keeps a ``key:`` in code AFTER
+    the array (helpers, later exports) from leaking into the parity set."""
+    eq_index = content.find("=", marker_pos)
+    if eq_index == -1:
+        pytest.fail(f"{_FRONTEND_TEMPLATES_PATH}: no '=' found after '{marker}'")
+    open_index = content.find("[", eq_index)
+    if open_index == -1:
+        pytest.fail(f"{_FRONTEND_TEMPLATES_PATH}: no '[' found after '{marker}'")
+    depth = 0
+    for i in range(open_index, len(content)):
+        if content[i] == "[":
+            depth += 1
+        elif content[i] == "]":
+            depth -= 1
+            if depth == 0:
+                return content[open_index : i + 1]
+    pytest.fail(
+        f"{_FRONTEND_TEMPLATES_PATH}: unbalanced '[' in the AGENT_TEMPLATES array"
+    )
 
 
 def _agent_template_top_fields() -> set[str]:
@@ -187,6 +216,20 @@ def test_template_keys_are_unique():
     ]
     with pytest.raises(ValueError, match="duplicate TemplateEntry key"):
         _validate_entries(duplicate)
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    ["Not_Kebab", "has space", "trailing-", "-leading", "double--dash", "UPPER"],
+)
+def test_template_entry_rejects_non_kebab_key(bad_key):
+    # The key doubles as the <key>.md filename and the FE registry lookup key, so a non-kebab slug
+    # must fail fast at import rather than shipping a broken filename or a silent FE mismatch.
+    entry = TemplateEntry(
+        key=bad_key, name="A", category="Ops", match="does a thing", body=""
+    )
+    with pytest.raises(ValueError, match="kebab slug"):
+        _validate_entries([entry])
 
 
 @pytest.mark.parametrize("field_name", ["name", "match"])

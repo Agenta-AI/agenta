@@ -21,8 +21,8 @@ key support-triage. Also matches free-text asks about watching a support channel
 ticket urgency, or routing threads to the right person.
 
 ## Required context (ask via one request_input form)
-- Support channel: which Slack (or Discord) channel to watch. Description: "press Enter to
-  accept the channel I found: <guess>" when a prior read surfaced one.
+- Support channel: which Slack (or Discord) channel to watch. Description: "Recommended:
+  <guess>" when a prior read surfaced one.
 - Owners and their areas: who routes get sent to, and what each owns. No default; the agent
   cannot invent your team's routing.
 
@@ -88,7 +88,7 @@ answering tickets from a knowledge base.
 
 ## Required context (ask via one request_input form)
 - Ticket source: which Zendesk (or Intercom) instance to watch for new tickets. Description:
-  "press Enter to accept the instance I found: <guess>" when a prior read surfaced one.
+  "Recommended: <guess>" when a prior read surfaced one.
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Knowledge source: where answers come from (Notion, Confluence, Google Drive, or the ticket
@@ -156,7 +156,7 @@ Slack or Intercom messages into filed bugs, or being mentioned to file one.
 
 ## Required context (ask via one request_input form)
 - Bug tracker and project: which Linear team, Jira project, or GitHub repo new tickets go to.
-  Description: "press Enter to accept: <guess>" when a prior read surfaced one.
+  Description: "Recommended: <guess>" when a prior read surfaced one.
 
 ## Researchable context (ask, but the first option is "figure it out")
 - Repro-steps extraction: whether to ask the reporter follow-up questions when steps are
@@ -221,8 +221,7 @@ trends or grouping complaints by topic.
 
 ## Required context (ask via one request_input form)
 - Feedback source: which Slack channel (or Intercom inbox) to read feedback from.
-  Description: "press Enter to accept the channel I found: <guess>" when a prior read
-  surfaced one.
+  Description: "Recommended: <guess>" when a prior read surfaced one.
 - Where clusters are logged: a Notion database or page. No default; the agent cannot invent
   where you track this.
 

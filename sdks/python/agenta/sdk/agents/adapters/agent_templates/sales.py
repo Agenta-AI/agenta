@@ -24,8 +24,8 @@ Card key lead-qualifier. Also matches free-text asks about scoring or triaging n
 
 ## Required context (ask via one request_input form)
 - CRM destination: which pipeline or list qualified leads get added to. No default; the agent
-  cannot proceed without it. Description: "press Enter to accept the pipeline I found: <guess>"
-  when a prior read surfaced one.
+  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
+  surfaced one.
 - Qualification criteria: what makes a lead qualified (company size, industry, budget signal).
   Multiline. No default; this is the user's business judgment.
 
@@ -250,8 +250,7 @@ key pipeline-digest. Also matches free-text asks about a deals summary or pipeli
 
 ## Required context (ask via one request_input form)
 - Slack channel: where the digest posts. No default; the agent cannot proceed without it.
-  Description: "press Enter to accept the channel I found: <guess>" when a prior read surfaced
-  one.
+  Description: "Recommended: <guess>" when a prior read surfaced one.
 - Pipeline: which CRM pipeline to summarize, if the CRM has more than one. No default when more
   than one pipeline exists.
 

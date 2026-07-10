@@ -18,8 +18,8 @@ shipped" summaries from a repo.
 
 ## Required context (ask via one request_input form)
 - Repository: which GitHub or GitLab repo to read merged PRs from. No default; the agent
-  cannot proceed without it. Description: "press Enter to accept the repo I found: <guess>"
-  when a prior read surfaced one.
+  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
+  surfaced one.
 - Where release notes are published: the docs page, a Notion database, or a Linear
   document. Offer these as an enum. First option: "Figure it out from what's connected."
 

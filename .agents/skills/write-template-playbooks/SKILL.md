@@ -37,7 +37,7 @@ free-text asks that match no card.
 
 ## Required context (ask via one request_input form)
 - <field>: why the agent cannot proceed without it. Put the recommended value in the
-  description ("press Enter to accept: <guess>"), never in a default field. [required]
+  description ("Recommended: <guess>"), never in a default field. [required]
 Only fields the agent genuinely cannot proceed without. One to four. Secrets never go here.
 
 ## Researchable context (ask, but the first enum option is "figure it out")
@@ -82,12 +82,15 @@ and the trigger test, Report to the final step.
 
 These are counterintuitive and every first draft gets them backwards. State them correctly.
 
-1. **`request_input` has NO default field.** A schema `default` is silently dropped and the
-   field renders empty. So do not tell the agent to prefill. Put the proposed value in the
-   field description ("press Enter to accept: owner/repo-guess"). For a researchable choice,
-   use an enum whose FIRST option is "Figure it out, use your best judgment" and put the
-   proposed value in the description. Listing it first is the only way to signal the default.
-   When issue #5190 lands (real defaults), playbooks migrate to a real default field.
+1. **`request_input` has NO default field, and there is no prefill.** A schema `default` is
+   silently dropped and the field renders empty; pressing Enter on an empty field submits
+   nothing. So never tell the agent to "press Enter to accept" a value the form does not
+   contain. Put the proposed value in the field description as something the user can type
+   ("Recommended: owner/repo-guess"), or state the explicit behavior when the field is left
+   empty ("Leave empty to use UTC"). For a researchable choice, use an enum whose FIRST option
+   is "Figure it out, use your best judgment" and put the proposed value in the description.
+   Listing it first is the only way to signal the default. When issue #5190 lands (real
+   defaults), playbooks migrate to a real default field.
 2. **`test_run` exercises uncommitted tools** through its in-memory delta
    (`delta.set.parameters.agent.tools` carries the FULL tools list, lists replace wholesale).
    So exploration does NOT require commit-and-stop-turn. Explore the real repo or workspace
