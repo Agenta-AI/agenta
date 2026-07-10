@@ -1882,3 +1882,17 @@ apply-abort conflict; pre-fix shared-utils barrel = would have re-broken the bui
 carries only website/, the Framer-export dir, docs/design/marketing-website/, and the
 font .gitignore lines; applied and in the workspace. Old tips if content is ever needed:
 local 6d3443a6da, remote 1acad7dec2.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~21:05 UTC, workspace-cleanup/daytona-qa session): applying
+feat/sessions-continuity (PR #5197) to the workspace, rebuilding the runner dev image from it,
+recreating the sub-sidecar (keeping Daytona env + FUSE caps + home volume), then E2/E3 QA.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~21:55 UTC, workspace-cleanup/daytona-qa session). DONE:
+feat/sessions-continuity (PR #5197) applied to the workspace; runner image rebuilt from it;
+sub-sidecar recreated (Daytona env + agenta-sandbox-pi snapshot + FUSE caps + home volume kept);
+compose runner/workers recreated. QA verdict: F-017 mount death FIXED by the branch (detached
+geesefs, verified alive); E2 local green; E3 daytona chat + session-resume green; NEW findings
+F-018 (all daytona tool calls hang: pi-gate reverse-RPC never reaches the runner; bounded at
+300s by run-limits), F-019 (stale Composio action bricks committed config, error detail
+swallowed), F-020 (daytona reconnect is a dead rung: sandboxes deleted between turns). 0 live
+Daytona sandboxes. Findings on lane chore/qa-driver-wire-shape.
