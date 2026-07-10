@@ -52,13 +52,15 @@ const auth = {
 // ---------------------------------------------------------------------------- //
 
 interface TurnScript {
-  /** The turn pauses on a single Claude ACP permission gate (records parkedApproval). */
+  /** The turn pauses on a single parkable permission gate (records parkedApproval). */
   approvalPause?: {
     permissionId: string;
     toolCallId: string;
     toolName?: string;
     /** How many gates pended (>1 = multi-gate; still records the first). Default 1. */
     gates?: number;
+    /** The parked gate plane; default the Claude ACP gate. */
+    gateType?: ParkedApproval["gateType"];
   };
   /** The turn pauses on a non-Claude gate (Pi relay / client tool): paused, no parkedApproval. */
   nonClaudePause?: boolean;
@@ -166,7 +168,7 @@ function makeApprovalEngine(
       });
       promptPromise.catch(() => {});
       env.parkedApproval = {
-        gateType: "claude-acp-permission",
+        gateType: script.approvalPause.gateType ?? "claude-acp-permission",
         permissionId: script.approvalPause.permissionId,
         toolCallId: script.approvalPause.toolCallId,
         toolName: script.approvalPause.toolName,
@@ -337,6 +339,40 @@ describe("runWithKeepalive: approval park + resume", () => {
     );
   });
 
+  it("parks and resumes a Pi DIALOG gate exactly like the Claude gate (server guard accepts it)", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+          gateType: "pi-acp-permission",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(
+      ctx.pool.get(POOL_KEY)!.state,
+      "awaiting_approval",
+      "the Pi dialog gate parked (not rejected as an unrecognized gate type)",
+    );
+
+    const r2 = await runWithKeepalive(
+      approveResume(true),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
+    assert.equal(calls.resumes.length, 1, "the Pi gate is answered live once");
+    assert.equal(calls.resumes[0].reply, "once");
+  });
+
   it("answers a denied gate live with reject on the resume", async () => {
     const { engine, calls } = makeApprovalEngine([
       {
@@ -390,7 +426,7 @@ describe("runWithKeepalive: approval park + resume", () => {
 });
 
 describe("runWithKeepalive: never-park gate types stay cold", () => {
-  it("a non-Claude gate pause (Pi relay / client-tool MCP) never parks, tears down cold", async () => {
+  it("a non-parkable gate pause (Pi file relay / client-tool MCP) never parks, tears down cold", async () => {
     const cap = captureStderr();
     try {
       const { engine, calls } = makeApprovalEngine([{ nonClaudePause: true }]);
@@ -403,7 +439,7 @@ describe("runWithKeepalive: never-park gate types stay cold", () => {
         "no parked approval -> torn down as today",
       );
       assert.equal(ctx.pool.size(), 0, "nothing parked");
-      assert.ok(cap.lines.some((l) => l.includes("non-claude-gate-no-park")));
+      assert.ok(cap.lines.some((l) => l.includes("non-parkable-gate-no-park")));
     } finally {
       cap.restore();
     }

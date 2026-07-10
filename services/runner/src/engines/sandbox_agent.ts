@@ -42,12 +42,14 @@ import {
 } from "../tracing/otel.ts";
 import {
   localRelayHost,
+  redactContextBoundArgs,
   sandboxRelayHost,
   startToolRelay,
-  type RelayPermissions,
+  type RelayExecutionGuard,
 } from "../tools/relay.ts";
 import {
   ApprovalResponder,
+  ApprovedExecutionGrants,
   ConversationDecisions,
   extractApprovalDecisions,
   extractClientToolOutputs,
@@ -94,7 +96,10 @@ import {
   PendingApprovalLatch,
   permissionsFromRequest,
 } from "../permission-plan.ts";
-import { attachPermissionResponder } from "./sandbox_agent/acp-interactions.ts";
+import {
+  attachPermissionResponder,
+  type ParkedApprovalGateType,
+} from "./sandbox_agent/acp-interactions.ts";
 import {
   PAUSED,
   PendingApprovalPauseController,
@@ -359,15 +364,16 @@ interface CurrentTurn {
 }
 
 /**
- * A Claude ACP permission gate that paused the turn and can be answered later on the SAME live
- * session (slice 2 keep-alive). Recorded ONLY for a harness ACP permission gate (never a Pi relay
- * gate, a Pi builtin gate, or a client-tool MCP pause — those cannot be answered across a turn
- * boundary and stay on the cold path). Existence of this record is what makes the dispatch park a
- * paused session in `awaiting_approval` instead of tearing it down.
+ * A permission gate that paused the turn and can be answered later on the SAME live session.
+ * Recorded for a Claude ACP permission gate (keep-alive slice 2) or a Pi ACP permission gate
+ * (Pi approval parking: the gate rides the extension's `ctx.ui.confirm` onto the same ACP
+ * permission plane). NOT recorded for a client-tool MCP pause — that cannot be answered across
+ * a turn boundary and stays on the cold path. Existence of this record is what makes the
+ * dispatch park a paused session in `awaiting_approval` instead of tearing it down.
  */
 export interface ParkedApproval {
-  /** Marks the pending-gate shape; the dispatch treats any other shape as a cold-fallback. */
-  gateType: "claude-acp-permission";
+  /** Which gate paused; the dispatch resumes only a recognized type and treats others as cold. */
+  gateType: ParkedApprovalGateType;
   /** The ACP permission-request id, answered later via `session.respondPermission`. */
   permissionId: string;
   /** The gated tool call's id — matched against the incoming approval envelope's toolCallId. */
@@ -1139,13 +1145,13 @@ export async function runTurn(
         (id) => pause.isPausedToolCall(id),
         TOOL_NOT_EXECUTED_PAUSED,
       );
-      // Slice 2 park mode: a parkable Claude ACP permission gate recorded `env.parkedApproval`
-      // BEFORE firing this pause (the onUserApprovalGate hook runs before the single-pause latch).
-      // Keep the live session — the gated tool runs on the resume — so skip ONLY the mcpAbort and
-      // the destroySession. The teardown is not lost: the dispatch either parks the session or,
-      // if it decides not to (multi-gate, pool full), calls `env.destroy()` which runs them. A
-      // non-parkable pause (flag off, Pi relay/builtin gate, client tool) never records
-      // `parkedApproval`, so it still tears down here exactly as today.
+      // Park mode: a parkable permission gate (Claude ACP or Pi ACP) recorded
+      // `env.parkedApproval` BEFORE firing this pause (the onUserApprovalGate hook runs before
+      // the single-pause latch). Keep the live session — the gated tool runs on the resume — so
+      // skip ONLY the mcpAbort and the destroySession. The teardown is not lost: the dispatch
+      // either parks the session or, if it decides not to (multi-gate, pool full), calls
+      // `env.destroy()` which runs them. A non-parkable pause (keep-alive off, client tool)
+      // never records `parkedApproval`, so it still tears down here exactly as today.
       if (opts.approvalParkMode && env.parkedApproval) return;
       // Abort any in-flight loopback `tools/call` (a paused Claude client tool) BEFORE the
       // session teardown, so its handler cannot write a result after the turn ends.
@@ -1223,6 +1229,10 @@ export async function runTurn(
       storedDecisionMap,
       extractClientToolOutputs(request),
     );
+    const executionGrants = new ApprovedExecutionGrants();
+    // The guard's decide() must never consume this turn's stored decisions — the DIALOG is their
+    // consumer (it runs first). An empty store makes every `ask` route to the grant ledger.
+    const relayGuardDecisions = new ConversationDecisions(new Map());
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
@@ -1262,34 +1272,6 @@ export async function runTurn(
         return;
       void resolveInteraction(sessionId, token, () => cred);
     };
-    // Exactly one gate per call: the harness gate on Claude, the relay on Pi.
-    const relayPermissions: RelayPermissions = {
-      enforce: plan.isPi,
-      decide: (gate) => decide(gate, permissionPlan, decisions),
-      onPendingApproval: ({ toolCallId, toolName, args }) => {
-        if (!latch.tryAcquire()) return { emitted: false };
-        pause.markPausedToolCall(toolCallId);
-        run.emitEvent({
-          type: "interaction_request",
-          id: toolCallId,
-          kind: "user_approval",
-          payload: {
-            toolCallId,
-            toolCall: {
-              toolCallId,
-              name: toolName,
-              title: toolName,
-              rawInput: args,
-              input: args,
-            },
-            availableReplies: ["once", "reject"],
-          },
-        });
-        recordPendingInteraction(toolCallId, toolName, args);
-        pause.pause();
-        return { emitted: true };
-      },
-    };
     const serverPermissions = serverPermissionsFromRequest(request);
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
@@ -1312,9 +1294,33 @@ export async function runTurn(
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: resolveInteractionToken,
-      // Slice 2: record the parkable Claude ACP permission gate (only in keep-alive park mode) so
-      // the dispatch can resume it live. Fires per pending gate (before the latch) so a parallel
-      // gate is counted; the single-gate resume records only the FIRST gate's answer target.
+      // Pi runs only: presence of the specs map turns Pi gate envelope detection on AND is how
+      // the runner recovers specPermission/readOnlyHint (the envelope carries identity, never
+      // policy). Absent for Claude, so a title collision there keeps the base path.
+      piToolSpecsByName: plan.isPi
+        ? new Map(
+            plan.toolSpecs.map((spec) => [
+              spec.name,
+              {
+                permission: spec.permission,
+                readOnly: spec.readOnly,
+                // callRef tools only: bound paths are runner-filled at execution, so the
+                // approval card and decision keys must not carry the model's values for them.
+                contextBindings: spec.callRef
+                  ? spec.contextBindings
+                  : undefined,
+              },
+            ]),
+          )
+        : undefined,
+      // A resolved custom-tool allow becomes an execution grant the relay guard consumes, so
+      // only a dialog-approved (or policy-allowed) call ever executes from the relay dir.
+      onPiGateAllowed: (info) =>
+        executionGrants.grant(info.toolName, info.args),
+      // Record the parkable permission gate (only in keep-alive park mode) so the dispatch can
+      // resume it live. Fires per pending gate (before the latch) so a parallel gate is counted;
+      // the single-gate resume records only the FIRST gate's answer target. `info.gateType` names
+      // the plane (Claude ACP vs Pi ACP) so the resume answers on the right one.
       onUserApprovalGate: opts.approvalParkMode
         ? (info) => {
             env.approvalGateCount += 1;
@@ -1324,7 +1330,7 @@ export async function runTurn(
               info.toolCallId
             ) {
               env.parkedApproval = {
-                gateType: "claude-acp-permission",
+                gateType: info.gateType,
                 permissionId: info.permissionId,
                 toolCallId: info.toolCallId,
                 toolName: info.toolName,
@@ -1348,6 +1354,44 @@ export async function runTurn(
       log: logger,
     });
 
+    // Pi only: the dialog gate lives in the sandbox, so the relay re-checks every execute record
+    // runner-side (a forged record must not run an ask/deny tool). Claude keeps today's behavior:
+    // its harness gates fire before a call reaches the relay, and its relay was never re-checked.
+    const relayGuard: RelayExecutionGuard | undefined = plan.isPi
+      ? (spec, req) => {
+          const verdict = decide(
+            {
+              executor: "relay",
+              toolName: spec.name,
+              specPermission: spec.permission,
+              readOnlyHint: spec.readOnly,
+              args: req.args,
+            },
+            permissionPlan,
+            relayGuardDecisions,
+          );
+          if (verdict.kind === "allow") return { allow: true };
+          if (verdict.kind === "deny") {
+            return {
+              allow: false,
+              reason: `Tool '${spec.name}' is denied by the permission policy.`,
+            };
+          }
+          return executionGrants.consume(
+            spec.name,
+            redactContextBoundArgs(
+              req.args,
+              spec.callRef ? spec.contextBindings : undefined,
+            ),
+          )
+            ? { allow: true }
+            : {
+                allow: false,
+                reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
+              };
+        }
+      : undefined;
+
     if (plan.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
@@ -1356,9 +1400,9 @@ export async function runTurn(
         plan.relayDir,
         plan.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
-        relayPermissions,
         request.runContext,
         env.clientToolRelayRef.current,
+        relayGuard,
       );
     }
 
@@ -1383,6 +1427,13 @@ export async function runTurn(
       });
       promptPromise = Promise.resolve(opts.resume.promptPromise);
       promptPromise.catch(() => {});
+      // A parked Pi dialog gate resumes on a FRESH turn whose relay and grant ledger are new;
+      // grant the approved call here so the extension's execute record (written right after the
+      // confirm resolves) passes the relay guard. Claude resumes grant too — harmlessly, no
+      // guard consults it.
+      if (opts.resume.reply === "once") {
+        executionGrants.grant(opts.resume.toolName, opts.resume.args);
+      }
       await env.session.respondPermission(
         opts.resume.permissionId,
         opts.resume.reply,
