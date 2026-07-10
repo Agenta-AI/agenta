@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from ..skills import SkillFile, SkillTemplate
+from .agent_templates import build_agent_template_skill_files
 
 # The base AGENTS.md preamble. The author's own ``instructions`` are appended after this, so
 # the final AGENTS.md is ``AGENTA_PREAMBLE`` + the author's project conventions.
@@ -555,6 +556,10 @@ yourself: the committed template you edit is the agent that will keep running. O
 fewest calls and the least time. A simple no-tool ask is two actions: write better
 `instructions.agents_md`, then call `commit_revision`.
 
+Before anything else, check `references/agent-templates/index.md` for a playbook matching the
+ask. When one matches, read it and follow it: a playbook layers this use case onto the loop
+below and never replaces its approval stops. When none matches, follow the generic loop below.
+
 ## When to use
 
 Use this when the user asks you to build, set up, configure, or automate an agent.
@@ -724,6 +729,8 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         SkillFile(
             path="references/trigger-inputs.md", content=_TRIGGER_INPUTS_REFERENCE
         ),
+        # One playbook per template plus the generated router index (references/agent-templates/).
+        *build_agent_template_skill_files(),
     ],
 )
 
