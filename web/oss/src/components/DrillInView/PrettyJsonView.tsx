@@ -559,7 +559,10 @@ const CopyButton = ({value}: {value: unknown}) => {
 // interactive chevron; leaves get an invisible 14px spacer.
 
 const ROW_HEIGHT_PX = 28
-const ROW_HEIGHT_CLASS = "min-h-[28px] h-[28px]"
+// Sticky headers must be exactly ROW_HEIGHT so they stack flush; leaf rows may
+// grow so wrapped inline values don't overflow and overlap the next row.
+const ROW_HEIGHT_CLASS_FIXED = "min-h-[28px] h-[28px]"
+const ROW_HEIGHT_CLASS_FLEX = "min-h-[28px]"
 
 const NodeRow = memo(function NodeRow({
     keyLabel,
@@ -599,7 +602,7 @@ const NodeRow = memo(function NodeRow({
     return (
         <div className={isSection ? "pt-1 first:pt-0" : ""}>
             <div
-                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${ROW_HEIGHT_CLASS} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-colorBgContainer" : ""} hover:bg-[var(--ant-color-fill-quaternary)] focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
+                className={`group/row flex items-baseline gap-2 py-0.5 px-1 rounded-sm ${collapsible ? ROW_HEIGHT_CLASS_FIXED : ROW_HEIGHT_CLASS_FLEX} select-none ${collapsible ? "cursor-pointer sticky z-[1] bg-colorBgContainer hover:bg-[linear-gradient(0deg,var(--ant-color-fill-quaternary),var(--ant-color-fill-quaternary))]" : "hover:bg-[var(--ant-color-fill-quaternary)]"} focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none`}
                 style={
                     collapsible
                         ? {
@@ -643,7 +646,7 @@ const NodeRow = memo(function NodeRow({
                 ) : null}
 
                 {inlineValue ? (
-                    <span className="font-mono text-[12.5px] break-all ml-1 min-w-0">
+                    <span className="font-mono text-[12.5px] break-words ml-1 min-w-0">
                         {inlineValue}
                     </span>
                 ) : null}

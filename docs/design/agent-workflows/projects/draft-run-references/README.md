@@ -5,9 +5,12 @@ same chat fails with `missing run-context value for direct-call binding
 'workflow_revision.workflow_variant_id'`. The page has to reload to recover. This workspace
 explains why and proposes the fix.
 
-The cause: on a run with unsaved config edits, the playground sends `references: null`, which
-drops the variant identity that the `commit_revision` tool needs. A successful commit is what
-flips the panel into the unsaved state, so the agent's own success breaks its next commit.
+The cause: `isDirty` means the loaded revision carries unsaved edits, a draft overlay.
+Whenever the panel is dirty, for any reason, the playground sends `references: null`, which
+drops the variant identity that the `commit_revision` tool needs. The panel goes dirty from a
+user editing the config, or from a missed `data-committed-revision` event that should have
+repointed the panel to the revision the agent just committed. Either way, the old
+all-or-nothing gate dropped every reference, so the agent's next commit failed.
 
 The recommended fix: keep dropping the committed-revision reference on a dirty run (that is
 the correct draft signal), but keep forwarding the variant reference, because the variant is

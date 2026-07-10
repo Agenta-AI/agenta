@@ -1,5 +1,6 @@
 """Unit tests for trigger event discovery (discover_triggers)."""
 
+import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -12,21 +13,22 @@ from oss.src.apis.fastapi.triggers.models import TriggerDiscoveryQuery
 from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.core.triggers.dtos import (
     TriggerCapabilitiesResult,
-    TriggerCatalogEvent,
     TriggerCatalogEventDetails,
-    TriggerCatalogEventsPage,
+    TriggerCatalogEventsSnapshot,
     TriggerCatalogIntegration,
-    TriggerCatalogIntegrationsPage,
     TriggerConnection,
     TriggerDiscoveryConnectionState,
 )
+from oss.src.core.triggers.exceptions import AdapterError
 from oss.src.core.triggers.service import (
     TriggersService,
+    _TRIGGER_DISCOVERY_NO_CONFIDENT_MATCH_NOTE,
     _discovery_terms,
     _has_primary_evidence,
     _match_signal,
     _score_trigger_match,
 )
+from oss.src.utils.env import env
 
 
 def _service(*, connections=None, integration=None):
@@ -62,48 +64,48 @@ def _ready_connection(connection_id):
     )
 
 
+def _snapshot(events, integration_names=None):
+    return TriggerCatalogEventsSnapshot(
+        events=events,
+        integration_names=(
+            integration_names if integration_names is not None else {"github": "GitHub"}
+        ),
+    )
+
+
+def _wire_catalog(service, snapshot):
+    adapter = SimpleNamespace(list_all_events=AsyncMock(return_value=snapshot))
+    service.adapter_registry.get = MagicMock(return_value=adapter)
+    return adapter
+
+
 async def test_discover_triggers_returns_event_details_and_ready_connection():
     connection_id = uuid4()
     service = _service(connections=[_ready_connection(connection_id)])
-    service.list_integrations = AsyncMock(
-        return_value=TriggerCatalogIntegrationsPage(
-            integrations=[TriggerCatalogIntegration(key="github", name="GitHub")],
-            total=1,
-        )
-    )
-    service.list_events = AsyncMock(
-        return_value=TriggerCatalogEventsPage(
-            events=[
-                TriggerCatalogEvent(
+    _wire_catalog(
+        service,
+        _snapshot(
+            [
+                TriggerCatalogEventDetails(
                     key="github_issue_opened",
                     name="Issue opened",
                     description="Triggers when a GitHub issue is opened.",
                     provider="composio",
                     integration="github",
+                    trigger_config={
+                        "type": "object",
+                        "properties": {"repo": {"type": "string"}},
+                    },
+                    payload={"issue": {"title": "Bug"}},
                 ),
-                TriggerCatalogEvent(
+                TriggerCatalogEventDetails(
                     key="github_comment_created",
                     name="Comment created",
                     provider="composio",
                     integration="github",
                 ),
-            ],
-            total=2,
-        )
-    )
-    service.get_event = AsyncMock(
-        return_value=TriggerCatalogEventDetails(
-            key="github_issue_opened",
-            name="Issue opened",
-            description="Triggers when a GitHub issue is opened.",
-            provider="composio",
-            integration="github",
-            trigger_config={
-                "type": "object",
-                "properties": {"repo": {"type": "string"}},
-            },
-            payload={"issue": {"title": "Bug"}},
-        )
+            ]
+        ),
     )
 
     result = await service.discover_triggers(
@@ -225,7 +227,8 @@ def test_trigger_discovery_query_rejects_scalar_string():
 
 
 def _event(key, name="", description="", integration="github", provider="composio"):
-    return TriggerCatalogEvent(
+    # Details subclass so the same helper feeds both scoring tests and snapshots.
+    return TriggerCatalogEventDetails(
         key=key,
         name=name,
         description=description,
@@ -334,31 +337,19 @@ def test_primary_evidence_false_for_single_generic_term():
 # ---------------------------------------------------------------------------
 
 
-async def test_discover_events_ranks_by_score_descending():
-    service = _service()
-    service.list_integrations = AsyncMock(
-        return_value=TriggerCatalogIntegrationsPage(
-            integrations=[_integration()], total=1
-        )
-    )
-    service.list_events = AsyncMock(
-        return_value=TriggerCatalogEventsPage(
-            events=[
+def test_discover_events_ranks_by_score_descending():
+    matches = TriggersService._discover_events_for_use_case(
+        use_case="github issue opened",
+        snapshot=_snapshot(
+            [
                 _event("github_comment_created", "Comment created"),
                 _event(
                     "github_issue_opened",
                     "Issue opened",
                     "Triggers when a github issue is opened",
                 ),
-            ],
-            total=2,
-        )
-    )
-
-    matches = await service._discover_events_for_use_case(
-        provider_key="composio",
-        use_case="github issue opened",
-        limit_alternatives=3,
+            ]
+        ),
     )
 
     keys = [event.key for _score, event, _integration in matches]
@@ -367,27 +358,15 @@ async def test_discover_events_ranks_by_score_descending():
     assert scores == sorted(scores, reverse=True)
 
 
-async def test_discover_events_drops_zero_score_candidates():
-    service = _service()
-    service.list_integrations = AsyncMock(
-        return_value=TriggerCatalogIntegrationsPage(
-            integrations=[_integration()], total=1
-        )
-    )
-    service.list_events = AsyncMock(
-        return_value=TriggerCatalogEventsPage(
-            events=[
+def test_discover_events_drops_zero_score_candidates():
+    matches = TriggersService._discover_events_for_use_case(
+        use_case="issue opened",
+        snapshot=_snapshot(
+            [
                 _event("github_issue_opened", "Issue opened", "An issue was opened"),
                 _event("github_push", "Push", "Code was pushed"),
-            ],
-            total=2,
-        )
-    )
-
-    matches = await service._discover_events_for_use_case(
-        provider_key="composio",
-        use_case="issue opened",
-        limit_alternatives=3,
+            ]
+        ),
     )
 
     keys = [event.key for _score, event, _integration in matches]
@@ -400,16 +379,9 @@ async def test_discover_events_drops_zero_score_candidates():
 # ---------------------------------------------------------------------------
 
 
-def _discovery_service(*, integrations, events, connections=None):
+def _discovery_service(*, events, integration_names=None, connections=None):
     service = _service(connections=connections)
-    service.list_integrations = AsyncMock(
-        return_value=TriggerCatalogIntegrationsPage(
-            integrations=integrations, total=len(integrations)
-        )
-    )
-    service.list_events = AsyncMock(
-        return_value=TriggerCatalogEventsPage(events=events, total=len(events))
-    )
+    _wire_catalog(service, _snapshot(events, integration_names))
     return service
 
 
@@ -417,7 +389,6 @@ async def test_discover_triggers_no_match_for_weak_single_term():
     # The only candidate shares a single generic term ("issue") with the use case, so it must
     # not be promoted to the primary match; the use case falls to the no-match path instead.
     service = _discovery_service(
-        integrations=[_integration("jira", "Jira")],
         events=[
             _event(
                 "jira_issue_created",
@@ -426,6 +397,7 @@ async def test_discover_triggers_no_match_for_weak_single_term():
                 integration="jira",
             )
         ],
+        integration_names={"jira": "Jira"},
     )
     service.get_event = AsyncMock()
 
@@ -446,7 +418,7 @@ async def test_discover_triggers_no_match_for_weak_single_term():
 
 
 async def test_discover_triggers_no_match_when_no_events():
-    service = _discovery_service(integrations=[], events=[])
+    service = _discovery_service(events=[], integration_names={})
 
     result = await service.discover_triggers(
         project_id=uuid4(),
@@ -462,25 +434,18 @@ async def test_discover_triggers_no_match_when_no_events():
 
 async def test_discover_triggers_mixed_match_and_no_match():
     service = _discovery_service(
-        integrations=[_integration()],
         events=[
-            _event(
-                "github_issue_opened",
-                "Issue opened",
-                "Triggers when a github issue is opened",
+            TriggerCatalogEventDetails(
+                key="github_issue_opened",
+                name="Issue opened",
+                description="Triggers when a github issue is opened",
+                provider="composio",
+                integration="github",
+                trigger_config={"type": "object"},
+                payload={},
             )
         ],
         connections=[],
-    )
-    service.get_event = AsyncMock(
-        return_value=TriggerCatalogEventDetails(
-            key="github_issue_opened",
-            name="Issue opened",
-            provider="composio",
-            integration="github",
-            trigger_config={"type": "object"},
-            payload={},
-        )
     )
 
     result = await service.discover_triggers(
@@ -497,6 +462,228 @@ async def test_discover_triggers_mixed_match_and_no_match():
     assert matched.connection.state == TriggerDiscoveryConnectionState.NEEDS_AUTH
     assert missed.event is None
     assert result.ready is False
+    # One catalog fetch per request, not per use case.
+    adapter = service.adapter_registry.get.return_value
+    adapter.list_all_events.assert_awaited_once()
+
+
+async def test_discover_triggers_adjacency_bonus_breaks_catalog_order_tie():
+    # Live regression: github/issue/created hit both events equally, and the comment
+    # event comes first in catalog order, so without the adjacency bonus the stable
+    # sort would surface it as primary.
+    service = _discovery_service(
+        events=[
+            _event(
+                "GITHUB_ISSUE_COMMENT_CREATED_TRIGGER",
+                "Issue Comment Created",
+                "Triggered when a comment is created on an issue",
+            ),
+            _event(
+                "GITHUB_ISSUE_CREATED_TRIGGER",
+                "Issue Created",
+                "Triggered when a new issue is created",
+            ),
+        ],
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["when a new GitHub issue is created"],
+        provider_key="composio",
+        limit_alternatives=2,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event.event_key == "GITHUB_ISSUE_CREATED_TRIGGER"
+    assert [alt.event_key for alt in capability.alternatives] == [
+        "GITHUB_ISSUE_COMMENT_CREATED_TRIGGER"
+    ]
+
+
+async def test_discover_triggers_adjacency_bonus_ignores_integration_name_bigrams():
+    # Live regression: "slack message" is adjacent in SLACK_MESSAGE_REACTION_ADDED's
+    # key only because every slack event key starts with the integration name. With
+    # integration-name tokens excluded from pairing, no event gets a bonus here and
+    # base scores surface the channel-message events over the reaction event.
+    service = _discovery_service(
+        events=[
+            _event(
+                "SLACK_MESSAGE_REACTION_ADDED",
+                "Message Reaction Added",
+                "Triggered when a reaction is added to a message in a channel",
+                integration="slack",
+            ),
+            _event(
+                "SLACKBOT_CHANNEL_MESSAGE_RECEIVED",
+                "Channel Message Received",
+                "Triggered when a message is posted to a channel",
+                integration="slackbot",
+            ),
+            _event(
+                "SLACK_CHANNEL_MESSAGE_RECEIVED",
+                "Channel Message Received",
+                "Triggered when a message is posted to a channel",
+                integration="slack",
+            ),
+        ],
+        integration_names={"slack": "Slack", "slackbot": "Slackbot"},
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["new Slack message in a channel"],
+        provider_key="composio",
+        limit_alternatives=2,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event.event_key in {
+        "SLACKBOT_CHANNEL_MESSAGE_RECEIVED",
+        "SLACK_CHANNEL_MESSAGE_RECEIVED",
+    }
+    assert "SLACK_MESSAGE_REACTION_ADDED" in [
+        alt.event_key for alt in capability.alternatives
+    ]
+
+
+async def test_discover_triggers_browse_query_returns_alternatives_without_primary():
+    # Browse-shaped ask: "triggers" is meta-vocabulary, so only "slack" remains as a
+    # term. The gate fails (one term, no exact phrase) but the closest slack events
+    # must still come back as alternatives instead of an empty capability.
+    service = _discovery_service(
+        events=[
+            _event(
+                "SLACK_NEW_CHANNEL_CREATED",
+                "Channel Created",
+                "Fires when a channel is created",
+                integration="slack",
+            ),
+            _event(
+                "SLACK_CHANNEL_MESSAGE_RECEIVED",
+                "Channel Message Received",
+                "Fires when a message is posted to a channel",
+                integration="slack",
+            ),
+            _event(
+                "GITHUB_ISSUE_CREATED_TRIGGER",
+                "Issue Created",
+                "Fires when a new issue is created",
+                integration="github",
+            ),
+        ],
+        integration_names={"slack": "Slack", "github": "GitHub"},
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["slack triggers"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event is None
+    assert capability.alternatives
+    assert all(alt.integration == "slack" for alt in capability.alternatives)
+    assert capability.note == _TRIGGER_DISCOVERY_NO_CONFIDENT_MATCH_NOTE
+
+
+async def test_discover_triggers_named_integration_beats_cross_platform_keywords():
+    # Naming a platform hard-constrains discovery to it: slack's keyword-rich
+    # message event must not outrank (or even accompany) the discord event.
+    service = _discovery_service(
+        events=[
+            _event(
+                "SLACK_CHANNEL_MESSAGE_RECEIVED",
+                "Channel Message Received",
+                "Triggered when a message is received in a channel",
+                integration="slack",
+            ),
+            _event(
+                "DISCORD_NEW_MESSAGE_TRIGGER",
+                "New Message",
+                "Triggered when a message is received in a discord server",
+                integration="discord",
+            ),
+        ],
+        integration_names={"slack": "Slack", "discord": "Discord"},
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["discord message received"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event.event_key == "DISCORD_NEW_MESSAGE_TRIGGER"
+    assert all("SLACK" not in alt.event_key for alt in capability.alternatives)
+
+
+async def test_discover_triggers_question_words_do_not_match_substrings():
+    # "what" is a substring of WHATSAPP and "can" of CANVAS; as stopwords they must
+    # not pull in the wrong integration when the agent asks a question about gmail.
+    service = _discovery_service(
+        events=[
+            _event(
+                "WHATSAPP_NEW_MESSAGE",
+                "New Message",
+                "Triggered when a new whatsapp message arrives",
+                integration="whatsapp",
+            ),
+            _event(
+                "GMAIL_NEW_GMAIL_MESSAGE",
+                "New Email",
+                "Triggered when a new email arrives in the inbox",
+                integration="gmail",
+            ),
+        ],
+        integration_names={"whatsapp": "WhatsApp", "gmail": "Gmail"},
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["what events can gmail trigger on"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    surfaced_keys = ([capability.event.event_key] if capability.event else []) + [
+        alt.event_key for alt in capability.alternatives
+    ]
+    assert surfaced_keys[0] == "GMAIL_NEW_GMAIL_MESSAGE"
+    assert "WHATSAPP_NEW_MESSAGE" not in surfaced_keys
+
+
+async def test_discover_triggers_deprecated_event_ranks_below_live_equivalent():
+    # Equal term hits, deprecated event first in catalog order: without the demotion
+    # the stable sort would surface the deprecated event as primary.
+    service = _discovery_service(
+        events=[
+            _event(
+                "GITHUB_ISSUE_CREATED_LEGACY_TRIGGER",
+                "Issue Created (Legacy)",
+                "DEPRECATED: use GITHUB_ISSUE_CREATED_TRIGGER instead.",
+            ),
+            _event(
+                "GITHUB_ISSUE_CREATED_TRIGGER",
+                "Issue Created",
+                "Triggered when a new issue is created",
+            ),
+        ],
+    )
+
+    result = await service.discover_triggers(
+        project_id=uuid4(),
+        use_cases=["github issue created"],
+        provider_key="composio",
+        limit_alternatives=3,
+    )
+
+    capability = result.capabilities[0]
+    assert capability.event.event_key == "GITHUB_ISSUE_CREATED_TRIGGER"
 
 
 async def test_discovery_connection_state_increments_slug_on_collision():
@@ -519,3 +706,68 @@ async def test_discovery_connection_state_increments_slug_on_collision():
 
     assert state.state == TriggerDiscoveryConnectionState.NEEDS_AUTH
     assert state.connect.body["connection"]["slug"] == "github-main-2"
+
+
+# ---------------------------------------------------------------------------
+# _cached_event_catalog: cache hit/miss + fetch deadline.
+# ---------------------------------------------------------------------------
+
+
+async def test_cached_event_catalog_hit_skips_adapter(monkeypatch):
+    service = _service()
+    adapter = _wire_catalog(service, _snapshot([]))
+    cached = _snapshot([_event("github_issue_opened", "Issue opened")])
+
+    async def _hit(**_kwargs):
+        return cached
+
+    async def _noop(**_kwargs):
+        return None
+
+    monkeypatch.setattr("oss.src.core.triggers.service.get_cache", _hit)
+    monkeypatch.setattr("oss.src.core.triggers.service.set_cache", _noop)
+
+    snapshot = await service._cached_event_catalog(provider_key="composio")
+
+    assert snapshot is cached
+    adapter.list_all_events.assert_not_called()
+
+
+async def test_cached_event_catalog_miss_fetches_once_and_caches(monkeypatch):
+    fetched = _snapshot([_event("github_issue_opened", "Issue opened")])
+    service = _service()
+    adapter = _wire_catalog(service, fetched)
+
+    writes = []
+
+    async def _miss(**_kwargs):
+        return None
+
+    async def _capture(**kwargs):
+        writes.append(kwargs)
+
+    monkeypatch.setattr("oss.src.core.triggers.service.get_cache", _miss)
+    monkeypatch.setattr("oss.src.core.triggers.service.set_cache", _capture)
+
+    snapshot = await service._cached_event_catalog(provider_key="composio")
+
+    assert snapshot == fetched
+    adapter.list_all_events.assert_awaited_once()
+    assert len(writes) == 1
+    assert writes[0]["value"] == fetched
+    assert writes[0]["ttl"] == env.composio.catalog_cache_ttl_seconds
+
+
+async def test_cached_event_catalog_deadline_raises_adapter_error(monkeypatch):
+    service = _service()
+
+    async def _hang():
+        await asyncio.sleep(60)
+
+    service.adapter_registry.get = MagicMock(
+        return_value=SimpleNamespace(list_all_events=_hang)
+    )
+    monkeypatch.setattr(env.composio, "catalog_fetch_deadline_seconds", 0.01)
+
+    with pytest.raises(AdapterError):
+        await service._cached_event_catalog(provider_key="composio")

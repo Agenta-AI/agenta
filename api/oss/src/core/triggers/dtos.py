@@ -100,6 +100,14 @@ class TriggerCatalogEventsPage(BaseModel):
     total: int = 0
 
 
+class TriggerCatalogEventsSnapshot(BaseModel):
+    """The full provider event catalog, cached for discovery; never crosses the API boundary."""
+
+    events: List[TriggerCatalogEventDetails] = []
+    # toolkit slug -> display name
+    integration_names: Dict[str, str] = {}
+
+
 # ---------------------------------------------------------------------------
 # Trigger discovery (discover_triggers)
 # ---------------------------------------------------------------------------

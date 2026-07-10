@@ -131,12 +131,19 @@ const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
  * keep the same `content` string, so this skips re-parsing + re-running Prism on them each token.
  * (Settled messages don't re-render at all; the stable-`onRewind` fix handles those.) */
+// Anchor component ensures all markdown-rendered links open in a new tab safely.
+const Anchor = ({href, children, ...rest}: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+        {children}
+    </a>
+)
+
 const Markdown = ({content, className}: {content: string; className?: string}) => (
     <XMarkdown
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
         config={LATEX_CONFIG}
-        components={MD_COMPONENTS}
+        components={{...MD_COMPONENTS, a: Anchor}}
     />
 )
 

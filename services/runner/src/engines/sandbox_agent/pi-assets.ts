@@ -71,10 +71,11 @@ export function buildPiExtensionEnv(
     env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
     env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
   }
+  // Builtin gating needs no relay dir: the gate rides the extension's `ctx.ui.confirm`
+  // dialog onto the ACP permission plane (Pi approval parking), not the file relay.
   if (opts.builtinGatingActive) {
     env.AGENTA_AGENT_BUILTIN_GATING = "1";
     env.AGENTA_AGENT_BUILTIN_GRANTS = (opts.builtinGrants ?? []).join(",");
-    if (opts.relayDir) env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
   }
   if (opts.usageOutPath)
     env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
@@ -281,7 +282,9 @@ export function prepareLocalPiAssets({
     installPiExtensionLocal(process.env.PI_CODING_AGENT_DIR, log);
   } else {
     // unset here means this run has no Agenta extension (tracing + tools); warn so it's visible.
-    log("PI_CODING_AGENT_DIR is unset; plain local Pi run has no Agenta extension installed");
+    log(
+      "PI_CODING_AGENT_DIR is unset; plain local Pi run has no Agenta extension installed",
+    );
   }
   return undefined;
 }

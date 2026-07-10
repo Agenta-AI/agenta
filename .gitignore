@@ -80,6 +80,16 @@ services/runner/tests/results/
 !.env.example
 !web/.prettierignore
 !web/.syncpackrc
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/write-template-playbooks/
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/write-template-playbooks
 
 # Temporary SDK copies created by run.sh --local
 api/sdks

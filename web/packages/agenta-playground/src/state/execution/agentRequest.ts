@@ -340,7 +340,7 @@ export async function buildAgentRequest(
         | undefined
 
     // Field-level reference gate. The service derives draft-ness purely from the revision
-    // reference — `services/oss/src/agent/tracing.py` `_run_context_workflow`:
+    // reference — `sdks/python/agenta/sdk/agents/tracing.py` `_run_context_workflow`:
     // `is_draft = revision is None` — so ONLY `application_revision` is gated on cleanliness:
     //  - dirty (unsaved left-panel edits) or an uncommitted local draft (no real revision UUID):
     //    the run is an inline-config draft, so the revision reference is withheld to keep
