@@ -12,20 +12,20 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const fernRetrieve = vi.fn()
 
-// Mock the Fern client so no real transport is constructed. The per-resource split moved
-// `retrieveWorkflowRevision` onto `getWorkflowsClient()` from `@agenta/sdk/resources`;
-// `@agenta/sdk` stays mocked because the same module imports `getAgentaSdkClient` too.
-vi.mock("@agenta/sdk/resources", () => ({
-    getWorkflowsClient: () => ({
-        retrieveWorkflowRevision: fernRetrieve,
+// `workflow/api/api.ts` pulls from both SDK entrypoints: retrieveWorkflowRevision
+// goes through the per-resource getter (PR #4864), while fetchSimpleApplication
+// still uses the bare client. Mock both so no real transport is constructed.
+vi.mock("@agenta/sdk", () => ({
+    getAgentaSdkClient: () => ({
+        applications: {
+            fetchSimpleApplication: vi.fn(),
+        },
     }),
 }))
 
-vi.mock("@agenta/sdk", () => ({
-    getAgentaSdkClient: () => ({
-        workflows: {
-            retrieveWorkflowRevision: fernRetrieve,
-        },
+vi.mock("@agenta/sdk/resources", () => ({
+    getWorkflowsClient: () => ({
+        retrieveWorkflowRevision: fernRetrieve,
     }),
 }))
 

@@ -2,9 +2,9 @@
  * Unit tests for the AGE-3788 Phase 1/2 api functions (sessions + delete),
  * migrated to the Fern client.
  *
- * Mocks `@agenta/sdk` (not axios) so we assert the Fern method is called with
- * the right body + queryParams without constructing a real client, per the
- * pattern in retrieveWorkflowRevision.test.ts.
+ * Mocks `@agenta/sdk/resources` (not axios) so we assert the Fern method is
+ * called with the right body + queryParams without constructing a real client,
+ * per the pattern in retrieveWorkflowRevision.test.ts.
  */
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -15,8 +15,7 @@ const querySpans = vi.fn()
 const queryTraces = vi.fn()
 const querySpansAnalytics = vi.fn()
 
-// The per-resource split moved the traces client to `@agenta/sdk/resources`; the SUT
-// reaches it through `trace/api/client.ts`, so that is the module to intercept.
+// `trace/api` resolves its client via the per-resource getter (PR #4864).
 vi.mock("@agenta/sdk/resources", () => ({
     getTracesClient: () => ({
         querySpansSessions,
