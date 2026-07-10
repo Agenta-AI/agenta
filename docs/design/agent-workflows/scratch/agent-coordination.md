@@ -1870,3 +1870,15 @@ the first recreate dropped). E3 status: pi/daytona CHAT passes end to end; built
 daytona fails after `tunnel discovery failed` (F-017, open); run_matrix false-green root cause
 recorded as F-016. Lane chore/qa-driver-wire-shape pushed (4dc9398ce1); two smoke-capture JSONs
 remain staged on it (hunk-locked to base captures). All Daytona sandboxes verified deleted (0 live).
+
+**DONE** (2026-07-10 ~21:00 UTC, pull+deploy-fix session): (1) `but pull` landed — base
+advanced b94346f1fc → 132014b271 → 0acb40cf2f; hunk-locked qa captures resolved via
+`but absorb`. (2) post-pull build break (missing `partitionElicitationDraft` re-export in
+the agenta-shared utils barrel) fixed, PR #5209 MERGED to big-agents; dev web container
+restarted (packages don't hot-reload), apps + playground browser-verified on :8280.
+(3) marketing-website lane REBUILT on the current base (c9175b7a0c, force-pushed): the old
+440-file local snapshot froze stale copies of other lanes' files (qa captures = the silent
+apply-abort conflict; pre-fix shared-utils barrel = would have re-broken the build). Now
+carries only website/, the Framer-export dir, docs/design/marketing-website/, and the
+font .gitignore lines; applied and in the workspace. Old tips if content is ever needed:
+local 6d3443a6da, remote 1acad7dec2.
