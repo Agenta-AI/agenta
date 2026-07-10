@@ -1861,3 +1861,12 @@ coordination-board-log); (4) pushed + SHA-verified: keepalive-project-scope (-f)
 mcp-client-tool-continuation-plan (-f), marketing-website, agent-workflows-explorer,
 builder-agent-reliability-parent, design-workspaces-sweep, scratch-sync-2026-07-03; (5) PR #4912
 branch force-updated to the current-base recut (dba14f578f). `but pull` next.
+
+**NOTE** (2026-07-10 ~19:00 UTC, workspace-cleanup session, E3/Daytona QA): the
+`agenta-claude-sub-sidecar` container was RECREATED twice (same image/binds/env plus:
+`DAYTONA_*` creds, `DAYTONA_SNAPSHOT=agenta-sandbox-pi`, a writable `agenta-sub-sidecar-home`
+volume at /home/agent, and the FUSE caps CAP_SYS_ADMIN + /dev/fuse + apparmor:unconfined that
+the first recreate dropped). E3 status: pi/daytona CHAT passes end to end; builtin-bash on
+daytona fails after `tunnel discovery failed` (F-017, open); run_matrix false-green root cause
+recorded as F-016. Lane chore/qa-driver-wire-shape pushed (4dc9398ce1); two smoke-capture JSONs
+remain staged on it (hunk-locked to base captures). All Daytona sandboxes verified deleted (0 live).
