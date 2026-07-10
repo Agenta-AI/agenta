@@ -85,6 +85,10 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     // part can't be re-resolved, but the connection now exists in the vault, so we flip the chip to
     // "connected" — the agent's re-ask resolves cleanly on its next turn.
     const [manuallyConnected, setManuallyConnected] = useState(false)
+    // The live flow's terminal result, held locally so the chip paints the instant we settle —
+    // `meta.settled` only flips a render later (after `addToolOutput` propagates), and without this
+    // the widget would stay on "Connecting…" until then.
+    const [outcome, setOutcome] = useState<{connected: boolean} | null>(null)
 
     // One-shot guard so the parked call settles exactly once, plus shared cleanup for the running
     // popup's listener/poll/timeout.
@@ -104,8 +108,15 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
             if (settledRef.current) return
             settledRef.current = true
             teardown()
-            if ("errorText" in result) settle({errorText: result.errorText})
-            else settle({output: result as Record<string, unknown>})
+            // Leave "connecting" and record the terminal result so the chip paints now.
+            setPhase("idle")
+            if ("errorText" in result) {
+                setOutcome({connected: false})
+                settle({errorText: result.errorText})
+            } else {
+                setOutcome({connected: result.connected === true})
+                settle({output: result as Record<string, unknown>})
+            }
         },
         [settle, teardown],
     )
@@ -253,10 +264,10 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
         )
     }
 
-    // ── Settled: the result chip (U1) ───────────────────────────────────────────────────────────
-    if (meta.settled) {
+    // ── Settled: the result chip (U1). `outcome` covers the render before `meta.settled` flips. ──
+    if (meta.settled || outcome) {
         const output = (meta.output ?? {}) as ConnectOutput
-        if (manuallyConnected || output.connected === true) {
+        if (manuallyConnected || output.connected === true || outcome?.connected === true) {
             return (
                 <ChipRow
                     icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
