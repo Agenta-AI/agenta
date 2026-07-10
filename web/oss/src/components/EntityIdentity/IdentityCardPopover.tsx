@@ -3,7 +3,7 @@ import {type ReactNode} from "react"
 import {Popover, type PopoverProps} from "antd"
 
 interface IdentityCardPopoverProps {
-    /** The card body (AgentIdentityCard / SessionIdentityCard). */
+    /** The card body (AgentIdentityCard). */
     content: ReactNode
     /** The anchor — the name / pen the card grows out of. */
     children: ReactNode

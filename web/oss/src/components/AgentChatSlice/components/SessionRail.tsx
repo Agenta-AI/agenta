@@ -92,10 +92,8 @@ const SessionRailRow = ({
                         <SessionTabLabel
                             label={label}
                             onRename={onRename}
-                            sessionId={session.id}
-                            createdAt={session.createdAt}
                             className={clsx(
-                                "text-xs",
+                                "block min-w-0 truncate text-xs",
                                 active ? "text-colorText" : "text-colorTextSecondary",
                             )}
                         />

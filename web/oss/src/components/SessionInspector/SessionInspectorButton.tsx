@@ -5,14 +5,7 @@ import {useSetAtom} from "jotai"
 import {openSessionInspectorAtom} from "./store"
 
 /** Session-inspector trigger; disabled until a backend session_id exists. */
-const SessionInspectorButton = ({
-    sessionId,
-    onClick,
-}: {
-    sessionId: string | null
-    /** Runs after the inspector opens (e.g. close a surrounding popover). */
-    onClick?: () => void
-}) => {
+const SessionInspectorButton = ({sessionId}: {sessionId: string | null}) => {
     const open = useSetAtom(openSessionInspectorAtom)
 
     const tooltip = sessionId ? "Inspect session" : "Run once to start a session before inspecting"
@@ -25,11 +18,7 @@ const SessionInspectorButton = ({
                 icon={<MagnifyingGlass size={16} />}
                 aria-label="Inspect session"
                 disabled={!sessionId}
-                onClick={() => {
-                    if (!sessionId) return
-                    open(sessionId)
-                    onClick?.()
-                }}
+                onClick={() => sessionId && open(sessionId)}
             />
         </Tooltip>
     )
