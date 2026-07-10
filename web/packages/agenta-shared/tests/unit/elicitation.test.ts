@@ -3,6 +3,7 @@ import {join} from "node:path"
 
 import {describe, expect, it} from "vitest"
 
+import {buildFormFieldsFromSchema} from "../../src/utils/gatewayToolSchema"
 import {
     ELICITATION_RENDER_KIND,
     SECRET_FIELD_PATTERN,
@@ -168,22 +169,109 @@ describe("parseElicitationPayload", () => {
         expect(parsed.level.default).toBe("high")
     })
 
-    it("rejects non-primitive defaults", () => {
+    it("rejects defaults that do not match the declared type", () => {
+        const cases: [Record<string, unknown>, string][] = [
+            [{type: "string", default: {nested: true}}, 'default must match type "string"'],
+            [{type: "string", default: ["a"]}, 'default must match type "string"'],
+            [{type: "integer", default: "3"}, 'default must match type "integer"'],
+            [{type: "integer", default: 3.5}, 'default must match type "integer"'],
+            [{type: "boolean", default: "true"}, 'default must match type "boolean"'],
+            [{type: "number", default: Number.NaN}, 'default must match type "number"'],
+        ]
+        for (const [prop, suffix] of cases) {
+            const payload = validPayload()
+            ;(payload.requestedSchema.properties as Record<string, unknown>).x = prop
+            expect(parseElicitationPayload(payload)).toEqual({
+                ok: false,
+                reason: `property "x" ${suffix}`,
+            })
+        }
+        // Matching types stay accepted (number tolerates a float; integer requires whole).
+        const ok = validPayload()
+        ;(ok.requestedSchema.properties as Record<string, unknown>).ratio = {
+            type: "number",
+            default: 3.5,
+        }
+        expect(parseElicitationPayload(ok).ok).toBe(true)
+    })
+
+    it("rejects enum/oneOf on non-string scalar types", () => {
+        const enumCase = validPayload()
+        ;(enumCase.requestedSchema.properties as Record<string, unknown>).x = {
+            type: "integer",
+            enum: ["1", "2"],
+        }
+        expect(parseElicitationPayload(enumCase)).toEqual({
+            ok: false,
+            reason: 'property "x" enum/oneOf requires type "string"',
+        })
+        const oneOfCase = validPayload()
+        ;(oneOfCase.requestedSchema.properties as Record<string, unknown>).x = {
+            type: "boolean",
+            oneOf: [{const: "yes"}],
+        }
+        expect(parseElicitationPayload(oneOfCase).ok).toBe(false)
+    })
+
+    it("folds misplaced top-level enum/oneOf on an array into items (declared items win)", () => {
         const payload = validPayload()
-        ;(payload.requestedSchema.properties as Record<string, unknown>).name = {
-            type: "string",
-            default: {nested: true},
+        const props = payload.requestedSchema.properties as Record<string, unknown>
+        props.by_enum = {type: "array", items: {type: "string"}, enum: ["a", "b"]}
+        props.by_one_of = {
+            type: "array",
+            items: {type: "string"},
+            oneOf: [{const: "slack"}, {const: "email"}],
+        }
+        props.declared_wins = {
+            type: "array",
+            items: {type: "string", enum: ["x"]},
+            enum: ["ignored"],
+        }
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        const parsed = result.payload.requestedSchema.properties
+        expect(parsed.by_enum.items?.enum).toEqual(["a", "b"])
+        expect(parsed.by_one_of.items?.enum).toEqual(["slack", "email"])
+        expect(parsed.declared_wins.items?.enum).toEqual(["x"])
+        // The top level is stripped so downstream never mis-promotes the field to single-select.
+        for (const name of ["by_enum", "by_one_of", "declared_wins"]) {
+            expect("enum" in parsed[name]).toBe(false)
+            expect("oneOf" in parsed[name]).toBe(false)
+        }
+    })
+
+    it("rejects malformed misplaced array options", () => {
+        const payload = validPayload()
+        ;(payload.requestedSchema.properties as Record<string, unknown>).x = {
+            type: "array",
+            items: {type: "string"},
+            enum: [1, 2],
         }
         expect(parseElicitationPayload(payload)).toEqual({
             ok: false,
-            reason: 'property "name" default must be a primitive',
+            reason: 'property "x" items enum must be strings',
         })
-        const arr = validPayload()
-        ;(arr.requestedSchema.properties as Record<string, unknown>).name = {
-            type: "string",
-            default: ["a"],
+    })
+
+    it("REGRESSION: a misplaced-oneOf array still builds as a multi-select, not a single enum", () => {
+        const payload = validPayload()
+        ;(payload.requestedSchema.properties as Record<string, unknown>).ch = {
+            type: "array",
+            items: {type: "string"},
+            oneOf: [{const: "slack"}, {const: "email"}],
         }
-        expect(parseElicitationPayload(arr).ok).toBe(false)
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        const descriptor = buildFormFieldsFromSchema(
+            result.payload.requestedSchema as unknown as Record<string, unknown>,
+            "",
+            {openEnums: true},
+        ).find((f) => f.name === "ch")
+        expect(descriptor?.type).toBe("array")
+        expect(descriptor?.multiple).toBe(true)
+        expect(descriptor?.enumValues).toEqual(["slack", "email"])
     })
 
     it("accepts multi-select arrays (string items, optional enum, array-of-strings default)", () => {

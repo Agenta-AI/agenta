@@ -10,16 +10,14 @@ import {
 
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
-import {MinusCircle, Plus} from "@phosphor-icons/react"
+import {Check, MinusCircle, Plus} from "@phosphor-icons/react"
 import {
     Button,
-    Checkbox,
     Collapse,
     DatePicker,
     Form,
     Input,
     InputNumber,
-    Radio,
     Switch,
     Select,
     Tag,
@@ -401,6 +399,27 @@ const choiceCardCls = (selected: boolean) =>
             : "border-colorBorderSecondary hover:border-colorPrimary"
     }`
 
+/** Presentational check/dot — the CARD is the single interactive element (no nested input). */
+const CardIndicator = ({checked, multiple}: {checked: boolean; multiple?: boolean}) => (
+    <span
+        aria-hidden
+        className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center border border-solid transition-colors ${
+            multiple ? "rounded" : "rounded-full"
+        } ${
+            checked
+                ? "border-colorPrimary bg-[var(--ant-color-primary)]"
+                : "border-colorBorder bg-colorBgContainer"
+        }`}
+    >
+        {checked &&
+            (multiple ? (
+                <Check size={9} weight="bold" className="text-white" />
+            ) : (
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+            ))}
+    </span>
+)
+
 /**
  * Context-ful options rendered as selectable cards (radio semantics; checkbox when `multiple`) —
  * used when any option carries a description a bare Select would flatten. Includes the same
@@ -412,12 +431,15 @@ function ChoiceCards({
     options,
     multiple,
     disabled,
+    id,
 }: {
     value?: string | string[]
     onChange?: (v: string | string[] | undefined) => void
     options: EnumOption[]
     multiple?: boolean
     disabled?: boolean
+    /** Injected by Form.Item so the field label associates with the group. */
+    id?: string
 }) {
     const [otherDraft, setOtherDraft] = useState<string | null>(null)
     const selected = multiple
@@ -438,10 +460,9 @@ function ChoiceCards({
         if (commit.changed) onChange?.(commit.value)
     }
     const otherActive = otherDraft !== null || customValues.length > 0
-    const Control = multiple ? Checkbox : Radio
 
     return (
-        <div className="flex flex-col gap-2">
+        <div id={id} role={multiple ? "group" : "radiogroup"} className="flex flex-col gap-2">
             {options.map((o) => (
                 <div
                     key={o.value}
@@ -457,7 +478,7 @@ function ChoiceCards({
                     }}
                     className={choiceCardCls(isChecked(o.value))}
                 >
-                    <Control checked={isChecked(o.value)} className="pointer-events-none" />
+                    <CardIndicator checked={isChecked(o.value)} multiple={multiple} />
                     <div className="flex min-w-0 flex-col">
                         <Typography.Text className="!text-xs font-medium">
                             {o.label ?? o.value}
@@ -485,7 +506,7 @@ function ChoiceCards({
                 }}
                 className={choiceCardCls(otherActive)}
             >
-                <Control checked={otherActive} className="pointer-events-none" />
+                <CardIndicator checked={otherActive} multiple={multiple} />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <Typography.Text className="!text-xs font-medium">Other…</Typography.Text>
                     {multiple && customValues.length > 0 && (

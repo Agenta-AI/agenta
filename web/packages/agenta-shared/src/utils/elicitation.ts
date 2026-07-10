@@ -115,6 +115,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isStringArray = (value: unknown): value is string[] =>
     Array.isArray(value) && value.every((v) => typeof v === "string")
 
+/** A scalar default must match the field's declared type (integer ⇒ whole number). */
+const isValidScalarDefault = (type: string, value: unknown): boolean =>
+    type === "string"
+        ? typeof value === "string"
+        : type === "boolean"
+          ? typeof value === "boolean"
+          : type === "integer"
+            ? typeof value === "number" && Number.isInteger(value)
+            : typeof value === "number" && Number.isFinite(value)
+
 const isValidOneOf = (value: unknown): value is ElicitationOptionSchema[] =>
     Array.isArray(value) &&
     value.length > 0 &&
@@ -164,6 +174,12 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
                 return {ok: false, reason: `property "${name}" items enum must be strings`}
             if (items.oneOf !== undefined && !isValidOneOf(items.oneOf))
                 return {ok: false, reason: `property "${name}" oneOf options need a string const`}
+            // Top-level enum/oneOf on an array is a natural author slip — canonicalization folds
+            // them into items, so validate them under the same rules here.
+            if (prop.enum !== undefined && !isStringArray(prop.enum))
+                return {ok: false, reason: `property "${name}" items enum must be strings`}
+            if (prop.oneOf !== undefined && !isValidOneOf(prop.oneOf))
+                return {ok: false, reason: `property "${name}" oneOf options need a string const`}
             if (prop.default !== undefined && !isStringArray(prop.default))
                 return {
                     ok: false,
@@ -172,15 +188,14 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
         } else {
             if ("items" in prop)
                 return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
+            if ((prop.enum !== undefined || prop.oneOf !== undefined) && type !== "string")
+                return {ok: false, reason: `property "${name}" enum/oneOf requires type "string"`}
             if (prop.enum !== undefined && !isStringArray(prop.enum))
                 return {ok: false, reason: `property "${name}" enum must be strings`}
             if (prop.oneOf !== undefined && !isValidOneOf(prop.oneOf))
                 return {ok: false, reason: `property "${name}" oneOf options need a string const`}
-            if (
-                prop.default !== undefined &&
-                !["string", "number", "boolean"].includes(typeof prop.default)
-            )
-                return {ok: false, reason: `property "${name}" default must be a primitive`}
+            if (prop.default !== undefined && !isValidScalarDefault(type, prop.default))
+                return {ok: false, reason: `property "${name}" default must match type "${type}"`}
         }
         const title = typeof prop.title === "string" ? prop.title : ""
         if (SECRET_FIELD_PATTERN.test(name) || SECRET_FIELD_PATTERN.test(title))
@@ -197,17 +212,33 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
     }
 
     // Canonicalize once at the boundary so the renderer and the serializer never diverge:
-    // format aliases → canonical ("datetime" → "date-time", unknown dropped), and oneOf consts
-    // → enum (downstream consumers key on enum; oneOf stays for the option titles/descriptions).
+    // format aliases → canonical ("datetime" → "date-time", unknown dropped); oneOf consts →
+    // enum (downstream consumers key on enum; oneOf stays for the option titles/descriptions);
+    // and misplaced top-level enum/oneOf on an array fold into items (declared items win) —
+    // left at the top level they would mis-promote the field to a single-select downstream.
     const properties = Object.fromEntries(
         Object.entries(requestedSchema.properties).map(([name, prop]) => {
             const field = {...(prop as ElicitationFieldSchema)}
             const canonical = normalizeStringFormat(field.format)
             if (canonical) field.format = canonical
             else delete field.format
-            if (field.oneOf) field.enum = field.oneOf.map((o) => o.const)
-            if (field.items?.oneOf)
-                field.items = {...field.items, enum: field.items.oneOf.map((o) => o.const)}
+            if (field.type === "array" && field.items) {
+                field.items = {
+                    ...field.items,
+                    ...(field.items.enum === undefined && field.enum !== undefined
+                        ? {enum: field.enum}
+                        : {}),
+                    ...(field.items.oneOf === undefined && field.oneOf !== undefined
+                        ? {oneOf: field.oneOf}
+                        : {}),
+                }
+                delete field.enum
+                delete field.oneOf
+                if (field.items.oneOf)
+                    field.items = {...field.items, enum: field.items.oneOf.map((o) => o.const)}
+            } else if (field.oneOf) {
+                field.enum = field.oneOf.map((o) => o.const)
+            }
             return [name, field]
         }),
     ) as Record<string, ElicitationFieldSchema>

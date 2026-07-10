@@ -251,10 +251,8 @@ const agentChatTests = () => {
         },
     )
 
-    // ── Spec 5: one-click accept — defaults + multi-select + choice cards (full dialect) ─────────
-    // The agent-templates headline (#5190): every field ships a proposed default, so Accept with
-    // ZERO edits must resume carrying exactly those values. Also pins the card upgrade: oneOf
-    // descriptions render as choice cards (option titles + descriptions visible), not a Select.
+    // ── Spec 5: one-click accept — full dialect (#5190) ──────────────────────────────────────────
+    // Every field ships a default; Accept with zero edits must resume with exactly those values.
     baseAgentChatTest(
         "Elicitation one-click accept: proposed defaults ride the resume unchanged",
         {tag: elicitationTags},
