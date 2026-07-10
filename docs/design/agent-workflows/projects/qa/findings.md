@@ -561,6 +561,90 @@ Candidate fixes belong in the runner/sandbox-agent seam (detach or heartbeat the
 stream; reconnect toolbox on stream death) — same territory as the sandbox-agent fork plan
 (PR #5172). The dev box is left with ngrok UP: fail-fast beats eternal zombie-mount hangs.
 
+**Resolution (2026-07-10, PR #5197 applied).** feat/sessions-continuity rewrites the remote
+mount to detach geesefs (no `-f`; logs to a file, RPC returns immediately) plus an explicit
+`remoteMountAlive` retry check. Verified live on the rebuilt runner: both remote mounts come up
+"verified alive", no 60s stream death, E3 chat passes end to end. The remaining E3 breakage is
+tool calls — split out as F-018.
+
+### F-018 Every sandbox-executed tool call on Daytona hangs: the Pi builtin gate's reverse permission RPC never reaches the runner
+
+**Status:** open (diagnosed; hang now bounded by the 300s run-limits guard)
+**Severity:** blocker for tool-using agents on Daytona
+**Triage:** defer (transport-level fix in the runner/pi-acp seam; needs a design decision)
+**Added:** 2026-07-10
+**Commit:** workspace @ b94346f1fc + feat/sessions-continuity (PR #5197) applied
+**Found in:** E3 sandbox-agent daytona, harness `pi_core`, capabilities builtin bash + file read
+**Source:** log analysis of session `f61a67f8...` (21:10-21:14 UTC) + code read of
+`src/extensions/agenta.ts` and `acp-interactions.ts`; confirmed in the playground UI
+(sessions `fd02cd78`, `7ec8186b`)
+
+**The problem.** With builtin gating on, every Pi builtin tool call raises `ctx.ui.confirm`
+inside the sandbox and blocks until the runner answers the ACP `session/request_permission`
+reverse-RPC — even in "allow" mode (the allow/deny decision is made runner-side after the gate
+surfaces). On Daytona, one-way `session/update` notifications reach the runner (the `tool_call`
+ingests fine), but the reverse permission request never does: no `[HITL] pi-gate` line is ever
+logged for a daytona session, while identical local runs log and round-trip it. The confirm is
+deliberately reaper-less (`agenta.ts:97-116`), so the tool waits forever. UI confirmation:
+bash AND file reads both hang on daytona with no approval prompt shown; only pure-text turns
+succeed. PR #5197's `[run-limits]` guard now kills the turn at 300s (bounded, no longer an
+eternal hang; the UI shows the misleading "not handled by this client" label — see F-019 list).
+
+**Why it matters.** Chat-only Daytona works; ANY tool use on Daytona fails after a 5-minute
+stall. Also breaks the build-kit default agent on Daytona: its "read the skill first"
+instruction makes the model open with a read, so the first turn dies whenever the model obeys.
+
+**Fix shapes (from the investigation).** (a) Make the confirm→`request_permission` reverse-RPC
+work over the remote ACP transport; or (b) deliver gate decisions over the file-relay channel
+Daytona already polls (mirroring how the tool-MCP loopback is swapped out on daytona,
+`mcp.ts:164-170`); or (c) resolve auto-allowed builtins in-sandbox with no round-trip. Either
+way, give the gate a timeout so an unanswered gate fails closed with a clear error.
+
+### F-019 Stale Composio action fails every turn on the committed config; the actionable error detail is swallowed
+
+**Status:** open
+**Severity:** major (a committed agent config can be permanently broken with no useful error)
+**Triage:** fix-now candidates: include the resolver response detail in `GatewayToolResolutionError`; defer the catalog-drift policy
+**Added:** 2026-07-10
+**Commit:** workspace @ b94346f1fc + PR #5197 applied
+**Found in:** E2 local, harness `pi_core`, gateway tools (Composio)
+**Source:** trace `ac4459f96920599d49a710f2c92ed764`; `api/oss/src/core/tools/service.py`
+(`_resolve_composio_tool`); `sdks/python/agenta/sdk/agents/platform/connection.py`
+
+**The problem.** The QA app's committed config references Composio action
+`github/COMMIT_MULTIPLE_FILES`, which no longer exists in the Composio catalog:
+`POST /api/tools/resolve` returns 404 "Action not found: composio/github/COMMIT_MULTIPLE_FILES"
+(the other four GitHub actions resolve fine; the connection is healthy). Every turn on that
+config fails in ~6s with "Gateway tool resolution failed (HTTP 404)" — the UI and the SDK error
+show only the status code; the response body naming the dead action is dropped, so a user
+cannot tell WHICH tool broke or why. One stale action takes down the whole agent.
+
+**Why it matters.** Composio catalog drift is routine; today it bricks committed agents with an
+unactionable error. Two fixes, independently useful: surface the resolver's error detail
+through `GatewayToolResolutionError` into the run error; decide a policy for dead actions
+(skip-with-warning vs fail) instead of failing the entire turn.
+
+### F-020 Daytona session resume always recreates: sandboxes are deleted between turns, so `sandbox-reconnect` never finds one
+
+**Status:** open (works-as-coded, dead code path in practice)
+**Severity:** minor (correctness fine; costs sandbox-create latency every turn)
+**Triage:** defer (belongs to the keep-alive/continuity design conversation)
+**Added:** 2026-07-10
+**Commit:** PR #5197 applied
+**Found in:** E3 daytona, session resume
+**Source:** sidecar logs "reconnect failed … not found, creating fresh" on every follow-up turn;
+`src/engines/sandbox_agent/sandbox-reconnect.ts` (restart "parked (stopped/archived)" sandbox)
+
+**The problem.** #5197's `sandbox-reconnect` stores the sandbox id so a resumed session can
+restart a STOPPED sandbox instead of provisioning fresh. But the runner deletes the sandbox at
+turn end (`ephemeral` teardown), so the stored id never resolves and every follow-up turn takes
+the "dead rung" fresh-create path. Continuity still works (durable session/load restores the
+transcript, verified in UI: resume answered correctly in ~20s), but the reconnect optimization
+never fires, and the in-memory keepalive pool is local-only by design
+(`resolvesToLocalProvider`). Net: every Daytona turn pays sandbox creation. Fix belongs with
+the warm-remote-sessions decision: either stop (not delete) sandboxes at turn end so reconnect
+can restart them, or extend the keepalive pool to remote providers with a short TTL.
+
 ## How to add a finding during a run
 
 Copy the F-001 block, bump the id, and fill every field. Required: the environment, harness,

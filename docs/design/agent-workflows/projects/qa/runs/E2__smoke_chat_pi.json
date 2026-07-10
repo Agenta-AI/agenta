@@ -4,9 +4,9 @@
   "capability": "chat+instructions+model",
   "env_label": "E2",
   "sandbox": "local",
-  "harness": "pi",
-  "model": "gpt-4o-mini",
-  "ts": "2026-06-20T11:00:37.077618+00:00",
+  "harness": "pi_core",
+  "model": "openai/gpt-4o-mini",
+  "ts": "2026-07-10T21:09:00.603506+00:00",
   "request": {
     "data": {
       "inputs": {
@@ -19,18 +19,27 @@
       },
       "parameters": {
         "agent": {
-          "harness": "pi",
-          "sandbox": "local",
-          "model": "gpt-4o-mini",
-          "agents_md": "Reply with exactly the requested word and nothing else."
+          "harness": {
+            "kind": "pi_core"
+          },
+          "sandbox": {
+            "kind": "local"
+          },
+          "llm": {
+            "model": "openai/gpt-4o-mini"
+          },
+          "instructions": {
+            "agents_md": "Reply with exactly the requested word and nothing else."
+          }
         }
       }
     }
   },
   "http_status": 200,
   "response": {
-    "span_id": "9ba554c8ce6d68ca",
-    "trace_id": "b51f2bd4a0179ccc6d8ce838adfdba9a",
+    "session_id": "507769c4caed4a20acf25891204174d5",
+    "span_id": "cc8c1b23031da2e4",
+    "trace_id": "6f32e743a70bd0e97ac9d9ed782dd32c",
     "version": "2025.07.14",
     "status": {
       "code": 200,
@@ -38,8 +47,13 @@
     },
     "data": {
       "outputs": {
-        "role": "assistant",
-        "content": "PONG"
+        "messages": [
+          {
+            "role": "assistant",
+            "content": "PONG"
+          }
+        ],
+        "stop_reason": "end_turn"
       }
     }
   },

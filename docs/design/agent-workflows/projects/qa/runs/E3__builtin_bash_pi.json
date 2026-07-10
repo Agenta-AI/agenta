@@ -6,7 +6,7 @@
   "sandbox": "daytona",
   "harness": "pi_core",
   "model": "openai/gpt-4o-mini",
-  "ts": "2026-07-10T20:13:52.938577+00:00",
+  "ts": "2026-07-10T21:10:43.271881+00:00",
   "request": {
     "data": {
       "inputs": {
@@ -36,22 +36,41 @@
               "type": "builtin",
               "name": "bash"
             }
-          ]
+          ],
+          "runner": {
+            "permissions": {
+              "default": "allow"
+            }
+          }
         }
       }
     }
   },
   "http_status": 500,
   "response": {
-    "session_id": "1666f968d5d541208d774e42a970759f",
-    "span_id": "6f71cebadf56ab0b",
-    "trace_id": "8ec5ab000cadb3aa8832f0838a803fff",
+    "session_id": "f61a67f8e49443ec8604de9a8f7e4e06",
+    "span_id": "f6ca7ba870ad17a5",
+    "trace_id": "d401f7eda65766796edae77597320152",
     "version": "2025.07.14",
     "status": {
       "code": 500,
-      "message": "Agent run failed: Stream Error",
+      "message": "Internal Server Error",
       "type": "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
       "stacktrace": [
+        "Traceback (most recent call last):\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_transports/default.py\", line 101, in map_httpcore_exceptions\n    yield\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_transports/default.py\", line 271, in __aiter__\n    async for part in self._httpcore_stream:\n        yield part\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_async/connection_pool.py\", line 407, in __aiter__\n    raise exc from None\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_async/connection_pool.py\", line 403, in __aiter__\n    async for part in self._stream:\n        yield part\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_async/http11.py\", line 342, in __aiter__\n    raise exc\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_async/http11.py\", line 334, in __aiter__\n    async for chunk in self._connection._receive_response_body(**kwargs):\n        yield chunk\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_async/http11.py\", line 203, in _receive_response_body\n    event = await self._receive_event(timeout=timeout)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_async/http11.py\", line 217, in _receive_event\n    data = await self._network_stream.read(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        self.READ_NUM_BYTES, timeout=timeout\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_backends/anyio.py\", line 32, in read\n    with map_exceptions(exc_map):\n         ~~~~~~~~~~~~~~^^^^^^^^^\n",
+        "  File \"/usr/local/lib/python3.13/contextlib.py\", line 162, in __exit__\n    self.gen.throw(value)\n    ~~~~~~~~~~~~~~^^^^^^^\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpcore/_exceptions.py\", line 14, in map_exceptions\n    raise to_exc(exc) from exc\n",
+        "httpcore.ReadTimeout\n",
+        "\nThe above exception was the direct cause of the following exception:\n\n",
         "Traceback (most recent call last):\n",
         "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 292, in __call__\n    normalized = await self._normalize_response(response, flags=flags)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
         "  File \"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\", line 152, in _normalize_response\n    result = await result\n             ^^^^^^^^^^^^\n",
@@ -59,14 +78,22 @@
         "  File \"/app/oss/src/agent/app.py\", line 120, in _agent\n    return await handler(\n           ^^^^^^^^^^^^^^\n        request=request, inputs=inputs, messages=messages, parameters=parameters\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n",
         "  File \"/sdks/python/agenta/sdk/agents/handler.py\", line 326, in _agent\n    return await agent_batch(\n           ^^^^^^^^^^^^^^^^^^\n    ...<5 lines>...\n    )\n    ^\n",
         "  File \"/sdks/python/agenta/sdk/agents/handler.py\", line 384, in agent_batch\n    async for event in run:\n        events.append({\"type\": event.type, \"data\": event.data})\n",
-        "  File \"/sdks/python/agenta/sdk/agents/streaming.py\", line 75, in __aiter__\n    self._result = result_from_wire(record.get(\"result\") or {})\n                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
-        "  File \"/sdks/python/agenta/sdk/agents/utils/wire.py\", line 170, in result_from_wire\n    raise RuntimeError(\n        f\"Agent run failed: {sanitize_runner_error(data.get('error'))}\"\n    )\n",
-        "RuntimeError: Agent run failed: Stream Error\n"
+        "  File \"/sdks/python/agenta/sdk/agents/streaming.py\", line 67, in __aiter__\n    async for record in self._records:\n    ...<11 lines>...\n            return\n",
+        "  File \"/sdks/python/agenta/sdk/agents/utils/ts_runner.py\", line 197, in deliver_http_stream\n    async for line in response.aiter_lines():\n    ...<5 lines>...\n            yield record\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_models.py\", line 1031, in aiter_lines\n    async for text in self.aiter_text():\n        for line in decoder.decode(text):\n            yield line\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_models.py\", line 1018, in aiter_text\n    async for byte_content in self.aiter_bytes():\n    ...<2 lines>...\n            yield chunk\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_models.py\", line 997, in aiter_bytes\n    async for raw_bytes in self.aiter_raw():\n    ...<2 lines>...\n            yield chunk\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_models.py\", line 1055, in aiter_raw\n    async for raw_stream_bytes in self.stream:\n    ...<2 lines>...\n            yield chunk\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_client.py\", line 176, in __aiter__\n    async for chunk in self._stream:\n        yield chunk\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_transports/default.py\", line 270, in __aiter__\n    with map_httpcore_exceptions():\n         ~~~~~~~~~~~~~~~~~~~~~~~^^\n",
+        "  File \"/usr/local/lib/python3.13/contextlib.py\", line 162, in __exit__\n    self.gen.throw(value)\n    ~~~~~~~~~~~~~~^^^^^^^\n",
+        "  File \"/opt/venv/lib/python3.13/site-packages/httpx/_transports/default.py\", line 118, in map_httpcore_exceptions\n    raise mapped_exc(message) from exc\n",
+        "httpx.ReadTimeout\n"
       ]
     }
   },
   "reply": "",
-  "status_message": "Agent run failed: Stream Error",
+  "status_message": "Internal Server Error",
   "passed": false,
   "expect": "QA-BASH-<arch from uname -m>"
 }

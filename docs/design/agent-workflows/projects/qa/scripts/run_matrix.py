@@ -148,6 +148,9 @@ SCENARIOS = [
         "agent": {
             "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
             "tools": [{"type": "builtin", "name": "bash"}],
+            # The cell tests the bash capability, not the approval flow; the default
+            # permission mode pauses Bash at an ask-gate the driver cannot answer.
+            "runner": {"permissions": {"default": "allow"}},
         },
         "msg": 'Use the bash tool to run: echo "QA-BASH-$(uname -m)" and reply with exactly its stdout.',
         "check": lambda r: bool(re.search(r"QA-BASH-(x86_64|aarch64|arm64|amd64)", r)),
