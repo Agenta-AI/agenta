@@ -43,6 +43,28 @@ export const routerAppIdAtom = atom(
     },
 )
 
+// Builds the href an app switch would navigate to. Shared by the imperative
+// navigation atom below and by anchors that expose the same target as a real
+// link (middle-click / open-in-new-tab in the workflow switcher).
+export const appSwitchHrefAtom = atom((get) => {
+    const {workspaceId, projectId} = get(appIdentifiersAtom)
+    const snapshot = get(appStateSnapshotAtom)
+
+    return (next: string): string | null => {
+        if (!workspaceId || !projectId) return null
+
+        const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(next)}`
+        const rest = snapshot.routeLayer === "app" ? snapshot.restPath : []
+        const nextRest = shouldResetEvaluationContextOnAppSwitch({
+            restPath: rest,
+            pathname: snapshot.pathname,
+        })
+            ? ["evaluations"]
+            : rest
+        return nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/overview`
+    }
+})
+
 export const routerAppNavigationAtom = atom(null, (get, set, next: string | null) => {
     const identifiers = get(appIdentifiersAtom)
     const {workspaceId, projectId, appId: current} = identifiers
@@ -56,16 +78,8 @@ export const routerAppNavigationAtom = atom(null, (get, set, next: string | null
 
     if (next === current) return
 
-    const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(next)}`
-    const snapshot = get(appStateSnapshotAtom)
-    const rest = snapshot.routeLayer === "app" ? snapshot.restPath : []
-    const nextRest = shouldResetEvaluationContextOnAppSwitch({
-        restPath: rest,
-        pathname: snapshot.pathname,
-    })
-        ? ["evaluations"]
-        : rest
-    const href = nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/overview`
+    const href = get(appSwitchHrefAtom)(next)
+    if (!href) return
     set(requestNavigationAtom, {type: "href", href, method: "push"})
 })
 
