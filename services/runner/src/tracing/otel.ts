@@ -757,9 +757,9 @@ export function isBannerLine(line: string): boolean {
     t === "---" ||
     /^pi v\d+\.\d+\.\d+\b/.test(t) ||
     // section heading, raw ("## Context") or rendered ("Context"); same for "Skills"
-    /^(?:#{1,6}\s*)?(?:Context|Skills)\s*$/.test(t) ||
+    /^(?:#{1,6}\s*)?(?:Context|Skills|Extensions)\s*$/.test(t) ||
     // an AGENTS.md / *.md path item, list-prefixed ("- /…/AGENTS.md") or bare ("/…/AGENTS.md")
-    /^(?:-\s+)?\/\S*\.md\s*$/.test(t) ||
+    /^(?:-\s+)?\/\S*\.(?:md|js)\s*$/.test(t) ||
     // upgrade notice: "New version available: vX (installed vY). Run: `npm i -g …`"
     /^New version available:/.test(t) ||
     /^Run:\s*`?npm\s+i\b/.test(t)
