@@ -13,13 +13,16 @@ import {Editor} from "@agenta/ui/editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
 import {
     Button,
+    Checkbox,
     Collapse,
     DatePicker,
     Form,
     Input,
     InputNumber,
+    Radio,
     Switch,
     Select,
+    Tag,
     Typography,
 } from "antd"
 import type {FormInstance} from "antd"
@@ -251,6 +254,18 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
 
 const OTHER_ENUM_OPTION = "__ag_enum_other__"
 
+/** A renderable option: bare enum values get {value}, oneOf options add label/description. */
+interface EnumOption {
+    value: string
+    label?: string
+    description?: string
+}
+
+const selectOptionsWithOther = (options: EnumOption[]) => [
+    ...options.map((o) => ({value: o.value, label: o.label ?? o.value})),
+    {value: OTHER_ENUM_OPTION, label: "Other…"},
+]
+
 /** Enum control with an "Other…" entry that reveals a free-text input (elicitation escape hatch). */
 function EnumWithOther({
     value,
@@ -262,18 +277,19 @@ function EnumWithOther({
 }: {
     value?: string
     onChange?: (v: string | undefined) => void
-    options: string[]
+    options: EnumOption[]
     placeholder?: string
     allowClear?: boolean
     disabled?: boolean
 }) {
-    const inOptions = value != null && options.includes(value)
+    const values = options.map((o) => o.value)
+    const inOptions = value != null && values.includes(value)
     const [otherMode, setOtherMode] = useState(value != null && !inOptions)
     // An off-options value can also arrive AFTER mount (schema `default` via Form initialValue,
     // or a replayed draft) — it must open Other-mode with the text prefilled.
     useEffect(() => {
-        if (value != null && !options.includes(value)) setOtherMode(true)
-    }, [value, options])
+        if (value != null && !values.includes(value)) setOtherMode(true)
+    }, [value, values])
     const selectValue = otherMode ? OTHER_ENUM_OPTION : inOptions ? value : undefined
 
     return (
@@ -292,10 +308,7 @@ function EnumWithOther({
                         onChange?.(next)
                     }
                 }}
-                options={[
-                    ...options.map((v) => ({value: v, label: v})),
-                    {value: OTHER_ENUM_OPTION, label: "Other…"},
-                ]}
+                options={selectOptionsWithOther(options)}
             />
             {otherMode && (
                 <Input
@@ -327,7 +340,7 @@ function MultiEnumWithOther({
 }: {
     value?: string[]
     onChange?: (v: string[] | undefined) => void
-    options: string[]
+    options: EnumOption[]
     placeholder?: string
     disabled?: boolean
 }) {
@@ -368,10 +381,7 @@ function MultiEnumWithOther({
                     }
                     onChange?.(next.length ? next : undefined)
                 }}
-                options={[
-                    ...options.map((v) => ({value: v, label: v})),
-                    {value: OTHER_ENUM_OPTION, label: "Other…"},
-                ]}
+                options={selectOptionsWithOther(options)}
             />
             {otherDraft !== null && (
                 <Input
@@ -384,6 +394,162 @@ function MultiEnumWithOther({
                     onBlur={commitDraft}
                 />
             )}
+        </div>
+    )
+}
+
+/** Merge enumValues with oneOf option metadata into the renderable option list. */
+const enumOptionsOf = (field: FormFieldDescriptor): EnumOption[] => {
+    const metas = field.enumOptions ?? []
+    const values = field.enumValues ?? metas.map((m) => m.value)
+    return values.map((v) => metas.find((m) => m.value === v) ?? {value: v})
+}
+
+/** Any option description upgrades the control from a Select to choice cards. */
+const wantsChoiceCards = (field: FormFieldDescriptor): boolean =>
+    !!field.enumOptions?.some((o) => o.description)
+
+const choiceCardCls = (selected: boolean) =>
+    `flex cursor-pointer items-start gap-2 rounded-lg border border-solid p-3 transition-colors ${
+        selected
+            ? "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
+            : "border-colorBorderSecondary hover:border-colorPrimary"
+    }`
+
+/**
+ * Context-ful options rendered as selectable cards (radio semantics; checkbox when `multiple`) —
+ * used when any option carries a description a bare Select would flatten. Includes the same
+ * "Other…" escape hatch as the Select controls: the last card reveals a free-text input.
+ */
+function ChoiceCards({
+    value,
+    onChange,
+    options,
+    multiple,
+    disabled,
+}: {
+    value?: string | string[]
+    onChange?: (v: string | string[] | undefined) => void
+    options: EnumOption[]
+    multiple?: boolean
+    disabled?: boolean
+}) {
+    const [otherDraft, setOtherDraft] = useState<string | null>(null)
+    const selected = multiple
+        ? ((value as string[] | undefined) ?? [])
+        : value != null
+          ? [value as string]
+          : []
+    const optionValues = options.map((o) => o.value)
+    const customValues = selected.filter((v) => !optionValues.includes(v))
+    const isChecked = (v: string) => selected.includes(v)
+
+    const pick = (v: string) => {
+        if (disabled) return
+        if (multiple) {
+            const next = isChecked(v) ? selected.filter((x) => x !== v) : [...selected, v]
+            onChange?.(next.length ? next : undefined)
+        } else {
+            onChange?.(v)
+        }
+    }
+    const commitDraft = () => {
+        const custom = otherDraft?.trim()
+        setOtherDraft(null)
+        if (!custom) return
+        if (multiple) {
+            if (!isChecked(custom)) onChange?.([...selected, custom])
+        } else {
+            onChange?.(custom)
+        }
+    }
+    const otherActive = otherDraft !== null || customValues.length > 0
+    const Control = multiple ? Checkbox : Radio
+
+    return (
+        <div className="flex flex-col gap-2">
+            {options.map((o) => (
+                <div
+                    key={o.value}
+                    role={multiple ? "checkbox" : "radio"}
+                    aria-checked={isChecked(o.value)}
+                    tabIndex={disabled ? -1 : 0}
+                    onClick={() => pick(o.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            pick(o.value)
+                        }
+                    }}
+                    className={choiceCardCls(isChecked(o.value))}
+                >
+                    <Control checked={isChecked(o.value)} className="pointer-events-none" />
+                    <div className="flex min-w-0 flex-col">
+                        <Typography.Text className="!text-xs font-medium">
+                            {o.label ?? o.value}
+                        </Typography.Text>
+                        {o.description && (
+                            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                                {o.description}
+                            </Typography.Text>
+                        )}
+                    </div>
+                </div>
+            ))}
+            <div
+                role={multiple ? "checkbox" : "radio"}
+                aria-checked={otherActive}
+                tabIndex={disabled ? -1 : 0}
+                onClick={() => {
+                    if (!disabled && otherDraft === null) setOtherDraft("")
+                }}
+                onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && otherDraft === null) {
+                        e.preventDefault()
+                        if (!disabled) setOtherDraft("")
+                    }
+                }}
+                className={choiceCardCls(otherActive)}
+            >
+                <Control checked={otherActive} className="pointer-events-none" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <Typography.Text className="!text-xs font-medium">Other…</Typography.Text>
+                    {multiple && customValues.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                            {customValues.map((v) => (
+                                <Tag
+                                    key={v}
+                                    closable={!disabled}
+                                    onClose={(e) => {
+                                        e.preventDefault()
+                                        const next = selected.filter((x) => x !== v)
+                                        onChange?.(next.length ? next : undefined)
+                                    }}
+                                >
+                                    {v}
+                                </Tag>
+                            ))}
+                        </div>
+                    )}
+                    {!multiple && customValues.length > 0 && otherDraft === null && (
+                        <Typography.Text type="secondary" className="!text-[11px]">
+                            {customValues[0]}
+                        </Typography.Text>
+                    )}
+                    {otherDraft !== null && (
+                        <Input
+                            autoFocus
+                            disabled={disabled}
+                            placeholder="Type your answer"
+                            value={otherDraft}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setOtherDraft(e.target.value)}
+                            onPressEnter={commitDraft}
+                            onBlur={commitDraft}
+                        />
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
@@ -456,7 +622,8 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
         )
     }
 
-    // Multi-select (elicitation, openEnums): string-items arrays render as a chip picker.
+    // Multi-select (elicitation, openEnums): string-items arrays render as a chip picker,
+    // upgraded to checkbox choice cards when the options carry descriptions.
     if (field.type === "array" && field.multiple) {
         return (
             <Form.Item
@@ -465,7 +632,11 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                 rules={rules}
                 initialValue={field.default}
             >
-                <MultiEnumWithOther options={field.enumValues ?? []} placeholder={field.label} />
+                {wantsChoiceCards(field) ? (
+                    <ChoiceCards multiple options={enumOptionsOf(field)} />
+                ) : (
+                    <MultiEnumWithOther options={enumOptionsOf(field)} placeholder={field.label} />
+                )}
             </Form.Item>
         )
     }
@@ -508,9 +679,11 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
                     rules={rules}
                     initialValue={field.default}
                 >
-                    {field.allowCustomEnum ? (
+                    {wantsChoiceCards(field) ? (
+                        <ChoiceCards options={enumOptionsOf(field)} />
+                    ) : field.allowCustomEnum ? (
                         <EnumWithOther
-                            options={field.enumValues ?? []}
+                            options={enumOptionsOf(field)}
                             placeholder={field.label}
                             allowClear={!field.required}
                         />

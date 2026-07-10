@@ -48,17 +48,30 @@ export function normalizeStringFormat(format: unknown): string | undefined {
     return KNOWN_STRING_FORMATS.has(canonical) ? canonical : undefined
 }
 
+/**
+ * A context-ful option (standard JSON Schema `oneOf` + `const` idiom): `title`/`description`
+ * give the option a card-worthy explanation. Parse canonicalizes the consts into `enum`, so
+ * downstream consumers never branch on which shape the author used.
+ */
+export interface ElicitationOptionSchema {
+    const: string
+    title?: string
+    description?: string
+}
+
 export interface ElicitationFieldSchema {
     type: "string" | "number" | "integer" | "boolean" | "array"
     title?: string
     description?: string
     enum?: string[]
+    /** Context-ful options; when descriptions are present the renderer shows choice cards. */
+    oneOf?: ElicitationOptionSchema[]
     format?: string
     /**
      * Multi-select (`type: "array"` only): the ONE array shape the dialect admits — string items,
-     * optionally constrained by an enum (the multi-pick options). Nothing deeper.
+     * optionally constrained by an enum or context-ful `oneOf` options. Nothing deeper.
      */
-    items?: {type: "string"; enum?: string[]}
+    items?: {type: "string"; enum?: string[]; oneOf?: ElicitationOptionSchema[]}
     /** Proposed value prefilling the field, so the user can accept the whole form in one click. */
     default?: string | number | boolean | string[]
     minimum?: number
@@ -102,6 +115,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isStringArray = (value: unknown): value is string[] =>
     Array.isArray(value) && value.every((v) => typeof v === "string")
 
+const isValidOneOf = (value: unknown): value is ElicitationOptionSchema[] =>
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+        (o) =>
+            isRecord(o) &&
+            typeof o.const === "string" &&
+            (o.title === undefined || typeof o.title === "string") &&
+            (o.description === undefined || typeof o.description === "string"),
+    )
+
 /**
  * Validate an incoming client-tool input as an elicitation payload (tolerant reader: unknown
  * extra keys are ignored; the hard rules below are the dialect). Failure reasons are stable
@@ -138,6 +162,8 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
                 return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
             if (items.enum !== undefined && !isStringArray(items.enum))
                 return {ok: false, reason: `property "${name}" items enum must be strings`}
+            if (items.oneOf !== undefined && !isValidOneOf(items.oneOf))
+                return {ok: false, reason: `property "${name}" oneOf options need a string const`}
             if (prop.default !== undefined && !isStringArray(prop.default))
                 return {
                     ok: false,
@@ -148,6 +174,8 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
                 return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
             if (prop.enum !== undefined && !isStringArray(prop.enum))
                 return {ok: false, reason: `property "${name}" enum must be strings`}
+            if (prop.oneOf !== undefined && !isValidOneOf(prop.oneOf))
+                return {ok: false, reason: `property "${name}" oneOf options need a string const`}
             if (
                 prop.default !== undefined &&
                 !["string", "number", "boolean"].includes(typeof prop.default)
@@ -168,14 +196,18 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
         if (unknown) return {ok: false, reason: `required field "${unknown}" is not a property`}
     }
 
-    // Canonicalize format hints once at the boundary so the renderer and the serializer never
-    // diverge (aliases like "datetime" → "date-time"); unknown formats are dropped.
+    // Canonicalize once at the boundary so the renderer and the serializer never diverge:
+    // format aliases → canonical ("datetime" → "date-time", unknown dropped), and oneOf consts
+    // → enum (downstream consumers key on enum; oneOf stays for the option titles/descriptions).
     const properties = Object.fromEntries(
         Object.entries(requestedSchema.properties).map(([name, prop]) => {
             const field = {...(prop as ElicitationFieldSchema)}
             const canonical = normalizeStringFormat(field.format)
             if (canonical) field.format = canonical
             else delete field.format
+            if (field.oneOf) field.enum = field.oneOf.map((o) => o.const)
+            if (field.items?.oneOf)
+                field.items = {...field.items, enum: field.items.oneOf.map((o) => o.const)}
             return [name, field]
         }),
     ) as Record<string, ElicitationFieldSchema>

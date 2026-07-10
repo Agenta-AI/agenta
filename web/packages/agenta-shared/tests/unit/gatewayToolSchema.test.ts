@@ -152,4 +152,40 @@ describe("buildFormFieldsFromSchema — openEnums flag", () => {
         const off = buildFormFieldsFromSchema(schema)
         expect(off.some((f) => "multiple" in f)).toBe(false)
     })
+
+    it("flag on: oneOf options surface as enumOptions (single + multi), enum derived from consts", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                process: {
+                    type: "string",
+                    oneOf: [
+                        {const: "merge_main", title: "Merge to main", description: "Daily check"},
+                        {const: "gh_releases", title: "GitHub releases"},
+                    ],
+                },
+                channels: {
+                    type: "array",
+                    items: {type: "string", oneOf: [{const: "slack", title: "Slack"}]},
+                },
+            },
+        }
+        const byName = Object.fromEntries(
+            buildFormFieldsFromSchema(schema, "", {openEnums: true}).map((f) => [f.name, f]),
+        )
+        expect(byName.process.type).toBe("enum")
+        expect(byName.process.enumValues).toEqual(["merge_main", "gh_releases"])
+        expect(byName.process.enumOptions).toEqual([
+            {value: "merge_main", label: "Merge to main", description: "Daily check"},
+            {value: "gh_releases", label: "GitHub releases"},
+        ])
+        expect(byName.channels.multiple).toBe(true)
+        expect(byName.channels.enumValues).toEqual(["slack"])
+        expect(byName.channels.enumOptions).toEqual([{value: "slack", label: "Slack"}])
+
+        // Flag off (gateway forms): oneOf is ignored — no enumOptions key, no enum promotion.
+        const off = buildFormFieldsFromSchema(schema)
+        expect(off.some((f) => "enumOptions" in f)).toBe(false)
+        expect(off.find((f) => f.name === "process")?.type).toBe("string")
+    })
 })

@@ -7,7 +7,28 @@
             "frequency": {
                 "type": "string",
                 "title": "How often",
-                "enum": ["hourly", "daily", "weekdays", "weekly"]
+                "oneOf": [
+                    {
+                        "const": "hourly",
+                        "title": "Hourly",
+                        "description": "Runs every hour, on the hour."
+                    },
+                    {
+                        "const": "daily",
+                        "title": "Daily",
+                        "description": "Runs once a day at the chosen time."
+                    },
+                    {
+                        "const": "weekdays",
+                        "title": "Weekdays",
+                        "description": "Monday through Friday only."
+                    },
+                    {
+                        "const": "weekly",
+                        "title": "Weekly",
+                        "description": "Runs once a week at the chosen time."
+                    }
+                ]
             },
             "time_of_day": {
                 "type": "string",

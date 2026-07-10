@@ -202,6 +202,47 @@ describe("parseElicitationPayload", () => {
         expect(result.payload.requestedSchema.properties.actions.default).toEqual(["send"])
     })
 
+    it("accepts oneOf options and canonicalizes their consts into enum (single + items)", () => {
+        const payload = validPayload()
+        const props = payload.requestedSchema.properties as Record<string, unknown>
+        props.process = {
+            type: "string",
+            oneOf: [
+                {const: "merge_main", title: "Merge to main", description: "Daily check"},
+                {const: "gh_releases", title: "GitHub releases"},
+            ],
+        }
+        props.channels = {
+            type: "array",
+            items: {type: "string", oneOf: [{const: "slack"}, {const: "email"}]},
+        }
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        const parsed = result.payload.requestedSchema.properties
+        expect(parsed.process.enum).toEqual(["merge_main", "gh_releases"])
+        expect(parsed.process.oneOf?.[0]?.description).toBe("Daily check")
+        expect(parsed.channels.items?.enum).toEqual(["slack", "email"])
+    })
+
+    it("rejects malformed oneOf options", () => {
+        const payload = validPayload()
+        ;(payload.requestedSchema.properties as Record<string, unknown>).process = {
+            type: "string",
+            oneOf: [{title: "No const"}],
+        }
+        expect(parseElicitationPayload(payload)).toEqual({
+            ok: false,
+            reason: 'property "process" oneOf options need a string const',
+        })
+        const badItems = validPayload()
+        ;(badItems.requestedSchema.properties as Record<string, unknown>).channels = {
+            type: "array",
+            items: {type: "string", oneOf: [{const: 1}]},
+        }
+        expect(parseElicitationPayload(badItems).ok).toBe(false)
+    })
+
     it("rejects array fields beyond the multi-select shape", () => {
         const cases: [Record<string, unknown>, string][] = [
             [{type: "array"}, 'property "bad" array items must be strings'],
