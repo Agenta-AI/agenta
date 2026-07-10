@@ -45,6 +45,7 @@
         "./runnable/deploy": "./src/runnable/deploy.ts",
         "./trace": "./src/trace/index.ts",
         "./trace/etl": "./src/trace/etl/index.ts",
+        "./session": "./src/session/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
         "./event": "./src/event/index.ts",
