@@ -24,7 +24,7 @@ const fakeTracesClient = {
     querySpansAnalytics,
 }
 
-// The code under test resolves its client via `@agenta/sdk/resources`; the low-priority
+// `trace/api` resolves its client via the per-resource getter (PR #4864); the low-priority
 // variant shares the fake (the priority is a fetch hint, not a behavior change).
 vi.mock("@agenta/sdk/resources", () => ({
     getTracesClient: () => fakeTracesClient,
