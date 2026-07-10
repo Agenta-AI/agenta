@@ -281,6 +281,10 @@ def run_tests(
         cmd.append(f"--durations={time_profile_limit}")
     if time_profile and not _has_pytest_option(pytest_args, "--durations-min"):
         cmd.append(f"--durations-min={time_profile_min}")
+    if time_profile and not _has_pytest_option(pytest_args, "-n"):
+        # pytest.ini runs `-n auto`; --durations reports wall-clock `call` time, so under
+        # saturated workers a fast test reports the time it spent queued. Serialize to measure.
+        cmd.append("-n0")
 
     if pytest_args:
         flags_only = [a for a in pytest_args if a.startswith("-")]
