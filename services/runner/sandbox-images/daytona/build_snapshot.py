@@ -4,9 +4,11 @@
 # ///
 """Build a Daytona snapshot for the Agenta sandbox-agent runner.
 
-Bakes the `pi` CLI into a sandbox-agent base image (which already ships the sandbox-agent
-daemon, the Claude CLI, and CA certs) so Daytona runs don't pay a ~150s per-invoke
-`npm install pi`. Set the runner service to use it:
+The full sandbox-agent base image already bakes the Claude, Codex, and OpenCode
+native binaries and ACP adapters. It also includes the Pi ACP adapter, but not the
+standalone `pi` CLI that adapter launches. This recipe adds the pinned Pi CLI and
+verifies the other baked harnesses so Daytona runs do not pay their installation cost
+for every fresh sandbox. Set the runner service to use it:
 
     DAYTONA_SNAPSHOT=agenta-sandbox-pi
     AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
@@ -18,14 +20,11 @@ Licensing (see services/runner/docker/README.md):
     runs it builds the snapshot in their own Daytona account: Agenta Cloud builds
     its own for internal use; self-hosters build their own. We never hand anyone a
     Claude-containing image, so this is compliant even though the `-full` base bundles
-    Claude (Anthropic's Commercial Terms forbid us *distributing* Claude Code, not
-    building/using it).
+    Claude.
 
     Cleaner-provenance follow-up (needs a live Daytona build to verify): base on a
-    daemon-only sandbox-agent image and install Claude from Anthropic at build (npm
-    `@anthropic-ai/claude-code` or `claude.ai/install.sh`), so the snapshot's Claude
-    comes straight from Anthropic instead of from a third party's bundled image. Pin
-    that only after confirming the daemon-only tag also ships the ACP adapters.
+    daemon-only sandbox-agent image and install Claude from Anthropic at build, then
+    pin that only after confirming the daemon-only tag also ships the ACP adapters.
 """
 
 import sys
@@ -41,7 +40,7 @@ from daytona import (
 
 SNAPSHOT_NAME = "agenta-sandbox-pi"
 SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
-PI_PACKAGE = "@earendil-works/pi-coding-agent@0.79.4"
+PI_PACKAGE = "@earendil-works/pi-coding-agent@0.80.6"
 # Durable session cwd: geesefs (FUSE-over-S3) mounts the store prefix INSIDE the sandbox for
 # remote runs. fuse provides fusermount + /etc/fuse.conf; geesefs is the static mount binary.
 # amd64 is correct here regardless of the builder's local arch: the snapshot is built and run
@@ -70,14 +69,20 @@ def main() -> None:
         print(f"deleting existing snapshot '{SNAPSHOT_NAME}'...")
         daytona.snapshot.delete(existing)
 
-    # Base on the full sandbox-agent image (daemon + claude + certs) and add the pi CLI globally
-    # so it is on PATH for the sandbox user the daemon runs as. The image's default user
-    # is the non-root `sandbox`, so switch to root for the global install, then back.
+    # Add Pi globally so it is on PATH for the non-root sandbox user. The full base
+    # already bakes Claude, Codex, and OpenCode, so verify their native binaries
+    # instead of reinstalling them.
     image = Image.base(SANDBOX_AGENT_IMAGE).dockerfile_commands(
         [
             "USER root",
             f"RUN npm install -g --ignore-scripts {PI_PACKAGE}",
-            "RUN pi --version || true",
+            "RUN pi --version",
+            "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/claude "
+            "&& echo claude-baked-in-base-image",
+            "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/codex "
+            "&& echo codex-baked-in-base-image",
+            "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/opencode "
+            "&& echo opencode-baked-in-base-image",
             # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
             "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
