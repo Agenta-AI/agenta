@@ -1,2 +1,1 @@
-export {default as AgentIdentityCard} from "./AgentIdentityCard"
-export {default as IdentityCardPopover} from "./IdentityCardPopover"
+export {default as AgentNameInline} from "./AgentNameInline"

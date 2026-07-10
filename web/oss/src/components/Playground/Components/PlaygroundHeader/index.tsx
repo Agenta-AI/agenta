@@ -51,7 +51,7 @@ import {
     agentChatVirtualizeAtom,
     isAgentChatVirtualizationAvailable,
 } from "@/oss/components/AgentChatSlice/state/virtualization"
-import {AgentIdentityCard, IdentityCardPopover} from "@/oss/components/EntityIdentity"
+import {AgentNameInline} from "@/oss/components/EntityIdentity"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
@@ -676,33 +676,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 </span>
                             </Tooltip>
                             {currentWorkflow?.id ? (
-                                <IdentityCardPopover
-                                    content={
-                                        <AgentIdentityCard
-                                            workflowId={currentWorkflow.id}
-                                            initialName={displayAgentName}
-                                            initialDescription={currentWorkflow.description}
-                                            slug={currentWorkflow.slug}
-                                            version={currentWorkflow.version}
-                                            createdAt={currentWorkflow.created_at}
-                                            onRenamed={setDisplayAgentName}
-                                        />
-                                    }
-                                >
-                                    <button
-                                        type="button"
-                                        aria-label="Rename agent"
-                                        className="group/name -mx-1.5 flex min-w-0 items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5"
-                                    >
-                                        <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
-                                            {displayAgentName || "Agent"}
-                                        </Typography>
-                                        <PencilSimple
-                                            size={13}
-                                            className="shrink-0 text-colorTextTertiary opacity-0 transition-opacity group-hover/name:opacity-100"
-                                        />
-                                    </button>
-                                </IdentityCardPopover>
+                                <AgentNameInline
+                                    workflowId={currentWorkflow.id}
+                                    name={displayAgentName}
+                                    onRenamed={setDisplayAgentName}
+                                />
                             ) : (
                                 <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                                     {displayAgentName || "Agent"}
