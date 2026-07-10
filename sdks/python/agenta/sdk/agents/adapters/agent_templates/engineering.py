@@ -23,15 +23,15 @@ changelog-writer. Also matches free-text asks about release notes, changelogs, o
 shipped" summaries from a repo.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub or GitLab repo to read merged PRs from. No default; the agent
-  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
-  surfaced one.
+- Repository: which GitHub or GitLab repo to read merged PRs from. The agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; leave no
+  default otherwise.
 - Where release notes are published: the docs page, a Notion database, or a Linear
-  document. Offer these as an enum. First option: "Figure it out from what's connected."
+  document. Offer these as an enum with default "Figure it out from what's connected."
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - How the team releases: merge to main, GitHub releases, or release branches. The agent can
-  discover this by reading the repo. Enum first option: "Use your best judgment (I'll read
+  discover this by reading the repo. Enum with default "Use your best judgment (I'll read
   the repo)." Note in the description: handing this over is faster than the agent researching
   it.
 
@@ -91,17 +91,17 @@ key pr-reviewer. Also matches free-text asks for automated code review or PR fee
 repo.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub or GitLab repo to review PRs on. No default; the agent cannot
-  proceed without it. Description: "Recommended: <guess>" when a prior read surfaced
-  one.
+- Repository: which GitHub or GitLab repo to review PRs on. The agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; leave no
+  default otherwise.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Review posture: comment only (advisory) or request changes when tests are missing
-  (blocking). Enum first option: "Use your best judgment (advisory comments, no blocking)."
+  (blocking). Enum with default "Use your best judgment (advisory comments, no blocking)."
   Note the trade-off: blocking is stricter but can hold up a PR the agent misjudged.
 - What counts as risky: the agent can discover this from the diff (auth, secrets, migrations,
-  deletions). Enum first option: "Figure it out from the diff." Second option: a short list the
-  user types themselves.
+  deletions). Enum with default "Figure it out from the diff"; the built-in Other… option
+  covers a short list the user types themselves.
 
 ## Explore first (read before proposing)
 1. discover_tools for the PR read tools (get PR diff, list changed files, list existing review
@@ -156,14 +156,14 @@ issues." Card key issue-triage. Also matches free-text asks about issue routing 
 labeling.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub or GitLab repo to triage issues on. No default; the agent cannot
-  proceed without it. Description: "Recommended: <guess>" when a prior read surfaced
-  one.
+- Repository: which GitHub or GitLab repo to triage issues on. The agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; leave no
+  default otherwise.
 
-## Researchable context (ask, but the first option is "figure it out")
-- Label taxonomy: which area and priority labels to use. Enum first option: "Figure it out
-  from the repo's existing labels." Second option: the user types a short list.
-- Owner assignment: how to pick who gets assigned. Enum first option: "Use your best judgment
+## Researchable context (ask, defaulting to "figure it out")
+- Label taxonomy: which area and priority labels to use. Enum with default "Figure it out
+  from the repo's existing labels"; Other… covers a typed short list.
+- Owner assignment: how to pick who gets assigned. Enum with default "Use your best judgment
   (read CODEOWNERS, or leave unassigned if there is none)." Note: handing over a mapping is
   faster than the agent researching it.
 
@@ -215,12 +215,12 @@ of a failing run." Card key ci-failure-triage. Also matches free-text asks about
 workflow runs or broken builds.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub repo's workflow runs to watch. No default; the agent cannot proceed
-  without it. Description: "Recommended: <guess>" when a prior read surfaced one.
+- Repository: which GitHub repo's workflow runs to watch. The agent cannot proceed without
+  it. Set the field default to the guess a prior read surfaced; leave no default otherwise.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Where to notify: a comment on the PR or commit tagging the author, or also a Slack channel if
-  Slack is connected. Enum first option: "Use your best judgment (comment on the PR or commit;
+  Slack is connected. Enum with default "Use your best judgment (comment on the PR or commit;
   add Slack only if it's already connected)." Slack and Discord are optional extensions here,
   not requirements: GitHub alone is enough to run.
 
@@ -272,15 +272,15 @@ The ask is "answer questions about our repo," "explain how this code works," or 
 code Q&A bot. Card key code-qa. Also matches free-text asks for a repo-grounded assistant.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub or GitLab repo to answer questions about. No default; the agent
-  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
-  surfaced one.
+- Repository: which GitHub or GitLab repo to answer questions about. The agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; leave no
+  default otherwise.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Where questions come in: a Slack channel mention or a GitHub issue/PR comment mention. Enum
-  first option: "Figure it out from what's connected." Note: handing this over is faster than
+  with default "Figure it out from what's connected." Note: handing this over is faster than
   the agent researching it.
-- Answer depth: cite exact files and lines, or give a higher-level summary. Enum first option:
+- Answer depth: cite exact files and lines, or give a higher-level summary. Enum with default
   "Use your best judgment (cite file paths and line numbers by default)."
 
 ## Explore first (read before proposing)
@@ -333,16 +333,16 @@ The ask is "summarize open dependency-update PRs," "weekly dependency digest," o
 key dependency-digest. Also matches free-text asks about tracking Dependabot or Renovate PRs.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub or GitLab repo to scan for dependency PRs. No default; the agent
-  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
-  surfaced one.
+- Repository: which GitHub or GitLab repo to scan for dependency PRs. The agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; leave no
+  default otherwise.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Where to post the digest: a Slack channel if connected, or a comment on a pinned tracking
-  issue otherwise. Enum first option: "Figure it out from what's connected." Slack is an
+  issue otherwise. Enum with default "Figure it out from what's connected." Slack is an
   optional extension here, not a requirement.
 - Which PRs count as dependency updates: detect by author (dependabot[bot], renovate[bot]) or by
-  label. Enum first option: "Use your best judgment (detect by author, then by label)."
+  label. Enum with default "Use your best judgment (detect by author, then by label)."
 
 ## Explore first (read before proposing)
 1. discover_tools for the PR list tool (filterable by author or label) and the get-PR tool.

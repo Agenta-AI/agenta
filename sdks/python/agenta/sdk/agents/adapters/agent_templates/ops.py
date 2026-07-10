@@ -23,11 +23,11 @@ Slack or Discord channel since yesterday.
 - Source channel: which Slack (or Discord) channel to summarize. No default; the agent
   cannot proceed without it.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Destination channel: post the digest back into the source channel, or to a separate
-  #standup channel. Enum first option: "Same channel as the one being summarized."
-- Post time: local time to send the digest. Enum first option: "09:00 local (default)."
-  Note: handing over an exact time is faster than guessing.
+  #standup channel. Enum with default "Same channel as the one being summarized."
+- Post time: local time to send the digest. Enum with default "09:00 local"; the built-in
+  Other… option covers an exact custom time.
 - Local timezone: needed to convert the daily post time into a UTC cron. Description:
   "e.g. America/New_York. Leave empty to use UTC."
 
@@ -84,16 +84,17 @@ Card key repo-slack-digest. Also matches free-text asks for a periodic repo acti
 sent to a channel.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub (or GitLab) repo to read activity from. No default; the agent
-  cannot proceed without it. Description: "Recommended: <guess>"
-  when a prior read surfaced one.
+- Repository: which GitHub (or GitLab) repo to read activity from. The agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; leave no default
+  otherwise.
 - Destination channel: which Slack (or Discord) channel to post the digest to. No default.
 
-## Researchable context (ask, but the first option is "figure it out")
-- What to include: new issues, commits, and PRs, or a subset. Enum first option: "Include
-  all three (issues, commits, PRs)."
-- Digest times: local times to post, twice a day. Enum first option: "09:00 and 17:00 local
-  (default)." Note: handing over exact times is faster than guessing.
+## Researchable context (ask, defaulting to "figure it out")
+- What to include: new issues, commits, and PRs, or a subset. A multi-pick, so use
+  multi-select ({type: "array", items: {type: "string", enum: ["issues", "commits", "PRs"]}})
+  with default ["issues", "commits", "PRs"] (all three).
+- Digest times: local times to post, twice a day. Enum with default "09:00 and 17:00 local";
+  the built-in Other… option covers exact custom times.
 
 ## Explore first (read before proposing)
 1. discover_tools for the repo-read tools (list issues, list commits, list pull requests)
@@ -155,12 +156,12 @@ mirroring issues, tickets, or records between two systems.
 - Destination: which tool and identifier to write mirrored records to (for example, a Notion
   database URL, a Confluence space). No default.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Sync cadence: polling on a schedule, or event-driven if the source supports a webhook.
-  Enum first option: "Use your best judgment (hourly schedule is simplest and most
+  Enum with default "Use your best judgment (hourly schedule is simplest and most
   reliable)."
-- Field mapping: which source fields map to which destination properties. Enum first
-  option: "Use your best judgment based on the destination's existing schema."
+- Field mapping: which source fields map to which destination properties. Enum with
+  default "Use your best judgment based on the destination's existing schema."
 
 ## Explore first (read before proposing)
 1. discover_tools for the source-read tool (list issues) and the destination-write tool
@@ -218,11 +219,12 @@ doc or channel.
 - Destination: which Notion page or database (or Slack channel) to publish the report to.
   No default.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Metrics scope: shipping activity only, or shipping plus product metrics from PostHog.
-  Enum first option: "Use your best judgment: include PostHog only if it's connected,
+  Enum with default "Use your best judgment: include PostHog only if it's connected,
   otherwise shipping activity only."
-- Report time: default weekly send time. Enum first option: "Monday 09:00 local (default)."
+- Report time: enum with default "Monday 09:00 local"; the built-in Other… option covers a
+  custom time.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub read tools (list merged PRs, list commits), the Linear read

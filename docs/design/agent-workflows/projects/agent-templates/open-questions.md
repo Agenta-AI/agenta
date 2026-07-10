@@ -36,6 +36,8 @@ is click data. This avoids frontend tab work now and keeps the option open.
 
 **Decided: live with the workaround.** Enum-first "figure it out" plus guidance in descriptions. A real `default` field goes to Arda as a separate issue; playbooks adopt it when it ships.
 
+**Update (2026-07-11): shipped and adopted.** Issue #5190 landed in PR #5177 — real `default`, plus multi-select arrays and oneOf choice cards. The playbooks, the write-template-playbooks skill, and the playbook spec now use real defaults; the enum-first workaround is retired.
+
 **Context.** The elicitation form has no `default` field; a `default` in the schema is silently
 dropped ([research.md](research.md) Section 4, `elicitation.ts:56`). The playbooks want to
 propose values the user can accept or edit. Today they do it with an enum-first "figure it out"
