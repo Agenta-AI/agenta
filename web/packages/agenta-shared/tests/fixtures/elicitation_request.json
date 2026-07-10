@@ -18,7 +18,8 @@
             "timezone": {
                 "type": "string",
                 "title": "Timezone",
-                "enum": ["Europe/Berlin", "Europe/Istanbul", "UTC", "America/New_York"]
+                "enum": ["Europe/Berlin", "Europe/Istanbul", "UTC", "America/New_York"],
+                "default": "UTC"
             },
             "delivery_message": {
                 "type": "string",
@@ -28,7 +29,8 @@
             },
             "active": {
                 "type": "boolean",
-                "title": "Start active"
+                "title": "Start active",
+                "default": true
             }
         },
         "required": ["frequency", "time_of_day", "timezone"]

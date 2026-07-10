@@ -151,6 +151,41 @@ describe("parseElicitationPayload", () => {
         })
     })
 
+    it("accepts primitive defaults and keeps them on the parsed payload", () => {
+        const payload = validPayload()
+        const props = payload.requestedSchema.properties as Record<string, unknown>
+        props.name = {type: "string", title: "Name", default: "Ada"}
+        props.count = {type: "integer", minimum: 1, default: 3}
+        props.active = {type: "boolean", default: true}
+        props.level = {type: "string", enum: ["low", "high"], default: "high"}
+        const result = parseElicitationPayload(payload)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        const parsed = result.payload.requestedSchema.properties
+        expect(parsed.name.default).toBe("Ada")
+        expect(parsed.count.default).toBe(3)
+        expect(parsed.active.default).toBe(true)
+        expect(parsed.level.default).toBe("high")
+    })
+
+    it("rejects non-primitive defaults", () => {
+        const payload = validPayload()
+        ;(payload.requestedSchema.properties as Record<string, unknown>).name = {
+            type: "string",
+            default: {nested: true},
+        }
+        expect(parseElicitationPayload(payload)).toEqual({
+            ok: false,
+            reason: 'property "name" default must be a primitive',
+        })
+        const arr = validPayload()
+        ;(arr.requestedSchema.properties as Record<string, unknown>).name = {
+            type: "string",
+            default: ["a"],
+        }
+        expect(parseElicitationPayload(arr).ok).toBe(false)
+    })
+
     it("rejects secret-shaped fields by name and by title", () => {
         const byName = validPayload()
         ;(byName.requestedSchema.properties as Record<string, unknown>).api_key = {type: "string"}

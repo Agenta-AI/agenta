@@ -1,4 +1,12 @@
-import {forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState} from "react"
+import {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
@@ -261,6 +269,11 @@ function EnumWithOther({
 }) {
     const inOptions = value != null && options.includes(value)
     const [otherMode, setOtherMode] = useState(value != null && !inOptions)
+    // An off-options value can also arrive AFTER mount (schema `default` via Form initialValue,
+    // or a replayed draft) — it must open Other-mode with the text prefilled.
+    useEffect(() => {
+        if (value != null && !options.includes(value)) setOtherMode(true)
+    }, [value, options])
     const selectValue = otherMode ? OTHER_ENUM_OPTION : inOptions ? value : undefined
 
     return (
@@ -286,7 +299,9 @@ function EnumWithOther({
             />
             {otherMode && (
                 <Input
-                    autoFocus
+                    // Focus only when the user picked "Other…" (value just cleared) — a form
+                    // mounting with an off-options default must not steal focus.
+                    autoFocus={value == null}
                     disabled={disabled}
                     placeholder="Type your answer"
                     value={value ?? ""}
@@ -422,13 +437,10 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
         default:
             // Format-aware controls appear only when the host opted in via `formats`.
             if (field.format === "date" || field.format === "date-time") {
+                // No initialValue: a wire default is an ISO STRING and DatePicker requires dayjs —
+                // a string value crashes it. Date fields render empty; other types prefill.
                 return (
-                    <Form.Item
-                        name={field.name.split(".")}
-                        label={label}
-                        rules={rules}
-                        initialValue={field.default}
-                    >
+                    <Form.Item name={field.name.split(".")} label={label} rules={rules}>
                         <DatePicker
                             className="w-full"
                             showTime={field.format === "date-time"}

@@ -945,7 +945,11 @@ def test_request_input_matches_golden_request_fixture():
     for name, prop in requested["properties"].items():
         assert prop["type"] in _ELICITATION_PRIMITIVES, name
         assert "properties" not in prop and "items" not in prop, name
+        if "default" in prop:
+            assert isinstance(prop["default"], (str, int, float, bool)), name
     assert set(requested.get("required", [])) <= set(requested["properties"])
+    # The golden must exercise a prefilled field (defaults are part of the dialect, #5190).
+    assert any("default" in prop for prop in requested["properties"].values())
 
 
 def test_request_input_matches_golden_response_fixture():

@@ -53,7 +53,8 @@ export interface ElicitationFieldSchema {
     description?: string
     enum?: string[]
     format?: string
-    default?: never
+    /** Proposed value prefilling the field, so the user can accept the whole form in one click. */
+    default?: string | number | boolean
     minimum?: number
     maximum?: number
     minLength?: number
@@ -123,6 +124,11 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
             if (!Array.isArray(prop.enum) || prop.enum.some((v) => typeof v !== "string"))
                 return {ok: false, reason: `property "${name}" enum must be strings`}
         }
+        if (
+            prop.default !== undefined &&
+            !["string", "number", "boolean"].includes(typeof prop.default)
+        )
+            return {ok: false, reason: `property "${name}" default must be a primitive`}
         const title = typeof prop.title === "string" ? prop.title : ""
         if (SECRET_FIELD_PATTERN.test(name) || SECRET_FIELD_PATTERN.test(title))
             return {ok: false, reason: `property "${name}" is secret-shaped — use a connect flow`}
