@@ -1026,12 +1026,12 @@ if (isEntrypoint(import.meta.url)) {
     );
     if (insecureEgressAllowed()) {
       process.stderr.write(
-        "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCP servers may " +
+        "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCPs may " +
           "target http and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.\n",
       );
     } else {
       process.stderr.write(
-        "[sandbox-agent] Outbound egress is in restricted mode: user MCP servers must use https and " +
+        "[sandbox-agent] Outbound egress is in restricted mode: user MCPs must use https and " +
           "public hosts (private/loopback/link-local/metadata targets are blocked).\n",
       );
     }
