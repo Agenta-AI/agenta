@@ -23,8 +23,6 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
         refetchOnWindowFocus: false,
     })
 
-    const refresh = () => queryClient.invalidateQueries({queryKey})
-
     // Resolving an interaction is a detached agent invoke: the answer is one message in
     // `inputs.messages`, in the neutral agenta format (the invoke path does not negotiate
     // Vercel). An approval reply is a `tool_result` content block keyed by the gated
@@ -169,11 +167,6 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                     )
                 })
             )}
-            <div className="mt-2">
-                <Button type="text" onClick={refresh}>
-                    Refresh
-                </Button>
-            </div>
         </Space>
     )
 }

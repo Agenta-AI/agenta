@@ -1,3 +1,5 @@
+import {useEffect, useRef} from "react"
+
 import {Plus, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import clsx from "clsx"
@@ -12,29 +14,54 @@ import {
 
 import SessionTabLabel from "./SessionTabLabel"
 
-const STATUS_META: Record<SessionRunStatus, {dot: string; pulse: boolean; title: string}> = {
-    running: {dot: "bg-colorInfo", pulse: true, title: "Running"},
-    awaiting: {dot: "bg-colorWarning", pulse: true, title: "Waiting for approval"},
-    error: {dot: "bg-colorError", pulse: false, title: "Last run failed"},
-    idle: {dot: "bg-colorTextQuaternary", pulse: false, title: "Idle"},
+/** `attention` states need the user (approval / input) or flag a failure — their semantic colour
+ * outranks the active tab's clean white dot, so it's never masked on the session you're viewing. */
+const STATUS_META: Record<
+    SessionRunStatus,
+    {dot: string; pulse: boolean; attention: boolean; title: string}
+> = {
+    running: {dot: "bg-colorInfo", pulse: true, attention: false, title: "Responding…"},
+    awaiting: {dot: "bg-colorWarning", pulse: true, attention: true, title: "Needs your input"},
+    error: {dot: "bg-colorError", pulse: false, attention: true, title: "Last run failed"},
+    idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
 
 /** A session's run-state dot. Subscribes to just that session's status atom so a streaming
  * conversation repaints only its own dot, never the whole bar. */
-export const SessionStatusDot = ({sessionId}: {sessionId: string}) => {
+export const SessionStatusDot = ({
+    sessionId,
+    active = false,
+}: {
+    sessionId: string
+    active?: boolean
+}) => {
     const status = useAtomValue(sessionStatusAtomFamily(sessionId))
     const meta = STATUS_META[status]
+    // Whiten the dot to match the active tab's white text ONLY when the session is idle. Any live
+    // state — running (streaming a response), awaiting (needs you), error — keeps its semantic
+    // colour even on the active tab, so its signal survives on the session you're looking at.
+    const dotClassName = clsx(meta.dot, active && status === "idle" && "dark:bg-white")
     return (
-        <span className="relative flex h-1.5 w-1.5 shrink-0" title={meta.title}>
+        <span
+            className={clsx(
+                "relative flex h-1.5 w-1.5 shrink-0",
+                // A halo ring makes an attention dot read as a badge even at 6px, so it stands out
+                // across a row of running/idle tabs without enlarging the dot itself.
+                meta.attention && "rounded-full ring-2 ring-offset-0",
+                status === "awaiting" && "ring-colorWarningBorder",
+                status === "error" && "ring-colorErrorBorder",
+            )}
+            title={meta.title}
+        >
             {meta.pulse && (
                 <span
                     className={clsx(
                         "absolute inline-flex h-full w-full rounded-full opacity-60 motion-safe:animate-ping",
-                        meta.dot,
+                        dotClassName,
                     )}
                 />
             )}
-            <span className={clsx("relative inline-flex h-1.5 w-1.5 rounded-full", meta.dot)} />
+            <span className={clsx("relative inline-flex h-1.5 w-1.5 rounded-full", dotClassName)} />
         </span>
     )
 }
@@ -44,6 +71,9 @@ interface SessionTagProps {
     index: number
     active: boolean
     closable: boolean
+    /** True when this session already existed at the bar's first mount (reload restore) — an
+     * activation here jumps instantly; a session added afterwards keeps the smooth scroll. */
+    presentAtMount: boolean
     onSelect: () => void
     onClose: () => void
     onRename: (title: string) => void
@@ -55,14 +85,32 @@ const SessionTag = ({
     index,
     active,
     closable,
+    presentAtMount,
     onSelect,
     onClose,
     onRename,
 }: SessionTagProps) => {
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
+    const tabRef = useRef<HTMLDivElement>(null)
+    // Keep the active tab visible. Jump INSTANTLY only on the bar's initial reveal of a session that
+    // was already present at mount (reload restoring a far-away active tab) — the strip's scroll-smooth
+    // would otherwise play a long scroll across the whole strip. A session added later, or any user
+    // switch, keeps the CSS smooth nudge (so a freshly-created tab still glides into view).
+    const mountedRef = useRef(false)
+    useEffect(() => {
+        if (active) {
+            tabRef.current?.scrollIntoView({
+                block: "nearest",
+                inline: "nearest",
+                behavior: presentAtMount && !mountedRef.current ? "instant" : undefined,
+            })
+        }
+        mountedRef.current = true
+    }, [active])
     return (
         <div
+            ref={tabRef}
             role="tab"
             aria-selected={active}
             tabIndex={0}
@@ -75,12 +123,14 @@ const SessionTag = ({
             }}
             className={clsx(
                 "group flex h-7 max-w-[180px] min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                // White pill on the recessed chat canvas (raised); the active tab keeps the primary
+                // text + a 2px accent underline so it's unmistakable against its neighbours.
                 active
-                    ? "border-colorBorder bg-colorFillSecondary text-colorText"
-                    : "border-colorBorderSecondary bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
+                    ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
+                    : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
             )}
         >
-            <SessionStatusDot sessionId={session.id} />
+            <SessionStatusDot sessionId={session.id} active={active} />
             <SessionTabLabel
                 label={label}
                 onRename={onRename}
@@ -133,10 +183,18 @@ const SessionTagBar = ({
     showSessions = true,
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
+    // Session ids present when the bar first mounted. Seeded once; NOT topped up, so an id that
+    // appears later reads as "added after mount" and scrolls smoothly (see SessionTag).
+    const presentAtMountRef = useRef<Set<string>>(new Set())
+    const seededRef = useRef(false)
+    if (!seededRef.current) {
+        seededRef.current = true
+        sessions.forEach((s) => presentAtMountRef.current.add(s.id))
+    }
     return (
-        <div className="flex h-[48px] shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3">
+        <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
             {showSessions ? (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {sessions.map((session, index) => (
                         <SessionTag
                             key={session.id}
@@ -144,25 +202,35 @@ const SessionTagBar = ({
                             index={index}
                             active={session.id === activeId}
                             closable={closable}
+                            presentAtMount={presentAtMountRef.current.has(session.id)}
                             onSelect={() => onSelect(session.id)}
                             onClose={() => onClose(session.id)}
                             onRename={(title) => onRename(session.id, title)}
                         />
                     ))}
-                    <Tooltip title="New session">
-                        <Button
-                            type="text"
-                            aria-label="New session"
-                            icon={<Plus size={14} />}
-                            onClick={onAdd}
-                            className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                        />
-                    </Tooltip>
                 </div>
             ) : (
                 <div className="min-w-0 flex-1" />
             )}
-            {extra && <div className="flex shrink-0 items-center gap-1">{extra}</div>}
+            {/* Fixed session-actions cluster — pinned outside the scroll area so New session (+) sits
+                at the end of the tab strip without scrolling away, grouped with the inspect/history
+                controls. */}
+            {(showSessions || extra) && (
+                <div className="flex shrink-0 items-center gap-1">
+                    {showSessions && (
+                        <Tooltip title="New session">
+                            <Button
+                                type="text"
+                                aria-label="New session"
+                                icon={<Plus size={14} />}
+                                onClick={onAdd}
+                                className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                            />
+                        </Tooltip>
+                    )}
+                    {extra}
+                </div>
+            )}
         </div>
     )
 }

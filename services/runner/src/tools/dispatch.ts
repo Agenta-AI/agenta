@@ -10,7 +10,7 @@
  *
  * The three executor kinds (see `ResolvedToolSpec`):
  *  - `code`: advertised to harnesses, but rejected by the sidecar as unsupported.
- *  - `client`: browser-fulfilled across a turn boundary; permission responder parks it.
+ *  - `client`: browser-fulfilled across a turn boundary; permission responder pauses it.
  *  - `callback` (default): POST back through Agenta's /tools/call so the Composio key and
  *    connection auth stay server-side. On Daytona the in-sandbox process can't reach Agenta,
  *    so the call is relayed through the runner via files (see tools/relay.ts) when `relayDir`
@@ -19,11 +19,18 @@
  * `relayToolCall` lives here (not in extensions/agenta.ts) so this module is the single
  * dispatch home with no import cycle back into a call site.
  */
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
+import { assertRequiredArguments } from "./spec-schema.ts";
 import {
   RELAY_POLL_MS,
   RELAY_REQ_SUFFIX,
@@ -48,64 +55,6 @@ export interface RunResolvedToolOpts {
   signal?: AbortSignal;
 }
 
-function objectSchema(schema: unknown): Record<string, unknown> | undefined {
-  return schema && typeof schema === "object" && !Array.isArray(schema)
-    ? (schema as Record<string, unknown>)
-    : undefined;
-}
-
-function requiredFields(schema: unknown): string[] {
-  const object = objectSchema(schema);
-  const required = object?.required;
-  return Array.isArray(required)
-    ? required.filter((field): field is string => typeof field === "string")
-    : [];
-}
-
-function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
-  return (
-    spec.inputSchema ??
-    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
-      .input_schema
-  );
-}
-
-function missingRequiredFields(
-  schema: unknown,
-  value: unknown,
-  path: string[] = [],
-): string[] {
-  const object = objectSchema(schema);
-  if (!object) return [];
-
-  const missing: string[] = [];
-  const required = requiredFields(object);
-  const record = objectSchema(value);
-  for (const field of required) {
-    if (!record || record[field] === undefined || record[field] === null) {
-      missing.push([...path, field].join("."));
-    }
-  }
-
-  const properties = objectSchema(object.properties);
-  if (!properties || !record) return missing;
-  for (const [field, childSchema] of Object.entries(properties)) {
-    if (record[field] !== undefined && record[field] !== null) {
-      missing.push(...missingRequiredFields(childSchema, record[field], [...path, field]));
-    }
-  }
-  return missing;
-}
-
-function assertRequiredArguments(spec: ResolvedToolSpec, params: unknown): void {
-  const missing = missingRequiredFields(specInputSchema(spec), params);
-  if (missing.length === 0) return;
-  throw new Error(
-    `Tool '${spec.name}' missing required argument(s): ${missing.join(", ")}. ` +
-      "Retry the tool call with those argument fields populated.",
-  );
-}
-
 /**
  * Daytona tool call: the in-sandbox process can't reach Agenta, so write the request to a
  * file the runner watches and poll for the response it writes back (see tools/relay.ts).
@@ -115,6 +64,7 @@ export async function relayToolCall(
   toolName: string,
   toolCallId: string,
   params: unknown,
+  timeoutMs?: number,
   signal?: AbortSignal,
 ): Promise<string> {
   const id = sanitizeRelayId(toolCallId);
@@ -125,9 +75,15 @@ export async function relayToolCall(
   } catch {
     // The runner also creates it; a race here is harmless.
   }
-  writeFileSync(reqPath, JSON.stringify({ toolName, toolCallId, args: params ?? {} }), "utf-8");
+  writeFileSync(
+    reqPath,
+    JSON.stringify({ toolName, toolCallId, args: params ?? {} }),
+    "utf-8",
+  );
 
-  const deadline = Date.now() + RELAY_TIMEOUT_MS;
+  const deadline =
+    Date.now() +
+    (timeoutMs && timeoutMs > 0 ? timeoutMs + 10_000 : RELAY_TIMEOUT_MS);
   while (Date.now() < deadline) {
     if (signal?.aborted) throw new Error("aborted");
     if (existsSync(resPath)) {
@@ -155,7 +111,7 @@ export async function relayToolCall(
  * turns the throw into a tool-error result so the model loop continues rather than crashing.
  *
  *  - `code`   -> reject as unsupported by the sidecar, no callback/relay.
- *  - `client` → relay to the runner so it can park the browser-fulfilled call.
+ *  - `client` → relay to the runner so it can pause the browser-fulfilled call.
  *  - default/`callback` → relay through the runner when `opts.relayDir` is set (Daytona),
  *    else POST directly to `opts.endpoint`.
  */
@@ -166,17 +122,39 @@ export async function runResolvedTool(
 ): Promise<string> {
   assertRequiredArguments(spec, params);
   if (spec.kind === "code") {
-    return runCodeTool(spec.runtime, spec.code ?? "", spec.env, params, opts.signal);
+    return runCodeTool(
+      spec.runtime,
+      spec.code ?? "",
+      spec.env,
+      params,
+      opts.signal,
+    );
   }
   if (spec.kind === "client") {
     if (opts.relayDir) {
-      return relayToolCall(opts.relayDir, spec.name, opts.toolCallId, params, opts.signal);
+      return relayToolCall(
+        opts.relayDir,
+        spec.name,
+        opts.toolCallId,
+        params,
+        spec.timeoutMs,
+        opts.signal,
+      );
     }
-    throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
+    throw new Error(
+      `client tool '${spec.name}' is browser-fulfilled and cannot be executed`,
+    );
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {
-    return relayToolCall(opts.relayDir, spec.name, opts.toolCallId, params, opts.signal);
+    return relayToolCall(
+      opts.relayDir,
+      spec.name,
+      opts.toolCallId,
+      params,
+      spec.timeoutMs,
+      opts.signal,
+    );
   }
   return callAgentaTool(
     opts.endpoint ?? "",
@@ -184,6 +162,6 @@ export async function runResolvedTool(
     spec.callRef ?? "",
     opts.toolCallId,
     params,
-    opts.signal,
+    { signal: opts.signal, timeoutMs: spec.timeoutMs },
   );
 }

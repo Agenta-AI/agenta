@@ -11,12 +11,28 @@
  */
 import type {ReactNode} from "react"
 
+import {Info} from "@phosphor-icons/react"
+import {Tooltip} from "antd"
+
 export interface RailFieldProps {
     label: ReactNode
     /** Vertical alignment of the label against the content. @default "top" */
     align?: "top" | "center"
     children: ReactNode
 }
+
+/**
+ * A rail-field label with a trailing info tooltip. Keeps each knob's help text without a separate
+ * description line, so rail rows stay one field per row (used by the sandbox/Claude permission forms).
+ */
+export const railInfoLabel = (label: ReactNode, hint: ReactNode): ReactNode => (
+    <span className="inline-flex items-center gap-1">
+        {label}
+        <Tooltip title={hint}>
+            <Info size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+        </Tooltip>
+    </span>
+)
 
 export function RailField({label, align = "top", children}: RailFieldProps) {
     return (

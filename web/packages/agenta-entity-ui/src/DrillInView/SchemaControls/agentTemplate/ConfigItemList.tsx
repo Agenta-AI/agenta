@@ -7,7 +7,7 @@ import type {ReactNode} from "react"
 import type {ConfigItemView} from "../ConfigItemDrawer"
 
 import {ITEM_KINDS, type ItemKind} from "./itemKinds"
-import {ItemRow} from "./ItemRow"
+import {ItemRow, type ItemRowStatus} from "./ItemRow"
 
 export function ConfigItemList({
     kind,
@@ -17,6 +17,7 @@ export function ConfigItemList({
     closeEditor,
     disabled,
     emptyAdd,
+    statusFor,
 }: {
     kind: ItemKind
     items: unknown[]
@@ -26,6 +27,8 @@ export function ConfigItemList({
     disabled?: boolean
     /** The add trigger shown in the empty state (a popover for tools, a text link otherwise). */
     emptyAdd: ReactNode
+    /** Per-row draft/validation status (unsaved edits, missing fields). */
+    statusFor?: (item: unknown, index: number) => ItemRowStatus | undefined
 }) {
     const def = ITEM_KINDS[kind]
     if (items.length > 0) {
@@ -42,6 +45,7 @@ export function ConfigItemList({
                         }}
                         // Read-only items (static `__ag__*` skills) can't be removed and open disabled.
                         disabled={disabled || def.isReadOnly(item)}
+                        status={statusFor?.(item, index)}
                     />
                 ))}
             </div>

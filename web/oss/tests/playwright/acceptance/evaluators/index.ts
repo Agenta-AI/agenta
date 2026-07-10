@@ -810,7 +810,7 @@ const testEvaluators = () => {
     )
 
     test(
-        "should list declarative classifiers in the sidebar switcher (not just LLM/code evaluators)",
+        "should exclude deterministic evaluators from the sidebar workflow switcher",
         {
             tag: buildAcceptanceTags({
                 scope: [TestScope.EVALUATIONS],
@@ -825,11 +825,8 @@ const testEvaluators = () => {
             }),
         },
         async ({page, navigateToEvaluators}) => {
-            // Verifies T17: the sidebar workflow switcher lists ALL evaluator
-            // kinds, not just full-page-eligible (LLM/code) ones. Pre-T17 the
-            // dropdown used `fullPagePlaygroundEvaluatorsAtom` which filtered
-            // declarative classifiers out — leaving them unreachable via UI
-            // navigation from anywhere except the /evaluators table.
+            // Declarative evaluator workflows remain available from the
+            // evaluators table, but must not appear in the workflow switcher.
             const evaluatorName = `e2e-exact-match-sidebar-${Date.now()}`
 
             await navigateToEvaluators()
@@ -870,12 +867,9 @@ const testEvaluators = () => {
             await expect(switchButton).toBeVisible({timeout: 15000})
             await switchButton.click()
 
-            // The dropdown opens via AntD's Dropdown. The just-created
-            // declarative classifier should be in the list — pre-T17 it
-            // wouldn't be (the dropdown filtered to LLM/code-only evaluators).
-            await expect(
-                page.getByRole("menuitem").filter({hasText: evaluatorName}).first(),
-            ).toBeVisible({timeout: 10000})
+            // The dropdown opens via AntD's Dropdown. The just-created Exact
+            // Match evaluator must be absent because it is deterministic.
+            await expect(page.getByRole("menuitem").filter({hasText: evaluatorName})).toHaveCount(0)
         },
     )
 }

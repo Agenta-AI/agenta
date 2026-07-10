@@ -29,14 +29,25 @@ const SessionTabLabel = ({
         return (
             <Input
                 autoFocus
+                variant="borderless"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onPressEnter={commit}
                 onBlur={commit}
+                onFocus={(e) => e.target.select()}
                 onClick={(e) => e.stopPropagation()}
                 // Keep typing (Space/Enter) inside the rename input; don't let it reach the tab.
-                onKeyDown={(e) => e.stopPropagation()}
-                className="!h-6 !w-28 !px-1 !text-xs"
+                onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                        setDraft(label)
+                        setEditing(false)
+                    }
+                    e.stopPropagation()
+                }}
+                // Quiet in-place editor sized to the label it replaces: fills the row (no fixed
+                // width overflowing the chip), same 12px type, subtle inset well instead of
+                // antd's bordered box + primary focus ring.
+                className="!h-5 !w-full !min-w-0 flex-1 !rounded !border !border-solid !border-[var(--ag-surface-inset-border)] !bg-[var(--ag-surface-inset)] !px-1 !py-0 !text-xs !text-colorText !shadow-none"
             />
         )
     }

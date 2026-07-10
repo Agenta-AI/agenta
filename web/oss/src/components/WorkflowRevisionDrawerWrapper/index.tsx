@@ -58,6 +58,7 @@ import {Rocket} from "@phosphor-icons/react"
 import {Button, message} from "antd"
 import {
     Provider,
+    atom,
     createStore,
     getDefaultStore,
     useAtom,
@@ -82,6 +83,7 @@ import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/Co
 import SelectAppEmptyState from "@/oss/components/Evaluators/components/ConfigureEvaluator/SelectAppEmptyState"
 import {useEvaluatorRunControls} from "@/oss/components/Evaluators/components/ConfigureEvaluator/useEvaluatorRunControls"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {invalidateAgentsWorkflowQueries} from "@/oss/components/pages/agents/store"
 import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
 import {invalidatePromptsWorkflowQueries} from "@/oss/components/pages/prompts/store"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -132,16 +134,28 @@ const HumanEvaluatorDrawer = dynamic(
 // EVALUATOR TYPE LABEL
 // ================================================================
 
+// Stable empty map read for non-evaluator rows so the evaluator template catalog
+// (a separate GET /evaluators/catalog/templates fetch) isn't requested just to
+// render a type label for an app revision.
+const EMPTY_TEMPLATES_MAP_ATOM = atom<Map<string, string>>(new Map())
+
 const EvaluatorTypeLabel = memo(({revisionId}: {revisionId: string}) => {
+    const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(revisionId))
     const data = useAtomValue(workflowMolecule.selectors.data(revisionId))
-    const templatesMap = useAtomValue(evaluatorTemplatesMapAtom)
+    // Gate on the canonical `is_evaluator` FLAG, not the URI prefix: builtin APPS
+    // (chat/completion) also carry an `agenta:builtin:` URI, so a prefix-only check
+    // both mislabels them as evaluators AND pulls the whole evaluator catalog.
+    const templatesMap = useAtomValue(
+        isEvaluator ? evaluatorTemplatesMapAtom : EMPTY_TEMPLATES_MAP_ATOM,
+    )
 
     const label = useMemo(() => {
+        if (!isEvaluator) return null
         const uri = (data?.data as {uri?: string} | undefined)?.uri
         if (!uri || !uri.startsWith("agenta:builtin:")) return null
         const key = parseEvaluatorKeyFromUri(uri)
         return key ? (templatesMap.get(key) ?? key) : null
-    }, [data?.data, templatesMap])
+    }, [isEvaluator, data?.data, templatesMap])
 
     if (!label) return null
 
@@ -643,6 +657,7 @@ const useDrawerCreateCommitCallback = () => {
                     // (commit.ts:590) doesn't cover the app-management
                     // paginated store.
                     void invalidateAppManagementWorkflowQueries()
+                    void invalidateAgentsWorkflowQueries()
 
                     // Same problem on the Prompts page: it reads its own
                     // ["prompts-workflows"] query, which neither the shared

@@ -17,6 +17,7 @@ from oss.src.core.tools.dtos import (
     ToolAuthScheme,
     ToolCatalogActionDetails,
     ToolCatalogActionsPage,
+    ToolCatalogCategory,
     ToolCatalogIntegration,
     ToolCatalogIntegrationsPage,
     ToolCatalogProvider,
@@ -51,7 +52,7 @@ log = get_module_logger(__name__)
 
 _SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9-]+(?:_[a-zA-Z0-9-]+)*$")
 
-# Discovery (find_capabilities): cache the tool/schema half, recompute connection
+# Discovery (discover_tools): cache the tool/schema half, recompute connection
 # state fresh (D6). Project-agnostic key — the search is global, only the
 # connection-state join is project-scoped.
 _DISCOVERY_CACHE_NAMESPACE = "tools:discover"
@@ -98,6 +99,7 @@ class ToolsService:
         #
         search: Optional[str] = None,
         sort_by: Optional[str] = None,
+        category: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
     ) -> ToolCatalogIntegrationsPage:
@@ -105,6 +107,7 @@ class ToolsService:
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
+            category=category,
             limit=limit,
             cursor=cursor,
         )
@@ -117,6 +120,16 @@ class ToolsService:
             next_cursor=page.next_cursor,
             total=page.total,
         )
+
+    async def list_categories(
+        self,
+        *,
+        provider_key: str,
+    ) -> List[ToolCatalogCategory]:
+        categories = await self.catalog_service.list_categories(
+            provider_key=provider_key,
+        )
+        return [ToolCatalogCategory.model_validate(c.model_dump()) for c in categories]
 
     async def get_integration(
         self,
@@ -468,7 +481,7 @@ class ToolsService:
         )
 
     # -----------------------------------------------------------------------
-    # Tool discovery (find_capabilities)
+    # Tool discovery (discover_tools)
     # -----------------------------------------------------------------------
 
     async def discover_capabilities(

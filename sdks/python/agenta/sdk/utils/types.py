@@ -1069,7 +1069,25 @@ _DEFAULT_AGENTS_MD = (
 # default changes one place. The harness default also seeds `AgentTemplateSchema.harness`.
 _DEFAULT_HARNESS = "pi_core"
 _DEFAULT_SANDBOX = "local"
-_DEFAULT_PERMISSION_POLICY = "auto"
+_DEFAULT_PERMISSION_MODE = "allow_reads"
+
+
+def _default_agent_provider() -> str:
+    """The provider for `_DEFAULT_AGENT_MODEL`, from `_DEFAULT_HARNESS`'s reachable set.
+
+    The credential resolver has no model-id->provider table, so a bare default model fails loud
+    (F-017). Deriving from the same capability table the picker uses keeps the shipped default
+    runnable and the harness/provider defaults from drifting apart.
+    """
+    from agenta.sdk.agents.capabilities import HARNESS_CONNECTION_CAPABILITIES
+
+    caps = HARNESS_CONNECTION_CAPABILITIES.get(_DEFAULT_HARNESS)
+    if caps and caps.providers:
+        return "openai" if "openai" in caps.providers else caps.providers[0]
+    return "openai"
+
+
+_DEFAULT_AGENT_PROVIDER = _default_agent_provider()
 
 # The schema key carrying each harness option's versioned slug identity (the contract identity in
 # the repo's `agenta:...:v0` grammar). Specific to the harness rather than a generic `x-ag-slug`.
@@ -1319,32 +1337,27 @@ class _HarnessSchema(BaseModel):
     )
 
 
-class _InteractionsSchema(BaseModel):
-    """How the runner answers a harness's reverse-RPC interaction requests.
+class _PermissionsSchema(BaseModel):
+    """Runner-enforced tool execution policy."""
 
-    Today only the ``permission`` interaction kind is wired; ``headless`` is the default answer
-    it gives when no human surface is attached to the run (was the flat ``permission_policy``).
-    The runner enforces it (``services/agent/src/responder.ts``). ``input`` and ``client_tool``
-    interaction kinds extend this section in a later step."""
+    model_config = ConfigDict(extra="forbid", title="Permissions")
 
-    model_config = ConfigDict(extra="forbid", title="Interactions")
-
-    headless: Literal["auto", "deny"] = Field(
-        default=_DEFAULT_PERMISSION_POLICY,
-        title="Headless interactions",
+    default: Literal["allow", "ask", "deny", "allow_reads"] = Field(
+        default=_DEFAULT_PERMISSION_MODE,
+        title="Permissions",
         description=(
-            "How a permission-gating harness's tool-use prompts are answered when no human is "
-            "attached: auto-approve or deny."
+            "allow runs every tool without asking. ask requires approval for every tool. "
+            "deny refuses every tool. allow_reads runs read-hinted tools and asks for "
+            "everything else; this is the default."
         ),
     )
 
 
 class _RunnerSchema(BaseModel):
-    """The engine that drives the harness loop (the ``services/agent`` sidecar).
+    """The engine that drives the harness loop (the ``services/runner`` sidecar).
 
-    ``kind`` names the engine; ``interactions`` is how it answers a harness's reverse-RPC
-    requests (today only the headless permission default). ``extras`` is the per-runner escape
-    hatch. The rest of the runner surface (per-kind interaction handling, delivery channel,
+    ``kind`` names the engine; ``permissions`` is the runner-enforced tool execution policy.
+    ``extras`` is the per-runner escape hatch. The rest of the runner surface (delivery channel,
     hooks, loop controls) is a later step."""
 
     model_config = ConfigDict(extra="forbid", title="Runner")
@@ -1354,10 +1367,10 @@ class _RunnerSchema(BaseModel):
         title="Runner",
         description="The engine that drives the harness loop.",
     )
-    interactions: _InteractionsSchema = Field(
-        default_factory=_InteractionsSchema,
-        title="Interactions",
-        description="How the runner answers a harness's reverse-RPC interaction requests.",
+    permissions: _PermissionsSchema = Field(
+        default_factory=_PermissionsSchema,
+        title="Permissions",
+        description="The runner-enforced tool execution policy.",
     )
     extras: Dict[str, Any] = Field(
         default_factory=dict,
@@ -1412,7 +1425,7 @@ def build_agent_v0_default(
     SDK builtin passes none)."""
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
-        "llm": {"model": _DEFAULT_AGENT_MODEL},
+        "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
         "tools": [],
         "mcps": [],
     }
@@ -1438,7 +1451,7 @@ def build_agent_v0_default(
     template["harness"] = {"kind": _DEFAULT_HARNESS}
     template["runner"] = {
         "kind": "sidecar",
-        "interactions": {"headless": _DEFAULT_PERMISSION_POLICY},
+        "permissions": {"default": _DEFAULT_PERMISSION_MODE},
     }
     template["sandbox"] = sandbox
     return template

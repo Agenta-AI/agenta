@@ -20,6 +20,8 @@ const {get, post, put} = vi.hoisted(() => ({get: vi.fn(), post: vi.fn(), put: vi
 vi.mock("@agenta/shared/api", () => ({
     axios: {get, post, put},
     getAgentaApiUrl: () => "https://api.test",
+    // Real helper returns {} when the low-priority hint is off — these tests never set it.
+    lowPriorityWhenCached: () => ({}),
 }))
 
 vi.mock("@agenta/shared/state", () => ({

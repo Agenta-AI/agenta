@@ -108,32 +108,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
-{{- define "agenta.workerEvaluations.enabled" -}}
-{{- $v := (default dict .Values.workerEvaluations).enabled -}}
+{{- define "agenta.workerStreams.enabled" -}}
+{{- $v := (default dict .Values.workerStreams).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- define "agenta.workerTracing.enabled" -}}
-{{- $v := (default dict .Values.workerTracing).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerWebhooks.enabled" -}}
-{{- $v := (default dict .Values.workerWebhooks).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerEvents.enabled" -}}
-{{- $v := (default dict .Values.workerEvents).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerTriggers.enabled" -}}
-{{- $v := (default dict .Values.workerTriggers).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerRecords.enabled" -}}
-{{- $v := (default dict .Values.workerRecords).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerInteractions.enabled" -}}
-{{- $v := (default dict .Values.workerInteractions).enabled -}}
+{{- define "agenta.workerQueues.enabled" -}}
+{{- $v := (default dict .Values.workerQueues).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.ingress.enabled" -}}
@@ -153,13 +133,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
        N replicas = every scheduled job fires N times. Hard-set to 1.
        The values key is kept as documentation; we ignore user overrides. */ -}}
 {{- define "agenta.cron.replicas" -}}1{{- end }}
-{{- define "agenta.workerEvaluations.replicas" -}}{{ default 1 (default dict .Values.workerEvaluations).replicas }}{{- end }}
-{{- define "agenta.workerTracing.replicas" -}}{{ default 1 (default dict .Values.workerTracing).replicas }}{{- end }}
-{{- define "agenta.workerWebhooks.replicas" -}}{{ default 1 (default dict .Values.workerWebhooks).replicas }}{{- end }}
-{{- define "agenta.workerEvents.replicas" -}}{{ default 1 (default dict .Values.workerEvents).replicas }}{{- end }}
-{{- define "agenta.workerTriggers.replicas" -}}{{ default 1 (default dict .Values.workerTriggers).replicas }}{{- end }}
-{{- define "agenta.workerRecords.replicas" -}}{{ default 1 (default dict .Values.workerRecords).replicas }}{{- end }}
-{{- define "agenta.workerInteractions.replicas" -}}{{ default 1 (default dict .Values.workerInteractions).replicas }}{{- end }}
+{{- define "agenta.workerStreams.replicas" -}}{{ default 1 (default dict .Values.workerStreams).replicas }}{{- end }}
+{{- define "agenta.workerQueues.replicas" -}}{{ default 1 (default dict .Values.workerQueues).replicas }}{{- end }}
 
 {{/* ================================================================
    Workers (gunicorn worker count, default 2).
@@ -349,7 +324,7 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- $runner := default dict .Values.agentRunner -}}
 {{- $url := include "agenta.agentRunner.url" . -}}
 {{- if $url }}
-- name: AGENTA_RUNNER_URL
+- name: AGENTA_RUNNER_INTERNAL_URL
   value: {{ $url | quote }}
 {{- end }}
 - name: AGENTA_AGENT_MCPS_ENABLED
@@ -391,6 +366,8 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- define "agenta.redisVolatile.maxmemoryPolicy" -}}{{ default "volatile-lru" (default dict .Values.redisVolatile).maxmemoryPolicy }}{{- end }}
 {{- define "agenta.redisDurable.maxmemory" -}}{{ default "512mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
 {{- define "agenta.redisDurable.maxmemoryPolicy" -}}{{ default "noeviction" (default dict .Values.redisDurable).maxmemoryPolicy }}{{- end }}
+{{/* Bytes of corrupt AOF tail redis may auto-truncate at load instead of refusing to start. */}}
+{{- define "agenta.redisDurable.aofLoadCorruptTailMaxSize" -}}{{ default 1048576 (default dict .Values.redisDurable).aofLoadCorruptTailMaxSize }}{{- end }}
 
 {{/* ================================================================
    Alembic job defaults.
@@ -1102,20 +1079,28 @@ imagePullSecrets:
 - name: AGENTA_OTLP_MAX_BATCH_BYTES
   value: {{ $otlp.maxBatchBytes | quote }}
 {{- end }}
-{{- /* agenta.webhooks — outbound webhook flags */}}
-{{- if hasKey $webhooksCfg "allowInsecure" }}
-- name: AGENTA_WEBHOOKS_ALLOW_INSECURE
+{{- /* agenta.insecureEgressAllowed — SSRF guard override for webhooks/hooks/custom-provider egress.
+     Canonical key wins; falls back to the deprecated agenta.webhooks.allowInsecure /
+     agenta.services.hook.allowInsecure keys so values.yaml files predating the rename keep working. */}}
+{{- if hasKey $agenta "insecureEgressAllowed" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
+  value: {{ $agenta.insecureEgressAllowed | quote }}
+{{- else if hasKey $webhooksCfg "allowInsecure" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $webhooksCfg.allowInsecure | quote }}
-{{- end }}
-{{- /* agenta.services.hook — surfaced to user-code runners via SDK */}}
-{{- if hasKey $svcHook "allowInsecure" }}
-- name: AGENTA_SERVICES_HOOK_ALLOW_INSECURE
+{{- else if hasKey $svcHook "allowInsecure" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $svcHook.allowInsecure | quote }}
 {{- end }}
 {{- /* agenta.services.code — SDK sandbox runner selector */}}
 {{- if $svcCode.sandboxRunner }}
 - name: AGENTA_SERVICES_CODE_SANDBOX_RUNNER
   value: {{ $svcCode.sandboxRunner | quote }}
+{{- end }}
+{{- /* agenta.sandboxLocalAllowed — agent runner `local` sandbox gate */}}
+{{- if hasKey $agenta "sandboxLocalAllowed" }}
+- name: AGENTA_SANDBOX_LOCAL_ALLOWED
+  value: {{ $agenta.sandboxLocalAllowed | quote }}
 {{- end }}
 {{- /* agenta.services.middleware — SDK middleware toggles */}}
 {{- if hasKey $svcMiddleware "authEnabled" }}

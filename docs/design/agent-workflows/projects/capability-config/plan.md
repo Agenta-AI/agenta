@@ -1,5 +1,7 @@
 # Execution plan
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 Phased, end to end. Each phase is shippable and de-risks the next. File references and exact
 insertion points live in `research.md`; this plan names the work and the acceptance bar. Some
 line numbers in `research.md` are approximate and must be reconfirmed at implementation time.

@@ -1,5 +1,7 @@
 # Proposal: configuring agent capabilities and permissions
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 The canonical design. How an author controls what an agent may do, and how those controls reach
 each harness and backend. Why this matters and how it fits the other agent-workflows projects is
 in `context.md`; the codebase findings are in `research.md`; the work is phased in `plan.md`.

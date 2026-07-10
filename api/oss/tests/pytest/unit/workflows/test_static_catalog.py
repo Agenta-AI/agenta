@@ -10,11 +10,14 @@ by :class:`StaticWorkflowCatalog`, never the database. These tests pin:
 - a user cannot create a workflow whose slug is in the reserved namespace.
 """
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
+from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import (
@@ -26,11 +29,21 @@ from oss.src.core.workflows.dtos import (
     WorkflowArtifactQueryFlags,
     WorkflowRevision,
     WorkflowRevisionCreate,
+    WorkflowRevisionCommit,
     WorkflowRevisionData,
     WorkflowVariantCreate,
     WorkflowVariantFork,
 )
+from oss.src.core.workflows.build_kit import (
+    BUILD_KIT_WORKFLOW_SLUG,
+    AGENTA_BUILTIN_AGENT_URI,
+    BUILD_KIT_WORKFLOW_DESCRIPTION,
+    BUILD_KIT_WORKFLOW_NAME,
+    build_agent_template_overlay,
+)
 from oss.src.core.workflows.static_catalog import (
+    REQUEST_INPUT_TOOL_NAME,
+    REQUEST_INPUT_WORKFLOW_SLUG,
     STATIC_SLUG_PREFIX,
     StaticWorkflowCatalog,
 )
@@ -39,11 +52,26 @@ from oss.src.core.workflows.types import (
     StaticWorkflowSlug,
     is_static_workflow_slug,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import GETTING_STARTED_WITH_AGENTA_SLUG
+from agenta.sdk.agents.adapters.agenta_builtins import (
+    BUILD_AN_AGENT_SLUG,
+    GETTING_STARTED_WITH_AGENTA_SLUG,
+)
 
 
-# The default catalogue's one static workflow (the getting-started skill).
+# The default catalogue keeps getting-started forced and build-an-agent overlay-resolvable.
 _STATIC_SLUG = GETTING_STARTED_WITH_AGENTA_SLUG
+_PLAYBOOK_SLUG = BUILD_AN_AGENT_SLUG
+
+
+def _old_authoring_slug(name: str) -> str:
+    return "__ag__" + name
+
+
+_OLD_AUTHORING_SKILL_SLUGS = {
+    _old_authoring_slug("build_your_first_app"),
+    _old_authoring_slug("discover_and_wire_tools"),
+    _old_authoring_slug("set_up_triggers"),
+}
 
 
 # A two-version catalogue used to pin that the artifact / variant ids are stable across versions
@@ -72,6 +100,16 @@ _MULTI_VERSION_CATALOG = {
 # ---------------------------------------------------------------------------
 
 
+def test_list_slugs_enumerates_resolvable_reserved_slugs():
+    catalog = StaticWorkflowCatalog()
+
+    slugs = catalog.list_slugs()
+    assert {_STATIC_SLUG, _PLAYBOOK_SLUG} <= set(slugs)
+    for slug in slugs:
+        assert slug.startswith(STATIC_SLUG_PREFIX)
+        assert catalog.retrieve_revision(slug=slug) is not None
+
+
 def test_is_static_slug():
     catalog = StaticWorkflowCatalog()
 
@@ -80,6 +118,54 @@ def test_is_static_slug():
     assert catalog.is_static_slug("agenta-getting-started") is False
     assert catalog.is_static_slug("my-skill") is False
     assert catalog.is_static_slug(None) is False
+
+
+def test_default_static_skill_catalog_replaces_old_authoring_skills():
+    catalog = StaticWorkflowCatalog()
+    skill_slugs = {
+        slug
+        for slug in catalog.list_slugs()
+        if (revision := catalog.retrieve_revision(slug=slug))
+        and revision.flags
+        and revision.flags.is_skill
+    }
+
+    assert skill_slugs == {_STATIC_SLUG, _PLAYBOOK_SLUG}
+    assert _OLD_AUTHORING_SKILL_SLUGS.isdisjoint(catalog.list_slugs())
+    for slug in _OLD_AUTHORING_SKILL_SLUGS:
+        assert catalog.retrieve_revision(slug=slug) is None
+
+    playbook = catalog.retrieve_revision(slug=_PLAYBOOK_SLUG)
+    skill = playbook.data.parameters["skill"]
+    assert skill["name"] == "build-an-agent"
+    assert skill["body"].startswith("# Build an Agenta agent")
+    assert "test_run" in skill["body"]
+    assert "query_spans" in skill["body"]
+
+
+def test_build_kit_static_workflow_returns_agent_config_equivalent_to_overlay():
+    catalog = StaticWorkflowCatalog()
+
+    revision = catalog.retrieve_revision(slug=BUILD_KIT_WORKFLOW_SLUG)
+
+    assert revision is not None
+    assert revision.name == BUILD_KIT_WORKFLOW_NAME
+    assert revision.description == BUILD_KIT_WORKFLOW_DESCRIPTION
+    assert revision.slug == BUILD_KIT_WORKFLOW_SLUG
+    assert revision.version == "v1"
+    assert revision.data.uri == AGENTA_BUILTIN_AGENT_URI
+    assert revision.data.parameters["agent"] == build_agent_template_overlay()
+    assert revision.flags.is_static is True
+    assert revision.flags.is_agent is True
+    assert revision.flags.is_managed is True
+    assert revision.flags.is_skill is False
+    assert revision.flags.has_url is True
+    assert catalog.is_embeddable(slug=BUILD_KIT_WORKFLOW_SLUG) is False
+    assert catalog.is_embeddable(id=revision.id) is False
+    assert (
+        StaticWorkflowCatalog().retrieve_revision(slug=BUILD_KIT_WORKFLOW_SLUG).id
+        == revision.id
+    )
 
 
 def test_artifact_level_lookup_resolves_current():
@@ -124,6 +210,19 @@ def test_revision_level_lookup_pins_version_and_is_stable():
     assert other.workflow_id == current.workflow_id
 
 
+@pytest.mark.parametrize("version", ["v1", "1", 1])
+def test_retrieve_by_version_tolerates_v_prefix_and_numeric(version):
+    """A round-tripped reference can carry the version as "v1", "1", or the integer 1 (the FE
+    coerces workflow.version to a number). All three must resolve the same declared revision."""
+    catalog = StaticWorkflowCatalog()
+
+    revision = catalog.retrieve_revision(slug=_STATIC_SLUG, version=version)
+
+    assert revision is not None
+    assert revision.version == "v1"
+    assert revision.id == catalog.retrieve_revision(slug=_STATIC_SLUG).id
+
+
 def test_unknown_version_returns_none():
     catalog = StaticWorkflowCatalog()
 
@@ -134,6 +233,10 @@ def test_unknown_reserved_slug_returns_none():
     catalog = StaticWorkflowCatalog()
 
     assert catalog.retrieve_revision(slug=STATIC_SLUG_PREFIX + "does-not-exist") is None
+    assert (
+        catalog.retrieve_revision(slug=_old_authoring_slug("build_your_first_app"))
+        is None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +267,7 @@ async def test_fetch_revision_short_circuits_reserved_artifact_ref():
 
 
 @pytest.mark.asyncio
-async def test_default_agent_skill_embed_resolves_through_static_catalog_without_db():
+async def test_build_agent_skill_embed_resolves_through_static_catalog_without_db():
     workflows_dao = AsyncMock()
     workflows_service = WorkflowsService(
         workflows_dao=workflows_dao,
@@ -184,7 +287,9 @@ async def test_default_agent_skill_embed_resolves_through_static_catalog_without
                     "skills": [
                         {
                             "@ag.embed": {
-                                "@ag.references": {"workflow": {"slug": _STATIC_SLUG}},
+                                "@ag.references": {
+                                    "workflow": {"slug": _PLAYBOOK_SLUG}
+                                },
                                 "@ag.selector": {"path": "parameters.skill"},
                             }
                         }
@@ -203,10 +308,10 @@ async def test_default_agent_skill_embed_resolves_through_static_catalog_without
     )
 
     skill = resolved_revision.data.parameters["agent"]["skills"][0]
-    assert skill["name"] == "agenta-getting-started"
-    assert skill["body"].startswith("# Getting started with Agenta agents")
+    assert skill["name"] == "build-an-agent"
+    assert skill["body"].startswith("# Build an Agenta agent")
     assert resolution_info.embeds_resolved == 1
-    # Resolving the static default skill must use the catalogue, not Postgres.
+    # Resolving the static playbook skill must use the catalogue, not Postgres.
     workflows_dao.fetch_revision.assert_not_awaited()
     workflows_dao.fetch_artifact.assert_not_awaited()
 
@@ -271,6 +376,122 @@ async def test_request_connection_tool_embed_resolves_to_client_tool_config_with
     assert resolution_info.embeds_resolved == 1
     workflows_dao.fetch_revision.assert_not_awaited()
     workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fetch_build_kit_static_revision_by_slug_returns_agent_config_without_db():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+
+    (
+        revision,
+        resolution_info,
+        retrieval_info,
+    ) = await service.retrieve_workflow_revision(
+        project_id=uuid4(),
+        workflow_ref=Reference(slug=BUILD_KIT_WORKFLOW_SLUG),
+    )
+
+    assert revision is not None
+    assert revision.slug == BUILD_KIT_WORKFLOW_SLUG
+    assert revision.data.parameters["agent"] == build_agent_template_overlay()
+    assert revision.flags.is_static is True
+    assert revision.flags.is_agent is True
+    assert resolution_info is None
+    assert retrieval_info is not None
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_build_kit_embed_is_rejected_during_resolution():
+    workflows_dao = AsyncMock()
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+    workflows_service.embeds_service = EmbedsService(
+        workflows_service=workflows_service
+    )
+
+    revision = WorkflowRevision(
+        id=uuid4(),
+        workflow_id=uuid4(),
+        workflow_variant_id=uuid4(),
+        slug="agent-default-config",
+        data=WorkflowRevisionData(
+            parameters={
+                "agent": {
+                    "skills": [
+                        {
+                            "@ag.embed": {
+                                "@ag.references": {
+                                    "workflow": {"slug": BUILD_KIT_WORKFLOW_SLUG}
+                                },
+                                "@ag.selector": {"path": "parameters.agent"},
+                            }
+                        }
+                    ]
+                }
+            }
+        ),
+    )
+
+    with pytest.raises(NonEmbeddableWorkflowReferenceError) as exc_info:
+        await workflows_service.resolve_workflow_revision(
+            project_id=uuid4(),
+            workflow_revision=revision,
+        )
+
+    assert exc_info.value.slug == BUILD_KIT_WORKFLOW_SLUG
+    workflows_dao.fetch_revision.assert_not_awaited()
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_commit_rejects_build_kit_embed_before_persisting():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        static_catalog=StaticWorkflowCatalog(),
+    )
+
+    with pytest.raises(NonEmbeddableWorkflowReferenceError) as exc_info:
+        await service.commit_workflow_revision(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=WorkflowRevisionCommit(
+                workflow_id=uuid4(),
+                workflow_variant_id=uuid4(),
+                slug="agent-config",
+                data=WorkflowRevisionData(
+                    uri=AGENTA_BUILTIN_AGENT_URI,
+                    parameters={
+                        "agent": {
+                            "tools": [
+                                {
+                                    "@ag.embed": {
+                                        "@ag.references": {
+                                            "workflow": {
+                                                "slug": BUILD_KIT_WORKFLOW_SLUG
+                                            }
+                                        },
+                                        "@ag.selector": {"path": "parameters.agent"},
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                ),
+            ),
+            emit=False,
+        )
+
+    assert exc_info.value.slug == BUILD_KIT_WORKFLOW_SLUG
+    workflows_dao.commit_revision.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -686,3 +907,98 @@ async def test_query_does_not_filter_on_is_static():
     # Only the explicitly-requested flag is filtered; is_static never appears.
     assert artifact_query.flags == {"is_application": True}
     assert "is_static" not in artifact_query.flags
+
+
+# ---------------------------------------------------------------------------
+# request_input (elicitation client tool, interaction kinds M1)
+# ---------------------------------------------------------------------------
+#
+# The catalogue entry is the EMITTER half of the elicitation contract; the browser validator is
+# the receiver half. Both are pinned by the shared golden fixtures so a drift on either side
+# fails a build (same pattern as the /run wire goldens).
+
+_REPO_ROOT = Path(__file__).resolve().parents[6]
+_GOLDEN_DIR = _REPO_ROOT / "web" / "packages" / "agenta-shared" / "tests" / "fixtures"
+
+_ELICITATION_PRIMITIVES = {"string", "number", "integer", "boolean"}
+
+
+def _request_input_tool() -> dict:
+    revision = StaticWorkflowCatalog().retrieve_revision(
+        slug=REQUEST_INPUT_WORKFLOW_SLUG
+    )
+    assert revision is not None
+    return revision.data.parameters["tool"]
+
+
+def test_request_input_catalog_entry_shape():
+    tool = _request_input_tool()
+    assert tool["type"] == "client"
+    assert tool["name"] == REQUEST_INPUT_TOOL_NAME
+    # render.kind is a REQUIRED wire field for interaction kinds (dispatch + resume predicate).
+    assert tool["render"] == {"kind": "elicitation"}
+    schema = tool["input_schema"]
+    assert set(schema["properties"]) == {"message", "requestedSchema"}
+    assert schema["required"] == ["message", "requestedSchema"]
+    assert schema["additionalProperties"] is False
+
+
+def test_request_input_matches_golden_request_fixture():
+    """The golden request must be a valid call of this tool, and flat-dialect clean."""
+    golden = json.loads((_GOLDEN_DIR / "elicitation_request.json").read_text())
+    tool = _request_input_tool()
+
+    assert golden["render"]["kind"] == tool["render"]["kind"]
+    payload_keys = set(golden) - {"render"}
+    assert payload_keys == set(tool["input_schema"]["properties"])
+    assert isinstance(golden["message"], str) and golden["message"]
+
+    def _assert_one_of(one_of, name):
+        # Context-ful options: [{const, title?, description?}] — consts must be strings.
+        assert isinstance(one_of, list) and one_of, name
+        for option in one_of:
+            assert isinstance(option["const"], str), name
+
+    requested = golden["requestedSchema"]
+    assert requested["type"] == "object"
+    for name, prop in requested["properties"].items():
+        if prop["type"] == "array":
+            # Multi-select: the ONE admitted array shape — string items, optional enum/oneOf.
+            items = prop["items"]
+            assert items["type"] == "string", name
+            assert "properties" not in items and "items" not in items, name
+            if "oneOf" in items:
+                _assert_one_of(items["oneOf"], name)
+            if "default" in prop:
+                assert isinstance(prop["default"], list), name
+                assert all(isinstance(v, str) for v in prop["default"]), name
+            continue
+        assert prop["type"] in _ELICITATION_PRIMITIVES, name
+        assert "properties" not in prop and "items" not in prop, name
+        if "oneOf" in prop:
+            _assert_one_of(prop["oneOf"], name)
+        if "default" in prop:
+            assert isinstance(prop["default"], (str, int, float, bool)), name
+    assert set(requested.get("required", [])) <= set(requested["properties"])
+    # The golden must exercise the dialect's optional shapes: a prefilled field (#5190),
+    # a multi-select array, and context-ful oneOf options (choice cards).
+    assert any("default" in prop for prop in requested["properties"].values())
+    assert any(prop["type"] == "array" for prop in requested["properties"].values())
+    assert any("oneOf" in prop for prop in requested["properties"].values())
+
+
+def test_request_input_matches_golden_response_fixture():
+    """The response envelope the tool description promises matches the golden shapes."""
+    golden = json.loads((_GOLDEN_DIR / "elicitation_response.json").read_text())
+
+    assert golden["accept"]["action"] == "accept"
+    assert isinstance(golden["accept"]["content"], dict)
+    assert golden["decline"] == {
+        "action": "decline",
+        "humanFriendlyMessage": golden["decline"]["humanFriendlyMessage"],
+    }
+    assert golden["cancel"] == {"action": "cancel"}
+    # Degradation is an errorText with the pinned prefix — never a user action.
+    assert golden["degradation_error_text"].startswith(
+        "elicitation: unsupported payload — "
+    )

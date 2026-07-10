@@ -21,7 +21,7 @@ const CloudScripts = () => {
     }, [])
 
     // The Crisp chatbox renders in its own cross-origin iframe, so we can't style
-    // its light/dark theme from our CSS, and crisp-sdk-web exposes no runtime
+    // its light/dark useCrispChat from our CSS, and crisp-sdk-web exposes no runtime
     // light/dark toggle (only the accent color via setColorTheme). Darken the
     // accent in dark mode so the launcher/accent reads less out-of-place; light
     // restores the dashboard's "default" accent.

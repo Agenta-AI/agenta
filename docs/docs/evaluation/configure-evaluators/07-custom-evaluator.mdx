@@ -6,7 +6,7 @@ description: "Write custom evaluators in Python, JavaScript, or TypeScript with 
 Custom code evaluators let you write your own evaluation logic in Python, JavaScript, or TypeScript. Your code has access to the application inputs, outputs, and the full execution trace (spans, latency, token usage, costs).
 
 :::warning Self-hosted deployments only
-On self-hosted Agenta, custom evaluator code runs server-side. By default it runs in a restricted Python sandbox (no filesystem, network, or host access). Operators can change the runner with the `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` environment variable: `local` runs code with no sandbox (trusted authors only), `daytona` runs it in an isolated remote sandbox. See [environment configuration](/self-host/configuration). Agenta Cloud is unaffected — it isolates evaluator execution.
+On self-hosted Agenta, custom evaluator code runs server-side. By default it runs with no sandbox in the services process (trusted, single-tenant use). Operators can change the runner with the `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` environment variable: `restricted` runs code in an in-process Python sandbox (no filesystem, network, or host access), `daytona` runs it in an isolated remote sandbox. Set `restricted` or `daytona` to harden a shared/multi-tenant deployment. See [environment configuration](/self-host/configuration). Agenta Cloud is unaffected. It isolates evaluator execution.
 :::
 
 ## Function signature

@@ -16,10 +16,12 @@
     "exports": {
         ".": "./src/index.ts",
         "./adapters": "./src/adapters/index.ts",
+        "./drawers/shared": "./src/drawers/shared/index.ts",
         "./drill-in": "./src/DrillInView/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./modals": "./src/modals/index.ts",
+        "./secretProvider": "./src/secretProvider/index.ts",
         "./selection": "./src/selection/index.ts",
         "./template-format": "./src/template-format/index.ts",
         "./testcase": "./src/testcase/index.ts",

@@ -10,9 +10,7 @@ its own consumer process later without changing its internal logic.
 
 import asyncio
 from typing import Any, Dict, List, Optional
-from uuid import UUID
-
-import uuid_utils.compat as uuid_compat
+from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.events.types import EventType
@@ -28,7 +26,22 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+
+class WebhookDispatchError(Exception):
+    """Raised when one or more deliveries in a batch failed to enqueue, so the events worker
+    skips ACK/DEL and the whole batch is retried. Redelivery is deduped by the deterministic
+    delivery_id, so already-enqueued deliveries are not sent twice."""
+
+
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
+
+# Deterministic delivery_id: same (event_id, subscription_id) always derives the same id, so a
+# Redis-Streams redelivery re-mints an identical id instead of a fresh one (dedup backstop).
+_DELIVERY_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "webhooks.delivery")
+
+
+def _delivery_id(*, event_id: UUID, subscription_id: UUID) -> UUID:
+    return uuid5(_DELIVERY_NAMESPACE, f"{event_id}:{subscription_id}")
 
 
 class WebhooksDispatcher:
@@ -268,7 +281,10 @@ class WebhooksDispatcher:
                         continue
 
                     try:
-                        delivery_id = uuid_compat.uuid7()
+                        delivery_id = _delivery_id(
+                            event_id=event.event_id,
+                            subscription_id=sub.id,
+                        )
 
                         await asyncio.wait_for(
                             self.deliver_task.kiq(
@@ -305,14 +321,24 @@ class WebhooksDispatcher:
                             f"delivery={delivery_id} event={event.event_id} "
                             f"subscription={sub.id}"
                         )
+                        log.tick("webhooks.enqueued", dims={"queue": "webhooks"})
                     except Exception as e:
                         log.error(
                             f"[WEBHOOKS DISPATCHER] Failed to enqueue delivery "
                             f"for subscription {sub.id}: {e}"
                         )
+                        log.tick("webhooks.enqueue_errors", dims={"queue": "webhooks"})
                         enqueue_failures += 1
 
         if enqueue_failures > 0:
-            raise RuntimeError(
-                f"Webhook dispatch had {enqueue_failures} enqueue failures"
+            log.tick(
+                "webhooks.enqueue_failures",
+                count=enqueue_failures,
+                dims={"queue": "webhooks"},
+            )
+            # Raise so the events worker skips ACK/DEL and retries the whole batch. Without this
+            # the batch is acked and the failed deliveries are dropped for good. Redelivery is
+            # safe: the deterministic delivery_id dedups already-enqueued deliveries.
+            raise WebhookDispatchError(
+                f"{enqueue_failures} deliveries failed to enqueue"
             )

@@ -2,7 +2,7 @@
 
 These models describe the EXACT camelCase JSON the Python producer emits and parses in
 ``utils/wire.py`` (``request_to_wire`` / ``result_from_wire``) and the TS runner mirrors in
-``services/agent/src/protocol.ts``. They are deliberately a SEPARATE set from the semantic
+``services/runner/src/protocol.ts``. They are deliberately a SEPARATE set from the semantic
 DTOs in ``dtos.py``: the DTOs are snake_case and intentionally loose (``Event`` is a free
 ``type: str`` + ``data`` bag), while the real wire is camelCase with a discriminated event
 union. Exporting ``model_json_schema()`` off the DTOs would produce the wrong schema, so the
@@ -196,11 +196,18 @@ class WireRunContextTrace(_WireModel):
     span_id: Optional[str] = None
 
 
+class WireRunContextRun(_WireModel):
+    """The run's own identity inside ``runContext`` (mirrors ``RunContextRun``)."""
+
+    kind: Optional[str] = None
+
+
 class WireRunContext(_WireModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; mirrors ``RunContext.to_wire``).
 
-    Consumed only by a tool's ``call.context`` binding at dispatch, server-side and hidden from
+    Consumed by tool context bindings at dispatch: ``call.context`` on direct-call specs and
+    ``contextBindings`` on callRef specs, server-side and hidden from
     the model. Unlike the rest of the wire, the INNER keys are snake_case
     (``workflow.variant.id`` / ``trace.trace_id``): they are the binding NAMESPACE a catalog
     entry's ``$ctx.<dotted.path>`` token addresses, so they must match those tokens exactly rather
@@ -208,6 +215,7 @@ class WireRunContext(_WireModel):
     the top-level camelCase ``sessionId`` field. The top-level field is still the camelCase
     ``runContext`` on the request."""
 
+    run: Optional[WireRunContextRun] = None
     workflow: Optional[WireRunContextWorkflow] = None
     trace: Optional[WireRunContextTrace] = None
 
@@ -242,8 +250,8 @@ class WireResolvedToolSpec(_WireModel):
     """A resolved tool the runner delivers to the harness (the three-axis tool surface).
 
     ``kind`` is the executor axis (``callback`` / ``code`` / ``client`` / ``builtin``);
-    ``needsApproval`` / ``render`` are the orthogonal axes; ``callRef`` / ``runtime`` / ``code``
-    / ``env`` are executor-specific. ``call`` is the direct-call descriptor a callback tool carries
+    ``render`` is an orthogonal display hint; ``callRef`` / ``runtime`` / ``code`` / ``env`` are
+    executor-specific. ``call`` is the direct-call descriptor a callback tool carries
     instead of ``callRef`` (direct-call tools, Phase 1). Extra fields are allowed so an executor
     variant the schema has not enumerated still validates.
     """
@@ -254,13 +262,26 @@ class WireResolvedToolSpec(_WireModel):
     kind: Optional[str] = None
     call_ref: Optional[str] = Field(default=None, alias="callRef")
     call: Optional[WireToolCall] = None
+    context_bindings: Optional[Dict[str, str]] = Field(
+        default=None, alias="contextBindings"
+    )
+    timeout_ms: Optional[int] = Field(default=None, alias="timeoutMs")
     runtime: Optional[str] = None
     code: Optional[str] = None
     env: Optional[Dict[str, str]] = None
-    needs_approval: Optional[bool] = Field(default=None, alias="needsApproval")
     render: Optional[WireRenderHint] = None
     read_only: Optional[bool] = Field(default=None, alias="readOnly")
     permission: Optional[str] = None
+
+
+class WirePermissionRule(_WireModel):
+    pattern: str
+    permission: str
+
+
+class WirePermissions(_WireModel):
+    default: Literal["allow", "ask", "deny", "allow_reads"] = "allow_reads"
+    rules: Optional[List[WirePermissionRule]] = None
 
 
 class WireMcpServer(_WireModel):
@@ -424,7 +445,7 @@ class WireRunRequest(_WireModel):
     mcp_servers: Optional[List[WireMcpServer]] = Field(default=None, alias="mcpServers")
     skills: Optional[List[WireSkill]] = None
     # Policy + prompt overrides + files.
-    permission_policy: Optional[str] = Field(default=None, alias="permissionPolicy")
+    permissions: Optional[WirePermissions] = None
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(
         default=None, alias="appendSystemPrompt"

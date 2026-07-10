@@ -1,9 +1,11 @@
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
-import {atom, type Getter} from "jotai"
+import {atom, type Getter, type Setter} from "jotai"
 import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+
+import {clearSessionEphemera} from "./sessionEphemera"
 
 /**
  * Multi-session model for the agent chat slice. The playground hosts several parallel agent
@@ -43,8 +45,24 @@ export const GLOBAL_APP_KEY = "__global__"
  * Default scope key when a surface provides no override: the current app (or `__global__` off an
  * app page). Kept as the bare app id (no prefix) so sessions persisted before scoping was
  * introduced still resolve under the same storage key.
+ *
+ * Fallback order matters: `routerAppIdAtom` derives from the app-state snapshot, which updates
+ * on routeChangeComplete — AFTER the destination page has rendered. During a client-side nav
+ * onto an app playground, a mounted chat panel would briefly scope to `__global__` (wrong/empty
+ * session store, stray seeded tab), then swap to the app scope when the snapshot settles —
+ * remounting the transcript (the warm re-entry "flash"). The live URL never lags, so parse the
+ * app id from it before conceding to the global scope. The non-reactive window read is safe:
+ * when the router atom catches up it yields the SAME id, so the scope value never swaps.
  */
-export const defaultScopeKeyAtom = atom((get) => get(routerAppIdAtom) || GLOBAL_APP_KEY)
+export const defaultScopeKeyAtom = atom((get) => {
+    const routed = get(routerAppIdAtom)
+    if (routed) return routed
+    if (typeof window !== "undefined") {
+        const fromUrl = window.location.pathname.match(/\/apps\/([^/]+)/)?.[1]
+        if (fromUrl) return fromUrl
+    }
+    return GLOBAL_APP_KEY
+})
 
 // One source of truth per concern, keyed by scope key. Scoped accessors below derive a single
 // scope's slice (mirrors the playground's `selectedVariantsByAppAtom` pattern).
@@ -219,6 +237,92 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
             delete messages[id]
             set(sessionMessagesAtom, messages)
         }
+
+        clearSessionEphemera(id)
+    }),
+)
+
+/**
+ * Move one scope's session state (history, open tabs, active id) into another scope.
+ *
+ * Used by the onboarding commit: the founding conversation lives under the fixed `onboarding`
+ * scope until the real app exists, then is adopted by the app's own scope in the SAME React
+ * update that flips the scope provider — the mounted panel re-reads identical sessions under
+ * the new key (so nothing remounts), a reload on the app route finds the conversation, and a
+ * later onboarding entry's `resetScopeAtomFamily` wipe can no longer destroy it. Messages are
+ * keyed by session id (no scope dimension), so they don't move.
+ */
+export const adoptScopeSessionsAtom = atom(
+    null,
+    (get, set, {from, to}: {from: string; to: string}) => {
+        if (!from || !to || from === to) return
+        const sessions = get(sessionsByAppAtom)
+        const moved = sessions[from] ?? []
+        if (moved.length === 0) return
+
+        const movedIds = new Set(moved.map((s) => s.id))
+        const nextSessions = {...sessions}
+        delete nextSessions[from]
+        nextSessions[to] = [...moved, ...(sessions[to] ?? []).filter((s) => !movedIds.has(s.id))]
+        set(sessionsByAppAtom, nextSessions)
+
+        // Resolve the source's open set through the pre-upgrade fallback (everything open).
+        const movedOpen = currentOpenIds(get, from)
+        const open = get(openIdsByAppAtom)
+        const nextOpen = {...open}
+        delete nextOpen[from]
+        nextOpen[to] = [...movedOpen, ...(open[to] ?? []).filter((id) => !movedOpen.includes(id))]
+        set(openIdsByAppAtom, nextOpen)
+
+        const active = get(activeByAppAtom)
+        const nextActive = {...active}
+        delete nextActive[from]
+        if (active[from]) nextActive[to] = active[from]
+        set(activeByAppAtom, nextActive)
+    },
+)
+
+/**
+ * Wipe a whole scope clean: drop its session history, open tabs, active id, and every message
+ * belonging to those sessions. Used to guarantee a fresh start for a surface that reuses a FIXED
+ * scope key across visits (the onboarding playground) — otherwise a prior visit's stale or failed
+ * conversation persists under the same key and gets restored on the next entry. Idempotent: a no-op
+ * on an already-empty scope.
+ */
+export const resetScopeAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set) => {
+        const sessions = get(sessionsByAppAtom)
+        const ids = (sessions[key] ?? []).map((s) => s.id)
+
+        if (key in sessions) {
+            const next = {...sessions}
+            delete next[key]
+            set(sessionsByAppAtom, next)
+        }
+        const open = get(openIdsByAppAtom)
+        if (key in open) {
+            const next = {...open}
+            delete next[key]
+            set(openIdsByAppAtom, next)
+        }
+        const active = get(activeByAppAtom)
+        if (key in active) {
+            const next = {...active}
+            delete next[key]
+            set(activeByAppAtom, next)
+        }
+        if (ids.length) {
+            const messages = {...get(sessionMessagesAtom)}
+            let changed = false
+            for (const id of ids) {
+                if (id in messages) {
+                    delete messages[id]
+                    changed = true
+                }
+                clearSessionEphemera(id)
+            }
+            if (changed) set(sessionMessagesAtom, messages)
+        }
     }),
 )
 
@@ -238,11 +342,51 @@ export const setActiveSessionAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/** A localStorage-full error, across browsers (Chrome/Safari code 22, Firefox 1014). */
+const isQuotaExceeded = (e: unknown): boolean =>
+    e instanceof DOMException &&
+    (e.code === 22 ||
+        e.code === 1014 ||
+        e.name === "QuotaExceededError" ||
+        e.name === "NS_ERROR_DOM_QUOTA_REACHED")
+
+/**
+ * Persist the messages store, degrading gracefully when it overflows the ~5MB localStorage quota
+ * (large inline `data:` attachments make this reachable — see the file header note). On overflow we
+ * shed OTHER sessions' persisted messages, oldest-first, and retry, so the active conversation
+ * (`keepId`) still persists and the panel never crashes on a full store. Evicted sessions are
+ * closed/history and re-hydrate from the server when reopened.
+ */
+const writeMessagesWithQuotaGuard = (
+    set: Setter,
+    next: Record<string, UIMessage[]>,
+    keepId: string,
+): void => {
+    let candidate = next
+    for (;;) {
+        try {
+            set(sessionMessagesAtom, candidate)
+            return
+        } catch (e) {
+            if (!isQuotaExceeded(e)) throw e
+            // Object keys keep insertion order, so the first non-active id is the oldest.
+            const oldest = Object.keys(candidate).find((k) => k !== keepId)
+            if (oldest === undefined) {
+                // Even the active session alone won't fit — keep it in memory, skip persistence.
+                console.warn("[agent-chat] message store over quota; skipping persistence")
+                return
+            }
+            candidate = {...candidate}
+            delete candidate[oldest]
+        }
+    }
+}
+
 /** Write a session's messages to the persisted store (called when its stream settles). */
 export const persistSessionMessagesAtom = atom(
     null,
     (get, set, {id, messages}: {id: string; messages: UIMessage[]}) => {
-        set(sessionMessagesAtom, {...get(sessionMessagesAtom), [id]: messages})
+        writeMessagesWithQuotaGuard(set, {...get(sessionMessagesAtom), [id]: messages}, id)
     },
 )
 

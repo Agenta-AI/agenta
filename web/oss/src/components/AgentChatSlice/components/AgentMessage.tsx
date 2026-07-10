@@ -1,12 +1,15 @@
-import {memo, useEffect, useRef, useState} from "react"
+import {memo, useMemo, useRef, useState} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {buildRenderMap} from "@agenta/playground"
+import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {Actions, Bubble, FileCard, type ActionsProps} from "@ant-design/x"
 import {
     ArrowUUpLeft,
     Brain,
     CaretRight,
+    Check,
     Clock,
     Copy,
     Robot,
@@ -15,7 +18,7 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Tooltip, Typography} from "antd"
+import {Avatar, Skeleton, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -28,6 +31,13 @@ import {
     getMessageUsage,
     type MessageUsageMetrics,
 } from "../assets/trace"
+import {
+    errorKey,
+    expandedValueAtomFamily,
+    reasoningKey,
+    setExpandedAtom,
+} from "../state/expandState"
+import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
@@ -63,8 +73,17 @@ const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMe
     // Latency comes from the trace; tokens/cost come from the streamed message usage
     // (the agent-run trace summary doesn't surface them on the Pi/local path). Usage
     // wins where both exist so the figures match what the model actually reported.
-    const metrics = {...summary.metrics, ...usage}
-    return <ExecutionMetricsDisplay metrics={metrics} isLoading={summary.isPending} size="small" />
+    // Only the latency slot waits on the trace — usage renders immediately, and a fixed-size
+    // placeholder holds latency's spot so the row doesn't shift (or blank known data) meanwhile.
+    if (summary.isPending) {
+        return (
+            <div className="flex items-center gap-1">
+                <Skeleton.Button active size="small" style={{width: 56, height: 22}} />
+                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
+            </div>
+        )
+    }
+    return <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} size="small" />
 }
 
 interface AgentMessageProps {
@@ -78,7 +97,6 @@ interface AgentMessageProps {
     /** Stable across renders (parent passes a `useCallback`'d handler) so the `memo()` below
      * isn't defeated — the message to rewind to is passed in, not closed over per render. */
     onRewind: (message: UIMessage) => void
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
     /** Settle a parked client tool (#4920) — the dispatcher calls this from a widget. */
     onClientToolOutput: ClientToolOutputHandler
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
@@ -91,29 +109,45 @@ interface AgentMessageProps {
 
 const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
 
+/** Dedup key for a tool call. Stringifies its input, which can be large — call it sparingly. */
+const toolIdentity = (p: ToolUIPart): string => {
+    let inputKey = ""
+    try {
+        inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
+    } catch {
+        inputKey = ""
+    }
+    return `${p.type}::${inputKey}`
+}
+
 /**
  * Collapsible reasoning ("thinking") block. While the model is reasoning (`state ===
  * "streaming"`) it auto-expands so the thoughts stream live; once done it auto-collapses to a
  * "Thought" toggle — click to re-expand. A manual toggle sticks (we stop auto-driving it).
  */
-const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) => {
-    const [expanded, setExpanded] = useState(streaming)
-    const userToggled = useRef(false)
-
-    useEffect(() => {
-        if (!userToggled.current) setExpanded(streaming)
-    }, [streaming])
+const ReasoningPart = ({
+    text,
+    streaming,
+    stateKey,
+}: {
+    text: string
+    streaming: boolean
+    stateKey: string
+}) => {
+    // Auto-expand while the thought streams live, then collapse to the "Thought" toggle when done. A
+    // manual toggle sticks. State is keyed + persisted (expandState) so it survives a Virtuoso unmount
+    // when the row scrolls off: `undefined` follows `streaming`, a set value wins.
+    const stored = useAtomValue(expandedValueAtomFamily(stateKey))
+    const setExpanded = useSetAtom(setExpandedAtom)
+    const expanded = stored ?? streaming
 
     return (
         <div className="flex flex-col">
             <button
                 type="button"
-                onClick={() => {
-                    userToggled.current = true
-                    setExpanded((e) => !e)
-                }}
+                onClick={() => setExpanded({key: stateKey, value: !expanded})}
                 aria-expanded={expanded}
-                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextTertiary transition-colors hover:bg-colorFillQuaternary hover:text-colorTextSecondary"
+                className="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs italic text-colorTextSecondary transition-colors hover:bg-colorFillQuaternary hover:text-colorText"
             >
                 <CaretRight
                     size={11}
@@ -147,8 +181,11 @@ const ReasoningPart = ({text, streaming}: {text: string; streaming: boolean}) =>
  * chat; when it's long, a "Show more" toggle expands it into a scrollable, whitespace-preserving
  * block so it stays readable.
  */
-const RunErrorBody = ({text}: {text: string}) => {
-    const [expanded, setExpanded] = useState(false)
+const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
+    const stored = useAtomValue(expandedValueAtomFamily(stateKey))
+    const setAll = useSetAtom(setExpandedAtom)
+    const expanded = stored ?? false
+    const setExpanded = (v: boolean) => setAll({key: stateKey, value: v})
     const isLong = text.length > 220 || text.includes("\n")
 
     return (
@@ -171,7 +208,7 @@ const RunErrorBody = ({text}: {text: string}) => {
                 {isLong && (
                     <button
                         type="button"
-                        onClick={() => setExpanded((e) => !e)}
+                        onClick={() => setExpanded(!expanded)}
                         aria-expanded={expanded}
                         className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[11px] font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
                     >
@@ -198,13 +235,17 @@ const AgentMessage = ({
     isStreaming = false,
     isLastMessage = false,
     onRewind,
-    onApprovalResponse,
     onClientToolOutput,
     precededByEmptyAssistant = false,
     turnTraceId,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
+    // Build vs Chat: Build (config panel open, not maximized) shows the full step log — per-tool
+    // input/output/error + expanded reasoning; Chat keeps the calm collapsed summary.
+    const detailed = !useAtomValue(chatPanelMaximizedAtom)
+    const [copied, setCopied] = useState(false)
+    const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
@@ -223,13 +264,9 @@ const AgentMessage = ({
     const timeSummary = traceId ? ownSummary : pairedSummary
     const messageTime = parseTraceTime(timeSummary.rootSpan?.start_time) ?? createdAt
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
-    // FE-side from the useChat stream error (AgentChatPanel). Prefer whichever is present.
+    // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
+    // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
-    const errorText = traceError || runError
-    // Surface a settled-turn error even when the model emitted partial output before the
-    // stream died — not only when the turn is answer-less. (`isError` stays answer-less-only
-    // so the *whole* bubble only turns red when there's nothing else to show.)
-    const showError = !isStreaming && !!errorText
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -259,9 +296,66 @@ const AgentMessage = ({
     // read as frozen/broken. Keyed on `isStreaming`, not the conversation-level `busy`, so
     // earlier answer-less turns don't all light up while a later turn streams.
     const noResponse = !isUser && !isStreaming && !hasAnswer
+
+    // A trace-leaf error means a model/tool call failed. When the turn still produced an answer,
+    // the agent recovered from it — that failure belongs inline in ToolActivity ("· N failed"),
+    // NOT as a run failure. So trust `traceError` only on an answer-less turn (the swallowed
+    // quota/model error it was written for). A stream death (`runError`) is a real run failure
+    // even with partial output, so it always counts.
+    const errorText = noResponse ? traceError || runError : runError
+    // Surface a settled-turn error even when the model emitted partial output before the stream
+    // died. (`isError` stays answer-less-only so the *whole* bubble only turns red when there's
+    // nothing else to show.)
+    const showError = !isStreaming && !!errorText
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
     const isError = noResponse && showError
+
+    // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
+    // failure) so the button isn't a no-op when the agent only returned an error.
+    const copyText = [fullText, errorText].filter(Boolean).join("\n\n")
+    const handleCopy = async () => {
+        if (!copyText) return
+        try {
+            await navigator.clipboard.writeText(copyText)
+            setCopied(true)
+            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
+            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+        } catch {
+            setCopied(false)
+        }
+    }
+
+    // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
+    // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
+    // re-run on every streamed token of a tool-heavy turn. Hoisted above the early returns below to
+    // keep hook order stable.
+    const toolSignature = message.parts
+        .filter((p) => isToolPart(p.type))
+        .map((p) => `${(p as ToolUIPart).toolCallId ?? ""}:${(p as ToolUIPart).state ?? ""}`)
+        .join("|")
+    const executedToolIdentities = useMemo(
+        () =>
+            new Set(
+                message.parts
+                    .filter(
+                        (p) =>
+                            isToolPart(p.type) &&
+                            ((p as ToolUIPart).state === "output-available" ||
+                                (p as ToolUIPart).state === "output-error"),
+                    )
+                    .map((p) => toolIdentity(p as ToolUIPart)),
+            ),
+        [toolSignature],
+    )
+
+    // Message-scoped render hints (sibling `data-render` parts). Memoized so the stable reference
+    // doesn't bust the memoized ClientToolPart on nowTick re-renders. Must sit with the other hooks
+    // (above the early returns) to satisfy rules-of-hooks.
+    const renderMap = useMemo(
+        () => buildRenderMap(message.parts as {type?: string; data?: unknown}[]),
+        [message.parts],
+    )
 
     // #3: collapse a run of empty "no response" turns to just the first. A turn with ANY content
     // (answer or reasoning) and any error turn (isError, which shows the real failure) always
@@ -287,12 +381,29 @@ const AgentMessage = ({
         | {kind: "part"; part: UIMessage["parts"][number]; index: number}
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
         | {kind: "clientTool"; part: ToolUIPart; index: number}
+    // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
+    // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
+    // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
+    // tool + same input), so the turn shows the single completed call with its output — not a stuck
+    // spinner beside a duplicate. Until the execution settles, the gate stays (it is genuinely
+    // in-flight).
+    const isSupersededGate = (p: ToolUIPart): boolean =>
+        p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
+
+    // The elicitation retry cap: did an elicitation already degrade earlier this turn?
+    const degradedEarlierInTurn = hasPriorElicitationDegradation(
+        message.parts as {state?: string; errorText?: string}[],
+    )
+
     const renderItems: RenderItem[] = []
     message.parts.forEach((part, i) => {
         if (isToolPart(part.type)) {
+            // The answered gate whose execution already landed on a sibling part — drop it so the
+            // turn doesn't show a stuck approval spinner beside the real, completed call.
+            if (isSupersededGate(part as ToolUIPart)) return
             // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
             // into the "Used N tools" group — so it breaks any current tool run.
-            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage})) {
+            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage}, renderMap)) {
                 renderItems.push({kind: "clientTool", part: part as ToolUIPart, index: i})
                 return
             }
@@ -323,6 +434,7 @@ const AgentMessage = ({
             return (
                 <ReasoningPart
                     key={partKey}
+                    stateKey={reasoningKey(message.id, i)}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
                 />
@@ -368,7 +480,7 @@ const AgentMessage = ({
                             key={`${message.id}-tools-${item.index}`}
                             parts={item.parts}
                             isStreaming={isStreaming}
-                            onApprovalResponse={onApprovalResponse}
+                            detailed={detailed}
                             onViewTrace={onViewTrace}
                         />
                     )
@@ -379,6 +491,8 @@ const AgentMessage = ({
                             key={`${message.id}-clienttool-${item.part.toolCallId || item.index}`}
                             part={item.part}
                             onOutput={onClientToolOutput}
+                            renderMap={renderMap}
+                            degradedEarlierInTurn={degradedEarlierInTurn}
                         />
                     )
                 }
@@ -414,7 +528,9 @@ const AgentMessage = ({
 
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // RunErrorBody truncates a long reason so it can't drown the chat (expand to read it all).
-    const errorBody = <RunErrorBody text={errorText || "The agent run failed."} />
+    const errorBody = (
+        <RunErrorBody text={errorText || "The agent run failed."} stateKey={errorKey(message.id)} />
+    )
 
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
@@ -431,7 +547,7 @@ const AgentMessage = ({
         )
 
     // Control toolbar — an X `Actions` row that sits in a reserved lane BELOW the bubble (the
-    // `pb-7` on the row), so it never overlays the last content line and never reaches the next
+    // `pb-10` on the row), so it never overlays the last content line and never reaches the next
     // turn. The lane is always present (stable height), so revealing it only fades opacity — no
     // layout shift either way (the scroll engineering is sensitive to hover-driven reflow).
     // `pointer-events-none` while hidden keeps the invisible buttons unclickable. `Actions`
@@ -450,13 +566,22 @@ const AgentMessage = ({
         icon: <ArrowUUpLeft size={14} />,
         onItemClick: () => onRewind(message),
     }
+    // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
+    const rewindItems = isLastMessage ? [] : [rewindAction]
 
-    const timestamp = messageTime ? <MessageTimestamp createdAt={messageTime} /> : null
+    // Restored turns have no first-seen stamp (a reload isn't their send time), so until their
+    // trace time arrives the slot holds a placeholder — never a wrong "just now". Settled with no
+    // trace (deleted/expired) → no stamp at all. Live turns show first-seen instantly as before.
+    const timestamp = messageTime ? (
+        <MessageTimestamp createdAt={messageTime} />
+    ) : timeSummary.isPending ? (
+        <Skeleton.Button active size="small" style={{width: 64, height: 16}} />
+    ) : null
 
     const toolbar = isUser ? (
         <>
             {timestamp}
-            <Actions variant="borderless" items={[rewindAction]} />
+            {rewindItems.length > 0 && <Actions variant="borderless" items={rewindItems} />}
         </>
     ) : (
         <>
@@ -474,11 +599,11 @@ const AgentMessage = ({
                 items={[
                     {
                         key: "copy",
-                        label: "Copy",
-                        icon: <Copy size={14} />,
-                        onItemClick: () => navigator.clipboard.writeText(fullText),
+                        label: copied ? "Copied" : "Copy",
+                        icon: copied ? <Check size={14} /> : <Copy size={14} />,
+                        onItemClick: handleCopy,
                     },
-                    rewindAction,
+                    ...rewindItems,
                     ...(traceId
                         ? [
                               {
@@ -500,7 +625,7 @@ const AgentMessage = ({
     // the left, user bubbles the right, neither spans the full column.
     return (
         <div
-            className={`group relative flex items-start pb-7 ${isUser ? "justify-end" : "justify-start"}`}
+            className={`group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
         >
             <Bubble<React.ReactNode>
                 placement={isUser ? "end" : "start"}
@@ -512,7 +637,11 @@ const AgentMessage = ({
                 classNames={{
                     // Error styling is a self-contained callout in RunErrorBody now, not painted on
                     // the (borderless) bubble content — otherwise it bleeds edge-to-edge with no pad.
-                    content: "min-w-0 max-w-full overflow-hidden",
+                    // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
+                    // stays borderless on the canvas.
+                    content: isUser
+                        ? "min-w-0 max-w-full overflow-hidden !border !border-solid !border-[var(--ag-user-bubble-border)] !bg-[var(--ag-user-bubble-bg)]"
+                        : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 content={body}

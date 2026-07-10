@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,8 +21,10 @@ import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalAgentDir,
+  prepareLocalPiAssets,
   uploadDirToSandbox,
   uploadSkillsToSandbox,
+  writeOtlpAuthFile,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
 
@@ -43,7 +46,8 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: {
@@ -64,6 +68,10 @@ describe("buildPiExtensionEnv", () => {
             properties: { x: { type: "string" } },
           },
           callRef: "server-secret-ref",
+          contextBindings: {
+            "target.workflow_variant_id": "$ctx.workflow.variant.id",
+          },
+          timeoutMs: 120000,
           env: { SECRET: "do-not-expose" },
           kind: "callback",
         },
@@ -83,6 +91,7 @@ describe("buildPiExtensionEnv", () => {
     const env = buildPiExtensionEnv(request, true, {
       relayDir: "/tmp/relay",
       usageOutPath: "/tmp/usage.json",
+      otlpAuthFilePath: "/tmp/otlp-auth",
     });
 
     assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
@@ -90,10 +99,9 @@ describe("buildPiExtensionEnv", () => {
       env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
       request.telemetry?.exporters?.otlp?.endpoint,
     );
-    assert.equal(
-      env.OTEL_EXPORTER_OTLP_HEADERS,
-      `Authorization=${request.telemetry?.exporters?.otlp?.headers?.authorization}`,
-    );
+    // the bearer rides a file path, never a plain env var the harness can read/echo.
+    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, "/tmp/otlp-auth");
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
@@ -105,6 +113,7 @@ describe("buildPiExtensionEnv", () => {
         description: "safe",
         inputSchema: { type: "object", properties: { x: { type: "string" } } },
         kind: "callback",
+        timeoutMs: 120000,
       },
       {
         name: "client_only",
@@ -118,6 +127,7 @@ describe("buildPiExtensionEnv", () => {
       },
     ]);
     assert.equal(JSON.stringify(specs).includes("server-secret-ref"), false);
+    assert.equal(JSON.stringify(specs).includes("contextBindings"), false);
     assert.equal(JSON.stringify(specs).includes("do-not-expose"), false);
   });
 
@@ -139,6 +149,19 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.TRACEPARENT, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
+  });
+
+  it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
+    const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
+      relayDir: "/tmp/relay",
+      builtinGatingActive: true,
+      builtinGrants: ["read", "write"],
+    });
+
+    assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
+    assert.equal(env.AGENTA_AGENT_BUILTIN_GRANTS, "read,write");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
   });
 
   it("accepts snake_case tool schemas from older Python wire payloads", () => {
@@ -172,7 +195,8 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: { capture: { content: { enabled: true } } },
@@ -192,14 +216,16 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: { capture: { content: { enabled: true } } },
     } as AgentRunRequest;
 
     assert.equal(
-      buildPiExtensionEnv(request, true, { skills: [] }).AGENTA_AGENT_SKILLS_LOADED,
+      buildPiExtensionEnv(request, true, { skills: [] })
+        .AGENTA_AGENT_SKILLS_LOADED,
       undefined,
     );
     assert.equal(
@@ -207,6 +233,38 @@ describe("buildPiExtensionEnv", () => {
         .AGENTA_AGENT_SKILLS_LOADED,
       undefined,
     );
+  });
+
+  it("never leaks the bearer into env when no auth file path is given", () => {
+    const env = buildPiExtensionEnv(
+      {
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "https://otlp.example.test/v1/traces",
+              headers: { authorization: "Bearer trace-token" },
+            },
+          },
+        },
+      } as AgentRunRequest,
+      true,
+    );
+
+    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, undefined);
+    assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
+    assert.equal(JSON.stringify(env).includes("trace-token"), false);
+  });
+});
+
+describe("writeOtlpAuthFile", () => {
+  it("writes the bearer to a 0600 file, not env", () => {
+    const dir = tempDir("agenta-pi-otlp-auth-test-");
+    const path = join(dir, "nested", "otlp-auth");
+
+    writeOtlpAuthFile(path, "Bearer trace-token");
+
+    assert.equal(readFileSync(path, "utf-8"), "Bearer trace-token");
+    assert.equal(statSync(path).mode & 0o777, 0o600);
   });
 });
 
@@ -252,6 +310,57 @@ describe("prepareLocalAgentDir", () => {
       readFileSync(join(runDir, "skills", "skill", "SKILL.md"), "utf-8"),
       "---\nname: skill\n---\n",
     );
+  });
+});
+
+describe("prepareLocalPiAssets (PI_CODING_AGENT_DIR guard)", () => {
+  const ENV_VAR = "PI_CODING_AGENT_DIR";
+  const previous = process.env[ENV_VAR];
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env[ENV_VAR];
+    else process.env[ENV_VAR] = previous;
+  });
+
+  const plainPiPlan = {
+    isPi: true,
+    isDaytona: false,
+    skillDirs: [],
+    hasSystemPrompt: false,
+    systemPrompt: undefined,
+    appendSystemPrompt: undefined,
+    sourcePiAgentDir: "/unused",
+  };
+
+  it("logs a clear warning when a plain local Pi run has no PI_CODING_AGENT_DIR", () => {
+    delete process.env[ENV_VAR];
+    const logs: string[] = [];
+
+    const runDir = prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+      log: (msg) => logs.push(msg),
+    });
+
+    assert.equal(runDir, undefined);
+    assert.ok(
+      logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")),
+      `expected a PI_CODING_AGENT_DIR warning, got: ${JSON.stringify(logs)}`,
+    );
+  });
+
+  it("installs the extension silently (no warning) when PI_CODING_AGENT_DIR is set", () => {
+    const dir = tempDir("agenta-pi-configured-dir-");
+    process.env[ENV_VAR] = dir;
+    const logs: string[] = [];
+
+    prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+      log: (msg) => logs.push(msg),
+    });
+
+    assert.ok(!logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")));
   });
 });
 

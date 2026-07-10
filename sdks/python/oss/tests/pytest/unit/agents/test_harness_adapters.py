@@ -234,7 +234,7 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
     config = _session_config(
         builtin_tools=["read"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
-        permission_policy="deny",
+        permission_default="deny",
     )
 
     result = harness._to_harness_config(config)
@@ -242,7 +242,7 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
     assert isinstance(result, ClaudeAgentTemplate)
     assert not hasattr(result, "builtin_tools")  # Claude has no built-in tools at all
     assert result.custom_tools[0]["name"] == "t"
-    assert result.permission_policy == "deny"  # Claude carries the policy
+    assert result.permission_default == "deny"
     assert recorded, "expected a warning when built-ins are dropped"
 
 
@@ -274,7 +274,7 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
     )
     harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
 
-    harness._to_harness_config(_session_config(permission_policy="auto"))
+    harness._to_harness_config(_session_config(permission_default="allow_reads"))
 
     assert recorded == []
 

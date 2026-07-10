@@ -1,5 +1,6 @@
 import os
 import hashlib
+import warnings
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -319,6 +320,15 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # EMF metric lines (`log.tick(...)`) to stdout — the CloudWatch agent already
+    # ships container stdout, so this needs no new port/infra to light up.
+    metrics_enabled: bool = (
+        os.getenv("AGENTA_LOGGING_METRICS_ENABLED") or "true"
+    ).lower() in _TRUTHY
+    metrics_namespace: str = (
+        os.getenv("AGENTA_LOGGING_METRICS_NAMESPACE") or "Agenta/Workers"
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -342,24 +352,30 @@ class OTLPConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_SANDBOX_RUNNER_LOCAL_WARNED = False
+
+
 class ServicesCodeConfig(BaseModel):
     sandbox_runner: str = (
         os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
         or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-        or "restricted"
+        or "local"
     )
 
     model_config = ConfigDict(extra="ignore")
 
-
-class ServicesHookConfig(BaseModel):
-    allow_insecure: bool = (
-        os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
-        or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-        or "true"
-    ).lower() in _TRUTHY
-
-    model_config = ConfigDict(extra="ignore")
+    @model_validator(mode="after")
+    def _warn_sandbox_runner_mode(self) -> "ServicesCodeConfig":
+        global _SANDBOX_RUNNER_LOCAL_WARNED
+        if self.sandbox_runner == "local" and not _SANDBOX_RUNNER_LOCAL_WARNED:
+            _SANDBOX_RUNNER_LOCAL_WARNED = True
+            warnings.warn(
+                "AGENTA_SERVICES_CODE_SANDBOX_RUNNER is 'local' (default): code execution "
+                "is not sandboxed from the host. Set it to 'restricted' to harden a "
+                "shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
 
 
 class ServicesMiddlewareConfig(BaseModel):
@@ -374,8 +390,31 @@ class ServicesMiddlewareConfig(BaseModel):
 
 class ServicesConfig(BaseModel):
     code: ServicesCodeConfig = ServicesCodeConfig()
-    hook: ServicesHookConfig = ServicesHookConfig()
     middleware: ServicesMiddlewareConfig = ServicesMiddlewareConfig()
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# agenta.workers
+# ---------------------------------------------------------------------------
+
+
+def _load_csv_env_list(name: str) -> list[str]:
+    """Parse `name` as a comma-separated list, trimming blanks. Empty/unset -> []."""
+    raw = os.getenv(name) or ""
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+class WorkersConfig(BaseModel):
+    """Topology selectors for the merged `worker-streams`/`worker-queues` entrypoints.
+
+    Empty list means "all loops in that family" — see
+    docs/designs/workers-sprawl/specs.md.
+    """
+
+    streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
+    queues: list[str] = _load_csv_env_list("AGENTA_WORKER_QUEUES")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -385,14 +424,74 @@ class ServicesConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_EGRESS_INSECURE_WARNED = False
+
+
 class WebhooksConfig(BaseModel):
+    # AGENTA_WEBHOOKS_ALLOW_INSECURE / AGENTA_WEBHOOK_ALLOW_INSECURE are deprecated aliases; prefer AGENTA_INSECURE_EGRESS_ALLOWED.
     allow_insecure: bool = (
-        os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
+        os.getenv("AGENTA_INSECURE_EGRESS_ALLOWED")
+        or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
         or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
         or "true"
     ).lower() in _TRUTHY
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _warn_egress_mode(self) -> "WebhooksConfig":
+        global _EGRESS_INSECURE_WARNED
+        if self.allow_insecure and not _EGRESS_INSECURE_WARNED:
+            _EGRESS_INSECURE_WARNED = True
+            warnings.warn(
+                "AGENTA_INSECURE_EGRESS_ALLOWED is on (default): webhook/egress targets may "
+                "include http and private/loopback/metadata hosts. Set it to false to harden "
+                "a shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# agenta.redaction
+# ---------------------------------------------------------------------------
+
+_REDACTION_LIVE_MODES = {"off", "known"}
+_REDACTION_INERT_MODES = {"pattern", "full"}
+
+
+class RedactionConfig(BaseModel):
+    """Online redaction filter mode. Only `off`/`known` are live in Slice 1; `pattern`/`full`
+    are declared-but-inert (Slice 2) and behave as `known` with a warning."""
+
+    mode: str = os.getenv("AGENTA_REDACTION_MODE") or "known"
+
+    # Operator additions to the SDK's name/value matchers; the SDK (seed.py) owns the
+    # defaults and the merge-onto-default semantics — these are the raw overrides only.
+    prefixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_PREFIXES")
+    suffixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_SUFFIXES")
+    blocklist: list[str] = _load_csv_env_list("AGENTA_REDACTED_BLOCKLIST")
+    allowlist: list[str] = _load_csv_env_list("AGENTA_REDACTED_ALLOWLIST")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _validate_mode(self) -> "RedactionConfig":
+        mode = (self.mode or "known").strip().lower()
+        if mode in _REDACTION_INERT_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode} is declared but inert (Slice 2 not shipped); behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        elif mode not in _REDACTION_LIVE_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode!r} is not recognized; behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        self.mode = mode
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -420,8 +519,10 @@ class AgentaConfig(BaseModel):
     extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
+    redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
+    workers: WorkersConfig = WorkersConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -520,6 +621,18 @@ class ComposioConfig(BaseModel):
     # (http://localhost) the tunnel delivers over WebSocket, so this only needs to
     # be a valid public HTTPS placeholder to mint the subscription's secret.
     webhook_url: str | None = os.getenv("COMPOSIO_WEBHOOK_URL")
+    # Bounded replay/freshness window (seconds) for inbound webhook-timestamp; also
+    # the TTL for the webhook-id dedup entry.
+    webhook_replay_window_seconds: int = int(
+        os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
+    )
+    # Full trigger-types catalog: project-agnostic cache TTL + whole-fetch deadline.
+    catalog_cache_ttl_seconds: int = int(
+        os.getenv("COMPOSIO_CATALOG_CACHE_TTL_SECONDS") or 24 * 60 * 60
+    )
+    catalog_fetch_deadline_seconds: float = float(
+        os.getenv("COMPOSIO_CATALOG_FETCH_DEADLINE_SECONDS") or 30
+    )
 
     @property
     def enabled(self) -> bool:
@@ -842,6 +955,42 @@ class LoopsConfig(BaseModel):
     def enabled(self) -> bool:
         """Loops enabled if API key present"""
         return bool(self.api_key)
+
+
+# ---------------------------------------------------------------------------
+# runner — agent runner sidecar (services/runner). Node-process config; documented
+# here for the canonical env-var mapping even though the runner reads process.env
+# directly (it is a separate Node process, not this Python process).
+# ---------------------------------------------------------------------------
+
+
+_SANDBOX_LOCAL_WARNED = False
+
+
+class RunnerConfig(BaseModel):
+    """Agent runner (services/runner) sidecar configuration."""
+
+    concurrency_limit: int = int(os.getenv("AGENTA_RUNNER_CONCURRENCY_LIMIT") or "1000")
+
+    # `local` sandbox runs unconfined host bash — not a tenant boundary; on by default
+    # for zero-config self-host. Canonical declaration; services/oss reads the same var directly.
+    sandbox_local_allowed: bool = (
+        os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true"
+    ).lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _warn_local_sandbox(self) -> "RunnerConfig":
+        global _SANDBOX_LOCAL_WARNED
+        if self.sandbox_local_allowed and not _SANDBOX_LOCAL_WARNED:
+            _SANDBOX_LOCAL_WARNED = True
+            warnings.warn(
+                "AGENTA_SANDBOX_LOCAL_ALLOWED is on (default): local sandbox is not a "
+                "tenant boundary. Set it to false to harden a shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -1247,6 +1396,7 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    runner: RunnerConfig = RunnerConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
     store: StoreConfig = StoreConfig()

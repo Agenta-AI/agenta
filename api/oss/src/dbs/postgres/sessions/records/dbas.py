@@ -7,12 +7,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 class RecordDBA:
     __abstract__ = True
 
-    # DB-minted uuid7 — records have no upstream id (unlike span_id/event_id).
-    # Time-ordered, so it doubles as the ordering key.
+    # Producer-supplied stable id (uuid5) where one exists, else a minted uuid4 fallback.
+    # Not time-ordered — ordering rides on record_index (see get_records), not this id.
     record_id = Column(
         UUID(as_uuid=True),
         nullable=False,
-        default=uuid.uuid7,
+        default=uuid.uuid4,
     )
 
     session_id = Column(
@@ -20,8 +20,9 @@ class RecordDBA:
         nullable=False,
     )
 
-    # Producer-stamped per-session ordinal; not the ordering key (that is record_id),
-    # kept as a stable human-readable sequence from the producer.
+    # Producer-stamped per-turn ordinal and the in-session ordering key (record_id is
+    # no longer time-ordered). Restarts at 0 each cold turn, so reads tiebreak with
+    # created_at (ingest time) ahead of it — see get_records.
     record_index = Column(
         Integer,
         nullable=True,

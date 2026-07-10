@@ -24,8 +24,23 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {
+    agentCreationPrefsAtom,
+    workflowBuildKitEnabledAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
+import {
+    agentItemIdentity,
+    classifyAgentChanges,
+    stableStringify,
+} from "@agenta/entities/workflow/commitDiff"
+import {agentSelfCommitSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {
+    ConfigAccordionSection,
+    sectionIndicatorColor,
+    type SectionIndicatorTone,
+} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -39,7 +54,8 @@ import {
     Wrench,
 } from "@phosphor-icons/react"
 import {Button, Tabs, Tooltip, Typography} from "antd"
-import {useAtomValue, useStore} from "jotai"
+import deepEqual from "fast-deep-equal"
+import {useAtom, useAtomValue, useStore} from "jotai"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
@@ -48,14 +64,15 @@ import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
-import {ITEM_KINDS} from "./agentTemplate/itemKinds"
-import {InstructionsFileRow} from "./agentTemplate/ItemRow"
+import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
+import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
 import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
+import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
@@ -67,6 +84,21 @@ import {
 } from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
+// Tooltip copy for the config-panel draft/validation indicators.
+const INVALID_ITEM_TIP: Record<ItemKind, string> = {
+    tool: "This tool is missing its name.",
+    mcp: "This server is missing a required field (name, command, or URL).",
+    skill: "This skill is missing its name.",
+}
+const DRAFT_TIP: Record<string, string> = {
+    "model-harness": "Unsaved model or harness changes.",
+    instructions: "Unsaved instruction changes.",
+    tools: "Unsaved tool changes.",
+    mcp: "Unsaved MCP server changes.",
+    skills: "Unsaved skill changes.",
+    advanced: "Unsaved advanced-setting changes.",
+}
+
 export interface AgentTemplateControlProps {
     schema?: SchemaProperty | null
     label?: string
@@ -76,6 +108,19 @@ export interface AgentTemplateControlProps {
     withTooltip?: boolean
     disabled?: boolean
     className?: string
+}
+
+// Draft body for the Model & harness / Advanced section drawers. Isolated into its own component so
+// `useModelHarness` (harness-catalog + vault-secrets + build-kit-overlay subscriptions) runs ONLY
+// while a section drawer is open — `SectionDrawer` uses `destroyOnClose`, so this mounts on open and
+// unmounts on close. Previously a second `useModelHarness` ran in the always-mounted parent,
+// subscribing on every agent-config render even with both drawers shut.
+const ModelHarnessSectionDrawerBody = ({
+    section,
+    ...params
+}: {section: "model-harness" | "advanced"} & Parameters<typeof useModelHarness>[0]) => {
+    const mh = useModelHarness(params)
+    return <>{section === "advanced" ? mh.advancedDrawerBody : mh.modelHarnessDrawerBody}</>
 }
 
 export function AgentTemplateControl({
@@ -131,35 +176,96 @@ export function AgentTemplateControl({
         setEditingInstruction({filename})
     }, [])
 
-    // Section drawers (Model & harness, Advanced). Edits apply live; a config snapshot taken on open
-    // is restored on Cancel, giving the same draft-then-save feel as the item drawers.
+    // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
+    // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
+    // we opened with). The build-kit enable toggle lives OUTSIDE the config (a persisted atom), so it
+    // is buffered alongside the config draft and committed to the atom on Save.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
-    const sectionSnapshot = useRef<Record<string, unknown> | null>(null)
-    // Snapshot + restore for the build-kit enabled atom (lives outside config; needs separate tracking).
+    const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
+    const [draftBuildKit, setDraftBuildKit] = useState<boolean | null>(null)
+    const sectionBaseline = useRef<{config: Record<string, unknown>; buildKit: boolean} | null>(
+        null,
+    )
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
-    const buildKitEnabledSnapshot = useRef<boolean | null>(null)
+    const applyDraftConfig = useCallback(
+        (next: Record<string, unknown>) => setDraftConfig(next),
+        [],
+    )
+    // Single source of truth for "the currently open section has unsaved edits" — shared by the
+    // open-a-new-section guard below and the Save-button gate (`sectionDirty`) so they can't drift.
+    const isCurrentSectionDirty = useCallback(
+        () =>
+            openSection !== null &&
+            sectionBaseline.current !== null &&
+            (!deepEqual(draftConfig, sectionBaseline.current.config) ||
+                draftBuildKit !== sectionBaseline.current.buildKit),
+        [openSection, draftConfig, draftBuildKit],
+    )
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
-            sectionSnapshot.current = value ?? {}
-            buildKitEnabledSnapshot.current = store.get(
+            // Same section already open: never re-snapshot over a live draft.
+            if (openSection === key) return
+            // Another section is open with unsaved edits: drop the request rather than clobber it.
+            if (isCurrentSectionDirty()) return
+            const snapshotConfig = (value ?? {}) as Record<string, unknown>
+            const snapshotBuildKit = store.get(
                 workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
             )
+            setDraftConfig(snapshotConfig)
+            setDraftBuildKit(snapshotBuildKit)
+            sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
             setOpenSection(key)
         },
-        [value, store],
+        [value, store, openSection, isCurrentSectionDirty],
     )
-    const cancelSection = useCallback(() => {
-        if (sectionSnapshot.current) onChange(sectionSnapshot.current)
-        if (buildKitEnabledSnapshot.current !== null) {
-            store.set(
-                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
-                buildKitEnabledSnapshot.current,
-            )
-        }
+    const closeSectionDraft = useCallback(() => {
         setOpenSection(null)
-    }, [onChange, store])
-    const saveSection = useCallback(() => setOpenSection(null), [])
+        setDraftConfig(null)
+        setDraftBuildKit(null)
+        sectionBaseline.current = null
+    }, [])
+
+    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → Model & harness).
+    const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
+    useEffect(() => {
+        if (!openSectionRequest) return
+        // Always clears the request, even when openSectionDrawer no-ops on a dirty open section —
+        // the request is intentionally dropped rather than queued.
+        openSectionDrawer(openSectionRequest)
+        setOpenSectionRequest(null)
+    }, [openSectionRequest, openSectionDrawer, setOpenSectionRequest])
+    // Cancel: nothing was written live, so just drop the draft.
+    const cancelSection = closeSectionDraft
+    const saveSection = useCallback(() => {
+        if (draftConfig !== null) {
+            onChange(draftConfig)
+            // Remember the harness/model/connection pick for future agent creations — only on an
+            // explicit Model & harness save, not on every keystroke or the Advanced section.
+            if (openSection === "model-harness") {
+                const harness = draftConfig.harness
+                const harnessKind =
+                    harness && typeof harness === "object" && !Array.isArray(harness)
+                        ? (harness as Record<string, unknown>).kind
+                        : undefined
+                const modelId = modelIdFromConfig(draftConfig.llm)
+                const connection = connectionFromConfig(draftConfig.llm)
+                store.set(agentCreationPrefsAtom, (prev) => ({
+                    version: 1,
+                    harness: typeof harnessKind === "string" ? harnessKind : prev.harness,
+                    model: modelId ?? prev.model,
+                    provider: connection.provider ?? prev.provider,
+                    connectionMode: connection.mode ?? prev.connectionMode,
+                }))
+            }
+        }
+        if (draftBuildKit !== null) {
+            store.set(workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""), draftBuildKit)
+        }
+        closeSectionDraft()
+    }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
+    // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
+    const sectionDirty = isCurrentSectionDirty()
 
     // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
     const layout = useAtomValue(agentTemplateLayoutAtom)
@@ -180,13 +286,76 @@ export function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+
+    // ── Agent self-commit: surface WHAT the agent just changed ──────────────────────────
+    // The chat raises the signal (with the outgoing revision's parameters) when the agent
+    // commits itself and the playground switches in place. Once this control renders the
+    // NEW revision, diff the configs per section and mark the changed ones. The computed
+    // set is FROZEN on first non-empty result so the user's own subsequent edits don't
+    // drift into the "agent changed this" indication. Dismiss (or the next commit) clears.
+    const commitSignal = useAtomValue(agentSelfCommitSignalAtom)
+    const frozenAgentDiffRef = useRef<{signalAt: number; keys: Set<string>} | null>(null)
+    const agentChangedKeys = useMemo(() => {
+        if (!commitSignal || !revisionId || commitSignal.revisionId !== revisionId) return null
+        if (frozenAgentDiffRef.current?.signalAt === commitSignal.at) {
+            return frozenAgentDiffRef.current.keys
+        }
+        try {
+            const sectionIdToKey: Record<string, string> = {
+                model: "model-harness",
+                instructions: "instructions",
+                tools: "tools",
+                mcps: "mcp",
+                skills: "skills",
+                params: "advanced",
+            }
+            const changed = classifyAgentChanges(commitSignal.prevParameters, {agent: value})
+            const keys = new Set(
+                changed.map((s) => sectionIdToKey[s.id]).filter((k): k is string => Boolean(k)),
+            )
+            if (keys.size === 0) return null
+            frozenAgentDiffRef.current = {signalAt: commitSignal.at, keys}
+            return keys
+        } catch {
+            return null
+        }
+    }, [commitSignal, revisionId, value])
+    const agentChangeIndicator = useCallback(
+        (sectionKey: string) => {
+            if (!agentChangedKeys?.has(sectionKey)) return undefined
+            const raw = commitSignal?.version ? String(commitSignal.version) : null
+            const version = raw ? (raw.startsWith("v") ? raw : `v${raw}`) : null
+            return {
+                tone: "agent" as const,
+                tooltip: `Updated by the agent${version ? ` in ${version}` : ""}`,
+            }
+        },
+        [agentChangedKeys, commitSignal?.version],
+    )
     // Triggers bound to this agent (for the section count badge). The section body and the header
     // add-dropdown derive scoping from the same hook.
     const {count: triggerCount} = useAgentTriggers(revisionId)
 
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
+    //
+    // TWO instances, on purpose:
+    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries + the inline
+    //    tabs bodies. Keeping it live means a section header NEVER reflects the drawer's unsaved draft
+    //    (the reported bug: editing in the open drawer updated the background summary).
+    //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
+    //    now lives inside `ModelHarnessSectionDrawerBody`, mounted only while the drawer is open, so
+    //    its harness/vault/overlay subscriptions don't run in the background.
     const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
+    const draftBuildKitOverride = useMemo(
+        () =>
+            draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
+        [draftBuildKit],
+    )
+    // "Current" marks the SAVED harness (from the live entity), not the draft pick.
+    const savedHarnessValue =
+        ((config.harness as Record<string, unknown> | undefined)?.kind as string | undefined) ??
+        null
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
@@ -196,6 +365,8 @@ export function AgentTemplateControl({
         handleRemoveToolByName,
         handleRemoveBuiltinTool,
         selectedToolNames,
+        selectedGatewayIds,
+        removeGatewayToolByIdentity,
         referenceableWorkflows,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
@@ -247,6 +418,150 @@ export function AgentTemplateControl({
         [props],
     )
 
+    // ── Draft + validation indicators ─────────────────────────────────────────
+    // Committed (server) template to diff the live config against. Null for a never-saved
+    // draft — then only validation (not draft) indicators show.
+    const committedConfig = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.serverConfiguration(revisionId ?? ""),
+            [revisionId],
+        ),
+    ) as Record<string, unknown> | null
+    const committed = useMemo(() => {
+        if (!committedConfig) return null
+        const agent = committedConfig.agent
+        const template =
+            agent && typeof agent === "object" && !Array.isArray(agent) ? agent : committedConfig
+        // Strip agenta metadata so it compares like-for-like against the live value.
+        return stripAgentaMetadataDeep(template) as Record<string, unknown>
+    }, [committedConfig])
+
+    // Header rollup: which sections changed vs the commit. Reuses the commit-diff classifier so
+    // the grouping matches (model+harness together; advanced = runner/sandbox/params).
+    const draftSectionKeys = useMemo(() => {
+        const keys = new Set<string>()
+        if (!committed) return keys
+        const map: Record<string, string> = {
+            model: "model-harness",
+            instructions: "instructions",
+            tools: "tools",
+            mcps: "mcp",
+            skills: "skills",
+            params: "advanced",
+        }
+        const local = stripAgentaMetadataDeep(config) as Record<string, unknown>
+        for (const s of classifyAgentChanges(local, committed)) {
+            const k = map[s.id]
+            if (k) keys.add(k)
+        }
+        return keys
+    }, [config, committed])
+
+    // Match unchanged values before identity so deleting an earlier item cannot make positional
+    // identities mark every surviving row as edited. Identity then distinguishes new from edited.
+    const baseMaps = useMemo(() => {
+        const build = (list: unknown, kind: ItemKind) =>
+            new Map(
+                (Array.isArray(list) ? list : []).map(
+                    (e, i) => [agentItemIdentity(kind, e, i), stableStringify(e)] as const,
+                ),
+            )
+        return {
+            tool: build(committed?.tools, "tool"),
+            mcp: build(committed?.mcps, "mcp"),
+            skill: build(committed?.skills, "skill"),
+        }
+    }, [committed])
+
+    const statusForKind = useCallback(
+        (kind: ItemKind) =>
+            (item: unknown, index: number): ItemRowStatus | undefined => {
+                if (ITEM_KINDS[kind].draftInvalid(item as Record<string, unknown>)) {
+                    return {tone: "invalid", label: "Incomplete", tooltip: INVALID_ITEM_TIP[kind]}
+                }
+                if (!committed) return undefined
+                const currentValue = stableStringify(stripAgentaMetadataDeep(item))
+                if ([...baseMaps[kind].values()].includes(currentValue)) return undefined
+                const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
+                if (prev === undefined)
+                    return {tone: "new", label: "New", tooltip: "Added since the last commit."}
+                return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+            },
+        [committed, baseMaps],
+    )
+    const toolStatusFor = useMemo(() => statusForKind("tool"), [statusForKind])
+    const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
+    const skillStatusFor = useMemo(() => statusForKind("skill"), [statusForKind])
+
+    // Section headers: a blocking problem (invalid) outranks unsaved edits (draft).
+    const sectionInvalidTip = (key: string): string | null => {
+        if (key === "model-harness") {
+            if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm))
+                return "No model is selected."
+            if (mh.modelUnsupported) return "The selected model isn't available on this harness."
+            return null
+        }
+        if (key === "tools")
+            return tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>))
+                ? "A tool is missing its name."
+                : null
+        if (key === "mcp")
+            return mcpServers.some((m) => ITEM_KINDS.mcp.draftInvalid(m as Record<string, unknown>))
+                ? "An MCP server is missing a required field."
+                : null
+        if (key === "skills")
+            return skills.some((s) => ITEM_KINDS.skill.draftInvalid(s as Record<string, unknown>))
+                ? "A skill is missing its name."
+                : null
+        return null
+    }
+    // Structurally valid but missing setup the section needs to run (amber, ranks below invalid).
+    const sectionIncompleteTip = (key: string): string | null => {
+        if (key === "model-harness" && mh.needsProviderKey)
+            return "Connect the model's provider key to run this agent."
+        return null
+    }
+    const headerIndicator = (
+        key: string,
+    ): {tone: "draft" | "invalid" | "incomplete"; tooltip?: string} | undefined => {
+        const invalid = sectionInvalidTip(key)
+        if (invalid) return {tone: "invalid", tooltip: invalid}
+        const incomplete = sectionIncompleteTip(key)
+        if (incomplete) return {tone: "incomplete", tooltip: incomplete}
+        if (draftSectionKeys.has(key))
+            return {
+                tone: "draft",
+                tooltip: DRAFT_TIP[key] ?? "Unsaved changes — not yet committed.",
+            }
+        return undefined
+    }
+    // A short pill rendered next to a section title for the blocking cases the user must resolve,
+    // matching the header indicator's tone. Kept terse so it never crowds the title (the section
+    // shell truncates the title and keeps the pill `shrink-0`).
+    const sectionBadge = (key: string): React.ReactNode => {
+        if (key !== "model-harness") return null
+        const pill = (label: string, tone: "warning" | "error") => (
+            <span
+                className={cn(
+                    "whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium leading-none",
+                    tone === "error"
+                        ? "bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorError)]"
+                        : "bg-[var(--ag-colorWarningBg)] text-[var(--ag-colorWarning)]",
+                )}
+            >
+                {label}
+            </span>
+        )
+        if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm)) return pill("No model", "error")
+        if (mh.modelUnsupported) return pill("Unavailable", "error")
+        if (mh.needsProviderKey) return pill("Connect key", "warning")
+        return null
+    }
+
+    const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
+        ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+        : undefined
+
     // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
     // drive the same add flow.
     const toolSelectorProps = {
@@ -258,7 +573,12 @@ export function AgentTemplateControl({
         existingToolCount: tools.length,
         gatewayTools,
         onReferenceWorkflow: workflowReference?.enabled
-            ? () => setReferenceSelectorOpen(true)
+            ? () => {
+                  // Opening the picker is the point the workflow list is actually needed — activate
+                  // the (lazy) bridge so it resolves now instead of on every playground load.
+                  workflowReference.activate?.()
+                  setReferenceSelectorOpen(true)
+              }
             : undefined,
         // Route the integration row to the agent-scoped drawer instead of the shared global catalog.
         onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
@@ -279,6 +599,7 @@ export function AgentTemplateControl({
             icon: <Cpu size={16} />,
             title: "Model & harness",
             summary: mh.modelSummary,
+            indicator: headerIndicator("model-harness"),
             defaultOpen: true,
             onOpen: () => openSectionDrawer("model-harness"),
             content: mh.modelHarnessDrawerBody,
@@ -289,6 +610,7 @@ export function AgentTemplateControl({
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
+            indicator: headerIndicator("instructions"),
             // The + is inert until the backend stores multiple instruction files; the section is
             // already a list so it lights up with no rework when that lands.
             extra: !disabled ? (
@@ -310,6 +632,7 @@ export function AgentTemplateControl({
                         filename="AGENTS.md"
                         content={agentsMd ?? ""}
                         onOpen={() => openInstruction("AGENTS.md", agentsMd ?? "")}
+                        status={instructionsStatus}
                     />
                 </div>
             ),
@@ -319,6 +642,7 @@ export function AgentTemplateControl({
             icon: <Wrench size={16} />,
             title: fieldTitle("tools", "Tools"),
             summary: countSummary(tools.length, "tool"),
+            indicator: headerIndicator("tools"),
             extra: !disabled ? (
                 <AgentToolSelectorPopover
                     {...toolSelectorProps}
@@ -334,7 +658,7 @@ export function AgentTemplateControl({
                     }
                 />
             ) : undefined,
-            defaultOpen: true,
+            defaultOpen: tools.length > 0,
             content: (
                 <ToolManagementList
                     tools={tools}
@@ -343,6 +667,7 @@ export function AgentTemplateControl({
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
+                    statusFor={toolStatusFor}
                     onOpenIntegration={gatewayTools?.enabled ? openIntegration : undefined}
                     // The empty-state add is the same popover as the header +.
                     emptyAdd={
@@ -359,6 +684,7 @@ export function AgentTemplateControl({
             icon: <Plugs size={16} />,
             title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
+            indicator: headerIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
@@ -369,6 +695,7 @@ export function AgentTemplateControl({
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
+                    statusFor={mcpStatusFor}
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                 />
             ),
@@ -378,6 +705,7 @@ export function AgentTemplateControl({
             icon: <GraduationCap size={16} />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
+            indicator: headerIndicator("skills"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
             content: (
@@ -388,6 +716,7 @@ export function AgentTemplateControl({
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
+                    statusFor={skillStatusFor}
                     emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
                 />
             ),
@@ -405,6 +734,7 @@ export function AgentTemplateControl({
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
+            indicator: headerIndicator("advanced"),
             defaultOpen: false,
             summary: mh.advancedSummary,
             onOpen: () => openSectionDrawer("advanced"),
@@ -417,6 +747,7 @@ export function AgentTemplateControl({
         title: React.ReactNode
         summary?: React.ReactNode
         extra?: React.ReactNode
+        indicator?: {tone: SectionIndicatorTone; tooltip?: string}
         defaultOpen?: boolean
         onOpen?: () => void
         content: React.ReactNode
@@ -424,6 +755,20 @@ export function AgentTemplateControl({
         // `content` when a section has no separate inline form.
         inlineContent?: React.ReactNode
     }[]
+
+    // Each config section is a contained card on the raised Config panel — the surface tokens give
+    // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
+    const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
+
+    // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
+    // goes null on close; retaining the last value and driving `open` off the live state lets the
+    // exit transition play (an unmount-on-close drawer just vanishes). Matches the SectionDrawers.
+    const lastEditingRef = useRef(editing)
+    if (editing) lastEditingRef.current = editing
+    const shownEditing = editing ?? lastEditingRef.current
+    const lastInstructionRef = useRef(editingInstruction)
+    if (editingInstruction) lastInstructionRef.current = editingInstruction
+    const shownInstruction = editingInstruction ?? lastInstructionRef.current
 
     return (
         <div className={cn("flex flex-col", className)}>
@@ -439,8 +784,32 @@ export function AgentTemplateControl({
                         key: s.key,
                         label: (
                             <span className="inline-flex items-center gap-1.5">
-                                {s.icon}
-                                {s.title}
+                                <Tooltip title={s.indicator?.tooltip}>
+                                    <span
+                                        className="relative inline-flex items-center"
+                                        style={
+                                            s.indicator
+                                                ? {
+                                                      color: `color-mix(in srgb, ${sectionIndicatorColor(s.indicator.tone)} 45%, var(--ag-colorTextTertiary))`,
+                                                  }
+                                                : undefined
+                                        }
+                                    >
+                                        {s.icon}
+                                        {s.indicator ? (
+                                            <span
+                                                className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
+                                                style={{
+                                                    background: sectionIndicatorColor(
+                                                        s.indicator.tone,
+                                                    ),
+                                                }}
+                                            />
+                                        ) : null}
+                                    </span>
+                                </Tooltip>
+                                <span className="truncate">{s.title}</span>
+                                {sectionBadge(s.key)}
                             </span>
                         ),
                         children: (
@@ -455,17 +824,19 @@ export function AgentTemplateControl({
                 />
             ) : layout === "cards" ? (
                 <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s) => (
+                    {sections.map((s, index) => (
                         <ConfigAccordionSection
                             key={s.key}
                             icon={s.icon}
                             title={s.title}
+                            titleBadge={sectionBadge(s.key)}
                             summary={s.summary}
                             extra={s.extra}
+                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
                             onOpen={s.onOpen}
                             collapsible={false}
                             noDivider
-                            className="rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3"
+                            className={sectionCardClass}
                         >
                             {s.content}
                         </ConfigAccordionSection>
@@ -477,30 +848,35 @@ export function AgentTemplateControl({
                         key={s.key}
                         icon={s.icon}
                         title={s.title}
+                        titleBadge={sectionBadge(s.key)}
                         summary={s.summary}
                         extra={s.extra}
+                        indicator={s.indicator ?? agentChangeIndicator(s.key)}
                         onOpen={s.onOpen}
                         defaultOpen={s.defaultOpen}
                         noDivider={index === sections.length - 1}
+                        // Mount collapsed, then unfold via the normal collapse transition — first
+                        // paint matches the skeleton's collapsed rows instead of shifting the layout.
+                        animateInitialOpen
                     >
                         {s.content}
                     </ConfigAccordionSection>
                 ))
             )}
 
-            {editing
+            {shownEditing
                 ? (() => {
                       // One drawer for all three kinds — the per-kind icon/title/form/view rules
                       // come from the ITEM_KINDS registry (replaces three near-identical blocks).
-                      const def = ITEM_KINDS[editing.kind]
+                      const def = ITEM_KINDS[shownEditing.kind]
                       const desc = def.describe(draft)
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
-                      const itemKey = `${editing.kind}-${editing.mode}-${editing.index}`
+                      const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
                       return (
                           <ConfigItemDrawer
-                              open
-                              mode={editing.mode}
+                              open={!!editing}
+                              mode={shownEditing.mode}
                               icon={def.icon}
                               title={def.drawerTitle(draft)}
                               badge={{text: desc.typeLabel, color: desc.typeColor}}
@@ -537,10 +913,10 @@ export function AgentTemplateControl({
                   })()
                 : null}
 
-            {editingInstruction && (
+            {shownInstruction && (
                 <InstructionsDrawer
-                    open
-                    filename={editingInstruction.filename}
+                    open={!!editingInstruction}
+                    filename={shownInstruction.filename}
                     value={instructionDraft}
                     onChange={setInstructionDraft}
                     onCancel={() => setEditingInstruction(null)}
@@ -561,10 +937,21 @@ export function AgentTemplateControl({
                 icon={<Cpu size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
-                disabled={disabled}
+                disabled={disabled || !sectionDirty}
+                dirty={sectionDirty}
                 width={mh.modelHarnessDrawerWidth}
             >
-                {mh.modelHarnessDrawerBody}
+                <ModelHarnessSectionDrawerBody
+                    section="model-harness"
+                    schema={schema}
+                    config={draftConfig ?? config}
+                    onChange={applyDraftConfig}
+                    disabled={disabled}
+                    withTooltip={withTooltip}
+                    revisionId={revisionId}
+                    buildKitEnabledOverride={draftBuildKitOverride}
+                    savedHarnessValue={savedHarnessValue}
+                />
             </SectionDrawer>
 
             <SectionDrawer
@@ -573,10 +960,21 @@ export function AgentTemplateControl({
                 icon={<SlidersHorizontal size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
-                disabled={disabled}
+                disabled={disabled || !sectionDirty}
+                dirty={sectionDirty}
                 width={880}
             >
-                {mh.advancedDrawerBody}
+                <ModelHarnessSectionDrawerBody
+                    section="advanced"
+                    schema={schema}
+                    config={draftConfig ?? config}
+                    onChange={applyDraftConfig}
+                    disabled={disabled}
+                    withTooltip={withTooltip}
+                    revisionId={revisionId}
+                    buildKitEnabledOverride={draftBuildKitOverride}
+                    savedHarnessValue={savedHarnessValue}
+                />
             </SectionDrawer>
 
             {workflowReference?.enabled && (
@@ -600,8 +998,8 @@ export function AgentTemplateControl({
                         setIntegrationDefaultKey(undefined)
                     }}
                     onAddTool={handleAddTool}
-                    onRemoveTool={handleRemoveToolByName}
-                    selectedToolNames={selectedToolNames}
+                    onRemoveToolByIdentity={removeGatewayToolByIdentity}
+                    selectedGatewayIds={selectedGatewayIds}
                     defaultIntegrationKey={integrationDefaultKey}
                 />
             )}

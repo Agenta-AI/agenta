@@ -11,10 +11,12 @@
  * Built to match the sibling drawers (WorkflowReferenceSelector, trigger drawers): 240px rail with a
  * right border, independent scroll, shared `RowRemoveButton`, semantic `--ag-color*` tokens (dark-safe).
  */
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
-import {Code} from "@phosphor-icons/react"
-import {Input, Select, Switch} from "antd"
+import {useToolActionDetail, type ToolCatalogActionDetails} from "@agenta/entities/gatewayTool"
+import {buildGatewayToolSlug, safeStringify} from "@agenta/shared/utils"
+import {Code, WarningCircle} from "@phosphor-icons/react"
+import {Input, Select, Spin, Switch} from "antd"
 
 import {RailField} from "../../drawers/shared/RailField"
 
@@ -30,7 +32,7 @@ import {
     type Seg,
 } from "./agentTemplate/schemaPaths"
 import {ReferenceToolFormView} from "./ReferenceToolFormView"
-import {parseGatewayFunctionName} from "./toolUtils"
+import {parseGatewayFunctionName, parseGatewayTool, type ParsedGatewayTool} from "./toolUtils"
 
 export interface ToolFormViewProps {
     value: Record<string, unknown>
@@ -38,40 +40,23 @@ export interface ToolFormViewProps {
     disabled?: boolean
 }
 
-// Per-tool permission (allow / ask / deny). Stored as a TOP-LEVEL `permission` key on the tool
-// object — NOT inside `agenta_metadata`, which `stripAgentaMetadataDeep` strips on every save/run.
-// The SDK reads it via `AliasChoices("permission","permission_mode","permissionMode")`. Unset means
-// the tool inherits the agent's global permission policy.
+// Per-tool permission is stored as a top-level `permission` key; unset inherits the runner policy.
 type ToolPermission = "allow" | "ask" | "deny"
+type ToolPermissionSelection = ToolPermission | "inherit"
 
-const PERMISSION_OPTIONS: {value: ToolPermission; label: string}[] = [
+const PERMISSION_OPTIONS: {value: ToolPermissionSelection; label: string}[] = [
     {value: "allow", label: "Allow"},
     {value: "ask", label: "Ask"},
     {value: "deny", label: "Deny"},
+    {value: "inherit", label: "Inherit"},
 ]
 
 function isPermission(value: unknown): value is ToolPermission {
     return value === "allow" || value === "ask" || value === "deny"
 }
 
-/** Display default from the catalog's `read_only` metadata: true → allow, false → ask (unwritten). */
-function defaultPermissionFromReadOnly(
-    metadata: Record<string, unknown> | undefined,
-): ToolPermission | undefined {
-    const readOnly = metadata?.read_only
-    if (readOnly === true) return "allow"
-    if (readOnly === false) return "ask"
-    return undefined
-}
-
-/** Canonical store is the top-level `permission`; fall back to a legacy `agenta_metadata.permission_mode`. */
-function readPermission(
-    topLevel: unknown,
-    metadata: Record<string, unknown> | undefined,
-): ToolPermission | undefined {
-    if (isPermission(topLevel)) return topLevel
-    if (isPermission(metadata?.permission_mode)) return metadata?.permission_mode
-    return undefined
+function readPermission(topLevel: unknown): ToolPermission | undefined {
+    return isPermission(topLevel) ? topLevel : undefined
 }
 
 /** Tool basics — shown in the detail panel while no parameter node is selected. */
@@ -103,22 +88,11 @@ function ToolBasics({
         onChange({...tool, function: {...fn, parameters: {...params, additionalProperties: on}}})
     }
 
-    const metadata = tool.agenta_metadata as Record<string, unknown> | undefined
-    const permission = readPermission(tool.permission, metadata)
-    const permissionDefault = defaultPermissionFromReadOnly(metadata)
-    const setPermission = (next: ToolPermission | null) => {
+    const permission = readPermission(tool.permission)
+    const setPermission = (next: ToolPermissionSelection) => {
         const nextTool = {...tool}
-        // Also drop the legacy `agenta_metadata.permission_mode`; otherwise clearing the
-        // top-level field resolves straight back to the legacy value and "inherit policy"
-        // is unreachable for older tools.
-        const nextMetadata = {
-            ...((nextTool.agenta_metadata as Record<string, unknown> | undefined) ?? {}),
-        }
-        delete nextMetadata.permission_mode
-        if (Object.keys(nextMetadata).length > 0) nextTool.agenta_metadata = nextMetadata
-        else delete nextTool.agenta_metadata
-        if (next) nextTool.permission = next
-        else delete nextTool.permission
+        if (next === "inherit") delete nextTool.permission
+        else nextTool.permission = next
         onChange(nextTool)
     }
 
@@ -149,14 +123,10 @@ function ToolBasics({
                 </RailField>
 
                 <RailField label="Permission" align="center">
-                    <Select<ToolPermission>
-                        value={permission ?? undefined}
-                        onChange={(v) => setPermission(v ?? null)}
+                    <Select<ToolPermissionSelection>
+                        value={permission ?? "inherit"}
+                        onChange={setPermission}
                         options={PERMISSION_OPTIONS}
-                        placeholder={
-                            permissionDefault ? `${permissionDefault} (default)` : "Inherit policy"
-                        }
-                        allowClear
                         className="w-full"
                         disabled={disabled}
                     />
@@ -214,6 +184,91 @@ function ToolBasics({
     )
 }
 
+/** Normalize a catalog input schema into the object schema the form/runner expect (mirrors the
+ *  add drawer's normalizeParameters, so a resolved canonical tool matches a UI-added one). */
+function normalizeParameters(inputs: unknown): Record<string, unknown> {
+    if (!isRecord(inputs)) {
+        return {type: "object", properties: {}, required: [], additionalProperties: false}
+    }
+    const schema = {...(inputs as Record<string, unknown>)}
+    if (schema.type !== "object") schema.type = "object"
+    if (!isRecord(schema.properties)) schema.properties = {}
+    if (!Array.isArray(schema.required)) schema.required = []
+    if (typeof schema.additionalProperties !== "boolean") schema.additionalProperties = false
+    return schema
+}
+
+/**
+ * The canonical `{type:"gateway",…}` object persists no name/description/schema (the catalog is
+ * authoritative; the runner re-enriches at run time). To render its drill-in **pixel-identical** to
+ * a legacy UI-added gateway tool, we fetch the catalog detail and feed {@link FunctionToolForm} the
+ * exact legacy function shape the drawer would have written. Nothing is persisted unless the user
+ * edits. Fail-safe: an action/connection that can't be resolved falls back to today's raw-JSON view
+ * plus a warning (the drawer's JSON toggle stays the editable escape hatch).
+ */
+function CanonicalGatewayToolForm({
+    value,
+    view,
+    onChange,
+    disabled,
+}: {
+    value: Record<string, unknown>
+    view: ParsedGatewayTool
+    onChange: (next: Record<string, unknown>) => void
+    disabled?: boolean
+}) {
+    const {action, isLoading} = useToolActionDetail(view.integration, view.action)
+    const resolved = !isLoading && !!action
+    const legacyValue = useMemo(() => {
+        if (!resolved || !action) return null
+        const details = "schemas" in action ? (action as ToolCatalogActionDetails) : null
+        return {
+            type: "function",
+            function: {
+                name: buildGatewayToolSlug(
+                    view.provider,
+                    view.integration,
+                    view.action,
+                    view.connection,
+                ),
+                description: action.description || action.name || action.key || "",
+                parameters: normalizeParameters(details?.schemas?.inputs),
+            },
+            ...(view.permission ? {permission: view.permission} : {}),
+        } as Record<string, unknown>
+    }, [resolved, action, view])
+
+    if (isLoading) {
+        return (
+            <div className="flex min-h-0 flex-1 items-center justify-center py-8">
+                <Spin />
+            </div>
+        )
+    }
+    if (!legacyValue) {
+        // Fail-safe: the tool can't be resolved (renamed/removed action or connection). Show today's
+        // raw JSON plus a warning; the drawer's JSON toggle stays the editable view.
+        return (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+                <div className="flex items-start gap-2 rounded border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
+                    <WarningCircle
+                        size={14}
+                        className="mt-0.5 shrink-0 text-[var(--ag-colorWarning)]"
+                    />
+                    <span>
+                        Couldn&apos;t resolve this tool. The action or connection may have been
+                        renamed or removed. Use the JSON view to inspect the raw tool.
+                    </span>
+                </div>
+                <pre className="m-0 overflow-auto rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] p-2 font-mono text-[11px] text-[var(--ag-colorTextSecondary)]">
+                    {safeStringify(value)}
+                </pre>
+            </div>
+        )
+    }
+    return <FunctionToolForm value={legacyValue} onChange={onChange} disabled={disabled} />
+}
+
 export function ToolFormView({value, onChange, disabled}: ToolFormViewProps) {
     const tool = (value ?? {}) as Record<string, unknown>
     // A workflow-reference tool has no editable `function` — it gets its own detail view (exposed
@@ -221,6 +276,25 @@ export function ToolFormView({value, onChange, disabled}: ToolFormViewProps) {
     if (tool.type === "reference") {
         return <ReferenceToolFormView value={tool} onChange={onChange} disabled={disabled} />
     }
+    // A canonical gateway object carries no `function`, so it can't feed the form directly. Resolve it
+    // against the catalog and render it exactly like a legacy gateway tool. A legacy gateway tool is a
+    // function tool and flows through the normal form below UNCHANGED.
+    const gateway = parseGatewayTool(tool)
+    if (gateway?.encoding === "canonical") {
+        return (
+            <CanonicalGatewayToolForm
+                value={tool}
+                view={gateway}
+                onChange={onChange}
+                disabled={disabled}
+            />
+        )
+    }
+    return <FunctionToolForm value={tool} onChange={onChange} disabled={disabled} />
+}
+
+function FunctionToolForm({value, onChange, disabled}: ToolFormViewProps) {
+    const tool = (value ?? {}) as Record<string, unknown>
     const fn = (tool.function ?? {}) as Record<string, unknown>
     const parameters: Schema = isRecord(fn.parameters) ? (fn.parameters as Schema) : {}
 

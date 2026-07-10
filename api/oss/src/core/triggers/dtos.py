@@ -18,7 +18,6 @@ from oss.src.core.gateway.connections.dtos import (
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
-    Json,
     Lifecycle,
     Metadata,
     Reference,
@@ -101,8 +100,16 @@ class TriggerCatalogEventsPage(BaseModel):
     total: int = 0
 
 
+class TriggerCatalogEventsSnapshot(BaseModel):
+    """The full provider event catalog, cached for discovery; never crosses the API boundary."""
+
+    events: List[TriggerCatalogEventDetails] = []
+    # toolkit slug -> display name
+    integration_names: Dict[str, str] = {}
+
+
 # ---------------------------------------------------------------------------
-# Trigger discovery (find_triggers)
+# Trigger discovery (discover_triggers)
 # ---------------------------------------------------------------------------
 
 
@@ -192,7 +199,7 @@ class TriggerConnection(Connection):
 
 class TriggerConnectionCreate(ConnectionCreate):
     provider_key: TriggerProviderKind
-    data: Optional[Union[TriggerConnectionCreateData, Json]] = None
+    data: Optional[TriggerConnectionCreateData] = None
 
 
 # ---------------------------------------------------------------------------

@@ -142,17 +142,40 @@ def _wants_vercel_format(request: Request) -> bool:
     return request.headers.get("x-ag-messages-format", "").lower() == "vercel"
 
 
-def _parse_history_header(request: Request) -> Optional[bool]:
-    """Negotiation 3: the `x-ag-messages-history` header is HTTP sugar over the
-    canonical `flags.history` command. ``full`` -> True (whole message list),
-    ``last`` -> False (last message only). Absent/unrecognized -> None (unset, so
-    the body flag or the running-layer default decides). Mirrors `Accept`->`stream`.
+def _parse_transcript_header(request: Request) -> Optional[bool]:
+    """Negotiation 3: the `x-ag-messages-transcript` header is HTTP sugar over the
+    canonical `flags.trim` command. ``last`` -> True (trim to the trailing unit),
+    ``full`` -> False (full message list). Absent/unrecognized -> None (unset, so
+    the body flag or the handler-level default decides). Mirrors `Accept`->`stream`.
     """
-    value = request.headers.get("x-ag-messages-history", "").strip().lower()
-    if value == "full":
-        return True
+    value = request.headers.get("x-ag-messages-transcript", "").strip().lower()
     if value == "last":
+        return True
+    if value == "full":
         return False
+    return None
+
+
+def _parse_session_control_header(request: Request) -> Optional[bool]:
+    """New negotiation: the `x-ag-session-control` header is HTTP sugar over the
+    canonical `flags.force` command. ``force`` -> True (take over / attach to an
+    existing run). Absent/unrecognized -> None (unset -> False, no take-over).
+    """
+    value = request.headers.get("x-ag-session-control", "").strip().lower()
+    if value == "force":
+        return True
+    return None
+
+
+def _parse_workflow_embeds_header(request: Request) -> Optional[bool]:
+    """New negotiation: the `x-ag-workflow-embeds` header is HTTP sugar over the
+    middleware-owned `flags.resolve` command. ``resolve`` -> True. Absent/
+    unrecognized -> None (unset) — the ResolverMiddleware's own default (True)
+    decides, NOT this parser; do not default this to False.
+    """
+    value = request.headers.get("x-ag-workflow-embeds", "").strip().lower()
+    if value == "resolve":
+        return True
     return None
 
 
@@ -161,6 +184,55 @@ def _stream_wire_format(media_type: str) -> str:
     if media_type == "text/event-stream":
         return "sse"
     return "ndjson"  # application/x-ndjson, application/jsonl
+
+
+def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
+    """Shared endpoint prelude for both invoke surfaces (route mounts + root dispatch):
+    header->flag fills (body wins), session_id extraction, vercel input projection.
+    Mutates `request` in place.
+    """
+    _accept = _parse_accept(req)
+    _flags = dict(request.flags or {})
+    if "stream" not in _flags:
+        _flags["stream"] = _accept in STREAM_MEDIA_TYPES
+    if "trim" not in _flags:
+        _trim = _parse_transcript_header(req)
+        if _trim is not None:
+            _flags["trim"] = _trim
+    if "force" not in _flags:
+        _force = _parse_session_control_header(req)
+        if _force is not None:
+            _flags["force"] = _force
+    if "resolve" not in _flags:
+        _resolve = _parse_workflow_embeds_header(req)
+        if _resolve is not None:
+            _flags["resolve"] = _resolve
+    request.flags = _flags
+
+    if request.session_id is None:
+        _otel = getattr(req.state, "otel", None) or {}
+        _bag = _otel.get("baggage") or {}
+        _bag_sid = _bag.get("ag.session.id") or baggage_value(
+            req.headers.get("baggage"), "ag.session.id"
+        )
+        request.session_id = req.headers.get("x-ag-session-id") or _bag_sid
+
+    if _wants_vercel_format(req) and request.data and request.data.inputs:
+        _msgs = request.data.inputs.get("messages")
+        if _msgs:
+            _last = _msgs[-1] if isinstance(_msgs, list) else None
+            # AI SDK resumes into a clone keyed by the trailing assistant message id.
+            if isinstance(_last, dict):
+                _last_role = _last.get("role")
+                _last_id = _last.get("id")
+                if _last_role == "assistant" and isinstance(_last_id, str) and _last_id:
+                    req.state.ag_continuation_message_id = _last_id
+            request.data.inputs = {
+                **request.data.inputs,
+                "messages": [
+                    m.to_wire() for m in vercel_messages_to_agenta_messages(_msgs)
+                ],
+            }
 
 
 def _get_request_tracing_context(req: Request) -> TracingContext:
@@ -239,6 +311,7 @@ def _make_json_response(
 
 def _make_vercel_json_response(
     response: WorkflowBatchResponse,
+    message_id: Optional[str] = None,
 ) -> JSONResponse:
     """Batch counterpart of the stream vercel projection (negotiation 2, batch direction).
 
@@ -255,6 +328,11 @@ def _make_vercel_json_response(
         ui_messages = agenta_messages_to_vercel_messages(
             [m for m in coerced if m is not None]
         )
+        if message_id:
+            for ui_message in reversed(ui_messages):
+                if ui_message.get("role") == "assistant":
+                    ui_message["id"] = message_id
+                    break
         projected = response.model_copy(deep=True)
         projected.data = WorkflowServiceResponseData(
             outputs={**outputs, "messages": ui_messages}
@@ -268,6 +346,7 @@ def _make_vercel_json_response(
 def _make_stream_response(
     response: WorkflowStreamingResponse,
     wire_format: str,
+    message_id: Optional[str] = None,
 ) -> StreamingResponse:
     aiter = response.iterator()
 
@@ -284,6 +363,7 @@ def _make_stream_response(
         parts = agent_stream_to_vercel_stream(
             aiter,
             session_id=response.session_id,
+            message_id=message_id,
             trace_id=response.trace_id,
         )
         res = StreamingResponse(
@@ -344,6 +424,7 @@ async def handle_invoke_success(
     is_stream = isinstance(response, WorkflowStreamingResponse)
 
     requested = _parse_accept(req)
+    continuation_message_id = getattr(req.state, "ag_continuation_message_id", None)
 
     # An errored handler always yields a batch error response, even when the caller
     # asked for a stream. Surface it as JSON (the real status) instead of 406ing on
@@ -363,7 +444,9 @@ async def handle_invoke_success(
     if requested is None:
         if is_batch:
             if _wants_vercel_format(req):
-                return _make_vercel_json_response(response)
+                return _make_vercel_json_response(
+                    response, message_id=continuation_message_id
+                )
             return _make_json_response(response)
         return _make_stream_response(response, "ndjson")
 
@@ -371,7 +454,9 @@ async def handle_invoke_success(
     if requested in BATCH_MEDIA_TYPES:
         if is_batch:
             if _wants_vercel_format(req):
-                return _make_vercel_json_response(response)
+                return _make_vercel_json_response(
+                    response, message_id=continuation_message_id
+                )
             return _make_json_response(response)
         return _make_not_acceptable_response(requested, response)
 
@@ -381,7 +466,9 @@ async def handle_invoke_success(
             # Negotiation 2: `x-ag-messages-format: vercel` selects the Vercel UI
             # message stream projection (SSE-framed), independently of `Accept`.
             if requested == "text/event-stream" and _wants_vercel_format(req):
-                res = _make_stream_response(response, "vercel")
+                res = _make_stream_response(
+                    response, "vercel", message_id=continuation_message_id
+                )
                 return set_vercel_message_protocol_headers(res)
             return _make_stream_response(response, _stream_wire_format(requested))
         return _make_not_acceptable_response(requested, response)
@@ -542,47 +629,7 @@ class route:
         async def invoke_endpoint(req: Request, request: WorkflowInvokeRequest):
             credentials = req.state.auth.get("credentials")
 
-            # HTTP headers are sugar over the canonical per-call `flags`. An explicit
-            # body flag always wins; the header only fills an unset flag.
-            #   - `Accept` -> `flags.stream` (negotiation 1): a batch (json / no stream
-            #     type) Accept means stream=False, so the normalizer aggregates a
-            #     streaming handler into a batch instead of the route 406ing it.
-            #   - `x-ag-messages-history` -> `flags.history` (negotiation 3): full vs last.
-            _accept = _parse_accept(req)
-            _flags = dict(request.flags or {})
-            if "stream" not in _flags:
-                _flags["stream"] = _accept in STREAM_MEDIA_TYPES
-            if "history" not in _flags:
-                _history = _parse_history_header(req)
-                if _history is not None:
-                    _flags["history"] = _history
-            request.flags = _flags
-
-            # session_id: accept the body field OR the `x-ag-session-id` header OR
-            # baggage `ag.session.id` (there is no W3C standard like traceparent for
-            # it). Normalize all to request.session_id; precedence:
-            # body > x-ag header > baggage.
-            if request.session_id is None:
-                _otel = getattr(req.state, "otel", None) or {}
-                _bag = _otel.get("baggage") or {}
-                _bag_sid = _bag.get("ag.session.id") or baggage_value(
-                    req.headers.get("baggage"), "ag.session.id"
-                )
-                request.session_id = req.headers.get("x-ag-session-id") or _bag_sid
-
-            # Negotiation 2 (input): when the caller speaks vercel, convert the
-            # inbound UIMessage[] in data.inputs.messages to canonical agenta
-            # messages before the handler runs. In code, messages are always agenta.
-            if _wants_vercel_format(req) and request.data and request.data.inputs:
-                _msgs = request.data.inputs.get("messages")
-                if _msgs:
-                    request.data.inputs = {
-                        **request.data.inputs,
-                        "messages": [
-                            m.to_wire()
-                            for m in vercel_messages_to_agenta_messages(_msgs)
-                        ],
-                    }
+            apply_invoke_prelude(req, request)
 
             try:
                 with tracing_context_manager(_get_request_tracing_context(req)):

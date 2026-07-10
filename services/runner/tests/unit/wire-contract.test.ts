@@ -51,7 +51,7 @@ const KNOWN_REQUEST_KEYS = [
   "customTools",
   "mcpServers",
   "toolCallback",
-  "permissionPolicy",
+  "permissions",
   "systemPrompt",
   "appendSystemPrompt",
   "skills",
@@ -96,10 +96,15 @@ describe("wire contract: requests (vs Python golden)", () => {
       tool.callRef && tool.callRef.length > 0,
       "callback tool carries its callRef",
     );
+    assert.deepEqual(tool.contextBindings, {
+      "target.workflow_variant_id": "$ctx.workflow.variant.id",
+    });
+    assert.equal(tool.timeoutMs, 120000);
     // The Composio read-only hint reaches the runner as `readOnly`.
     assert.equal(tool.readOnly, true);
-    // The Layer-3 permission (derived `allow` from read-only) reaches the runner.
-    assert.equal(tool.permission, "allow");
+    // No explicit author permission is derived onto the tool spec; the plan decides it.
+    assert.equal(tool.permission, undefined);
+    assert.deepEqual(req.permissions, { default: "allow_reads" });
     // The direct-call tool (direct-call tools, Phase 1) reaches the runner carrying its `call`
     // descriptor and NO `callRef` (the `call` XOR `callRef` rule). Plumbing only here: the runner
     // forwards it opaquely; no dispatch branch reads it yet.
@@ -116,6 +121,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     // snake_case inner keys (the `$ctx.<key>` binding namespace) and the workflow grouped into the
     // platform's artifact / variant / revision entities. The runner fills a tool's `call.context`
     // from this blob at dispatch (see tools/direct.ts `assembleBody`); the model never reads it.
+    assert.equal(req.runContext!.run!.kind, "test");
     assert.equal(req.runContext!.workflow!.variant!.id, "var_abc");
     assert.equal(req.runContext!.workflow!.variant!.slug, "weather-agent");
     assert.equal(req.runContext!.workflow!.revision!.id, "rev_abc123");
@@ -174,10 +180,17 @@ describe("wire contract: requests (vs Python golden)", () => {
     const req = loadGolden("run_request.claude.json") as AgentRunRequest;
     assert.equal(req.harness, "claude");
     assert.deepEqual(req.tools, []); // Claude has no Pi built-ins
-    assert.equal(req.permissionPolicy, "deny"); // Claude gates tool use
+    assert.deepEqual(req.permissions, {
+      default: "deny",
+      rules: [
+        { pattern: "WebFetch", permission: "deny" },
+        { pattern: "Read", permission: "allow" },
+        { pattern: "Bash(npm run:*)", permission: "allow" },
+      ],
+    });
     assert.equal(req.systemPrompt, undefined); // Claude exposes no prompt overrides
     assert.equal(req.appendSystemPrompt, undefined);
-    assert.equal(req.runContext, undefined); // no run context threaded on this config
+    assert.equal(req.runContext!.run!.kind, "test");
     assert.equal(req.sandboxPermission, undefined); // no boundary declared on this config
     // The Claude harness's permission knobs are translated to a rendered file in Python: the
     // wire carries a generic `harnessFiles` entry the runner writes blind into the cwd.
@@ -188,15 +201,11 @@ describe("wire contract: requests (vs Python golden)", () => {
       permissions: Record<string, unknown>;
     };
     assert.equal(settings.permissions.defaultMode, "acceptEdits");
-    // The allow list also carries the per-resolved-tool rule for the internal `agenta-tools` MCP
-    // server (F-046): the golden's `get_user` is a read-only callback tool -> effective `allow` ->
-    // `mcp__agenta-tools__get_user`, so Claude runs it instead of parking on its own permission gate.
-    assert.deepEqual(settings.permissions.allow, [
-      "Read",
-      "Bash(npm run:*)",
+    assert.deepEqual(settings.permissions.allow, ["Read", "Bash(npm run:*)"]);
+    assert.deepEqual(settings.permissions.deny, [
+      "WebFetch",
       "mcp__agenta-tools__get_user",
     ]);
-    assert.deepEqual(settings.permissions.deny, ["WebFetch"]);
     // Claude carries resolved inline skills on the same `skills` seam Pi uses; the runner
     // installs them into Claude's project-local `.claude/skills/<name>` tree. This regressed
     // twice via merge-loss, so the cross-language golden pins it for Claude, not just Pi.

@@ -3,11 +3,54 @@
  * tool/MCP/skill row, and the richer instructions-file row. All are dumb — they render an
  * {@link ItemDescriptor} and call back on open/remove; the section owners hold the state.
  */
+import {type ReactNode} from "react"
+
 import {cn} from "@agenta/ui/styles"
 import {CaretRight, Trash} from "@phosphor-icons/react"
-import {Tag, Typography} from "antd"
+import {Tag, Tooltip, Typography} from "antd"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
+
+/**
+ * Draft/validation status for a config-item row: tints the row border and shows a tag.
+ * `"new"`/`"edited"` mark uncommitted changes; `"invalid"`/`"incomplete"` mark a blocking gap.
+ */
+export type ItemRowStatusTone = "new" | "edited" | "invalid" | "incomplete"
+export interface ItemRowStatus {
+    tone: ItemRowStatusTone
+    label: string
+    tooltip?: ReactNode
+}
+
+const STATUS_BORDER: Record<ItemRowStatusTone, string> = {
+    new: "var(--ag-colorSuccessBorder)",
+    edited: "var(--ag-colorInfoBorder)",
+    invalid: "var(--ag-colorErrorBorder)",
+    incomplete: "var(--ag-colorWarningBorder)",
+}
+const STATUS_TAG_COLOR: Record<ItemRowStatusTone, string> = {
+    new: "green",
+    edited: "blue",
+    invalid: "red",
+    incomplete: "gold",
+}
+// Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
+const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
+    new: "var(--ag-colorSuccess)",
+    edited: "var(--ag-colorInfo)",
+    invalid: "var(--ag-colorError)",
+    incomplete: "var(--ag-colorWarning)",
+}
+
+function StatusTag({status}: {status: ItemRowStatus}) {
+    return (
+        <Tooltip title={status.tooltip}>
+            <Tag color={STATUS_TAG_COLOR[status.tone]} className="m-0 text-[11px]">
+                {status.label}
+            </Tag>
+        </Tooltip>
+    )
+}
 
 /** Colored avatar square (icon or monogram) at the start of a config-item row. */
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
@@ -35,12 +78,14 @@ export function ItemRow({
     onRemove,
     disabled,
     locked,
+    status,
 }: {
     descriptor: ItemDescriptor
     onEdit?: () => void
     onRemove?: () => void
     disabled?: boolean
     locked?: boolean
+    status?: ItemRowStatus
 }) {
     const interactive = Boolean(onEdit) && !locked
     return (
@@ -58,9 +103,13 @@ export function ItemRow({
                       }
                     : undefined
             }
+            style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
                 "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors",
-                interactive && "cursor-pointer hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                interactive &&
+                    !status &&
+                    "cursor-pointer hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+                interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
         >
@@ -83,6 +132,7 @@ export function ItemRow({
                 ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
+                {status ? <StatusTag status={status} /> : null}
                 {descriptor.tags.map((tag) => (
                     <Tag key={tag} className="m-0 text-[11px]">
                         {tag}
@@ -121,11 +171,13 @@ export function ItemChildRow({
     onEdit,
     onRemove,
     disabled,
+    status,
 }: {
     descriptor: ItemDescriptor
     onEdit: () => void
     onRemove?: () => void
     disabled?: boolean
+    status?: ItemRowStatus
 }) {
     return (
         <div
@@ -139,6 +191,7 @@ export function ItemChildRow({
                     onEdit()
                 }
             }}
+            style={status ? {boxShadow: `inset 2px 0 0 ${STATUS_ACCENT[status.tone]}`} : undefined}
             className="group flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
         >
             <div className="min-w-0 flex-1">
@@ -163,6 +216,7 @@ export function ItemChildRow({
                 onClick={(e) => e.stopPropagation()}
                 role="presentation"
             >
+                {status ? <StatusTag status={status} /> : null}
                 {onRemove && !disabled ? (
                     <button
                         type="button"
@@ -191,10 +245,12 @@ export function InstructionsFileRow({
     filename,
     content,
     onOpen,
+    status,
 }: {
     filename: string
     content: string
     onOpen: () => void
+    status?: ItemRowStatus
 }) {
     const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
@@ -213,7 +269,11 @@ export function InstructionsFileRow({
                     onOpen()
                 }
             }}
-            className="group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2.5 transition-colors hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+            style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            className={cn(
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2.5 transition-colors",
+                !status && "hover:border-[var(--ag-c-97A4B0,#97a4b0)]",
+            )}
         >
             <ItemAvatar descriptor={descriptor} />
             <div className="min-w-0 flex-1">
@@ -226,6 +286,7 @@ export function InstructionsFileRow({
                     <Typography.Text type="secondary" className="shrink-0 text-[11px]">
                         {meta}
                     </Typography.Text>
+                    {status ? <StatusTag status={status} /> : null}
                 </div>
                 {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
                     clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}

@@ -18,6 +18,8 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchHarnessCapabilities} from "../api"
 
+import {persistedCatalogSeed, writePersistedCatalog} from "./persistedCatalog"
+
 /** One harness's connection-relevant capabilities, as served by the `harnesses` catalog. */
 export interface HarnessCapabilities {
     /** Provider families the harness can reach (a literal list; never `"*"`). */
@@ -36,15 +38,34 @@ export interface HarnessCapabilities {
 export type HarnessCapabilitiesMap = Record<string, HarnessCapabilities>
 
 /**
- * The harness catalog, fetched once and cached. Global and project-independent (the catalog is
- * static), so it is not keyed by anything.
+ * The harness catalog. Global and project-independent (the catalog is static), so it is not keyed
+ * by anything.
+ *
+ * Persisted to localStorage (`persistedCatalogSeed`) so an agent-playground reload has the harness
+ * capabilities available for first paint (model picker + collapsed "Unavailable"/"Connect key"
+ * badges) without a blocking fetch, then revalidates once in the background. NOT `staleTime:
+ * Infinity` — harness capabilities are still evolving, so the disk seed is treated as stale-on-reload.
  */
-export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>(() => ({
-    queryKey: ["workflows", "catalog", "harnesses"],
-    queryFn: async () => (await fetchHarnessCapabilities()) as unknown as HarnessCapabilitiesMap,
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-}))
+const HARNESS_CATALOG_CACHE_KEY = "harness-catalog"
+export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>(() => {
+    const seed = persistedCatalogSeed<HarnessCapabilitiesMap>(HARNESS_CATALOG_CACHE_KEY)
+    // Disk seed present → the model picker / badges already painted, so this fetch is a background
+    // revalidation; demote it to low priority so it yields to the critical-path queries.
+    const lowPriority = seed.initialData !== undefined
+    return {
+        queryKey: ["workflows", "catalog", "harnesses"],
+        queryFn: async () => {
+            const catalog = (await fetchHarnessCapabilities({
+                lowPriority,
+            })) as unknown as HarnessCapabilitiesMap
+            writePersistedCatalog(HARNESS_CATALOG_CACHE_KEY, catalog)
+            return catalog
+        },
+        ...seed,
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+    }
+})
 
 /**
  * The per-harness capability map from the `harnesses` catalog. `null` until the catalog resolves.

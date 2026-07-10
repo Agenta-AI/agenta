@@ -146,6 +146,7 @@ export interface WorkflowQueryFlags {
     // User-defined role
     is_application?: boolean
     is_evaluator?: boolean
+    is_agent?: boolean
     is_snippet?: boolean
 }
 
@@ -275,8 +276,16 @@ export const workflowSchema = z
         // Slug
         slug: z.string().nullable().optional(),
 
-        // Version (present on revisions — backend returns as string, coerce to number)
-        version: z.coerce.number().nullable().optional(),
+        // Version (present on revisions). DB revisions carry a numeric version (3 or "3"); the
+        // static catalog serves reserved __ag__* workflows as "vN" (e.g. "v1"). Strip the "v"
+        // prefix, then coerce — degrading a still-non-numeric value to null instead of failing the
+        // whole revision parse (a bad version tag must not blank the config).
+        version: z.preprocess((v) => {
+            if (v === null || v === undefined) return v
+            const raw = typeof v === "string" && /^v\d+$/i.test(v) ? v.slice(1) : v
+            const n = Number(raw)
+            return Number.isFinite(n) ? n : null
+        }, z.number().nullable().optional()),
 
         // Header
         name: z.string().nullable().optional(),

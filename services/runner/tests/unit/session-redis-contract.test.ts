@@ -33,7 +33,7 @@ import {
   DISPLACEMENT_REASON_STOLEN,
   makeDisplacementPayload,
   RELEASE_IF_OWNER_LUA,
-  CONCURRENCY_CAP,
+  CONCURRENCY_LIMIT,
   SESSION_ID_MAX_LEN,
   validateSessionId,
 } from "../../src/sessions/contract.ts";
@@ -62,7 +62,7 @@ interface RedisContractFixture {
     by: string;
   };
   release_if_owner_lua: string;
-  concurrency_cap: number;
+  concurrency_limit: number;
   session_id_max_len: number;
   session_id_pattern: string;
 }
@@ -139,9 +139,9 @@ describe("session Redis contract: Lua script", () => {
   });
 });
 
-describe("session Redis contract: caps and validation", () => {
-  it("concurrency cap matches golden", () => {
-    assert.equal(CONCURRENCY_CAP, fixture.concurrency_cap);
+describe("session Redis contract: limits and validation", () => {
+  it("concurrency limit matches golden", () => {
+    assert.equal(CONCURRENCY_LIMIT, fixture.concurrency_limit);
   });
   it("session id max length matches golden", () => {
     assert.equal(SESSION_ID_MAX_LEN, fixture.session_id_max_len);

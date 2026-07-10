@@ -43,10 +43,9 @@ class EnvironmentToolSecretProvider:
 
 
 def _apply_tool_metadata(tool_spec: ToolSpec, tool_config: ToolConfig) -> ToolSpec:
-    """Return a new spec carrying the config's approval and rendering metadata."""
+    """Return a new spec carrying the config's rendering and explicit permission metadata."""
     return tool_spec.model_copy(
         update={
-            "needs_approval": tool_config.needs_approval,
             "render": tool_config.render,
             "permission": tool_config.permission,
         }

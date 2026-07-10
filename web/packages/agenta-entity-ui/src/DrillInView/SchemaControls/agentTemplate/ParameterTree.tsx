@@ -302,7 +302,7 @@ export function ParameterTree({
     const isEmpty = Object.keys(rootProps).length === 0
 
     return (
-        <div className="flex w-[240px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+        <div className="ag-drawer-rail flex w-[240px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
             {/* Pinned meta row — always reachable so property editing never traps you. */}
             <div className="shrink-0 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-2 pb-2 pt-3">
                 <button

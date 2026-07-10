@@ -15,11 +15,18 @@
  *
  * The same loop supports local filesystem relays and Daytona sandbox filesystem relays.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 
 import { callAgentaTool } from "./callback.ts";
 import { runCodeTool } from "./code.ts";
 import {
+  applyContextBindings,
   assembleBody,
   callDirect,
   deepDelete,
@@ -31,7 +38,15 @@ import type {
   RunContext,
   ToolCallbackContext,
 } from "../protocol.ts";
-import type { ClientToolOutcome, PermissionPolicy } from "../responder.ts";
+import type { ClientToolRelay } from "./client-tool-relay.ts";
+import { assertRequiredArguments } from "./spec-schema.ts";
+
+// Compatibility re-export: the type moved to `client-tool-relay.ts` (a pure type module);
+// importers that still reach it through this module keep working while they migrate.
+export type {
+  ClientToolRelay,
+  ClientToolRelayRequest,
+} from "./client-tool-relay.ts";
 
 export const RELAY_REQ_SUFFIX = ".req.json";
 export const RELAY_RES_SUFFIX = ".res.json";
@@ -41,86 +56,112 @@ export const RELAY_POLL_MS = Number(
 export const RELAY_TIMEOUT_MS = Number(
   process.env.AGENTA_AGENT_TOOLS_RELAY_TIMEOUT ?? 60000,
 );
+/**
+ * Idle-backoff cap for the runner relay poll. The loop polls `host.list(relayDir)` every
+ * `RELAY_POLL_MS` (300 ms) for the whole turn — on Daytona that `list` is a remote `ls` exec
+ * (~3×/s), now also for client-only runs that wait on a browser-fulfilled pause and produce no
+ * other tool traffic. After `RELAY_POLL_IDLE_GROW_AFTER` consecutive idle polls the delay grows
+ * geometrically up to this cap, so a quiet turn settles to ~1.5 s polls; the moment a request
+ * file appears the delay resets to `RELAY_POLL_MS`, so a real tool call is still picked up
+ * promptly.
+ */
+export const RELAY_POLL_MAX_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_POLLING_MAX ?? 1500,
+);
+export const RELAY_POLL_IDLE_GROW_AFTER = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_IDLE_GROW_AFTER ?? 5,
+);
 
-export interface RelayRequest {
+/** The next poll delay given the count of consecutive idle polls (no new request seen). */
+export function relayPollDelayMs(idlePolls: number): number {
+  if (idlePolls < RELAY_POLL_IDLE_GROW_AFTER) return RELAY_POLL_MS;
+  const factor = 2 ** (idlePolls - RELAY_POLL_IDLE_GROW_AFTER + 1);
+  return Math.min(RELAY_POLL_MS * factor, RELAY_POLL_MAX_MS);
+}
+
+export interface ExecuteRelayRequest {
+  kind?: "execute";
   toolName: string;
   toolCallId: string;
   args: unknown;
 }
-export interface RelayResponse {
+export type RelayRequest = ExecuteRelayRequest;
+
+export interface ExecuteRelayResponse {
+  kind?: "execute";
   ok: boolean;
   text?: string;
   error?: string;
 }
-export interface ClientToolRelayRequest {
-  id: string;
-  toolCallId: string;
-  toolName: string;
-  input: unknown;
-  spec: ResolvedToolSpec;
-}
-export interface ClientToolRelay {
-  onClientTool: (request: ClientToolRelayRequest) => Promise<ClientToolOutcome>;
-  onPark?: (request: ClientToolRelayRequest) => void;
-}
-const CLIENT_TOOL_PARKED = Symbol("client-tool-parked");
+export type RelayResponse = ExecuteRelayResponse;
+const PAUSED = Symbol("paused");
 
-function objectSchema(schema: unknown): Record<string, unknown> | undefined {
-  return schema && typeof schema === "object" && !Array.isArray(schema)
-    ? (schema as Record<string, unknown>)
-    : undefined;
-}
+/**
+ * Runner-side authorization for one relay execute record. The relay dir is sandbox-writable,
+ * so a record can be forged without ever passing the in-sandbox approval dialog; this re-check
+ * is the runner-side enforcement the dialog cannot provide. The deny reason becomes the tool's
+ * result text, so the model loop continues (same shape as a dialog deny).
+ */
+export type RelayExecutionGuard = (
+  spec: ResolvedToolSpec,
+  req: ExecuteRelayRequest,
+) => { allow: true } | { allow: false; reason: string };
 
-function requiredFields(schema: unknown): string[] {
-  const object = objectSchema(schema);
-  const required = object?.required;
-  return Array.isArray(required)
-    ? required.filter((field): field is string => typeof field === "string")
-    : [];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
-  return (
-    spec.inputSchema ??
-    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
-      .input_schema
-  );
-}
-
-function missingRequiredFields(
-  schema: unknown,
-  value: unknown,
-  path: string[] = [],
-): string[] {
-  const object = objectSchema(schema);
-  if (!object) return [];
-
-  const missing: string[] = [];
-  const required = requiredFields(object);
-  const record = objectSchema(value);
-  for (const field of required) {
-    if (!record || record[field] === undefined || record[field] === null) {
-      missing.push([...path, field].join("."));
-    }
+function cloneJsonish(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => cloneJsonish(item));
+  if (!isRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = cloneJsonish(item);
   }
-
-  const properties = objectSchema(object.properties);
-  if (!properties || !record) return missing;
-  for (const [field, childSchema] of Object.entries(properties)) {
-    if (record[field] !== undefined && record[field] !== null) {
-      missing.push(...missingRequiredFields(childSchema, record[field], [...path, field]));
-    }
-  }
-  return missing;
+  return out;
 }
 
-function assertRequiredArguments(spec: ResolvedToolSpec, params: unknown): void {
-  const missing = missingRequiredFields(specInputSchema(spec), params);
-  if (missing.length === 0) return;
-  throw new Error(
-    `Tool '${spec.name}' missing required argument(s): ${missing.join(", ")}. ` +
-      "Retry the tool call with those argument fields populated.",
-  );
+function pruneEmptyAncestors(
+  target: Record<string, unknown>,
+  path: string,
+): void {
+  const parts = path.split(".");
+  const ancestors: Array<{ owner: Record<string, unknown>; key: string }> = [];
+  let cursor = target;
+  for (const part of parts.slice(0, -1)) {
+    const next = cursor[part];
+    if (!isRecord(next)) return;
+    ancestors.push({ owner: cursor, key: part });
+    cursor = next;
+  }
+  for (const { owner, key } of ancestors.reverse()) {
+    const value = owner[key];
+    if (!isRecord(value) || Object.keys(value).length > 0) return;
+    delete owner[key];
+  }
+}
+
+/**
+ * Strip context-bound argument paths from a tool call's args. Bound paths are overwritten from
+ * runContext at execution, so approval display and stored-decision keys must not include the
+ * model's values for them: a card would show a value that never executes, and a decision keyed
+ * on it would not match the same call re-keyed after redaction. Empty ancestor objects left by
+ * a deleted path are pruned so the redacted shape is canonical.
+ */
+export function redactContextBoundArgs(
+  args: unknown,
+  contextBindings: Record<string, string> | undefined,
+): unknown {
+  if (!contextBindings || Object.keys(contextBindings).length === 0)
+    return args;
+  if (!isRecord(args)) return args;
+  const redacted = cloneJsonish(args);
+  if (!isRecord(redacted)) return redacted;
+  for (const path of Object.keys(contextBindings)) {
+    deepDelete(redacted, path);
+    pruneEmptyAncestors(redacted, path);
+  }
+  return redacted;
 }
 
 /** Make a tool-call id safe to use as a filename (and bounded). */
@@ -128,28 +169,8 @@ export function sanitizeRelayId(id: string): string {
   return id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120) || "tool";
 }
 
-export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-/**
- * Layer 3 enforcement (S3b): resolve a resolved-tool spec's `permission` to a concrete
- * runner-side decision. `allow` runs, `deny` never runs; `ask` and an UNSET permission
- * degrade to the run's headless `permissionPolicy` (`auto` -> allow, `deny` -> deny).
- *
- * Resolved tools (code / gateway-callback) run runner-side via the relay, harness-agnostic, so
- * this is where their permission is enforced (Claude builtins are enforced at Layer 1 via
- * .claude/settings.json instead). Surfacing an `ask` to a live human is the cross-turn HITL
- * path (S5); here `ask` is a headless run, so it collapses onto the policy.
- */
-export function resolvePermission(
-  permission: string | undefined,
-  policy: PermissionPolicy,
-): "allow" | "deny" {
-  if (permission === "allow") return "allow";
-  if (permission === "deny") return "deny";
-  // `ask` or unset: headless, so defer to the run policy.
-  // TODO(S5): surface ask to HITL instead of collapsing onto permissionPolicy.
-  return policy === "deny" ? "deny" : "allow";
-}
+export const sleep = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms));
 
 export interface RelayHost {
   list: (dir: string) => Promise<string[]>;
@@ -188,7 +209,9 @@ export function sandboxRelayHost(sandbox: any): RelayHost {
     },
     read: async (path) => {
       const bytes = await sandbox.readFsFile({ path });
-      return typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+      return typeof bytes === "string"
+        ? bytes
+        : new TextDecoder().decode(bytes);
     },
     write: async (path, contents) => {
       await sandbox.writeFsFile({ path }, contents);
@@ -196,18 +219,24 @@ export function sandboxRelayHost(sandbox: any): RelayHost {
   };
 }
 
+// The relay carries EXECUTION only. Permission gates never ride these files: Claude raises its
+// own ACP gates before a call reaches the relay, and a Pi gate rides the extension's
+// `ctx.ui.confirm` dialog onto the ACP permission plane (Pi approval parking), decided and
+// parked by the runner's permission responder before the extension writes an execute request.
 async function executeRelayedTool(
   spec: ResolvedToolSpec,
-  req: RelayRequest,
+  req: ExecuteRelayRequest,
   callback: ToolCallbackContext | undefined,
-  policy: PermissionPolicy,
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
-): Promise<string | typeof CLIENT_TOOL_PARKED> {
-  assertRequiredArguments(spec, req.args);
+  guard: RelayExecutionGuard | undefined,
+): Promise<string | typeof PAUSED> {
   if (spec.kind === "client") {
+    assertRequiredArguments(spec, req.args);
     if (!clientToolRelay) {
-      throw new Error(`client tool '${spec.name}' is browser-fulfilled and cannot be executed`);
+      throw new Error(
+        `client tool '${spec.name}' is browser-fulfilled and cannot be executed`,
+      );
     }
     const toolCallId = req.toolCallId;
     const request = {
@@ -218,26 +247,34 @@ async function executeRelayedTool(
       spec,
     };
     const decision = await clientToolRelay.onClientTool(request);
-    if (decision === "park") {
-      clientToolRelay.onPark?.(request);
-      return CLIENT_TOOL_PARKED;
+    if (decision === "pendingApproval") {
+      clientToolRelay.onPause?.(request);
+      return PAUSED;
     }
     if (decision === "deny") {
       return `Client tool '${spec.name}' was denied.`;
     }
     return JSON.stringify(decision.output ?? {});
   }
-  // Layer 3 enforcement (S3b): gate the call on the spec's permission before it runs.
-  // `deny` returns a refusal string (not a throw) so the harness folds it into the tool
-  // result and the model loop continues. `ask`/unset degrade to the headless policy.
-  const decision = resolvePermission(spec.permission, policy);
-  if (decision === "deny") {
-    if (spec.permission === "deny") {
-      return `Tool '${spec.name}' is denied by policy.`;
-    }
-    // ask/unset that the headless policy refused. TODO(S5): surface ask to HITL.
-    return `Tool '${spec.name}' requires approval; denied in headless mode.`;
+
+  // Client tools keep their own browser-fulfilled pause semantics above; everything else is
+  // re-checked here because the request file is sandbox-writable and proves nothing about the
+  // dialog gate having run.
+  if (guard) {
+    const verdict = guard(spec, req);
+    if (!verdict.allow) return verdict.reason;
   }
+
+  return executeAllowedRelayedTool(spec, req, callback, runContext);
+}
+
+async function executeAllowedRelayedTool(
+  spec: ResolvedToolSpec,
+  req: ExecuteRelayRequest,
+  callback: ToolCallbackContext | undefined,
+  runContext: RunContext | undefined,
+): Promise<string> {
+  assertRequiredArguments(spec, req.args);
   if (spec.kind === "code") {
     return runCodeTool(spec.runtime, spec.code ?? "", spec.env, req.args);
   }
@@ -258,15 +295,21 @@ async function executeRelayedTool(
     for (const name of pathParamNames(spec.call.path)) {
       deepDelete(body, name);
     }
-    return callDirect(spec.call.method, url, callback.authorization, body);
+    return callDirect(spec.call.method, url, callback.authorization, body, {
+      runKind: runContext?.run?.kind,
+    });
   }
   // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
+  const args = spec.contextBindings
+    ? applyContextBindings(req.args, spec.contextBindings, runContext)
+    : req.args;
   return callAgentaTool(
     callback.endpoint,
     callback.authorization,
     spec.callRef ?? "",
     req.toolCallId,
-    req.args,
+    args,
+    { timeoutMs: spec.timeoutMs, runKind: runContext?.run?.kind },
   );
 }
 
@@ -281,9 +324,9 @@ export function startToolRelay(
   relayDir: string,
   specs: ResolvedToolSpec[],
   callback: ToolCallbackContext | undefined,
-  policy: PermissionPolicy,
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
+  guard?: RelayExecutionGuard,
 ): { stop: () => Promise<void> } {
   let active = true;
   const seen = new Set<string>();
@@ -302,35 +345,48 @@ export function startToolRelay(
         spec,
         { ...req, toolCallId: req.toolCallId ?? id },
         callback,
-        policy,
         runContext,
         clientToolRelay,
+        guard,
       );
-      if (text === CLIENT_TOOL_PARKED) return;
+      if (text === PAUSED) return;
       res = { ok: true, text };
     } catch (err) {
-      res = { ok: false, error: err instanceof Error ? err.message : String(err) };
+      res = {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
     try {
-      await host.write(`${relayDir}/${id}${RELAY_RES_SUFFIX}`, JSON.stringify(res));
+      await host.write(
+        `${relayDir}/${id}${RELAY_RES_SUFFIX}`,
+        JSON.stringify(res),
+      );
     } catch {
       // The extension will time out and surface a tool error; nothing else to do here.
     }
   };
 
   const loop = (async () => {
+    // Idle-poll backoff: a quiet turn (e.g. waiting on a browser-fulfilled client-tool pause)
+    // grows the delay up to RELAY_POLL_MAX_MS instead of polling at 300 ms forever; any new
+    // request resets it. This cuts the remote `ls` rate on Daytona without delaying a real call.
+    let idlePolls = 0;
     while (active) {
+      let sawNew = false;
       try {
         const names = await host.list(relayDir);
         for (const name of names) {
           if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
           seen.add(name);
+          sawNew = true;
           inflight.push(handle(name));
         }
       } catch {
         // Transient (dir not created yet, or a poll raced sandbox teardown): retry.
       }
-      await sleep(RELAY_POLL_MS);
+      idlePolls = sawNew ? 0 : idlePolls + 1;
+      await sleep(relayPollDelayMs(idlePolls));
     }
     await Promise.allSettled(inflight);
   })();

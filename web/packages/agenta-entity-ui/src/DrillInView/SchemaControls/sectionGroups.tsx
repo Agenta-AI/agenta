@@ -85,7 +85,9 @@ export function CollapsibleProviderGroup({
                         onToggle()
                     }
                 }}
-                className="flex cursor-pointer items-center gap-2.5 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
+                // pr = section header's caret gutter (14px caret + 8px gap) minus the card border,
+                // so the group's + button sits in the same column as the section header's +.
+                className="flex cursor-pointer items-center gap-2.5 bg-[var(--ag-colorFillQuaternary)] py-2 pl-3 pr-[21px] transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
             >
                 {open ? (
                     <CaretDown size={12} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
@@ -95,7 +97,7 @@ export function CollapsibleProviderGroup({
                         className="shrink-0 text-[var(--ag-colorTextSecondary)]"
                     />
                 )}
-                <ProviderLogo logo={logo} size={24} />
+                <ProviderLogo logo={logo} size={20} />
                 <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
                 <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
                     {countText}

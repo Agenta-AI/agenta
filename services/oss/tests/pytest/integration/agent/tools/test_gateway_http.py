@@ -53,16 +53,16 @@ async def test_gateway_metadata_and_description_fallback_are_preserved(install_h
         [
             {
                 **_GATEWAY,
-                "needs_approval": True,
+                "permission": "ask",
                 "render": {"kind": "component", "component": "User"},
             }
         ]
     )
     spec = resolved.tool_specs[0]
     assert spec.description == "get_user"
-    assert spec.needs_approval is True
+    assert spec.permission == "ask"
     assert spec.render == {"kind": "component", "component": "User"}
-    assert spec.to_wire()["needsApproval"] is True
+    assert spec.to_wire()["permission"] == "ask"
     assert isinstance(resolved.tool_callback, ToolCallback)
     assert capture["json"]["tools"][0]["type"] == "gateway"
 
@@ -93,7 +93,7 @@ async def test_gateway_specs_are_joined_by_call_ref_not_position(install_http):
                 **_GATEWAY,
                 "action": "FIRST",
                 "connection": "c1",
-                "needs_approval": True,
+                "permission": "ask",
             },
             {
                 **_GATEWAY,
@@ -105,10 +105,10 @@ async def test_gateway_specs_are_joined_by_call_ref_not_position(install_http):
     )
     first, second = resolved.tool_specs
     assert first.name == "first"
-    assert first.needs_approval is True
+    assert first.permission == "ask"
     assert first.render is None
     assert second.name == "second"
-    assert second.needs_approval is False
+    assert second.permission is None  # unset inherits: rules, then the policy default
     assert second.render == {"kind": "component", "component": "Second"}
 
 

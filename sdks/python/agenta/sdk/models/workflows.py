@@ -128,24 +128,13 @@ class WorkflowQueryFlags(BaseModel):
 
 
 class WorkflowInvokeRequestFlags(BaseModel):
-    """Per-call command directives on an invoke request.
-
-    These are *commands* (what this invoke call should do), categorically
-    distinct from the entity descriptor flags (``WorkflowFlags`` /
-    ``WorkflowQueryFlags``, which describe what a workflow *is*). All boolean;
-    ``None`` means unset
-    (read as ``False``, but kept tri-state so "unset" stays distinguishable).
-
-    - ``stream``  — stream the output (generator); else aggregate to a batch.
-    - ``history`` — batch output holds the full message list; else just the last.
-    - ``control`` — take over / attach to an existing run (vs run a turn).
-    - ``resolve`` — resolve embeds/parameters server-side (defaults on); a
-      pre-existing request directive, kept here so all per-call flags are typed.
+    """Per-call command directives. ``stream``/``trim``/``force`` are handler-owned,
+    unset=False; ``resolve`` is middleware-owned (stripped before the handler), unset=True.
     """
 
     stream: Optional[bool] = None
-    history: Optional[bool] = None
-    control: Optional[bool] = None
+    trim: Optional[bool] = None
+    force: Optional[bool] = None
     resolve: Optional[bool] = None
 
 
@@ -258,7 +247,7 @@ class WorkflowBaseRequest(Metadata, SessionID):
 
     # ``flags`` stays the loose dict from ``Metadata`` (the request boundary is
     # intentionally dict-ish, forgiving). Per-call COMMAND directives carried in it
-    # — ``stream`` / ``history`` / ``control`` / ``resolve`` — are described and
+    # — ``stream`` / ``trim`` / ``force`` / ``resolve`` — are described and
     # parsed by ``WorkflowInvokeRequestFlags`` in the running layer; it is the typed
     # accessor, not the wire type.
 

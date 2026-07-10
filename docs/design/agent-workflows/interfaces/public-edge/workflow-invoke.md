@@ -23,7 +23,7 @@ things out of it:
   "references": { /* application / variant / revision */ },
   "data": {
     "inputs":     { "messages": [ /* chat history */ ] },
-    "parameters": { "agent": { /* config, incl. harness, sandbox, permission_policy */ } }
+    "parameters": { "agent": { /* config, incl. harness, sandbox, runner.permissions.default */ } }
   }
 }
 ```
@@ -36,7 +36,7 @@ assistant message:
 ```
 
 `parameters` carries the agent config under `agent`, and the run-selection fields (`harness`,
-`sandbox`, `permission_policy`) live inside that same `agent` object. The handler reads the
+`sandbox`, `runner.permissions.default`) live inside that same `agent` object. The handler reads the
 history from `data.messages` first, then falls back to `inputs.messages`. The streaming
 version of this work is [Agent messages](agent-messages.md); this contract is the batch path.
 

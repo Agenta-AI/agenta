@@ -34,20 +34,27 @@ off `big-agents`). Read `specs.md` in this folder first.
 - Types: reuse the kind union (`user_approval` | `user_input` | `client_tool`) and a small
   `data.request` payload type. Keep `protocol.ts` untouched unless a wire field is needed.
 
-## T3 — Runner: create on park (do both)
+## T3 — Runner: create on pause (do both)
 
-- File: `services/agent/src/engines/sandbox_agent.ts`, the `onPark` callback (~line 423)
-  and the `attachPermissionResponder` wiring.
-- When a gate parks (HITLResponder returns `"park"`), in addition to the existing
-  messages-plane emission, call `createInteraction(...)` with `kind=user_approval`,
+> Status: implemented by the approval-boundary redesign (2026-07). Both gates now create
+> the row through one shared `recordPendingInteraction` closure in the engine. Kept for
+> the acceptance criteria below.
+
+- File: `services/runner/src/engines/sandbox_agent.ts`, the pause wiring
+  and the `attachPermissionResponder` input.
+- When a gate pauses (ApprovalResponder returns `pendingApproval`), in addition to the
+  existing messages-plane emission, call `createInteraction(...)` with `kind=user_approval`,
   `token` = the gated tool-call id, `data.request` = `{tool: <name>, args: <input>}`
   derived the same way `permissionRequestKeys` / `permissionToolName` do in `responder.ts`.
   The tool name + args are on the permission request `raw.toolCall`.
 - Thread the run credential (`runCredential(request)` / the watchdog credential, same
   source `persist.ts` uses) into the engine so `createInteraction` can authenticate. Check
   how `sandbox_agent.ts` already receives the credential for alive/persist and reuse it.
-- Headless (`hasHumanSurface === false`) and stored-decision paths must NOT create (they
-  never park, so hooking `onPark` already gives this for free — confirm).
+- Stored-decision paths and gates resolved to `allow`/`deny` must NOT create a row (they
+  never pause, so hooking the pause path already gives this for free). This holds
+  headless or not: an `ask` gate pauses and creates a row on a headless run too, as long
+  as the run references a committed revision. Uncommitted drafts skip the create because
+  the run has no stable revision to re-invoke against, not because no human is watching.
 
 ## T4 — Runner tests
 

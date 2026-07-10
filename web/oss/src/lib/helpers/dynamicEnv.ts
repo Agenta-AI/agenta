@@ -4,14 +4,28 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
-    // Feature flag for the agent chat streaming slice (contract v1) page.
+    // Feature flag for the agent chat streaming slice (contract v1) page. On by default; set to
+    // "false" to disable.
     NEXT_PUBLIC_AGENT_CHAT_SLICE: process.env.NEXT_PUBLIC_AGENT_CHAT_SLICE,
-    // Streaming endpoint the agent chat slice points `useChat` at. Defaults to the
-    // local RAG_QA contract mock when unset (see AgentChatSlice/assets/constants.ts).
-    NEXT_PUBLIC_AGENT_CHAT_API: process.env.NEXT_PUBLIC_AGENT_CHAT_API,
-    // Default request-contract track for the agent chat slice: "uimessage" (Track A) or
-    // "agenta" (Track B). The page also has a runtime toggle.
-    NEXT_PUBLIC_AGENT_CHAT_TRACK: process.env.NEXT_PUBLIC_AGENT_CHAT_TRACK,
+    // Agent-home template behavior: off by default (config-definition drawer flow). Set to "true" to
+    // instead skip the drawer and open the playground seeded with the template's builder instruction
+    // (Mahmoud's agent-builder flow). On by default since the build-kit overlay ships as the __ag__build_kit static workflow
+    // (docs/design/build-kit-overlay-delivery/); that flow needs the build kit, which the new creation
+    // path can't deliver yet.
+    NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER,
+    // Playground-native onboarding: on by default, the project-scoped `/playground` route lands on an
+    // ephemeral agent (templates + "what do you want to build?" composer) and commits it in place on
+    // send — no redirect. Set to "false" to keep the agent-home + redirect onboarding.
+    NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING: process.env.NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING,
+    // Agent chat message virtualization (react-virtuoso spike): when "true", the playground settings
+    // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
+    // so it's off everywhere unless explicitly enabled while the approach is evaluated.
+    NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION: process.env.NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION,
+    // Template-strip onboarding: when "true", template presentation on Home, playground
+    // onboarding, and every agent's empty chat becomes one shared always-visible strip
+    // (card click fills the composer + chip instead of creating/opening a drawer). Unset/
+    // false keeps the current three separate template UIs untouched.
+    NEXT_PUBLIC_AGENT_TEMPLATE_STRIP: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_STRIP,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,
@@ -48,6 +62,7 @@ export const processEnv = {
         process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
+    NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH:
         process.env.NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH:
@@ -62,6 +77,14 @@ export const processEnv = {
 
 const normalizeBoolean = (value: string | undefined) => {
     return (value || "").toLowerCase() === "true"
+}
+
+// Mirror the API `_TRUTHY` rule: unset defaults to enabled, only truthy values enable.
+const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"])
+
+export const isSandboxLocalEnabled = () => {
+    const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
+    return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
 }
 
 export const getEffectiveAuthConfig = () => {

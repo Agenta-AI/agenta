@@ -70,7 +70,7 @@ def _base_agent_template() -> dict:
         "tools": [],
         "mcps": [],
         "harness": {"kind": "pi_core"},
-        "runner": {"kind": "sidecar", "interactions": {"headless": "auto"}},
+        "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
         "sandbox": {
             "kind": "local",
             "permissions": {
@@ -168,7 +168,7 @@ def test_agent_template_with_platform_tool_validates():
     agent_template = CATALOG_TYPES["agent-template"]
 
     config = _base_agent_template()
-    config["tools"] = [{"type": "platform", "op": "find_capabilities"}]
+    config["tools"] = [{"type": "platform", "op": "discover_tools"}]
 
     jsonschema.validate(config, agent_template)
 

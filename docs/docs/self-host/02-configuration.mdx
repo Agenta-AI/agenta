@@ -107,12 +107,47 @@ for how they behave. The plan and role variables are Enterprise-only; see
 |---|---|---|
 | `AGENTA_OTLP_MAX_BATCH_BYTES` | `agenta.otlp.max_batch_bytes` | `agenta.otlp.maxBatchBytes` |
 
+## Agenta — redaction
+
+The online redaction filter scrubs known credential/secret **values** out of error responses,
+persisted records, spans, and logs on the invoke path (detective control, not preventive — see
+[docs/designs/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/designs/online-redaction/specs.md)).
+Slice 1 ships the known-value pass only: it redacts a value only when it is a live secret the
+platform resolved for the request, never by guessing at shape or entropy.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_REDACTION_MODE` | `agenta.redaction.mode` | `agenta.redaction.mode` |
+| `AGENTA_REDACTED_PREFIXES` | `agenta.redaction.prefixes` | `agenta.redaction.prefixes` |
+| `AGENTA_REDACTED_SUFFIXES` | `agenta.redaction.suffixes` | `agenta.redaction.suffixes` |
+| `AGENTA_REDACTED_BLOCKLIST` | `agenta.redaction.blocklist` | `agenta.redaction.blocklist` |
+| `AGENTA_REDACTED_ALLOWLIST` | `agenta.redaction.allowlist` | `agenta.redaction.allowlist` |
+
+- `AGENTA_REDACTION_MODE` — `off` or `known` (default `known`). `pattern`/`full` are
+  declared-but-inert (Slice 2, not shipped yet): setting either logs a warning and behaves as
+  `known`.
+- `AGENTA_REDACTED_PREFIXES` / `_SUFFIXES` / `_BLOCKLIST` select env var **names**, not values:
+  any process env var whose name starts with a prefix, ends with a suffix, or equals/contains a
+  blocklist entry has its **value** seeded into the deny-set. Each is comma-separated and
+  **merges onto its built-in default** (concatenation, never a replace) — you only ever add
+  more names to catch, you can't narrow the defaults. The prefix default is **empty** (opt-in
+  only, since a broad service prefix over-seeds non-secret config like hostnames/regions); the
+  suffix default covers the common credential-shaped endings (`_KEY`, `_SECRET`, `_TOKEN`,
+  `_AUTHTOKEN`, `_PASSWORD`, `_CREDENTIALS`, `_KEY_ID`, `_SECRET_ID`, `_TOKEN_ID`); the
+  blocklist default is `AWS_BEARER_TOKEN_BEDROCK` (a real secret whose name matches no suffix).
+- `AGENTA_REDACTED_ALLOWLIST` is different: it's a list of literal **values** (booleans/flags
+  such as `true`/`false`/`1`/`0`) that are never redacted even if a secret-named env var holds
+  one — otherwise a flag like `SOME_FEATURE_KEY=true` would redact every "true" in output. It
+  also merges (union) onto its built-in default; add values here that your deployment uses as
+  flags but that also happen to sit in a secret-suffixed env var.
+- Safe default is unset — leaving all four unset keeps prefix empty, suffix/blocklist/allowlist
+  at their built-in defaults.
+
 ## Agenta — services
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
-| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `agenta.services.hook.allow_insecure` | `agenta.services.hook.allowInsecure` |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
@@ -124,9 +159,10 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 
 | Env var | Component | values.yaml path |
 |---|---|---|
-| `AGENTA_RUNNER_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
+| `AGENTA_RUNNER_INTERNAL_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
 | `AGENTA_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
 | `AGENTA_AGENT_MCPS_ENABLED` | Services API | `agentRunner.enableMcp` |
+| `AGENTA_SANDBOX_LOCAL_ALLOWED` | Services API, SDK | `agenta.sandboxLocalAllowed` |
 | `SANDBOX_AGENT_PROVIDER` | `runner` | `agentRunner.provider` |
 | `SANDBOX_AGENT_LOG_LEVEL` | `runner` | `agentRunner.logLevel` |
 | `DAYTONA_API_KEY` | `runner` | `agentRunner.daytona.apiKey` |
@@ -136,14 +172,25 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 | `DAYTONA_IMAGE` | `runner` | `agentRunner.daytona.image` |
 | `DAYTONA_AUTOSTOP` | `runner` | `agentRunner.daytona.autostopDelay` |
 | `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `runner` | `agentRunner.daytona.installPi` |
+
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
 
-- `restricted` (default) — in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access.
-- `local` — raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. Use only for trusted, single-tenant deployments.
+- `local` (default) — raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. This is what makes self-hosting work with zero configuration; the deployment logs a warning while it's active.
+- `restricted` — in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access. Set this to harden a shared/multi-tenant deployment.
 - `daytona` — isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona) credentials below.
 
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
+:::
+
+:::warning Agent sandbox
+`AGENTA_SANDBOX_LOCAL_ALLOWED` gates the `local` sandbox for agents (unconfined host bash,
+not a tenant boundary). It defaults to `true` so self-hosting works with zero
+configuration; the deployment logs a warning while `local` is active. Set it to `false`
+to harden a shared/multi-tenant deployment: requests for the `local` sandbox are then
+refused with an HTTP 403, and the web UI hides the `local` option
+(`NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED`, derived automatically). The `daytona`
+sandbox is unaffected either way.
 :::
 
 ## Store (durable object store) {#store-durable-object-store}
@@ -234,11 +281,26 @@ reachable. Enable the `ngrok` tunnel (the compose `remote` profile) or point
 cross into a remote sandbox.
 :::
 
-## Agenta — webhooks
+## Agenta — egress
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `agenta.webhooks.allow_insecure` | `agenta.webhooks.allowInsecure` |
+| `AGENTA_INSECURE_EGRESS_ALLOWED` | `agenta.webhooks.allow_insecure` (API); read directly by the SDK for workflow hooks and custom model provider endpoints | `agenta.insecureEgressAllowed` |
+
+:::note SSRF protection
+`AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true`, so outbound requests that Agenta
+itself makes to a tenant-configured endpoint (webhooks, workflow hooks, custom model
+provider URLs) are allowed even when they resolve to a private, loopback, or otherwise
+reserved IP address. The deployment logs a warning while this default is active.
+
+If you're running a shared or multi-tenant deployment, set it to `false`. Agenta then
+blocks any such request that resolves to a private, loopback, or reserved IP address,
+regardless of who configured the URL. Public URLs are never affected either way.
+
+The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALLOW_INSECURE`,
+`AGENTA_SERVICES_HOOK_ALLOW_INSECURE`, `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE`) are
+deprecated aliases and still work, but new configuration should use the canonical name.
+:::
 
 ## alembic
 
@@ -461,7 +523,10 @@ future major release.
 | `AGENTA_SERVICES_SANDBOX_RUNNER` | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` |
 | `AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` |
 | `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` |
-| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_WEBHOOKS_ALLOW_INSECURE` (API), `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` (SDK) |
+| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
 | `AGENTA_AUTO_MIGRATIONS` | `ALEMBIC_AUTO_MIGRATIONS` |
 | `AGENTA_RUNTIME_PREFIX` | _(removed; no consumer in API)_ |
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` | `AZURE_AD_OAUTH_CLIENT_ID` |

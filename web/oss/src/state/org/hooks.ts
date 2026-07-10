@@ -4,7 +4,8 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {OrgDetails} from "@/oss/lib/Types"
+import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
+import type {OrgDetails} from "@/oss/lib/Types"
 import {fetchSingleOrg} from "@/oss/services/organization/api"
 import {fetchAllProjects} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
@@ -21,8 +22,6 @@ import {
     orgsAtom,
     selectedOrgAtom,
 } from "./selectors/org"
-
-const EmptyOrgs: OrgDetails[] = []
 
 const projectMatchesWorkspace = (
     project: {workspace_id?: string | null; organization_id?: string | null},
@@ -54,7 +53,9 @@ const pickPreferredProjectForWorkspace = (
 export const useOrgData = () => {
     const queryClient = useQueryClient()
     const router = useRouter()
-    const [{data: orgs, isPending: loadingOrgs, refetch: refetchOrgs}] = useAtom(orgsQueryAtom)
+    const [{isPending: loadingOrgs, refetch: refetchOrgs}] = useAtom(orgsQueryAtom)
+    // Read via orgsAtom (not raw query data) so demo orgs stay hidden
+    const orgs = useAtomValue(orgsAtom)
     const [{data: selectedOrg, isPending: loadingDetails, refetch: refetchSelectedOrg}] =
         useAtom(selectedOrgQueryAtom)
     const navigate = useSetAtom(requestNavigationAtom)
@@ -152,33 +153,16 @@ export const useOrgData = () => {
                 const lastUsedProjectId = getLastUsedProjectId(workspaceId)
                 if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-                // Extract the current page path to preserve navigation context
                 const projectId = lastUsedProjectId ?? preferredProject?.project_id
-                const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
-                const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
-                const isAppScopedPath = currentPagePath.startsWith("apps/")
-
-                let href: string
-                if (projectId) {
-                    if (isAppScopedPath) {
-                        href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
-                    } else {
-                        // Preserve query params for settings tab
-                        const isOnSettingsPage = currentPagePath.startsWith("settings")
-                        const currentTab =
-                            (settingsTab && settingsTab !== "workspace"
-                                ? settingsTab
-                                : undefined) ?? (router.query.tab as string | undefined)
-                        const tabParam =
-                            isOnSettingsPage && currentTab
-                                ? `?tab=${encodeURIComponent(currentTab)}`
-                                : ""
-
-                        href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
-                    }
-                } else {
-                    href = `/w/${encodeURIComponent(workspaceId)}`
-                }
+                const href = projectId
+                    ? buildProjectSwitchHref({
+                          workspaceId,
+                          projectId,
+                          currentAsPath: router.asPath,
+                          settingsTab,
+                          queryTab: router.query.tab,
+                      })
+                    : `/w/${encodeURIComponent(workspaceId)}`
 
                 navigate({type: "href", href, method: "push", shallow: false})
                 onSuccess?.()
@@ -214,7 +198,7 @@ export const useOrgData = () => {
     }, [refetchOrgs, refetchSelectedOrg, queryClient])
 
     return {
-        orgs: orgs ?? EmptyOrgs,
+        orgs,
         selectedOrg: selectedOrg ?? null,
         loading: loadingOrgs || loadingDetails,
         changeSelectedOrg,

@@ -1,5 +1,7 @@
 # Capability and permission configuration
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 How an author configures what an Agenta agent may do (files, network, tools, tool approvals),
 and how those controls enforce end to end: from the playground form, through the SDK and agent
 service, to the runner and the harness. Graduated from the scratch notes in

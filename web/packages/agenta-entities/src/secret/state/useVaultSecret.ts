@@ -32,6 +32,7 @@ import {
     customSecretsAtom,
     deleteSecretAtom,
     migrateVaultKeysAtom,
+    providerKeySetupDoneAtom,
     standardSecretsAtom,
     vaultMigrationAtom,
     vaultSecretsQueryAtom,
@@ -65,6 +66,7 @@ export const useVaultSecret = () => {
     const createCustomNamedSecret = useSetAtom(createCustomNamedSecretAtom)
     const deleteSecret = useSetAtom(deleteSecretAtom)
     const migrateKeys = useSetAtom(migrateVaultKeysAtom)
+    const setProviderKeySetupDone = useSetAtom(providerKeySetupDoneAtom)
 
     useEffect(() => {
         if (user && !migrationStatus.migrating && !migrationStatus.migrated) {
@@ -79,9 +81,11 @@ export const useVaultSecret = () => {
     const handleModifyVaultSecret = useCallback(
         async (provider: LlmProvider) => {
             await createStandardSecret(provider)
+            // A successful save means setup is done at least once — never re-show the connect gate.
+            setProviderKeySetupDone(true)
             vaultQuery.refetch()
         },
-        [createStandardSecret, vaultQuery],
+        [createStandardSecret, vaultQuery, setProviderKeySetupDone],
     )
 
     const handleModifyCustomVaultSecret = useCallback(

@@ -17,10 +17,12 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 import httpx
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.net import assert_endpoint_url_allowed
 
 from ..capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
+    PROVIDER_ENV_VARS,
 )
 from ..connections import (
     AmbiguousConnectionError,
@@ -38,17 +40,8 @@ from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
 
-_PROVIDER_ENV_VARS: Dict[str, str] = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "gemini": "GEMINI_API_KEY",
-    "mistral": "MISTRAL_API_KEY",
-    "mistralai": "MISTRAL_API_KEY",
-    "minimax": "MINIMAX_API_KEY",
-    "groq": "GROQ_API_KEY",
-    "together_ai": "TOGETHERAI_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-}
+# Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
+_PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
 
 # The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
 # or by a dated id (``claude-opus-4-8``), never with a ``provider/`` prefix. Those bare ids are
@@ -58,13 +51,42 @@ _PROVIDER_ENV_VARS: Dict[str, str] = {
 _CLAUDE_ALIASES: Set[str] = {alias.lower() for alias in CLAUDE_MODEL_ALIASES}
 
 
-def _inferred_claude_provider(model: ModelRef) -> Optional[str]:
-    """Return ``"anthropic"`` when a bare model id is a known Claude alias, else ``None``.
+def _build_catalog_provider_index() -> Dict[str, str]:
+    """Invert ``supported_llm_models`` to ``{model_id: provider}`` for unambiguous ids only.
 
-    Only fires for a bare id (no explicit ``provider``). A known alias (the ``capabilities.py``
-    set) or any ``claude-*`` dated id (the Anthropic naming convention) is unambiguously
-    Anthropic, so it resolves to the ``anthropic`` provider rather than failing loud as a
-    provider-less model.
+    A model id offered by more than one provider (e.g. the same open-weight model on two
+    gateways) is dropped: inference must never guess between providers. Both the bare id and any
+    provider-prefixed form map to the same provider so either spelling resolves.
+    """
+    from agenta.sdk.utils.assets import supported_llm_models
+
+    owners: Dict[str, Set[str]] = {}
+    for provider, models in supported_llm_models.items():
+        for entry in models:
+            bare = entry.split("/", 1)[1] if "/" in entry else entry
+            for key in {entry.lower(), bare.lower()}:
+                owners.setdefault(key, set()).add(provider)
+    return {key: next(iter(prov)) for key, prov in owners.items() if len(prov) == 1}
+
+
+_CATALOG_PROVIDER_INDEX: Dict[str, str] = _build_catalog_provider_index()
+
+
+def infer_provider_from(model: ModelRef) -> Optional[str]:
+    """Discover the provider for a bare (provider-less) model id, or ``None`` if undecidable.
+
+    Discovery, not precedence: only fills a MISSING provider (an explicit ``provider`` is always
+    honored), and never guesses. Three sources, in order of specificity:
+
+    1. Claude harness aliases (``haiku``/``sonnet``/``opus`` + ``[1m]``) — harness shorthands that
+       live outside any model catalog, so they can only be matched by name.
+    2. The ``claude-*`` structural prefix — Anthropic's dated-id naming convention, which resolves
+       newer ids the shared catalog has not been updated with yet.
+    3. The shared ``supported_llm_models`` catalog — every other known model id, when it maps to
+       exactly one provider.
+
+    Returns ``None`` for an unknown or cross-provider-ambiguous id, which then fails loud (F-017)
+    rather than resolving mis-credentialed.
     """
     if model.provider:
         return None
@@ -73,7 +95,7 @@ def _inferred_claude_provider(model: ModelRef) -> Optional[str]:
         return None
     if bare in _CLAUDE_ALIASES or bare.startswith("claude-"):
         return "anthropic"
-    return None
+    return _CATALOG_PROVIDER_INDEX.get(bare)
 
 
 def _harness_default_provider(harness: Optional[str]) -> str:
@@ -97,6 +119,7 @@ _SNAKE_EXTRA_ENV_ALIASES: Dict[str, str] = {
     "aws_access_key_id": "AWS_ACCESS_KEY_ID",
     "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
     "aws_session_token": "AWS_SESSION_TOKEN",
+    "aws_bearer_token_bedrock": "AWS_BEARER_TOKEN_BEDROCK",
     "vertex_ai_project": "GOOGLE_CLOUD_PROJECT",
     "vertex_ai_location": "GOOGLE_CLOUD_LOCATION",
     "vertex_ai_credentials": "GOOGLE_APPLICATION_CREDENTIALS",
@@ -238,10 +261,15 @@ class _ConnectionCandidate:
     def resolved_env(self, provider: str) -> Dict[str, str]:
         env = dict(self.env)
         env_var = _provider_env_var(provider) or _provider_env_var(self.provider)
-        if self.api_key and env_var:
+        # Bedrock's key is a bearer token with its own channel below — never the family's
+        # API-key env var (a bedrock key in ANTHROPIC_API_KEY would mis-auth the direct API).
+        if self.api_key and env_var and self.deployment != "bedrock":
             env.setdefault(env_var, self.api_key)
         if self.deployment == "azure" and self.api_key:
             env.setdefault("AZURE_OPENAI_API_KEY", self.api_key)
+        # A bedrock key rides AWS_BEARER_TOKEN_BEDROCK — the one channel both harnesses accept.
+        if self.deployment == "bedrock" and self.api_key:
+            env.setdefault("AWS_BEARER_TOKEN_BEDROCK", self.api_key)
         return env
 
 
@@ -258,12 +286,12 @@ def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:
     data = _data(secret)
     provider = _stripped(data.get("kind"))
-    slug = _header_name(secret)
     key = _stripped(_settings(secret).get("key"))
-    if not provider or not slug:
+    if not provider:
         return None
+    # A provider_key is identified by its provider — it has no slug concept, never `header.name`.
     return _ConnectionCandidate(
-        slug=slug,
+        slug=provider,
         kind="provider_key",
         provider=provider,
         deployment="direct",
@@ -284,8 +312,15 @@ def _custom_provider_candidate(
 
     env = _normalized_extra_env(extras)
     region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
+    raw_url = _stripped(settings.get("url"))
+    if raw_url:
+        try:
+            assert_endpoint_url_allowed(raw_url)
+        except ValueError:
+            log.warning("agent: custom_provider url blocked by SSRF guard, dropping")
+            raw_url = None
     endpoint = Endpoint(
-        base_url=_stripped(settings.get("url")),
+        base_url=raw_url,
         api_version=_stripped(settings.get("version")),
         region=region,
     )
@@ -406,7 +441,7 @@ def _resolve_from_secrets(
     # A bare Claude alias (haiku/sonnet/opus + [1m]) or a dated claude-* id is unambiguously
     # Anthropic: infer the provider so the F-017 fail-loud rule does not reject a documented
     # Claude model id. Inference only fills a missing provider; an explicit provider is honored.
-    inferred = _inferred_claude_provider(model)
+    inferred = infer_provider_from(model)
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":

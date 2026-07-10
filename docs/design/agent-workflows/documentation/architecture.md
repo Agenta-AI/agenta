@@ -35,7 +35,7 @@ services container (Python)
     agent workflow handler
     services/oss/src/agent/app.py
     |
-    | POST /run over HTTP (AGENTA_RUNNER_URL set)
+    | POST /run over HTTP (AGENTA_RUNNER_INTERNAL_URL set)
     | or spawn the runner CLI in a source checkout
     v
 agent runner sidecar (Node)
@@ -56,7 +56,7 @@ agent runner sidecar (Node)
 The services container owns Agenta concerns: workflow routing, config parsing, provider
 secret resolution, tool resolution, and trace context. The sidecar owns the agent run. It
 drives a harness over ACP through the sandbox-agent daemon. In Docker Compose the sidecar is
-named `sandbox-agent`, and the service reaches it through `AGENTA_RUNNER_URL`
+named `sandbox-agent`, and the service reaches it through `AGENTA_RUNNER_INTERNAL_URL`
 (`services/oss/src/agent/config.py:46`).
 
 The sidecar does not inherit the full stack environment. The service resolves provider keys
@@ -109,7 +109,8 @@ Batch `/invoke` follows this path:
 
 1. The workflow route calls `_agent` in `services/oss/src/agent/app.py`.
 2. `_agent` parses one `AgentConfig` from request parameters; it carries the run-selection
-   fields `harness`, `sandbox`, and `permission_policy`.
+   fields `harness` and `sandbox`, plus the permission policy at
+   `runner.permissions.default`.
 3. The service resolves three things independently: tools, MCP servers, and provider-key
    secrets. MCP resolution is gated by `AGENTA_AGENT_ENABLE_MCP`
    (`services/oss/src/agent/tools/resolver.py:23`, off by default).
@@ -154,7 +155,7 @@ The sidecar serves one contract on two entrypoints (`services/agent/README.md`):
 - `src/server.ts`: a long-lived HTTP server on `:8765` with `GET /health` and `POST /run`.
   This is the dockerized sidecar the service calls over HTTP.
 - `src/cli.ts`: one JSON request on stdin, one result on stdout. The SDK adapters use this
-  subprocess transport when `AGENTA_RUNNER_URL` is unset (a source checkout).
+  subprocess transport when `AGENTA_RUNNER_INTERNAL_URL` is unset (a source checkout).
 
 Both route to the one engine, the sandbox-agent ACP path. The `harness` field on the request
 selects the ACP agent (`services/agent/src/server.ts`).

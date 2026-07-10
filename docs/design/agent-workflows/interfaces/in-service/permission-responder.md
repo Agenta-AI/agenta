@@ -1,44 +1,97 @@
 # Permission Responder
 
-When a harness asks to use a tool, something has to answer. The responder is that something.
-It abstracts two modes behind one interface: a headless policy that auto-approves or denies,
-and a human-in-the-loop flow that parks the request for browser approval and resumes it on a
-later turn. Because the browser approval spans two turns, the matching logic here is subtle,
-and worth reading before you touch it.
+> Superseded terms: this file used to describe `PolicyResponder`/`HITLResponder` and "park".
+> Those are gone. It now describes `ApprovalResponder` and "pause", the current implementation.
+
+When a harness asks to use a tool, something has to answer. `ApprovalResponder` is that
+something. It answers every ACP permission gate and every client-tool request from one shared
+decision function, so there is one policy instead of separate headless and human-in-the-loop
+paths. Because a paused approval spans two turns, the resume-matching logic here is subtle and
+worth reading before you touch it.
 
 ## The contract
 
 ```typescript
 interface Responder {
-  onPermission(request: PermissionRequest): Promise<PermissionDecision>;  // "allow" | "deny"
+  onPermission(request: PermissionGateRequest): Promise<Verdict>;
+  onClientTool(
+    request: ClientToolGateRequest,
+    opts?: { consume?: boolean },
+  ): Promise<ClientToolVerdict>;
 }
+
+type Verdict =
+  | { kind: "allow" }
+  | { kind: "deny" }
+  | { kind: "pendingApproval" };
 ```
 
-- **`PolicyResponder`** is headless. It returns `deny` when the policy is `deny`, else `allow`.
-- **`HITLResponder`** handles human approval across turns. It holds the approval decisions
-  extracted from the message history, a base policy, and whether a human surface exists:
-  1. look the request up in the decisions map (by tool-call id, then by tool name),
-  2. if found, apply it (the resume path),
-  3. if not found and a human can answer, return `deny` to park it (the browser will be asked),
-  4. if not found and no human surface, fall back to the base policy (fully headless).
+`ApprovalResponder` is the only implementation. It holds a `PermissionPlan` (the parsed
+`permissions: {default, rules}` block from the run request) and a `ConversationDecisions`
+store (approvals and denials recovered from the replayed message history).
 
-**Decision extraction.** `extractApprovalDecisions(request)` scans the message history for
-`tool_result` blocks whose output is `{approved: boolean}`, and indexes each by both its
-`toolCallId` and its `toolName`. The tool name is the fallback because a cold replay can mint
-a fresh permission id each turn, so the stable anchor is the name.
+**`onPermission`.** Calls `decide(gate, plan, decisions)` from
+`services/runner/src/permission-plan.ts`, the same shared function the tool relay uses:
 
-**Policy precedence.** `deny` from the request wins, then the
-`SANDBOX_AGENT_DENY_PERMISSIONS` env override, else `auto`.
+1. Resolve the gate's effective permission: the tool's or MCP server's explicit `permission`
+   if set, else a matching authored rule, else the policy's `default` mode (`allow_reads`
+   consults the tool's read-only hint; no hint counts as a write).
+2. `deny` refuses. `allow` runs, in place, no pause.
+3. `ask` looks for a stored decision from a previous turn (matched by stable anchor, see
+   below). Found, it applies once and is consumed. Not found, the verdict is
+   `pendingApproval`: the run pauses and waits for a human.
+
+**`onClientTool`.** Client tools (browser-fulfilled, for example `request_connection`) resolve
+the same way but default to `allow` when unset, since their whole purpose is to reach the
+browser. A stored output already fulfills the call without asking again.
+
+**Resume matching.** `extractApprovalDecisions` scans the incoming message history for
+`tool_result` blocks carrying an `{approved: boolean}` envelope, and keys each one by
+`approvedCallKey(name, args)`: a stable tool name plus canonicalized arguments, never a
+display title. The name anchor differs by executor: the spec's own name for relay/client
+tools (it cannot drift), and the recorded `tool_call` name for harness gates (Claude Code
+today). A stored decision matches only the same call; different arguments are a different
+call and pause for a fresh approval, visibly. A stored decision is consumed on first match,
+so one approval authorizes one execution, and a config changed to `deny` always beats it
+because the effective permission is resolved before the stored decision is consulted.
+
+## How it fits with the relay
+
+`ApprovalResponder` is Gate 2, for tools the harness gates natively (Claude Code's
+`.claude/settings.json` layer decides first; anything it leaves undecided reaches this
+responder over ACP). The tool relay (`services/runner/src/tools/relay.ts`) is Gate 3, for
+tools the runner executes itself (gateway, code, client) and, since the pi-builtin-gating
+slice, for Pi's own builtins too: the bundled Pi extension's `tool_call` hook reports each
+builtin call over the relay directory as a permission record, and the relay decides it
+through this same `decide()` before answering. Both gates call the same
+`effectivePermission`/`decide` pair from `permission-plan.ts`, so they can never disagree
+about a tool's permission. The relay only needs to enforce on Pi, since Claude's Gate 1 and
+Gate 2 already decide before a call reaches the relay.
 
 ## Owned by
 
-- `services/agent/src/responder.ts`: the responders and decision extraction.
-- `services/agent/src/engines/sandbox_agent/permissions.ts`: how they wire into the ACP run.
+- `services/runner/src/permission-plan.ts`: the shared decision function (`effectivePermission`,
+  `decide`), the `PermissionPlan` and `GateDescriptor` types, and `permissionsFromRequest`
+  (parses the wire `permissions` block, applies the `SANDBOX_AGENT_DENY_PERMISSIONS`
+  kill-switch).
+- `services/runner/src/responder.ts`: `ApprovalResponder`, `ConversationDecisions`,
+  `extractApprovalDecisions`, `approvedCallKey`.
+- `services/runner/src/engines/sandbox_agent.ts` and
+  `services/runner/src/engines/sandbox_agent/acp-interactions.ts`: how the responder wires
+  into the ACP run (`attachPermissionResponder`), and the pause/teardown when a verdict is
+  `pendingApproval`.
 
 ## Watch for when changing
 
-- **Policy precedence.** Request, env override, default. Reordering changes who can approve.
-- **Cross-turn matching.** Tool-call id first, tool name as the fallback for cold replays.
-  Breaking the fallback breaks approval after a replay.
-- **Parking behavior.** Whether a session has a human surface decides park-versus-headless.
-  An interactive run parks unapproved tools; a headless `/invoke` applies the base policy.
+- **One decision function.** Both gates call `effectivePermission`/`decide`. Do not let a
+  gate grow its own copy of the ladder; that is the bug this redesign fixed.
+- **Resolve before checking stored decisions.** The effective permission must be computed
+  first, so a config change to `deny` beats a stale approval. Reordering breaks that
+  guarantee.
+- **Stable anchors only.** Resume matching keys on the spec name or the recorded `tool_call`
+  name plus canonical args, never a harness display title. A drifted key reintroduces the
+  approval loop this redesign closed.
+- **Emit only on pause.** `interaction_request(user_approval)` fires only when the verdict is
+  `pendingApproval`. Emitting before the decision (the old order) produces false prompts for
+  gates that were actually auto-approved.
+- **Consume once.** A stored approval or denial applies to exactly one execution.

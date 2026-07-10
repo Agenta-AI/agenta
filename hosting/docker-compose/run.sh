@@ -384,7 +384,7 @@ if $DOWN; then
 fi
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
-AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d || error_exit "Failed to start Docker containers."
+AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans || error_exit "Failed to start Docker containers."
 
 echo "✅ Setup complete!"
 

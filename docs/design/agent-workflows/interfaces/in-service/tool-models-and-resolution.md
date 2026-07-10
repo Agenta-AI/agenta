@@ -9,8 +9,8 @@ resolved specs become `/run` fields, so a change here usually reaches the wire (
 
 ## Config types (what the author writes)
 
-All share a base of `needs_approval` (default `false`), `permission` (`allow`/`ask`/`deny`,
-optional), and `render` (optional), discriminated by `type`:
+All share a base of `permission` (`allow`/`ask`/`deny`, optional, unset inherits the global
+policy) and `render` (optional), discriminated by `type`:
 
 ```jsonc
 { "type": "builtin", "name": "read" }
@@ -31,8 +31,8 @@ optional), and `render` (optional), discriminated by `type`:
 
 // platform: an existing Agenta endpoint exposed to the agent. `op` names a platform-op catalog
 // entry; the catalog owns the description, endpoint, schema, context bindings, and per-op gate defaults.
-// `needs_approval` is optional here (null = use the catalog default).
-{ "type": "platform", "op": "find_capabilities", "needs_approval": null, "permission": null }
+// `permission` is optional here (null = use the catalog default).
+{ "type": "platform", "op": "discover_tools", "permission": null }
 ```
 
 A tool can also be a **workflow** referenced as a tool (`type: "reference"`, above) or a
@@ -54,29 +54,41 @@ config (not markers); `resolve_tools` owns the tool-specific mapping.
 // callback (direct): a type:"platform" tool. Instead of call_ref it carries a `call` descriptor —
 // the runner calls the endpoint directly (no /tools/call hop). `context` carries the run-context bindings.
 // A callback spec carries exactly one of `call_ref` (gateway) or `call` (direct).
-{ "kind": "callback", "name": "find_capabilities", "description": "...", "input_schema": {},
+{ "kind": "callback", "name": "discover_tools", "description": "...", "input_schema": {},
   "call": { "method": "POST", "path": "/api/tools/discover" } }
 // e.g. self-update commit_revision:
 // "call": { "method": "POST", "path": "/api/workflows/revisions/commit",
 //           "context": { "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id" } }
+// callback (handler mode, flag-gated): a handler-backed platform op (e.g. test_run). Carries a
+// reserved call_ref plus spec-level contextBindings/timeoutMs; routes through /tools/call to the
+// server-side handler registry. Only emitted when AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS is on.
+// { "kind": "callback", "name": "test_run", "call_ref": "tools.agenta.test_run",
+//   "contextBindings": { "target.workflow_variant_id": "$ctx.workflow.variant.id" },
+//   "timeoutMs": 120000 }
 
 // code: sandboxed code with its named secrets injected into env
 { "kind": "code", "name": "...", "runtime": "python", "code": "...", "env": { "API_KEY": "..." } }
 
-// client: browser-fulfilled; filtered out of the runner's MCP tools/list
+// client: browser-fulfilled; advertised to the model (incl. over the local Claude MCP channel),
+// then PAUSED on call — never executed in the runner
 { "kind": "client", "name": "..." }
 ```
 
-Each resolved spec also carries `needs_approval`, `read_only`, `permission`, and `render`.
+Each resolved spec also carries `read_only`, `permission`, and `render`.
 
 ## Permission derivation
 
-When a tool's `permission` is unset, it is derived by precedence:
+A tool's authored `permission` travels as is. `ToolSpec.to_wire()` sends only the author's
+explicit `permission`; when it is unset, the spec sends nothing and the `read_only` hint
+rides alongside as a separate field. The runner resolves the rest: its shared decision
+function (`services/runner/src/permission-plan.ts`) looks up, in order:
 
-1. an explicit `permission` wins,
-2. else `needs_approval: true` to `"ask"`,
-3. else `read_only`: `true` to `"allow"`, `false` to `"ask"`,
-4. else `None`, and the runner falls back to the global policy.
+1. an explicit `permission` on the tool wins,
+2. else the owning MCP server's explicit `permission` (for MCP-backed tools),
+3. else an authored builtin rule match (`runner.permissions.rules`),
+4. else, under the `allow_reads` policy mode, the `read_only` hint (`true` to `allow`, unset
+   or `false` to `ask`),
+5. else the global policy mode (`allow`/`ask`/`deny`).
 
 ## Secret injection
 
@@ -87,8 +99,12 @@ secret; their provider key stays server-side and the call routes back through `/
 ## Owned by
 
 - `sdks/python/agenta/sdk/agents/tools/models.py`: the config and spec models (incl.
-  `ReferenceToolConfig`, its `ref_by` axes, `PlatformToolConfig`, `ToolCall`, and `call_ref`) and
-  the permission derivation.
+  `ReferenceToolConfig`, its `ref_by` axes, `PlatformToolConfig`, `ToolCall`, and `call_ref`),
+  carrying the author's explicit `permission` and the `read_only` hint.
+- `services/runner/src/permission-plan.ts`: the shared decision function that resolves a
+  tool's effective permission at run time (explicit tool permission, then the owning MCP
+  server's permission, then rule match, then the `allow_reads` read-only check, then the
+  global policy).
 - `sdks/python/agenta/sdk/agents/tools/compat.py`: coerces legacy/typed tool dicts (a
   `type: "reference"` or `type: "platform"` dict parses straight into its config model).
 - `sdks/python/agenta/sdk/agents/platform/gateway.py`: gateway resolution to a `call_ref`.
@@ -101,24 +117,25 @@ secret; their provider key stays server-side and the call routes back through `/
   callback spec carrying a direct `call`.
 - `sdks/python/agenta/sdk/agents/platform/_schema.py`: `expand_type_refs` (resolve `x-ag-type-ref`
   against `CATALOG_TYPES`) used for platform-op input schemas.
-- `api/oss/src/apis/fastapi/tools/router.py`: `/tools/call` routes a `workflow.*` call_ref to
-  `WorkflowsService.invoke_workflow`, and a `tools.agenta.*` call_ref (the reserved
-  `find_capabilities` discovery tool) to `ToolsService.discover_capabilities` (server-side execute
-  paths). The `tools.agenta.*` server route is retained during migration and removed once platform
-  tools (the direct `call`) fully supersede it.
+- `api/oss/src/apis/fastapi/tools/router.py`: `/tools/call` routes a registered reserved
+  `tools.agenta.*` call_ref to the handler registry (`_call_reserved_agenta_tool`) and a
+  `workflow.*` call_ref to `WorkflowsService.invoke_workflow` (server-side execute paths). The
+  legacy `tools.agenta.find_capabilities` dispatch is deleted; an unregistered reserved ref
+  fails loud with a 404.
+- `api/oss/src/core/tools/platform_handlers.py`: the reserved-ref handler registry and the
+  `test_run` handler (hydrate + optional in-memory delta + headless invoke + digest/verdict).
 - `services/oss/src/agent/tools/resolver.py`: the service entrypoint (re-exports the SDK).
 
-`find_capabilities` is now the first **platform tool**: an agent config declares
-`{type:"platform", op:"find_capabilities"}` and the SDK resolver emits a `CallbackToolSpec` with a
-direct `call` to `POST /api/tools/discover`, so the model can call it end to end. The server-side
-`/tools/call` `tools.agenta.*` route still exists (removed in a later phase). The canonical
-reserved-tool spec (call_ref, input_schema, description) still lives in
-`api/oss/src/core/tools/discovery.py`; the SDK-side description + schema for the platform op live
-in `op_catalog.py` (the SDK must not import the API).
+`discover_tools` (renamed from `find_capabilities`, hard migrate, no alias) is the canonical
+endpoint-mode **platform tool**: an agent config declares
+`{type:"platform", op:"discover_tools"}` and the SDK resolver emits a `CallbackToolSpec` with a
+direct `call` to `POST /api/tools/discover`, so the model calls it end to end. The SDK-side
+description + schema live in `op_catalog.py` (the SDK must not import the API).
 
 ## Watch for when changing
 
-- **Permission defaults and the derivation order.** It decides what gets gated.
+- **Permission defaults and the derivation order.** It decides what gets gated. The order
+  now lives in the runner's shared decision function, not in this SDK module.
 - **Read-only and render hints.** They flow through to the runner and the browser.
 - **The tool input schema.** It is what the harness sees as the tool's parameters.
 - **Secret injection for code tools.** Secrets ride `env` and are resolved once at parse time.
@@ -138,6 +155,12 @@ in `op_catalog.py` (the SDK must not import the API).
   run-context token). Keep the catalog `path` pointing at an existing endpoint and the
   `context_bindings` token names in step with the `runContext` shape.
 - **Reserved platform call references.** `tools.agenta.{op}` is reserved for Agenta platform
-  tools (v1: `find_capabilities`, `query_workflows`, `commit_revision`). The model-visible tool
-  name is the bare `op`; the namespaced id is `PlatformOp.reserved_id`. Keep the reserved prefix
-  out of the Composio 5-segment namespace.
+  tools. The model-visible tool name is the bare `op`; the namespaced id is
+  `PlatformOp.reserved_id`. Handler-mode ops reuse the reserved id as their live `call_ref`
+  (`tools.agenta.test_run`), so the prefix now routes at `/tools/call`. Keep it out of the
+  Composio 5-segment namespace.
+- **Handler mode (`handler` XOR `method`+`path`).** A `PlatformOp` targets exactly one of an
+  existing endpoint or an allowlisted server handler. Handler ops emit `call_ref` +
+  spec-level `contextBindings`/`timeoutMs` instead of `call`, and only resolve when
+  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` is on (the runner half is pending). See the
+  [build-kit-tools-cleanup api-design](../../projects/build-kit-tools-cleanup/api-design.md).

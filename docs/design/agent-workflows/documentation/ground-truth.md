@@ -54,6 +54,13 @@ this page and the referenced code as the source of truth.
   channel, served over a loopback HTTP MCP endpoint the runner stands up (no runner-host child
   process). User-declared MCP resolution is feature-gated (`AGENTA_AGENT_ENABLE_MCP`, off by
   default).
+- `client` tools (browser-fulfilled, e.g. `request_connection`) are delivered to Claude too on
+  the local path: advertised over the same internal MCP channel and PAUSED in the `tools/call`
+  handler (no JSON-RPC result + abort the request), then resumed from the browser result next
+  turn — the same cross-turn pause Pi gets via the file relay, through one shared seam
+  (`services/runner/src/engines/sandbox_agent/client-tools.ts`). On a remote sandbox the
+  loopback channel is unreachable, so a non-Pi run carrying ANY custom tool — client kind
+  included — is refused up front (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`), never dropped silently.
 
 ## Not Implemented
 

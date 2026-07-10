@@ -1,5 +1,7 @@
 # Plan: smallest-correct HITL fix
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 The renderer, the egress, and the cross-turn resume are already correct (see research.md). The
 fix is to stop the runner from poisoning the wire when it parks an `ask` gate. Below is the
 layer-by-layer change, smallest first, plus the Pi decision and the test plan.

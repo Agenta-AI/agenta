@@ -71,15 +71,28 @@ export interface Telemetry {
   exporters?: { otlp?: OtlpExporter };
 }
 
+/** The global permission policy modes. `allow_reads`: read-hinted tools run, everything else asks. */
+export type PermissionMode = "allow" | "ask" | "deny" | "allow_reads";
+/** A single tool's permission verdict vocabulary. */
+export type ToolPermission = "allow" | "ask" | "deny";
+/** An authored harness-builtin rule, Claude settings syntax (e.g. "Bash(rm:*)"). */
+export interface PermissionRule {
+  pattern: string;
+  permission: ToolPermission;
+}
+export interface PermissionsConfig {
+  default?: PermissionMode;
+  rules?: PermissionRule[];
+}
+
 /**
  * A runnable tool the backend already resolved from the agent config.
  *
- * Three orthogonal axes:
+ * Two orthogonal axes:
  *  - `kind` (executor): how the runner fulfils a call. `callback` POSTs back through Agenta's
  *    /tools/call (gateway tools; the Composio key stays server-side); `code` runs `code` in a
  *    sandbox subprocess with `env` (resolved secrets, scoped to the subprocess); `client` is
  *    fulfilled by the browser across a turn boundary. Absent = `callback` (back-compat).
- *  - `needsApproval`: gate the call on a human yes/no (mechanics owned by the run-event layer).
  *  - `render`: a generative-UI hint (see `RenderHint`).
  *
  * `callRef` is set for `callback` (gateway) tools (the slug the bridge sends back to
@@ -94,6 +107,14 @@ export interface ResolvedToolSpec {
   inputSchema?: Record<string, unknown> | null;
   /** Set for gateway `callback` tools (routes through /tools/call); absent for `code` / `client`, and absent when `call` is set. */
   callRef?: string;
+  /**
+   * Executor-private argument bindings for `callRef` tools. The runner fills each dotted argument
+   * path from `runContext` after the permission verdict and before posting to `/tools/call`, so
+   * the model cannot override the bound fields. Not advertised to the model.
+   */
+  contextBindings?: Record<string, string>;
+  /** Optional per-tool execution budget for the `/tools/call` round-trip and child relay wait. */
+  timeoutMs?: number;
   /**
    * Direct-call descriptor (direct-call tools, Phase 1). When set, the runner calls this Agenta
    * endpoint DIRECTLY (reusing the run's `toolCallback.authorization`) instead of routing through
@@ -115,17 +136,15 @@ export interface ResolvedToolSpec {
   runtime?: "python" | "node";
   code?: string;
   env?: Record<string, string>;
-  needsApproval?: boolean;
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
   readOnly?: boolean;
   /**
    * Layer-3 permission: `allow` runs with no prompt, `ask` raises a
    * human-in-the-loop request, `deny` never runs. Absent = fall back to the global
-   * `permissionPolicy`. The SDK derives a default from `readOnly`/`needsApproval` when the
-   * author set none. Plumbing only here; enforcement is a later slice.
+   * permission plan. The SDK derives a default from `readOnly` when the author set none.
    */
-  permission?: "allow" | "ask" | "deny";
+  permission?: ToolPermission;
 }
 
 /** Where and how to route a tool call back through Agenta. */
@@ -145,9 +164,10 @@ export interface RunContextReference {
 /**
  * The run's own context, delivered on `/run` and refreshed per turn (direct-call tools, Phase 3a;
  * see `projects/direct-call-tools/run-context.md`). The service computes it from the invocation's
- * own trace + workflow identity. It is consumed ONLY by a tool's `call.context` binding: the runner
- * fills bound request fields from this blob at dispatch, server-side and hidden from the model. The
- * model never reads run context directly.
+ * own trace + workflow identity. It is consumed by tool context bindings: `call.context` on
+ * direct-call specs and `contextBindings` on callRef specs. The runner fills bound request fields
+ * from this blob at dispatch, server-side and hidden from the model. The model never reads run
+ * context directly.
  *
  * `workflow` mirrors the platform's three workflow entities — the `artifact` (the workflow), the
  * `variant`, and the `revision` — so the run's identity reads the same way the rest of the platform
@@ -161,6 +181,9 @@ export interface RunContextReference {
  * best-effort — the service fills what it holds and omits the rest.
  */
 export interface RunContext {
+  run?: {
+    kind?: string;
+  };
   workflow?: {
     artifact?: RunContextReference;
     variant?: RunContextReference;
@@ -218,11 +241,10 @@ export interface McpServerConfig {
   tools?: string[];
   /**
    * Layer-3 permission for the whole server: `allow` / `ask` / `deny`. Absent =
-   * fall back to the global `permissionPolicy`. An MCP server has no `readOnly` hint, so there
-   * is no derived default: an explicit author value or nothing. Plumbing only; enforcement is
-   * a later slice.
+   * fall back to the global permission plan. An MCP server has no `readOnly` hint, so there
+   * is no derived default: an explicit author value or nothing.
    */
-  permission?: "allow" | "ask" | "deny";
+  permission?: ToolPermission;
 }
 
 /**
@@ -283,7 +305,16 @@ export interface HarnessCapabilities {
 export type RenderHint =
   | { kind: "component"; component: string }
   | { kind: "source"; runtime: "react" | "html"; source: string | string[] }
-  | { kind: "spec"; schema: string };
+  | { kind: "spec"; schema: string }
+  // `connect` requests the built-in connect widget: a `client` tool (e.g. `request_connection`)
+  // stamps it so the frontend renders the OAuth/API-key connect dialog when the tool pauses. No
+  // payload — the widget is fully described by the paused call's tool name + input. `wire.py` does
+  // not pin RenderHint (render rides as an opaque dict), so this member is TS-only.
+  | { kind: "connect" }
+  // `elicitation` requests the built-in schema-driven form (interaction kinds M1): the `request_input`
+  // client tool stamps it so the frontend renders a form from the paused call's `requestedSchema`. Like
+  // `connect`, it carries no payload here and is TS-only (the render rides through as an opaque dict).
+  | { kind: "elicitation" };
 
 export type AgentEvent =
   | { type: "message"; text: string }
@@ -424,8 +455,8 @@ export interface AgentRunRequest {
   mcpServers?: McpServerConfig[];
   /** Where customTools route their calls back to. Required when customTools is set. */
   toolCallback?: ToolCallbackContext;
-  /** How a permission-gating harness handles tool-use prompts: "auto" (default) | "deny". */
-  permissionPolicy?: string;
+  /** Authored permission plan assembled by the SDK (`runner.permissions.*` in the agent config). */
+  permissions?: PermissionsConfig;
   /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under

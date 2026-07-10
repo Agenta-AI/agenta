@@ -11,14 +11,15 @@ and the `sandbox-agent` package) are Node libraries with no Python SDK.
 Two entrypoints, same `/run` contract (see `src/protocol.ts`):
 
 - **`src/cli.ts`** — one JSON request on stdin, one result on stdout. The Python
-  SDK adapters use this subprocess transport when `AGENTA_RUNNER_URL` is unset. stdout is
+  SDK adapters use this subprocess transport when `AGENTA_RUNNER_INTERNAL_URL` is unset. stdout is
   the result channel only; logs go to stderr.
 - **`src/server.ts`** — the same thing as a long-lived HTTP server on `:8765`
   (`GET /health`, `POST /run`). This is the dockerized agent runner sidecar the Python SDK
-  adapters call over HTTP when `AGENTA_RUNNER_URL` points at it. The dev image
+  adapters call over HTTP when `AGENTA_RUNNER_INTERNAL_URL` points at it. The dev image
   (`docker/Dockerfile.dev`) runs `tsx watch src/server.ts`.
 
-Both route to an engine by the request's `backend` field.
+Both drive the request through the one engine (`engines/sandbox_agent.ts`); the request's
+`harness` field selects which harness runs inside it.
 
 ## Layout (`src/`)
 
@@ -28,30 +29,27 @@ src/
   server.ts           entrypoint: HTTP sidecar on :8765
   protocol.ts         the /run wire contract (request, result, events, capabilities)
   engines/
-    pi.ts             engine: drive the Pi SDK in-process
-    sandbox_agent.ts  engine: drive a harness over ACP through sandbox-agent
+    sandbox_agent.ts  the one engine: drive a harness over ACP through sandbox-agent
   tracing/
     otel.ts           turn a run into OpenTelemetry spans nested under /invoke
   tools/
     callback.ts       the one /tools/call HTTP client
     code.ts           execute resolved code tools in a scoped subprocess
     dispatch.ts       dispatch resolved tools by executor kind
-    mcp-bridge.ts     stdio MCP bridge — DISABLED (throws MCP_UNSUPPORTED_MESSAGE)
-    mcp-server.ts     the stdio MCP server — REMOVED (refuses to serve; no longer launched)
+    mcp-bridge.ts     the INTERNAL gateway-tool MCP channel (loopback HTTP) — live
+    mcp-server.ts     the OLD stdio MCP bridge — REMOVED (refuses to serve; no longer launched)
   extensions/
     agenta.ts         the Pi extension (tracing + tools), bundled into dist/ for Pi to load
 ```
 
-## Engines
+## Engine
 
-- **`pi`** (`engines/pi.ts`) — drives the Pi SDK directly in-process.
-- **`sandbox-agent`** (`engines/sandbox_agent.ts`) — drives any harness (`pi`, `claude`) over the Agent
-  Client Protocol through sandbox-agent, either local or in a Daytona
-  sandbox. This is the default on the platform.
+There is one engine, `sandbox_agent.ts`: it drives any harness (`pi`, `claude`) over the Agent
+Client Protocol through sandbox-agent, either local or in a Daytona sandbox.
 
-The engine is internal runner plumbing. The platform sends `sandbox-agent` by default.
 Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` or
-`daytona`, where supported) are per-run config from the Python service.
+`daytona`, where supported) are per-run config from the Python service, carried on the
+request's `harness` / `sandbox` fields.
 
 ## Result
 
@@ -87,13 +85,17 @@ live workflow span.
 Tools are resolved in the Python backend and arrive on the request as `customTools` plus a
 `toolCallback`. The Pi extension registers them natively, and each call POSTs back to Agenta's
 `/tools/call` (`tools/callback.ts`) so the provider key and connection auth stay server-side.
+Non-Pi harnesses (e.g. Claude) that only accept tools over MCP get these same resolved tools
+through an INTERNAL loopback HTTP MCP channel the runner serves (`tools/mcp-bridge.ts` +
+`tools/tool-mcp-http.ts`) — this channel is live and is how Claude runs take custom tools.
 
-The stdio MCP delivery path that exposed tools to non-Pi harnesses (`tools/mcp-bridge.ts` +
-`tools/mcp-server.ts`) is **disabled** in the sidecar — it launched an unconfined child process
-on the runner host, the same execution bypass that had code tools removed. Until the security is
-fixed, delivering a tool over MCP throws `MCP_UNSUPPORTED_MESSAGE`, so a non-Pi harness (e.g.
-Claude) cannot take custom tools, and the run plan refuses any request carrying a stdio MCP
-server. See `docs/design/agent-workflows/projects/sidecar-trust-and-sandbox-enforcement/`.
+This internal channel is a different thing from USER-declared MCP servers (a run request's own
+`mcpServers`), which stay gated: stdio user MCP servers are refused for every harness
+(`tools/mcp-server.ts`, the old stdio bridge, is REMOVED — it launched an unconfined child
+process on the runner host, the same execution bypass that had code tools removed), and it is
+_Pi_, not the sidecar broadly, that also refuses user _http_ MCP servers, because Pi delivers
+tools through its bundled extension rather than over ACP MCP. Claude accepts user http MCP
+servers. See `docs/design/agent-workflows/projects/sidecar-trust-and-sandbox-enforcement/`.
 
 ## The extension bundle
 
@@ -122,5 +124,5 @@ revision's config, so these are rarely hit.
 
 ```bash
 pnpm install
-echo '{"backend":"sandbox-agent","harness":"pi","sandbox":"local","messages":[{"role":"user","content":"Hi"}]}' | pnpm run run:cli
+echo '{"harness":"pi","sandbox":"local","messages":[{"role":"user","content":"Hi"}]}' | pnpm run run:cli
 ```

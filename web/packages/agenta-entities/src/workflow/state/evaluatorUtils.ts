@@ -33,7 +33,11 @@ import {
 } from "../core"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
-import {buildServiceUrlFromUri} from "./helpers"
+import {
+    buildServiceUrlFromUri,
+    filterLlmEvaluatorWorkflows,
+    filterNonDeterministicEvaluatorWorkflows,
+} from "./helpers"
 import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
@@ -112,6 +116,57 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
     return refs.filter((ref) => !ref.deleted_at) as Workflow[]
 })
 
+// ============================================================================
+// LAZY ENRICHMENT GATE
+// ============================================================================
+
+/**
+ * The aggregate evaluator atoms below — `fullPagePlaygroundEvaluatorsAtom`,
+ * `nonHumanEvaluatorsAtom`, `evaluatorKeyMapAtom`, `evaluatorWorkflowMetaMapAtom`,
+ * `evaluatorFeedbackSchemasAtom` — each resolve EVERY evaluator's LATEST REVISION,
+ * which fans out one batched `POST /workflows/revisions/query` over the whole
+ * project. That enrichment is only needed to populate evaluator pickers /
+ * switchers, so the fan-out stays DORMANT until a consumer that genuinely needs
+ * it activates the gate (one-way, per session). Until then each atom returns a
+ * cheap, stable empty value and mounts no revision query.
+ *
+ * Activate imperatively via `activateEvaluatorEnrichmentAtom` (e.g. from a
+ * picker/switcher open handler), or eagerly via the `useEnsureEvaluatorEnrichment`
+ * hook for consumers that must have the data on mount.
+ */
+export const evaluatorEnrichmentActivatedAtom = atom(false)
+
+export const activateEvaluatorEnrichmentAtom = atom(null, (get, set) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) {
+        set(evaluatorEnrichmentActivatedAtom, true)
+    }
+})
+
+// Stable empty references returned while the gate is dormant (so subscribers
+// don't churn on every read).
+const EMPTY_EVALUATOR_LIST: Workflow[] = []
+const EMPTY_EVALUATOR_KEY_MAP = new Map<string, string>()
+
+/**
+ * Non-archived LLM-based evaluators.
+ *
+ * Evaluator-family flags live on latest revisions rather than the artifact
+ * list, so revisions are resolved through the shared batched query atoms.
+ * Unresolved evaluators are held back until they can be classified.
+ */
+export const llmEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const latestRevisions = new Map<string, Workflow>()
+
+    evaluators.forEach((evaluator) => {
+        if (!evaluator.id) return
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (revision) latestRevisions.set(evaluator.id, revision)
+    })
+
+    return filterLlmEvaluatorWorkflows(evaluators, latestRevisions)
+})
+
 /**
  * Non-archived evaluators whose latest revision has the full-page playground
  * UX (prompt-authored — `auto_ai_critique` / `llm` — or code-authored —
@@ -132,6 +187,7 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
  * `nonArchivedEvaluatorsAtom`), so callers can use it as a drop-in filter.
  */
 export const fullPagePlaygroundEvaluatorsAtom = atom<Workflow[]>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_LIST
     const evaluators = get(nonArchivedEvaluatorsAtom)
     return evaluators.filter((evaluator) => {
         if (!evaluator.id) return false
@@ -162,6 +218,7 @@ export const fullPagePlaygroundEvaluatorsAtom = atom<Workflow[]>((get) => {
  * does, so a human evaluator never briefly leaks into the list.
  */
 export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_LIST
     const evaluators = get(nonArchivedEvaluatorsAtom)
     return evaluators.filter((evaluator) => {
         if (!evaluator.id) return false
@@ -169,6 +226,33 @@ export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
         if (!revision) return false
         return !revision.flags?.is_feedback
     })
+})
+
+/**
+ * Non-archived **non-deterministic** evaluators — automatic evaluators that
+ * support online (live) evaluation, i.e. the same set offered by the "create
+ * online evaluation" drawer. Human (`is_feedback`) evaluators are excluded, and
+ * the rest are narrowed via `isOnlineCapableEvaluator` (custom / code / hook /
+ * llm families, with a legacy evaluator-key fallback), so the sidebar workflow
+ * switcher surfaces only auto evaluators whose output is non-deterministic (as
+ * opposed to deterministic matchers like exact match).
+ *
+ * The classifying flags / uri live on the latest revision, not the parent
+ * artifact, so it's resolved per-evaluator from the batched + cached latest
+ * revision. An evaluator whose revision hasn't resolved yet is held back until
+ * it can be classified.
+ */
+export const nonDeterministicEvaluatorsAtom = atom<Workflow[]>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const latestRevisions = new Map<string, Workflow>()
+
+    evaluators.forEach((evaluator) => {
+        if (!evaluator.id) return
+        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
+        if (revision) latestRevisions.set(evaluator.id, revision)
+    })
+
+    return filterNonDeterministicEvaluatorWorkflows(evaluators, latestRevisions)
 })
 
 /**
@@ -233,6 +317,7 @@ export function onEvaluatorMutation(listener: () => void): () => void {
  * extracts `data.uri`, and parses the evaluator key.
  */
 export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_KEY_MAP
     const evaluators = get(nonArchivedEvaluatorsAtom)
     const map = new Map<string, string>()
 
@@ -279,7 +364,10 @@ export interface EvaluatorWorkflowMeta {
  * Reads the same batched + cached latest-revision queries as `evaluatorKeyMapAtom`,
  * so subscribing to this atom adds no extra requests.
  */
+const EMPTY_EVALUATOR_META_MAP = new Map<string, EvaluatorWorkflowMeta>()
+
 export const evaluatorWorkflowMetaMapAtom = atom<Map<string, EvaluatorWorkflowMeta>>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_META_MAP
     const evaluators = get(nonArchivedEvaluatorsAtom)
     const map = new Map<string, EvaluatorWorkflowMeta>()
 
@@ -331,7 +419,10 @@ export interface EvaluatorFeedbackSchema {
 /**
  * Derived atom: every non-archived evaluator paired with its output-metric properties.
  */
+const EMPTY_EVALUATOR_FEEDBACK: EvaluatorFeedbackSchema[] = []
+
 export const evaluatorFeedbackSchemasAtom = atom<EvaluatorFeedbackSchema[]>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_FEEDBACK
     const evaluators = get(nonArchivedEvaluatorsAtom)
     const result: EvaluatorFeedbackSchema[] = []
 

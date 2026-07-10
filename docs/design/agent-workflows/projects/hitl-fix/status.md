@@ -1,5 +1,7 @@
 # Status
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 **State:** DESIGN ONLY. Not implemented, not merged. Awaiting the decision below.
 
 **Date:** 2026-06-25

@@ -42,6 +42,7 @@ import {
   type Span,
   type SpanContext,
 } from "@opentelemetry/api";
+import { ExportResultCode } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { Resource } from "@opentelemetry/resources";
 import type {
@@ -53,6 +54,13 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
+
+/** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
+ *  responder keys off this to keep the deferral out of the client-output store, and the web widget
+ *  keys off it to render the sibling as deferred rather than failed. */
+export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED";
+
+export const TOOL_NOT_EXECUTED_PAUSED = `${DEFERRED_NOT_EXECUTED_PREFIX}: paused for another approval; retry the same call if still required.`;
 
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
@@ -92,9 +100,11 @@ function getExporter(target: ExportTarget): OTLPTraceExporter {
 
 /** Fallback target from env, used when a trace was started without an explicit one. */
 function defaultTarget(): ExportTarget {
-  // AGENTA_API_URL is the `.../api` base the rest of the platform uses.
+  // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
-    process.env.AGENTA_API_URL?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
+    (
+      process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
+    )?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
   // Prefer the bare API key; else fall back to the full (scheme-tagged) ephemeral
   // credential, used verbatim — `/check` hands back a `Secret ...`, not an API key.
   const apiKey = process.env.AGENTA_API_KEY || "";
@@ -136,9 +146,20 @@ class TraceBatchProcessor implements SpanProcessor {
     this.buffers.delete(traceId);
     const target = traceTargets.get(traceId) ?? defaultTarget();
     traceTargets.delete(traceId);
-    return new Promise((resolve) =>
-      getExporter(target).export(orderParentFirst(spans), () => resolve()),
-    );
+    return new Promise((resolve) => {
+      try {
+        getExporter(target).export(orderParentFirst(spans), (result) => {
+          if (result.code === ExportResultCode.FAILED)
+            console.error("otel: trace export failed", traceId, result.error);
+          resolve();
+        });
+      } catch (err) {
+        // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
+        // flush() is awaited without a catch, so a reject here would break the run.
+        console.error("otel: trace export threw", traceId, err);
+        resolve();
+      }
+    });
   }
 
   forceFlush(): Promise<void> {
@@ -357,7 +378,13 @@ function lastAssistantText(messages: any): string {
 }
 
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
-function applyAssistant(span: Span, msg: any, capture: boolean): void {
+/** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
+ * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
+function applyAssistant(
+  span: Span,
+  msg: any,
+  capture: boolean,
+): string | undefined {
   if (msg.provider) span.setAttribute("gen_ai.system", msg.provider);
   if (msg.model) span.setAttribute("gen_ai.request.model", msg.model);
   if (msg.responseModel || msg.model)
@@ -381,11 +408,13 @@ function applyAssistant(span: Span, msg: any, capture: boolean): void {
       "gen_ai.usage.total_tokens",
       u.totalTokens ?? (u.input ?? 0) + (u.output ?? 0),
     );
-    if (u.cacheRead)
-      span.setAttribute("gen_ai.usage.cache_read_input_tokens", u.cacheRead);
-    if (u.cacheWrite)
+    // Dotted form: matches logfire_adapter.py's ingest keys (underscore form was never read).
+    // Nullish check, not truthy, so a real 0 is emitted like the other token fields.
+    if (u.cacheRead != null)
+      span.setAttribute("gen_ai.usage.cache_read.input_tokens", u.cacheRead);
+    if (u.cacheWrite != null)
       span.setAttribute(
-        "gen_ai.usage.cache_creation_input_tokens",
+        "gen_ai.usage.cache_creation.input_tokens",
         u.cacheWrite,
       );
     if (u.cost?.total != null)
@@ -395,7 +424,9 @@ function applyAssistant(span: Span, msg: any, capture: boolean): void {
   emitMessages(span, "llm.output_messages", [msg], capture);
   if (msg.stopReason === "error" || msg.errorMessage) {
     span.setStatus({ code: SpanStatusCode.ERROR, message: msg.errorMessage });
+    return String(msg.errorMessage || "agent run failed");
   }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -661,6 +692,33 @@ function acpBlockText(block: any): string {
   return "";
 }
 
+/** Serialized form of real tool args, for change detection; undefined when absent/`{}`. */
+function toolInputJson(input: unknown): string | undefined {
+  if (!hasToolArgs(input)) return undefined;
+  try {
+    return JSON.stringify(input);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether a tool's `rawInput` holds real, inspectable args. A harness can announce a call with
+ * an absent or empty `{}` input and fill the args in on a later `tool_call_update` (Pi does);
+ * both placeholders count as "no args yet" so we know to refresh the tool_call once the real
+ * args land. Purely shape-based — no harness-specific logic.
+ */
+function hasToolArgs(input: unknown): boolean {
+  if (input == null) return false;
+  if (
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    Object.keys(input as Record<string, unknown>).length === 0
+  )
+    return false;
+  return true;
+}
+
 /** Text of an ACP tool_call `content` array (ToolCallContent[]). */
 function acpToolContentText(content: any): string {
   if (!content) return "";
@@ -703,9 +761,9 @@ export function isBannerLine(line: string): boolean {
     t === "---" ||
     /^pi v\d+\.\d+\.\d+\b/.test(t) ||
     // section heading, raw ("## Context") or rendered ("Context"); same for "Skills"
-    /^(?:#{1,6}\s*)?(?:Context|Skills)\s*$/.test(t) ||
+    /^(?:#{1,6}\s*)?(?:Context|Skills|Extensions)\s*$/.test(t) ||
     // an AGENTS.md / *.md path item, list-prefixed ("- /…/AGENTS.md") or bare ("/…/AGENTS.md")
-    /^(?:-\s+)?\/\S*\.md\s*$/.test(t) ||
+    /^(?:-\s+)?\/\S*\.(?:md|js)\s*$/.test(t) ||
     // upgrade notice: "New version available: vX (installed vY). Run: `npm i -g …`"
     /^New version available:/.test(t) ||
     /^Run:\s*`?npm\s+i\b/.test(t)
@@ -842,6 +900,11 @@ export interface SandboxAgentOtel {
   output(): string;
   /** The structured event log built from the ACP stream (tool calls, usage, final message). */
   events(): AgentEvent[];
+  /** Settle open tool calls except those intentionally left pending. */
+  settleOpenToolCalls(
+    isExcluded: (id: string) => boolean,
+    message: string,
+  ): void;
   /** Run token/cost totals from the stream, when the harness reported `usage_update`. */
   usage(): AgentUsage | undefined;
 }
@@ -872,7 +935,12 @@ export function createSandboxAgentOtel(
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
   const events: AgentEvent[] = [];
-  const toolSpans = new Map<string, { span?: Span; name: string }>();
+  // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
+  // `tool_call_update` can refresh the recorded args whenever they genuinely change.
+  const toolSpans = new Map<
+    string,
+    { span?: Span; name: string; inputJson?: string }
+  >();
 
   // Live emission. `record` is the single choke point for every event: it appends to the
   // result log and, on the streaming path, flushes the event the moment it is built — so
@@ -1105,12 +1173,20 @@ export function createSandboxAgentOtel(
         if (update.rawInput != null)
           setInputs(span, update.rawInput as Record<string, unknown>, capture);
       }
-      toolSpans.set(id, { span, name: String(name) });
+      // Emit the tool_call up front — the FE tool part, the HITL approval part, and the loop
+      // breaker all attach to it, so it MUST surface before any approval/result for this id.
+      // Pi often announces the call with absent/`{}` args and fills them on a later
+      // `tool_call_update`; we refresh the input there (see below), never by delaying this.
       record({
         type: "tool_call",
         id: String(id),
         name: String(name),
         input: update.rawInput,
+      });
+      toolSpans.set(id, {
+        span,
+        name: String(name),
+        inputJson: toolInputJson(update.rawInput),
       });
       // A tool_call can arrive already completed (status set up front).
       maybeCloseTool(id, update);
@@ -1118,7 +1194,37 @@ export function createSandboxAgentOtel(
     }
 
     if (kind === "tool_call_update") {
-      maybeCloseTool(update.toolCallId, update);
+      // The real args often land here, not on the initial `tool_call` — and they can land
+      // INCREMENTALLY: a harness may stream a growing partial parse of the args (Pi does:
+      // `{}` -> `{x:[""]}` -> the full args), and the announcement itself may already carry
+      // an early partial delta.
+      // Refresh the recorded input whenever the update carries genuinely NEW args (serialized
+      // compare against the last-recorded input), so the final recorded tool_call always has
+      // the args the executor actually ran with — a refresh-once / had-args-at-announce gate
+      // records an early partial delta as the call's input (the #5064 fold-path bug). The
+      // egress projects a repeat tool_call for a seen id as an input refresh (no new
+      // tool-input-start), mirroring the gated approval-refresh path.
+      const id = update.toolCallId;
+      const entry = id ? toolSpans.get(id) : undefined;
+      if (entry && hasToolArgs(update.rawInput)) {
+        const nextJson = toolInputJson(update.rawInput);
+        if (nextJson !== entry.inputJson) {
+          if (entry.span)
+            setInputs(
+              entry.span,
+              update.rawInput as Record<string, unknown>,
+              capture,
+            );
+          record({
+            type: "tool_call",
+            id: String(id),
+            name: entry.name,
+            input: update.rawInput,
+          });
+          entry.inputJson = nextJson;
+        }
+      }
+      maybeCloseTool(id, update);
       return;
     }
 
@@ -1161,6 +1267,21 @@ export function createSandboxAgentOtel(
       output: out,
       isError: status === "failed",
     });
+  }
+
+  function settleOpenToolCalls(
+    isExcluded: (id: string) => boolean,
+    message: string,
+  ): void {
+    for (const [id, entry] of [...toolSpans.entries()]) {
+      if (isExcluded(id)) continue;
+      if (entry.span) {
+        entry.span.setStatus({ code: SpanStatusCode.ERROR });
+        entry.span.end();
+      }
+      toolSpans.delete(id);
+      record({ type: "tool_result", id, output: message, isError: true });
+    }
   }
 
   /**
@@ -1275,6 +1396,7 @@ export function createSandboxAgentOtel(
     traceId: () => runTraceId,
     output: () => accumulated,
     events: () => events,
+    settleOpenToolCalls,
     usage: () => usage,
   };
 }

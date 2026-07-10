@@ -64,12 +64,14 @@ from .dtos import (
     HarnessCapabilities,
     HarnessIdentity,
     HarnessType,
+    InvalidPermissionDefaultError,
     Message,
     NetworkEgress,
-    PermissionPolicy,
+    PermissionMode,
     PiAgentTemplate,
     RunContext,
     RunContextReference,
+    RunContextRun,
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
@@ -80,6 +82,7 @@ from .dtos import (
 )
 from .errors import (
     AgentRunnerConfigurationError,
+    LocalSandboxNotAllowedError,
     ToolResolutionError,
     UnsupportedHarnessError,
 )
@@ -173,10 +176,11 @@ __all__ = [
     "TraceContext",
     "RunContext",
     "RunContextReference",
+    "RunContextRun",
     "RunContextWorkflow",
     "RunContextTrace",
     "ToolCallback",
-    "PermissionPolicy",
+    "PermissionMode",
     "SandboxPermission",
     "NetworkEgress",
     # Canonical tools API
@@ -257,8 +261,10 @@ __all__ = [
     "Harness",
     # Errors
     "AgentRunnerConfigurationError",
+    "LocalSandboxNotAllowedError",
     "UnsupportedHarnessError",
     "ToolResolutionError",
+    "InvalidPermissionDefaultError",
     # Adapters
     "SandboxAgentBackend",
     "LocalBackend",

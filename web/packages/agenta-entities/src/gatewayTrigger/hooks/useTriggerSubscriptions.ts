@@ -10,7 +10,8 @@ import type {TriggerSubscription, TriggerSubscriptionsResponse} from "../core/ty
 // Distinct from the catalog/connection keys (["triggers", "catalog"|"connections"]).
 export const triggerSubscriptionsQueryAtom = atomWithQuery<TriggerSubscriptionsResponse>(() => ({
     queryKey: ["triggers", "subscriptions"],
-    queryFn: () => queryTriggerSubscriptions(),
+    // Secondary (trigger count badge / section); yield to the render-critical playground queries.
+    queryFn: () => queryTriggerSubscriptions(undefined, {lowPriority: true}),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
 }))

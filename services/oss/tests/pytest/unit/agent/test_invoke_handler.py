@@ -7,6 +7,11 @@ network-touching helpers stubbed. No runner, no LLM, no HTTP. This is where the 
 
 from __future__ import annotations
 
+import inspect
+import json
+from itertools import product
+from pathlib import Path
+
 import pytest
 
 from agenta.sdk.agents import (
@@ -14,11 +19,13 @@ from agenta.sdk.agents import (
     AgentResult,
     ConnectionNotFoundError,
     ConnectionResolutionError,
+    Event,
     GatewayToolResolutionError,
     MissingProviderError,
     ResolvedConnection,
     ResolvedToolSet,
 )
+from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
@@ -55,9 +62,7 @@ def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
         return []
 
     async def _no_connection(*, model, context):
-        # Stand in for the whole-vault dump's old empty result: a no-credential plan so the
-        # existing response-body / lifecycle / cross-harness tests run with empty secrets,
-        # exactly as `_no_secrets` did before Slice 3.
+        # a no-credential plan so existing response-body/lifecycle/cross-harness tests run clean
         return ResolvedConnection(
             provider="openai",
             model="m",
@@ -88,19 +93,19 @@ def patched(monkeypatch, fake_backend):
     return backend, recorded
 
 
-def _template(harness="pi_core", *, model=None, permission_policy=None, skills=None):
+def _template(harness="pi_core", *, model=None, permission_default=None, skills=None):
     """Build the agent-template value from loose kwargs the tests still pass flat.
 
     Everything lives on the one template (at `parameters.agent`): `model`/`skills` are the
-    definition; `harness`/`permission_policy` are the nested execution sections
-    (`harness.kind` / `runner.interactions.headless`)."""
+    definition; `harness`/`permission_default` are the nested execution sections
+    (`harness.kind` / `runner.permissions.default`)."""
     template: dict = {"harness": {"kind": harness}}
     if model is not None:
         template["llm"] = model if isinstance(model, dict) else {"model": model}
     if skills is not None:
         template["skills"] = skills
-    if permission_policy is not None:
-        template["runner"] = {"interactions": {"headless": permission_policy}}
+    if permission_default is not None:
+        template["runner"] = {"permissions": {"default": permission_default}}
     return template
 
 
@@ -113,10 +118,96 @@ async def _invoke(harness="pi_core", **agent):
 
 
 async def test_invoke_returns_assistant_message(patched):
-    # Agent v0 output is `outputs.messages`, so a batch turn returns the {messages: [...]} envelope.
     assert await _invoke("pi_core") == {
         "messages": [{"role": "assistant", "content": "echo"}]
     }
+
+
+async def test_batch_paused_run_surfaces_pending_interaction(monkeypatch, fake_backend):
+    # The realistic paused stream: the runner's `done` event carries NO stopReason (the
+    # engine settles paused-vs-ended after the event stream closes, onto the terminal
+    # result only), so the envelope's pause metadata must come from result.stop_reason.
+    interaction = {
+        "id": "perm_1",
+        "kind": "user_approval",
+        "payload": {
+            "toolCallId": "call_1",
+            "toolCall": {"toolCallId": "call_1", "name": "deleteFile"},
+        },
+    }
+    backend = fake_backend(
+        result=AgentResult(
+            output="waiting",
+            stop_reason="paused",
+            events=[
+                Event(type="message", data={"text": "waiting"}),
+                Event(type="interaction_request", data=interaction),
+                Event(type="done", data={}),
+            ],
+        )
+    )
+    _patch_handler(monkeypatch, backend)
+
+    body = await _invoke("pi_core")
+
+    assert body == {
+        "messages": [{"role": "assistant", "content": "waiting"}],
+        "stop_reason": "paused",
+        # the raw interaction data (the wire event carries its `type` inline) + derived tool
+        "pending_interaction": dict(
+            interaction, type="interaction_request", tool="deleteFile"
+        ),
+    }
+
+
+_RECORDINGS = Path(__file__).parent / "recordings"
+
+
+async def test_batch_paused_run_replays_gated_bash_builtin(monkeypatch, fake_backend):
+    """Pin the live-QA'd gated-builtin pause (agent-replay-test skill).
+
+    Captured 2026-07-02 from a real E2 (service / sandbox-agent local) run: pi_core, all
+    seven builtins granted, `runner.permissions.default: allow_reads`, prompted to run
+    `echo qa-gate-7431` over bash. The real run paused with `stop_reason: paused` and a
+    `user_approval` interaction naming `bash`, carrying the raw command. Recorded (ids
+    redacted) at `recordings/pi-gated-bash-pause.json`; replayed here through the real event
+    stream -> fold path with no live LLM, so the pi-builtin-gating wiring cannot silently
+    regress the way the grant list did in 0e71bd0f7a.
+    """
+    recorded = json.loads((_RECORDINGS / "pi-gated-bash-pause.json").read_text())
+    events = [Event(type=e["type"], data=e["data"]) for e in recorded["events"]]
+    backend = fake_backend(
+        result=AgentResult(
+            output="",
+            stop_reason=recorded["stop_reason"],
+            events=events,
+        )
+    )
+    _patch_handler(
+        monkeypatch,
+        backend,
+        builtins=["read", "bash", "edit", "write", "grep", "find", "ls"],
+    )
+
+    body = await _invoke("pi_core", permission_default="allow_reads")
+
+    # Structural facts the real run proved: it paused, and the pause names `bash` with the
+    # exact command the model tried to run.
+    assert body["stop_reason"] == "paused"
+    interaction = body["pending_interaction"]
+    assert interaction["tool"] == "bash"
+    assert interaction["payload"]["toolCall"]["rawInput"] == {
+        "command": "echo qa-gate-7431"
+    }
+
+
+async def test_batch_completed_run_omits_pause_metadata(monkeypatch, fake_backend):
+    backend = fake_backend(result=AgentResult(output="echo"))
+    _patch_handler(monkeypatch, backend)
+
+    body = await _invoke("pi_core")
+
+    assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
 
 
 async def test_invoke_records_usage(patched):
@@ -129,7 +220,7 @@ async def test_invoke_runs_backend_lifecycle(patched):
     backend, _ = patched
     await _invoke("pi_core")
     assert backend.setup_calls == 1
-    assert backend.shutdown_calls == 1  # cleanup() tears the backend down
+    assert backend.shutdown_calls == 1
 
 
 async def test_messages_session_id_reaches_session_config(patched):
@@ -162,10 +253,10 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
          each producing its own config.
 
     The turn carries a built-in tool (``web_search``), a ``deny`` policy, and one author skill
-    so the divergence is observable: Claude drops Pi built-ins and honors the policy; Pi keeps
-    them and forces ``auto``; Agenta unions the forced tools. The skill rides the neutral config,
-    so every skill-loading harness emits it on its own ``wire_skills`` seam (never in the tool
-    wire); there is no forced skill-name list anymore.
+    so the divergence is observable: Claude drops Pi built-ins while all harnesses ship the
+    same shared permission plan. The skill rides the neutral config, so every skill-loading
+    harness emits it on its own ``wire_skills`` seam (never in the tool wire); there is no
+    forced skill-name list anymore.
     """
     backend = fake_backend(result=AgentResult(output="echo", usage={"total": 15}))
     _patch_handler(monkeypatch, backend, builtins=["web_search"])
@@ -176,13 +267,12 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
         "body": "Read the changelog, then write notes.",
     }
     bodies = [
-        await _invoke(harness, permission_policy="deny", skills=[skill])
+        await _invoke(harness, permission_default="deny", skills=[skill])
         for harness in ("pi_core", "pi_agenta", "claude")
     ]
     pi_body, agenta_body, claude_body = bodies
 
-    # (1) Response-layer guarantee: identical body regardless of harness. Agent v0 output is
-    # `outputs.messages`, so each body is the {messages: [...]} envelope.
+    # (1) identical body regardless of harness
     assert (
         pi_body
         == agenta_body
@@ -197,38 +287,36 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
         }
     )
 
-    # (2) The three harness-shaped configs that reached the backend boundary, in call order.
+    # (2) the three harness-shaped configs that reached the backend boundary, in call order
     assert len(backend.created_configs) == 3
     pi_cfg, agenta_cfg, claude_cfg = backend.created_configs
     pi_wire = pi_cfg.wire_tools()
     agenta_wire = agenta_cfg.wire_tools()
     claude_wire = claude_cfg.wire_tools()
 
-    # Pi keeps its built-in tool natively and never gates tool use (policy forced to auto,
-    # the author's `deny` notwithstanding). Skills never ride the tool wire.
+    # Pi keeps its built-in tool natively; the runner relay enforces the shared plan.
+    # Skills never ride the tool wire.
     assert pi_wire["tools"] == ["web_search"]
-    assert pi_wire["permissionPolicy"] == "auto"
+    assert pi_wire["permissions"] == {"default": "deny"}
     assert "skills" not in pi_wire
 
-    # Claude has no Pi built-ins (the `web_search` name is dropped) and honors the policy.
+    # Claude has no Pi built-ins (the `web_search` name is dropped) and carries the same plan.
     assert claude_wire["tools"] == []
-    assert claude_wire["permissionPolicy"] == "deny"
+    assert claude_wire["permissions"] == {"default": "deny"}
     assert "skills" not in claude_wire
 
-    # Agenta is Pi-with-an-opinion: it unions the forced tools onto the author's set and forces
-    # auto like Pi. Skills are not tools, so they never appear in the tool wire.
+    # Agenta is Pi-with-an-opinion: it unions the forced tools onto the author's set. Skills are
+    # not tools, so they never appear in the tool wire.
     assert agenta_wire["tools"] == ["web_search", "read", "bash"]
-    assert agenta_wire["permissionPolicy"] == "auto"
+    assert agenta_wire["permissions"] == {"default": "deny"}
     assert "skills" not in agenta_wire
 
-    # Skills ride the dedicated `wire_skills` seam. All three harnesses carry the resolved
-    # inline package: Pi/Agenta load it into the resource loader, and the runner materializes
-    # it for Claude under `.claude/skills/<name>` (project-local skill layout).
+    # skills ride the dedicated wire_skills seam, not the tool wire
     assert pi_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
     assert agenta_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
     assert claude_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
 
-    # The configs genuinely differ at the boundary; the body's sameness is not a tautology.
+    # configs genuinely differ; the body's sameness is not a tautology
     assert pi_wire != claude_wire
     assert agenta_wire != pi_wire
 
@@ -270,11 +358,7 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
         )
 
 
-# ---------------------------------------------------------------------------
 # Slice 3: the config-stored connection drives resolution
-# ---------------------------------------------------------------------------
-
-
 def _patch_resolution(monkeypatch, backend, *, resolve):
     """Like ``_patch_handler`` but with a caller-supplied ``resolve_connection`` stub.
 
@@ -283,12 +367,15 @@ def _patch_resolution(monkeypatch, backend, *, resolve):
     can inspect the ``ModelRef`` / ``RuntimeAuthContext`` it was called with.
 
     Returns a list that captures every ``SessionConfig`` the handler builds, so a test can
-    assert the resolved connection (and its env) was threaded onto the session. ``resolved_connection``
-    rides the ``SessionConfig``, not the harness-shaped config the backend records, so capturing it
-    here is the honest observable.
+    assert the resolved connection (and its env) was threaded onto the session.
+    ``_agent`` now delegates to the SDK seam (`agenta.sdk.agents.handler`), which is where
+    ``SessionConfig(...)`` is actually constructed, so the capture patches ``SessionConfig``
+    there rather than on this module.
     """
+    from agenta.sdk.agents import handler as sdk_handler
+
     built: list = []
-    real_session_config = app.SessionConfig
+    real_session_config = sdk_handler.SessionConfig
 
     def _capturing_session_config(**kwargs):
         cfg = real_session_config(**kwargs)
@@ -301,7 +388,7 @@ def _patch_resolution(monkeypatch, backend, *, resolve):
     async def _no_mcp(mcp_servers, **_kw):
         return []
 
-    monkeypatch.setattr(app, "SessionConfig", _capturing_session_config)
+    monkeypatch.setattr(sdk_handler, "SessionConfig", _capturing_session_config)
     monkeypatch.setattr(app, "resolve_tools", _tools)
     monkeypatch.setattr(app, "resolve_mcp_servers", _no_mcp)
     monkeypatch.setattr(app, "resolve_connection", resolve)
@@ -357,8 +444,7 @@ async def test_named_connection_env_reaches_session(monkeypatch, fake_backend):
     assert captured["context"].harness == "pi_core"
     assert captured["context"].project_id is None
 
-    # The one resolved key reached the backend boundary as the session's secrets, and the
-    # ResolvedConnection was threaded onto the SessionConfig the handler built.
+    # the resolved key reached the backend boundary as the session's secrets
     assert backend.created_secrets == [{"OPENAI_API_KEY": "sk-x"}]
     session_cfg = built[0]
     assert session_cfg.secrets == {"OPENAI_API_KEY": "sk-x"}
@@ -450,11 +536,7 @@ async def test_default_connection_missing_provider_fails_loud(
         await _invoke("pi_core", model="gpt-4o-mini")
 
 
-# ---------------------------------------------------------------------------
-# Agent-layer capability reject (split around the vault resolve, design Concern 3b)
-# ---------------------------------------------------------------------------
-
-
+# Agent-layer capability reject (split around the vault resolve)
 async def test_claude_unsupported_provider_rejected_pre_resolve(
     monkeypatch, fake_backend
 ):
@@ -519,3 +601,143 @@ async def test_pi_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
         await _invoke(
             "pi_core", model={"provider": "anthropic", "model": "anthropic.claude-x"}
         )
+
+
+# Level 1: the 27-combo stream x trim x force cube, `_agent` called directly.
+# `_UNSET` marks a key absent from `request.flags` (vs explicit False).
+
+_UNSET = object()
+_FLAG_VALUES = (_UNSET, False, True)
+
+# multi-message turn so trim=true (trailing unit) is distinguishable from the full turn
+_MULTI_MESSAGE_EVENTS = [
+    Event(type="message", data={"text": "let me check"}),
+    Event(type="tool_call", data={"id": "t1", "name": "search", "input": {"q": "x"}}),
+    Event(type="tool_result", data={"id": "t1", "output": "42"}),
+    Event(type="message", data={"text": "the answer is 42"}),
+    Event(type="done", data={"stopReason": "stop"}),
+]
+
+_FULL_FOLDED_MESSAGES = [
+    {"role": "assistant", "content": "let me check"},
+    {
+        "role": "tool",
+        "content": "",
+        "tool_call_id": "t1",
+        "tool_name": "search",
+        "input": {"q": "x"},
+    },
+    {"role": "tool", "content": "42", "tool_call_id": "t1", "is_error": None},
+    {"role": "assistant", "content": "the answer is 42"},
+]
+_TRIMMED_MESSAGES = [_FULL_FOLDED_MESSAGES[-1]]
+
+
+def _flags_dict(*, stream, trim, force):
+    """The `request.flags` dict for one cube cell; `_UNSET` keys are omitted entirely."""
+    flags = {}
+    if stream is not _UNSET:
+        flags["stream"] = stream
+    if trim is not _UNSET:
+        flags["trim"] = trim
+    if force is not _UNSET:
+        flags["force"] = force
+    return flags
+
+
+def _cube_request(*, stream, trim, force):
+    flags = _flags_dict(stream=stream, trim=trim, force=force)
+    return WorkflowServiceRequest(flags=flags or None)
+
+
+@pytest.fixture
+def multi_message_patched(monkeypatch, fake_backend):
+    """Like `patched`, but the fake session streams a multi-message tool-run turn."""
+    backend = fake_backend(
+        result=AgentResult(
+            output="the answer is 42",
+            events=_MULTI_MESSAGE_EVENTS,
+            usage={"total": 7},
+        )
+    )
+    recorded = _patch_handler(monkeypatch, backend)
+    return backend, recorded
+
+
+@pytest.mark.parametrize(
+    "stream,trim,force", list(product(_FLAG_VALUES, _FLAG_VALUES, _FLAG_VALUES))
+)
+async def test_agent_flag_cube(multi_message_patched, stream, trim, force):
+    request = _cube_request(stream=stream, trim=trim, force=force)
+    call = app._agent(
+        request=request,
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={"agent": _template("pi_core")},
+    )
+
+    # force=true -> 406-mapped error, regardless of other axes
+    if force is True:
+        with pytest.raises(ForceNotSupportedV0Error):
+            await call
+        return
+
+    result = await call
+
+    # stream=true (force not true) -> an async generator/stream of events
+    if stream is True:
+        assert inspect.isasyncgen(result)
+        events = [event async for event in result]
+        assert events, "the stream must yield at least one event"
+        assert all({"type", "data"} <= event.keys() for event in events)
+        return
+
+    # else: batch dict; trim=true -> trailing unit, else full turn
+    assert isinstance(result, dict)
+    assert "messages" in result
+    if trim is True:
+        assert result["messages"] == _TRIMMED_MESSAGES
+    else:
+        assert result["messages"] == _FULL_FOLDED_MESSAGES
+
+
+async def test_pi_openai_codex_self_managed_reaches_session(monkeypatch, fake_backend):
+    """Pi + the ``openai-codex`` subscription provider + ``self_managed`` is NOT rejected.
+
+    Before ``openai-codex`` joined Pi's capability providers, the agent-layer pre-resolve check
+    raised ``UnsupportedProviderError`` here even though the runner drives the ChatGPT/Codex
+    subscription fine — so the playground's self-managed (no-API-key) path was dead at the service
+    boundary. The ``self_managed`` connection resolves to a no-credential (``runtime_provided``)
+    plan: the harness authenticates with its own OAuth login and no key is injected.
+    """
+    backend = fake_backend(result=AgentResult(output="echo", usage={"total": 1}))
+    captured = {}
+
+    async def _resolve(*, model, context):
+        captured["model"] = model
+        # Mirror the VaultConnectionResolver's self_managed short-circuit (no vault, empty env).
+        return ResolvedConnection(
+            provider="openai-codex",
+            model=model.model,
+            credential_mode="runtime_provided",
+            env={},
+        )
+
+    built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
+
+    body = await _invoke(
+        "pi_core",
+        model={
+            "provider": "openai-codex",
+            "model": "gpt-5.4-mini",
+            "connection": {"mode": "self_managed"},
+        },
+    )
+
+    assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
+    # The pre-resolve provider check let openai-codex through, so the resolver ran.
+    assert captured["model"].provider == "openai-codex"
+    assert captured["model"].connection.mode == "self_managed"
+    # No key injected: the harness uses its own subscription login.
+    assert backend.created_secrets == [{}]
+    assert built[0].secrets == {}
+    assert built[0].resolved_connection.credential_mode == "runtime_provided"

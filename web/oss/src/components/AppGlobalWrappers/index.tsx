@@ -1,19 +1,18 @@
 import {memo, useEffect} from "react"
 
 import {setUserAtoms} from "@agenta/entities/shared/user"
-import {executionItemController} from "@agenta/playground"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
 
-import {getJWT} from "@/oss/services/api"
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
 
-// Side-effect: registers selection callback and workflow commit/archive callbacks
-import "@/oss/state/newPlayground/workflowEntityBridge"
+// The playground/workflow registration graph (workflowEntityBridge, execution
+// auth headers, web worker) is deferred to DeferredAppBoot so it stays out of
+// the shared `_app` chunk.
 
 // Initialize user atoms for @agenta/entities shared user resolution
 // This enables UserAuthorLabel and other user resolution features
@@ -97,10 +96,13 @@ const CustomWorkflowModalMount = dynamic(
 
 // EvaluatorDrawersWrapper replaced by WorkflowRevisionDrawerWrapper
 
-const OnboardingWidget = dynamic(
-    () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
-    {ssr: false},
-)
+// Hidden pending the new onboarding widget. Uncomment the dynamic import below and the
+// <OnboardingWidget /> mount to restore it. Keeping the import commented out (rather than
+// just not rendering) ensures its bundle never loads.
+// const OnboardingWidget = dynamic(
+//     () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
+//     {ssr: false},
+// )
 
 const getHashFromAsPath = (asPath: string) => {
     const hashIndex = asPath.indexOf("#")
@@ -185,20 +187,8 @@ const NavigationCommandListener = () => {
     return null
 }
 
-/** Stable ref: returns auth headers for worker HTTP requests */
-const getAuthHeaders = async () => {
-    const jwt = await getJWT()
-    return jwt ? {Authorization: `Bearer ${jwt}`} : {}
-}
-
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
-
-    // Register auth headers provider once globally for playground execution workers
-    const setHeaders = useSetAtom(executionItemController.actions.setExecutionHeaders)
-    useEffect(() => {
-        setHeaders(() => getAuthHeaders)
-    }, [setHeaders])
 
     return (
         <EntityModalsProvider>
@@ -217,7 +207,7 @@ const AppGlobalWrappers = () => {
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
             {/* EvaluatorDrawersWrapper merged into WorkflowRevisionDrawerWrapper */}
-            <OnboardingWidget />
+            {/* OnboardingWidget hidden pending the new onboarding widget; see import above */}
         </EntityModalsProvider>
     )
 }

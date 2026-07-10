@@ -37,7 +37,7 @@ Today the request surface includes:
 - `parameters.agent.mcp_servers`
 - `parameters.agent.harness`
 - `parameters.agent.sandbox`
-- `parameters.agent.permission_policy`
+- `parameters.agent.runner.permissions.default` (four modes: `allow`, `ask`, `deny`, `allow_reads`)
 - harness-specific options such as Pi prompt overrides
 
 The runtime also has forced Agenta policy in `AgentaHarness`, but that content is

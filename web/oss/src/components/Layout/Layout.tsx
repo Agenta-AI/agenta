@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
@@ -22,6 +22,10 @@ import {
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "../Sidebar/scopes/constants"
+import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
+import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
+import type {SidebarView} from "../Sidebar/types"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
 import {useStyles} from "./assets/styles"
@@ -60,12 +64,14 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     // (content-flow) layout.
     const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
     const isAuditLog = pathname.includes("/settings") && tab === "auditLog"
+    // The agent-templates gallery has its own fixed header + rail with an
+    // internally-scrolling card grid, so it needs the bounded full-height frame.
+    const isAgentTemplates = pathname.includes("/agent-templates")
 
     return {
         isAuthRoute:
             pathname.includes("/auth") ||
             pathname.includes("/post-signup") ||
-            pathname.includes("/get-started") ||
             pathname.startsWith("/workspaces/accept"),
         isAppRoute: routeLayer === "app",
         isPlayground: pathname.includes("/playground"),
@@ -78,7 +84,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAnnotations ||
             isRegistry ||
             isObservability ||
-            isAuditLog,
+            isAuditLog ||
+            isAgentTemplates,
     }
 })
 
@@ -173,13 +180,35 @@ const AppWithVariants = memo(
         const {baseAppURL} = useURL()
         const appState = useAppState()
         const isAnnotations = appState.pathname.includes("/annotations")
-        const lastNonSettingsRef = useRef<string | null>(null)
+        const lastBasePathRef = useRef<string | null>(null)
+        const lastNonSettingsPathRef = useRef<string | null>(null)
+        const activeSidebarView = resolveSidebarView({
+            pathname: appState.pathname,
+            routeLayer: appState.routeLayer,
+        })
 
         useEffect(() => {
-            if (!appState.pathname.includes("/settings")) {
-                lastNonSettingsRef.current = appState.asPath
+            if (activeSidebarView.isBase) {
+                lastBasePathRef.current = appState.asPath
             }
-        }, [appState.asPath, appState.pathname])
+            if (activeSidebarView.id !== SETTINGS_SIDEBAR_SCOPE_ID) {
+                lastNonSettingsPathRef.current = appState.asPath
+            }
+        }, [activeSidebarView.id, activeSidebarView.isBase, appState.asPath])
+
+        const sidebarLastPath = resolveSidebarLastPath({
+            view: activeSidebarView,
+            lastBasePath: lastBasePathRef.current,
+            lastNonSettingsPath: lastNonSettingsPathRef.current,
+            fallbackPath: baseAppURL,
+        })
+
+        const sidebarView = useMemo<SidebarView>(() => {
+            return {
+                id: activeSidebarView.id,
+                lastPath: sidebarLastPath,
+            }
+        }, [activeSidebarView.id, sidebarLastPath])
 
         const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()
@@ -267,10 +296,7 @@ const AppWithVariants = memo(
                     </>
                 )}
                 <Layout hasSider className={classes.layout}>
-                    <SidebarIsland
-                        showSettingsView={appState.pathname.endsWith("/settings")}
-                        lastPath={lastNonSettingsRef.current || baseAppURL}
-                    />
+                    <SidebarIsland view={sidebarView} />
 
                     <Layout className={classes.layout}>
                         <div
@@ -284,16 +310,34 @@ const AppWithVariants = memo(
                                 appTheme={appTheme}
                                 appName={currentApp?.name ?? currentApp?.slug ?? ""}
                             />
-                            {isAppRoute && !getProjectValues().projectId ? null : isAppRoute ? (
+                            {/* ONE stable tree for both app and non-app routes: the layout flags
+                                (committed at routeChangeComplete, AFTER the destination page has
+                                rendered) may flip a beat after a client-side nav — as CLASSNAME
+                                changes only. The previous per-flag branches reparented {children},
+                                so that late flip unmounted and remounted the ENTIRE page (the
+                                warm re-entry "flash"). Never fork the element tree on these flags. */}
+                            {isAppRoute && !getProjectValues().projectId ? null : (
                                 <>
-                                    <CustomWorkflowBanner />
+                                    {isAppRoute ? <CustomWorkflowBanner /> : null}
                                     <Content
-                                        className={clsx("flex gap-4 flex-col w-full", {
-                                            "pb-0 mb-8": !isFullHeight,
-                                            "flex flex-col min-h-0 grow": isFullHeight,
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground || isAnnotations,
-                                        })}
+                                        key="layout-content"
+                                        className={clsx(
+                                            "flex gap-4",
+                                            isAppRoute && "flex-col w-full",
+                                            {
+                                                // Non-full-height pages keep the 30px bottom
+                                                // breathing room (h-calc only off app routes);
+                                                // full-height pages (playground/evaluator) must
+                                                // fill the content area.
+                                                "pb-0 mb-8": !isFullHeight,
+                                                "h-[calc(100%-30px)]": !isFullHeight && !isAppRoute,
+                                                "flex flex-col min-h-0 grow": isFullHeight,
+                                                "h-full": isFullHeight && !isAppRoute,
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isPlayground ||
+                                                    (isAppRoute ? isAnnotations : isEvaluator),
+                                            },
+                                        )}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -304,54 +348,20 @@ const AppWithVariants = memo(
                                                             : theme.defaultAlgorithm,
                                                 }}
                                             >
-                                                {isFullHeight ? (
-                                                    <div
-                                                        className={clsx(
-                                                            "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden",
-                                                        )}
-                                                    >
-                                                        {children}
-                                                    </div>
-                                                ) : (
-                                                    children
-                                                )}
+                                                <div
+                                                    className={clsx("w-full", {
+                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden":
+                                                            isFullHeight,
+                                                        "flex flex-col":
+                                                            !isFullHeight && !isAppRoute,
+                                                    })}
+                                                >
+                                                    {children}
+                                                </div>
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
                                 </>
-                            ) : (
-                                <Content
-                                    className={clsx("flex gap-4", {
-                                        // Non-full-height pages keep the 30px bottom breathing
-                                        // room; full-height pages (playground/evaluator) must
-                                        // fill the content area — the -30px left a dead band
-                                        // below the splitter.
-                                        "h-[calc(100%-30px)] pb-0 mb-8": !isFullHeight,
-                                        "h-full flex flex-col min-h-0 grow": isFullHeight,
-                                        "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isPlayground || isEvaluator,
-                                    })}
-                                >
-                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                        <ConfigProvider
-                                            theme={{
-                                                algorithm:
-                                                    appTheme === "dark"
-                                                        ? theme.darkAlgorithm
-                                                        : theme.defaultAlgorithm,
-                                            }}
-                                        >
-                                            <div
-                                                className={clsx("w-full flex flex-col", {
-                                                    "min-h-0 gap-6 h-[calc(100dvh-75px)] overflow-hidden":
-                                                        isFullHeight,
-                                                })}
-                                            >
-                                                {children}
-                                            </div>
-                                        </ConfigProvider>
-                                    </ErrorBoundary>
-                                </Content>
                             )}
                         </div>
                     </Layout>

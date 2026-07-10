@@ -1,7 +1,9 @@
 import {memo, type ReactNode} from "react"
 
+import {CopyButton} from "@agenta/ui/components/presentational"
 import {XMarkdown} from "@ant-design/x-markdown"
 import Latex from "@ant-design/x-markdown/plugins/Latex"
+import {Tooltip} from "antd"
 import {PrismAsync as SyntaxHighlighter} from "react-syntax-highlighter"
 import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism"
 
@@ -29,9 +31,14 @@ export const MD_CLASS =
     "[&_h4]:mt-2 [&_h4]:mb-0.5 [&_h4]:text-xs [&_h4]:font-semibold " +
     "[&_h5]:mt-2 [&_h5]:mb-0.5 [&_h5]:text-xs [&_h5]:font-semibold " +
     "[&_h6]:mt-2 [&_h6]:mb-0.5 [&_h6]:text-xs [&_h6]:font-medium [&_h6]:text-colorTextSecondary " +
-    // Blockquote — a quiet left-ruled aside (kill the browser's 40px indent).
-    "[&_blockquote]:my-2 [&_blockquote]:mx-0 [&_blockquote]:border-0 [&_blockquote]:border-l-2 " +
-    "[&_blockquote]:border-solid [&_blockquote]:border-colorBorderSecondary [&_blockquote]:pl-3 " +
+    // Blockquote — a quiet left-ruled aside. Layout is forced (!important) so nothing (the UA's
+    // logical `margin-inline: 40px`, the Bubble's placement styles, etc.) can push the content into
+    // a centered/over-indented look: no horizontal margin, a small left padding, left-aligned.
+    // Zero the non-left borders with per-side longhands (NOT `border-0`, whose `border-width`
+    // shorthand wins over `border-l-2` as an arbitrary variant and drops the left rule).
+    "[&_blockquote]:my-2 [&_blockquote]:!mx-0 [&_blockquote]:!pl-3 [&_blockquote]:!text-left " +
+    "[&_blockquote]:border-y-0 [&_blockquote]:border-r-0 [&_blockquote]:border-l-2 " +
+    "[&_blockquote]:border-solid [&_blockquote]:border-colorTextTertiary " +
     "[&_blockquote]:text-colorTextSecondary [&_blockquote]:italic " +
     // Rule, images, emphasis, strikethrough, and task-list checkboxes.
     "[&_hr]:my-3 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-solid [&_hr]:border-colorBorderSecondary " +
@@ -72,26 +79,49 @@ const CodeBlock = ({
     children?: ReactNode
 }) => {
     if (!block) return <code className={className}>{children}</code>
+
+    const code = childrenToText(children).replace(/\n$/, "")
+
     return (
-        <SyntaxHighlighter
-            language={(lang || "text").trim().split(/\s+/)[0] || "text"}
-            style={oneDark}
-            PreTag="div"
-            customStyle={{
-                margin: "0.5rem 0",
-                padding: "0.75rem",
-                borderRadius: 6,
-                fontSize: "0.75rem",
-            }}
-            codeTagProps={{style: {fontSize: "0.75rem"}}}
-        >
-            {childrenToText(children).replace(/\n$/, "")}
-        </SyntaxHighlighter>
+        <div className="relative min-w-0 max-w-full">
+            <div className="absolute top-3 right-2 z-10">
+                <Tooltip title="Copy code">
+                    <CopyButton
+                        text={code}
+                        buttonText={null}
+                        icon
+                        size="small"
+                        aria-label="Copy code"
+                        successMessage=""
+                        className="!h-7 !w-7 !border-colorBorderSecondary !bg-colorBgElevated !p-0 !text-colorTextSecondary shadow-sm"
+                    />
+                </Tooltip>
+            </div>
+            <SyntaxHighlighter
+                language={(lang || "text").trim().split(/\s+/)[0] || "text"}
+                style={oneDark}
+                PreTag="div"
+                customStyle={{
+                    margin: "0.5rem 0",
+                    padding: "0.75rem",
+                    paddingRight: "2.75rem",
+                    borderRadius: 6,
+                    fontSize: "0.75rem",
+                }}
+                codeTagProps={{style: {fontSize: "0.75rem"}}}
+            >
+                {code}
+            </SyntaxHighlighter>
+        </div>
     )
 }
 
 /** Unwrap the markdown `<pre>` — the highlighted block owns its own container. */
 const PreUnwrap = ({children}: {children?: ReactNode}) => <>{children}</>
+
+/** Stable `components` map: a fresh object literal per render churns XMarkdown's prop identity, and
+ * this renderer re-renders on every throttled streaming token — so hoist it to a module constant. */
+const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
 
 /** Shared markdown renderer for the slice — used by message bubbles and the composer live
  * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
@@ -101,12 +131,19 @@ const PreUnwrap = ({children}: {children?: ReactNode}) => <>{children}</>
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
  * keep the same `content` string, so this skips re-parsing + re-running Prism on them each token.
  * (Settled messages don't re-render at all; the stable-`onRewind` fix handles those.) */
+// Anchor component ensures all markdown-rendered links open in a new tab safely.
+const Anchor = ({href, children, ...rest}: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+        {children}
+    </a>
+)
+
 const Markdown = ({content, className}: {content: string; className?: string}) => (
     <XMarkdown
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
         config={LATEX_CONFIG}
-        components={{code: CodeBlock, pre: PreUnwrap}}
+        components={{...MD_COMPONENTS, a: Anchor}}
     />
 )
 

@@ -80,8 +80,18 @@ export {
 export type {AgentRequest, AgentChannelMode, NegotiatingFetch} from "./state"
 // HITL resume predicate for `useChat`'s `sendAutomaticallyWhen` (approve AND deny resume).
 export {agentShouldResumeAfterApproval} from "./state"
+// Render-hint map for interaction kinds (sibling `data-render` parts → toolCallId lookup).
+export {buildRenderMap, renderKindFor, type RenderHintLike} from "./state"
 // Queued-message release gate for the agent chat composer (HITL-safe, one-by-one).
 export {canReleaseQueuedMessage, isHitlPending} from "./state"
+// Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
+export {
+    appendCapped,
+    buildTurnCapture,
+    capturesForTrigger,
+    triggerUserMessageId,
+    type TurnRequestCapture,
+} from "./state"
 
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)

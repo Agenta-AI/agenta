@@ -9,6 +9,7 @@ serialization or transport drift that per-side unit tests cannot, with no TS and
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 
@@ -22,6 +23,7 @@ from agenta.sdk.agents import (
     SessionConfig,
 )
 from agenta.sdk.agents.skills import SkillTemplate
+from agenta.sdk.agents.utils.ts_runner import deliver_subprocess_stream
 
 from ._fake_runner_backend import FakeRunnerBackend
 
@@ -75,6 +77,32 @@ sys.stdout.write(json.dumps({"ok": False, "error": "model exploded"}))
 _SILENT_RUNNER = """
 import sys, json
 json.load(sys.stdin)
+"""
+
+# Writes well past the OS pipe buffer (~64 KB) and asyncio's internal StreamReader pause
+# threshold (128 KB) to stderr before emitting the NDJSON result on stdout, so an undrained
+# stderr genuinely blocks the child's write() -- proving the streaming transport drains it.
+_NOISY_STDERR_RUNNER = """
+import sys, json
+
+json.load(sys.stdin)
+sys.stderr.write("x" * 5_000_000)
+sys.stderr.flush()
+out = {
+    "kind": "result",
+    "result": {
+        "ok": True,
+        "output": "done",
+        "messages": [{"role": "assistant", "content": "done"}],
+        "events": [{"type": "done", "stopReason": "end_turn"}],
+        "usage": {"input": 1, "output": 1, "total": 2, "cost": 0.0},
+        "stopReason": "end_turn",
+        "sessionId": "sess-fake",
+        "model": None,
+    },
+}
+sys.stdout.write(json.dumps(out) + "\\n")
+sys.stdout.flush()
 """
 
 # Reads the /run request and echoes back the `skills` it received in the result `output`, as
@@ -135,6 +163,25 @@ async def test_runner_empty_output_raises(tmp_path):
 
     with pytest.raises(RuntimeError, match="no output"):
         await harness.prompt(config, [Message(role="user", content="hi")])
+
+
+async def test_stream_drains_stderr_without_deadlock_or_fake_timeout(tmp_path):
+    # a child that fills the ~64 KB stderr pipe while streaming stdout must
+    # not block forever and must not surface as a timeout once it finishes.
+    runner = tmp_path / "noisy_runner.py"
+    runner.write_text(_NOISY_STDERR_RUNNER, encoding="utf-8")
+    command = [sys.executable, str(runner)]
+
+    records = []
+    coro = deliver_subprocess_stream(
+        command, {"harness": "pi_core"}, cwd=str(tmp_path), timeout=5.0
+    )
+    async with asyncio.timeout(5.0):
+        async for record in coro:
+            records.append(record)
+
+    assert [r["kind"] for r in records] == ["result"]
+    assert records[0]["result"]["ok"] is True
 
 
 async def test_resolved_skill_reaches_the_runner_over_the_wire(tmp_path):

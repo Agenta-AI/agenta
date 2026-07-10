@@ -1,5 +1,7 @@
 # HITL approval fix (QA finding F-024)
 
+> Superseded: the permission/approval model described here was redesigned in [projects/approval-boundary/](../approval-boundary/) (2026-07). Kept as a dated record.
+
 Human-in-the-loop (HITL) tool approval is the headline interactive feature of the agent
 playground: when a tool needs a human yes/no, the run should pause, the playground should
 show an inline **Run this tool? Approve / Deny** prompt, and the user's answer should resume

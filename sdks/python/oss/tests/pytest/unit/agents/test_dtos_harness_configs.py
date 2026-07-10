@@ -20,7 +20,7 @@ from agenta.sdk.agents import (
 _CALLBACK = ToolCallback(endpoint="https://api.example/tools/call", authorization="A")
 
 
-def test_pi_wire_tools_is_native_and_never_gates():
+def test_pi_wire_tools_is_native_and_ships_permissions():
     config = PiAgentTemplate(
         builtin_tools=["read"],
         tool_specs=[
@@ -45,7 +45,7 @@ def test_pi_wire_tools_is_native_and_never_gates():
             "endpoint": "https://api.example/tools/call",
             "authorization": "A",
         },
-        "permissionPolicy": "auto",  # Pi never gates tool use
+        "permissions": {"default": "allow_reads"},
     }
 
 
@@ -65,7 +65,7 @@ def test_pi_wire_prompt_emits_only_set_overrides():
     }
 
 
-def test_claude_wire_tools_has_no_builtins_and_carries_policy():
+def test_claude_wire_tools_has_no_builtins_and_carries_permissions():
     config = ClaudeAgentTemplate(
         tool_specs=[
             ClientToolSpec(
@@ -74,7 +74,7 @@ def test_claude_wire_tools_has_no_builtins_and_carries_policy():
             )
         ],
         tool_callback=_CALLBACK,
-        permission_policy="deny",
+        permission_default="deny",
     )
     wire = config.wire_tools()
     assert wire["tools"] == []  # Claude has no Pi built-ins
@@ -86,11 +86,14 @@ def test_claude_wire_tools_has_no_builtins_and_carries_policy():
             "kind": "client",
         }
     ]
-    assert wire["permissionPolicy"] == "deny"
+    assert wire["permissions"] == {"default": "deny"}
+    assert "permissionPolicy" not in wire
 
 
-def test_claude_defaults_to_auto_policy_and_empty_prompt():
-    assert ClaudeAgentTemplate().wire_tools()["permissionPolicy"] == "auto"
+def test_claude_defaults_to_allow_reads_permissions_and_empty_prompt():
+    assert ClaudeAgentTemplate().wire_tools()["permissions"] == {
+        "default": "allow_reads"
+    }
     assert (
         ClaudeAgentTemplate().wire_prompt() == {}
     )  # Claude exposes no prompt overrides
@@ -101,3 +104,22 @@ def test_base_config_wire_tools_is_abstract():
     with pytest.raises(NotImplementedError):
         HarnessAgentTemplate().wire_tools()
     assert HarnessAgentTemplate().wire_prompt() == {}
+
+
+def test_pi_and_claude_emit_same_permission_block_for_same_config():
+    pi = PiAgentTemplate(
+        permission_default="ask", harness_permissions={"deny": ["Bash(rm:*)"]}
+    )
+    claude = ClaudeAgentTemplate(
+        permission_default="ask", harness_permissions={"deny": ["Bash(rm:*)"]}
+    )
+    assert pi.wire_tools()["permissions"] == claude.wire_tools()["permissions"]
+    assert pi.wire_tools()["permissions"] == {
+        "default": "ask",
+        "rules": [{"pattern": "Bash(rm:*)", "permission": "deny"}],
+    }
+
+
+def test_permission_policy_key_absent_from_wire_tools():
+    assert "permissionPolicy" not in PiAgentTemplate().wire_tools()
+    assert "permissionPolicy" not in ClaudeAgentTemplate().wire_tools()

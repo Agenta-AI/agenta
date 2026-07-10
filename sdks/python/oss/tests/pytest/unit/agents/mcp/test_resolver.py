@@ -78,12 +78,11 @@ async def test_permission_absent_from_wire_when_unset():
     assert "permission" not in servers[0].to_wire()
 
 
-def test_permission_accepts_fe_permission_mode_alias():
-    # The playground writes `permission_mode`; the server config deserializes it.
+def test_legacy_permission_mode_alias_is_ignored():
     config = MCPServerConfig.model_validate(
         {"name": "github", "command": "npx", "permission_mode": "deny"}
     )
-    assert config.permission == "deny"
+    assert config.permission is None
 
 
 async def test_mcp_compatibility_policy_can_omit_missing_secret():

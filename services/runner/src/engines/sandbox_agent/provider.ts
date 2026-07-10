@@ -36,7 +36,7 @@ export function daytonaNetworkFields(
  * 15 minutes is the Daytona SDK's own documented default and sits comfortably beyond a normal
  * run (an actively prompting sandbox is BUSY, not idle, so this measures leaked-and-idle time,
  * not total run time). Override with `DAYTONA_AUTOSTOP` if runs idle
- * longer (e.g. long parked HITL turns).
+ * longer (e.g. long paused HITL turns).
  */
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
 
@@ -98,6 +98,12 @@ export function buildDaytonaCreate(
   };
 }
 
+/** Sandbox ids this runner can actually provision (the "expected one of" set). */
+export const KNOWN_SANDBOX_IDS = ["local", "daytona"] as const;
+
+/** Recognized ids that are planned but not yet provisionable (fail with a specific message). */
+export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
+
 /**
  * Build the sandbox-agent provider for the requested axis.
  *
@@ -122,6 +128,19 @@ export function buildSandboxProvider(
       ...(image ? { image } : {}),
       create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
     });
+  }
+
+  if ((PLANNED_SANDBOX_IDS as readonly string[]).includes(sandboxId)) {
+    throw new Error(
+      `The '${sandboxId}' sandbox is not yet supported in this runner; please use 'daytona' or 'local'.`,
+    );
+  }
+
+  if (sandboxId !== "local") {
+    // Refuse loud: an unrecognized id must not fall through to host execution.
+    throw new Error(
+      `Unknown sandbox id '${sandboxId}'; expected one of ${KNOWN_SANDBOX_IDS.join(", ")}`,
+    );
   }
 
   // local: spawn `sandbox-agent server` on this host with the daemon env merged in.

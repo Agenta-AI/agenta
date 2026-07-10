@@ -58,7 +58,7 @@ import {pendingColumnOpsAtomFamily} from "../testset/state"
 import {saveNewTestsetAtom, saveTestsetAtom} from "../testset/state/mutations"
 import {revisionMolecule} from "../testset/state/revisionMolecule"
 import {
-    traceEntityAtomFamily,
+    traceSummaryQueryAtomFamily,
     extractAgData,
     collectKeyPaths,
     filterDataPaths,
@@ -232,15 +232,14 @@ const connectedRowsAtomFamily = atomFamily((loadableId: string) =>
             let dataSource: Record<string, unknown> | null = null
 
             if (executionResult.traceId) {
-                const traceQuery = get(traceEntityAtomFamily(executionResult.traceId))
-                if (traceQuery.data) {
-                    const rootSpan = getRootSpanFromTraceResponse(traceQuery.data)
-                    if (rootSpan) {
-                        const agData = extractAgData(rootSpan)
-                        if (agData && Object.keys(agData).length > 0) {
-                            // Wrap in { data: ... } to match path format (data.inputs.*, data.outputs.*)
-                            dataSource = {data: agData}
-                        }
+                // Root span only — output mapping never needs the full span tree.
+                const rootSpan = get(traceSummaryQueryAtomFamily(executionResult.traceId)).data
+                    ?.rootSpan
+                if (rootSpan) {
+                    const agData = extractAgData(rootSpan)
+                    if (agData && Object.keys(agData).length > 0) {
+                        // Wrap in { data: ... } to match path format (data.inputs.*, data.outputs.*)
+                        dataSource = {data: agData}
                     }
                 }
             }
@@ -1572,35 +1571,20 @@ const clearOutputMappingsAtom = atom(null, (get, set, loadableId: string) => {
 })
 
 /**
- * Helper to extract the root span from a TracesApiResponse.
- * The response format is: { traces: { [traceId]: { spans: { [spanId]: TraceSpan } } } }
- * Returns the root span (one with no parent_id) or the first span.
+ * A tool span's error is a STEP failure, not a run failure: the agent gets the tool error back
+ * as output and keeps going (retry, another path, or answer around it), so it must not read as
+ * the run's cause of death. Only spans whose type represents the agent loop itself or the model
+ * turn that couldn't be produced count as a run failure — so we skip `tool` spans when scanning
+ * for the run error. (The per-tool failure is already surfaced by the "N failed" tool chip.)
  */
-const getRootSpanFromTraceResponse = (
-    traceResponse: TracesApiResponse | null,
-): TraceSpan | null => {
-    if (!traceResponse?.traces) return null
-
-    // Get the first trace entry
-    const traceEntries = Object.values(traceResponse.traces)
-    if (traceEntries.length === 0) return null
-
-    const traceEntry = traceEntries[0]
-    if (!traceEntry?.spans) return null
-
-    // Get all spans
-    const spans = Object.values(traceEntry.spans) as TraceSpan[]
-    if (spans.length === 0) return null
-
-    // Find the root span (no parent_id) or use the first one
-    return spans.find((s) => !s.parent_id) || spans[0]
-}
+const isRunFailureSpanType = (span: unknown): boolean =>
+    (span as {span_type?: string | null}).span_type !== "tool"
 
 /**
- * Scan every span in the trace for an errored one and return its status message. Used to
- * surface a failed model/tool call (e.g. an OpenAI quota error) that the run swallowed into an
- * empty turn — the error lands on a leaf span (`chat …`) while the parents stay OK, so we
- * check all spans, not just the root.
+ * Scan every span in the trace for an errored one and return its status message. Used to surface
+ * a failed model call (e.g. an OpenAI quota error) that the run swallowed into an empty turn —
+ * the error lands on a leaf span (`chat …`) while the parents stay OK, so we check all spans, not
+ * just the root. Tool-call failures are excluded by the caller (see `isRunFailureSpanType`).
  */
 const spanErrorMessage = (span: unknown): string | undefined => {
     const s = span as {
@@ -1639,11 +1623,15 @@ const childSpans = (span: unknown): unknown[] => {
     return []
 }
 
-const getTraceErrorFromResponse = (traceResponse: TracesApiResponse | null): string | undefined => {
+export const getTraceErrorFromResponse = (
+    traceResponse: TracesApiResponse | null,
+): string | undefined => {
     if (!traceResponse?.traces) return undefined
     const visit = (span: unknown): string | undefined => {
-        const message = spanErrorMessage(span)
-        if (message) return message
+        if (isRunFailureSpanType(span)) {
+            const message = spanErrorMessage(span)
+            if (message) return message
+        }
         for (const child of childSpans(span)) {
             const m = visit(child)
             if (m) return m
@@ -1656,6 +1644,16 @@ const getTraceErrorFromResponse = (traceResponse: TracesApiResponse | null): str
             const message = visit(span)
             if (message) return message
         }
+    }
+    return undefined
+}
+
+/** Flat-span variant of `getTraceErrorFromResponse` — same tool-span exclusion. */
+const getTraceErrorFromSpans = (spans: TraceSpan[]): string | undefined => {
+    for (const span of spans) {
+        if (!isRunFailureSpanType(span)) continue
+        const message = spanErrorMessage(span)
+        if (message) return message
     }
     return undefined
 }
@@ -1762,23 +1760,23 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
 
         if (!traceId) return emptyResult
 
-        // Fetch trace data (cached by TanStack Query)
-        const traceQuery = get(traceEntityAtomFamily(traceId))
+        // Lightweight fetch: root span + errored spans only (cached by TanStack Query).
+        // Everything below derives from the root span, so the full tree is never needed here.
+        const summaryQuery = get(traceSummaryQueryAtomFamily(traceId))
 
-        if (traceQuery.isPending) {
+        if (summaryQuery.isPending) {
             return {...emptyResult, isPending: true}
         }
 
-        if (!traceQuery.data) {
+        if (!summaryQuery.data) {
             return emptyResult
         }
 
         // A failed model/tool call (e.g. quota error) lands on a leaf span — capture it so the
         // caller can surface it even if the run otherwise looks like an empty turn.
-        const error = getTraceErrorFromResponse(traceQuery.data)
+        const error = getTraceErrorFromSpans(summaryQuery.data.errorSpans)
 
-        // Get the root span
-        const rootSpan = getRootSpanFromTraceResponse(traceQuery.data)
+        const rootSpan = summaryQuery.data.rootSpan
         if (!rootSpan) {
             return {...emptyResult, error}
         }
@@ -1934,15 +1932,14 @@ const derivedOutputValuesAtomFamily = atomFamily(
             let dataSource: Record<string, unknown> | null = null
 
             if (executionResult.traceId) {
-                const traceQuery = get(traceEntityAtomFamily(executionResult.traceId))
-                if (traceQuery.data) {
-                    const rootSpan = getRootSpanFromTraceResponse(traceQuery.data)
-                    if (rootSpan) {
-                        const agData = extractAgData(rootSpan)
-                        if (agData && Object.keys(agData).length > 0) {
-                            // Wrap in { data: ... } to match path format (data.inputs.*, data.outputs.*)
-                            dataSource = {data: agData}
-                        }
+                // Root span only — output mapping never needs the full span tree.
+                const rootSpan = get(traceSummaryQueryAtomFamily(executionResult.traceId)).data
+                    ?.rootSpan
+                if (rootSpan) {
+                    const agData = extractAgData(rootSpan)
+                    if (agData && Object.keys(agData).length > 0) {
+                        // Wrap in { data: ... } to match path format (data.inputs.*, data.outputs.*)
+                        dataSource = {data: agData}
                     }
                 }
             }

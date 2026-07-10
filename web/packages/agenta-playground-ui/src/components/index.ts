@@ -35,13 +35,12 @@ export {default as ControlsBar, type ControlsBarProps} from "./ControlsBar"
 export {default as PlaygroundOutputs} from "./PlaygroundOutputs"
 export type {PlaygroundOutputsProps} from "./PlaygroundOutputs"
 
-// Execution items
+// Execution items. ChatMode/CompletionMode are code-split inside ExecutionItems and the
+// comparison view is loaded on demand by its consumers via the subpath entry — neither is
+// re-exported here, because a barrel value re-export would statically pull them into every
+// chunk that imports this entry (the package has no sideEffects config to tree-shake it).
 export {
-    ChatMode,
-    ChatTurnView,
-    CompletionMode,
     default as ExecutionItems,
-    ExecutionRow,
     GatewayToolAssistantActions,
     GatewayToolExecuteButton,
     type ChatModeProps,
@@ -49,15 +48,6 @@ export {
     type PlaygroundGenerationsProps as ExecutionItemsProps,
     type ExecutionRowProps,
 } from "./ExecutionItems"
-
-// Execution item comparison view
-export {
-    GenerationComparisonChatOutput,
-    GenerationComparisonCompletionOutput,
-    GenerationComparisonInputHeader,
-    GenerationComparisonOutput,
-    GenerationComparisonOutputHeader,
-} from "./ExecutionItemComparisonView"
 
 // Testset selection modal (entity-based, for load/edit modes)
 // For saving new testsets, use EntityCommitModal from @agenta/entity-ui with renderModeContent

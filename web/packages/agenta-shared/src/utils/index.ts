@@ -4,7 +4,13 @@
 
 export {createBatchFetcher} from "./createBatchFetcher"
 export type {BatchFetcher, BatchFetcherOptions, BatchFnResponse} from "./createBatchFetcher"
-export {isValidHttpUrl, isValidRegex, isValidUUID, validateUUID} from "./validators"
+export {
+    isSlugInputValid,
+    isValidHttpUrl,
+    isValidRegex,
+    isValidUUID,
+    validateUUID,
+} from "./validators"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"
@@ -150,7 +156,11 @@ export {generateId} from "./generateId"
 export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
-export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
+export {
+    stripAgentaMetadataDeep,
+    stripEmptyCollectionsDeep,
+    stripEnhancedWrappers,
+} from "./valueExtraction"
 
 // Slug utilities
 export {
@@ -201,8 +211,31 @@ export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./t
 export {
     buildFormFieldsFromData,
     buildFormFieldsFromSchema,
+    type BuildFormFieldsOptions,
     type FormFieldDescriptor,
 } from "./gatewayToolSchema"
+
+// Elicitation contract (chat interaction kinds, M1)
+export {
+    ELICITATION_RENDER_KIND,
+    KNOWN_STRING_FORMATS,
+    SECRET_FIELD_PATTERN,
+    buildAcceptResult,
+    buildCancelResult,
+    buildDeclineResult,
+    buildDegradationErrorText,
+    deriveElicitationPartState,
+    hasPriorElicitationDegradation,
+    parseElicitationPayload,
+    partitionElicitationDraft,
+    serializeElicitationContent,
+    type ElicitationAction,
+    type ElicitationFieldSchema,
+    type ElicitationParseResult,
+    type ElicitationPartState,
+    type ElicitationRequestPayload,
+    type ElicitationResult,
+} from "./elicitation"
 
 // Polling utilities
 export {shortPoll} from "./shortPoll"
@@ -214,7 +247,11 @@ export {removeTrailingSlash} from "./uriUtils"
 export {uuidToSpanId, uuidToTraceId} from "./traceIds"
 
 // LLM provider catalog (cross-cutting between secret entity and provider UI)
-export {llmAvailableProviders, llmAvailableProvidersToken} from "./llmProviders"
+export {
+    llmAvailableProviders,
+    llmAvailableProvidersToken,
+    normalizeProviderFamily,
+} from "./llmProviders"
 
 // Object cleanup utilities
 export {removeEmptyFromObjects} from "./objectUtils"

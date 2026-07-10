@@ -13,10 +13,14 @@ import {
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
+const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
 
 afterEach(() => {
   if (previousPiDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
   else process.env.PI_CODING_AGENT_DIR = previousPiDir;
+  if (previousDenyPermissions === undefined)
+    delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
+  else process.env.SANDBOX_AGENT_DENY_PERMISSIONS = previousDenyPermissions;
 });
 
 describe("buildRunPlan", () => {
@@ -82,7 +86,10 @@ describe("buildRunPlan", () => {
     // cwd: an ephemeral sibling whose leaf is the cwd basename.
     assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
     assert.ok(result.plan.relayDir.endsWith("/agenta/relay/local-cwd"));
-    assert.equal(result.plan.usageOutPath, `${result.plan.relayDir}/.agenta-usage.json`);
+    assert.equal(
+      result.plan.usageOutPath,
+      `${result.plan.relayDir}/.agenta-usage.json`,
+    );
     assert.equal(result.plan.prompt, " ship it ");
     assert.equal(result.plan.agentsMd, "instructions");
     assert.equal(result.plan.systemPrompt, "system");
@@ -116,6 +123,148 @@ describe("buildRunPlan", () => {
     if (!result.ok) return;
     assert.deepEqual(result.plan.executableToolSpecs, []);
     assert.equal(result.plan.useToolRelay, true);
+  });
+
+  it("turns builtin gating on when blanket allow has a reduced grant set", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+        tools: ["read", "write"],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, ["read", "write"]);
+    assert.equal(result.plan.builtinGatingActive, true);
+    // Builtin gating rides the ACP dialog plane, not the relay: no custom tools, no relay.
+    assert.equal(result.plan.useToolRelay, false);
+  });
+
+  it("turns builtin gating on when grants include Pi-nondefault builtins", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+        tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "find",
+      "ls",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, true);
+  });
+
+  it("leaves the all-allow default-grants Pi fast path off", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, false);
+    assert.equal(result.plan.useToolRelay, false);
+  });
+
+  it("distinguishes omitted tools from an explicit empty grant set", () => {
+    const omitted = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+    const none = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+        tools: [],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(omitted.ok, true);
+    assert.equal(none.ok, true);
+    if (!omitted.ok || !none.ok) return;
+    assert.deepEqual(omitted.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(omitted.plan.builtinGatingActive, false);
+    assert.deepEqual(none.plan.builtinGrants, []);
+    assert.equal(none.plan.builtinGatingActive, true);
+    assert.equal(none.plan.useToolRelay, false);
+  });
+
+  it("turns builtin gating on when the permission kill switch is set", () => {
+    process.env.SANDBOX_AGENT_DENY_PERMISSIONS = "true";
+
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.useToolRelay, false);
+  });
+
+  it("turns builtin gating on when an all-allow policy has a builtin rule", () => {
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: {
+          default: "allow",
+          rules: [{ pattern: "Bash(npm:*)", permission: "allow" }],
+        },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.builtinGatingActive, true);
   });
 
   it("carries the sandbox permission onto the plan and leaves an unrestricted run alone", () => {
@@ -238,9 +387,13 @@ describe("buildRunPlan", () => {
   });
 
   it("rejects a strict restricted-network Daytona run with a runner-host tool", () => {
+    // Pi (not claude): a non-Pi harness with tools on Daytona is now refused earlier and
+    // unconditionally by the F1 remote-tools gate (no delivery path exists at all), which would
+    // otherwise mask this network-boundary-bypass gate. Pi tools ride its native extension, so
+    // Pi is exempt from the F1 gate and still exercises this Layer-2 network check.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -262,10 +415,10 @@ describe("buildRunPlan", () => {
     // The Python service always fills enforcement="strict", but a DIRECT runner caller may omit
     // it. The wire schema defaults it to "strict", so an omitted value must rebuff a runner-host
     // tool on a restricted-network Daytona run the same as an explicit "strict" — only an
-    // explicit "best_effort" opts out.
+    // explicit "best_effort" opts out. Pi (see note above): exempt from the F1 remote-tools gate.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -284,10 +437,11 @@ describe("buildRunPlan", () => {
 
   it("lets best_effort opt out of the runner-host-tool guard (LOW-6 contrast)", () => {
     // The explicit opt-out: best_effort accepts that the network boundary is not a hard
-    // guarantee, so the same restricted-network Daytona run with a host tool is allowed.
+    // guarantee, so the same restricted-network Daytona run with a host tool is allowed. Pi (see
+    // note above): exempt from the F1 remote-tools gate.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -411,6 +565,166 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
+  describe("remote-tools gate (F1: non-Pi harness x remote sandbox x tools)", () => {
+    it("refuses claude x daytona x tools (no delivery path exists)", () => {
+      // F1, audit finding: the internal tool-MCP is loopback-only (unreachable from inside the
+      // sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's bundled
+      // extension. Before this gate the run proceeded, silently dropped every tool, and returned
+      // ok:true. Refuse up front, before any cwd/sandbox is created.
+      let created = false;
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => {
+            created = true;
+            return "/home/sandbox/agenta-fixed";
+          },
+        },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//,
+      );
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
+    });
+
+    it("refuses claude x UNKNOWN remote provider x tools (fails closed, not open)", () => {
+      // The gate keys on `sandbox !== "local"`, not `sandbox === "daytona"`, so a new remote
+      // provider (the in-flight E2B one, or anything after it) is refused with the same loud
+      // error until it ships a proven tool-delivery path — instead of silently re-opening the
+      // F1 zero-tools drop one provider over.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "e2b",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+    });
+
+    it("allows claude x daytona x NO tools", () => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("allows pi x daytona x tools (the file relay works for Pi)", () => {
+      const result = buildRunPlan(
+        {
+          harness: "pi_agenta",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("allows claude x local x tools (the loopback MCP channel is reachable)", () => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("allows claude x local x client-only tools (the feature's primary configuration)", () => {
+      // Client tools ride the internal loopback MCP channel on local Claude (advertised in
+      // tools/list, paused in tools/call), so this combination must pass the gate.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+
+    it("refuses claude x daytona x client-only tools (they ride the MCP channel now)", () => {
+      // Client tools are delivered to Claude over the same internal loopback MCP channel as
+      // gateway tools (advertised in tools/list, paused in tools/call). On a remote sandbox that
+      // channel is unreachable, so a client tool is exactly as undeliverable as a gateway tool:
+      // the model would never see it. The old exemption (client tools "not routed through the
+      // channel") is gone; the gate now counts ALL custom tools.
+      let created = false;
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => {
+            created = true;
+            return "/home/sandbox/agenta-fixed";
+          },
+        },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
+    });
+
+    it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
+      const result = buildRunPlan(
+        {
+          harness: "pi_agenta",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, true);
+    });
+  });
+
   it("errors on any run carrying a code tool (code execution removed, fail loud)", () => {
     // Code tools were removed for security (F-010). The run is refused up-front so the failure
     // surfaces as a non-success result (ok:false) rather than being laundered into a 200 reply
@@ -480,9 +794,12 @@ describe("buildRunPlan", () => {
   });
 
   it("allows a best_effort restricted-network Daytona run with a runner-host tool", () => {
+    // Pi (not claude): see the note on the "rejects a strict restricted-network..." test above —
+    // a non-Pi harness with tools on Daytona is refused unconditionally by the F1 gate before
+    // this Layer-2 network check ever runs.
     const result = buildRunPlan(
       {
-        harness: "claude",
+        harness: "pi_agenta",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         customTools: [{ name: "server_tool", kind: "callback" }],
@@ -654,8 +971,13 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.cwd, "/home/sandbox/agenta/mounts/proj-1/mount-abc");
-    assert.deepEqual(daytonaCwdCalls, ["/home/sandbox/agenta/mounts/proj-1/mount-abc"]);
+    assert.equal(
+      result.plan.cwd,
+      "/home/sandbox/agenta/mounts/proj-1/mount-abc",
+    );
+    assert.deepEqual(daytonaCwdCalls, [
+      "/home/sandbox/agenta/mounts/proj-1/mount-abc",
+    ]);
   });
 
   it("falls back to ephemeral cwd when durableCwd is absent (non-session / sign failed)", () => {
@@ -689,7 +1011,10 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     function makePlan() {
       return buildRunPlan(
-        { harness: "claude", messages: [{ role: "user", content: "hi" }] } as AgentRunRequest,
+        {
+          harness: "claude",
+          messages: [{ role: "user", content: "hi" }],
+        } as AgentRunRequest,
         {
           durableCwd: localPath,
           createLocalCwd: (durable) => durable ?? "/tmp/fallback",

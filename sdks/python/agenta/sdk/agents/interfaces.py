@@ -233,11 +233,21 @@ class Harness(ABC):
         """Map the neutral config into this harness's own config (the mapping logic)."""
 
     def _provisioning(self, config: SessionConfig) -> Mapping[str, bytes]:
-        """Files this harness needs laid into the sandbox before the run."""
+        """Files this harness needs laid into the sandbox before the run.
+
+        The instructions filename is harness-aware, mirroring the runner's workspace
+        materialization (``services/runner/.../workspace.ts``): Claude runs through
+        ``claude-agent-sdk``, whose memory loader auto-loads ``CLAUDE.md`` only and never reads
+        ``AGENTS.md``, so the claude harness's instructions must land in ``CLAUDE.md``. Pi (and
+        any other harness) reads ``AGENTS.md``.
+        """
         files: dict[str, bytes] = {}
         instructions = config.agent.instructions
         if instructions and instructions.strip():
-            files["AGENTS.md"] = instructions.encode("utf-8")
+            filename = (
+                "CLAUDE.md" if self.harness_type is HarnessType.CLAUDE else "AGENTS.md"
+            )
+            files[filename] = instructions.encode("utf-8")
         return files
 
     async def create_session(self, config: SessionConfig) -> Session:

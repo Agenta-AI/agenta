@@ -47,18 +47,24 @@ class _FakeSession(Session):
         result = self._result
 
         async def _records():
-            # The terminal record carries the same coalesced result the one-shot path would
-            # return (output + usage + session id), so the handler's drain-and-coalesce sees
-            # usage exactly as a live run does.
-            yield {
-                "kind": "result",
-                "result": {
-                    "ok": True,
-                    "output": result.output,
-                    "usage": result.usage,
-                    "sessionId": result.session_id,
-                },
+            # result.events carries the raw event turn; else fall back to a synthetic message event
+            if result.events:
+                for event in result.events:
+                    yield {"kind": "event", "event": dict(event.data, type=event.type)}
+            elif result.output:
+                yield {
+                    "kind": "event",
+                    "event": {"type": "message", "text": result.output},
+                }
+            terminal = {
+                "ok": True,
+                "output": result.output,
+                "usage": result.usage,
+                "sessionId": result.session_id,
             }
+            if result.stop_reason is not None:
+                terminal["stopReason"] = result.stop_reason
+            yield {"kind": "result", "result": terminal}
 
         return AgentStream(_records())
 
@@ -91,15 +97,10 @@ class FakeBackend(Backend):
         self._result = result if result is not None else AgentResult(output="echo")
         self.setup_calls = 0
         self.shutdown_calls = 0
-        # Every harness-shaped config that reached the backend boundary, in call order.
+        # harness-shaped configs, per-session secrets, and run contexts, in call order
         self.created_configs: list = []
         self.created_session_ids: list[Optional[str]] = []
-        # The injected provider env (``session_config.secrets``) per session, in call order.
-        # This is the credential channel; a Slice 3 test asserts exactly one connection's env
-        # reaches the boundary (or nothing, for a runtime_provided / unconfigured run).
         self.created_secrets: list[Optional[Mapping[str, str]]] = []
-        # The run context threaded into each session (direct-call tools, Phase 3a), in call order,
-        # so a test can assert the service-side run-context population reaches the boundary.
         self.created_run_contexts: list = []
 
     async def setup(self) -> None:

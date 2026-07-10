@@ -11,3 +11,5 @@ allowBuilds:
   protobufjs: false
   sharp: true
   unrs-resolver: true
+patchedDependencies:
+  '@agentaai/nextstepjs@2.1.3-agenta.2': patches/@agentaai__nextstepjs@2.1.3-agenta.2.patch

@@ -1,144 +1,113 @@
 /**
  * The interaction responder seam.
  *
- * A harness (the ACP "Agent") does not only emit tool calls. It also raises typed
- * reverse-RPC interaction requests that something must answer: permission gates today,
- * elicitation (input) and client-side tools later. Today the sandbox-agent runner answered the
- * permission gate inline with a hardcoded auto-approve. This module lifts that decision
- * behind a `Responder` interface so it is pluggable:
- *
- *   - `PolicyResponder` is the headless answer (a fixed `auto` / `deny` policy, no human).
- *     It reproduces the previous behavior exactly and is what `/invoke` uses.
- *   - `HITLResponder` is the cross-turn responder (the `/messages` HITL path): it parks an
- *     un-decided permission (the `interaction_request` already went to the browser), ends the
- *     turn, and resolves on the next turn's stored reply. With no decision and no human
- *     surface it falls back to the base policy, so the headless path is unchanged. The harness
- *     adapter does not change when the responder does.
- *
- * Resolution is modeled as `allow` / `deny`; the adapter maps that onto the harness's
- * available ACP replies via `decisionToReply`.
+ * Harness permission gates and browser-fulfilled client tools are normalized into
+ * `GateDescriptor`s before they reach this module. The responder decides from the shared
+ * permission plan; adapters decide how to express each verdict on their own wire.
  */
 
 import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
+import { DEFERRED_NOT_EXECUTED_PREFIX } from "./tracing/otel.ts";
+import {
+  decide,
+  effectivePermission,
+  storedDecisionKeyShape,
+  type GateDescriptor,
+  type PermissionPlan,
+  type StoredPermissionDecisions,
+  type Verdict,
+} from "./permission-plan.ts";
 
-export type PermissionPolicy = "auto" | "deny";
-
-/**
- * What the responder decides for one permission gate.
- *
- *  - `allow` / `deny` are terminal: the adapter maps them onto an ACP reply via
- *    `decisionToReply` and the harness runs or refuses the tool this turn.
- *  - `park` is NOT a harness reply. It means "a human must decide; end the turn with this
- *    tool PENDING". On park the adapter sends NO `respondPermission`, so the harness never
- *    produces a refused/failed tool call, and the `interaction_request` already emitted stays
- *    the last word on the tool call. The next turn carries the stored decision and resolves it
- *    via `allow`/`deny`. This is the cross-turn HITL "park" — see `HITLResponder`.
- *
- * `decisionToReply` only ever sees `allow`/`deny`; `park` is handled before it (it has no ACP
- * reply). Do NOT "simplify" park back to `deny`: for Claude, replying `reject` produces a
- * failed tool call ("User refused permission") whose `tool_result {isError}` overwrites the
- * approval prompt on the same tool-call id (the F-024 clobber bug).
- */
 export type PermissionDecision = "allow" | "deny";
 
-/** The full set of responder outcomes, including the runner-internal `park`. */
-export type ResponderOutcome = PermissionDecision | "park";
-
-export type ClientToolOutcome = "deny" | "park" | { output: unknown };
+export type ClientToolOutcome =
+  "deny" | "pendingApproval" | { output: unknown };
 
 /** A permission gate raised by the harness, normalized from the ACP request. */
-export interface PermissionRequest {
-  /** The ACP permission id; reused as the `interaction_request` event id for reply matching. */
+export interface PermissionGateRequest {
   id: string;
-  /** Replies the harness offers (e.g. "always" | "once" | "reject"). */
   availableReplies: string[];
-  /** The original ACP request, for responders that want the tool-call detail. */
+  gate: GateDescriptor;
   raw?: unknown;
 }
 
-export interface ClientToolRequest {
-  /** Reused as the `interaction_request` event id for reply matching. */
+export interface ClientToolGateRequest {
   id: string;
   toolCallId?: string;
-  toolName?: string;
-  input?: unknown;
+  gate: GateDescriptor;
   raw?: unknown;
 }
 
-/**
- * Answers interaction requests the harness raises. Permission is the only kind wired today;
- * `input` (elicitation) and `client_tool` are forward-looking and will extend this interface
- * alongside the cross-turn responder.
- */
+export type ClientToolVerdict =
+  | { kind: "deny" }
+  | { kind: "pendingApproval" }
+  | { kind: "fulfilled"; output: unknown };
+
+/** Answers interaction requests the harness raises. */
 export interface Responder {
-  onPermission(request: PermissionRequest): Promise<ResponderOutcome>;
-  onClientTool(request: ClientToolRequest): Promise<ClientToolOutcome>;
+  onPermission(request: PermissionGateRequest): Promise<Verdict>;
+  onClientTool(
+    request: ClientToolGateRequest,
+    opts?: { consume?: boolean },
+  ): Promise<ClientToolVerdict>;
 }
 
-/** Headless responder: a fixed policy, no human in the loop. Never parks (no human surface). */
-export class PolicyResponder implements Responder {
-  constructor(private readonly policy: PermissionPolicy) {}
-
-  async onPermission(_request: PermissionRequest): Promise<ResponderOutcome> {
-    return this.policy === "deny" ? "deny" : "allow";
-  }
-
-  async onClientTool(_request: ClientToolRequest): Promise<ClientToolOutcome> {
-    return "deny";
-  }
-}
-
-/**
- * A lookup of approval decisions the user already made on a prior turn, keyed by an
- * identifier carried on the permission request. Two keys are indexed per decision:
- *
- *   1. `toolCallId` — the precise, warm match. When the harness re-presents the SAME ACP
- *      tool-call id (same session), this resolves the exact parked call.
- *   2. `parkedCallKey(name, input)` — the cold-replay anchor. A cold-replayed run rebuilds the
- *      session from the replayed transcript and mints a FRESH tool-call id for the re-raised
- *      gate, so the id no longer matches. The stable anchor is then the tool's NAME **plus
- *      its arguments**: the resumed call re-derives the same name and the same args, so it
- *      resolves; a DIFFERENT call to the same tool (different args) does NOT, so it re-prompts.
- *
- * Keying by the bare tool NAME alone (the prior behavior) over-authorized: an `allow` on call
- * A auto-approved any later call B to the same tool, even with different/sensitive args — a
- * HITL bypass. Binding the cold-replay key to name + args closes that hole while keeping the
- * legitimate approve -> resume path working (resume re-raises the same name + args).
- */
 export type ApprovalDecisions = ReadonlyMap<string, unknown>;
 
 /**
  * The cold-replay approval anchor: the tool name bound to its arguments. Resume re-derives
  * the same name + args (matches); a different call to the same tool has different args (no
- * match -> re-prompts).
+ * match -> pauses for a new decision).
  *
- * Absent args (null/undefined) normalize to `{}` so a genuine NO-ARG tool still gets a stable
- * key and resumes (its calls have nothing to vary, so sharing a key is the same call). This is
- * a deliberate trade-off over fail-closed: the ACP wire reliably carries `rawInput` and the
- * stored side carries the tool_call `input`, so a tool that takes args reports them on both
- * sides (a different-args call gets a different key). The residual is only if a with-args tool
- * reports empty on BOTH sides — then two such calls collide, which the reliable arg capture
- * makes a non-issue.
- *
- * Returns `undefined` (NO key, fail closed -> re-prompt) only when there is no tool name, or
- * the args are not plain JSON (bigint / cycle / NaN/Infinity / non-plain object like Date/Map).
+ * Absent args (null/undefined) normalize to `{}` so a genuine no-arg tool still gets a stable
+ * key and resumes. Returns `undefined` only when there is no tool name, or the args are not
+ * plain JSON (bigint / cycle / NaN/Infinity / non-plain object like Date/Map).
  */
-export function parkedCallKey(
+export function approvedCallKey(
   toolName: string | undefined,
   input: unknown,
 ): string | undefined {
-  if (!toolName) return undefined;
-  const args = input === null || input === undefined ? {} : input;
+  const shape = storedDecisionKeyShape(toolName, input);
+  if (!shape.toolName) return undefined;
+  const args =
+    shape.args === null || shape.args === undefined ? {} : shape.args;
   const hash = stableArgsHash(args);
-  if (hash === undefined) return undefined; // non-JSON args -> fail closed (no key, re-prompt)
-  return `${toolName}#${hash}`;
+  if (hash === undefined) return undefined;
+  return `${shape.toolName}#${hash}`;
+}
+
+/**
+ * Per-turn ledger of approval-equivalent allows for Pi relay executions. The dialog gate (or a
+ * parked-approval resume) grants; the relay execution guard consumes one grant per matching
+ * record. Keyed by `approvedCallKey(toolName, args)` with a count, so N approvals permit exactly
+ * N executions and a forged or replayed record for an `ask` tool fails closed.
+ */
+export class ApprovedExecutionGrants {
+  private counts = new Map<string, number>();
+
+  /** Record one approval-equivalent allow. No-op when the call is unkeyable (fails closed). */
+  grant(toolName: string | undefined, args: unknown): void {
+    const key = approvedCallKey(toolName, args);
+    if (!key) return;
+    this.counts.set(key, (this.counts.get(key) ?? 0) + 1);
+  }
+
+  /** Consume one grant for this exact call; false when absent, exhausted, or unkeyable. */
+  consume(toolName: string | undefined, args: unknown): boolean {
+    const key = approvedCallKey(toolName, args);
+    if (!key) return false;
+    const count = this.counts.get(key) ?? 0;
+    if (count <= 0) return false;
+    if (count === 1) this.counts.delete(key);
+    else this.counts.set(key, count - 1);
+    return true;
+  }
 }
 
 /**
  * Order-independent, stable serialization of tool args so the same call hashes the same.
- * Returns `undefined` for any value that is not plain JSON (bigint, cycles, NaN/Infinity, or
- * a non-plain object like Date/Map) so the caller can fail closed rather than collide. Tool
- * args arrive as JSON over the wire, so this only triggers on a malformed/hostile payload.
+ * Returns `undefined` for any value that is not plain JSON so the caller can fail closed
+ * rather than collide.
  */
 function stableArgsHash(input: unknown): string | undefined {
   try {
@@ -149,197 +118,365 @@ function stableArgsHash(input: unknown): string | undefined {
 }
 
 function canonicalJson(value: unknown): string {
+  return canonicalJsonValue(normalizeJsonish(value));
+}
+
+/**
+ * Models sometimes copy object-valued args out of the flattened replay transcript as JSON
+ * strings. Normalize only JSON strings that parse to objects/arrays before hashing so the
+ * stored approval and the live re-issued gate meet at the same semantic key without falling
+ * back to a weaker name-only match.
+ */
+function normalizeJsonish(value: unknown): unknown {
+  if (typeof value === "string") {
+    const parsed = parseJsonContainer(value);
+    if (parsed !== undefined) return normalizeJsonish(parsed);
+    // Not a JSON-encoded object/array; keep the string literal.
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(normalizeJsonish);
+  if (isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        normalizeJsonish(entry),
+      ]),
+    );
+  }
+  return value;
+}
+
+function isJsonContainer(
+  value: unknown,
+): value is unknown[] | Record<string, unknown> {
+  return Array.isArray(value) || isPlainObject(value);
+}
+
+/** How many stray trailing `}`/`]` characters `parseJsonContainer` tolerates. */
+const MAX_TRAILING_CLOSERS_TRIMMED = 3;
+
+/**
+ * Parse a string to a JSON object/array, tolerating a small trailing-closer imbalance.
+ * Models copying object args out of the flattened replay transcript sometimes add a stray
+ * trailing `}` or `]` (cold-replay failure report, turn 6d34b1ea round 5); a strict parse
+ * throws and the raw string hashes past the stored approval key. Only trailing whitespace
+ * and closers are trimmed, so a string that is genuinely not JSON still returns undefined
+ * and keeps its literal value.
+ */
+function parseJsonContainer(
+  value: string,
+): unknown[] | Record<string, unknown> | undefined {
+  let candidate = value;
+  for (let trimmed = 0; trimmed <= MAX_TRAILING_CLOSERS_TRIMMED; trimmed++) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      return isJsonContainer(parsed) ? parsed : undefined;
+    } catch {
+      candidate = candidate.trimEnd();
+      const last = candidate[candidate.length - 1];
+      if (last !== "}" && last !== "]") return undefined;
+      candidate = candidate.slice(0, -1);
+    }
+  }
+  return undefined;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function canonicalJsonValue(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) throw new Error("undefined is not JSON");
   if (typeof value === "bigint") throw new Error("bigint is not JSON");
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("non-finite number is not JSON");
+    if (!Number.isFinite(value))
+      throw new Error("non-finite number is not JSON");
     return JSON.stringify(value);
   }
   if (typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`;
+    return `[${value.map(canonicalJsonValue).join(",")}]`;
   }
   // Only plain objects are stable JSON; reject Date/Map/Set/etc. so they don't collapse to {}.
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
+  if (!isPlainObject(value)) {
     throw new Error("non-plain object is not JSON");
   }
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, v]) => v !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJsonValue(v)}`).join(",")}}`;
 }
 
 /**
- * The cross-turn human-in-the-loop responder for the `/messages` path.
+ * Client-tool browser outputs the user already produced on a prior turn, keyed by
+ * `approvedCallKey(name, args)` (the cold-replay anchor), with a FIFO LIST per key. This store
+ * is SEPARATE from the approval-decision map for two reasons Codex flagged:
  *
- * It answers a permission gate three ways, in order:
- *   1. The user already decided (a stored `decisions` entry for this exact tool-call id, or
- *      for this tool's name + args) -> apply it. THIS IS THE RESUME PATH: turn N parks, turn
- *      N+1 carries the reply. The match is scoped to the SPECIFIC call (id, or name + args),
- *      never to all future calls of the tool by name, so an `allow` cannot leak to a later
- *      call with different args.
- *   2. No stored decision and there is a human surface (`hasHumanSurface`) -> `park`. The
- *      `interaction_request` was already emitted upstream (the FE prompts), so the turn ends
- *      with this tool PENDING and NO harness reply (the adapter skips `respondPermission`).
- *      A later turn carrying the decision resolves it via branch 1. Parking by `deny` instead
- *      would make Claude emit a failed tool call that clobbers the approval prompt (F-024).
- *   3. No stored decision and no human surface (headless `/invoke`) -> the `basePolicy`
- *      decision. This branch is byte-identical to `PolicyResponder`, so `/invoke` is unchanged
- *      (it never parks; there is no human to resolve a parked turn).
- *
- * Pure: every input (decisions, base policy, surface flag) is injected; no I/O.
+ *   1. No allow/deny coercion. A permission reply is `{approved}` -> `"allow"`/`"deny"`; a client
+ *      output is the raw browser result. Sharing one map meant a client output whose value was
+ *      literally the string `"allow"`/`"deny"` collided with a permission decision. Here the value
+ *      is stored verbatim and `onClientTool` never interprets it as a permission decision.
+ *   2. Duplicate calls. A single `Map.set` per key let two identical name+args calls overwrite
+ *      each other. A FIFO list lets each identical call consume the next stored output in order.
  */
-export class HITLResponder implements Responder {
+export type ClientToolOutputs = ReadonlyMap<string, readonly unknown[]>;
+
+/**
+ * Consume-once store of approvals/denials and client-tool outputs carried in the replayed
+ * conversation.
+ *
+ * Client-tool outputs are consume-once per fulfillment: the ACP gate only peeks to prove an
+ * output exists, and the relay consumes when it actually serves that output to the tool child.
+ * Two identical client-tool calls in one conversation each resolve from the next stored output
+ * under the shared key (FIFO), so neither overwrites the other.
+ */
+export class ConversationDecisions implements StoredPermissionDecisions {
+  private readonly decisionQueues: Map<string, unknown[]>;
+  /** Per-key FIFO cursor: how many outputs under a key this conversation already consumed. */
+  private readonly clientOutputCursor = new Map<string, number>();
+
   constructor(
-    private readonly decisions: ApprovalDecisions,
-    private readonly basePolicy: PermissionPolicy,
-    private readonly hasHumanSurface: boolean,
+    byKey: Map<string, unknown>,
+    private readonly clientOutputs: ClientToolOutputs = new Map(),
+  ) {
+    this.decisionQueues = new Map<string, unknown[]>(
+      [...byKey].map(([key, value]) => [
+        key,
+        Array.isArray(value) ? [...value] : [value],
+      ]),
+    );
+  }
+
+  /** allow|deny for this exact call (name + canonical args), consumed on first take. */
+  take(gate: GateDescriptor): "allow" | "deny" | undefined {
+    const key = approvedCallKey(gate.toolName, gate.args);
+    if (!key) return undefined;
+    const queue = this.decisionQueues.get(key);
+    if (!queue || queue.length === 0) return undefined;
+    const value = queue[0];
+    if (!isPermissionDecision(value)) return undefined;
+    queue.shift();
+    if (queue.length === 0) this.decisionQueues.delete(key);
+    return value;
+  }
+
+  /** The next FIFO client-tool output for this exact call, without consuming it. */
+  peekClientOutput(gate: GateDescriptor): { found: boolean; output?: unknown } {
+    const entry = this.nextClientOutput(gate);
+    return entry ? { found: true, output: entry.output } : { found: false };
+  }
+
+  /** The next FIFO client-tool output for this exact call, consumed on take. */
+  takeClientOutput(gate: GateDescriptor): { found: boolean; output?: unknown } {
+    const entry = this.nextClientOutput(gate);
+    if (!entry) return { found: false };
+    this.clientOutputCursor.set(entry.key, entry.consumed + 1);
+    return { found: true, output: entry.output };
+  }
+
+  /** The next unconsumed output under this call's key, or undefined when exhausted/absent. */
+  private nextClientOutput(
+    gate: GateDescriptor,
+  ): { key: string; consumed: number; output: unknown } | undefined {
+    const key = approvedCallKey(gate.toolName, gate.args);
+    if (!key) return undefined;
+    const list = this.clientOutputs.get(key);
+    if (!list || list.length === 0) return undefined;
+    const consumed = this.clientOutputCursor.get(key) ?? 0;
+    if (consumed >= list.length) return undefined;
+    return { key, consumed, output: list[consumed] };
+  }
+}
+
+/**
+ * Shared approval responder for ACP permission gates and client tools.
+ *
+ * Permission gates use the shared `decide()` ladder directly. Client tools are different only
+ * in execution shape: `allow` and `ask` both mean "forward to the browser and pause unless a
+ * stored browser output is already available"; `deny` refuses the call.
+ */
+export class ApprovalResponder implements Responder {
+  constructor(
+    private readonly plan: PermissionPlan,
+    private readonly decisions: ConversationDecisions,
+    private readonly log: (msg: string) => void = () => {},
   ) {}
 
-  async onPermission(request: PermissionRequest): Promise<ResponderOutcome> {
-    const stored = this.lookupPermission(request);
-    if (stored) return stored;
-    if (this.hasHumanSurface) return "park"; // human must decide; end the turn, tool pending
-    return this.basePolicy === "deny" ? "deny" : "allow"; // headless: PolicyResponder parity
+  async onPermission(request: PermissionGateRequest): Promise<Verdict> {
+    const permission = effectivePermission(request.gate, this.plan);
+    const verdict = decide(request.gate, this.plan, this.decisions);
+    this.log(
+      `[HITL] gate toolName=${JSON.stringify(request.gate.toolName)} ` +
+        `permission=${permission} outcome=${verdict.kind}`,
+    );
+    return verdict;
   }
 
-  async onClientTool(request: ClientToolRequest): Promise<ClientToolOutcome> {
-    const stored = this.lookupClientTool(request);
-    if (stored.found) return { output: stored.output };
-    if (this.hasHumanSurface) return "park";
-    return "deny";
-  }
-
-  private lookupPermission(request: PermissionRequest): PermissionDecision | undefined {
-    for (const key of permissionRequestKeys(request)) {
-      const decision = this.decisions.get(key);
-      if (isPermissionDecision(decision)) return decision;
+  async onClientTool(
+    request: ClientToolGateRequest,
+    opts: { consume?: boolean } = {},
+  ): Promise<ClientToolVerdict> {
+    const storedOutput = opts.consume
+      ? this.decisions.takeClientOutput(request.gate)
+      : this.decisions.peekClientOutput(request.gate);
+    if (storedOutput.found) {
+      return { kind: "fulfilled", output: storedOutput.output };
     }
-    return undefined;
-  }
 
-  private lookupClientTool(request: ClientToolRequest): { found: boolean; output?: unknown } {
-    for (const key of clientToolRequestKeys(request)) {
-      if (this.decisions.has(key)) {
-        const output = this.decisions.get(key);
-        if (!isPermissionDecision(output)) return { found: true, output };
-      }
+    const permission =
+      request.gate.specPermission ??
+      (this.plan.default === "deny" ? "deny" : "allow");
+    if (permission === "deny") return { kind: "deny" };
+
+    if (permission === "ask") {
+      const storedDecision = this.decisions.take(request.gate);
+      if (storedDecision === "deny") return { kind: "deny" };
     }
-    return { found: false };
+    return { kind: "pendingApproval" };
   }
-}
-
-/**
- * The identifiers a stored decision may be keyed by: the gated tool-call id (precise/warm),
- * then the tool name bound to its args (the cold-replay anchor). NOTE: bare name is NOT a key
- * — that would auto-approve any later call to the same tool regardless of args (a HITL
- * bypass). The name is read off the ACP `ToolCallUpdate`, which carries `title`/`kind` (no
- * `name` field on the live wire); the args come from `rawInput` (falling back to `input` for
- * non-ACP shapes / tests).
- */
-function permissionRequestKeys(request: PermissionRequest): string[] {
-  const keys: string[] = [];
-  const raw = request.raw as
-    | {
-        toolCall?: {
-          toolCallId?: unknown;
-          name?: unknown;
-          title?: unknown;
-          kind?: unknown;
-          rawInput?: unknown;
-          input?: unknown;
-        };
-      }
-    | undefined;
-  const toolCall = raw?.toolCall;
-  const toolCallId = toolCall?.toolCallId;
-  if (typeof toolCallId === "string" && toolCallId) keys.push(toolCallId);
-  const name = permissionToolName(toolCall);
-  const argsKey = parkedCallKey(name, toolCall?.rawInput ?? toolCall?.input);
-  if (argsKey) keys.push(argsKey);
-  return keys;
-}
-
-function clientToolRequestKeys(request: ClientToolRequest): string[] {
-  const keys: string[] = [];
-  if (request.toolCallId) keys.push(request.toolCallId);
-  const argsKey = parkedCallKey(request.toolName, request.input);
-  if (argsKey) keys.push(argsKey);
-  return keys;
-}
-
-/** Resolve the gated tool's name the same way the egress does: name, then title, then kind. */
-function permissionToolName(toolCall: unknown): string | undefined {
-  const tc = toolCall as
-    | { name?: unknown; title?: unknown; kind?: unknown }
-    | undefined;
-  for (const candidate of [tc?.name, tc?.title, tc?.kind]) {
-    if (typeof candidate === "string" && candidate) return candidate;
-  }
-  return undefined;
 }
 
 /**
  * Build the approval-decision lookup from the inbound run request's message history.
  *
- * The signal is the converted approval reply that the Vercel adapter
- * (`_approval_response_blocks`) produces: a `tool_result` content block keyed by `toolCallId`
- * whose `output` is an `{ approved: boolean }` envelope. That envelope shape is unique to an
- * approval response (an ordinary tool result carries the tool's real output, not an `approved`
- * flag), so no new wire carrier is needed.
+ * The signal is the converted approval reply that the Vercel adapter produces: a
+ * `tool_result` content block keyed by `toolCallId` whose `output` is an `{ approved:
+ * boolean }` envelope. Each decision is indexed only by `approvedCallKey(name, args)` - the
+ * cold-replay anchor. The name/args are recovered from the matching `tool_call` block (same
+ * `toolCallId`) the egress folds into the transcript. An unbindable approval envelope is
+ * dropped; the gate re-raises and re-prompts, never guessed.
  *
- * Each decision is indexed ONLY by `parkedCallKey(name, args)` — the cold-replay anchor. The
- * name/args are recovered from the matching `tool_call` block (same `toolCallId`) the egress
- * folds into the transcript.
- *
- * Two keys deliberately do NOT appear:
- *   - The bare tool NAME — keying by name alone let an `allow` on one call auto-approve every
- *     later call to that tool, even with different args (the HITL bypass this fix closes).
- *   - The historical `toolCallId` — the `/messages` path is always cold-replay (a fresh
- *     session per turn, prior calls replayed as text), so the harness mints a NEW id for the
- *     re-raised gate and a stored historical id can never LEGITIMATELY match it. Keeping it
- *     would only add an args-blind match risk if a fresh id ever collided with a historical
- *     one. So we drop it: the cross-turn match is name + args, never a replayed id.
+ * ONLY approval-envelope (`{approved}`) results land here; a client-tool's raw browser output
+ * goes to the separate `extractClientToolOutputs` store (so a client output literally
+ * `"allow"`/`"deny"` can never be mis-read as a permission decision).
  */
 export function extractApprovalDecisions(
   request: AgentRunRequest,
-): Map<string, unknown> {
-  const decisions = new Map<string, unknown>();
-  // First pass: recover each tool call's name + args, keyed by its id, so an approval reply
-  // (which may carry only the id + the `{approved}` envelope) can be bound to name + args.
-  const callShapeById = new Map<string, { name?: string; input?: unknown }>();
+): Map<string, unknown[]> {
+  const decisions = new Map<string, unknown[]>();
+  const callShapeById = buildCallShapeIndex(request);
+  for (const block of toolResultBlocks(request)) {
+    const decision = approvalDecisionOf(block);
+    if (decision === undefined) continue;
+    const argsKey = coldReplayKey(block, callShapeById);
+    if (!argsKey) continue;
+    const list = decisions.get(argsKey) ?? [];
+    list.push(decision);
+    decisions.set(argsKey, list);
+  }
+  return decisions;
+}
+
+/**
+ * Build the client-tool output store from the inbound history: every NON-approval `tool_result`
+ * is a browser-fulfilled client-tool output. Keyed by the cold-replay anchor
+ * `approvedCallKey(name, args)`, with a FIFO LIST per key so two identical calls each resolve
+ * from the next stored output instead of one overwriting the other. The value is the raw
+ * output, never coerced.
+ *
+ * Scoped to the CURRENT turn (results at/after the latest user message). A prior turn's answer
+ * is already resolved-in-transcript, so a new identical-args call in a later turn must pause for
+ * a fresh answer rather than silently reuse it — the store only fulfills the current turn's own
+ * paused call. (Approvals deliberately stay full-history: a grant is idempotent across turns.)
+ *
+ * (A normal callback/code tool result also lands here, but is harmless: `onClientTool` only
+ * fires for `kind: "client"` tools, and a resolved callback tool is not re-called as a client
+ * pause.)
+ */
+export function extractClientToolOutputs(
+  request: AgentRunRequest,
+): Map<string, unknown[]> {
+  const outputs = new Map<string, unknown[]>();
+  const callShapeById = buildCallShapeIndex(request);
+  for (const block of currentTurnToolResultBlocks(request)) {
+    if (approvalDecisionOf(block) !== undefined) continue; // an approval, not a client output
+    // A sibling force-settled while another interaction paused this turn was NOT executed
+    // (`DEFERRED_NOT_EXECUTED`). It must not fulfill the model's retry of the same call, or the
+    // re-request resolves against the deferral and never re-parks (no new widget).
+    if (isDeferredNotExecuted(block)) continue;
+    const argsKey = coldReplayKey(block, callShapeById);
+    if (!argsKey) continue;
+    const list = outputs.get(argsKey) ?? [];
+    list.push(block.output);
+    outputs.set(argsKey, list);
+  }
+  return outputs;
+}
+
+/** Recover each tool call's name + args keyed by its id, so a reply that carries only the id
+ * (e.g. an `{approved}` envelope) can be bound to the cold-replay name+args anchor. */
+function buildCallShapeIndex(
+  request: AgentRunRequest,
+): Map<string, { name?: string; input?: unknown }> {
+  const index = new Map<string, { name?: string; input?: unknown }>();
   for (const message of request.messages ?? []) {
     const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type === "tool_call" && block.toolCallId) {
-        callShapeById.set(block.toolCallId, {
+        index.set(block.toolCallId, {
           name: block.toolName,
           input: block.input,
         });
       }
     }
   }
+  return index;
+}
+
+/** Every `tool_result` content block across the run's message history. */
+function* toolResultBlocks(request: AgentRunRequest): Generator<ContentBlock> {
   for (const message of request.messages ?? []) {
     const content = message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
-      const result = parkedCallResultOf(block);
-      if (!result.found) continue;
-      // Bind the cold-replay name+args key: prefer the block's own name/input, else the
-      // correlated tool_call block (same id). Never key by bare name or by a replayed id.
-      const shape = block.toolCallId
-        ? callShapeById.get(block.toolCallId)
-        : undefined;
-      const name = block.toolName ?? shape?.name;
-      const input = block.input ?? shape?.input;
-      const argsKey = parkedCallKey(name, input);
-      if (argsKey) decisions.set(argsKey, result.output);
+      if (block?.type === "tool_result") yield block;
     }
   }
-  return decisions;
+}
+
+/** Index where the current turn starts: the latest `user`-role message. 0 when there is no user
+ * message, so a history without a turn boundary treats everything as the current turn. */
+function currentTurnStartIndex(request: AgentRunRequest): number {
+  const messages = request.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return i;
+  }
+  return 0;
+}
+
+/** `tool_result` blocks in the current turn only (at/after the latest user message). Prior-turn
+ * results are already resolved-in-transcript and must not fulfill a fresh identical call. */
+function* currentTurnToolResultBlocks(
+  request: AgentRunRequest,
+): Generator<ContentBlock> {
+  const messages = request.messages ?? [];
+  for (let i = currentTurnStartIndex(request); i < messages.length; i++) {
+    const content = messages[i]?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type === "tool_result") yield block;
+    }
+  }
+}
+
+/** The cold-replay name+args key for a tool_result, recovering name/args from the correlated
+ * tool_call block when the result block itself carries only an id. Never a bare name or an id. */
+function coldReplayKey(
+  block: ContentBlock,
+  callShapeById: Map<string, { name?: string; input?: unknown }>,
+): string | undefined {
+  const shape = block.toolCallId
+    ? callShapeById.get(block.toolCallId)
+    : undefined;
+  const name = block.toolName ?? shape?.name;
+  const input = block.input ?? shape?.input;
+  return approvedCallKey(name, input);
 }
 
 function isPermissionDecision(value: unknown): value is PermissionDecision {
@@ -347,11 +484,27 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
 }
 
 /**
- * A parked call reply. Permission responses use `{ approved: boolean }`; client tools carry their
- * real structured `output`.
+ * A sibling force-settle result: the turn paused on another interaction, so this client tool was
+ * never executed and carries the `DEFERRED_NOT_EXECUTED` sentinel. It is not a browser output — the
+ * model is meant to re-issue the same call, which must re-park rather than resolve against this.
  */
-function parkedCallResultOf(block: ContentBlock): { found: boolean; output?: unknown } {
-  if (!block || block.type !== "tool_result") return { found: false };
+function isDeferredNotExecuted(block: ContentBlock): boolean {
+  return (
+    typeof block.output === "string" &&
+    block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
+  );
+}
+
+/**
+ * An approval reply uses an `{ approved: boolean }` envelope (the Vercel adapter's
+ * `_approval_response_blocks` shape), unique to a permission response. Returns
+ * `"allow"`/`"deny"` for one, or `undefined` for any other tool_result (a real browser/client
+ * output).
+ */
+export function approvalDecisionOf(
+  block: ContentBlock,
+): PermissionDecision | undefined {
+  if (!block || block.type !== "tool_result") return undefined;
   const output = block.output;
   if (
     output &&
@@ -359,38 +512,20 @@ function parkedCallResultOf(block: ContentBlock): { found: boolean; output?: unk
     !Array.isArray(output) &&
     typeof (output as { approved?: unknown }).approved === "boolean"
   ) {
-    return {
-      found: true,
-      output: (output as { approved: boolean }).approved ? "allow" : "deny",
-    };
+    return (output as { approved: boolean }).approved ? "allow" : "deny";
   }
-  return { found: true, output };
-}
-
-/**
- * Resolve the permission policy with the same precedence as before: an explicit per-run
- * `permissionPolicy: "deny"` or the `SANDBOX_AGENT_DENY_PERMISSIONS` env flips to deny; the
- * default is auto-allow, because backend-resolved tools are trusted and the run is headless.
- */
-export function policyFromRequest(permissionPolicy?: string): PermissionPolicy {
-  if (
-    permissionPolicy === "deny" ||
-    process.env.SANDBOX_AGENT_DENY_PERMISSIONS === "true"
-  ) {
-    return "deny";
-  }
-  return "auto";
+  return undefined;
 }
 
 /**
  * Map an allow/deny decision onto the harness's available ACP replies.
  *
  * An `allow` maps to `"once"` (grant THIS call only), NOT `"always"`. `"always"` tells the
- * harness to allow the tool broadly for the rest of the turn WITHOUT re-raising the gate, so a
- * single approval of call A would silently authorize later calls to the same tool without
- * rechecking name + args — re-opening the over-authorization hole this module closes. Every
- * call must be gated individually; the headless auto-allow policy already returns `allow` per
- * call, so `"once"` per call is equivalent for it and strictly safer for HITL.
+ * harness to allow the tool broadly for the rest of the turn WITHOUT re-raising the gate, so
+ * a single approval of call A would silently authorize later calls to the same tool without
+ * rechecking name + args. Every call must be gated individually; the headless auto-allow
+ * policy already returns `allow` per call, so `"once"` per call is equivalent for it and
+ * strictly safer for HITL.
  */
 export function decisionToReply(
   decision: PermissionDecision,

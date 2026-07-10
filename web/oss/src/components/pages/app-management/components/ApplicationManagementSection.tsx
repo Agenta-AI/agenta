@@ -8,6 +8,7 @@ import {Button, Empty, Space, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {invalidateAgentsWorkflowQueries} from "@/oss/components/pages/agents/store"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
@@ -28,13 +29,17 @@ import EmptyAppView from "./EmptyAppView"
 
 interface ApplicationManagementSectionProps {
     mode?: "active" | "archived"
+    agentScope?: boolean
 }
 
 const {Title} = Typography
 const PAGE_SIZE = 10
 
-const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSectionProps) => {
-    const tableState = getAppWorkflowTableState(mode)
+const ApplicationManagementSection = ({
+    mode = "active",
+    agentScope = false,
+}: ApplicationManagementSectionProps) => {
+    const tableState = getAppWorkflowTableState(mode, agentScope)
     const isArchived = tableState.mode === "archived"
     const router = useRouter()
     const {baseAppURL} = useURL()
@@ -63,15 +68,25 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
 
     const table = useTableManager<AppWorkflowRow>({
         datasetStore: tableState.paginatedStore.store as never,
-        scopeId: isArchived ? "archived-app-workflows" : "app-workflows",
+        scopeId: isArchived
+            ? agentScope
+                ? "archived-agent-workflows"
+                : "archived-app-workflows"
+            : "app-workflows",
         pageSize: PAGE_SIZE,
         onRowClick: handleRowClick,
         columnVisibilityStorageKey: isArchived
-            ? "agenta:archived-apps:column-visibility"
+            ? agentScope
+                ? "agenta:archived-agents:column-visibility"
+                : "agenta:archived-apps:column-visibility"
             : "agenta:app-management:column-visibility",
         rowClassName: "cursor-pointer",
         search: {atom: tableState.searchTermAtom, className: "w-full max-w-[400px]"},
-        exportFilename: isArchived ? "archived-apps.csv" : "apps.csv",
+        exportFilename: isArchived
+            ? agentScope
+                ? "archived-agents.csv"
+                : "archived-apps.csv"
+            : "apps.csv",
     })
 
     const isArchivedInitialLoading =
@@ -106,6 +121,7 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
                     await workflowMolecule.lifecycle.unarchive(record.workflowId, {projectId})
                     await mutateApps?.()
                     await invalidateAppManagementWorkflowQueries()
+                    await invalidateAgentsWorkflowQueries()
                     message.success("App restored")
                 } catch (error) {
                     message.error(extractApiErrorMessage(error))
@@ -156,13 +172,13 @@ const ApplicationManagementSection = ({mode = "active"}: ApplicationManagementSe
         if (isArchived) {
             return (
                 <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-[var(--ag-c-FFFFFF)]">
-                    <Empty description="No archived apps" />
+                    <Empty description={agentScope ? "No archived agents" : "No archived apps"} />
                 </div>
             )
         }
 
         return <EmptyAppView />
-    }, [isArchived])
+    }, [agentScope, isArchived])
 
     return (
         <div className="flex flex-col gap-2">

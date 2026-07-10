@@ -7,6 +7,7 @@ import agenta as ag
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.decorators.routing import (
     create_app,
+    apply_invoke_prelude,
     handle_invoke_success,
     handle_invoke_failure,
     handle_inspect_success,
@@ -82,6 +83,7 @@ services_app = create_app()
 @services_app.post("/invoke")
 async def services_invoke(req: Request, request: WorkflowInvokeRequest):
     credentials = req.state.auth.get("credentials")
+    apply_invoke_prelude(req, request)
     try:
         response = await invoke_workflow(request=request, credentials=credentials)
         return await handle_invoke_success(req, response)

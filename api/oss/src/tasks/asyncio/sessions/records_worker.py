@@ -1,5 +1,3 @@
-import asyncio
-import os
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -9,6 +7,7 @@ from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import deserialize_record
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
 
@@ -17,7 +16,7 @@ if is_ee():
     from ee.src.core.access.entitlements.types import Counter
 
 
-class RecordsWorker:
+class RecordsWorker(StreamConsumer):
     """
     Worker for record ingestion via dedicated Redis stream.
 
@@ -25,13 +24,15 @@ class RecordsWorker:
     Consumer group: worker-records
 
     Flow:
-    1. Read batch from stream (XREADGROUP)
+    1. Read batch from stream (XREADGROUP) — StreamConsumer
     2. Deserialize messages
     3. Group by project_id
     4. EE: L2 quota check per org (Counter.RECORDS_INGESTED)
     5. Append record events to DB
-    6. ACK + DEL messages
+    6. ACK + DEL messages — StreamConsumer
     """
+
+    log_prefix = "[RECORDS]"
 
     def __init__(
         self,
@@ -45,89 +46,17 @@ class RecordsWorker:
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
     ):
+        super().__init__(
+            redis_client=redis_client,
+            stream_name=stream_name,
+            consumer_group=consumer_group,
+            consumer_name=consumer_name,
+            max_batch_size=max_batch_size,
+            max_block_ms=max_block_ms,
+            max_delay_ms=max_delay_ms,
+            max_batch_mb=max_batch_mb,
+        )
         self.service = service
-        self.redis = redis_client
-        self.stream_name = stream_name
-        self.consumer_group = consumer_group
-        self.consumer_name = consumer_name or f"worker-{os.getpid()}"
-        self.max_batch_size = max_batch_size
-        self.max_block_ms = max_block_ms
-        self.max_delay_ms = max_delay_ms
-        self.max_batch_mb = max_batch_mb
-
-    async def create_consumer_group(self):
-        """Create consumer group if it doesn't exist (idempotent)."""
-        try:
-            await self.redis.xgroup_create(
-                name=self.stream_name,
-                groupname=self.consumer_group,
-                id="0",
-                mkstream=True,
-            )
-            log.info(
-                "[RECORDS] Created consumer group",
-                stream=self.stream_name,
-                group=self.consumer_group,
-            )
-        except Exception as e:
-            if "BUSYGROUP" not in str(e):
-                log.error("[RECORDS] Failed to create consumer group", exc_info=True)
-                raise
-
-    async def read_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
-        import time
-
-        try:
-            messages = await self.redis.xreadgroup(
-                groupname=self.consumer_group,
-                consumername=self.consumer_name,
-                streams={self.stream_name: ">"},
-                count=self.max_batch_size,
-                block=self.max_block_ms,
-            )
-
-            if not messages:
-                return []
-
-            batch = messages[0][1]
-
-            if len(batch) < self.max_batch_size:
-                start_time = time.time()
-
-                while True:
-                    elapsed = (time.time() - start_time) * 1000
-                    remaining_ms = self.max_delay_ms - elapsed
-
-                    if remaining_ms <= 0:
-                        break
-
-                    accumulated = await self.redis.xreadgroup(
-                        groupname=self.consumer_group,
-                        consumername=self.consumer_name,
-                        streams={self.stream_name: ">"},
-                        count=self.max_batch_size,
-                        block=max(10, int(remaining_ms)),
-                    )
-
-                    if accumulated:
-                        batch.extend(accumulated[0][1])
-                        if len(batch) >= self.max_batch_size:
-                            break
-
-            return batch
-
-        except Exception:
-            log.error("[RECORDS] Failed to read batch", exc_info=True)
-            return []
-
-    async def ack_and_delete(self, message_ids: List[bytes]):
-        if not message_ids:
-            return
-        try:
-            await self.redis.xack(self.stream_name, self.consumer_group, *message_ids)
-            await self.redis.xdel(self.stream_name, *message_ids)
-        except Exception:
-            log.error("[RECORDS] Failed to ACK/DEL messages", exc_info=True)
 
     async def process_batch(
         self,
@@ -231,30 +160,3 @@ class RecordsWorker:
                     )
 
         return total_appended, processed_ids
-
-    async def run(self):
-        log.info(
-            "[RECORDS] Worker started",
-            stream=self.stream_name,
-            group=self.consumer_group,
-            consumer=self.consumer_name,
-            max_batch_size=self.max_batch_size,
-        )
-
-        while True:
-            try:
-                batch = await self.read_batch()
-                if not batch:
-                    continue
-
-                appended, processed_ids = await self.process_batch(batch)
-
-                await self.ack_and_delete(processed_ids)
-                log.info(
-                    "[RECORDS] Batch processed",
-                    batch_size=len(batch),
-                    appended=appended,
-                )
-            except Exception:
-                log.error("[RECORDS] Worker loop error", exc_info=True)
-                await asyncio.sleep(1)

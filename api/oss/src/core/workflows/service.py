@@ -93,7 +93,9 @@ from oss.src.core.git.types import (
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
+from oss.src.core.workflows.build_kit import BUILD_KIT_WORKFLOW_SLUG
 from oss.src.core.workflows.interfaces import StaticWorkflowProvider
+from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     StaticWorkflowSlug,
@@ -106,6 +108,12 @@ from oss.src.core.workflows.types import (
 from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
+)
+from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.embeds.utils import (
+    find_object_embeds,
+    find_snippet_embeds,
+    find_string_embeds,
 )
 
 from oss.src.middlewares.auth import sign_secret_token
@@ -1279,6 +1287,9 @@ class WorkflowsService:
         workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_create.slug)
+        self._reject_non_embeddable_workflow_embeds(
+            getattr(workflow_revision_create, "data", None)
+        )
 
         _revision_create = RevisionCreate(
             **workflow_revision_create.model_dump(
@@ -1313,6 +1324,48 @@ class WorkflowsService:
     @staticmethod
     def _ref_is_static(ref: Optional[Reference]) -> bool:
         return ref is not None and is_static_workflow_slug(ref.slug)
+
+    @staticmethod
+    def _reference_category(entity_type: str) -> str:
+        return entity_type.split("_", 1)[0] if "_" in entity_type else entity_type
+
+    def _non_embeddable_static_workflow_slug(
+        self,
+        ref: Reference,
+    ) -> Optional[str]:
+        if ref.slug == BUILD_KIT_WORKFLOW_SLUG:
+            return BUILD_KIT_WORKFLOW_SLUG
+
+        if not self.static_catalog:
+            return None
+
+        if ref.slug and not self.static_catalog.is_embeddable(slug=ref.slug):
+            return ref.slug
+        if ref.id and not self.static_catalog.is_embeddable(id=ref.id):
+            revision = self.static_catalog.retrieve_revision(id=ref.id)
+            return revision.slug if revision and revision.slug else str(ref.id)
+        return None
+
+    def _reject_non_embeddable_workflow_embeds(
+        self,
+        data: Optional[WorkflowRevisionData],
+    ) -> None:
+        if not data:
+            return
+
+        configuration = data.model_dump(mode="json", exclude_none=True)
+        embeds = (
+            *find_object_embeds(configuration),
+            *find_string_embeds(configuration),
+            *find_snippet_embeds(configuration),
+        )
+        for embed in embeds:
+            for entity_type, ref in embed.references.items():
+                if self._reference_category(entity_type) != "workflow":
+                    continue
+                slug = self._non_embeddable_static_workflow_slug(ref)
+                if slug:
+                    raise NonEmbeddableWorkflowReferenceError(slug)
 
     def _ref_has_static_id(self, ref: Optional[Reference]) -> bool:
         return (
@@ -1434,7 +1487,9 @@ class WorkflowsService:
                 return False
             if ref.slug is not None and ref.slug != resolved_slug:
                 return False
-            if ref.version is not None and ref.version != revision.version:
+            if ref.version is not None and normalize_static_version(
+                ref.version
+            ) != normalize_static_version(revision.version):
                 return False
         return True
 
@@ -1807,6 +1862,8 @@ class WorkflowsService:
                     data = data.model_copy(
                         update={"url": env.agenta.services_url.rstrip("/") + path}
                     )
+
+        self._reject_non_embeddable_workflow_embeds(data)
 
         if data and data.uri:
             interface = retrieve_interface(data.uri)

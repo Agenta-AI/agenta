@@ -7,6 +7,11 @@ enqueues dispatch asynchronously; the workflow run + delivery write happen in a
 separate worker. Unlike the Stripe receiver, an unsigned/forged event is NOT a
 no-op — verification is unconditional, so such requests are rejected with 401.
 
+Verification also rejects a stale `webhook-timestamp` and a replayed
+`webhook-id`: a captured/redelivered request outside the freshness
+window, or a repeat of a `webhook-id` already seen within it, gets 401 at the
+signature layer rather than reaching dispatch.
+
 The signature-rejection path only fires when a webhook secret can be resolved,
 which needs Composio enabled (COMPOSIO_API_KEY). The full signed-event ->
 workflow-invoked -> single-delivery roundtrip also needs a bound workflow, so it
@@ -19,6 +24,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 from uuid import uuid4
 
 import httpx
@@ -103,8 +109,76 @@ class TestTriggerIngressSignature:
 
 
 # ---------------------------------------------------------------------------
+# Replay/freshness — a stale timestamp or a repeated webhook-id is
+# rejected at the signature layer; a fresh, first-seen request is accepted.
+# ---------------------------------------------------------------------------
+
+
+@_requires_composio
+class TestTriggerIngressReplayAndFreshness:
+    def test_stale_timestamp_is_rejected(self, unauthed_api):
+        secret = _resolve_webhook_secret()
+        if not secret:
+            pytest.skip("no Composio webhook secret resolvable; signing would 401")
+
+        webhook_id = f"msg_{uuid4().hex}"
+        stale_timestamp = str(int(time.time()) - 3600)
+        envelope = {
+            "type": "github_star_added_event",
+            "metadata": {"trigger_id": f"ti_{uuid4().hex}", "id": uuid4().hex},
+            "payload": {"repository": "acme/widgets"},
+        }
+        body = json.dumps(envelope).encode()
+        headers = {
+            "Content-Type": "application/json",
+            "webhook-id": webhook_id,
+            "webhook-timestamp": stale_timestamp,
+            "webhook-signature": _sign(secret, webhook_id, stale_timestamp, body),
+        }
+
+        response = unauthed_api(
+            "POST", "/triggers/composio/events/", data=body, headers=headers
+        )
+        assert response.status_code == 401, response.text
+
+    def test_replayed_webhook_id_is_rejected_within_the_window(self, unauthed_api):
+        secret = _resolve_webhook_secret()
+        if not secret:
+            pytest.skip("no Composio webhook secret resolvable; signing would 401")
+
+        webhook_id = f"msg_{uuid4().hex}"
+        timestamp = str(int(time.time()))
+        envelope = {
+            "type": "github_star_added_event",
+            "metadata": {"trigger_id": f"ti_{uuid4().hex}", "id": uuid4().hex},
+            "payload": {"repository": "acme/widgets"},
+        }
+        body = json.dumps(envelope).encode()
+        headers = {
+            "Content-Type": "application/json",
+            "webhook-id": webhook_id,
+            "webhook-timestamp": timestamp,
+            "webhook-signature": _sign(secret, webhook_id, timestamp, body),
+        }
+
+        first = unauthed_api(
+            "POST", "/triggers/composio/events/", data=body, headers=headers
+        )
+        assert first.status_code == 202, first.text
+
+        replay = unauthed_api(
+            "POST", "/triggers/composio/events/", data=body, headers=headers
+        )
+        assert replay.status_code == 401, replay.text
+
+
+# ---------------------------------------------------------------------------
 # Dedup (needs Composio) — a duplicate metadata.id does not double-write a
 # delivery. Exercised end-to-end via a real subscription bound to a workflow.
+# Each delivery attempt uses its own webhook-id/timestamp (a distinct
+# provider-level delivery), since a repeated webhook-id is now rejected
+# upstream by the replay guard — this dedup is the metadata.id ->
+# delivery-row layer beneath it.
 # ---------------------------------------------------------------------------
 
 
@@ -157,19 +231,23 @@ class TestTriggerIngressDedup:
             "payload": {"repository": "acme/widgets"},
         }
         body = json.dumps(envelope).encode()
-        timestamp = "1700000000"
         secret = _resolve_webhook_secret()
         if not secret:
             pytest.skip("no Composio webhook secret resolvable; signing would 401")
-        headers = {
-            "Content-Type": "application/json",
-            "webhook-id": event_id,
-            "webhook-timestamp": timestamp,
-            "webhook-signature": _sign(secret, event_id, timestamp, body),
-        }
 
-        # Post the same signed event twice (provider redelivery) — dedup must hold.
+        # Post the same logical event twice (provider redelivery) as two DISTINCT
+        # provider-level deliveries (own webhook-id/timestamp each) — the
+        # replay guard dedups webhook-id, not metadata.id, so this exercises the
+        # delivery-row dedup layer beneath it.
         for _ in range(2):
+            webhook_id = f"msg_{uuid4().hex}"
+            timestamp = str(int(time.time()))
+            headers = {
+                "Content-Type": "application/json",
+                "webhook-id": webhook_id,
+                "webhook-timestamp": timestamp,
+                "webhook-signature": _sign(secret, webhook_id, timestamp, body),
+            }
             ack = unauthed_api(
                 "POST", "/triggers/composio/events/", data=body, headers=headers
             )

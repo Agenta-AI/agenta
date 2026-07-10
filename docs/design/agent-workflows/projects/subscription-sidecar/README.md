@@ -13,6 +13,19 @@ the playground's composite sidecar URI (`{mode, url}` → the agent config `uri`
 
 > **Status:** verified working on 2026-06-25. Two `/run` turns on `harness=claude`, `model=haiku`,
 > with no API key, returned correct output using only the mounted subscription OAuth.
+>
+> **Update 2026-06-30:** the same sidecar also serves the **OpenAI ChatGPT/Codex subscription**
+> for Pi. Mount the host's Pi login (`~/.pi/agent`, provider key `openai-codex`, from `pi` →
+> `/login`) alongside `~/.claude`, and run `harness=pi_core` with `model=openai-codex/<id>`
+> (`gpt-5.5`/`gpt-5.4`/`gpt-5.4-mini`/`gpt-5.3-codex-spark`) and `connection.mode=self_managed`.
+> Verified end to end through the live agent service. The full dual-login recipe, wiring, and
+> verification now live in the **`subscription-sidecar` skill** (`.agents/skills/subscription-sidecar/`);
+> this document keeps the Claude-specific rationale below.
+>
+> Note the app layer needs `openai-codex` in the per-harness capability table
+> (`sdks/python/agenta/sdk/agents/capabilities.py`); it was missing, so a codex `self_managed` run
+> was rejected before reaching the runner. Fixed 2026-06-30. See
+> [`../provider-model-auth/harness-provider-matrix.md`](../provider-model-auth/harness-provider-matrix.md).
 
 ## Why this works without a code change
 
@@ -76,9 +89,11 @@ docker rm -f agenta-claude-sub-sidecar 2>/dev/null || true
 docker run -d \
   --name agenta-claude-sub-sidecar \
   --user "$(id -u):$(id -g)" \
+  --network <app-stack-compose-network> \
   -p 127.0.0.1:${HOST_PORT}:8765 \
   -e PORT=8765 \
   -e AGENTA_RUNNER_HOST=0.0.0.0 \
+  -e AGENTA_API_INTERNAL_URL=http://api:8000 \
   -e NODE_ENV=development \
   -e HOME=/home/agent \
   -e PI_CODING_AGENT_DIR=/pi-agent \
@@ -109,6 +124,17 @@ Why each piece:
 - **CMD `node_modules/.bin/tsx src/server.ts`** — run the server directly. Skip the dev image's
   `build-extension` step: the image already baked the extension at build time, and a non-root user
   cannot rewrite `/app/dist`. The baked extension is fine for a Claude run.
+  **For Pi runs with mounted source, the container must run `node scripts/build-extension.mjs` at
+  startup** (live finding 2026-07-05: a plain restart loads a stale extension bundle baked at image
+  build time, silently missing newer runner tool changes).
+- **`--network <app-stack-compose-network>`** (e.g. `agenta-ee-dev-wp-b2-rendering_agenta-network`,
+  see `docker network ls`) — the app's `services` container reaches the sidecar by name, and the
+  sidecar reaches the API for session calls.
+- **`AGENTA_API_INTERNAL_URL=http://api:8000`** — the runner→API base for the session
+  heartbeat / record-persist / interaction calls and the OTLP fallback (the same variable the
+  compose `runner` service sets). Without it the runner has to infer a PUBLIC `AGENTA_API_URL`
+  from the run's telemetry endpoint, which only works when the run carries telemetry and routes
+  through the public proxy instead of the direct compose-network hop.
 - **No `ANTHROPIC_API_KEY`, no `secrets`** — that is the whole point. Auth is the mounted OAuth.
 
 Health check:

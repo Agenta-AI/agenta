@@ -13,7 +13,9 @@
  * remain in memory:
  *   TRACEPARENT                       W3C traceparent of the caller's /invoke span
  *   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  OTLP traces URL (e.g. https://host/api/otlp/v1/traces)
- *   OTEL_EXPORTER_OTLP_HEADERS        key=value list for export headers (e.g. Authorization=...)
+ *   AGENTA_AGENT_OTLP_AUTH_FILE       path to a runner-written, 0600, read-once file holding
+ *                                     the OTLP Authorization bearer (never a plain env
+ *                                     var — read once here, then deleted, see readOtlpAuthFile)
  *   AGENTA_AGENT_CONTENT_CAPTURE_ENABLED "false" to drop prompt/completion/tool I/O from spans
  *   AGENTA_AGENT_TOOLS_PUBLIC_SPECS   JSON [{ name, description, inputSchema }]
  *   AGENTA_AGENT_TOOLS_RELAY_DIR      relay tool calls through the runner via files here
@@ -23,25 +25,46 @@
  * it (local, the docker sidecar, a Daytona snapshot). Default export is the Pi
  * ExtensionFactory.
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  isToolCallEventType,
+  type ExtensionAPI,
+  type ExtensionContext,
+  type ToolCallEvent,
+  type ToolCallEventResult,
+} from "@earendil-works/pi-coding-agent";
 
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
+import {
+  assertRequiredArguments,
+  requiredFields,
+  specInputSchema,
+} from "../tools/spec-schema.ts";
+import {
+  buildPiGateEnvelope,
+  PI_GATE_DIALOG_TITLE,
+  type PiGateKind,
+} from "../engines/sandbox_agent/pi-gate-envelope.ts";
 
-/** Pull the Authorization value out of an OTEL_EXPORTER_OTLP_HEADERS key=value list. */
-function authorizationFromOtlpHeaders(raw?: string): string | undefined {
-  if (!raw) return undefined;
-  for (const pair of raw.split(",")) {
-    const eq = pair.indexOf("=");
-    if (eq === -1) continue;
-    if (pair.slice(0, eq).trim().toLowerCase() === "authorization") {
-      return pair.slice(eq + 1).trim();
-    }
+/** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
+export function readOtlpAuthFile(path?: string): string | undefined {
+  if (!path) return undefined;
+  let value: string;
+  try {
+    value = readFileSync(path, "utf-8").trim();
+  } catch {
+    return undefined;
   }
-  return undefined;
+  // Delete is best-effort and must not drop a bearer we already read (runner cleanup also removes it).
+  try {
+    unlinkSync(path);
+  } catch {
+    /* ignore */
+  }
+  return value || undefined;
 }
 import { runResolvedTool } from "../tools/dispatch.ts";
 
@@ -49,25 +72,169 @@ function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
 }
 
-function objectSchema(schema: unknown): Record<string, unknown> | undefined {
-  return schema && typeof schema === "object" && !Array.isArray(schema)
-    ? (schema as Record<string, unknown>)
-    : undefined;
+const PI_BUILTIN_TOOL_NAMES = [
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+] as const;
+
+type PiBuiltinToolName = (typeof PI_BUILTIN_TOOL_NAMES)[number];
+
+const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
+
+function isTruthyFlag(raw: string | undefined): boolean {
+  const normalized = raw?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
 }
 
-function requiredFields(schema: unknown): string[] {
-  const object = objectSchema(schema);
-  const required = object?.required;
-  return Array.isArray(required)
-    ? required.filter((field): field is string => typeof field === "string")
-    : [];
+/**
+ * Raise a Pi approval gate as an extension-UI dialog carrying the JSON envelope, instead of the
+ * file-relay poll. The `pi-acp` bridge surfaces this as a real ACP `session/request_permission`
+ * the runner holds, classifies, and (under keep-alive) parks. No `opts` are passed to `confirm`,
+ * so Pi arms no reaper and the dialog waits indefinitely; any cancellation resolves it to `false`,
+ * which is a fail-closed block. If the UI plane is somehow unavailable, block (never run
+ * unapproved).
+ */
+async function piDialogAllows(
+  ctx: ExtensionContext | undefined,
+  gate: PiGateKind,
+  toolName: string,
+  toolCallId: string,
+  input: unknown,
+): Promise<{ allowed: boolean; reason?: string }> {
+  const ui = ctx?.ui;
+  const confirm = ui?.confirm;
+  if (!ui || typeof confirm !== "function") {
+    return { allowed: false, reason: "Permission dialog is unavailable." };
+  }
+  const message = buildPiGateEnvelope({ gate, toolName, toolCallId, input });
+  try {
+    const confirmed = await confirm.call(ui, PI_GATE_DIALOG_TITLE, message);
+    return confirmed === true
+      ? { allowed: true }
+      : { allowed: false, reason: "Denied by the permission policy." };
+  } catch (err) {
+    return {
+      allowed: false,
+      reason: err instanceof Error ? err.message : "Permission dialog failed.",
+    };
+  }
 }
 
-function specInputSchema(spec: ResolvedToolSpec): Record<string, unknown> | null | undefined {
-  return (
-    spec.inputSchema ??
-    (spec as ResolvedToolSpec & { input_schema?: Record<string, unknown> | null })
-      .input_schema
+function isPiBuiltinToolName(name: string): name is PiBuiltinToolName {
+  return PI_BUILTIN_TOOL_NAME_SET.has(name);
+}
+
+export function normalizeBuiltinGrants(
+  raw: string | undefined,
+  logDrop: (message: string) => void = log,
+): PiBuiltinToolName[] {
+  if (!raw) return [];
+  const grants: PiBuiltinToolName[] = [];
+  const seen = new Set<string>();
+  const unknown = new Set<string>();
+  for (const part of raw.split(",")) {
+    const name = part.trim().toLowerCase();
+    if (!name) continue;
+    if (!isPiBuiltinToolName(name)) {
+      if (!unknown.has(name)) {
+        unknown.add(name);
+        logDrop(`dropping unknown builtin grant '${name}'`);
+      }
+      continue;
+    }
+    if (seen.has(name)) continue;
+    seen.add(name);
+    grants.push(name);
+  }
+  return grants;
+}
+
+export function replaceActiveBuiltinTools(
+  activeTools: string[],
+  allTools: Array<{ name: string }>,
+  builtinGrants: readonly PiBuiltinToolName[],
+): string[] {
+  const grantSet = new Set<string>(builtinGrants);
+  const inserted = new Set<string>();
+  const grantedBuiltinTools = allTools
+    .map((tool) => tool.name)
+    .filter(isPiBuiltinToolName)
+    .filter((name) => {
+      if (!grantSet.has(name) || inserted.has(name)) return false;
+      inserted.add(name);
+      return true;
+    });
+
+  let replacedBuiltinSlice = false;
+  const next: string[] = [];
+  for (const name of activeTools) {
+    if (isPiBuiltinToolName(name)) {
+      if (!replacedBuiltinSlice) {
+        next.push(...grantedBuiltinTools);
+        replacedBuiltinSlice = true;
+      }
+      continue;
+    }
+    next.push(name);
+  }
+
+  if (!replacedBuiltinSlice) next.push(...grantedBuiltinTools);
+  return next;
+}
+
+function builtinToolNameFromEvent(
+  event: ToolCallEvent,
+): PiBuiltinToolName | undefined {
+  if (isToolCallEventType("read", event)) return "read";
+  if (isToolCallEventType("bash", event)) return "bash";
+  if (isToolCallEventType("edit", event)) return "edit";
+  if (isToolCallEventType("write", event)) return "write";
+  if (isToolCallEventType("grep", event)) return "grep";
+  if (isToolCallEventType("find", event)) return "find";
+  if (isToolCallEventType("ls", event)) return "ls";
+  return undefined;
+}
+
+function blockReason(reason: string | undefined): ToolCallEventResult {
+  return {
+    block: true,
+    reason: reason || "Denied by the permission policy.",
+  };
+}
+
+function registerBuiltinGating(
+  pi: ExtensionAPI,
+  builtinGrants: readonly PiBuiltinToolName[],
+): void {
+  pi.on("before_agent_start", async () => {
+    pi.setActiveTools(
+      replaceActiveBuiltinTools(
+        pi.getActiveTools(),
+        pi.getAllTools(),
+        builtinGrants,
+      ),
+    );
+  });
+
+  pi.on(
+    "tool_call",
+    async (event, ctx): Promise<ToolCallEventResult | undefined> => {
+      const toolName = builtinToolNameFromEvent(event);
+      if (!toolName) return undefined;
+      const { allowed, reason } = await piDialogAllows(
+        ctx,
+        "pi-builtin",
+        toolName,
+        event.toolCallId,
+        event.input,
+      );
+      return allowed ? undefined : blockReason(reason);
+    },
   );
 }
 
@@ -125,6 +292,10 @@ function registerTools(pi: ExtensionAPI): void {
 
   let registered = 0;
   for (const spec of specs) {
+    // The dialog gate applies to EXECUTABLE custom tools only. `client` tools are
+    // browser-fulfilled across a turn boundary through the relay's own pause semantics; gating
+    // one via the dialog would be wrong, so they keep their path.
+    const gateViaDialog = (spec.kind ?? "callback") !== "client";
     pi.registerTool({
       name: spec.name,
       label: spec.name,
@@ -133,7 +304,40 @@ function registerTools(pi: ExtensionAPI): void {
       promptGuidelines: promptGuidelines(spec),
       // Pi accepts plain JSON Schema here (non-TypeBox validation path).
       parameters: (specInputSchema(spec) as any) ?? EMPTY_OBJECT_SCHEMA,
-      async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
+      // The positional shape (ctx 5th) is pi-coding-agent's registerTool execute contract. If
+      // upstream changes the arity, the gate fails closed (no ui -> block); it never fails open.
+      async execute(
+        toolCallId: string,
+        params: unknown,
+        signal?: AbortSignal,
+        _onUpdate?: unknown,
+        ctx?: ExtensionContext,
+      ) {
+        // Validate BEFORE the gate: a malformed call must error to the model, never reach a
+        // human as an approval prompt (and never relay as a no-op).
+        assertRequiredArguments(spec, params);
+        // Gate BEFORE the relay execution: only an allow proceeds. A deny surfaces as the tool's
+        // result text, so the model loop continues.
+        if (gateViaDialog) {
+          const { allowed, reason } = await piDialogAllows(
+            ctx,
+            "pi-custom-tool",
+            spec.name,
+            toolCallId,
+            params,
+          );
+          if (!allowed) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: reason ?? "Denied by the permission policy.",
+                },
+              ],
+              details: { toolName: spec.name },
+            };
+          }
+        }
         const text = await runResolvedTool(spec, params, {
           toolCallId,
           relayDir,
@@ -157,14 +361,19 @@ const factory = (pi: ExtensionAPI): void => {
   const hasTracing = !!(
     process.env.TRACEPARENT || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
   );
-  const hasTools = !!(
-    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS &&
-    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR
+  const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
+  const hasTools = !!(process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS && relayDir);
+  const hasBuiltinGating = isTruthyFlag(
+    process.env.AGENTA_AGENT_BUILTIN_GATING,
+  );
+  const builtinGrants = normalizeBuiltinGrants(
+    process.env.AGENTA_AGENT_BUILTIN_GRANTS,
   );
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
-  if (!hasTracing && !hasTools && !usageOut) return;
+  if (!hasTracing && !hasTools && !hasBuiltinGating && !usageOut) return;
 
   if (hasTools) registerTools(pi);
+  if (hasBuiltinGating) registerBuiltinGating(pi, builtinGrants);
   // Tracing exports the span tree (when the OTLP target is reachable, i.e. local runs).
   // Usage accumulation is needed both for that export AND for the writeback the runner
   // uses on Daytona (where the in-sandbox process can't reach Agenta's OTLP, so the
@@ -175,8 +384,9 @@ const factory = (pi: ExtensionAPI): void => {
   const otel = createAgentaOtel({
     traceparent: process.env.TRACEPARENT,
     endpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-    authorization: authorizationFromOtlpHeaders(process.env.OTEL_EXPORTER_OTLP_HEADERS),
-    captureContent: process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
+    authorization: readOtlpAuthFile(process.env.AGENTA_AGENT_OTLP_AUTH_FILE),
+    captureContent:
+      process.env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED !== "false",
     // The skills that loaded for this run (author + forced `_agenta.*`), stamped on the agent
     // span so a trace shows which skills surfaced (F-029). A JSON array string from the runner.
     skills: parseSkillsLoaded(process.env.AGENTA_AGENT_SKILLS_LOADED),

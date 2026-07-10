@@ -65,12 +65,13 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isToolsEnabled} from "@/oss/lib/helpers/isEE"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
@@ -230,6 +231,27 @@ function humanizeEvaluatorKey(key: string): string {
         .trim()
 }
 
+// Lazy activation for the workflow-reference bridge. Referencing a workflow as an agent tool is
+// the only consumer of the project-wide workflow list + evaluator catalog inside the always-mounted
+// playground drill-in provider, and it's needed only once the user opens the reference picker or an
+// existing reference is displayed. Until then these stay dormant, so a plain playground load doesn't
+// fire the apps/evaluators list + evaluator catalog queries.
+const workflowReferenceActivatedAtom = atom(false)
+const activateWorkflowReferenceAtom = atom(null, (get, set) => {
+    if (!get(workflowReferenceActivatedAtom)) set(workflowReferenceActivatedAtom, true)
+})
+const EMPTY_WORKFLOW_REFS: Workflow[] = []
+const EMPTY_EVALUATOR_NAMES = new Map<string, string>()
+const workflowReferenceWorkflowsAtom = atom((get) =>
+    get(workflowReferenceActivatedAtom) ? get(nonArchivedWorkflowsAtom) : EMPTY_WORKFLOW_REFS,
+)
+const workflowReferenceLoadingAtom = atom((get) =>
+    get(workflowReferenceActivatedAtom) ? get(workflowsListQueryStateAtom).isPending : false,
+)
+const workflowReferenceEvaluatorNamesAtom = atom((get) =>
+    get(workflowReferenceActivatedAtom) ? get(evaluatorTemplatesMapAtom) : EMPTY_EVALUATOR_NAMES,
+)
+
 function useWorkflowReferenceTypes(workflows: WorkflowReferenceUI[]): {
     typeBySlug: Record<string, WorkflowReferenceType | undefined>
     labelBySlug?: Record<string, string | undefined>
@@ -246,7 +268,8 @@ function useWorkflowReferenceTypes(workflows: WorkflowReferenceUI[]): {
     )
     const res = useAtomValue(referenceTypesQueryAtomFamily(slugsKey))
     // Evaluator template catalog (key → display name), for the evaluator sub-type badge.
-    const evaluatorNames = useAtomValue(evaluatorTemplatesMapAtom)
+    // Gated behind the bridge activation so it doesn't fire the catalog on a plain playground load.
+    const evaluatorNames = useAtomValue(workflowReferenceEvaluatorNamesAtom)
 
     return useMemo(() => {
         const data = (res.data ?? {}) as Record<string, ReferenceTypeInfo>
@@ -548,13 +571,17 @@ function readWorkflowPorts(
 
 function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
     const projectId = useAtomValue(projectIdAtom)
-    const workflows = useAtomValue(nonArchivedWorkflowsAtom)
-    const workflowsLoading = useAtomValue(workflowsListQueryStateAtom).isPending
+    // Lazy: `workflows` stays empty (no apps/evaluators list query) until `activate()` is called
+    // — on reference-picker open or when displaying an existing reference (see the consumers).
+    const workflows = useAtomValue(workflowReferenceWorkflowsAtom)
+    const workflowsLoading = useAtomValue(workflowReferenceLoadingAtom)
+    const activate = useSetAtom(activateWorkflowReferenceAtom)
     const store = useStore()
 
     return useMemo<WorkflowReferenceBridge>(
         () => ({
             enabled: true,
+            activate,
             // All project workflows are referenceable (apps + evaluators + …), not just apps. Type
             // (incl. `evaluator`) is resolved per-slug via useWorkflowTypes.
             workflows: workflows
@@ -625,7 +652,7 @@ function useWorkflowReferenceBridge(): WorkflowReferenceBridge {
             useWorkflowEnvironments,
             useWorkflowTypes: useWorkflowReferenceTypes,
         }),
-        [workflows, workflowsLoading, projectId, store],
+        [activate, workflows, workflowsLoading, projectId, store],
     )
 }
 
@@ -645,6 +672,9 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const toolsEnabled = isToolsEnabled()
     const workflowReference = useWorkflowReferenceBridge()
+    // Deployment policy, never changes at runtime — not memoized. Gates the Provider credentials
+    // section's "Use subscription" toggle (design.md D6, docs/design/connect-model-drawer).
+    const deployment = {isCloud: isDemo()}
 
     if (!toolsEnabled) {
         return (
@@ -655,6 +685,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                         EditorProvider,
                         SharedEditor,
                         workflowReference,
+                        deployment,
                     }}
                 >
                     {children}
@@ -669,6 +700,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
             <GatewayToolsEnabledProvider
                 llmProviderConfig={llmProviderConfig}
                 workflowReference={workflowReference}
+                deployment={deployment}
             >
                 {children}
             </GatewayToolsEnabledProvider>
@@ -681,10 +713,12 @@ function GatewayToolsEnabledProvider({
     children,
     llmProviderConfig,
     workflowReference,
+    deployment,
 }: {
     children: ReactNode
     llmProviderConfig: ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
     workflowReference: WorkflowReferenceBridge
+    deployment: {isCloud: boolean}
 }) {
     const {connections, isLoading} = useToolConnectionsQuery()
     const setCatalogDrawerOpen = useSetAtom(toolCatalogDrawerOpenAtom)
@@ -739,6 +773,7 @@ function GatewayToolsEnabledProvider({
                 SharedEditor,
                 gatewayTools,
                 workflowReference,
+                deployment,
             }}
         >
             {children}

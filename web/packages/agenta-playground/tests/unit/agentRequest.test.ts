@@ -204,16 +204,28 @@ describe("buildAgentRequest", () => {
         expect(template.llm).toMatchObject({model: "gpt-5.5"})
         expect(template.harness).toEqual({kind: "pi_core"})
         expect(template.sandbox).toEqual({kind: "daytona"})
-        expect(template.runner).toMatchObject({interactions: {headless: "auto"}})
+        expect(template.runner).toMatchObject({permissions: {default: "allow_reads"}})
     })
 
-    it("keeps an explicit headless interaction default over the runner default", async () => {
+    it("keeps an explicit permission policy over the runner default", async () => {
         seed(store, "e", {
-            config: {agent: {runner: {interactions: {headless: "deny"}}}},
+            config: {agent: {runner: {permissions: {default: "deny"}}}},
         })
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         const template = (req!.requestBody.data as any).parameters.agent
-        expect(template.runner.interactions.headless).toBe("deny")
+        expect(template.runner.permissions.default).toBe("deny")
+    })
+
+    it("merges the fallback `default` into a rules-only runner permission override", async () => {
+        // A config that supplies only `rules` (no `default`) must still get the fallback
+        // `default: "allow_reads"` — the nested `permissions` merge, not a wholesale replace.
+        const rules = [{path: "**/*.md", action: "allow"}]
+        seed(store, "e", {
+            config: {agent: {runner: {permissions: {rules}}}},
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+        expect(template.runner.permissions).toEqual({default: "allow_reads", rules})
     })
 
     it("applies the build-kit overlay to a kit-on run with deep and identity merges", async () => {
@@ -388,11 +400,11 @@ describe("buildAgentRequest", () => {
         expect(refs.application_revision).toMatchObject({id: REAL_REV, version: "3"})
     })
 
-    it("OMITS references for a DIRTY committed revision (inline-config draft), keeping app scoping", async () => {
-        // Unsaved left-panel edits make this an inline-config draft. Forwarding the committed
-        // revision would wrongly mark it non-draft and bind a self-targeting tool to a revision
-        // whose config differs from what's running, so references are dropped entirely. The app
-        // still scopes the run via the URL query.
+    it("keeps application + application_variant but OMITS application_revision for a DIRTY committed revision", async () => {
+        // Unsaved left-panel edits make this an inline-config draft, so the revision reference is
+        // withheld (keeps `is_draft` true). The variant identity is orthogonal to draft-ness — a
+        // self-targeting tool (e.g. `commit_revision`) still needs it to bind to — so it is
+        // forwarded along with the app. references is NOT null.
         seed(store, "e", {
             isDirty: true,
             data: {
@@ -403,19 +415,78 @@ describe("buildAgentRequest", () => {
             },
         })
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
-        expect(req!.requestBody.references).toBeNull()
+        const refs = req!.requestBody.references as any
+        expect(refs).not.toBeNull()
+        expect(refs.application.id).toBe(REAL_APP)
+        expect(refs.application_variant.id).toBe(REAL_VARIANT)
+        expect(refs).not.toHaveProperty("application_revision")
         expect(req!.invocationUrl).toContain(`application_id=${REAL_APP}`)
     })
 
-    it("OMITS references for an UNCOMMITTED local draft (no real revision id), keeping app scoping", async () => {
-        // A never-committed local draft has no committed revision UUID, so it is an inline-config
-        // draft too — send no references, but keep the app scoping in the URL.
+    it("OMITS references entirely for a truly UNCOMMITTED local draft (no real app/variant/revision ids)", async () => {
+        // A brand-new agent that was never saved has no real ids anywhere, so `buildAgentReferences`
+        // drops every family and there is no variant to forward — references stays null, unchanged.
+        seed(store, "e", {
+            data: {
+                id: "draft-local-xyz",
+                workflow_id: "draft-app-xyz",
+                workflow_variant_id: "draft-variant-xyz",
+            },
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.requestBody.references).toBeNull()
+    })
+
+    it("forwards application + application_variant for a local draft revision id under an already-committed variant", async () => {
+        // The revision id is local (never committed), but the app/variant were loaded from a real
+        // committed variant. The variant is real, so it is forwarded even though there is no
+        // revision reference yet; app scoping also rides the URL query.
         seed(store, "e", {
             data: {id: "draft-local-xyz", workflow_id: REAL_APP, workflow_variant_id: REAL_VARIANT},
         })
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
-        expect(req!.requestBody.references).toBeNull()
+        const refs = req!.requestBody.references as any
+        expect(refs).not.toBeNull()
+        expect(refs.application.id).toBe(REAL_APP)
+        expect(refs.application_variant.id).toBe(REAL_VARIANT)
+        expect(refs).not.toHaveProperty("application_revision")
         expect(req!.invocationUrl).toContain(`application_id=${REAL_APP}`)
+    })
+
+    it("collapses to references: null for a DIRTY run whose only real identity is the revision (no app/variant)", async () => {
+        // `buildAgentReferences` would produce ONLY `application_revision` here (a real revision
+        // UUID, no real app/variant ids). The gate strips `application_revision` on a dirty run,
+        // so nothing survives the gate — references must fall back to null, not an empty object.
+        seed(store, "e", {
+            isDirty: true,
+            data: {id: REAL_REV, version: 3},
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.requestBody.references).toBeNull()
+    })
+
+    it("invariant guard: a dirty committed run still carries data.parameters alongside the bare-variant references", async () => {
+        // Option 1 depends on the backend never re-resolving a bare variant reference to its HEAD
+        // revision. That re-resolution is gated on the request carrying no `data.parameters`
+        // (`resolver.py` `needs_reference_hydration`), and a playground run always sends
+        // `data.parameters`. Lock that invariant here so a regression is caught in CI.
+        seed(store, "e", {
+            isDirty: true,
+            config: {temperature: 0.9},
+            data: {
+                id: REAL_REV,
+                version: 3,
+                workflow_id: REAL_APP,
+                workflow_variant_id: REAL_VARIANT,
+            },
+        })
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const data = req!.requestBody.data as any
+        expect(data.parameters).toBeDefined()
+        expect(Object.keys(data.parameters).length).toBeGreaterThan(0)
+        const refs = req!.requestBody.references as any
+        expect(refs.application_variant.id).toBe(REAL_VARIANT)
+        expect(refs).not.toHaveProperty("application_revision")
     })
 
     it("puts project_id + application_id in the URL QUERY, never the body", async () => {

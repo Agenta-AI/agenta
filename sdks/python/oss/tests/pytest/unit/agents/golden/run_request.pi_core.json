@@ -30,6 +30,7 @@
     }
   },
   "runContext": {
+    "run": {"kind": "test"},
     "workflow": {
       "artifact": {"id": "wf_abc"},
       "variant": {"id": "var_abc", "slug": "weather-agent"},
@@ -49,8 +50,9 @@
       "inputSchema": {"type": "object", "properties": {}},
       "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
       "kind": "callback",
-      "readOnly": true,
-      "permission": "allow"
+      "contextBindings": {"target.workflow_variant_id": "$ctx.workflow.variant.id"},
+      "timeoutMs": 120000,
+      "readOnly": true
     },
     {
       "name": "get_weather",
@@ -69,7 +71,7 @@
     "endpoint": "https://api.example/tools/call",
     "authorization": "Access tok-123"
   },
-  "permissionPolicy": "auto",
+  "permissions": {"default": "allow_reads"},
   "systemPrompt": "You are Pi.",
   "appendSystemPrompt": "Be terse.",
   "skills": [

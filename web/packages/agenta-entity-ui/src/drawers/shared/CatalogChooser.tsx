@@ -9,11 +9,11 @@
  *
  * Consumers wrap this in their own drawer/section. Dark-safe (`--ag-color*` tokens).
  */
-import {useEffect, useMemo, useState, type ReactNode} from "react"
+import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ScrollSentinel} from "@agenta/ui"
-import {ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Button, Input, Spin, Typography} from "antd"
+import {ArrowClockwise, ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {Button, Input, Spin, Tooltip, Typography} from "antd"
 
 import {AppCard, AppLogo} from "./CatalogAppCard"
 
@@ -21,14 +21,32 @@ export type CatalogItemState = "add" | "selected" | "pending"
 
 export interface CatalogChooserProps<I, T, C> {
     connections: C[]
-    isConnectionActive: (c: C) => boolean
+    /** Whether a connection is authenticated and usable (green dot). A connection can exist
+     * (record created) yet not be ready — OAuth pending/abandoned — which shows an amber dot. */
+    isConnectionReady: (c: C) => boolean
     useIntegrations: () => {
         integrations: I[]
+        /** Total matching the active query (for the "N of M" grid header). */
+        total?: number
         hasNextPage: boolean
         isFetchingNextPage: boolean
         isLoading: boolean
         requestMore: () => void
         setSearch: (s: string) => void
+        /** Set the active category filter (slug), or null for "all apps". */
+        setCategory?: (category: string | null) => void
+        error?: unknown
+        refetch?: () => void
+    }
+    /**
+     * Optional category listing. When provided, the rail shows a "Browse by category" group and
+     * clicking a category filters the grid via `useIntegrations().setCategory`. Omitted (e.g. the
+     * triggers drawer) → no category group, rail behaves exactly as before.
+     */
+    useCategories?: () => {
+        categories: {id: string; name: string}[]
+        isLoading: boolean
+        error?: unknown
     }
     useItems: (integrationKey: string) => {
         items: T[]
@@ -72,6 +90,11 @@ export interface CatalogChooserProps<I, T, C> {
     itemsSearchPlaceholder?: string
     emptyItemsText: string
     onPickItem: (connection: C, item: T) => void
+    /** Re-run auth for a pending/broken connection (reopens the OAuth popup). When provided, a
+     * "Reconnect" affordance shows on the selected connection while it isn't ready. */
+    onReconnect?: (connection: C) => void
+    /** Whether a reconnect is currently in flight for this connection. */
+    isReconnecting?: (connection: C) => boolean
     /** Per-item affordance (tools track selected/pending). Defaults to "add". */
     itemState?: (connection: C, item: T) => CatalogItemState
     /** Connect a not-yet-connected app — render the surface's connect drawer. */
@@ -80,6 +103,21 @@ export interface CatalogChooserProps<I, T, C> {
         handlers: {onClose: () => void; onSuccess: () => void},
     ) => ReactNode
     defaultIntegrationKey?: string
+    /** App-tile appearance. "subtle" drops the rest border (agent playground). @default "bordered" */
+    cardVariant?: "bordered" | "subtle"
+    /**
+     * Full-bleed rail: the recessed rail fills the whole left column edge-to-edge (its own padding)
+     * and the content pane carries its own padding, instead of both floating inside a padded body.
+     * The consumer must then drop its own body padding around the chooser. @default false
+     */
+    fullBleedRail?: boolean
+    /**
+     * Minimum query length before the search is treated as active — must match the
+     * server-side threshold in the consumer's `useIntegrations` hook (below it the hook
+     * ignores the query, so the UI must not switch to "Results" or drop the category
+     * filter either). @default 3
+     */
+    searchMinChars?: number
 }
 
 function ItemTrailing({state}: {state: CatalogItemState}) {
@@ -198,7 +236,7 @@ function CatalogItemList<I, T, C>({
                                                 {categories.slice(0, 3).map((c) => (
                                                     <span
                                                         key={c}
-                                                        className="rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--ag-colorTextTertiary)]"
+                                                        className="ag-drawer-tag rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--ag-colorTextTertiary)]"
                                                     >
                                                         {c}
                                                     </span>
@@ -240,11 +278,11 @@ function ConnectionDetail<I, T, C>({
     integration?: I
     props: CatalogChooserProps<I, T, C>
 }) {
-    const active = props.isConnectionActive(connection)
+    const ready = props.isConnectionReady(connection)
     const account = props.connection.name(connection) || props.connection.slug(connection) || ""
     const connectedAt = props.connection.connectedAt?.(connection) || ""
     return (
-        <div className="flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorder)] px-3 py-2">
+        <div className="ag-drawer-card flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorder)] px-3 py-2">
             <AppLogo
                 logo={integration ? props.integration.logo(integration) : undefined}
                 size={20}
@@ -262,18 +300,117 @@ function ConnectionDetail<I, T, C>({
             </div>
             <span
                 className={`inline-flex shrink-0 items-center gap-1 text-[11px] ${
-                    active ? "text-[var(--ag-colorSuccess)]" : "text-[var(--ag-colorTextTertiary)]"
+                    ready ? "text-[var(--ag-colorSuccess)]" : "text-[var(--ag-colorWarningText)]"
                 }`}
             >
                 <span
                     className={`h-1.5 w-1.5 rounded-full ${
-                        active
-                            ? "bg-[var(--ag-colorSuccess)]"
-                            : "bg-[var(--ag-colorTextQuaternary)]"
+                        ready ? "bg-[var(--ag-colorSuccess)]" : "bg-[var(--ag-colorWarning)]"
                     }`}
                 />
-                {active ? "Active" : "Inactive"}
+                {ready ? "Connected" : "Pending"}
             </span>
+        </div>
+    )
+}
+
+/**
+ * Multi-account view: the integration shown once as a header, then one selectable card per
+ * connected account. Account cards are labelled by the distinguishing field (the slug the user
+ * chose at connect time) because display names default to the integration name and collide.
+ */
+function ConnectionSwitcher<I, T, C>({
+    connections,
+    selectedConn,
+    integration,
+    props,
+    onSelect,
+}: {
+    connections: C[]
+    selectedConn: C
+    integration?: I
+    props: CatalogChooserProps<I, T, C>
+    onSelect: (id: string) => void
+}) {
+    const integrationName = integration
+        ? props.integration.name(integration)
+        : props.connection.integrationKey(selectedConn)
+    const selectedId = props.connection.id(selectedConn)
+
+    return (
+        <div className="ag-drawer-card rounded-lg border border-solid border-[var(--ag-colorBorder)] p-2.5">
+            <div className="mb-2 flex items-center gap-2.5">
+                <AppLogo
+                    logo={integration ? props.integration.logo(integration) : undefined}
+                    size={20}
+                />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                    {integrationName}
+                </span>
+                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                    {connections.length} accounts
+                </span>
+            </div>
+            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
+                {connections.map((c) => {
+                    const id = props.connection.id(c)
+                    const name = props.connection.name(c)?.trim()
+                    const slug = props.connection.slug(c)?.trim()
+                    // Prefer a user-given name; fall back to the slug, which is the per-account
+                    // identifier (names default to the integration name and collide).
+                    const primary =
+                        name && name !== integrationName ? name : slug || name || id || "account"
+                    const secondary = primary === slug ? undefined : slug
+                    const connectedAt = props.connection.connectedAt?.(c)
+                    const ready = props.isConnectionReady(c)
+                    const isCurrent = id != null && id === selectedId
+                    return (
+                        <button
+                            key={id ?? primary}
+                            type="button"
+                            onClick={() => id && onSelect(id)}
+                            aria-pressed={isCurrent}
+                            className={`flex items-center gap-2 rounded-md border border-solid px-2 py-1.5 text-left ${
+                                isCurrent
+                                    ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-colorPrimaryBg)]"
+                                    : "cursor-pointer border-[var(--ag-colorBorder)] bg-transparent hover:border-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorFillQuaternary)]"
+                            }`}
+                        >
+                            <span
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                    ready
+                                        ? "bg-[var(--ag-colorSuccess)]"
+                                        : "bg-[var(--ag-colorWarning)]"
+                                }`}
+                            />
+                            <span className="min-w-0 flex-1">
+                                <span
+                                    className={`block truncate text-[11px] font-medium ${
+                                        isCurrent
+                                            ? "text-[var(--ag-colorPrimary)]"
+                                            : "text-[var(--ag-colorText)]"
+                                    }`}
+                                >
+                                    {primary}
+                                </span>
+                                {(secondary || connectedAt) && (
+                                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                        {secondary}
+                                        {secondary && connectedAt ? " · " : ""}
+                                        {connectedAt ? `connected ${connectedAt}` : ""}
+                                    </span>
+                                )}
+                            </span>
+                            {isCurrent && (
+                                <Check
+                                    size={12}
+                                    className="shrink-0 text-[var(--ag-colorPrimary)]"
+                                />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
         </div>
     )
 }
@@ -283,23 +420,24 @@ function AppRailItem({
     logo,
     name,
     sub,
-    connected,
+    state,
     onClick,
 }: {
     active: boolean
     logo?: string | null
     name: string
     sub?: string
-    connected?: boolean
+    /** Connection health dot: green when active, amber when connected-but-pending. */
+    state?: "active" | "pending"
     onClick: () => void
 }) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className={`flex w-full cursor-pointer items-center gap-2 rounded border-0 px-2 py-1.5 text-left ${
+            className={`ag-drawer-row flex w-full cursor-pointer items-center gap-2 rounded border-0 border-l-2 border-solid border-transparent px-2 py-1.5 text-left ${
                 active
-                    ? "bg-[var(--ag-colorPrimaryBg)]"
+                    ? "ag-drawer-row-selected bg-[var(--ag-colorPrimaryBg)]"
                     : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
             }`}
         >
@@ -320,8 +458,16 @@ function AppRailItem({
                     </span>
                 )}
             </span>
-            {connected && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+            {state && (
+                <Tooltip title={state === "active" ? "Active" : "Pending"}>
+                    <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            state === "active"
+                                ? "bg-[var(--ag-colorSuccess)]"
+                                : "bg-[var(--ag-colorWarning)]"
+                        }`}
+                    />
+                </Tooltip>
             )}
         </button>
     )
@@ -357,20 +503,107 @@ function ConnectInvite<I, T, C>({
     )
 }
 
-export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
-    const {connections, defaultIntegrationKey} = props
-    const {integrations, hasNextPage, isFetchingNextPage, isLoading, requestMore, setSearch} =
-        props.useIntegrations()
-
-    const byKey = useMemo(() => {
-        const m = new Map<string, I>()
-        integrations.forEach((i) => m.set(props.integration.key(i), i))
-        return m
-    }, [integrations, props.integration])
-    const connectedKeys = useMemo(
-        () => new Set(connections.map((c) => props.connection.integrationKey(c))),
-        [connections, props.connection],
+/** A logo-less rail row for the "Browse by category" group ("All apps" + each category). */
+function CategoryRailRow({
+    label,
+    active,
+    onClick,
+}: {
+    label: string
+    active: boolean
+    onClick: () => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={`ag-drawer-row flex w-full cursor-pointer items-center rounded border-0 border-l-2 border-solid border-transparent px-2 py-1.5 text-left ${
+                active
+                    ? "ag-drawer-row-selected bg-[var(--ag-colorPrimaryBg)]"
+                    : "bg-transparent hover:bg-[var(--ag-colorFillTertiary)]"
+            }`}
+        >
+            <span
+                className={`min-w-0 flex-1 truncate text-xs ${
+                    active
+                        ? "font-medium text-[var(--ag-colorPrimary)]"
+                        : "text-[var(--ag-colorText)]"
+                }`}
+            >
+                {label}
+            </span>
+        </button>
     )
+}
+
+/** Placeholder rail rows while the category list loads. */
+function CategoryRailSkeleton() {
+    return (
+        <>
+            {Array.from({length: 6}).map((_, i) => (
+                <div
+                    key={i}
+                    className="mx-2 my-1 h-3 animate-pulse rounded bg-[var(--ag-colorFillQuaternary)]"
+                />
+            ))}
+        </>
+    )
+}
+
+/** Placeholder cards for the grid's first-page load (skeleton, not a spinner-on-blank). */
+function CatalogGridSkeleton() {
+    return (
+        <>
+            {Array.from({length: 8}).map((_, i) => (
+                <div
+                    key={i}
+                    className="h-[112px] animate-pulse rounded-lg bg-[var(--ag-colorFillQuaternary)]"
+                />
+            ))}
+        </>
+    )
+}
+
+export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
+    const {connections, defaultIntegrationKey, searchMinChars = 3} = props
+    const {
+        integrations,
+        total,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading,
+        requestMore,
+        setSearch,
+        setCategory,
+        error: integrationsError,
+        refetch: refetchIntegrations,
+    } = props.useIntegrations()
+
+    const categoryData = props.useCategories?.()
+    const hasCategoryGroup = !!props.useCategories
+
+    // Integration metadata (name/logo) for connection rows and the selected-connection detail
+    // must outlive the grid narrowing under a category/search filter — otherwise a connection
+    // whose app falls outside the active filter (or hasn't paged in yet) degrades to its raw
+    // integration key. Accumulate a monotonic union of every integration ever loaded so these
+    // lookups stay stable while the visible grid below stays filtered.
+    const metaByKeyRef = useRef(new Map<string, I>())
+    const byKey = useMemo(() => {
+        integrations.forEach((i) => metaByKeyRef.current.set(props.integration.key(i), i))
+        return new Map(metaByKeyRef.current)
+    }, [integrations, props.integration])
+    // Per-integration connection state for the grid dot: "active" if any connection is functional,
+    // otherwise "pending" when connections exist but none is ready yet. Ready wins over pending.
+    const connStateByKey = useMemo(() => {
+        const m = new Map<string, "active" | "pending">()
+        connections.forEach((c) => {
+            const key = props.connection.integrationKey(c)
+            if (props.isConnectionReady(c)) m.set(key, "active")
+            else if (!m.has(key)) m.set(key, "pending")
+        })
+        return m
+    }, [connections, props.connection, props.isConnectionReady])
 
     const [searchInput, setSearchInput] = useState("")
     useEffect(() => {
@@ -378,13 +611,19 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         return () => clearTimeout(t)
     }, [searchInput, setSearch])
     // The integrations search is a shared atom — clear it on unmount so a stale query doesn't
-    // filter the next open (mirrors the item-search cleanup above).
+    // filter the next open (mirrors the item-search cleanup above). Same for the category filter.
     useEffect(() => () => setSearch(""), [setSearch])
-    const searching = searchInput.trim().length > 0
+    useEffect(() => () => setCategory?.(null), [setCategory])
+    // Align the "searching" UI state with the hook's server-side threshold: below it the
+    // query still shows the category filter, so the header must not flip to "Results" yet.
+    const searching = searchInput.trim().length >= searchMinChars
 
     const [selected, setSelected] = useState<{kind: "conn" | "intg"; id: string} | null>(
         defaultIntegrationKey ? {kind: "intg", id: defaultIntegrationKey} : null,
     )
+    // Active category filter (rail single-select). Search overrides it (flat results).
+    const [category, setCategoryState] = useState<{id: string; name: string} | null>(null)
+    const [showAllConns, setShowAllConns] = useState(false)
     const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null)
     const selectedConn =
         selected?.kind === "conn"
@@ -399,46 +638,161 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
           : undefined
     const [connectIntegration, setConnectIntegration] = useState<I | null>(null)
 
+    // Every account connected to the selected integration — drives the in-detail account switcher
+    // so a user with two accounts of the same app can flip between them without leaving the panel.
+    const siblingConns = useMemo(
+        () =>
+            selectedConn
+                ? connections.filter(
+                      (c) =>
+                          props.connection.integrationKey(c) ===
+                          props.connection.integrationKey(selectedConn),
+                  )
+                : [],
+        [connections, selectedConn, props.connection],
+    )
+
     const hasConnections = connections.length > 0
 
+    // Single-select rail: search overrides everything, so nothing is highlighted while searching.
+    const activeConnId = !searching && selected?.kind === "conn" ? selected.id : null
+    const activeCategoryId = !searching && !selected ? (category?.id ?? null) : null
+    const allAppsActive = !searching && !selected && !category
+
+    const CONN_CAP = 6
+    const visibleConns = showAllConns ? connections : connections.slice(0, CONN_CAP)
+
+    // Picking any rail filter clears an active search (search and filter are mutually exclusive).
+    const clearSearch = () => {
+        setSearchInput("")
+        setSearch("")
+    }
+    // Category state (rail highlight) and the query atom must always move together, or the grid
+    // filters by a category the rail no longer shows.
+    const clearCategory = () => {
+        setCategoryState(null)
+        setCategory?.(null)
+    }
+    const pickAll = () => {
+        setSelected(null)
+        clearCategory()
+        clearSearch()
+    }
+    const pickCategory = (cat: {id: string; name: string}) => {
+        setSelected(null)
+        setCategoryState(cat)
+        setCategory?.(cat.id)
+        clearSearch()
+    }
+    // A connection is its own rail selection, mutually exclusive with the category filter —
+    // leaving the category active would filter the browse query behind the detail view and, on
+    // Back, restore a stale category the user didn't re-pick.
+    const pickConn = (id: string) => {
+        setSelected({kind: "conn", id})
+        clearCategory()
+        clearSearch()
+    }
+
+    const {fullBleedRail} = props
+    const railPresent = hasConnections || hasCategoryGroup
+
     return (
-        <div className="flex h-full min-h-[260px] gap-3">
-            {hasConnections && (
-                <div className="flex w-[220px] shrink-0 flex-col gap-0.5 overflow-y-auto">
-                    <div className="px-1 pb-1 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                        Your connections
-                    </div>
-                    {connections.map((c) => {
-                        const app = byKey.get(props.connection.integrationKey(c))
-                        const appName = app
-                            ? props.integration.name(app)
-                            : props.connection.integrationKey(c)
-                        const account = props.connection.name(c)?.trim()
-                        return (
-                            <AppRailItem
-                                key={props.connection.id(c) ?? props.connection.integrationKey(c)}
-                                active={
-                                    selected?.kind === "conn" &&
-                                    selected.id === props.connection.id(c)
-                                }
-                                logo={app ? props.integration.logo(app) : undefined}
-                                name={account || appName}
-                                sub={account ? appName : undefined}
-                                connected
-                                onClick={() => {
-                                    const id = props.connection.id(c)
-                                    if (id) setSelected({kind: "conn", id})
-                                }}
-                            />
-                        )
-                    })}
+        <div className={`flex h-full min-h-[260px] ${fullBleedRail ? "" : "gap-3"}`}>
+            {railPresent && (
+                <div
+                    className={`ag-drawer-rail flex min-h-0 w-[220px] shrink-0 flex-col ${
+                        fullBleedRail ? "py-4 pl-3 pr-1" : "py-1"
+                    }`}
+                >
+                    {hasConnections && (
+                        // Connections stay pinned at the top — the category list below scrolls on its
+                        // own so scrolling categories never scrolls the connections away.
+                        <div className="flex shrink-0 flex-col gap-0.5">
+                            <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
+                                <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                    Your connections
+                                </span>
+                                <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                    {connections.length}
+                                </span>
+                            </div>
+                            {visibleConns.map((c) => {
+                                const app = byKey.get(props.connection.integrationKey(c))
+                                const appName = app
+                                    ? props.integration.name(app)
+                                    : props.connection.integrationKey(c)
+                                // Distinguish two accounts of the same app: prefer a friendly name,
+                                // fall back to the slug so identical apps don't render as duplicates.
+                                const account =
+                                    props.connection.name(c)?.trim() ||
+                                    props.connection.slug(c)?.trim()
+                                const id = props.connection.id(c)
+                                return (
+                                    <AppRailItem
+                                        key={id ?? props.connection.integrationKey(c)}
+                                        active={activeConnId != null && activeConnId === id}
+                                        logo={app ? props.integration.logo(app) : undefined}
+                                        name={account || appName}
+                                        sub={account ? appName : undefined}
+                                        state={props.isConnectionReady(c) ? "active" : "pending"}
+                                        onClick={() => id && pickConn(id)}
+                                    />
+                                )
+                            })}
+                            {connections.length > CONN_CAP && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllConns((v) => !v)}
+                                    className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorPrimary)] hover:underline"
+                                >
+                                    {showAllConns ? "Show less" : `Show all ${connections.length}`}
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {hasCategoryGroup && (
+                        <div className="flex min-h-0 flex-1 flex-col">
+                            {hasConnections && (
+                                <div className="mx-2 my-2 shrink-0 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]" />
+                            )}
+                            <div className="shrink-0 px-2 pb-1.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                Browse by category
+                            </div>
+                            <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">
+                                <CategoryRailRow
+                                    label="All apps"
+                                    active={allAppsActive}
+                                    onClick={pickAll}
+                                />
+                                {categoryData?.isLoading && categoryData.categories.length === 0 ? (
+                                    <CategoryRailSkeleton />
+                                ) : (
+                                    // On categories-error we omit the list — "All apps" + search
+                                    // still work (spec §7: a categories failure must not break browse).
+                                    categoryData?.categories.map((cat) => (
+                                        <CategoryRailRow
+                                            key={cat.id}
+                                            label={cat.name}
+                                            active={activeCategoryId === cat.id}
+                                            onClick={() => pickCategory(cat)}
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
             <div
                 className={`flex min-h-0 min-w-0 flex-1 flex-col ${
-                    hasConnections
-                        ? "border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3"
+                    fullBleedRail ? "py-4 pr-6" : ""
+                } ${
+                    railPresent
+                        ? `border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] ${
+                              fullBleedRail ? "pl-5" : "pl-3"
+                          }`
                         : ""
                 }`}
             >
@@ -449,16 +803,55 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             onClick={() => setSelected(null)}
                             className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                         >
-                            <ArrowLeft size={13} /> All apps
+                            <ArrowLeft size={13} /> Back
                         </button>
                         {selectedConn ? (
                             <div className="flex min-h-0 flex-1 flex-col">
                                 <div className="shrink-0">
-                                    <ConnectionDetail
-                                        connection={selectedConn}
-                                        integration={selectedIntegration}
-                                        props={props}
-                                    />
+                                    {siblingConns.length > 1 ? (
+                                        <ConnectionSwitcher
+                                            connections={siblingConns}
+                                            selectedConn={selectedConn}
+                                            integration={selectedIntegration}
+                                            props={props}
+                                            onSelect={(id) => setSelected({kind: "conn", id})}
+                                        />
+                                    ) : (
+                                        <ConnectionDetail
+                                            connection={selectedConn}
+                                            integration={selectedIntegration}
+                                            props={props}
+                                        />
+                                    )}
+                                    {props.onReconnect &&
+                                        !props.isConnectionReady(selectedConn) &&
+                                        (() => {
+                                            const busy =
+                                                props.isReconnecting?.(selectedConn) ?? false
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    disabled={busy}
+                                                    onClick={() =>
+                                                        props.onReconnect?.(selectedConn)
+                                                    }
+                                                    className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-left disabled:cursor-wait"
+                                                >
+                                                    <span className="text-[11px] text-[var(--ag-colorWarningText)]">
+                                                        Authentication is still pending for this
+                                                        connection.
+                                                    </span>
+                                                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--ag-colorPrimary)]">
+                                                        {busy ? (
+                                                            <Spin size="small" />
+                                                        ) : (
+                                                            <ArrowClockwise size={13} />
+                                                        )}
+                                                        {busy ? "Reconnecting…" : "Reconnect"}
+                                                    </span>
+                                                </button>
+                                            )
+                                        })()}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
                                         <Typography.Text
                                             type="secondary"
@@ -500,6 +893,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                     <>
                         <Input
                             allowClear
+                            autoFocus
                             placeholder="Search apps…"
                             prefix={
                                 <MagnifyingGlass
@@ -509,49 +903,103 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             }
                             value={searchInput}
                             onChange={(e) => setSearchInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                // Esc clears a query first; only then falls through to close the drawer.
+                                if (e.key === "Escape" && searchInput) {
+                                    e.stopPropagation()
+                                    clearSearch()
+                                }
+                            }}
                         />
-                        <div className="mb-1 mt-2 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                            {searching ? "Search results" : "All apps"}
+                        <div className="mb-1 mt-2 flex items-center justify-between gap-2 px-0.5">
+                            <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                {searching ? "Results" : category ? category.name : "All apps"}
+                            </span>
+                            {integrations.length > 0 && (
+                                <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                    {typeof total === "number" && total > integrations.length
+                                        ? `${integrations.length} of ${total}`
+                                        : integrations.length}
+                                </span>
+                            )}
                         </div>
                         <div
                             ref={setGridEl}
                             className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
                         >
-                            {integrations.map((i) => (
-                                <AppCard
-                                    key={props.integration.key(i)}
-                                    logo={props.integration.logo(i)}
-                                    name={props.integration.name(i)}
-                                    description={props.integration.description(i)}
-                                    categories={props.integration.categories(i)}
-                                    actionsCount={props.integration.actionsCount(i)}
-                                    connected={connectedKeys.has(props.integration.key(i))}
-                                    onClick={() =>
-                                        setSelected({kind: "intg", id: props.integration.key(i)})
-                                    }
-                                />
-                            ))}
-                            {!isLoading && integrations.length === 0 && (
-                                <div className="col-span-full py-6 text-center text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                    {searching
-                                        ? `No apps match “${searchInput}”.`
-                                        : "No apps found."}
+                            {isLoading && integrations.length === 0 ? (
+                                <CatalogGridSkeleton />
+                            ) : integrationsError && integrations.length === 0 ? (
+                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center">
+                                    <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                        Couldn&apos;t load apps.
+                                    </span>
+                                    {refetchIntegrations && (
+                                        <Button onClick={() => refetchIntegrations()}>Retry</Button>
+                                    )}
                                 </div>
-                            )}
-                            <div className="col-span-full">
-                                {(isLoading || isFetchingNextPage) && (
-                                    <div className="flex justify-center py-3">
-                                        <Spin size="small" />
+                            ) : integrations.length === 0 ? (
+                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                    {searching ? (
+                                        <>
+                                            <span>No apps match “{searchInput.trim()}”.</span>
+                                            <button
+                                                type="button"
+                                                onClick={clearSearch}
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-[var(--ag-colorPrimary)] hover:underline"
+                                            >
+                                                Clear search
+                                            </button>
+                                        </>
+                                    ) : category ? (
+                                        <span>No apps in {category.name} yet.</span>
+                                    ) : (
+                                        <span>No apps found.</span>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    {integrations.map((i) => (
+                                        <AppCard
+                                            key={props.integration.key(i)}
+                                            logo={props.integration.logo(i)}
+                                            name={props.integration.name(i)}
+                                            description={props.integration.description(i)}
+                                            categories={props.integration.categories(i)}
+                                            actionsCount={props.integration.actionsCount(i)}
+                                            connected={
+                                                connStateByKey.get(props.integration.key(i)) ===
+                                                "active"
+                                            }
+                                            pending={
+                                                connStateByKey.get(props.integration.key(i)) ===
+                                                "pending"
+                                            }
+                                            variant={props.cardVariant}
+                                            onClick={() =>
+                                                setSelected({
+                                                    kind: "intg",
+                                                    id: props.integration.key(i),
+                                                })
+                                            }
+                                        />
+                                    ))}
+                                    <div className="col-span-full">
+                                        {isFetchingNextPage && (
+                                            <div className="flex justify-center py-3">
+                                                <Spin size="small" />
+                                            </div>
+                                        )}
+                                        <ScrollSentinel
+                                            onVisible={requestMore}
+                                            hasMore={hasNextPage}
+                                            isFetching={isFetchingNextPage}
+                                            root={gridEl}
+                                            rootMargin="0px 0px 1600px 0px"
+                                        />
                                     </div>
-                                )}
-                                <ScrollSentinel
-                                    onVisible={requestMore}
-                                    hasMore={hasNextPage}
-                                    isFetching={isFetchingNextPage}
-                                    root={gridEl}
-                                    rootMargin="0px 0px 1600px 0px"
-                                />
-                            </div>
+                                </>
+                            )}
                         </div>
                     </>
                 )}

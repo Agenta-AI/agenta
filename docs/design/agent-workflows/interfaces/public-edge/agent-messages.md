@@ -25,7 +25,7 @@ The request reuses the generic workflow envelope and carries the chat-specific p
   "data": {
     "messages":   [ /* Vercel UIMessage[] */ ],
     "parameters": { "agent": { /* draft-aware agent config, incl.
-                                  harness, sandbox, permission_policy */ } }
+                                  harness, sandbox, runner.permissions.default */ } }
   }
 }
 ```

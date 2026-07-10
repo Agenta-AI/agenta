@@ -16,6 +16,7 @@
  * Key contract constants mirror `sessions/contract.ts`; do not duplicate them.
  */
 
+import { apiBase } from "../apiBase.ts";
 import { randomUUID } from "node:crypto";
 
 import { HEARTBEAT_INTERVAL_SECONDS } from "./contract.ts";
@@ -33,10 +34,6 @@ const REPLICA_ID =
 
 import { refreshCredential } from "./auth.ts";
 
-/** Where the Agenta API lives. */
-function apiBase(): string {
-  return process.env.AGENTA_API_URL ?? "http://localhost:8000/api";
-}
 
 /** Refresh the run credential every Nth heartbeat (well inside the ~15-min token TTL). */
 const REFRESH_EVERY_N_HEARTBEATS = Math.max(

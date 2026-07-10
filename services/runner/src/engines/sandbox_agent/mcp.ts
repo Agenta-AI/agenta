@@ -8,6 +8,12 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
   type McpServerStdio,
 } from "../../tools/mcp-bridge.ts";
+import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
+import {
+  insecureEgressAllowed,
+  isBlockedIpLiteral,
+  resolveAndCheckHost,
+} from "../../tools/ssrf-guard.ts";
 
 type Log = (message: string) => void;
 
@@ -33,13 +39,14 @@ export type McpServerEntry = McpServerStdio | McpServerHttp;
  * SSRF guard for a user HTTP MCP `url`. The runner emits the run's Agenta-resolved named secrets
  * as request headers to this author-supplied URL, so an attacker-controlled config could point it
  * at an internal/metadata endpoint and exfiltrate a credential (a classic server-side request
- * forgery). The capability is flag-gated (`AGENTA_AGENT_MCPS_ENABLED`, off by default) and
- * config-trust, so a scheme + host guard is enough rather than full DNS-resolution pinning:
+ * forgery). Reuses the shared resolve-and-range-block guard (`tools/ssrf-guard.ts`), mirrored with
+ * the webhook validator's block list — DNS-resolved, not literal-only:
  *
  *  - require `https` (the secret rides in a header; `http` would send it in clear text). Opt out
  *    for a known-safe non-https endpoint by listing its host in `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`.
- *  - reject loopback, link-local (incl. the `169.254.169.254` cloud metadata host), and private
- *    address literals unless the host is in `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` (comma-separated).
+ *  - reject loopback, link-local (incl. the `169.254.169.254` cloud metadata host), private, and
+ *    IPv4-mapped/compat IPv6 addresses, resolving hostnames via DNS, unless the host is in
+ *    `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` (comma-separated).
  *
  * Returns an error message string when the URL is rejected, or `undefined` when it is allowed.
  */
@@ -52,42 +59,37 @@ function mcpHostAllowlist(): Set<string> {
   );
 }
 
-/** True for a hostname/IP literal that must not receive a credentialed request (SSRF sinks). */
-function isInternalHost(host: string): boolean {
-  const h = host.toLowerCase();
-  if (h === "localhost" || h.endsWith(".localhost")) return true;
-  // IPv6 loopback / unspecified (URL host keeps the brackets, e.g. "[::1]").
-  if (h === "[::1]" || h === "[::]" || h === "::1" || h === "::") return true;
-  // Link-local IPv6 (fe80::/10) and unique-local IPv6 (fc00::/7) literals.
-  if (/^\[?f[cde]/.test(h)) return true;
-  // IPv4 dotted-quad literals: loopback, link-local (incl. 169.254.169.254 metadata), private.
-  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (m) {
-    const [a, b] = [Number(m[1]), Number(m[2])];
-    if (a === 127) return true; // loopback
-    if (a === 169 && b === 254) return true; // link-local + cloud metadata (169.254.169.254)
-    if (a === 10) return true; // private
-    if (a === 0) return true; // "this host"
-    if (a === 172 && b >= 16 && b <= 31) return true; // private
-    if (a === 192 && b === 168) return true; // private
-  }
-  return false;
-}
-
-export function validateUserMcpUrl(rawUrl: string): string | undefined {
+export async function validateUserMcpUrl(
+  rawUrl: string,
+): Promise<string | undefined> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
     return `http MCP server url is not a valid URL: ${rawUrl}`;
   }
+  if (insecureEgressAllowed()) return undefined;
   const allowlist = mcpHostAllowlist();
   const host = parsed.hostname.toLowerCase();
   const allowed = allowlist.has(host);
   if (parsed.protocol !== "https:" && !allowed) {
     return `http MCP server url must use https (got ${parsed.protocol.replace(":", "")}): ${rawUrl}`;
   }
-  if (isInternalHost(host) && !allowed) {
+  if (allowed) return undefined;
+
+  if (host === "localhost" || host.endsWith(".localhost")) {
+    return `http MCP server url targets an internal/metadata host (${host}); not allowed: ${rawUrl}`;
+  }
+  if (isBlockedIpLiteral(host)) {
+    return `http MCP server url targets an internal/metadata host (${host}); not allowed: ${rawUrl}`;
+  }
+  const { error } = await resolveAndCheckHost(host);
+  if (error) {
+    // Distinguish a resolution failure (config error) from an SSRF block, so a plain ENOTFOUND
+    // doesn't read as a security rejection to operators.
+    if (/could not be resolved/.test(error)) {
+      return `http MCP server url host could not be resolved (${host}): ${rawUrl}`;
+    }
     return `http MCP server url targets an internal/metadata host (${host}); not allowed: ${rawUrl}`;
   }
   return undefined;
@@ -114,10 +116,10 @@ export function validateUserMcpUrl(rawUrl: string): string | undefined {
  * - An http `url` that fails the SSRF guard (`validateUserMcpUrl`: non-https, or an
  *   internal/metadata host) throws, so a credentialed request is never sent to an internal sink.
  */
-export function toAcpMcpServers(
+export async function toAcpMcpServers(
   servers: McpServerConfig[] | undefined,
   log: Log = () => {},
-): McpServerEntry[] {
+): Promise<McpServerEntry[]> {
   const out: McpServerEntry[] = [];
   for (const s of servers ?? []) {
     const transport = s.transport ?? "stdio";
@@ -129,7 +131,7 @@ export function toAcpMcpServers(
       }
       // SSRF guard: the resolved named secret rides as a header on this author-supplied URL, so
       // reject a non-https / internal / metadata target before any credential is attached.
-      const urlError = validateUserMcpUrl(s.url);
+      const urlError = await validateUserMcpUrl(s.url);
       if (urlError) throw new Error(urlError);
       out.push({
         type: "http",
@@ -171,6 +173,14 @@ export interface BuildSessionMcpServersInput {
   toolSpecs: ResolvedToolSpec[];
   userMcpServers?: McpServerConfig[];
   relayDir: string;
+  /**
+   * The shared client-tool relay. When set (local Claude), the internal channel advertises
+   * `client` tools and pauses a `tools/call` for one. Omit for Pi (which uses the file relay);
+   * on Daytona the channel is skipped entirely.
+   */
+  clientToolRelay?: ClientToolRelay;
+  /** Engine pause/teardown abort signal, threaded to the internal MCP server. */
+  signal?: AbortSignal;
   log?: Log;
 }
 
@@ -190,10 +200,15 @@ export interface SessionMcpServers {
  *     MCP server that delivers the run's resolved gateway/callback tools to the harness. Carries
  *     only public metadata; execution relays server-side. RESTORED — but advertised over a
  *     loopback (`127.0.0.1`) URL, so it is LOCAL-ONLY. On Daytona the harness runs IN the sandbox,
- *     where `127.0.0.1` is the sandbox's loopback, not the runner's, so the channel is SKIPPED and
- *     the tools reach the harness through the file relay instead (the relay loop already works on
- *     Daytona; gateway-tool-mcp open question 3). This honors the #4844 decision: HTTP advertisement
- *     for local, file relay for Daytona.
+ *     where `127.0.0.1` is the sandbox's loopback, not the runner's, so the channel is SKIPPED.
+ *     For a non-Pi harness this means NO delivery path exists (F1, audit finding): the file relay
+ *     has a sandbox-side writer only inside Pi's bundled extension
+ *     (`extensions/agenta.ts` `registerTools`), which no other harness loads — a claim this
+ *     function used to log unconditionally, which was FALSE for non-Pi harnesses. `run-plan.ts`
+ *     (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) now refuses that combination before a session is ever
+ *     built, so this function should never see non-Pi + Daytona + tools. The log below stays
+ *     Pi-only anyway, as a defense against a future gate bypass: it must never again claim a
+ *     delivery that isn't happening.
  *  2. USER MCP capability (`toAcpMcpServers`): the user's own declared servers — stdio DISABLED,
  *     http delivered (#4834). UNCHANGED on every sandbox: a user http MCP is a REMOTE url the
  *     harness dials directly (not a runner loopback), so it stays reachable from a Daytona sandbox.
@@ -209,6 +224,8 @@ export async function buildSessionMcpServers({
   toolSpecs,
   userMcpServers,
   relayDir,
+  clientToolRelay,
+  signal,
   log = () => {},
 }: BuildSessionMcpServersInput): Promise<SessionMcpServers> {
   const userMcpCount = userMcpServers?.length ?? 0;
@@ -224,21 +241,30 @@ export async function buildSessionMcpServers({
 
   // Layer 1: INTERNAL gateway-tool channel (do not merge with the user gate below). LOCAL ONLY:
   // its advertised URL is a runner loopback (`127.0.0.1`), unreachable from a remote Daytona
-  // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement and let the
-  // file relay deliver the tools (the relay loop polls the sandbox filesystem; see the Daytona
-  // tool relay in `engines/sandbox_agent.ts`).
+  // sandbox where the harness runs. On Daytona, skip the loopback HTTP advertisement.
   const internal = isDaytona
     ? { servers: [], close: async () => {} }
-    : await buildToolMcpServers(toolSpecs, relayDir, log);
+    : await buildToolMcpServers(toolSpecs, relayDir, {
+        clientToolRelay,
+        signal,
+        log,
+      });
+  // Only Pi has a sandbox-side file-relay writer (its bundled extension), and Pi never reaches
+  // this point (the `isPi` early-return above), so no harness that gets here has ANY delivery
+  // path on Daytona. `run-plan.ts` (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) refuses that combination
+  // before a session is built; if it ever reaches here anyway, log the honest fact — the
+  // advertisement was skipped — and never claim a file-relay delivery that isn't happening
+  // (the F1 false log).
   if (isDaytona && toolSpecs.length > 0) {
     log(
-      `daytona: ${toolSpecs.length} gateway tool(s) delivered via the file relay, not a ` +
-        `loopback MCP URL (unreachable from the sandbox)`,
+      `daytona: skipped the loopback tool-MCP advertisement for ${toolSpecs.length} tool(s) ` +
+        `(runner loopback unreachable from the sandbox; no delivery path for this harness — ` +
+        `run-plan should have refused this run)`,
     );
   }
   // Layer 2: USER MCP capability (stdio disabled, http delivered; do not merge with Layer 1).
   // A user http MCP is a remote url the harness dials directly, so it is delivered on Daytona too.
-  const user = toAcpMcpServers(userMcpServers, log);
+  const user = await toAcpMcpServers(userMcpServers, log);
 
   return {
     servers: [...internal.servers, ...user],

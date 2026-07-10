@@ -6,10 +6,15 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./resources/*": {
+      "types": "./dist/generated/api/resources/*/client/Client.d.ts",
+      "import": "./dist/generated/api/resources/*/client/Client.js"
     }
   },
   "browser": {

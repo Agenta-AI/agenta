@@ -35,6 +35,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 
 from oss.src.middlewares.auth import auth_middleware
 from oss.src.middlewares.analytics import analytics_middleware
+from oss.src.middlewares.prefix import ApiPrefixStripMiddleware
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -200,7 +201,10 @@ from oss.src.routers import (
 from oss.src.apis.fastapi.access.router import AccessRouter
 
 from oss.src.utils.env import env
-from entrypoints.worker_evaluations import evaluations_worker
+from oss.src.core.evaluations.runtime.broker import (
+    build_evaluations_broker,
+    build_evaluations_worker,
+)
 import oss.src.core.evaluations.tasks.run  # noqa: F401
 import oss.src.core.evaluations.tasks.processor  # noqa: F401
 
@@ -262,7 +266,9 @@ async def lifespan(*args, **kwargs):
         except Exception as e:  # noqa: BLE001
             log.warning("Store bucket ensure failed at startup: %s", e)
 
-    _orphan_sweep_task = asyncio.create_task(orphan_sweep_loop(_transactions_engine))
+    _orphan_sweep_task = asyncio.create_task(
+        orphan_sweep_loop(_transactions_engine, _lock_engine)
+    )
 
     # Best-effort: ingestion re-resolves on demand if this fails.
     if env.composio.enabled:
@@ -482,6 +488,10 @@ app.add_middleware(
     allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
 )
 
+
+# Added last => outermost: normalizes the path before auth/routing see it.
+app.add_middleware(ApiPrefixStripMiddleware)
+
 if ee and is_ee():
     app = ee.extend_main(app)
 
@@ -665,12 +675,24 @@ evaluations_service = EvaluationsService(
     queries_service=queries_service,
     testsets_service=testsets_service,
     evaluators_service=evaluators_service,
-    evaluations_worker=evaluations_worker,
     # Sub-services the run slice processor needs; passing them lets the
     # service build its own RunSliceOperations (probe/populate/process).
     testcases_service=testcases_service,
     workflows_service=workflows_service,
     applications_service=applications_service,
+)
+
+# Producer side of the evaluations pipeline: enqueues onto queues:evaluations;
+# entrypoints/worker_queues.py consumes them.
+evaluations_worker = build_evaluations_worker(
+    broker=build_evaluations_broker(consumer_group_name="api-evaluations-producer"),
+    tracing_service=tracing_service,
+    simple_evaluators_service=simple_evaluators_service,
+    testsets_service=testsets_service,
+    testcases_service=testcases_service,
+    queries_service=queries_service,
+    workflows_service=workflows_service,
+    evaluations_service=evaluations_service,
 )
 
 simple_evaluations_service = SimpleEvaluationsService(
@@ -782,7 +804,7 @@ async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
 
 
 # Producer side of the interactions pipeline: the respond route enqueues
-# `interactions.respond` tasks here; entrypoints/worker_interactions.py consumes them.
+# `interactions.respond` tasks here; entrypoints/worker_queues.py consumes them.
 _interactions_broker = RedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:interactions",
@@ -803,7 +825,7 @@ _interactions_worker = InteractionsWorker(
 )
 
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues
-# `triggers.dispatch` tasks here; entrypoints/worker_triggers.py consumes them.
+# `triggers.dispatch` tasks here; entrypoints/worker_queues.py consumes them.
 _triggers_broker = RedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:triggers",
@@ -959,6 +981,7 @@ simple_queues = SimpleQueuesRouter(
 tools = ToolsRouter(
     tools_service=tools_service,
     workflows_service=workflows_service,
+    tracing_service=tracing_service,
 )
 
 triggers = TriggersRouter(

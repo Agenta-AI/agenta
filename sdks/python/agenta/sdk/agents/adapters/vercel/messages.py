@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from agenta.sdk.utils.logging import get_module_logger
+
 from ...dtos import AgentResult, ContentBlock, Message
+
+log = get_module_logger(__name__)
 
 TOOL_APPROVAL_REQUEST = "tool-approval-request"
 TOOL_APPROVAL_RESPONSE = "tool-approval-response"
@@ -60,6 +64,28 @@ def _ui_message_to_message(raw: Any) -> Optional[Message]:
 
 
 def _part_to_blocks(part: Any) -> List[ContentBlock]:
+    """A Vercel ``UIMessage`` part -> zero or more neutral ``ContentBlock``s.
+
+    Agenta's ``ContentBlock`` model is canonical. This mapper only ever produces
+    ``ContentBlock`` types Agenta already defines internally (``text``, ``image``,
+    ``resource``, ``tool_call``, ``tool_result``). To support a new Vercel part kind,
+    first add first-class support for it in the Agenta ``ContentBlock`` model, then map
+    it here — never fabricate an adapter-specific block type or pass an unmapped kind
+    through opaquely. A part kind Agenta does not define is dropped (observably via a
+    debug log), not fabricated.
+
+    Keep this channel symmetric: a kind must be handled in both directions or neither. If
+    something is mapped inbound it must map outbound too (and vice versa); a kind dropped
+    here must also be absent in ``_block_to_parts`` — never add one side alone. The only
+    exception is a direction that explicitly cannot occur (e.g. the one-way live event
+    stream in ``stream.py``, which has no inbound counterpart by design).
+
+    Reasoning is such a stream-only concept: the live event stream maps the ``thought``
+    event to Vercel ``reasoning`` frames. Stored ``UIMessage`` conversion has no reasoning
+    kind on either side — ``_block_to_parts`` emits none — so an inbound ``reasoning`` part
+    is dropped here to stay symmetric. To carry reasoning through stored messages, add it
+    to the Agenta ``ContentBlock`` model first, then map both directions.
+    """
     if not isinstance(part, dict):
         return []
     ptype = str(part.get("type", ""))
@@ -97,6 +123,9 @@ def _part_to_blocks(part: Any) -> List[ContentBlock]:
     ):
         return _tool_part_blocks(part, ptype)
 
+    log.debug(
+        "vercel adapter: dropping inbound part with no ContentBlock mapping: %r", ptype
+    )
     return []
 
 
@@ -155,6 +184,18 @@ def _tool_part_blocks(part: Dict[str, Any], ptype: str) -> List[ContentBlock]:
         # `extractApprovalDecisions` resolves the parked gate.
         approved = _approval_decision(part, state)
         if approved is not None:
+            # INGRESS side of the HITL key: the inline decision the FE round-tripped, folded into
+            # the `{approved}` envelope the runner's extractApprovalDecisions keys by name+args.
+            _input = part.get("input")
+            log.info(
+                "[HITL] ingress approval-responded id=%s name=%s approved=%s input_keys=%s",
+                tool_call_id,
+                tool_name,
+                approved,
+                list(_input.keys())
+                if isinstance(_input, dict)
+                else type(_input).__name__,
+            )
             blocks.append(
                 ContentBlock(
                     type="tool_result",
@@ -236,6 +277,21 @@ def _content_to_parts(content: Any) -> List[Dict[str, Any]]:
 
 
 def _block_to_parts(block: ContentBlock) -> List[Dict[str, Any]]:
+    """A neutral ``ContentBlock`` -> zero or more Vercel ``UIMessage`` parts.
+
+    Agenta's ``ContentBlock`` model is canonical. This mapper only ever renders
+    ``ContentBlock`` types Agenta already defines internally into their Vercel part
+    shape. To support a new Agenta block type, first add first-class support for it in
+    the Agenta ``ContentBlock`` model, then map it here — never invent a Vercel part kind
+    or forward an unmapped block opaquely. A block type Agenta does not define is
+    dropped, not fabricated.
+
+    Keep this channel symmetric: a kind must be handled in both directions or neither. If
+    something is mapped here outbound it must map inbound too (and vice versa); a kind
+    dropped in ``_part_to_blocks`` must also be absent here — never add one side alone. The
+    only exception is a direction that explicitly cannot occur (e.g. the one-way live event
+    stream in ``stream.py``, which has no inbound counterpart by design).
+    """
     if block.type == "text":
         return [{"type": "text", "text": block.text or ""}]
     if block.type in ("image", "resource"):

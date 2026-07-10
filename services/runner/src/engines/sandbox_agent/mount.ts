@@ -31,6 +31,13 @@ export interface MountCredentials {
   secretKey: string;
   sessionToken?: string;
   expiresAt?: string;
+  /**
+   * The mount's owning project id, surfaced from the sign response's `mount` object. It is the
+   * only project scope the runner can trust for this request (the /run wire carries no project
+   * id today), so session keep-alive keys its pool on `<projectId>:<sessionId>`. Absent when the
+   * response omitted the mount object; keep-alive then refuses to park (no safe key source).
+   */
+  projectId?: string;
 }
 
 export interface SignMountDeps {
@@ -74,6 +81,7 @@ export async function signSessionMountCredentials(
       return null;
     }
     const body = (await res.json()) as {
+      mount?: { project_id?: string };
       credentials?: {
         endpoint?: string;
         region?: string;
@@ -99,6 +107,12 @@ export async function signSessionMountCredentials(
       secretKey: c.secret_key,
       sessionToken: c.session_token,
       expiresAt: c.expires_at,
+      // The owning project id (from the `mount` object), used only as the keep-alive pool key
+      // scope. A string in JSON (the API serializes the UUID); undefined when omitted.
+      projectId:
+        typeof body.mount?.project_id === "string"
+          ? body.mount.project_id
+          : undefined,
     };
   } catch (err) {
     log(
@@ -160,7 +174,10 @@ function credEnv(creds: MountCredentials): Record<string, string> {
  * check trusts it, so `mountStorage` short-circuits and the next session inherits a dead cwd.
  * Probe with a real access (`ls -A`) and treat ENOTCONN as NOT-mounted so the caller remounts.
  */
-async function isMounted(cwd: string, log: (m: string) => void): Promise<boolean> {
+async function isMounted(
+  cwd: string,
+  log: (m: string) => void,
+): Promise<boolean> {
   try {
     await pExecFile("mountpoint", ["-q", cwd]);
   } catch {
@@ -269,6 +286,10 @@ export async function mountStorage(
 
 export interface UnmountStorageDeps {
   runUnmount?: (cwd: string) => Promise<void>;
+  // Resolve to "gone" | "mounted" | "inconclusive"; only "gone" allows the caller to delete.
+  checkMountpoint?: (
+    cwd: string,
+  ) => Promise<"gone" | "mounted" | "inconclusive">;
   log?: (msg: string) => void;
 }
 
@@ -277,11 +298,15 @@ export interface UnmountStorageDeps {
  * unmount loses nothing. Lazy unmount (`-uz`) so a still-busy mount (harness holding the cwd
  * at teardown) detaches now and reaps once released, instead of failing "busy" and leaking —
  * leaked geesefs mounts later go stale and serve ENOTCONN to any file op on the cwd.
+ *
+ * Returns true only when the mountpoint is CONFIRMED gone afterward. Callers that then delete
+ * the cwd MUST gate the delete on this return, not on fusermount merely not throwing — a lazy
+ * unmount can leave the FUSE node live, and deleting through it corrupts the durable store.
  */
 export async function unmountStorage(
   cwd: string,
   deps: UnmountStorageDeps = {},
-): Promise<void> {
+): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   const run =
     deps.runUnmount ??
@@ -290,20 +315,35 @@ export async function unmountStorage(
     });
   try {
     await run(cwd);
-    // Lazy unmount can leave the node attached until the dead daemon's last ref drops; that
-    // residual node serves ENOTCONN and poisons the next session. Verify it's actually gone.
-    let stillMounted = false;
-    try {
-      await pExecFile("mountpoint", ["-q", cwd]);
-      stillMounted = true;
-    } catch {
-      stillMounted = false;
-    }
-    log(`unmounted ${cwd} (mountpoint still present after detach: ${stillMounted})`);
   } catch (err) {
     log(
       `unmount failed ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
+    return false;
+  }
+  // Lazy unmount can leave the node attached until the dead daemon's last ref drops; that
+  // residual node serves ENOTCONN and poisons the next session. Verify it's actually gone.
+  const check = deps.checkMountpoint ?? defaultCheckMountpoint;
+  const state = await check(cwd);
+  if (state === "gone") {
+    log(`unmounted ${cwd} (confirmed gone)`);
+    return true;
+  }
+  log(`unmount verify ${cwd}: ${state}; not deleting`);
+  return false;
+}
+
+// `mountpoint -q` exits 0 = still mounted, 1 = not a mountpoint (confirmed gone). Any other
+// failure (missing binary, unexpected error) is NOT confirmation, so the caller never deletes
+// through a possibly-live mount.
+async function defaultCheckMountpoint(
+  cwd: string,
+): Promise<"gone" | "mounted" | "inconclusive"> {
+  try {
+    await pExecFile("mountpoint", ["-q", cwd]);
+    return "mounted";
+  } catch (err) {
+    return (err as { code?: number }).code === 1 ? "gone" : "inconclusive";
   }
 }
 
@@ -328,7 +368,9 @@ export async function discoverTunnelEndpoint(
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
   const api =
-    deps.ngrokApi ?? process.env.AGENTA_MOUNTS_TUNNEL_API ?? "http://ngrok:4040";
+    deps.ngrokApi ??
+    process.env.AGENTA_MOUNTS_TUNNEL_API ??
+    "http://ngrok:4040";
   try {
     const res = await doFetch(`${api}/api/tunnels`);
     if (!res.ok) {

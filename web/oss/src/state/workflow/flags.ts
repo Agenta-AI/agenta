@@ -23,7 +23,7 @@
  *   3. `components/PlaygroundRouter/index.tsx` — guard that allows full-page
  *      UX evaluators to stay on `/playground` instead of bouncing to
  *      `/evaluators` + drawer.
- *   4. `components/Sidebar/components/WorkflowEntityCard.tsx` — sidebar
- *      switcher that lists full-page-eligible evaluators.
+ *   4. `components/Sidebar/hooks/useWorkflowSwitcher.tsx` — sidebar switcher
+ *      data that lists full-page-eligible evaluators.
  */
 export const EVALUATOR_FULL_PAGE_NAV_ENABLED = true

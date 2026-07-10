@@ -62,12 +62,14 @@ export {
     ConfigBlock,
     SectionSkeleton,
     ConfigAccordionSection,
+    sectionIndicatorColor,
     type SectionCardProps,
     type SectionHeaderRowProps,
     type SectionLabelProps,
     type ConfigBlockProps,
     type SectionSkeletonProps,
     type ConfigAccordionSectionProps,
+    type SectionIndicatorTone,
 } from "./section"
 
 // ============================================================================
@@ -177,9 +179,11 @@ export {
     LabeledField,
     CommitMessageInput,
     COMMIT_MESSAGE_MAX_LENGTH,
+    LabelInput,
     type SliderInputProps,
     type LabeledFieldProps,
     type CommitMessageInputProps,
+    type LabelInputProps,
 } from "./inputs"
 
 // ============================================================================

@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -19,6 +19,7 @@ from oss.src.utils.caching import get_cache, set_cache
 from oss.src.apis.fastapi.tools.models import (
     ToolCatalogActionResponse,
     ToolCatalogActionsResponse,
+    ToolCatalogCategoriesResponse,
     ToolCatalogIntegrationResponse,
     ToolCatalogIntegrationsResponse,
     ToolCatalogProviderResponse,
@@ -48,11 +49,6 @@ from oss.src.core.tools.dtos import (
     #
     CapabilitiesResult,
 )
-from oss.src.core.tools.discovery import (
-    AGENTA_TOOL_CALL_REF_PREFIX,
-    FIND_CAPABILITIES_OP,
-    parse_find_capabilities_arguments,
-)
 from oss.src.core.tools.exceptions import (
     ActionNotFoundError,
     AdapterError,
@@ -68,6 +64,13 @@ from oss.src.core.tools.service import (
 )
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.exceptions import PlatformToolHandlerError
+from oss.src.core.tools.platform_handlers import (
+    dispatch_platform_tool_handler,
+    is_reserved_agenta_call_ref,
+    required_elevated_permission,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -139,12 +142,14 @@ class ToolsRouter:
         *,
         tools_service: ToolsService,
         workflows_service: Optional[WorkflowsService] = None,
+        tracing_service: Optional[TracingService] = None,
     ):
         self.tools_service = tools_service
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
         # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
         # Optional so a deployment that wires only the tools service still serves gateway tools.
         self.workflows_service = workflows_service
+        self.tracing_service = tracing_service
 
         self.router = APIRouter()
 
@@ -171,6 +176,14 @@ class ToolsRouter:
             methods=["GET"],
             operation_id="list_tool_integrations",
             response_model=ToolCatalogIntegrationsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/categories/",
+            self.list_categories,
+            methods=["GET"],
+            operation_id="list_tool_categories",
+            response_model=ToolCatalogCategoriesResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -392,6 +405,7 @@ class ToolsRouter:
         *,
         search: Optional[str] = Query(default=None),
         sort_by: Optional[str] = Query(default=None),
+        category: Optional[str] = Query(default=None),
         limit: Optional[int] = Query(default=None),
         cursor: Optional[str] = Query(default=None),
         full_details: bool = Query(default=False),
@@ -408,6 +422,7 @@ class ToolsRouter:
             "provider_key": provider_key,
             "search": search,
             "sort_by": sort_by,
+            "category": category,
             "limit": limit,
             "cursor": cursor,
             "full_details": full_details,
@@ -425,6 +440,7 @@ class ToolsRouter:
             provider_key=provider_key,
             search=search,
             sort_by=sort_by,
+            category=category,
             limit=limit,
             cursor=cursor,
         )
@@ -443,6 +459,49 @@ class ToolsRouter:
             key=cache_key,
             value=response,
             ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def list_categories(
+        self,
+        request: Request,
+        provider_key: str,
+    ) -> ToolCatalogCategoriesResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {"provider_key": provider_key}
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:categories",
+            key=cache_key,
+            model=ToolCatalogCategoriesResponse,
+        )
+        if cached:
+            return cached
+
+        categories = await self.tools_service.list_categories(
+            provider_key=provider_key,
+        )
+        response = ToolCatalogCategoriesResponse(
+            count=len(categories),
+            categories=categories,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:categories",
+            key=cache_key,
+            value=response,
+            ttl=30 * 60,  # 30 minutes — categories change rarely
         )
 
         return response
@@ -710,13 +769,6 @@ class ToolsRouter:
                 },
             )
 
-        if isinstance(body.connection.data, dict):
-            body.connection.data = {
-                k: v
-                for k, v in body.connection.data.items()
-                if k not in {"callback_url", "auth_scheme"}
-            } or None
-
         connection = await self.tools_service.create_connection(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -842,6 +894,23 @@ class ToolsRouter:
         state: Optional[str] = Query(default=None),
     ) -> HTMLResponse:
         """Handle OAuth callback from Composio."""
+        # Decode the HMAC-signed state up front to recover BOTH the project scope and the
+        # connection identity. The identity tags every card (success or failure) so the
+        # opener can tell WHICH connect flow finished — the playground can have several
+        # live at once (see ConnectToolWidget), and an untagged completion would settle
+        # all of them.
+        state_payload = (
+            decode_oauth_state(state, secret_key=env.agenta.crypt_key)
+            if state
+            else None
+        )
+        if not state:
+            log.warning("OAuth callback received without state token")
+        elif state_payload is None:
+            log.warning("OAuth callback: invalid or expired state token")
+        state_slug = state_payload.get("slug") if state_payload else None
+        state_integration = state_payload.get("integration") if state_payload else None
+
         if error_message or status == "failed":
             log.error("OAuth callback failed: status=%s", status)
             return HTMLResponse(
@@ -849,6 +918,8 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error=error_message or "Authorization failed. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
@@ -858,24 +929,19 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error="Missing connection identifier. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
-        # Decode HMAC-signed state to recover project scope. Activation is
-        # project-scoped, so a missing/invalid state is fatal — we never activate
-        # without a resolved project_id.
+        # Activation is project-scoped, so a missing/invalid state is fatal — we never
+        # activate without a resolved project_id.
         project_id: Optional[UUID] = None
-        if state:
-            payload = decode_oauth_state(state, secret_key=env.agenta.crypt_key)
-            if payload is None:
-                log.warning("OAuth callback: invalid or expired state token")
-            else:
-                try:
-                    project_id = UUID(payload["project_id"])
-                except (KeyError, ValueError):
-                    log.warning("OAuth callback state missing or invalid project_id")
-        else:
-            log.warning("OAuth callback received without state token")
+        if state_payload is not None:
+            try:
+                project_id = UUID(state_payload["project_id"])
+            except (KeyError, ValueError):
+                log.warning("OAuth callback state missing or invalid project_id")
 
         if project_id is None:
             return HTMLResponse(
@@ -883,6 +949,8 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error="Connection could not be activated. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
@@ -902,6 +970,8 @@ class ToolsRouter:
                     content=_oauth_card(
                         success=False,
                         error="Connection could not be activated. Please try again.",
+                        slug=state_slug,
+                        integration_key=state_integration,
                     ),
                 )
         except Exception:
@@ -911,6 +981,8 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error="An internal error occurred. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
@@ -940,6 +1012,8 @@ class ToolsRouter:
                 integration_logo=integration_logo,
                 integration_url=integration_url,
                 agenta_url=env.agenta.web_url,
+                slug=conn.slug,
+                integration_key=conn.integration_key,
             ),
         )
 
@@ -1044,20 +1118,14 @@ class ToolsRouter:
         # ``workflow.{slug}[.{version}]`` call_ref and runs a workflow revision server-side; a
         # Composio gateway tool carries the 5-segment ``tools.*`` slug and runs via the adapter.
         call_ref = body.data.function.name.replace("__", ".")
+        if is_reserved_agenta_call_ref(call_ref):
+            return await self._call_reserved_agenta_tool(
+                request=request,
+                body=body,
+                call_ref=call_ref,
+            )
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
-        if call_ref.startswith(AGENTA_TOOL_CALL_REF_PREFIX):
-            # Reserved discovery tools expose per-project connection state, so gate them
-            # with VIEW_TOOLS at the boundary on top of the outer RUN_TOOLS check.
-            has_view_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_TOOLS,
-            )
-            if not has_view_permission:
-                raise FORBIDDEN_EXCEPTION
-            return await self._call_agenta_tool(request=request, body=body)
-
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
         slug_parts = body.data.function.name.replace("__", ".").split(".")
@@ -1146,69 +1214,60 @@ class ToolsRouter:
 
         return ToolCallResponse(call=result)
 
-    async def _call_agenta_tool(
+    async def _call_reserved_agenta_tool(
         self,
         *,
         request: Request,
         body: ToolCall,
+        call_ref: str,
     ) -> ToolCallResponse:
-        """Run a reserved ``tools.agenta.*`` platform tool. v1 op: find_capabilities.
-
-        Routed here from ``call_tool`` by the ``tools.agenta.`` prefix (so the reserved
-        tool is out of the Composio 5-segment namespace). Project scope comes from the
-        run's caller auth, exactly like the gateway path.
-        """
-        call_ref = body.data.function.name.replace("__", ".")
-        op = call_ref[len(AGENTA_TOOL_CALL_REF_PREFIX) :]
-        if op != FIND_CAPABILITIES_OP:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Unknown Agenta tool: {call_ref}",
-            )
-
-        arguments = body.data.function.arguments
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError as e:
-                log.warning(
-                    "Failed to parse find_capabilities arguments as JSON: %s", e
-                )
-                arguments = {}
-        elif not isinstance(arguments, dict):
-            arguments = {}
-
-        use_cases, provider, limit_alternatives = parse_find_capabilities_arguments(
-            arguments
+        # Some handlers demand an extra permission for specific argument shapes (e.g. a
+        # test_run delta needs EDIT_WORKFLOWS); the policy lives on the handler registration.
+        elevated_permission = required_elevated_permission(
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
         )
-        if not use_cases:
-            raise HTTPException(
-                status_code=400,
-                detail="find_capabilities requires at least one use_case",
+        if elevated_permission is not None:
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=elevated_permission,
             )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
 
         try:
-            result = await self.tools_service.discover_capabilities(
+            response = await dispatch_platform_tool_handler(
+                call_ref=call_ref,
+                arguments=body.data.function.arguments,
+                headers=request.headers,
                 project_id=UUID(request.state.project_id),
-                use_cases=use_cases,
-                provider_key=provider,
-                limit_alternatives=limit_alternatives,
+                user_id=UUID(request.state.user_id),
+                workflows_service=self.workflows_service,
+                tracing_service=self.tracing_service,
             )
-        except DiscoveryUnsupportedError as e:
-            raise HTTPException(status_code=422, detail=e.message) from e
+        except PlatformToolHandlerError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
-        tool_result = ToolResult(
+        # A business-level failed verdict is still a successful tool call (OK); only an
+        # infrastructure failure (child invoke never completed) surfaces as an error status,
+        # mirroring the adapter path's successful/unsuccessful split.
+        result = ToolResult(
             id=uuid4(),
             data=ToolResultData(
                 tool_call_id=body.data.id,
-                content=json.dumps(result.model_dump(mode="json", exclude_none=True)),
+                content=response.model_dump_json(exclude_none=True),
             ),
             status=Status(
                 timestamp=datetime.now(timezone.utc),
-                code="STATUS_CODE_OK",
+                code="STATUS_CODE_ERROR"
+                if response.infra_failure
+                else "STATUS_CODE_OK",
+                message=response.verdict_reason if response.infra_failure else None,
             ),
         )
-        return ToolCallResponse(call=tool_result)
+
+        return ToolCallResponse(call=result)
 
     @staticmethod
     def _validate_slug_segments(*, segments: List[str]) -> None:
@@ -1391,6 +1450,13 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 
 
+def _json_for_inline_script(value: Any) -> str:
+    # `json.dumps` leaves `<` intact, so a value containing `</script>` would terminate
+    # the inline <script> block (the HTML parser ignores JS string boundaries). Escape it
+    # for every JSON payload embedded in a script tag.
+    return json.dumps(value).replace("<", "\\u003c")
+
+
 def _oauth_card(
     *,
     success: bool,
@@ -1399,6 +1465,8 @@ def _oauth_card(
     integration_url: Optional[str] = None,
     agenta_url: Optional[str] = None,
     error: Optional[str] = None,
+    slug: Optional[str] = None,
+    integration_key: Optional[str] = None,
 ) -> str:
     # HTML-escape all provider-supplied strings before interpolation.
     safe_label = html_lib.escape(integration_label) if integration_label else None
@@ -1411,7 +1479,19 @@ def _oauth_card(
         parsed_agenta_url = urlsplit(agenta_url)
         if parsed_agenta_url.scheme and parsed_agenta_url.netloc:
             agenta_origin = f"{parsed_agenta_url.scheme}://{parsed_agenta_url.netloc}"
-    agenta_post_message_origin_js = json.dumps(agenta_origin)
+    agenta_post_message_origin_js = _json_for_inline_script(agenta_origin)
+
+    # Tag the completion message with the connection's identity so the opener can tell
+    # WHICH connection finished. The playground can have several connect flows live at
+    # once (an agent may request multiple connections in one turn); without this, every
+    # open connect widget would settle on the first completion. Absent keys keep older
+    # openers working (they ignore the extra fields).
+    oauth_complete_payload: Dict[str, str] = {"type": "tools:oauth:complete"}
+    if slug:
+        oauth_complete_payload["slug"] = slug
+    if integration_key:
+        oauth_complete_payload["integration"] = integration_key
+    oauth_complete_message_js = _json_for_inline_script(oauth_complete_payload)
 
     accent = "#16a34a" if success else "#dc2626"
     agenta_favicon = (
@@ -1593,6 +1673,7 @@ def _oauth_card(
   </div>
   <script>
     const AGENTA_POST_MESSAGE_ORIGIN = {agenta_post_message_origin_js};
+    const AGENTA_OAUTH_COMPLETE = {oauth_complete_message_js};
 
     function returnToAgenta(event) {{
       if (event) {{
@@ -1601,7 +1682,7 @@ def _oauth_card(
 
       try {{
         if (window.opener && !window.opener.closed && AGENTA_POST_MESSAGE_ORIGIN) {{
-          window.opener.postMessage({{type: "tools:oauth:complete"}}, AGENTA_POST_MESSAGE_ORIGIN);
+          window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
           window.opener.focus();
         }}
       }} catch (_e) {{
@@ -1617,7 +1698,7 @@ def _oauth_card(
     }}
 
     if (window.opener && AGENTA_POST_MESSAGE_ORIGIN) {{
-      window.opener.postMessage({{type: "tools:oauth:complete"}}, AGENTA_POST_MESSAGE_ORIGIN);
+      window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
     }}
 
     const countdownEl = document.getElementById("auto-return-text");

@@ -12,6 +12,7 @@ import pytest
 from agenta.sdk.agents import (
     AgentTemplate,
     AgentResult,
+    ClaudeHarness,
     HarnessType,
     Message,
     PiHarness,
@@ -71,6 +72,16 @@ async def test_provisioning_writes_agents_md_only_when_present(make_env):
     assert harness._provisioning(_config(None)) == {}
 
 
+async def test_provisioning_writes_claude_md_for_claude_harness(make_env):
+    # claude-agent-sdk's memory loader auto-loads CLAUDE.md, never AGENTS.md, so the claude
+    # harness's instructions must land in CLAUDE.md (mirrors the runner's workspace.ts rule).
+    env = make_env()
+    harness = ClaudeHarness(env)
+
+    assert harness._provisioning(_config("hello")) == {"CLAUDE.md": b"hello"}
+    assert harness._provisioning(_config("")) == {}
+
+
 async def test_create_session_adds_files_when_provisioned(make_env):
     env = make_env()
     config = _config("project conventions")
@@ -91,6 +102,30 @@ async def test_prompt_runs_and_tears_down(make_env):
 
     assert result.output == "done"
     assert env.backend.sessions[0].destroyed is True  # torn down on the happy path
+
+
+async def test_stream_threads_terminal_usage_and_stop_reason(make_env):
+    env = make_env(
+        result=AgentResult(
+            output="done",
+            usage={"total": 3},
+            stop_reason="paused",
+            session_id="sess-new",
+        )
+    )
+    harness = PiHarness(env)
+    config = _config()
+
+    run = await harness.stream(config, [Message(role="user", content="hi")])
+    async for _ in run:
+        pass
+    result = run.result()
+
+    assert result.output == "done"
+    assert result.usage == {"total": 3}
+    assert result.stop_reason == "paused"
+    assert config.session_id == "sess-new"
+    assert env.backend.sessions[0].destroyed is True
 
 
 async def test_prompt_destroys_session_even_when_it_raises(make_env):

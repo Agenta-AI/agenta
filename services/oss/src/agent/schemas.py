@@ -58,7 +58,7 @@ AGENT_PARAMETERS_SCHEMA = {
 # Outputs mirror inputs: an object with a `messages` field of type `messages` (NOT keyed by
 # output surface — the old invoke/messages keying is gone). `inputs.messages` carries the turn
 # in; `outputs.messages` carries the turn out. This is agent v0's departure from chat/completion,
-# whose `outputs` IS the single message with no field. `flags.history` trims the list (full vs
+# whose `outputs` IS the single message with no field. `flags.trim` trims the list (full vs
 # last) in the running layer.
 AGENT_OUTPUTS_SCHEMA = {
     "$schema": _SCHEMA,

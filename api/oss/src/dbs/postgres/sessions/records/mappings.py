@@ -12,11 +12,12 @@ def map_record_event_to_dbe(
     event: SessionRecordEvent,
 ) -> RecordDBE:
     # The DAO inserts via an explicit insert().values(...), which bypasses the column's
-    # ORM-side default=uuid7; mint the pk here so it is never null at insert.
+    # ORM-side default; mint the pk here so it is never null at insert. Honor a producer
+    # stable id (uuid5) when supplied so retries/resumes upsert onto one row; else uuid4.
     return RecordDBE(
-        record_id=uuid.uuid7(),
         project_id=event.project_id,
         session_id=event.session_id,
+        record_id=event.record_id or uuid.uuid4(),
         record_index=event.record_index,
         timestamp=event.timestamp,
         record_type=event.record_type,

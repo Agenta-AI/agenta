@@ -2,6 +2,7 @@ import React, {useCallback, useMemo, useState} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {
+    activateEvaluatorEnrichmentAtom,
     deriveWorkflowTypeFromRevision,
     getWorkflowTypeColor,
     parseWorkflowKeyFromUri,
@@ -22,7 +23,7 @@ import {
     type AgentChannelMode,
 } from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {bgColors, textColors} from "@agenta/ui"
+import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Check, Gavel, GearSix, PencilSimple, Plus, Robot} from "@phosphor-icons/react"
@@ -43,14 +44,28 @@ import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
+import {
+    AGENT_CHAT_ITEM_ESTIMATE_OPTIONS,
+    AGENT_CHAT_OVERSCAN_OPTIONS,
+    agentChatItemEstimateAtom,
+    agentChatOverscanAtom,
+    agentChatVirtualizeAtom,
+    isAgentChatVirtualizationAvailable,
+} from "@/oss/components/AgentChatSlice/state/virtualization"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
+import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {currentWorkflowAtom, currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {
+    currentWorkflowAtom,
+    currentWorkflowContextAtom,
+    playgroundEarlyAgentStateAtom,
+} from "@/oss/state/workflow"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
+import AgentRevisionSelector from "../AgentRevisionSelector"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
@@ -208,13 +223,33 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // Agent workflows hide the evaluation-flow actions (Compare / Test set /
     // Evaluator / New Evaluation) — those flows aren't wired for agents yet.
     const rootEntityId = useMemo(() => nodes.find((n) => n.depth === 0)?.entityId ?? null, [nodes])
-    const isAgentWorkflow = useAtomValue(
+    const nodeIsAgent = useAtomValue(
         useMemo(
             () => (rootEntityId ? isAgentModeAtomFamily(rootEntityId) : atom(false)),
             [rootEntityId],
         ),
     )
-    const showEvalActions = !isAgentWorkflow
+    // Loading state of the root revision entity. Critical for the gate below: `nodeIsAgent`
+    // reads `workflowType`, which falls back to "completion" until the revision's flags load —
+    // so a mid-load agent looks identical to a prompt app. We must not treat "not yet known" as
+    // "confirmed prompt".
+    const rootEntityQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(rootEntityId ?? ""), [rootEntityId]),
+    )
+    // Early app-id signal resolves agent-ness before the heavy node graph loads, so
+    // the layout commits to the right chrome up front instead of defaulting to the
+    // non-agent stack and unmounting it on reload.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const isAgentWorkflow = nodeIsAgent || earlyAgentState === "agent"
+    // Neutral until CONFIRMED prompt: show the eval chrome only when a definitive signal says
+    // non-agent — the early app-id query resolved to non-agent, OR the root revision has fully
+    // SETTLED (not pending) and isn't an agent. The `!isPending` guard is what prevents the
+    // agent-reload flash: without it, `hasRootNode && !nodeIsAgent` is true during the flags-load
+    // window (node graph resolved, is_agent not yet loaded) and the eval stack pops in then vanishes.
+    const showEvalActions =
+        !isAgentWorkflow &&
+        (earlyAgentState === "non-agent" ||
+            (hasRootNode && !nodeIsAgent && !rootEntityQuery.isPending))
 
     // Build/Chat mode: "chat" maximizes the chat pane (config hidden, session rail shown); "build"
     // is the 2-panel edit view. The boolean maximize atom is the single source of truth (also read
@@ -222,12 +257,28 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
 
+    // Pre-commit onboarding: the playground is the "what do you want to build?" surface, so the
+    // Build/Chat mode switch + settings cog are noise (there's nothing to configure or chat yet). They
+    // return a beat after commit (`chromeRevealed`), eased in with the rest of the post-commit chrome
+    // rather than popping in during the first send.
+    const onboarding = useOptionalOnboardingContext()
+    const chromeHidden = !!onboarding && !onboarding.chromeRevealed
+
     // Agent playground settings (page-level): config-panel layout + stream/batch response channel.
     // These were previously buried in a config item's kebab; they're global, so they live here.
     const layout = useAtomValue(agentTemplateLayoutAtom)
     const setLayout = useSetAtom(agentTemplateLayoutAtom)
     const channelMode = useAtomValue(agentChannelModeAtom)
     const setChannelMode = useSetAtom(agentChannelModeAtom)
+    // SPIKE(virtuoso): live-tunable virtualization knobs (enable + overscan + row estimate).
+    // The whole section is hidden unless the NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION env flag is set.
+    const virtualizationAvailable = isAgentChatVirtualizationAvailable()
+    const virtualize = useAtomValue(agentChatVirtualizeAtom)
+    const setVirtualize = useSetAtom(agentChatVirtualizeAtom)
+    const overscan = useAtomValue(agentChatOverscanAtom)
+    const setOverscan = useSetAtom(agentChatOverscanAtom)
+    const itemEstimate = useAtomValue(agentChatItemEstimateAtom)
+    const setItemEstimate = useSetAtom(agentChatItemEstimateAtom)
 
     const settingsMenuItems: MenuProps["items"] = useMemo(
         () => [
@@ -264,8 +315,76 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     onClick: () => setChannelMode(option.value),
                 })),
             },
+            ...(virtualizationAvailable
+                ? [
+                      {type: "divider" as const},
+                      {
+                          key: "virtualization",
+                          type: "group" as const,
+                          label: "Virtualization (spike)",
+                          children: [
+                              {
+                                  key: "virt-enable",
+                                  label: "Virtualize messages",
+                                  icon: virtualize ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                                  onClick: () => setVirtualize(!virtualize),
+                              },
+                          ],
+                      },
+                      {
+                          key: "virt-overscan",
+                          type: "group" as const,
+                          label: "Overscan",
+                          children: AGENT_CHAT_OVERSCAN_OPTIONS.map((option) => ({
+                              key: `overscan-${option.value}`,
+                              label: option.label,
+                              disabled: !virtualize,
+                              icon:
+                                  overscan === option.value ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                              onClick: () => setOverscan(option.value),
+                          })),
+                      },
+                      {
+                          key: "virt-estimate",
+                          type: "group" as const,
+                          label: "Row estimate",
+                          children: AGENT_CHAT_ITEM_ESTIMATE_OPTIONS.map((option) => ({
+                              key: `estimate-${option.value}`,
+                              label: option.label,
+                              disabled: !virtualize,
+                              icon:
+                                  itemEstimate === option.value ? (
+                                      <Check size={14} />
+                                  ) : (
+                                      <span className="inline-block w-[14px]" />
+                                  ),
+                              onClick: () => setItemEstimate(option.value),
+                          })),
+                      },
+                  ]
+                : []),
         ],
-        [layout, setLayout, channelMode, setChannelMode],
+        [
+            virtualizationAvailable,
+            layout,
+            setLayout,
+            channelMode,
+            setChannelMode,
+            virtualize,
+            setVirtualize,
+            overscan,
+            setOverscan,
+            itemEstimate,
+            setItemEstimate,
+        ],
     )
 
     // Find all connected evaluator nodes
@@ -349,10 +468,21 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // labels, and workflow metadata ("N versions · date") for the picker rows.
     // splitTypeTag renders the type tag in the row's suffix slot (vertically
     // centered) instead of trailing the name.
+    //
+    // `lazy`: the adapter + the `evaluatorWorkflowMetaMapAtom` read above sit
+    // behind the shared enrichment gate, so they resolve no per-evaluator
+    // revisions until the user reaches for this "Add evaluators" picker
+    // (`handleActivateEvaluatorPicker`, on pointer-enter/focus). Keeps a plain
+    // playground load from firing the batched revision fan-out.
     const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel, {
         showWorkflowMeta: true,
         splitTypeTag: true,
+        lazy: true,
     })
+    const activateEvaluatorEnrichment = useSetAtom(activateEvaluatorEnrichmentAtom)
+    const handleActivateEvaluatorPicker = useCallback(() => {
+        activateEvaluatorEnrichment()
+    }, [activateEvaluatorEnrichment])
 
     // Controlled state for EvaluatorTemplateDropdown
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
@@ -537,8 +667,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         <>
             <div
                 className={clsx(
-                    "flex items-center justify-between gap-4 px-2.5 py-2",
-                    bgColors.active,
+                    "flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-surface-divider)]",
                     className,
                 )}
                 {...divProps}
@@ -569,15 +698,21 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                         </Dropdown>
                     ) : null}
                     {isAgentWorkflow ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                             <Tooltip title="Agent">
                                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
                                     <Robot size={15} weight="fill" />
                                 </span>
                             </Tooltip>
-                            <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                            <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                                 {currentWorkflow?.name || "Agent"}
                             </Typography>
+                            {rootEntityId ? (
+                                <>
+                                    <Divider orientation="vertical" className="!mx-1 h-5" />
+                                    <AgentRevisionSelector variantId={rootEntityId} />
+                                </>
+                            ) : null}
                         </div>
                     ) : (
                         <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
@@ -610,7 +745,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     {showEvalActions && (
                         <>
                             <Divider orientation="vertical" className="!mx-0 h-5" />
-                            <span className="relative inline-flex">
+                            <span
+                                className="relative inline-flex"
+                                onPointerEnter={handleActivateEvaluatorPicker}
+                                onFocus={handleActivateEvaluatorPicker}
+                            >
                                 <Tooltip title="Add evaluators to automatically score outputs in the playground.">
                                     <span>
                                         <EntityPicker<WorkflowRevisionSelectionResult>
@@ -691,7 +830,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             )}
                         </>
                     )}
-                    {isAgentWorkflow && (
+                    {isAgentWorkflow && !chromeHidden && (
                         <>
                             <Segmented
                                 aria-label="Playground mode"

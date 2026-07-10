@@ -30,8 +30,9 @@ from .mcp import (
     parse_mcp_server_configs,
 )
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
+from .permission_rules import wire_author_permission_rules
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
-from .tools.models import coerce_tool_spec
+from .tools.models import PermissionMode, coerce_tool_spec
 
 
 # ---------------------------------------------------------------------------
@@ -105,9 +106,17 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
 ]
 
 
-# Permission policy for harness tool use in a headless run. ``auto`` approves (tools are
-# backend-resolved and trusted, no human to prompt); ``deny`` rejects.
-PermissionPolicy = Literal["auto", "deny"]
+PERMISSION_MODES = frozenset({"allow", "ask", "deny", "allow_reads"})
+
+
+class InvalidPermissionDefaultError(ValueError):
+    """Raised when ``runner.permissions.default`` is not a recognized permission mode."""
+
+    def __init__(self, value: str) -> None:
+        super().__init__(
+            f"invalid runner.permissions.default {value!r}; expected one of "
+            f"{sorted(PERMISSION_MODES)}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +219,7 @@ class ContentBlock(BaseModel):
     the ``/messages`` egress folds inbound UIMessage tool/approval parts into these so a
     cross-turn HITL reply replays as a real tool call plus its result, and the model resumes
     from the result instead of re-asking. Mirrors ``ContentBlock`` in
-    ``services/agent/src/protocol.ts``.
+    ``services/runner/src/protocol.ts``.
     """
 
     type: str  # "text" | "image" | "resource" | "tool_call" | "tool_result"
@@ -376,7 +385,7 @@ class TraceContext(BaseModel):
     traceparent: Optional[str] = None
     baggage: Optional[str] = None
     endpoint: Optional[str] = None  # OTLP traces URL
-    authorization: Optional[str] = None  # full Authorization header value
+    authorization: Optional[str] = Field(default=None, repr=False)
     capture_content: bool = True
 
     def context_to_wire(self) -> Dict[str, Any]:
@@ -447,13 +456,23 @@ class RunContextTrace(BaseModel):
     span_id: Optional[str] = None
 
 
+class RunContextRun(BaseModel):
+    """The current run's own identity inside ``runContext``.
+
+    ``kind`` is deliberately nested under ``run`` so ``$ctx.run.kind`` is protocol context, not a
+    new top-level command field. Reserved platform handlers use it to identify child test runs.
+    """
+
+    kind: Optional[str] = None
+
+
 class RunContext(BaseModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; see ``projects/direct-call-tools/run-context.md``).
 
     The service computes this from the invocation's own trace + workflow identity and sends it on
-    the ``/run`` request. It is consumed ONLY by a tool's ``call.context`` binding: the runner
-    fills bound request fields from this blob at dispatch, server-side and hidden from the model.
+    the ``/run`` request. It is consumed by tool context bindings: ``call.context`` on direct-call specs and
+    ``contextBindings`` on callRef specs. The runner fills bound request fields from this blob at dispatch, server-side and hidden from the model.
     The model never reads run context directly.
 
     The inner keys are deliberately snake_case (``workflow.variant.id``, ``trace.trace_id``): they
@@ -464,11 +483,20 @@ class RunContext(BaseModel):
     emits only the sub-objects/fields that are set, so a run with no identity yields an empty blob
     (and the serializer omits the key entirely)."""
 
+    run: Optional[RunContextRun] = None
     workflow: Optional[RunContextWorkflow] = None
     trace: Optional[RunContextTrace] = None
 
     def to_wire(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
+        if self.run is not None:
+            run = {
+                key: value
+                for key, value in self.run.model_dump().items()
+                if value is not None
+            }
+            if run:
+                out["run"] = run
         if self.workflow is not None:
             workflow: Dict[str, Any] = {}
             for entity in ("artifact", "variant", "revision"):
@@ -533,10 +561,9 @@ class AgentTemplate(BaseModel):
     of it: the harness adapters and ``wire_*`` methods read these flat fields. ``from_params`` reads
     the template and projects it here.
 
-    ``harness`` / ``sandbox`` / ``permission_policy`` are the execution selectors: which coding
-    agent to drive (``harness.kind``), where it runs (``sandbox.kind``), and how a
-    permission-gating harness answers a tool-use interaction in a headless run
-    (``runner.interactions.headless``). ``sandbox`` is a backend/environment concern the caller
+    ``harness`` / ``sandbox`` / ``permission_default`` are the execution selectors: which coding
+    agent to drive (``harness.kind``), where it runs (``sandbox.kind``), and the runner-enforced
+    default permission mode (``runner.permissions.default``). ``sandbox`` is a backend/environment concern the caller
     reads to pick a backend; it never enters the neutral run.
 
     ``harness_permissions`` is the selected harness's first-class allow/ask/deny posture (was
@@ -562,13 +589,11 @@ class AgentTemplate(BaseModel):
     harness_permissions: Dict[str, Any] = Field(default_factory=dict)
     harness_extras: Dict[str, Any] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
-    # The execution selectors: the coding agent to drive, where it runs, and the headless
-    # interaction default (sourced from ``runner.interactions.headless``). The caller reads
-    # ``harness`` / ``sandbox`` to pick a harness class and backend; ``permission_policy`` is the
-    # headless answer a gating harness (Claude) consults.
+    # The execution selectors: the coding agent to drive, where it runs, and the runner-enforced
+    # default permission mode (sourced from ``runner.permissions.default``).
     harness: str = "pi_core"
     sandbox: str = "local"
-    permission_policy: PermissionPolicy = "auto"
+    permission_default: PermissionMode = "allow_reads"
 
     @model_validator(mode="before")
     @classmethod
@@ -609,7 +634,7 @@ class AgentTemplate(BaseModel):
         """
         base = defaults or cls()
         instructions, model, tools = _parse_agent_fields(params, base)
-        harness, sandbox, permission_policy = _parse_run_selection(params, base)
+        harness, sandbox, permission_default = _parse_run_selection(params, base)
         harness_permissions, harness_extras = _parse_harness_slice(params, base)
         return cls(
             instructions=instructions,
@@ -622,7 +647,7 @@ class AgentTemplate(BaseModel):
             sandbox_permission=_parse_sandbox_permission(params, base),
             harness=harness,
             sandbox=sandbox,
-            permission_policy=permission_policy,
+            permission_default=permission_default,
         )
 
 
@@ -636,9 +661,9 @@ class HarnessAgentTemplate(BaseModel):
     config; a backend plumbs it as-is, with no business logic about how the harness works.
 
     The two subclasses differ in their *shape*, not just their identity, because the
-    harnesses differ: Pi takes built-in tool names plus native tool specs and never gates
-    tool use; Claude has no built-ins, delivers tools over MCP, and gates tool use behind a
-    permission policy. ``wire_tools`` is where each config emits its own tool/permission
+    harnesses differ: Pi takes built-in tool names plus native tool specs; Claude has no
+    built-ins and delivers tools over MCP. Both ship the same runner permission plan.
+    ``wire_tools`` is where each config emits its own tool/permission
     fields for the ``/run`` payload.
     """
 
@@ -663,6 +688,7 @@ class HarnessAgentTemplate(BaseModel):
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
     skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
+    permission_default: PermissionMode = "allow_reads"
     # The selected harness's first-class allow/ask/deny posture, carried verbatim from
     # ``AgentTemplate.harness_permissions`` by the harness adapter. A gating harness's CONFIG renders
     # it into files for the wire (see :meth:`wire_harness_files`); the raw slice does not ride the
@@ -693,6 +719,14 @@ class HarnessAgentTemplate(BaseModel):
             else SkillTemplate.model_validate(item)
             for item in value or []
         ]
+
+    def wire_permissions(self) -> Dict[str, Any]:
+        """The runner permission plan this harness contributes to the ``/run`` payload."""
+        permissions: Dict[str, Any] = {"default": self.permission_default}
+        rules = wire_author_permission_rules(self.harness_permissions)
+        if rules:
+            permissions["rules"] = rules
+        return {"permissions": permissions}
 
     def wire_tools(self) -> Dict[str, Any]:
         """The tool + permission fields this harness contributes to the ``/run`` payload."""
@@ -785,8 +819,8 @@ class HarnessAgentTemplate(BaseModel):
 
 class PiAgentTemplate(HarnessAgentTemplate):
     """Pi's config. Built-in tools by name plus resolved specs delivered natively (Pi has no
-    MCP; the runner registers them through the Pi extension). Pi does not gate tool use, so
-    no permission policy applies.
+    MCP; the runner registers them through the Pi extension). Pi has no native gate; the runner
+    relay enforces the shared permission plan.
 
     ``system`` and ``append_system`` are Pi's two system-prompt layers, distinct from
     ``agents_md``. ``system`` *replaces* Pi's built-in base prompt outright (Pi's ``SYSTEM.md``
@@ -829,7 +863,7 @@ class PiAgentTemplate(HarnessAgentTemplate):
             "toolCallback": self.tool_callback.to_wire()
             if self.tool_callback
             else None,
-            "permissionPolicy": "auto",  # Pi never gates tool use
+            **self.wire_permissions(),
         }
 
     def wire_prompt(self) -> Dict[str, Any]:
@@ -842,8 +876,7 @@ class PiAgentTemplate(HarnessAgentTemplate):
 
 
 class ClaudeAgentTemplate(HarnessAgentTemplate):
-    """Claude's config. No Pi built-ins; tools are delivered over MCP, and
-    ``permission_policy`` answers Claude's tool-use prompts in a headless run."""
+    """Claude's config. No Pi built-ins; tools are delivered over MCP."""
 
     harness: ClassVar[HarnessType] = HarnessType.CLAUDE
 
@@ -851,7 +884,6 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
-    permission_policy: PermissionPolicy = "auto"
 
     @field_validator("tool_specs", mode="before")
     @classmethod
@@ -869,7 +901,7 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
             "toolCallback": self.tool_callback.to_wire()
             if self.tool_callback
             else None,
-            "permissionPolicy": self.permission_policy,
+            **self.wire_permissions(),
         }
 
     def wire_harness_files(self) -> Dict[str, Any]:
@@ -892,6 +924,7 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
             self.sandbox_permission,
             self.mcp_servers,
             self.tool_specs,
+            self.permission_default,
         )
         if not files:
             return {}
@@ -924,12 +957,12 @@ class SessionConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     agent: AgentTemplate
-    secrets: Dict[str, str] = Field(default_factory=dict)
+    secrets: Dict[str, str] = Field(default_factory=dict, repr=False)
     # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
     # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
     # transition: Slice 1 still ships the credential through ``secrets`` on the wire.
     resolved_connection: Optional[ResolvedConnection] = None
-    permission_policy: PermissionPolicy = "auto"
+    permission_default: PermissionMode = "allow_reads"
     trace: Optional[TraceContext] = None
     # The run's own context (trace + variant identity), refreshed per turn and consumed only by a
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
@@ -1087,19 +1120,24 @@ def _parse_harness_slice(
 def _parse_run_selection(
     params: Dict[str, Any],
     defaults: AgentTemplate,
-) -> Tuple[str, str, "PermissionPolicy"]:
-    """Pull the execution selectors (harness kind / sandbox kind / headless interaction default).
+) -> Tuple[str, str, PermissionMode]:
+    """Pull the execution selectors (harness kind / sandbox kind / permission default).
 
-    ``harness`` from ``harness.kind``, ``sandbox`` from ``sandbox.kind``, and the headless
-    permission default from ``runner.interactions.headless`` (was the flat ``permission_policy``).
-    Falls back to ``defaults``. The kinds are lower-cased so a playground-supplied ``"Claude"`` /
-    ``"Daytona"`` matches the bare :class:`HarnessType` / sandbox values the caller selects on."""
+    ``harness`` from ``harness.kind``, ``sandbox`` from ``sandbox.kind``, and the runner policy
+    from ``runner.permissions.default``. The kinds and permission mode are lower-cased so
+    playground-supplied values match the bare runtime selectors."""
     harness = str(_section(params, "harness").get("kind") or defaults.harness).lower()
     sandbox = str(_section(params, "sandbox").get("kind") or defaults.sandbox).lower()
-    interactions = _section(params, "runner").get("interactions")
-    headless = interactions.get("headless") if isinstance(interactions, dict) else None
-    permission_policy = str(headless or defaults.permission_policy).lower()
-    return harness, sandbox, permission_policy
+    permissions = _section(params, "runner").get("permissions")
+    raw_default = permissions.get("default") if isinstance(permissions, dict) else None
+    if raw_default is None:
+        permission_default = defaults.permission_default
+    else:
+        normalized = str(raw_default).lower()
+        if normalized not in PERMISSION_MODES:
+            raise InvalidPermissionDefaultError(normalized)
+        permission_default = normalized
+    return harness, sandbox, permission_default
 
 
 def _parse_sandbox_permission(

@@ -27,12 +27,16 @@ interface ApprovalLike {
     approved?: boolean
 }
 
+import {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
+
 interface ToolPartLike {
     type?: string
     state?: string
+    toolCallId?: string
     providerExecuted?: boolean
     approval?: ApprovalLike
     render?: {kind?: unknown}
+    data?: unknown
 }
 
 interface MessageLike {
@@ -72,11 +76,30 @@ const CLIENT_TOOL_NAMES = new Set(["request_connection"])
 const toolPartName = (part: ToolPartLike): string =>
     typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
 
-/** A part that is actually a client tool (browser-fulfilled), not an ordinary server tool. */
-const isClientTool = (part: ToolPartLike): boolean =>
-    typeof part.render?.kind === "string" || CLIENT_TOOL_NAMES.has(toolPartName(part))
+/**
+ * A part that is actually a client tool (browser-fulfilled), not an ordinary server tool.
+ * The render hint arrives as a sibling `data-render` part (strict tool chunks), so the
+ * message-scoped map is consulted alongside the inline field and the known-name set.
+ */
+const isClientTool = (part: ToolPartLike, renderMap?: Map<string, RenderHintLike>): boolean =>
+    renderKindFor(part, renderMap) !== undefined || CLIENT_TOOL_NAMES.has(toolPartName(part))
 
-const isClientToolResult = (part: ToolPartLike): boolean =>
+/**
+ * A PARKED client tool still awaiting the user (its widget is live in the transcript). Gates the
+ * message queue like an approval: the stream reads "ready" while the run is really paused, and a
+ * queued message must not inject itself before the widget settles. Safe to hold on — unlike an
+ * orphaned `approval-responded`, the pending widget IS the unblock UI (accept/decline/dismiss).
+ */
+export const isPendingClientToolInteraction = (
+    part: ToolPartLike,
+    renderMap?: Map<string, RenderHintLike>,
+): boolean =>
+    isToolPart(part) &&
+    part.providerExecuted !== true &&
+    isClientTool(part, renderMap) &&
+    (part.state === "input-available" || part.state === "input-streaming")
+
+const isClientToolResult = (part: ToolPartLike, renderMap?: Map<string, RenderHintLike>): boolean =>
     isToolPart(part) &&
     part.providerExecuted !== true &&
     part.approval == null &&
@@ -85,7 +108,7 @@ const isClientToolResult = (part: ToolPartLike): boolean =>
     // also settles to `output-available` with `providerExecuted` falsy and no `approval` —
     // without this guard it is misread as a client-tool result, so every tool-using turn
     // auto-resends forever (the Aloha loop).
-    isClientTool(part) &&
+    isClientTool(part, renderMap) &&
     (part.state === "output-available" || part.state === "output-error")
 
 /** A resolved tool part is settled when it has run, errored, or carries a decision. */
@@ -109,14 +132,34 @@ export function agentShouldResumeAfterApproval({messages}: {messages: MessageLik
     const last = messages[messages.length - 1]
     if (!last || last.role !== "assistant") return false
 
-    const toolParts = (last.parts ?? []).filter(
-        (part) => isToolPart(part) && part.providerExecuted !== true,
-    )
+    const parts = last.parts ?? []
+    const toolParts = parts.filter((part) => isToolPart(part) && part.providerExecuted !== true)
     if (toolParts.length === 0) return false
 
-    const hasResolved = toolParts.some(
-        (part) => isRespondedToolPart(part) || isClientToolResult(part),
-    )
+    // Message-scoped render hints (sibling `data-render` parts) for client-tool detection.
+    const renderMap = buildRenderMap(parts)
+
+    // Index of the LAST freshly-resolved parked interaction (an approval response or a
+    // browser-fulfilled client-tool result). Using the last one handles chained gates: a second
+    // approval later in the turn is what should drive the (next) resume.
+    let lastResolvedIdx = -1
+    for (let i = 0; i < parts.length; i++) {
+        if (isRespondedToolPart(parts[i]) || isClientToolResult(parts[i], renderMap))
+            lastResolvedIdx = i
+    }
+    if (lastResolvedIdx === -1) return false
+
+    // ALREADY RESUMED guard (the post-resolve loop). The cold-replay runner re-issues the approved
+    // tool under a FRESH id, so its execution output attaches to a NEW part and the original
+    // `approval-responded` part LINGERS in this same assistant message forever. Once the model has
+    // continued past the approval, a new step begins — a `step-start` part appears AFTER it. Without
+    // this guard the predicate keeps seeing the lingering `approval-responded` and auto-resends after
+    // every completion, re-running the whole turn endlessly (the loop the HITL fix exposed).
+    const resumedAlready = parts
+        .slice(lastResolvedIdx + 1)
+        .some((part) => part.type === "step-start")
+    if (resumedAlready) return false
+
     const allSettled = toolParts.every(isSettledToolPart)
-    return hasResolved && allSettled
+    return allSettled
 }

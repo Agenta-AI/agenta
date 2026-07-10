@@ -508,13 +508,6 @@ class TriggersRouter:
                 },
             )
 
-        if isinstance(body.connection.data, dict):
-            body.connection.data = {
-                k: v
-                for k, v in body.connection.data.items()
-                if k not in {"callback_url", "auth_scheme"}
-            } or None
-
         connection = await self.triggers_service.create_connection(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1609,8 +1602,10 @@ class TriggersRouter:
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
+                log.tick("triggers.enqueued", dims={"queue": "triggers"})
             except Exception as e:
                 log.error("Failed to enqueue trigger event: %s", e)
+                log.tick("triggers.enqueue_errors", dims={"queue": "triggers"})
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Failed to enqueue trigger event",

@@ -17,6 +17,12 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
 } from "../../tools/mcp-bridge.ts";
 import {
+  PI_BUILTIN_TOOL_IDENTITY,
+  permissionsFromRequest,
+  piBuiltinIdentity,
+  type PermissionPlan,
+} from "../../permission-plan.ts";
+import {
   type MaterializedSkill,
   resolveSkillDirs as defaultResolveSkillDirs,
 } from "../skills.ts";
@@ -41,6 +47,26 @@ export const LOCAL_NETWORK_UNSUPPORTED_MESSAGE =
 export const FILESYSTEM_UNSUPPORTED_MESSAGE =
   "Filesystem sandbox policy is not implemented (no backend applies a filesystem jail); " +
   "remove sandbox_permission.filesystem.";
+
+/**
+ * A non-Pi harness (MCP-only tool delivery) on a remote sandbox cannot receive gateway/custom
+ * tools at all today (F1, audit finding): the internal tool-MCP channel is a runner-loopback
+ * (`127.0.0.1`) HTTP server, unreachable from inside a remote sandbox, so
+ * `buildSessionMcpServers` skips it there; the fallback path (the file relay) has a
+ * sandbox-side writer ONLY inside Pi's bundled extension (`extensions/agenta.ts`
+ * `registerTools`), which no other harness loads. Before this gate, the run proceeded anyway,
+ * `mcp.ts` logged a false "delivered via the file relay", and the harness silently received
+ * zero tools with `ok:true` (the silent-tool-drop bug). Refuse loud instead, mirroring the
+ * other not-implemented gates above. The gate keys on "not local" rather than "is daytona" so
+ * a NEW remote provider (e.g. the in-flight E2B one) fails closed with this error until tool
+ * delivery is proven there, instead of silently re-opening F1 one provider over.
+ */
+export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
+  "Tools are not supported for a non-Pi harness on a remote sandbox: the internal " +
+  "tool-MCP channel is loopback-only (unreachable from inside the sandbox), and there is no " +
+  "in-sandbox relay client for this harness (only Pi's bundled extension writes the file " +
+  "relay). Run on the local sandbox, use the Pi harness, or remove the tools. Tracked in " +
+  "docs/design/agent-workflows/projects/remote-tools-delivery/.";
 
 export interface RunPlan {
   harness: string;
@@ -72,6 +98,10 @@ export interface RunPlan {
   usageOutPath?: string;
   toolSpecs: ResolvedToolSpec[];
   executableToolSpecs: ResolvedToolSpec[];
+  /** Normalized Pi builtin grants for the extension active-tool edit. */
+  builtinGrants: string[];
+  /** True when Pi builtin grants or permissions need extension enforcement. */
+  builtinGatingActive: boolean;
   useToolRelay: boolean;
   systemPrompt?: string;
   appendSystemPrompt?: string;
@@ -97,8 +127,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
@@ -131,6 +160,63 @@ function hasStdioMcpServer(servers: McpServerConfig[] | undefined): boolean {
  */
 function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
   return specs.some((spec) => spec.kind === "code");
+}
+
+const PI_DEFAULT_ACTIVE_BUILTINS = ["read", "bash", "edit", "write"];
+const PI_BUILTIN_TOOL_NAMES = Object.keys(PI_BUILTIN_TOOL_IDENTITY);
+const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
+
+function normalizePiBuiltinGrants(tools: string[] | undefined): string[] {
+  if (tools === undefined) return [...PI_DEFAULT_ACTIVE_BUILTINS];
+  if (!Array.isArray(tools)) return [];
+  const grants: string[] = [];
+  const seen = new Set<string>();
+  for (const tool of tools) {
+    if (typeof tool !== "string") continue;
+    const name = tool.trim().toLowerCase();
+    if (!PI_BUILTIN_TOOL_NAME_SET.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    grants.push(name);
+  }
+  return grants;
+}
+
+function sameStringSet(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
+}
+
+function permissionPlanCouldGatePiBuiltin(plan: PermissionPlan): boolean {
+  if (plan.default !== "allow") return true;
+  return plan.rules.some((rule) =>
+    permissionRuleTargetsPiBuiltin(rule.pattern),
+  );
+}
+
+function permissionRuleTargetsPiBuiltin(pattern: string): boolean {
+  const open = pattern.indexOf("(");
+  const toolName = open === -1 ? pattern : pattern.slice(0, open);
+  return piBuiltinIdentity(toolName) !== undefined;
+}
+
+function computeBuiltinGatingActive(
+  isPi: boolean,
+  permissionPlan: PermissionPlan,
+  builtinGrants: readonly string[],
+): boolean {
+  if (!isPi) return false;
+  try {
+    return (
+      permissionPlanCouldGatePiBuiltin(permissionPlan) ||
+      !sameStringSet(builtinGrants, PI_DEFAULT_ACTIVE_BUILTINS)
+    );
+  } catch {
+    return true;
+  }
 }
 
 function defaultLocalCwd(durableCwd?: string): string {
@@ -188,12 +274,24 @@ export function buildRunPlan(
 
   const isPi = acpAgent === "pi";
   const isDaytona = sandboxId === "daytona";
+  // Any non-local sandbox counts as remote for the F1 tools gate below. An unknown provider id
+  // currently falls through to the LOCAL cwd/provider path further down, but for tool delivery
+  // it must fail CLOSED: a future provider (E2B et al.) has no proven delivery path until it
+  // ships one, and "unknown" must not silently behave like "reachable loopback".
+  const isRemoteSandbox = sandboxId !== "local";
 
   const secrets = request.secrets ?? {};
   const legacyHarnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
+  const permissionPlan = permissionsFromRequest(request);
+  const builtinGrants = normalizePiBuiltinGrants(request.tools);
+  const builtinGatingActive = computeBuiltinGatingActive(
+    isPi,
+    permissionPlan,
+    builtinGrants,
+  );
 
   // Not-implemented boundary gates (sidecar-trust Part 2): a declared capability the runner
   // cannot actually enforce fails loudly, the way code tools do (`tools/code.ts`), rather than
@@ -244,6 +342,20 @@ export function buildRunPlan(
     return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
   }
 
+  // F1 (audit finding, silent-tool-drop): a non-Pi harness on a remote sandbox has NO working
+  // delivery path for ANY custom tool. The internal tool-MCP is loopback-only (unreachable from
+  // inside the sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's
+  // bundled extension. Before this gate the run proceeded, silently dropped every tool, and
+  // still returned `ok:true`. Refuse up front, the way the other not-implemented gates above do,
+  // and fail CLOSED for any non-local provider (see `isRemoteSandbox`) so a new remote provider
+  // cannot silently re-open F1. The gate counts ALL tools (`toolSpecs`), `client` kind included:
+  // client tools now ride the same internal MCP channel on local Claude (advertised + paused in
+  // `tools/call`), so on a remote sandbox they are exactly as undeliverable as gateway tools —
+  // the model would never see or be able to call them.
+  if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
+    return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
+  }
+
   // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
   // inside the sandbox, so they bypass the sandbox network boundary. Under `strict` + a
   // restricted network, refuse them; `best_effort` is the opt-out that accepts the boundary is
@@ -266,12 +378,16 @@ export function buildRunPlan(
     }
   }
 
-  const cwd = isDaytona ? createDaytonaCwd(durableCwd) : createLocalCwd(durableCwd);
+  const cwd = isDaytona
+    ? createDaytonaCwd(durableCwd)
+    : createLocalCwd(durableCwd);
   // The tool-relay scratch (req/res JSON) is ephemeral runner<->child IPC, NOT durable session
   // data — keep it OFF the geesefs-mounted cwd. A relay dir inside the mount routes every tool
   // call through FUSE/S3, so a flaky mount surfaces as ENOTCONN on the relay file. Use an
   // ephemeral sibling: a plain host tmp dir (local) or an in-VM dir (daytona), never the mount.
-  const relayBase = isDaytona ? "/home/sandbox/agenta/relay" : join(tmpdir(), "agenta", "relay");
+  const relayBase = isDaytona
+    ? "/home/sandbox/agenta/relay"
+    : join(tmpdir(), "agenta", "relay");
   const relayDir = join(relayBase, basename(cwd));
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
@@ -313,7 +429,7 @@ export function buildRunPlan(
       isPi,
       isDaytona,
       prompt,
-      turnText: buildTurnText(request),
+      turnText: buildTurnText(request, log),
       agentsMd: request.agentsMd?.trim() || undefined,
       secrets,
       legacyHarnessApiKeyVar,
@@ -326,6 +442,10 @@ export function buildRunPlan(
       usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
       toolSpecs,
       executableToolSpecs: executableToolSpecsForRun,
+      builtinGrants,
+      builtinGatingActive,
+      // The relay carries tool EXECUTION only (permission gates ride the extension's
+      // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
       useToolRelay: toolSpecs.length > 0,
       systemPrompt,
       appendSystemPrompt,

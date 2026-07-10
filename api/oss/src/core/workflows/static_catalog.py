@@ -1,7 +1,7 @@
 """The static workflow catalogue: code-defined, read-only static workflows.
 
-Agenta ships its own managed workflows (skills today, extensible to other static workflow kinds
-later) to every project without per-project seeding and without a migration. They are served from
+Agenta ships its own managed workflows to every project without per-project seeding or a
+migration. They are served from
 this catalogue under a reserved ``__ag__*`` slug namespace, never the database, and carry
 ``flags.is_static=True`` (slug-derived) so clients and the frontend treat them as read-only.
 
@@ -14,18 +14,14 @@ Trust comes from the platform authoring the content in code: the reserved namesp
 user cannot author or shadow it, and resolution never falls through to Postgres.
 """
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
-    BUILD_YOUR_FIRST_APP_SKILL,
-    BUILD_YOUR_FIRST_APP_SLUG,
-    DISCOVER_AND_WIRE_TOOLS_SKILL,
-    DISCOVER_AND_WIRE_TOOLS_SLUG,
+    BUILD_AN_AGENT_SKILL,
+    BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SKILL,
     GETTING_STARTED_WITH_AGENTA_SLUG,
-    SET_UP_TRIGGERS_SKILL,
-    SET_UP_TRIGGERS_SLUG,
 )
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_TOOL_NAME,
@@ -38,6 +34,15 @@ from agenta.sdk.engines.running.utils import (
     normalize_snippet_data,
 )
 
+from oss.src.core.workflows.build_kit import (
+    AGENTA_BUILTIN_AGENT_URI,
+    BUILD_KIT_WORKFLOW_DESCRIPTION,
+    BUILD_KIT_WORKFLOW_NAME,
+    BUILD_KIT_WORKFLOW_SLUG,
+    REQUEST_CONNECTION_WORKFLOW_NAME,
+    REQUEST_INPUT_WORKFLOW_SLUG,
+    build_agent_template_overlay,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowRevision,
     WorkflowRevisionData,
@@ -51,6 +56,7 @@ from oss.src.core.workflows.types import (
 
 
 __all__ = [
+    "BUILD_KIT_WORKFLOW_SLUG",
     "STATIC_SLUG_PREFIX",
     "StaticWorkflowCatalog",
 ]
@@ -59,6 +65,24 @@ __all__ = [
 # sub-namespaced under "catalog". Stable across instances/restarts so a static workflow keeps the
 # same artifact / variant / revision ids everywhere. Changing it re-keys every static workflow.
 _STATIC_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "catalog")
+WorkflowRevisionDeclaration = Union[WorkflowRevision, Callable[[], WorkflowRevision]]
+
+
+def normalize_static_version(version: Optional[Union[str, int]]) -> Optional[str]:
+    """Canonical form for comparing static workflow versions.
+
+    Static versions are declared as ``vN`` but a round-tripped reference can arrive as ``N`` or the
+    integer ``N`` (the frontend coerces ``workflow.version`` to a number). Reduce all three to the
+    bare digits so ``"v1"``, ``"1"``, and ``1`` resolve the same revision.
+    """
+    if version is None:
+        return None
+    text = str(version).strip()
+    if not text:
+        return None
+    if text[0] in ("v", "V") and text[1:].isdigit():
+        return text[1:]
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +93,7 @@ _STATIC_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "catalog")
 # A version payload is a FULL WorkflowRevision carrying the declared content (name, description,
 # data); the catalogue stamps the structural fields (ids / slug / version) and the inferred flags
 # on resolution. The catalogue is a FULL workflow catalogue, not skill-specific; what a given entry
-# *is* falls out of its ``data.uri`` (the only static workflow today happens to be a skill, hence a
-# snippet carrying uri + parameters).
+# *is* falls out of its ``data.uri`` and explicit catalogue metadata.
 
 
 def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
@@ -90,7 +113,7 @@ def _skill_revision(skill_template: SkillTemplate) -> WorkflowRevision:
 
 def _client_tool_revision() -> WorkflowRevision:
     return WorkflowRevision(
-        name="Request connection",
+        name=REQUEST_CONNECTION_WORKFLOW_NAME,
         description="Ask the user to connect an external account.",
         data=WorkflowRevisionData(
             uri="client:tool:request_connection:v0",
@@ -129,36 +152,127 @@ def _client_tool_revision() -> WorkflowRevision:
     )
 
 
-# Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision}}.
+REQUEST_INPUT_TOOL_NAME = "request_input"
+
+
+def _request_input_revision() -> WorkflowRevision:
+    """The elicitation client tool (interaction kinds M1): pause and collect typed input.
+
+    The payload contract ({message, requestedSchema} flat dialect, accept/decline/cancel result
+    envelope, secret-field refusal) is pinned by the shared golden fixtures at
+    ``web/packages/agenta-shared/tests/fixtures/elicitation_*.json`` and enforced by the
+    browser-side validator. Design: docs/design/agent-chat-interaction-kinds/decisions.md
+    """
+    return WorkflowRevision(
+        name="Request input",
+        description="Ask the user for structured input via an inline form.",
+        data=WorkflowRevisionData(
+            uri="client:tool:request_input:v0",
+            parameters={
+                "tool": {
+                    "type": "client",
+                    "name": REQUEST_INPUT_TOOL_NAME,
+                    "description": (
+                        "Pause the run and ask the user for typed input via an inline form. "
+                        "Use this instead of guessing values the user must confirm — for "
+                        "example, when wiring a provider tool, ask WHICH actions to enable "
+                        "(enum from discover_tools results) or collect non-secret settings "
+                        "(subdomain, workspace) before request_connection; or collect schedule "
+                        "details (frequency, time of day, timezone) before create_schedule. "
+                        "`requestedSchema` must be a FLAT JSON object schema: top-level "
+                        "string/number/integer/boolean properties (enum, format, title and "
+                        "default allowed). For a multi-pick question use {type: 'array', "
+                        "items: {type: 'string', enum: [...]}} — the ONLY array shape "
+                        "allowed; no nested objects or deeper arrays. When options need "
+                        "explaining, replace `enum` with oneOf: [{const, title, description}] "
+                        "(works inside `items` too) — such options render as selectable cards "
+                        "with the description under each title. When you can "
+                        "propose a sensible value, set it as the field's `default` (a "
+                        "primitive): it prefills the form so the user can accept everything "
+                        "in one click. Enum options are SUGGESTIONS, not a hard constraint — "
+                        "the form lets the user type their own value, so keep enums short and "
+                        "likely rather than exhaustive. Supported `format` values: "
+                        "'date', 'date-time', 'email', 'uri', and 'multiline' — use 'multiline' "
+                        "for any long or free-form text field (notes, a description, a message "
+                        "body). NEVER request secrets "
+                        "(passwords, API keys, tokens); use request_connection for credentials. "
+                        "The result is {action: 'accept'|'decline'|'cancel', content?}: on "
+                        "accept, `content` holds the user's values; respect a decline or "
+                        "cancel — do not re-ask."
+                    ),
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "What you need and why, in one or two sentences shown above the form.",
+                            },
+                            "requestedSchema": {
+                                "type": "object",
+                                "description": "Flat JSON Schema (type 'object', primitive top-level properties only) describing the fields to collect.",
+                            },
+                        },
+                        "required": ["message", "requestedSchema"],
+                        "additionalProperties": False,
+                    },
+                    "render": {"kind": "elicitation"},
+                }
+            },
+        ),
+    )
+
+
+def _build_kit_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name=BUILD_KIT_WORKFLOW_NAME,
+        description=BUILD_KIT_WORKFLOW_DESCRIPTION,
+        data=WorkflowRevisionData(
+            uri=AGENTA_BUILTIN_AGENT_URI,
+            parameters={"agent": build_agent_template_overlay()},
+        ),
+    )
+
+
+# Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision factory}}.
 _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
     GETTING_STARTED_WITH_AGENTA_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
         "latest": "v1",
         "versions": {
             "v1": _skill_revision(GETTING_STARTED_WITH_AGENTA_SKILL),
         },
     },
     REQUEST_CONNECTION_WORKFLOW_SLUG: {
+        "kind": "tool",
+        "embeddable": True,
         "latest": "v1",
         "versions": {
             "v1": _client_tool_revision(),
         },
     },
-    BUILD_YOUR_FIRST_APP_SLUG: {
+    REQUEST_INPUT_WORKFLOW_SLUG: {
+        "kind": "tool",
+        "embeddable": True,
         "latest": "v1",
         "versions": {
-            "v1": _skill_revision(BUILD_YOUR_FIRST_APP_SKILL),
+            "v1": _request_input_revision(),
         },
     },
-    DISCOVER_AND_WIRE_TOOLS_SLUG: {
+    BUILD_AN_AGENT_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
         "latest": "v1",
         "versions": {
-            "v1": _skill_revision(DISCOVER_AND_WIRE_TOOLS_SKILL),
+            "v1": _skill_revision(BUILD_AN_AGENT_SKILL),
         },
     },
-    SET_UP_TRIGGERS_SLUG: {
+    BUILD_KIT_WORKFLOW_SLUG: {
+        "kind": "agent_config",
+        "embeddable": False,
         "latest": "v1",
         "versions": {
-            "v1": _skill_revision(SET_UP_TRIGGERS_SKILL),
+            "v1": _build_kit_revision,
         },
     },
 }
@@ -227,6 +341,8 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                     f"{sorted(versions)}."
                 )
             for version, revision in versions.items():
+                if callable(revision):
+                    continue
                 if (
                     not isinstance(revision, WorkflowRevision)
                     or not revision.data
@@ -237,11 +353,38 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                         f"WorkflowRevision with data.uri."
                     )
 
+    def list_slugs(self) -> List[str]:
+        """Every reserved slug in the catalogue, in declaration order.
+
+        The public way to enumerate the catalogue (each slug resolves through
+        :meth:`retrieve_revision`); callers must not reach into the backing dict."""
+        return list(self._catalog)
+
     def is_static_slug(self, slug: Optional[str]) -> bool:
         return is_static_workflow_slug(slug)
 
     def is_static_id(self, entity_id: Optional[UUID]) -> bool:
         return entity_id is not None and entity_id in self._index_by_id
+
+    def is_embeddable(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+    ) -> bool:
+        resolved_slug = slug
+        if id is not None:
+            match = self._index_by_id.get(id)
+            if match is not None:
+                resolved_slug = match[0]
+
+        if resolved_slug is None:
+            return True
+
+        entry = self._catalog.get(resolved_slug)
+        if not entry:
+            return True
+        return bool(entry.get("embeddable", True))
 
     def retrieve_revision(
         self,
@@ -271,22 +414,46 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
         # No version -> latest (the artifact-level lookup). A version pins that immutable revision.
         # "Latest" is never a version value; it is the no-version lookup.
         resolved_version = version if version is not None else entry.get("latest")
-        if resolved_version not in versions:
+        version_key = self._match_version(versions, resolved_version)
+        if version_key is None:
             return None
 
         return self._build_revision(
             slug=slug,
-            version=resolved_version,
-            declared=versions[resolved_version],
+            version=version_key,
+            declared=versions[version_key],
         )
+
+    @staticmethod
+    def _match_version(
+        versions: Dict[str, Any],
+        version: Optional[Union[str, int]],
+    ) -> Optional[str]:
+        """The stored version key matching ``version`` under normalized comparison, or None.
+
+        Every version compare in this catalogue routes through here so ``"v1"``, ``"1"``, and ``1``
+        all resolve the same declared revision.
+        """
+        target = normalize_static_version(version)
+        for stored in versions:
+            if normalize_static_version(stored) == target:
+                return stored
+        return None
+
+    @staticmethod
+    def _declared_revision(
+        declared: WorkflowRevisionDeclaration,
+    ) -> WorkflowRevision:
+        return declared() if callable(declared) else declared
 
     def _build_revision(
         self,
         *,
         slug: str,
         version: str,
-        declared: WorkflowRevision,
+        declared: WorkflowRevisionDeclaration,
     ) -> WorkflowRevision:
+        declared = self._declared_revision(declared)
         # A snippet (skill) keeps only uri + parameters; for runnable static workflows this is a
         # no-op. Flags are inferred: is_skill from the uri, is_static from the (reserved) slug.
         data = normalize_snippet_data(declared.data)

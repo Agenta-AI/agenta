@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import json
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
+from uuid import uuid4
+
+from agenta.sdk.utils.logging import get_module_logger
 
 from ...dtos import AgentResult
 from ...streaming import AgentStream
+from ...utils.wire import sanitize_runner_error
 from .messages import TOOL_APPROVAL_REQUEST
+
+log = get_module_logger(__name__)
 
 
 # The AI SDK UI message stream (`ai@6`) validates the `finish` frame's
@@ -49,6 +55,36 @@ def _map_finish_reason(stop_reason: Optional[str]) -> Optional[str]:
     return _FINISH_REASON_MAP.get(normalized, "unknown")
 
 
+# Required-string chunk types per the `ai@6` uiMessageChunkSchema: a missing/None value in
+# any of these slots makes the strict client-side schema throw and kill the whole turn.
+_REQUIRES_TOOL_CALL_ID = {
+    "tool-input-start",
+    "tool-input-available",
+    "tool-output-available",
+    "tool-output-error",
+    "tool-output-denied",
+    TOOL_APPROVAL_REQUEST,
+}
+_REQUIRES_TOOL_NAME = {"tool-input-start", "tool-input-available"}
+
+
+def _conform(part: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Normalize a part at the yield boundary so it never violates the AI SDK's strict
+    ``uiMessageChunkSchema``. Returns ``None`` when the part is unsalvageable and must be
+    dropped rather than sent broken.
+    """
+    if part is None:
+        return None
+    ptype = part.get("type")
+    if ptype in _REQUIRES_TOOL_CALL_ID and part.get("toolCallId") is None:
+        return None
+    if ptype in _REQUIRES_TOOL_NAME and not part.get("toolName"):
+        part["toolName"] = "unknown_tool"
+    if ptype == "file" and (not part.get("url") or not part.get("mediaType")):
+        return None
+    return part
+
+
 async def agent_run_to_vercel_parts(
     run: AgentStream,
     *,
@@ -63,6 +99,24 @@ async def agent_run_to_vercel_parts(
     run-based variant pairs with the dev-only one-shot ``AgentStream`` debugging surface and is
     kept for that; it is not on any live request path.
     """
+    async for part in _agent_run_to_vercel_parts_impl(
+        run,
+        session_id=session_id,
+        message_id=message_id,
+        trace_id=trace_id,
+    ):
+        conformed = _conform(part)
+        if conformed is not None:
+            yield conformed
+
+
+async def _agent_run_to_vercel_parts_impl(
+    run: AgentStream,
+    *,
+    session_id: Optional[str] = None,
+    message_id: str = "msg-1",
+    trace_id: Optional[str] = None,
+) -> AsyncIterator[Dict[str, Any]]:
     start: Dict[str, Any] = {"type": "start", "messageId": message_id}
     if session_id is not None:
         start["messageMetadata"] = {"sessionId": session_id}
@@ -73,6 +127,7 @@ async def agent_run_to_vercel_parts(
     reasoning_seq = 0
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
+    content_parts_emitted = 0
     # Tool-call ids already surfaced as a tool part. An approval request attaches
     # to its tool part by id, so we synthesize one only when none preceded it.
     seen_tool_calls: set = set()
@@ -86,12 +141,14 @@ async def agent_run_to_vercel_parts(
             if etype == "message":
                 text_seq += 1
                 tid = f"text-{text_seq}"
+                content_parts_emitted += 1
                 yield {"type": "text-start", "id": tid}
                 yield {"type": "text-delta", "id": tid, "delta": data.get("text", "")}
                 yield {"type": "text-end", "id": tid}
             elif etype == "message_start":
                 yield {"type": "text-start", "id": data.get("id")}
             elif etype == "message_delta":
+                content_parts_emitted += 1
                 yield {
                     "type": "text-delta",
                     "id": data.get("id"),
@@ -122,42 +179,66 @@ async def agent_run_to_vercel_parts(
             elif etype == "tool_call":
                 tool_call_id = data.get("id")
                 tool_name = data.get("name")
+                # A repeat tool_call for an already-seen id is an input REFRESH: the runner
+                # re-emits the call once the real args arrive on a later ACP tool_call_update
+                # (Pi announces the call first with absent/`{}` args). Emit `tool-input-start`
+                # only the first time — a second start would reset the FE tool part after its
+                # approval/output. Mirrors the seen-id refresh in `_interaction_parts`.
+                first_seen = tool_call_id not in seen_tool_calls
                 seen_tool_calls.add(tool_call_id)
-                tool_names_by_id[tool_call_id] = tool_name
-                yield {
-                    "type": "tool-input-start",
-                    "toolCallId": tool_call_id,
-                    "toolName": tool_name,
-                }
+                # Record the name only on first sight. On a repeat (arg-refresh) keep the
+                # best-known name: an intervening approval may have upgraded it to the STABLE
+                # spec name, and this refresh carries only the drift-prone ACP title — letting it
+                # clobber the spec name re-breaks the cross-turn resume key (the HITL loop).
+                if first_seen:
+                    tool_names_by_id[tool_call_id] = tool_name
+                tool_name = tool_names_by_id.get(tool_call_id) or tool_name
+                content_parts_emitted += 1
+                if first_seen:
+                    yield {
+                        "type": "tool-input-start",
+                        "toolCallId": tool_call_id,
+                        "toolName": tool_name,
+                    }
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    "input": data.get("input"),
+                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
+                    # plain `input` empty on some tool-call paths — mirrors the approval /
+                    # client-tool reads in `_interaction_parts` so every path shows real args.
+                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
+                    "input": (
+                        data["rawInput"]
+                        if data.get("rawInput") is not None
+                        else data.get("input")
+                    ),
                 }
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                if data.get("denied"):
-                    yield {
-                        "type": "tool-output-denied",
-                        "toolCallId": tool_call_id,
-                    }
-                elif data.get("isError"):
+                content_parts_emitted += 1
+                # A tool part (-error/-available) only ever emits for a tool call this
+                # stream actually surfaced; an orphaned one has no tool part to attach to
+                # and the client throws. The commit-revision side-channel below is a plain
+                # data event, not a tool-result envelope, so it fires regardless.
+                has_tool_part = tool_call_id in seen_tool_calls
+                if has_tool_part and data.get("isError"):
                     yield {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
-                else:
+                elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
-                    yield {
-                        "type": "tool-output-available",
-                        "toolCallId": tool_call_id,
-                        "output": out,
-                    }
+                    if has_tool_part:
+                        yield {
+                            "type": "tool-output-available",
+                            "toolCallId": tool_call_id,
+                            "output": out,
+                        }
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -166,10 +247,11 @@ async def agent_run_to_vercel_parts(
                             "type": "data-committed-revision",
                             "data": committed,
                         }
-                    if data.get("render") is not None:
+                    if has_tool_part and data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
-                for part in _interaction_parts(data, seen_tool_calls):
+                for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
+                    content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -178,8 +260,10 @@ async def agent_run_to_vercel_parts(
                 }
                 if data.get("transient"):
                     part["transient"] = True
+                content_parts_emitted += 1
                 yield part
             elif etype == "file":
+                content_parts_emitted += 1
                 yield {
                     "type": "file",
                     "url": data.get("url"),
@@ -190,22 +274,35 @@ async def agent_run_to_vercel_parts(
             elif etype == "error":
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
-                stop_reason = data.get("stopReason")
+                # Last non-null stop reason wins; see the routing-layer twin's `done` note.
+                reason = data.get("stopReason")
+                if reason is not None:
+                    stop_reason = reason
     except Exception as exc:
-        yield {"type": "error", "errorText": str(exc)}
+        # A graceful terminal failure (the run's own AgentResult says ok=false) surfaces here
+        # as a plain exception from AgentStream iteration; that case intentionally ends the
+        # stream on the error part with no finish frame, so this path stays as-is. Sanitize
+        # either way — an unexpected exception's raw str() can carry a stack/path dump.
+        log.error("agent_run_to_vercel_parts: error mid-stream", exc_info=True)
+        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
         return
 
-    if usage is None or trace_id is None:
-        result = _safe_result(run)
-        if result is not None:
-            if usage is None:
-                usage = _usage_metadata(result.usage or {})
-                if stop_reason is None:
-                    stop_reason = result.stop_reason
-            if trace_id is None:
-                trace_id = result.trace_id
+    # The terminal AgentResult is authoritative. Its stop_reason wins over the `done` event's,
+    # which the live runner leaves empty on a HITL pause (mirrors fold's terminal-wins
+    # precedence); usage/trace_id fall back to it only when the stream carried neither.
+    result = _safe_result(run)
+    if result is not None:
+        if result.stop_reason is not None:
+            stop_reason = result.stop_reason
+        if usage is None:
+            usage = _usage_metadata(result.usage or {})
+        if trace_id is None:
+            trace_id = result.trace_id
 
     yield {"type": "finish-step"}
+    if content_parts_emitted == 0:
+        # An ok:true run with zero content parts would otherwise render as a blank bubble.
+        yield {"type": "error", "errorText": "The agent produced no output."}
     finish: Dict[str, Any] = {"type": "finish"}
     finish_reason = _map_finish_reason(stop_reason)
     if finish_reason is not None:
@@ -224,7 +321,7 @@ async def agent_stream_to_vercel_stream(
     events: AsyncIterator[Dict[str, Any]],
     *,
     session_id: Optional[str] = None,
-    message_id: str = "msg-1",
+    message_id: Optional[str] = None,
     trace_id: Optional[str] = None,
 ) -> AsyncIterator[Dict[str, Any]]:
     """Project a stream of neutral agenta events into Vercel UI Message Stream parts.
@@ -236,7 +333,31 @@ async def agent_stream_to_vercel_stream(
     ``done`` events; ``trace_id`` is passed in by routing (off the response), since there is no
     run to fall back to here.
     """
-    start: Dict[str, Any] = {"type": "start", "messageId": message_id}
+    async for part in _agent_stream_to_vercel_stream_impl(
+        events,
+        session_id=session_id,
+        message_id=message_id,
+        trace_id=trace_id,
+    ):
+        conformed = _conform(part)
+        if conformed is not None:
+            yield conformed
+
+
+async def _agent_stream_to_vercel_stream_impl(
+    events: AsyncIterator[Dict[str, Any]],
+    *,
+    session_id: Optional[str] = None,
+    message_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+) -> AsyncIterator[Dict[str, Any]]:
+    # Every turn needs a UNIQUE messageId — the client keys messages by it, so a shared constant
+    # collides across turns (duplicate React keys, dropped turns). Prefer the run's trace_id (stable,
+    # correlatable), else a fresh uuid.
+    resolved_message_id = message_id or (
+        f"msg-{trace_id}" if trace_id else f"msg-{uuid4().hex}"
+    )
+    start: Dict[str, Any] = {"type": "start", "messageId": resolved_message_id}
     if session_id is not None:
         start["messageMetadata"] = {"sessionId": session_id}
     yield start
@@ -246,6 +367,7 @@ async def agent_stream_to_vercel_stream(
     reasoning_seq = 0
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
+    content_parts_emitted = 0
     seen_tool_calls: set = set()
     tool_names_by_id: Dict[Any, Any] = {}
 
@@ -257,12 +379,14 @@ async def agent_stream_to_vercel_stream(
             if etype == "message":
                 text_seq += 1
                 tid = f"text-{text_seq}"
+                content_parts_emitted += 1
                 yield {"type": "text-start", "id": tid}
                 yield {"type": "text-delta", "id": tid, "delta": data.get("text", "")}
                 yield {"type": "text-end", "id": tid}
             elif etype == "message_start":
                 yield {"type": "text-start", "id": data.get("id")}
             elif etype == "message_delta":
+                content_parts_emitted += 1
                 yield {
                     "type": "text-delta",
                     "id": data.get("id"),
@@ -293,42 +417,66 @@ async def agent_stream_to_vercel_stream(
             elif etype == "tool_call":
                 tool_call_id = data.get("id")
                 tool_name = data.get("name")
+                # A repeat tool_call for an already-seen id is an input REFRESH: the runner
+                # re-emits the call once the real args arrive on a later ACP tool_call_update
+                # (Pi announces the call first with absent/`{}` args). Emit `tool-input-start`
+                # only the first time — a second start would reset the FE tool part after its
+                # approval/output. Mirrors the seen-id refresh in `_interaction_parts`.
+                first_seen = tool_call_id not in seen_tool_calls
                 seen_tool_calls.add(tool_call_id)
-                tool_names_by_id[tool_call_id] = tool_name
-                yield {
-                    "type": "tool-input-start",
-                    "toolCallId": tool_call_id,
-                    "toolName": tool_name,
-                }
+                # Record the name only on first sight. On a repeat (arg-refresh) keep the
+                # best-known name: an intervening approval may have upgraded it to the STABLE
+                # spec name, and this refresh carries only the drift-prone ACP title — letting it
+                # clobber the spec name re-breaks the cross-turn resume key (the HITL loop).
+                if first_seen:
+                    tool_names_by_id[tool_call_id] = tool_name
+                tool_name = tool_names_by_id.get(tool_call_id) or tool_name
+                content_parts_emitted += 1
+                if first_seen:
+                    yield {
+                        "type": "tool-input-start",
+                        "toolCallId": tool_call_id,
+                        "toolName": tool_name,
+                    }
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
-                    "input": data.get("input"),
+                    # Prefer `rawInput` (the tool's real args, per ACP); the runner leaves the
+                    # plain `input` empty on some tool-call paths — mirrors the approval /
+                    # client-tool reads in `_interaction_parts` so every path shows real args.
+                    # `is not None` (not truthiness): a legit empty `{}` is real args, not absent.
+                    "input": (
+                        data["rawInput"]
+                        if data.get("rawInput") is not None
+                        else data.get("input")
+                    ),
                 }
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                if data.get("denied"):
-                    yield {
-                        "type": "tool-output-denied",
-                        "toolCallId": tool_call_id,
-                    }
-                elif data.get("isError"):
+                content_parts_emitted += 1
+                # A tool part (-error/-available) only ever emits for a tool call this
+                # stream actually surfaced; an orphaned one has no tool part to attach to
+                # and the client throws. The commit-revision side-channel below is a plain
+                # data event, not a tool-result envelope, so it fires regardless.
+                has_tool_part = tool_call_id in seen_tool_calls
+                if has_tool_part and data.get("isError"):
                     yield {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
-                else:
+                elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
-                    yield {
-                        "type": "tool-output-available",
-                        "toolCallId": tool_call_id,
-                        "output": out,
-                    }
+                    if has_tool_part:
+                        yield {
+                            "type": "tool-output-available",
+                            "toolCallId": tool_call_id,
+                            "output": out,
+                        }
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -337,10 +485,11 @@ async def agent_stream_to_vercel_stream(
                             "type": "data-committed-revision",
                             "data": committed,
                         }
-                    if data.get("render") is not None:
+                    if has_tool_part and data.get("render") is not None:
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
-                for part in _interaction_parts(data, seen_tool_calls):
+                for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
+                    content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -349,8 +498,10 @@ async def agent_stream_to_vercel_stream(
                 }
                 if data.get("transient"):
                     part["transient"] = True
+                content_parts_emitted += 1
                 yield part
             elif etype == "file":
+                content_parts_emitted += 1
                 yield {
                     "type": "file",
                     "url": data.get("url"),
@@ -361,28 +512,42 @@ async def agent_stream_to_vercel_stream(
             elif etype == "error":
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
-                stop_reason = data.get("stopReason")
+                # Prefer the LAST non-null stop reason. The handler appends a corrective
+                # terminal `done` after the runner's `done` when the authoritative result
+                # disagrees — the runner omits stopReason on a HITL pause — so the terminal
+                # value wins, while a null-carrying `done` never clobbers a real earlier one.
+                # Mirrors fold's terminal-wins precedence (agent_batch / fold.py).
+                reason = data.get("stopReason")
+                if reason is not None:
+                    stop_reason = reason
     except Exception as exc:
-        yield {"type": "error", "errorText": str(exc)}
-        return
-
-    yield {"type": "finish-step"}
-    finish: Dict[str, Any] = {"type": "finish"}
-    finish_reason = _map_finish_reason(stop_reason)
-    if finish_reason is not None:
-        finish["finishReason"] = finish_reason
-    metadata: Dict[str, Any] = {}
-    if usage:
-        metadata["usage"] = usage
-    if trace_id is not None:
-        metadata["traceId"] = trace_id
-    if metadata:
-        finish["messageMetadata"] = metadata
-    yield finish
+        log.error("agent_stream_to_vercel_stream: error mid-stream", exc_info=True)
+        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+    finally:
+        # Every exit path — including the raw exception above — must still drain to a
+        # finish frame, or a consumer waiting on it hangs.
+        yield {"type": "finish-step"}
+        if content_parts_emitted == 0:
+            # An ok:true run with zero content parts would otherwise render as a blank bubble.
+            yield {"type": "error", "errorText": "The agent produced no output."}
+        finish: Dict[str, Any] = {"type": "finish"}
+        finish_reason = _map_finish_reason(stop_reason)
+        if finish_reason is not None:
+            finish["finishReason"] = finish_reason
+        metadata: Dict[str, Any] = {}
+        if usage:
+            metadata["usage"] = usage
+        if trace_id is not None:
+            metadata["traceId"] = trace_id
+        if metadata:
+            finish["messageMetadata"] = metadata
+        yield finish
 
 
 def _interaction_parts(
-    data: Dict[str, Any], seen_tool_calls: set
+    data: Dict[str, Any],
+    seen_tool_calls: set,
+    tool_names_by_id: Optional[Dict[Any, Any]] = None,
 ) -> Iterator[Dict[str, Any]]:
     """Project a neutral ``interaction_request`` event to Vercel stream parts.
 
@@ -393,16 +558,38 @@ def _interaction_parts(
     didn't, synthesize a tool part from the request payload so the approval has something to
     render against.
     """
+    names = tool_names_by_id if tool_names_by_id is not None else {}
     kind = data.get("kind")
     payload = data.get("payload") or {}
     if kind == "user_approval":
         tool_call_id = _approval_tool_call_id(payload)
         tool_call = payload.get("toolCall")
         if tool_call_id is not None and isinstance(tool_call, dict):
-            tool_name = (
-                tool_call.get("name") or tool_call.get("title") or tool_call.get("kind")
+            # Prefer the STABLE resolved spec name over the drift-prone ACP title/kind so the
+            # part the FE persists (and folds back on resume) keys the same as the live re-raised
+            # gate (responder.ts `permissionToolName`). Otherwise the cross-turn key silently
+            # stops matching and the gate re-parks every turn (the HITL resume loop).
+            tool_name = _approval_tool_name(tool_call)
+            # Record it as the AUTHORITATIVE name for this id, so a later arg-refresh tool_call
+            # (which carries only the drift-prone ACP title) cannot downgrade it back and re-break
+            # the resume key. See the tool_call handler's `tool_names_by_id.get(...)` preference.
+            names[tool_call_id] = tool_name
+            real_input = (
+                tool_call["rawInput"]
+                if tool_call.get("rawInput") is not None
+                else tool_call.get("input")
             )
-            real_input = tool_call.get("rawInput") or tool_call.get("input")
+            # EGRESS side of the HITL key: what name+args the FE persists on the approval part
+            # (and folds back on resume). Compare to the runner's live `[HITL] gate` identity.
+            log.info(
+                "[HITL] egress approval-request id=%s name=%s spec=%s input_keys=%s",
+                tool_call_id,
+                tool_name,
+                (_tool_spec_of(tool_call) or {}).get("name"),
+                list(real_input.keys())
+                if isinstance(real_input, dict)
+                else type(real_input).__name__,
+            )
             if tool_call_id not in seen_tool_calls:
                 # The runner parked without first surfacing the tool call, so
                 # synthesize a tool part for the approval to render against.
@@ -419,10 +606,11 @@ def _interaction_parts(
                     "input": real_input,
                 }
             elif real_input:
-                # The tool call was already surfaced, often with empty input on a
-                # cold-replay resume. The approval request carries the real args, so
-                # re-emit `tool-input-available` to refresh the parked call's input
-                # instead of persisting `{}` (HITL approve-empty-input bug).
+                # The tool call was already surfaced (often by the tracing tool_call event, whose
+                # name is the ACP title/kind, and often with empty input on a cold-replay resume).
+                # Re-emit `tool-input-available` to refresh BOTH the stable `toolName` and the real
+                # args, instead of persisting the drift-prone name + `{}` input (HITL
+                # approve-empty-input / name-drift bug).
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
@@ -450,7 +638,11 @@ def _interaction_parts(
             )
         real_input = payload.get("input")
         if real_input is None and isinstance(tool_call, dict):
-            real_input = tool_call.get("rawInput") or tool_call.get("input")
+            real_input = (
+                tool_call["rawInput"]
+                if tool_call.get("rawInput") is not None
+                else tool_call.get("input")
+            )
         if tool_call_id is not None and tool_call_id not in seen_tool_calls:
             seen_tool_calls.add(tool_call_id)
             yield {
@@ -486,6 +678,34 @@ def _render_part(tool_call_id: Any, render: Any) -> Dict[str, Any]:
         "type": "data-render",
         "data": {"toolCallId": tool_call_id, "render": render},
     }
+
+
+def _tool_spec_of(tool_call: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The resolved agenta tool spec attached to an ACP tool call, under any of its aliases."""
+    for key in ("spec", "toolSpec", "resolvedTool", "tool"):
+        spec = tool_call.get(key)
+        if isinstance(spec, dict):
+            return spec
+    return None
+
+
+def _approval_tool_name(tool_call: Dict[str, Any]) -> Optional[Any]:
+    """The gated tool's name for the cross-turn resume key.
+
+    Prefer ``resolvedName`` — the recorded ``tool_call`` name the runner stamps on the gate, the
+    SAME value the transcript folds into the stored key — so the egress names the part exactly as
+    the responder keys it. Then the resolved spec's canonical ``name`` (when a spec exists). Only
+    then the ACP display fields (``title``/``kind``), which drift between the park frame and the
+    permission frame and were the resume-loop root cause. Falls back to ``name -> title -> kind``.
+    """
+    spec = _tool_spec_of(tool_call)
+    return (
+        tool_call.get("resolvedName")
+        or (spec or {}).get("name")
+        or tool_call.get("name")
+        or tool_call.get("title")
+        or tool_call.get("kind")
+    )
 
 
 def _approval_tool_call_id(payload: Dict[str, Any]) -> Optional[Any]:

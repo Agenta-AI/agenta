@@ -2,12 +2,12 @@ import type {LlmProvider} from "@agenta/shared/types"
 import {
     dataUriToObjectUrl,
     isBase64,
+    isSlugInputValid,
     isUrl,
     removeEmptyFromObjects as sharedRemoveEmptyFromObjects,
     safeJson5Parse,
 } from "@agenta/shared/utils"
 import {notification} from "antd"
-import yaml from "js-yaml"
 import JSON5 from "json5"
 import Router from "next/router"
 import {v4 as uuidv4} from "uuid"
@@ -43,10 +43,8 @@ export const isVariantNameInputValid = (input: string) => {
     return URL_SAFE.test(input)
 }
 
-// Slugs go into URLs / identifiers and stay constrained to [a-zA-Z0-9_-].
-export const isSlugInputValid = (input: string) => {
-    return URL_SAFE.test(input)
-}
+// Moved to @agenta/shared/utils; re-exported here so existing oss imports keep working.
+export {isSlugInputValid}
 
 export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
@@ -206,14 +204,6 @@ export const getInitials = (str: string, limit = 2) => {
 
 export const getStringOrJson = (value: any) => {
     return typeof value === "string" ? value : JSON.stringify(value, null, 2)
-}
-
-export const getYamlOrJson = (format: "JSON" | "YAML", data: any) => {
-    try {
-        return format === "YAML" ? yaml.dump(data) : getStringOrJson(data)
-    } catch (error) {
-        return getStringOrJson(data)
-    }
 }
 
 export const formatVariantIdWithHash = (variantId: string) => {

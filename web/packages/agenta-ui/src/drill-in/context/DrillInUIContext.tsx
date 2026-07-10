@@ -172,6 +172,11 @@ export interface WorkflowReferenceBridge {
     enabled: boolean
     workflows: WorkflowReferenceUI[]
     workflowsLoading: boolean
+    /** Activate the workflow list + evaluator catalog behind this bridge. Lazy: the underlying
+     * project-wide list/catalog queries stay dormant (`workflows` empty) until a consumer that
+     * actually needs them calls this — on reference-picker open or when displaying an existing
+     * reference. One-way; stays warm after the first call. */
+    activate?: () => void
     /** Resolve the referenced workflow's input JSON-schema to pre-fill the tool's `input_schema`.
      * Returns null when unavailable; the caller falls back to an empty object schema. */
     resolveInputSchema: (workflow: WorkflowReferenceUI) => Promise<Record<string, unknown> | null>
@@ -307,6 +312,25 @@ export interface DrillInUIComponents {
         extraOptionGroups?: LLMProviderGroup[]
         /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
         footerContent?: ReactElement | null
+        /** Opens the host's "Configure provider" drawer for a NEW custom provider, pre-selecting
+         * `kind` (e.g. "azure", "bedrock", "vertex_ai", "custom"). Absent on hosts with no drawer
+         * wired up — callers hide the affordance in that case. */
+        openConfigureProvider?: (kind: string) => void
+    }
+
+    /**
+     * Deployment (host app) facts the package can't determine itself. Today: whether this
+     * deployment is Agenta cloud, which gates the Provider credentials section's self-managed
+     * card badge (design.md D6, docs/design/connect-model-drawer) — the "Use subscription" mode
+     * itself stays clickable regardless. Absent (older hosts) reads as not-cloud, i.e. ungated.
+     */
+    deployment?: {
+        /** Policy: gates the self-managed card's "Not on cloud" badge, NOT the connection mode's
+         * clickability (the toggle is always clickable when capability-allowed). Never changes at
+         * runtime. */
+        isCloud: boolean
+        /** Link target for the self-managed info card's "Read the self-hosting guide" pill. */
+        selfHostingGuideUrl?: string
     }
 
     /** Gateway tools integration for the tool selector */
