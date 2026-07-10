@@ -1958,12 +1958,12 @@ const AgentConversation = ({
                         <RichChatInput
                             ref={richInputRef}
                             className={`${CHAT_COLUMN} mb-3`}
-                            // Onboarding: submit = commit the ephemeral (not send); Enter inserts a newline
-                            // (you're writing a description), and the Create-agent button (trailing) commits.
+                            // Onboarding: submit = commit the ephemeral — Enter creates the agent
+                            // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
+                            // for longer descriptions.
                             onSubmit={onboardingActive ? () => handleCreateAgent() : handleSubmit}
                             disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                             hideSendButton={onboardingActive}
-                            submitOnEnter={!onboardingActive}
                             placeholder={
                                 onboardingActive
                                     ? ideHandoffActive
