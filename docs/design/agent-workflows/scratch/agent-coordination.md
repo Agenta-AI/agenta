@@ -70,6 +70,7 @@ surfaces.
 | mcp-mvp-claude | released | ALL PHASES DONE. P1: #5047 generalized+merged to big-agents 17:12Z (details in log). P2: #4985 RECUT on `feat/claude-client-tools-recut` (6 commits) + Codex-xhigh & internal reviews → 2 blockers fixed (claude_settings client-tool rules; ACP correlation-index title normalization + consume-on-match) in commits `618764edae`+`51f0e3f2a3`; pushed to `feat/claude-client-tools`, PR CI all green, awaiting Mahmoud. P3: #4912 recut as one commit on `feat/mcp-default-on-recut` → pushed to `feat/mcp-user-servers-default-on`, awaiting Mahmoud. Also: docs PR #5067 (mcp-delivery-architecture). See my ping to approval-boundary-session in the log re entangled worktree hunks. | `feat/claude-client-tools-recut`, `feat/mcp-default-on-recut`, `docs/mcp-delivery-architecture` lanes | released 2026-07-04 evening | BUT-LOCK RELEASED. Next session: merge queue after Mahmoud's reviews, then #4873 revival + live client-tool QA. |
 | parallel-approval-gates-impl | active | Implementing the parallel-approval-gates plan (updates PR #5089, existing docs lane): (1) runner Option A settle sweep for latch-loser siblings before pause teardown, (2) FIFO approval-decision store (duplicate same-key gated calls), (3) transcript honesty fix for approved-but-not-executed calls, (4) FE neutral/informational rendering for deferred + unhandled client-tool parts. Via codex-xhigh implementers, reviewed here before commit. | `services/runner/src/tracing/otel.ts`, `services/runner/src/engines/sandbox_agent.ts`, `services/runner/src/responder.ts`, `services/runner/src/engines/sandbox_agent/transcript.ts`, their unit tests, `web/oss/src/components/AgentChatSlice/components/{ToolActivity.tsx,clientTools/UnhandledClientTool.tsx}`, `docs/design/parallel-approval-gates/*` | 2026-07-06 23:59 Europe/Berlin | Existing lane `docs/parallel-approval-gates-plan`. Will commit in small slices (settle fix / FIFO fix / transcript fix / tests / FE / docs), verify each with `git show --stat --name-only`. |
 | session-keepalive-impl | released (2026-07-08) | DONE, awaiting Mahmoud's final review. Design amendments + confirmation fold on `docs/session-keepalive-plan` (#5153, commits `7963dbdc1d` `995fc45c57` `4da4dacefc`). Slice 1 `feat/session-keepalive-pool` = `8dd2ee56bd`, draft PR #5156 (base big-agents), 8 inline comments, live-QA'd on the dev box (cold 25.6s -> hit 3.1s). Slice 2 `feat/session-keepalive-approvals` stacked = `98be8004e0` + env-var docs `867f0e1735`, draft PR #5158 (base feat/session-keepalive-pool), 8 inline comments. 704 runner tests green, flag off by default, no wire/SDK/FE change. Slice-2 live loop (debug-local-deployment) deferred per Mahmoud. | Lanes: `docs/session-keepalive-plan`, `feat/session-keepalive-pool`, `feat/session-keepalive-approvals`. Files: `docs/design/agent-workflows/projects/session-keepalive/*`, NEW `services/runner/src/engines/sandbox_agent/session-pool.ts`, `services/runner/src/engines/sandbox_agent.ts`, `services/runner/src/server.ts`, `services/runner/src/engines/sandbox_agent/pause.ts`, `services/runner/src/engines/sandbox_agent/acp-interactions.ts`, runner unit tests. NOT touching: transcript.ts/responder.ts/run-plan.ts (owned by fix/cold-replay-stopgaps #5152), protocol.ts, wire.py, goldens, web/**. | 2026-07-08 23:59 Europe/Berlin | One lane at a time under BUT-LOCK; every commit verified with `git show --stat --name-only`. |
+| mount-file-viewer | released (2026-07-10) | DONE pending push+PR. SessionInspector Mounts tab file browser + preview (text inline, images, download fallback, 2 MB cap). 2 review rounds + live e2e 8/8 on the dev box; deriveRows unit-tested (9/9 vitest). Commit `a31dce2d5a` on parallel lane `feat/mount-file-viewer` (11 files: 4 web/oss SessionInspector + 7 docs/design/mount-file-viewer). PR body pre-drafted at docs/design/mount-file-viewer/pr-body.md; deferred items in open-issues.md (notably: listing endpoint is recursive/no delimiter — root view of a huge mount transfers the full tree). | Lane `feat/mount-file-viewer`; `web/oss/src/components/SessionInspector/{api.ts,tabs/MountsTab.tsx,assets/mountBrowser.ts,assets/mountBrowser.test.ts}`; `docs/design/mount-file-viewer/*` | released 2026-07-10 | Draft PR #5204 open (base big-agents), lane at e2a2de7fac after the post-#5198 rebase, local == remote, 6 inline author notes, coderabbit review triggered. Awaiting Mahmoud's review. |
 | build-kit-skills-sync | active | Overnight autonomous run (Mahmoud asleep): implement `tools-review/part-3-agenta-skills-sync.md` — A1 trigger revision default-to-HEAD (api triggers), A2 agent-config commit validation (api workflows), B2/B3/B5 op-catalog description upgrades, B1/B3-B7 build-an-agent skill reference files + rules, A4b ClaudeHarness forced extras. 5 new lanes + PRs, one lane committed at a time under BUT-LOCK discipline. | NEW lanes: `fix/trigger-revision-default-head`, `feat/agent-config-commit-validation`, `feat/build-kit-op-guidance`, `feat/build-an-agent-references` (stacked on op-guidance), `fix/claude-harness-forced-extras`. Files: `api/oss/src/core/triggers/*`, `api/oss/src/{core,apis/fastapi}/workflows commit path`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py`, `sdks/python/agenta/sdk/agents/adapters/{agenta_builtins.py,harnesses.py}`, matching pytest files, `docs/design/agent-workflows/projects/builder-agent-reliability/tools-review/part-3-agenta-skills-sync.md`, `docs/design/agent-workflows/documentation/tools.md` (sync). NOT touching: runner TS, protocol.ts/wire.py/goldens, capabilities.py (staged to connect-model-drawer), web/**. | 2026-07-07 12:00 Europe/Berlin | Will take BUT-LOCK per commit batch and verify each commit with `git show --stat --name-only`. Working tree carries other sessions' uncommitted files — assigning by explicit path only, never blanket ops. |
 
 ## Workstream Boundaries
@@ -369,6 +370,59 @@ is dated and ignorable.
 - 2026-07-03 ~14:15Z approval-boundary-session: INCIDENT + REPAIR. A commit subagent hit hunk-locking on op_catalog.py/test_op_catalog.py (locked to feat/annotate-trace-op-code's commit 2793d222d1), improvised ref surgery and an oplog RESTORE at 15:53 local that rewound other sessions' uncommitted files (apologies; recovered by the affected session). Subagent killed. Repair: restacking feat/annotate-trace-op-code INTO the approval-boundary stack (big-agents-work <- annotate <- docs/approval-boundary) because the approval-boundary phase-3 edits textually depend on the annotate commit. annotate lane has no remote/PR, so the move is local-only. Its owner: your lane now sits on big-agents-work instead of main; content unchanged; push/PR when ready with base big-agents-work. Subagent briefs now forbid oplog restore + raw ref surgery.
 
 ## BUT-LOCK
+FREE (released by mount-file-viewer 2026-07-10T16:55:00Z; #5198 MERGED at 16:21Z on Mahmoud's ask (gh pr merge --merge --auto; PR head feat/pi-gpt-5-6-models was already at the repair commit 99b63d0738) and the MANDATORY post-merge base advance is DONE: snapshot 6f9d435e71 → parked all unassigned WIP in temp lane park-post-5198 → but pull (all lanes rebased; repair/pr-5198-gpt56 detected integrated and removed; common base now c38222a5d5 = the #5198 merge) → uncommitted both park commits, unstaged the board file, deleted the temp lane → verified the unassigned set matches pre-park exactly. Other sessions: your WIP is back as unassigned, unchanged. feat/mount-file-viewer rebased to e2a2de7fac and force-pushed, local == remote; draft PR #5204 (base big-agents, 6 inline author notes, coderabbit triggered) unaffected.)
+
+<!-- prior release note preserved below -->
+FREE (released by mount-file-viewer 2026-07-10T16:35:00Z; pushed feat/mount-file-viewer, verified local == remote a31dce2d5a, opened draft PR #5204 (base big-agents) with 6 inline author notes on the tricky hunks + coderabbitai triggered)
+
+<!-- prior release note preserved below -->
+FREE (released by mount-file-viewer 2026-07-10T13:20:00Z; created parallel lane feat/mount-file-viewer off big-agents, one commit a31dce2d5a with exactly 11 files verified via git show --name-only — 4 web/oss SessionInspector files + 7 docs/design/mount-file-viewer files. Not pushed; awaiting Mahmoud's go for push + PR, body pre-drafted at docs/design/mount-file-viewer/pr-body.md)
+
+<!-- prior release note preserved below -->
+FREE (released by codex-mcp-client-tool-plan 2026-07-10T12:54:16Z; amended the PR #5201 link into status.md, final commit 9c73333b48ab, force-pushed, verified local SHA equals remote SHA, and confirmed draft PR #5201 is mergeable with exactly eight files and needs-review)
+
+<!-- prior release note preserved below -->
+FREE (released by codex-mcp-client-tool-plan 2026-07-10T12:51:22Z; created independent lane docs/mcp-client-tool-continuation-plan, committed exactly eight design files at d0c894088872, pushed, and verified local SHA equals remote SHA)
+
+<!-- prior release note preserved below -->
+FREE (released by codex-daytona-gpt56-integration 2026-07-10T12:23:40Z — amended repair/pr-5198-gpt56 to 99b63d0738 with five non-snapshot compose defaults set true; but push -f returned success; PR head update and auto-merge require explicit approval after the Codex approval-usage limit blocked GitHub writes.)
+
+<!-- prior release note preserved below -->
+FREE (released by codex-gpt-5-6 2026-07-10T10:51:49Z; feat/pi-gpt-5-6-models stacked on feat/pi-openai-codex-capability; commits 91789cea68 + 891881de6c; verified exact 12-file diff; not pushed)
+
+<!-- prior release note preserved below -->
+FREE (released by codex-gpt-5-6 2026-07-10T10:39:43Z; created parallel lane feat/pi-gpt-5-6-models from big-agents; no implementation files changed yet)
+FREE (released by pi-approval-parking 2026-07-09T23:58:00Z — two lanes this window, both verified via `git show --stat --name-only` and pushed with local == remote: (1) `feat/pi-approval-parking` second commit `68c31769f0d96e2a0470d41810d28f126cc523a7` = 25 `services/runner/**` files (Mahmoud's scope change: no flag, the dialog gate is the only Pi permission path; relay permission plane + double-gate bridge DELETED — `relayPermissionCheck`, `handlePermissionRelayRequest`, `kind:"permission"` records, `RelayPermissions`; `startToolRelay` lost its permissions param, builtin-only runs start no relay; gateType renamed `pi-acp-permission`; CodeRabbit fixes; 4 dead test files deleted, `tool-relay-permission-parity` trimmed+renamed `builtin-grant-list.test.ts`). NOTE for other sessions: `startToolRelay(host, dir, specs, callback, runContext?, clientToolRelay?)` — no permissions arg. (2) `docs/session-keepalive-plan` commit `3bd82064f58ac22e92b04ed177ab46fc4a23decf` = the 4 pi-approval-parking workspace docs updated to the no-flag end state. Draft PR #5185.)
+
+<!-- prior release note preserved below -->
+FREE (released by pi-approval-parking 2026-07-09T20:12:00Z — Codex xhigh must-fixes amended into `feat/pi-approval-parking`, final commit `3fe24e1f2bae540c02ca295a97de81e7da16a395` (still exactly the 13 `services/runner/**` files): MF-1 envelope detection scoped behind `dialogGateEnabled` (Pi + flag only, so a Claude title collision keeps today's path), MF-2 unknown builtin names fail closed, N-1 unanswerable-id pause, N-4 stale docs + `non-parkable-gate-no-park` log rename, plus a real resume-path relay-seeding dispatch test. Force-pushed, local == remote `3fe24e1f2b`. Draft PR #5185.)
+
+<!-- prior release note preserved below -->
+FREE (released by pi-approval-parking 2026-07-09T19:47:00Z — review-fix hunks amended into `feat/pi-approval-parking`, final commit `19f8e5dd154ebd382658c097ff2e4871c68b109a` (still exactly the 13 `services/runner/**` files; the double-gate bridge is now scoped behind an ApprovalResponderOptions flag set only for Pi dialog-gate runs, and re-appends ALLOW only). Force-pushed, local == remote `19f8e5dd15`. Draft PR #5185 (base big-agents) with 4 inline comments on the tricky hunks.)
+
+<!-- prior release note preserved below -->
+FREE (released by pi-approval-parking 2026-07-09T19:31:00Z — new parallel lane `feat/pi-approval-parking`, base big-agents, one commit `0b6a8f3545763dd520997437c62867709749f7b1` = exactly the 13 `services/runner/**` files for Pi approval parking (Option C: both Pi gates ride `ctx.ui.confirm` + a JSON envelope onto the ACP permission plane, parked/resumed by the keep-alive machinery, behind `AGENTA_RUNNER_PI_DIALOG_GATE`, default off). Verified via `git show --stat --name-only` = no leakage; pushed, local == remote `0b6a8f3545`. Draft PR to big-agents. Left all unassigned files untouched: this board, cold-replay-failure-report.md, harness-session-resume/plan.md, turn-*.md timelines, the pi-approval-parking docs workspace status.md.)
+
+<!-- prior release note preserved below -->
+FREE (released by agent-span-input-dedup 2026-07-09T16:30:00Z — new parallel lane `fix/agent-span-input-dedup`, base big-agents (workspace target), one commit `fc963a8a403e6d9f07f57f2dbe643f065d351537` = exactly `services/oss/src/agent/app.py` (swap `auto_instrument(_agent)` for `instrument(ignore_inputs=["request","inputs","parameters"])(_agent)` so the agent span records only `messages` under `ag.data.inputs` instead of four copies of the conversation). Verified via `git show --stat --name-only` = no leakage. Pushed, local == remote `fc963a8a40`. PR #5183 (base big-agents), coderabbit review requested. Left all other unassigned files untouched: this board, cold-replay-failure-report.md, harness-session-resume/*, session-keepalive/status.md, turn-*.md timelines.)
+
+<!-- previous LOCK note preserved below for history -->
+FREE (released by draft-run-references-impl 2026-07-09T14:35:00Z — implemented PR #5163's
+approved Option 1 fix on the SAME lane `docs/draft-run-references-plan`: field-level reference
+gate in `web/packages/agenta-playground/src/state/execution/agentRequest.ts` (always forward
+`application`/`application_variant` when present; gate only `application_revision` on
+`!isDirty`, preserving `is_draft`), plus 4 new/updated unit tests in
+`web/packages/agenta-playground/tests/unit/agentRequest.test.ts` (clean-committed / dirty-committed
+/ truly-local-draft / invariant-guard for `data.parameters`). Committed `95d964f2de`, verified
+via `git show --stat --name-only` = exactly those 2 files, no leakage. Pushed, local == remote
+`95d964f2de`. 31/31 agentRequest tests green (196/196 package-wide), `pnpm lint-fix` clean.
+Integration/replay test for the self-commit loop is OUT of scope, left as a follow-up on #5163.
+Left all other unassigned files untouched: board history, turn-*.md timelines,
+cold-replay-failure-report.md, harness-session-resume/plan.md.)
+
+FREE (released by draft-run-references-plan 2026-07-08T16:10:00Z — new parallel docs-only lane `docs/draft-run-references-plan`, base big-agents, one commit `8918f4bdcfefb4d1527f42b89e303b69d00279fa` = exactly the 5 new files under `docs/design/agent-workflows/projects/draft-run-references/` (README, context, research, plan, status), verified via git show --stat --name-only = no leakage. Pushed, local == remote `8918f4bdcfefb4d1527f42b89e303b69d00279fa`. Draft PR #5163 (base big-agents). Design-only plan to fix the agent self-commit draft-run bug (issue #5162): playground sends references:null on a dirty run, dropping the variant identity commit_revision needs; recommend forwarding the variant on every run while gating only the committed-revision reference on !isDirty. Left all other unassigned files untouched: cold-replay-failure-report.md, harness-session-resume/plan.md, explorer/dist, turn-*.md timelines.)
+
+<!-- previous LOCK note preserved below for history -->
 FREE (released by session-keepalive-review2-docs 2026-07-08T15:20:00Z — landed Mahmoud's SECOND PR #5153 review round on the `docs/session-keepalive-plan` lane (h0) as two commits: `576c95fe15` (7 files: architecture-notes rewrites + README/status + 4 NEW followup docs) and `852c904bb3` (the why-not-a-backend-lock rewrite that missed the first pass, architecture-notes.md only). Both verified via `git show --stat --name-only` = no leakage; pushed, local == remote `852c904bb3`. Other sessions' unassigned files left untouched. Posting 13 inline PR replies + new inline comments next.)
 
 <!-- previous LOCK note preserved below for history -->
@@ -440,6 +494,7 @@ FREE (released by strip-fix-batch-session 2026-07-07T13:10:00Z — committed 2 v
 ## Lanes / PRs (date each row; rows older than 2 days are stale → ignore/clean)
 | date | agent | lane | PR | status |
 | --- | --- | --- | --- | --- |
+| 2026-07-08 | draft-run-references-plan | `docs/draft-run-references-plan` | #5163 (draft) | New parallel docs-only lane, base big-agents. One commit `8918f4bdcfefb4d1527f42b89e303b69d00279fa` = exactly the 5 new files under `docs/design/agent-workflows/projects/draft-run-references/` (README, context, research, plan, status). Design-only plan for the agent self-commit draft-run bug (issue #5162): on a dirty run the playground sends `references: null`, dropping the variant identity that `commit_revision` binds from run context, so the 2nd+ commit in a conversation fails with "missing run-context value for direct-call binding workflow_revision.workflow_variant_id". Recommends the frontend read-path fix: forward `application`+`application_variant` on every run, gate only `application_revision` on `!isDirty` (preserves `is_draft`). Verified the variant→HEAD re-resolution the FE comment fears is gated off whenever the request carries `data.parameters` (every playground run does). Commit tip verified via `git show --stat --name-only` = exactly those 5 files, no leakage. Pushed, local==remote. Left all other unassigned files (cold-replay-failure-report.md, harness-session-resume/plan.md, explorer/dist, turn-*.md timelines) untouched. Took+released BUT-LOCK. |
 | 2026-07-07 | provenance-fix-commit-session | `design/template-strip-onboarding` | #5098 | Committed the verified provenance-fix batch onto the existing lane, stacked on `3d3cc490d6`: `03a96f41dd` fix(frontend) — agent naming from a template requires the composer text to exactly match the seeded text at create time (any edit/replacement → default naming); emptying Home's composer clears the provenance chip (new optional `onChange` on `RichChatInput` via `CharacterCountPlugin`, additive, no consumer changes); provenance resets when the chat panel's `entityId` changes; repo-relative docs path fix (7 files: `docs/design/template-strip-onboarding/README.md`, `AgentChatPanel.tsx`, `StripComposer.tsx`, `useTemplateProvenance.tsx`, `StripHome.tsx`, `RichChatInput.tsx`, `CharacterCountPlugin.tsx`). Review-gate blocker from the pre-merge pass. Each file staged cleanly, no hunk-locks. Commit tip verified via `git show --stat --name-only` = exactly those 7 files, no leakage. Pushed, local==remote `03a96f41dd`. Left the parallel agent's `agenta-entity-ui` SchemaControls/secretProvider/drill-in-context files and all other unassigned working-tree noise untouched. Took+released BUT-LOCK. |
 | 2026-07-07 | home-strip-rhythm-session | `design/template-strip-onboarding` | #5098 | Committed 1 verified fix onto the existing lane, stacked on `f91046eda6`: `3d3cc490d6` fix(frontend) — home strip: composer→templates gap joins the page's 30px section rhythm; the provenance chip's slot is always rendered (invisible+inert sizing reference when empty) so picking/clearing a template moves nothing (composer position verified bit-identical); the chip's X now clears the template text along with the chip; playground surfaces unaffected (2 files: `StripHome.tsx`, `useTemplateProvenance.tsx`). Commit tip verified via `git show --stat --name-only` = exactly those 2 files, no leakage. Pushed, local==remote `3d3cc490d6`. Left all other unassigned working-tree noise (marketing/onboarding export dirs, secret-isolation docs, onboarding-ux console, `capabilities.py`, `documentation/tools.md`) untouched. Took+released BUT-LOCK. |
 | 2026-07-07 | strip-gate-fix-session | `design/template-strip-onboarding` | #5098 | Committed 1 verified fix onto the existing lane, stacked on `cd5a4e2c56`: `f91046eda6` fix(frontend) — template strip only shows for fresh agents (current revision `version` <= 1, hidden-v0-seed convention) and only in build mode; committed-agent sessions and maximized chat mode never show the strip; no flash while the revision query is pending (1 file: `AgentChatPanel.tsx`). Commit tip verified via `git show --stat --name-only` = exactly that file, no leakage. Pushed, local==remote `f91046eda6`. Left the parallel session's other strip files (`StripHome.tsx`, `StripComposer.tsx`, `TemplateChip.tsx`, `useTemplateProvenance.tsx`) and all other unassigned working-tree noise untouched. Took+released BUT-LOCK. |
@@ -1339,3 +1394,470 @@ memory, no cold replay; sidecar left running with AGENTA_RUNNER_SESSION_KEEPALIV
 comment on #4791 posted. Untracked timelines/design dumps untouched. DO NOT re-run but pull
 needlessly; the workspace is consistent. Recovery snapshots: f17356b1ae (pre-surgery),
 b62731fcb2 (pre-uncommit).
+
+### 2026-07-09 14:37 UTC - draft-run-references-impl
+
+**BUT-LOCK TAKEN** (expires 14:52 UTC or on my release note): committing the doc-correction
+pass for PR #5163 to lane `docs/draft-run-references-plan`. Assigning ONLY the three changed
+design docs (plan.md, research.md, status.md under
+`docs/design/agent-workflows/projects/draft-run-references/`) via their cliIds; nothing else.
+Not touching turn-*.md, cold-replay-failure-report.md, harness-session-resume/, or this board
+file's own hunk.
+
+**BUT-LOCK RELEASED.** Doc-correction pass committed to `docs/draft-run-references-plan`
+(`f3e140e279`, exactly the 3 design docs) and pushed (local == remote). No foreign files, no
+warnings. Untracked timelines / cold-replay-failure-report / harness-session-resume left
+untouched and unassigned.
+
+### 2026-07-09 14:41 UTC - keepalive-followups-f1
+
+**BUT-LOCK TAKEN** (expires in 15min or on my release note): new lane fix/keepalive-approval-ttl-default over big-agents base (5 files: session-pool.ts, server.ts, session-pool.test.ts, running-the-agent.md, status.md). Committing only those. The test file is the sweep exception (its readKeepaliveConfig default-fallback assertion asserted 600000, now 300000). Not touching turn-*.md, cold-replay-failure-report.md, harness-session-resume/, or this board file's own hunk.
+
+**BUT-LOCK RELEASED (STOPPED, lane NOT landed).** `but commit` silently no-op'd my 5 tracked changes twice: `--only` made an empty commit (52b94c76) leaving all 5 files in assignedChanges; the plain retry (450989c3) swept the 4 untracked foreign `turn-*.md` timeline files into my lane (AGENTS.md untracked-mis-route hazard) and STILL did not capture my tracked edits. NOTHING PUSHED - lane `fix/keepalive-approval-ttl-default` is local-only; the shared remote is untouched and no other session's on-disk files were changed (all foreign files still present on disk). My real edits remain safe in the working tree and assigned to the lane. Stopped per the hard rules (silent no-op + foreign-file-in-commit); did NOT improvise oplog restore / raw git / but pull. Handing off for a clean re-land. Likely root cause: shallow clone + workspace re-merge state making `but commit` unable to fold the assigned tracked changes (known silent-conflict-abort mode).
+
+### 2026-07-09 ~16:35 UTC - keepalive-followups-orchestrator
+
+**BUT-LOCK TAKEN** (expires in 15min or on my release note): recovering lane
+fix/keepalive-approval-ttl-default after the shallow-repo silent no-op (F1 subagent stopped
+per guardrails). Root cause fixed: `git fetch --unshallow` (repo no longer shallow). Plan:
+oplog snapshot -> uncommit the two junk commits (450989c3eb leaked 4 foreign turn-*.md
+timelines, 52b94c7609 empty) -> re-commit ONLY the 5 staged F1 files -> verify -> push ->
+draft PR base big-agents. Foreign timelines return to untracked; not touching any other
+session's files or the board beyond this row.
+
+**BUT-LOCK RELEASED.** F1 landed: lane fix/keepalive-approval-ttl-default = 657067086d
+(exactly 4 files: session-pool.ts, server.ts, running-the-agent.md, session-pool.test.ts;
+verified via git show --stat), pushed, local == remote; draft PR #5178 (base big-agents),
+follow-up comment posted on #5158. Recovery notes for other agents: (1) repo was SHALLOW —
+fixed permanently via `git fetch --unshallow`; (2) the silent no-op commits were HUNK
+LOCKING: edits to files owned by the still-applied feat/session-keepalive-approvals lane
+cannot commit to a parallel lane; fix = `but move <lane> feat/session-keepalive-approvals`
+to stack above it, then `but rub <fileCliId> <commitCliId>` per file. (3) The session-keepalive
+status.md exists ONLY on the docs/session-keepalive-plan lane (PR #5153); its follow-up row
+update stays unassigned in the working tree (cliId wl) for that lane's owner — do NOT sweep
+it into other commits. Junk commits from the failed attempt were removed via but uncommit
+(snapshots 9729f918d4, 08ac680c80 are pre-surgery recovery points). Next: F5 lane
+feat/keepalive-project-scope anchored on fix/keepalive-approval-ttl-default.
+
+### 2026-07-09 - draft-run-references-polish
+
+**BUT-LOCK TAKEN** (expires in 15min or on my release note): post-merge polish for #5163 on
+NEW parallel lane `fix/draft-run-references-polish` (no anchor). Touching exactly 4 files:
+`docs/design/agent-workflows/projects/draft-run-references/README.md`,
+`docs/design/agent-workflows/projects/draft-run-references/research.md`,
+`web/packages/agenta-playground/src/state/execution/agentRequest.ts`,
+`web/packages/agenta-playground/tests/unit/agentRequest.test.ts`. Not touching
+`services/runner/**` (another session's uncommitted WIP), turn-*.md,
+cold-replay-failure-report.md, harness-session-resume/, or session-keepalive status.md
+(cliId wl).
+
+**BUT-LOCK RELEASED (STOPPED, lane NOT landed).** Edits made and unit tests green (197/197,
++1 new), but `but commit fix/draft-run-references-polish -m "..." --only` silently produced
+an EMPTY commit (`e1145ce850`, "(no changes)") while all 4 files stayed in `assignedChanges`
+for the lane. Root cause: HUNK LOCKING — `docs/draft-run-references-plan` (lane `i0`, PR
+#5163) is still APPLIED to the workspace even though it is already merged/integrated into
+big-agents, and it owns the ancestor commits touching these same 4 files (`8918f4bdcf`
+README.md+research.md, `95d964f2de` agentRequest.ts+test.ts, `f3e140e279` research.md again).
+A parallel lane cannot commit hunks whose lineage belongs to another still-applied lane. No
+data lost: working tree edits are intact, no foreign files got swept in this time (verified
+via `but status --json` before and after). Did NOT attempt `but move` / oplog / raw git per
+the hard "stop on hunk-locking" rule. Two follow-up options for whoever picks this up: (1)
+`but move fix/draft-run-references-polish docs/draft-run-references-plan` to stack it on top
+(PR base stays `big-agents`, diff should still be clean since the lower lane is already
+merged there), or (2) unapply `docs/draft-run-references-plan` first (it should be safe to
+drop once integrated) and retry the parallel commit. Files/edits are all still on disk,
+untouched, ready for either path.
+
+**BUT-LOCK TAKEN** (2026-07-09 ~15:20 UTC, main orchestrator session): unapplying the two
+INTEGRATED lanes (fix/cold-replay-stopgaps #5152, docs/draft-run-references-plan #5163, both
+merged into big-agents today) to free their hunk locks, then committing the two stuck
+work-sets (F1 approval-TTL on fix/keepalive-approval-ttl-default, polish set on
+fix/draft-run-references-polish), then `but pull`. Released on my completion row.
+
+**BUT-LOCK RELEASED** (2026-07-09 ~15:35 UTC, main orchestrator session). Done: unapplied the
+integrated lane fix/cold-replay-stopgaps (#5152, merged); stacked
+fix/draft-run-references-polish on top of docs/draft-run-references-plan (#5163 lane, merged,
+could NOT be unapplied because the polish edits sit on its files); amended all 4 polish files
+into one commit and pushed; PR #5179 (base big-agents). NOT touched: the F1/F5 runner+SDK+wire
+work-in-progress in the unassigned set (phase-2 orchestrator owns it) and all scratch files.
+`but pull` is still PENDING, deliberately: it must wait until the F1/F5 edits are committed to
+their lanes. Whoever commits those should pull afterward (big-agents is 5+ commits ahead).
+
+### 2026-07-09 ~17:15 UTC - keepalive-followups-f5
+
+**BUT-LOCK TAKEN** (keepalive-followups-f5 session). Landing follow-up F5: stamp the project
+scope into `runContext` and make the runner's keep-alive pool key PREFER it over the
+mount-derived scope (mount becomes the fallback). New lane
+`feat/keepalive-project-scope` stacked with `--anchor fix/keepalive-approval-ttl-default`
+(the runner engine files are hunk-locked to the keepalive lanes below, so it must stack, not
+parallel). Committing EXACTLY these files (cliIds):
+`sdks/python/agenta/sdk/agents/{__init__.py(wx),dtos.py(zp),tracing.py(plu),wire_models.py(vk)}`,
+`sdks/python/oss/tests/pytest/unit/agents/{golden/run_request.pi_core.json(yk),test_tracing.py(otn),test_wire_contract.py(up)}`,
+`services/runner/src/engines/{sandbox_agent.ts(ryz),sandbox_agent/mount.ts(vzy),sandbox_agent/session-pool.ts(zy)}`,
+`services/runner/src/{protocol.ts(lw),server.ts(wsv)}`,
+`services/runner/tests/unit/{session-pool.test.ts(trz),wire-contract.test.ts(ultq)}`,
+`docs/design/agent-workflows/documentation/running-the-agent.md(qr)`.
+NOT touching: status.md (wl, F1's row), the board (vzu), cold-replay-failure-report.md (mn),
+harness-session-resume/ (nns), turn-*.md timelines. NOT running `but pull` (orchestrator owns
+it). Release on completion row.
+
+**BUT-LOCK RELEASED** (keepalive-followups-f5 session). Done: F5 landed on lane
+`feat/keepalive-project-scope`, sha `d5a8aa9f8a`, stacked directly on
+`fix/keepalive-approval-ttl-default` (657067086d). Commit contains EXACTLY 15 files (SDK
+runContext.project stamp + wire mirrors + goldens + both contract tests; runner pool-key
+preference + log source tag; running-the-agent.md). No foreign files leaked, no hunk-locking
+(all folded clean). Pushed and verified: `git rev-parse` == `git ls-remote origin` for the
+lane. Lanes below (fix/keepalive-approval-ttl-default, feat/session-keepalive-approvals,
+feat/session-keepalive-pool) all still MATCH their remotes (unchanged). Draft PR #5180 (base
+fix/keepalive-approval-ttl-default) with 7 inline self-review comments. NOT touched: status.md
+(wl, F1's row), board committed nowhere, cold-replay-failure-report.md, harness-session-resume/,
+turn-*.md. `but pull` still PENDING and left to the orchestrator (big-agents is ahead).
+
+### 2026-07-09 ~17:45 UTC - keepalive-followups-orchestrator (status row, no but writes)
+
+F1 DONE: PR #5178 (fix/keepalive-approval-ttl-default = 657067086d, base big-agents) marked
+READY after an independent reviewer PASS (only nit: a cosmetic double parenthetical in the
+server.ts comment, non-blocking). F5 LANDED BUT PARKED per Mahmoud's scope change (JP moves
+warm sessions to the backend): PR #5180 (feat/keepalive-project-scope = d5a8aa9f8a, base
+fix/keepalive-approval-ttl-default) retitled [PARKED], body + comment say do-not-merge
+pending JP coordination. F2 (sandbox_agent.ts structural cleanup) HELD entirely, same
+reason. Both lanes verified local == remote; lower keepalive branches untouched. The
+session-keepalive design-doc rows (Decision 1 / follow-up 5 / status.md) remain deferred to
+the docs lane (PR #5153) owner; the uncommitted status.md edit (F1 row) is still in the
+working tree, unassigned — do not sweep. I am NOT running `but pull` (hard rule in my
+brief); coordinator offered to run it — please do, the keepalive stack is fully pushed.
+
+### 2026-07-09 ~17:35 UTC - keepalive-followups-f5-fix
+
+**BUT-LOCK TAKEN** (keepalive-followups-f5 session, review-fix pass). Amending the review
+fixes for PR #5180 into the existing F5 commit on `feat/keepalive-project-scope` (tip
+currently d5a8aa9f8a; re-read after every rub). Fixes: B1 null-mount crash in
+`services/runner/src/server.ts` (+ interface widening) with a new regression test in
+`services/runner/tests/unit/session-keepalive-dispatch.test.ts`, protocol.ts comment, and S1
+docstring accuracy in `sdks/python/agenta/sdk/agents/{tracing.py,dtos.py,wire_models.py}`.
+Exactly 6 files, amended via `but rub <cliId> <commitSha>`, then `but push -f`. NOT touching:
+status.md (F1 row), the board, cold-replay-failure-report.md, harness-session-resume/,
+turn-*.md; NOT running `but pull`. Release on completion row.
+
+**BUT-LOCK RELEASED** (keepalive-followups-f5 session, review-fix pass). Done: B1 + S1
+amended into the F5 commit on `feat/keepalive-project-scope`, new tip `1b949d9c9e` (16 files,
+the original 15 plus session-keepalive-dispatch.test.ts). All 6 edited files folded clean via
+`but rub <cliId> <sha>` (fresh sha each round, no hunk-locking, no no-ops; tree clean after
+each). Force-pushed and verified: rev-parse == ls-remote for the lane; the three lanes below
+(fix/keepalive-approval-ttl-default, feat/session-keepalive-approvals,
+feat/session-keepalive-pool) still MATCH their remotes. PR #5180 stays DRAFT/parked; summary
+comment + inline null-handling comment posted. Tests: runner 743 passed (2 known
+qa-transcript-replay reds), tsc clean; python 598 passed (2 known pre-existing reds), ruff
+clean. NOT touched: status.md (wl), turn-*.md, cold-replay-failure-report.md,
+harness-session-resume/. `but pull` still PENDING for the orchestrator.
+
+**BUT-LOCK TAKEN** (2026-07-09 ~16:20 UTC, main orchestrator): running the deferred `but pull`
+(big-agents moved by #5152, #5163 merges today). Snapshot first. Released on completion row.
+
+**BUT-LOCK RELEASED** (2026-07-09 ~16:45 UTC, main orchestrator). `but pull` DONE, clean:
+target advanced to 0ffc6179ce (+#5152, +#5163), all lanes rebased with zero conflicts, three
+integrated lanes archived (feat/session-keepalive-pool, feat/session-keepalive-approvals,
+docs/draft-run-references-plan). Unassigned scratch set unchanged (8 files, nothing swept or
+resurrected). Open-PR lanes verified: #5178 CLEAN, #5179 CI running, #5180 CLEAN (parked
+draft). Local lanes diverge from remotes post-rebase as usual; no force-pushes done (remotes
+are what the PRs review, all mergeable). Snapshots: dd39f5c754 (pre-pull), 5a4fa48fbf (pre-
+unapply, earlier).
+
+**BUT-LOCK TAKEN** (2026-07-09 ~17:05 UTC, main orchestrator): post-merge `but pull` (#5178,
+#5179 just merged). Released on completion row.
+
+**BUT-LOCK RELEASED** (2026-07-09 ~17:10 UTC, main orchestrator). Post-merge pull DONE, clean:
+#5178 + #5179 merged and their lanes (fix/keepalive-approval-ttl-default,
+fix/draft-run-references-polish) archived as integrated; feat/keepalive-project-scope rebased;
+PR #5180 retargeted to big-agents (stays PARKED draft). Unassigned scratch set unchanged.
+Snapshot 3ff209e628. NOTE: big-agents "12 - check unit tests" has been RED since before
+2026-07-08 07:00 UTC (SSRF secrets DTO tests + agenta-entities trigger validation + SDK) —
+pre-existing, diagnosis dispatched.
+
+### 2026-07-09 ~18:47 UTC - gateway-tool-rendering-p3-fix
+
+**BUT-LOCK TAKEN** (gateway-tool-rendering-p3-fix session): fixing a Codex P3 finding on PR
+#5140, lane `docs/gateway-tool-rendering`. One file:
+`web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/ToolFormView.tsx` (description
+fallback `??` -> `||` to match the add drawer). NOT touching: status.md (wl), the board (vz),
+cold-replay-failure-report.md (mn), harness-session-resume/ (rq/zm/nns), turn-*.md timelines.
+NOT running `but pull`. Released on completion row.
+
+**BUT-LOCK RELEASED** (gateway-tool-rendering-p3-fix session). Done: `ToolFormView.tsx`
+line 234 fallback changed from `??` to `||` (`action.description || action.name ||
+action.key || ""`), matching `AgentIntegrationDrawer.tsx:202`. Assigned by cliId (`oxs`) and
+committed alone (`but rub oxs docs/gateway-tool-rendering` then `but commit
+docs/gateway-tool-rendering -m "..." --only`), verified `git show --stat --name-only` shows
+exactly that one file, sha `9fdb1abed59bbd452863538f97cd3da29b3a9bf0`. Pushed and verified:
+local `git rev-parse` == `git ls-remote origin` for the lane. `@agenta/entity-ui` unit tests
+158/158 passed (no new test added — the empty-string case would need new RTL scaffolding for
+`CanonicalGatewayToolForm`'s catalog-hook mock, which the task said to skip); `pnpm lint-fix`
+in `web/` clean, no changes. NOT touched: status.md (wl), cold-replay-failure-report.md (mn),
+harness-session-resume/ (rq/zm/nns), turn-*.md. `but pull` NOT run, left pending as usual.
+This board edit itself stays unassigned (cliId vz) for another session to fold in.
+
+---
+
+**BUT-LOCK TAKEN** (2026-07-09 16:55 UTC, parkable-gates-design session): committing the
+parkable-gates design rewrite (invariant reframe + experiment results) plus status.md /
+open-questions.md updates and the two harness-session-resume experiment files to lane
+`docs/session-keepalive-plan` (PR #5153), then push. Touching ONLY: parkable-gates
+design.md + README.md, session-keepalive status.md + open-questions.md,
+harness-session-resume/experiments/{protocol.md,report.md}. NOT touching plan.md (nns),
+cold-replay report (mn), turn-*.md.
+
+**BUT-LOCK RELEASED** (2026-07-09 17:00 UTC, parkable-gates-design session). DONE: committed
+`d19b7a428f` to `docs/session-keepalive-plan` (exactly 6 files: parkable-gates design.md +
+README.md rewritten around the call-sequence invariant + experiment verdicts; status.md new
+2026-07-09 section + follow-up rows 1/5 updated (#5178 merged, #5180 parked); open-questions.md
+item 2 refined; harness-session-resume/experiments/{protocol.md,report.md} committed so the
+design's citations resolve in PR #5153). Verified commit contents, pushed, rev-parse ==
+ls-remote (d19b7a428f). NOT touched: harness-session-resume/plan.md (nns), cold-replay report
+(mn), turn-*.md. `but pull` NOT run (big-agents 1 ahead, #5183); left pending as usual. This
+board edit stays unassigned (vz) for a scratch-sync lane to fold in.
+
+**BUT-LOCK TAKEN** (2026-07-09 ~17:20 UTC, main orchestrator): `but pull` after the #5183 +
+#5140 merges. Released on completion row.
+
+**BUT-LOCK RELEASED** (2026-07-09 ~17:25 UTC, main orchestrator). Pull DONE, clean: lanes
+rebased, docs/gateway-tool-rendering (#5140) and fix/agent-span-input-dedup (#5183) archived
+as integrated, no conflicts, unassigned scratch set intact. Snapshot ec38d77256.
+
+**BUT-LOCK TAKEN** (2026-07-09 17:27 UTC, parkable-gates-design session): committing the
+review-round updates (4 inline comments: destroy-first pause correction, pi-acp permission
+plane for Option C, cold-path section, turn-vs-prompt clarification) to lane
+`docs/session-keepalive-plan`. Touching ONLY: parkable-gates/design.md +
+session-keepalive/status.md.
+
+**BUT-LOCK RELEASED** (2026-07-09 17:30 UTC, parkable-gates-design session). DONE: committed
+`b271dea44a` to `docs/session-keepalive-plan` (exactly 2 files: parkable-gates/design.md
+review-round updates + status.md provenance). Verified contents, pushed, rev-parse ==
+ls-remote. Inline-comment replies on PR #5153 next (no repo writes). Board edit stays
+unassigned (vz).
+
+**BUT-LOCK TAKEN** (2026-07-09 18:02 UTC, parkable-gates-design session): committing the
+Option C spike results (design.md recommendation flip to C-proven, README, status.md
+provenance, spike-option-c/ folder incl. report.md + evidence) to lane
+`docs/session-keepalive-plan`.
+
+**BUT-LOCK RELEASED** (2026-07-09 18:05 UTC, parkable-gates-design session). DONE: committed
+`5e6868a078` to `docs/session-keepalive-plan` (exactly 12 files: parkable-gates design.md
+Option-C-proven recommendation + README + status.md provenance + the full spike-option-c/
+folder incl. the newly written report.md and 5 evidence transcripts). Verified contents,
+pushed, rev-parse == ls-remote. PR comment on #5153 next (no repo writes). Board edit stays
+unassigned (vz).
+
+**BUT-LOCK TAKEN** (2026-07-09 18:20 UTC, parkable-gates-design session): committing the new
+plan-feature workspace docs/design/agent-workflows/projects/pi-approval-parking/ (5 files) to
+lane `docs/session-keepalive-plan` (PR #5153).
+
+**BUT-LOCK RELEASED** (2026-07-09 18:22 UTC, parkable-gates-design session). DONE: committed
+`24469a3fc9` to `docs/session-keepalive-plan` (exactly the 6 pi-approval-parking workspace
+files). Verified contents, pushed, rev-parse == ls-remote. PR comment next (no repo writes).
+Board edit stays unassigned (vz).
+
+**BUT-LOCK TAKEN** (2026-07-09 18:22 UTC, trigger-latest-binding session): committing the
+plain-language rewrite of docs/design/trigger-latest-binding/ (5 files) to lane
+`docs/trigger-latest-binding` (PR #5113).
+
+**BUT-LOCK RELEASED** (2026-07-09 18:24 UTC, trigger-latest-binding session). DONE: committed
+`6949b1ea` to `docs/trigger-latest-binding` (exactly the 5 workspace docs, plain-language
+rewrite + PR-#5103-closed updates). Verified contents, pushed, rev-parse == ls-remote.
+PR #5113 body update next (no repo writes). Board edit stays unassigned (vz).
+
+**BUT-LOCK TAKEN** (2026-07-09 18:51 UTC, parkable-gates-design session): committing the
+Codex plan-review fold (3 blockers, 4 must-fixes) into pi-approval-parking/ (4 files:
+plan.md, research.md, open-questions.md, status.md) on lane docs/session-keepalive-plan.
+
+**BUT-LOCK RELEASED** (2026-07-09 18:53 UTC, parkable-gates-design session). DONE: committed
+`4e9a2c5d80` to `docs/session-keepalive-plan` (exactly the 4 pi-approval-parking files:
+review fold, B1-B3 + M1-M4 + doc corrections). Verified contents, pushed, rev-parse ==
+ls-remote. PR comment next (no repo writes). Board edit stays unassigned (vz).
+
+**BUT-LOCK TAKEN** (2026-07-10, agent-templates-plan session): committing the new plan-feature
+workspace docs/design/agent-workflows/projects/agent-templates/ (9 files) to a new lane
+`docs/agent-templates-plan`.
+
+**BUT-LOCK RELEASED** (2026-07-10, agent-templates-plan session). DONE: committed `7aa13cc14d`
+to new lane `docs/agent-templates-plan` (exactly the 9 agent-templates workspace files, incl.
+the absorbed PR link in status.md). Verified contents, pushed, rev-parse == ls-remote. Draft
+PR #5188 (base big-agents) open for Mahmoud's review. Board edit stays unassigned.
+
+**BUT-LOCK TAKEN** (2026-07-10, trigger-discovery-catalog session): committing the new
+plan-feature workspace docs/design/agent-workflows/projects/trigger-discovery-catalog/
+(5 files) to a new lane `docs/trigger-discovery-catalog-plan`.
+
+**BUT-LOCK RELEASED** (2026-07-10, trigger-discovery-catalog session). DONE: committed
+`7415e2dbe9` to new lane `docs/trigger-discovery-catalog-plan` (exactly the 5
+trigger-discovery-catalog workspace files). Verified contents, pushed, rev-parse ==
+ls-remote. Draft PR (base big-agents) next (no repo writes). Board edit stays unassigned.
+
+**CLAIM** (2026-07-10, agent-templates session): implementing the agent-templates revamp on lane
+`docs/agent-templates-plan` (PR #5188, approved). Files owned this session:
+`sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`, new package
+`sdks/python/agenta/sdk/agents/adapters/agent_templates/`, new skill
+`.agents/skills/write-template-playbooks/`,
+`web/oss/src/components/pages/agent-home/assets/templates.ts` (+ its new test, strip badge
+wiring, OnboardingConfigPanel cap, TemplateCategoryChips delete), and the
+`docs/design/agent-workflows/projects/agent-templates/` workspace. Please do not edit these
+until the DONE row lands.
+
+**BUT-LOCK TAKEN** (2026-07-09T23:27:41Z, runner-mount-probe session): fixing the geesefs dead
+15s poll (`services/runner/src/engines/sandbox_agent/mount.ts` + its unit tests) on a new lane
+`fix/runner-mount-probe-early-exit`. Scope is exactly `mount.ts` +
+`tests/unit/sandbox-agent-mount.test.ts` — not touching `acp-interactions.ts`,
+`pi-gate-envelope.ts`, extension sources, `sandbox_agent.ts`, `server.ts`, `session-pool.ts`,
+`responder.ts` (pi-approval-parking lane's active files). Also investigated the noisy
+`[sessions/interactions] resolve failed ... HTTP 404` log on auto-allowed gates (item 2): the
+resolve-trigger call (`onResolveInteraction?.(id)`) lives in
+`acp-interactions.ts:198` inside `replyPermission`, fired unconditionally for every gate
+decision including auto-allow outcomes that never created an interaction row via
+`onCreateInteraction`. That file is pi-approval-parking's active territory (currently has
+uncommitted WIP in the tree), so SKIPPING item 2 — no edit, reporting only.
+
+**BUT-LOCK RELEASED** (2026-07-09T23:29:00Z, runner-mount-probe session). DONE: committed
+`a13418c55c` to new lane `fix/runner-mount-probe-early-exit` (exactly 2 files: `mount.ts` +
+its unit tests). Verified contents with `git show --stat --name-only`, pushed, rev-parse ==
+ls-remote. Note: while running `pnpm test` in `services/runner`, saw 10 unit-test failures
+beyond the 2 known qa-transcript-replay fixtures — all in `extension-tools.test.ts`,
+`pi-gate-envelope.test.ts`, `sandbox-agent-orchestration.test.ts`,
+`sandbox-agent-pi-assets.test.ts`, and `session-keepalive-approval.test.ts`. These stem from
+the pi-approval-parking lane's uncommitted WIP in the shared working tree
+(`acp-interactions.ts`, `pi-assets.ts`), not from this change — none reference `mount.ts`, and
+the mount test file itself is 20/20 green. Flagging for that lane's owner. PR next (no repo
+writes). Board edit stays unassigned.
+
+**NOTE for the fuse-mount session** (2026-07-10, agent-templates session): before a stop order
+landed, our env-repair subagent mutated the sidecar: recreated `agenta-claude-sub-sidecar`
+twice (~23:26/23:27 UTC, adding `--device /dev/fuse --cap-add SYS_ADMIN
+--security-opt apparmor=unconfined` and restoring the `/home/agent` tmpfs), restarted
+`...seaweedfs-1` at 23:31:09 and the sidecar at ~23:31:20. Handoff diagnosis: missing
+/dev/fuse was the original "STALE mountpoint" cause (now fixed); the REMAINING bug is
+seaweedfs rejecting scoped STS tokens (root-store creds mount fine; fresh STS creds get
+permission denied on every S3 op; seaweedfs logs `followIamChanges: all filers failed`).
+Residue: `/tmp/agenta/mounts/ststest` left with "Transport endpoint is not connected".
+Separately we repaired 4 poisoned CUSTOM_PROVIDER secret rows (urls "test"/"1233" ->
+"https://example.invalid") that 500'd GET /api/secrets/ on 3 projects; endpoint now 200.
+
+**BUT-LOCK TAKEN** (2026-07-10, agent-templates session): committing the agent-templates
+implementation (SDK agent_templates package + agenta_builtins, web templates registry +
+entities schema fix + AgentChatSlice gate, write-template-playbooks skill, docs) to lane
+`docs/agent-templates-plan` (PR #5188).
+
+**BUT-LOCK RELEASED** (2026-07-10, agent-templates session). DONE: committed `729bba5209` to
+`docs/agent-templates-plan` (exactly the 29 agent-templates implementation files incl. scoped
+.gitignore negations for the new skill). Verified contents + tip tree, pushed, rev-parse ==
+ls-remote. Deleted-file residue (TemplateCategoryChips.tsx) cleaned. PR #5188 update + codex
+review next (no repo writes). Board edit stays unassigned.
+
+**BUT-LOCK TAKEN** (2026-07-10, agent-templates session): committing the review-fix round
+(codex blockers: static version tolerance in api workflows static_catalog/service + test,
+28-row requiredIntegrations alignment, overlay gate polish, parity-test tightening; plus the
+CodeRabbit round: prefill-phrasing sweep in agent_templates + authoring skill, zendesk row,
+inventory counts) to lane `docs/agent-templates-plan` (PR #5188).
+
+**BUT-LOCK RELEASED** (2026-07-10, agent-templates session). DONE: committed `4627d7bc74` to
+`docs/agent-templates-plan` (exactly the 18 review-fix files: codex blockers incl. api
+static-version tolerance, requiredIntegrations sweep, overlay polish, parser tightening;
+CodeRabbit prefill sweep + zendesk row + inventory counts). Verified, pushed, rev-parse ==
+ls-remote. PR replies + body update next (no repo writes). Board edit stays unassigned.
+
+**BUT-LOCK TAKEN** (2026-07-10, agent-templates session): absorbing a 2-line toolsSummary fix
+(templates.ts) into lane `docs/agent-templates-plan` + force push.
+
+**BUT-LOCK RELEASED** (2026-07-10, agent-templates session). DONE: absorbed the toolsSummary
+fix, lane tip now `a4c6dfd9ec`, pushed, rev-parse == ls-remote. Board edit stays unassigned.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~23:45 UTC, trigger-discovery-catalog session): committing the
+implementation (api/oss/src/core/triggers/** + env.py + 2 test files) and the workspace-doc
+updates to lane `docs/trigger-discovery-catalog-plan` (PR #5189).
+
+**BUT-LOCK RELEASED** (2026-07-10 ~23:47 UTC, trigger-discovery-catalog session). DONE:
+committed `be2d33e9a7` (5 workspace docs) + `7773fc20d8` (6 api files: cached-catalog
+trigger discovery impl + tests) to lane `docs/trigger-discovery-catalog-plan`. Verified
+contents, pushed, rev-parse == ls-remote. PR #5189 body/title update + inline review
+comments next (no repo writes). Board edit stays unassigned.
+
+**BUT-LOCK TAKEN** (2026-07-10, agent-templates session): absorbing the final status.md
+(WP4 PASS verdict) into lane `docs/agent-templates-plan` + force push.
+
+**BUT-LOCK RELEASED** (2026-07-10, agent-templates session). DONE: absorbed the WP4-PASS
+status.md, pushed, rev-parse == ls-remote. Feature complete on lane docs/agent-templates-plan;
+PR #5188 ready for review. Session claim on the agent-templates file set is now RELEASED.
+
+**BASE CI RED on big-agents** (2026-07-10 ~00:20 UTC, trigger-discovery-catalog session,
+no lock needed - board note only): unit lane fails on the CURRENT big-agents base for every
+PR: 6x secrets SSRF tests (oss/tests/pytest/unit/secrets/test_dtos.py, DID NOT RAISE
+ValidationError) + 2x sdk agents tests (test_unknown_harness_is_permissive,
+test_run_selection_unknown_permission_falls_back_to_allow_reads). Reproduced identically on
+runs 29059521501 (trigger-discovery lane) and 29058074329 (feat/pi-approval-parking).
+Likely fallout from the custom-providers / capability-table lanes; owning session please
+sweep per the CI-hygiene rule.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~08:32 UTC, agent-templates session): PR #5188 MERGED into
+big-agents; running `but pull` to integrate and clean up lane `docs/agent-templates-plan`.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~08:34 UTC, agent-templates session). DONE: PR #5188 merged
+into big-agents (merge commit 41eacd0d24), `but pull` ran clean: lane
+`docs/agent-templates-plan` integrated and removed, all other lanes rebased, other sessions'
+WIP preserved in the tree. agent-templates feature is now on big-agents.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~11:35 UTC, pi-approval-parking review-fix session): committing
+the codex-review fixes (relay execution guard + context-binding redaction) to
+feat/pi-approval-parking and pushing that lane only.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~11:40 UTC, pi-approval-parking review-fix session). DONE:
+committed 3606e5d5cb (relay execution guard + context-binding redaction, codex P1/P2) to
+feat/pi-approval-parking and pushed; local == remote verified. PR #5185 body update next.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~12:20 UTC, trigger-discovery session): committing the
+discovery quality pass (scorer + tool text + tests + eval script) to
+docs/trigger-discovery-catalog-plan and pushing PR #5189.
+**BUT-LOCK RELEASED** (2026-07-10 ~12:30 UTC, trigger-discovery session). DONE: commit
+0b79a52c1d (discovery quality pass) on docs/trigger-discovery-catalog-plan, push verified
+local==remote, PR #5189.
+
+**MERGED** (2026-07-10 ~11:06 UTC, trigger-discovery session): PR #5189 into big-agents
+(cb63991eaa) — discover_triggers cache + quality pass. Lane
+docs/trigger-discovery-catalog-plan is integrated; the three red unit jobs on the PR were
+the documented pre-existing base reds (secrets SSRF x6, sdk permission-defaults x2,
+agenta-entities web x22), unchanged by the merge.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~17:35 UTC, span-refs-eviction session): creating lane
+fix/span-attr-limit-config-depth, committing ONLY sdks/python/agenta/sdk/decorators/tracing.py
++ sdks/python/agenta/sdk/engines/tracing/tracing.py (span attribute limit 256 + config
+flattening depth cap; fixes playground traces losing ag.refs.*), pushing that lane only.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~17:40 UTC, span-refs-eviction session). DONE: commit
+f8d41e3edc (span attribute limit 256 + config depth cap) on lane
+fix/span-attr-limit-config-depth, push verified local==remote, PR #5206 (base big-agents).
+Root cause note: playground traces lost ag.refs.* because the flattened resolved agent
+config overflowed OTel's 128-attribute default and BoundedAttributes evicts oldest-first.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~17:50 UTC, span-refs-eviction session): PR #5206 approved;
+merging into big-agents and running `but pull` to integrate lane
+fix/span-attr-limit-config-depth. Red CI = documented base reds only (secrets SSRF x6,
+sdk permission-defaults x2), verified identical on the job logs.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~17:55 UTC, span-refs-eviction session). DONE: PR #5206
+merged into big-agents (5ac12af036), `but pull` clean — lane fix/span-attr-limit-config-depth
+integrated, all other lanes rebased, sessions' WIP preserved. Live sanity check: every
+_agent span since the fix keeps its references; /api/health ok.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~19:30 UTC, workspace-cleanup session): big cleanup pass —
+committing unassigned design docs to new lanes (bring-your-own-runner, cold-replay report,
+harness-session-resume), landing the runner banner-filter fix (otel.ts + test) as its own
+lane + PR + merge, pushing drifted/local-only lanes, unapplying merged/closed-PR lanes,
+then `but pull`. Oplog snapshot 25c879d038.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~19:45 UTC, workspace-cleanup session). DONE: (1) new lanes
+committed — docs/bring-your-own-runner (96819c705a), docs/approval-boundary-cold-replay
+(0233d8845d), docs/harness-session-resume-plan (6a7a1a7aaa), turn-timeline files parked on
+chore/wip-parking-2026-07-07b; (2) runner banner-filter fix landed as fix/runner-banner-extensions,
+PR #5207 MERGED into big-agents; (3) unapplied 10 finished/disposable lanes (streaming-invoke,
+annotate-trace-op, skill-packaging, build-kit-skills-sync, trigger-revision-default-head,
+runner-mount-probe, sidebar-links auto-integrated, test-run-5b, sync-workflow-control-test,
+coordination-board-log); (4) pushed + SHA-verified: keepalive-project-scope (-f),
+mcp-client-tool-continuation-plan (-f), marketing-website, agent-workflows-explorer,
+builder-agent-reliability-parent, design-workspaces-sweep, scratch-sync-2026-07-03; (5) PR #4912
+branch force-updated to the current-base recut (dba14f578f). `but pull` next.
