@@ -2,13 +2,14 @@ import asyncio
 import hashlib
 import hmac
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 from uuid import UUID
 
 from croniter import croniter
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
@@ -22,6 +23,7 @@ from oss.src.core.triggers.dtos import (
     TriggerCatalogEvent,
     TriggerCatalogEventDetails,
     TriggerCatalogEventsPage,
+    TriggerCatalogEventsSnapshot,
     TriggerCatalogIntegration,
     TriggerCatalogIntegrationsPage,
     TriggerCatalogProvider,
@@ -67,12 +69,11 @@ _ENQUEUE_TIMEOUT_SECONDS = 5.0
 # Seconds /subscriptions/test long-polls for a captured event before teardown.
 _TEST_TIMEOUT_SECONDS = 300
 
-_DISCOVERY_INTEGRATION_LIMIT = 10
-_DISCOVERY_EVENT_LIMIT = 8
+_CATALOG_CACHE_NAMESPACE = "triggers:catalog"
 # Minimum distinct use-case terms a candidate must match before it can be promoted to the
-# primary (capabilities[0]) result. The candidate loaders fall back to broad, unfiltered
-# catalog pages, so a single shared generic term ("issue", "email") is not strong enough
-# evidence to surface an integration as the best match; an exact phrase hit also clears this.
+# primary (capabilities[0]) result. Discovery scores the whole catalog, so a single shared
+# generic term ("issue", "email") is not strong enough evidence to surface an integration
+# as the best match; an exact phrase hit also clears this.
 _DISCOVERY_MIN_PRIMARY_TERMS = 2
 _DISCOVERY_STOPWORDS = {
     "a",
@@ -93,10 +94,36 @@ _DISCOVERY_STOPWORDS = {
     "when",
     "whenever",
     "with",
+    # Meta-vocabulary ("slack triggers") and question filler ("what can gmail do")
+    # add noise — "what" even substring-matches WHATSAPP, "can" matches CANVAS.
+    "anyone",
+    "can",
+    "could",
+    "did",
+    "do",
+    "does",
+    "how",
+    "my",
+    "should",
+    "someone",
+    "trigger",
+    "triggered",
+    "triggers",
+    "webhook",
+    "webhooks",
+    "what",
+    "whats",
+    "which",
+    "who",
 }
 _TRIGGER_DISCOVERY_NO_MATCH_NOTE = (
     "No trigger event matched this use case. Try a more specific integration name "
     "or browse the trigger catalog for available events."
+)
+_TRIGGER_DISCOVERY_NO_CONFIDENT_MATCH_NOTE = (
+    "No confident match for this use case. The closest catalog events are listed in "
+    "alternatives, capped by limit_alternatives (raise it to see more); check each "
+    "one's integration and description before using it."
 )
 
 
@@ -120,6 +147,43 @@ def _discovery_terms(value: str) -> List[str]:
             seen.add(term)
             deduped.append(term)
     return deduped
+
+
+def _normalize_words(value: Optional[str]) -> str:
+    normalized = "".join(
+        char if char.isalnum() else " " for char in (value or "").lower()
+    )
+    return " ".join(normalized.split())
+
+
+def _named_integrations(
+    *,
+    terms: List[str],
+    integrations: Dict[str, TriggerCatalogIntegration],
+) -> Set[str]:
+    """Integration slugs the use case names explicitly: a use case that names a platform
+    is hard-constrained to it. Equality (not substring) so "dropbox" does not name "box".
+    Accepted risk: toolkits named after ordinary words ("linear", "box") restrict any use
+    case that mentions the word for another reason.
+    """
+    term_set = set(terms)
+    # Adjacent-term concatenations so "google calendar" names googlecalendar
+    # and "one drive" names one_drive.
+    joined = {a + b for a, b in zip(terms, terms[1:])}
+    named: Set[str] = set()
+    for slug, integration in integrations.items():
+        key = "".join(c for c in str(integration.key or "").lower() if c.isalnum())
+        name = "".join(c for c in str(integration.name or "").lower() if c.isalnum())
+        name_words = set(_normalize_words(integration.name).split())
+        if (
+            key in term_set
+            or name in term_set
+            or key in joined
+            or name in joined
+            or (name_words and name_words <= term_set)
+        ):
+            named.add(slug)
+    return named
 
 
 def _match_signal(
@@ -152,7 +216,8 @@ def _match_signal(
     matched_terms = 0
     event_key = str(event.key or "").lower()
     integration_key = str(integration.key or "").lower()
-    for term in _discovery_terms(use_case):
+    terms = _discovery_terms(use_case)
+    for term in terms:
         hit = False
         if term in haystack:
             score += 5
@@ -165,6 +230,33 @@ def _match_signal(
             hit = True
         if hit:
             matched_terms += 1
+
+    # Adjacency bonus: consecutive CONTENT terms appearing side by side in the event
+    # key/name break score ties the paged provider search used to resolve via its own
+    # relevance ordering (e.g. "issue created" prefers ISSUE_CREATED over
+    # ISSUE_COMMENT_CREATED). Integration-name tokens are excluded before pairing:
+    # they prefix every event key of that integration, so a bigram like
+    # "slack message" would be a spurious adjacency. Score-only; matched_terms and
+    # exact_phrase stay untouched.
+    integration_name = str(integration.name or "").lower()
+    content_terms = [
+        term
+        for term in terms
+        if term not in integration_key and term not in integration_name
+    ]
+    normalized_key = _normalize_words(event.key)
+    normalized_name = _normalize_words(event.name)
+    for first, second in zip(content_terms, content_terms[1:]):
+        bigram = f"{first} {second}"
+        if bigram in normalized_key or bigram in normalized_name:
+            score += 4
+
+    # Deprecated events lose term-level ties to their live replacement. Score-only:
+    # matched_terms/exact_phrase untouched, so an exact-phrase ask (+50) can still
+    # surface a deprecated event.
+    if str(event.description or "").lstrip().lower().startswith("deprecated"):
+        score -= 25
+
     return score, matched_terms, exact_phrase
 
 
@@ -341,11 +433,12 @@ class TriggersService:
         states: Dict[str, TriggerConnectionRequirement] = {}
         state_order: List[str] = []
 
+        snapshot = await self._cached_event_catalog(provider_key=provider_key)
+
         for use_case in use_cases:
-            matches = await self._discover_events_for_use_case(
-                provider_key=provider_key,
+            matches = self._discover_events_for_use_case(
                 use_case=use_case,
-                limit_alternatives=limit_alternatives,
+                snapshot=snapshot,
             )
             surfaced = matches[: 1 + max(limit_alternatives, 0)]
 
@@ -359,6 +452,34 @@ class TriggersService:
             ):
                 surfaced = []
 
+            if not surfaced:
+                # Still hand the agent the closest scored events so a weak or
+                # browse-shaped ask gets something actionable; alternatives carry
+                # no connection info, so no state lookups here.
+                alternatives = [
+                    DiscoveredTriggerAlternative(
+                        integration=alt_event.integration or alt_integration.key,
+                        event_key=alt_event.key,
+                        description=alt_event.description,
+                        provider_event=alt_event.key,
+                    )
+                    for _alt_score, alt_event, alt_integration in matches[
+                        : max(limit_alternatives, 0)
+                    ]
+                ]
+                capabilities.append(
+                    TriggerCapability(
+                        use_case=use_case,
+                        alternatives=alternatives,
+                        note=(
+                            _TRIGGER_DISCOVERY_NO_CONFIDENT_MATCH_NOTE
+                            if alternatives
+                            else _TRIGGER_DISCOVERY_NO_MATCH_NOTE
+                        ),
+                    )
+                )
+                continue
+
             for _score, event, integration in surfaced:
                 key = event.integration or integration.key
                 if key not in states:
@@ -369,23 +490,14 @@ class TriggersService:
                     )
                     state_order.append(key)
 
-            if not surfaced:
-                capabilities.append(
-                    TriggerCapability(
-                        use_case=use_case,
-                        note=_TRIGGER_DISCOVERY_NO_MATCH_NOTE,
-                    )
-                )
-                continue
-
             _score, event, integration = surfaced[0]
             integration_key = event.integration or integration.key
-            details = await self.get_event(
-                provider_key=provider_key,
-                integration_key=integration_key,
-                event_key=event.key,
+            # Catalog snapshot items already carry trigger_config/payload — no live call.
+            detailed_event = (
+                event
+                if isinstance(event, TriggerCatalogEventDetails)
+                else TriggerCatalogEventDetails(**event.model_dump())
             )
-            detailed_event = details or TriggerCatalogEventDetails(**event.model_dump())
             requirement = states.get(integration_key)
             connection = None
             if requirement is not None:
@@ -461,107 +573,87 @@ class TriggersService:
             notes=notes,
         )
 
-    async def _discover_events_for_use_case(
+    async def _cached_event_catalog(
         self,
         *,
         provider_key: str,
-        use_case: str,
-        limit_alternatives: int,
-    ) -> List[Tuple[int, TriggerCatalogEvent, TriggerCatalogIntegration]]:
-        integrations = await self._candidate_integrations(
-            provider_key=provider_key,
-            use_case=use_case,
+    ) -> TriggerCatalogEventsSnapshot:
+        # Provider-only key: the catalog is identical for every project, so the
+        # cache is project-agnostic on purpose (mirrors the tools-discovery cache).
+        cache_key = {"provider": provider_key}
+        cached = await get_cache(
+            namespace=_CATALOG_CACHE_NAMESPACE,
+            key=cache_key,
+            model=TriggerCatalogEventsSnapshot,
         )
-        event_limit = max(_DISCOVERY_EVENT_LIMIT, limit_alternatives + 1)
+        if cached is not None:
+            return cached
+
+        adapter = self.adapter_registry.get(provider_key)
+        try:
+            snapshot = await asyncio.wait_for(
+                adapter.list_all_events(),
+                timeout=env.composio.catalog_fetch_deadline_seconds,
+            )
+        except asyncio.TimeoutError as e:
+            raise AdapterError(
+                provider_key=provider_key,
+                operation="list_all_events",
+                detail="catalog fetch deadline exceeded",
+            ) from e
+
+        await set_cache(
+            namespace=_CATALOG_CACHE_NAMESPACE,
+            key=cache_key,
+            value=snapshot,
+            ttl=env.composio.catalog_cache_ttl_seconds,
+        )
+        return snapshot
+
+    @staticmethod
+    def _discover_events_for_use_case(
+        *,
+        use_case: str,
+        snapshot: TriggerCatalogEventsSnapshot,
+    ) -> List[Tuple[int, TriggerCatalogEvent, TriggerCatalogIntegration]]:
+        integrations: Dict[str, TriggerCatalogIntegration] = {}
         matches: List[Tuple[int, TriggerCatalogEvent, TriggerCatalogIntegration]] = []
         seen = set()
 
-        for integration in integrations:
-            events = await self._candidate_events(
-                provider_key=provider_key,
-                integration_key=integration.key,
-                use_case=use_case,
-                limit=event_limit,
-            )
-            for event in events:
-                key = (event.integration or integration.key, event.key)
-                if key in seen:
-                    continue
-                seen.add(key)
-                score = _score_trigger_match(
-                    use_case=use_case,
-                    event=event,
-                    integration=integration,
+        for event in snapshot.events:
+            slug = event.integration or ""
+            key = (slug, event.key)
+            if key in seen:
+                continue
+            seen.add(key)
+            integration = integrations.get(slug)
+            if integration is None:
+                integration = TriggerCatalogIntegration(
+                    key=slug,
+                    name=snapshot.integration_names.get(slug, slug),
                 )
-                # The candidate loaders fall back to unfiltered catalog pages, so drop
-                # score-0 events here rather than letting discover_triggers surface an
-                # arbitrary, unrelated event.
-                if score <= 0:
-                    continue
-                matches.append((score, event, integration))
+                integrations[slug] = integration
+            score = _score_trigger_match(
+                use_case=use_case,
+                event=event,
+                integration=integration,
+            )
+            if score <= 0:
+                continue
+            matches.append((score, event, integration))
+
+        # An event from the wrong platform is unusable no matter how well its words
+        # match ("discord message received" must never surface Slack).
+        named = _named_integrations(
+            terms=_discovery_terms(use_case),
+            integrations=integrations,
+        )
+        if named:
+            matches = [
+                match for match in matches if (match[1].integration or "") in named
+            ]
 
         return sorted(matches, key=lambda item: item[0], reverse=True)
-
-    async def _candidate_integrations(
-        self,
-        *,
-        provider_key: str,
-        use_case: str,
-    ) -> List[TriggerCatalogIntegration]:
-        candidates: List[TriggerCatalogIntegration] = []
-        seen = set()
-
-        async def add_page(search: Optional[str]) -> None:
-            page = await self.list_integrations(
-                provider_key=provider_key,
-                search=search,
-                limit=_DISCOVERY_INTEGRATION_LIMIT,
-            )
-            for integration in page.integrations:
-                if integration.key not in seen:
-                    seen.add(integration.key)
-                    candidates.append(integration)
-
-        await add_page(use_case)
-        for term in _discovery_terms(use_case)[:3]:
-            if len(candidates) >= _DISCOVERY_INTEGRATION_LIMIT:
-                break
-            await add_page(term)
-        if not candidates:
-            await add_page(None)
-        return candidates[:_DISCOVERY_INTEGRATION_LIMIT]
-
-    async def _candidate_events(
-        self,
-        *,
-        provider_key: str,
-        integration_key: str,
-        use_case: str,
-        limit: int,
-    ) -> List[TriggerCatalogEvent]:
-        events: List[TriggerCatalogEvent] = []
-        seen = set()
-
-        async def add_page(query: Optional[str]) -> None:
-            page = await self.list_events(
-                provider_key=provider_key,
-                integration_key=integration_key,
-                query=query,
-                limit=limit,
-            )
-            for event in page.events:
-                if event.key not in seen:
-                    seen.add(event.key)
-                    events.append(event)
-
-        await add_page(use_case)
-        for term in _discovery_terms(use_case)[:3]:
-            if len(events) >= limit:
-                break
-            await add_page(term)
-        if not events:
-            await add_page(None)
-        return events[:limit]
 
     async def _trigger_discovery_connection_state(
         self,
