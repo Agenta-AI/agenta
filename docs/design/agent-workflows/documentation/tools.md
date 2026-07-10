@@ -526,6 +526,19 @@ The contract and the field-by-field Composio→Agenta mapping live in the
 `build-an-agent` (slug `__ag__build_an_agent`), which replaced the three earlier authoring
 skills; see the [skills port](../projects/build-kit-tools-cleanup/skills-port.md).
 
+The skill body is a short router. It loads every turn, so before the generic loop it checks a
+bundled `references/agent-templates/index.md` match table for a playbook that fits the user's
+ask. When one matches, the builder reads that playbook and follows it; a playbook layers one
+use case (changelog writer, issue triager, support router, and so on) onto the loop and never
+drops its approval stops. When none matches, the builder falls back to the generic loop.
+The playbooks ship beside the skill as `references/agent-templates/<key>.md`, one per home-page
+template (28 today), plus the two field references `references/config-schema.md` and
+`references/trigger-inputs.md`. The index and every playbook are generated from the
+`agent_templates` package in `sdks/python/agenta/sdk/agents/adapters/`, so the router table can
+never drift from the files that exist. The canonical playbook format lives in the
+[agent-templates workspace](../projects/agent-templates/playbook-spec.md), and the
+`write-template-playbooks` repo skill authors one.
+
 ## The whole picture
 
 | Tool type | Resolves to | Who executes | Where | Secret handling |

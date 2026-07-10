@@ -52,7 +52,8 @@ const OnboardingConfigPanel = () => {
             </Typography.Text>
 
             <div className="flex flex-col gap-0.5">
-                {AGENT_TEMPLATES.map((template) => (
+                {/* This list doesn't scroll, so cap it well short of the full 28-template registry. */}
+                {AGENT_TEMPLATES.slice(0, 6).map((template) => (
                     <button
                         key={template.key}
                         type="button"

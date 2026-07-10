@@ -210,6 +210,19 @@ def test_revision_level_lookup_pins_version_and_is_stable():
     assert other.workflow_id == current.workflow_id
 
 
+@pytest.mark.parametrize("version", ["v1", "1", 1])
+def test_retrieve_by_version_tolerates_v_prefix_and_numeric(version):
+    """A round-tripped reference can carry the version as "v1", "1", or the integer 1 (the FE
+    coerces workflow.version to a number). All three must resolve the same declared revision."""
+    catalog = StaticWorkflowCatalog()
+
+    revision = catalog.retrieve_revision(slug=_STATIC_SLUG, version=version)
+
+    assert revision is not None
+    assert revision.version == "v1"
+    assert revision.id == catalog.retrieve_revision(slug=_STATIC_SLUG).id
+
+
 def test_unknown_version_returns_none():
     catalog = StaticWorkflowCatalog()
 
