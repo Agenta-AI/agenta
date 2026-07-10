@@ -37,6 +37,7 @@ from daytona import (
     Image,
     Resources,
 )
+from daytona.common.errors import DaytonaNotFoundError
 
 SNAPSHOT_NAME = "agenta-sandbox-pi"
 SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
@@ -59,7 +60,7 @@ def main() -> None:
 
     try:
         existing = daytona.snapshot.get(SNAPSHOT_NAME)
-    except Exception:
+    except DaytonaNotFoundError:
         existing = None
 
     if existing and not force:
@@ -68,6 +69,17 @@ def main() -> None:
     if existing:
         print(f"deleting existing snapshot '{SNAPSHOT_NAME}'...")
         daytona.snapshot.delete(existing)
+        deadline = time.monotonic() + 120
+        while True:
+            try:
+                daytona.snapshot.get(SNAPSHOT_NAME)
+            except DaytonaNotFoundError:
+                break
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    "Timed out waiting for the old Daytona snapshot to delete"
+                )
+            time.sleep(2)
 
     # Add Pi globally so it is on PATH for the non-root sandbox user. The full base
     # already bakes Claude, Codex, and OpenCode, so verify their native binaries
