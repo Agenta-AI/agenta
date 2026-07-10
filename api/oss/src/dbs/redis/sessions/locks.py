@@ -34,6 +34,7 @@ from oss.src.dbs.redis.sessions.contract import (
 async def acquire_alive(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     turn_id: str,
 ) -> bool:
@@ -41,7 +42,7 @@ async def acquire_alive(
 
     Returns True on success, False if already held.
     """
-    key = alive_key(session_id)
+    key = alive_key(project_id, session_id)
     result = await engine.set(
         key,
         turn_id.encode(),
@@ -54,11 +55,12 @@ async def acquire_alive(
 async def refresh_alive(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     turn_id: str,
 ) -> bool:
     """Refresh the alive TTL only if turn_id still owns it."""
-    key = alive_key(session_id)
+    key = alive_key(project_id, session_id)
     current = await engine.get(key)
     if current and current.decode() == turn_id:
         await engine.expire(key, ALIVE_TTL_SECONDS)
@@ -69,11 +71,12 @@ async def refresh_alive(
 async def release_alive(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     turn_id: str,
 ) -> bool:
     """Release the alive lock if turn_id is still the owner."""
-    key = alive_key(session_id)
+    key = alive_key(project_id, session_id)
     result = await engine.eval(
         RELEASE_IF_OWNER_LUA,
         1,
@@ -86,10 +89,11 @@ async def release_alive(
 async def force_cancel_alive(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
 ) -> Optional[str]:
     """Forcibly delete the alive lock. Returns the previous owner, or None."""
-    key = alive_key(session_id)
+    key = alive_key(project_id, session_id)
     current = await engine.get(key)
     await engine.delete(key)
     return current.decode() if current else None
@@ -98,10 +102,11 @@ async def force_cancel_alive(
 async def get_alive_owner(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
 ) -> Optional[str]:
     """Return the current alive lock owner (turn_id), or None."""
-    key = alive_key(session_id)
+    key = alive_key(project_id, session_id)
     current = await engine.get(key)
     return current.decode() if current else None
 
@@ -115,22 +120,24 @@ async def get_alive_owner(
 async def acquire_running(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     turn_id: str,
 ) -> None:
     """Mark the session as running this turn (overwrites — steer/send own the turn)."""
-    key = running_key(session_id)
+    key = running_key(project_id, session_id)
     await engine.set(key, turn_id.encode(), ex=RUNNING_TTL_SECONDS)
 
 
 async def refresh_running(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     turn_id: str,
 ) -> bool:
     """Refresh the running TTL only if turn_id still owns it."""
-    key = running_key(session_id)
+    key = running_key(project_id, session_id)
     current = await engine.get(key)
     if current and current.decode() == turn_id:
         await engine.expire(key, RUNNING_TTL_SECONDS)
@@ -141,10 +148,11 @@ async def refresh_running(
 async def clear_running(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
 ) -> Optional[str]:
     """Unconditionally clear the running lock (turn ended/cancelled). Returns prior turn."""
-    key = running_key(session_id)
+    key = running_key(project_id, session_id)
     current = await engine.get(key)
     await engine.delete(key)
     return current.decode() if current else None
@@ -153,10 +161,11 @@ async def clear_running(
 async def get_running_owner(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
 ) -> Optional[str]:
     """Return the current running lock owner (turn_id), or None."""
-    key = running_key(session_id)
+    key = running_key(project_id, session_id)
     current = await engine.get(key)
     return current.decode() if current else None
 
@@ -169,6 +178,7 @@ async def get_running_owner(
 async def steal_attached(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     watcher_id: str,
 ) -> None:
@@ -177,8 +187,8 @@ async def steal_attached(
     Publishes a displacement message on the session's displaced channel before
     overwriting so the prior watcher can tear down cleanly.
     """
-    key = attached_key(session_id)
-    channel = displaced_channel(session_id)
+    key = attached_key(project_id, session_id)
+    channel = displaced_channel(project_id, session_id)
 
     payload = json.dumps(make_displacement_payload(by=watcher_id))
     await engine.publish(channel, payload.encode())
@@ -189,11 +199,12 @@ async def steal_attached(
 async def refresh_attached(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     watcher_id: str,
 ) -> bool:
     """Refresh the attached TTL only if watcher_id still owns it."""
-    key = attached_key(session_id)
+    key = attached_key(project_id, session_id)
     current = await engine.get(key)
     if current and current.decode() == watcher_id:
         await engine.expire(key, ATTACHED_TTL_SECONDS)
@@ -204,11 +215,12 @@ async def refresh_attached(
 async def release_attached(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     watcher_id: str,
 ) -> bool:
     """Release attached lock if watcher_id owns it. Never cancels the run."""
-    key = attached_key(session_id)
+    key = attached_key(project_id, session_id)
     result = await engine.eval(
         RELEASE_IF_OWNER_LUA,
         1,
@@ -221,10 +233,11 @@ async def release_attached(
 async def get_attached_owner(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
 ) -> Optional[str]:
     """Return the current attached lock owner (watcher_id), or None."""
-    key = attached_key(session_id)
+    key = attached_key(project_id, session_id)
     current = await engine.get(key)
     return current.decode() if current else None
 
@@ -237,10 +250,11 @@ async def get_attached_owner(
 async def get_owner(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
 ) -> Optional[str]:
     """Return the replica id currently owning this session, or None."""
-    key = owner_key(session_id)
+    key = owner_key(project_id, session_id)
     current = await engine.get(key)
     return current.decode() if current else None
 
@@ -248,6 +262,7 @@ async def get_owner(
 async def claim_owner(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     replica_id: str,
 ) -> str:
@@ -256,7 +271,7 @@ async def claim_owner(
     Never steals from a live different owner: if another replica holds it, its id is
     returned so the caller can refuse to serve a local session on the wrong host.
     """
-    key = owner_key(session_id)
+    key = owner_key(project_id, session_id)
     result = await engine.eval(
         CLAIM_OWNER_LUA,
         1,
@@ -270,11 +285,12 @@ async def claim_owner(
 async def clear_owner(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
     replica_id: str,
 ) -> bool:
     """Remove the owner key if replica_id is still the owner."""
-    key = owner_key(session_id)
+    key = owner_key(project_id, session_id)
     result = await engine.eval(
         RELEASE_IF_OWNER_LUA,
         1,
@@ -282,6 +298,24 @@ async def clear_owner(
         replica_id.encode(),
     )
     return result == 1
+
+
+async def force_clear_owner(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+) -> Optional[str]:
+    """Forcibly delete the owner key. Returns the previous owner, or None.
+
+    The unconditional twin of `clear_owner`, for kill: the session is being destroyed, so
+    affinity must drop whichever replica held it. Without this the non-stealing `claim_owner`
+    would lock the session out of every other replica for the remaining OWNER_TTL_SECONDS.
+    """
+    key = owner_key(project_id, session_id)
+    current = await engine.get(key)
+    await engine.delete(key)
+    return current.decode() if current else None
 
 
 # ---------------------------------------------------------------------------
@@ -292,15 +326,20 @@ async def clear_owner(
 async def get_session_liveness(
     engine: LockEngine,
     *,
+    project_id: str,
     session_id: str,
 ) -> dict:
     """Return the {alive, running, attached} nest snapshot.
 
     The three primitive bools; resumable/reattachable are derived client-side.
     """
-    alive = await get_alive_owner(engine, session_id=session_id)
-    running = await get_running_owner(engine, session_id=session_id)
-    attached = await get_attached_owner(engine, session_id=session_id)
+    alive = await get_alive_owner(engine, project_id=project_id, session_id=session_id)
+    running = await get_running_owner(
+        engine, project_id=project_id, session_id=session_id
+    )
+    attached = await get_attached_owner(
+        engine, project_id=project_id, session_id=session_id
+    )
     return {
         "alive": alive is not None,
         "running": running is not None,

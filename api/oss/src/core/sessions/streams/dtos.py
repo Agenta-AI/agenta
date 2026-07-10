@@ -110,7 +110,10 @@ class SessionHeartbeatResult(BaseModel):
     `replica_id` is the replica that currently holds the affinity key after the claim
     (this caller if it won or already held it, another replica otherwise). The runner reads
     it to refuse serving a local sandbox session it does not own.
+
+    `stream` is None when a losing replica heartbeats a session that has no row yet: it may
+    not create or stamp one, since that row belongs to the owner.
     """
 
-    stream: SessionStream
+    stream: Optional[SessionStream] = None
     replica_id: str

@@ -1,43 +1,44 @@
-"""Mount names must already be their own slug, so distinct names never share a row."""
+"""Session mounts are an upsert: names that slugify alike share a row; empty slugs are rejected."""
 
 import pytest
 
-from oss.src.core.mounts.service import mint_session_slug, validate_mount_name
+from oss.src.core.mounts.service import mint_session_slug, slugify_mount_name
 from oss.src.core.mounts.types import MountNameInvalid
 
 
-@pytest.mark.parametrize(
-    "name", ["cwd", "claude-projects", "pi-sessions", "a1", "x-y-z"]
-)
-def test_canonical_names_are_accepted(name):
-    validate_mount_name(name)
+@pytest.mark.parametrize("name", ["cwd", "claude-projects", "pi-sessions", "a1"])
+def test_canonical_names_pass_through(name):
+    assert slugify_mount_name(name) == name
 
 
 @pytest.mark.parametrize(
-    "name",
+    "name, slug",
     [
-        "CWD",  # case folds onto "cwd"
-        "claude projects",  # space folds onto "claude-projects"
-        "claude_projects",  # underscore folds onto "claude-projects"
-        "claude...projects",  # punctuation run folds onto "claude-projects"
-        "--cwd--",  # leading/trailing dashes strip onto "cwd"
-        "!!!",  # punctuation-only slugifies to ""
-        "   ",  # whitespace-only slugifies to ""
-        "",
+        ("CWD", "cwd"),
+        ("--cwd--", "cwd"),
+        ("claude projects", "claude-projects"),
+        ("claude_projects", "claude-projects"),
+        ("claude...projects", "claude-projects"),
     ],
 )
-def test_non_canonical_names_are_rejected(name):
-    with pytest.raises(MountNameInvalid):
-        validate_mount_name(name)
+def test_aliases_fold_onto_the_canonical_slug(name, slug):
+    assert slugify_mount_name(name) == slug
 
 
-def test_names_that_would_collide_cannot_both_be_minted():
-    # Only the canonical spelling survives, so one name maps to exactly one slug.
-    assert mint_session_slug(session_id="s1", name="claude-projects").endswith(
-        "__claude-projects"
-    )
+@pytest.mark.parametrize("name", ["!!!", "   ", ""])
+def test_names_that_slugify_to_nothing_are_rejected(name):
+    # An empty slug would mint a nameless `__ag__<uuid5>__` prefix.
     with pytest.raises(MountNameInvalid):
-        mint_session_slug(session_id="s1", name="claude projects")
+        slugify_mount_name(name)
+    with pytest.raises(MountNameInvalid):
+        mint_session_slug(session_id="s1", name=name)
+
+
+def test_aliases_resolve_to_the_same_slug_so_the_upsert_returns_one_row():
+    a = mint_session_slug(session_id="s1", name="claude projects")
+    b = mint_session_slug(session_id="s1", name="claude-projects")
+    assert a == b
+    assert a.endswith("__claude-projects")
 
 
 def test_slug_is_deterministic_per_session_and_name():

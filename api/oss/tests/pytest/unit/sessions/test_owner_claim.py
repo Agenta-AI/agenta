@@ -99,6 +99,9 @@ class _FakeEvalRedis:
         pass
 
 
+_PROJECT_ID = "proj-owner-1"
+
+
 @pytest_asyncio.fixture
 async def fake_redis():
     from oss.src.dbs.redis.shared.engine import LockEngine
@@ -123,10 +126,15 @@ async def test_claim_owner_on_unowned_session_wins_and_sets_key(fake_redis):
     engine, _client = fake_redis
     session_id = _session_id()
 
-    owner = await claim_owner(engine, session_id=session_id, replica_id="replica-a")
+    owner = await claim_owner(
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-a"
+    )
 
     assert owner == "replica-a"
-    assert await get_owner(engine, session_id=session_id) == "replica-a"
+    assert (
+        await get_owner(engine, project_id=_PROJECT_ID, session_id=session_id)
+        == "replica-a"
+    )
 
 
 @pytest.mark.asyncio
@@ -137,13 +145,17 @@ async def test_claim_owner_same_replica_refreshes_without_stealing(fake_redis):
     engine, client = fake_redis
     session_id = _session_id()
 
-    first = await claim_owner(engine, session_id=session_id, replica_id="replica-a")
+    first = await claim_owner(
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-a"
+    )
     assert first == "replica-a"
 
-    key = owner_key(session_id)
+    key = owner_key(_PROJECT_ID, session_id)
     await client.expire(key, 5)  # simulate TTL having ticked down since first claim
 
-    second = await claim_owner(engine, session_id=session_id, replica_id="replica-a")
+    second = await claim_owner(
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-a"
+    )
 
     assert second == "replica-a"
     ttl = await client.ttl(key)
@@ -161,19 +173,22 @@ async def test_claim_owner_different_replica_does_not_steal(fake_redis):
     engine, _client = fake_redis
     session_id = _session_id()
 
-    original = await claim_owner(engine, session_id=session_id, replica_id="replica-a")
+    original = await claim_owner(
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-a"
+    )
     assert original == "replica-a"
 
     challenger = await claim_owner(
-        engine, session_id=session_id, replica_id="replica-b"
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-b"
     )
 
     assert challenger == "replica-a", (
         "the challenger must learn the ORIGINAL owner, not itself"
     )
-    assert await get_owner(engine, session_id=session_id) == "replica-a", (
-        "the owner key must still hold the original owner after a losing claim"
-    )
+    assert (
+        await get_owner(engine, project_id=_PROJECT_ID, session_id=session_id)
+        == "replica-a"
+    ), "the owner key must still hold the original owner after a losing claim"
 
 
 @pytest.mark.asyncio
@@ -184,9 +199,11 @@ async def test_claim_owner_sets_ttl_to_owner_ttl_seconds(fake_redis):
     engine, client = fake_redis
     session_id = _session_id()
 
-    await claim_owner(engine, session_id=session_id, replica_id="replica-a")
+    await claim_owner(
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-a"
+    )
 
-    ttl = await client.ttl(owner_key(session_id))
+    ttl = await client.ttl(owner_key(_PROJECT_ID, session_id))
     assert 0 < ttl <= OWNER_TTL_SECONDS
 
 
@@ -198,9 +215,13 @@ async def test_claim_owner_return_type_is_str(fake_redis):
     engine, _client = fake_redis
     session_id = _session_id()
 
-    owner = await claim_owner(engine, session_id=session_id, replica_id="replica-a")
+    owner = await claim_owner(
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-a"
+    )
     assert isinstance(owner, str)
 
     # A losing claim's return value (the pre-existing GET result) must also decode to str.
-    owner2 = await claim_owner(engine, session_id=session_id, replica_id="replica-b")
+    owner2 = await claim_owner(
+        engine, project_id=_PROJECT_ID, session_id=session_id, replica_id="replica-b"
+    )
     assert isinstance(owner2, str)

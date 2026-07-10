@@ -40,13 +40,15 @@ class TestSessionSlugMinting:
         b = mint_session_slug(session_id="sess-2", name="cwd")
         assert a != b
 
-    def test_non_canonical_name_is_rejected_not_slugified(self):
-        # Slugifying was lossy: "Claude Home" and "claude-home" folded onto one row/prefix.
-        with pytest.raises(MountNameInvalid):
-            mint_session_slug(session_id="sess-1", name="Claude Home")
-        assert mint_session_slug(session_id="sess-1", name="claude-home").endswith(
+    def test_name_is_slugified(self):
+        # The mount is an upsert: aliases share the row, so the slug is the canonical form.
+        assert mint_session_slug(session_id="sess-1", name="Claude Home").endswith(
             "__claude-home"
         )
+
+    def test_name_that_slugifies_to_nothing_is_rejected(self):
+        with pytest.raises(MountNameInvalid):
+            mint_session_slug(session_id="sess-1", name="!!!")
 
     def test_carries_full_undashed_uuid_no_truncation(self):
         slug = mint_session_slug(session_id="sess-1", name="cwd")

@@ -50,27 +50,27 @@ def _slugify(value: str) -> str:
     return sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
 
 
-def validate_mount_name(name: str) -> None:
-    """A mount name must already BE its slug, so distinct names never share a row.
+def slugify_mount_name(name: str) -> str:
+    """The slug a mount name maps to. Rejects names that slugify to nothing.
 
-    `_slugify` is lossy: 'claude projects', 'claude-projects' and 'claude_projects' all fold to
-    one slug, and a punctuation-only name folds to the empty string. Since the endpoint promises
-    each name is its own mount row and durable prefix, reject anything non-canonical instead of
-    silently aliasing it.
+    Aliasing is intended: the session mount is an upsert keyed on unique(project_id, slug), so
+    'CWD' and 'cwd' resolving to one row returns that row rather than corrupting it. Only an
+    empty slug is malformed — it would mint a nameless `__ag__<uuid5>__` prefix.
     """
-    if not name or _slugify(name) != name:
+    slug = _slugify(name)
+    if not slug:
         raise MountNameInvalid(name)
+    return slug
 
 
 def mint_session_slug(*, session_id: str, name: str) -> str:
-    """Stored slug for a session mount: __ag__<uuid5(session)>__<name>.
+    """Stored slug for a session mount: __ag__<uuid5(session)>__<slugified-name>.
 
     The full dashed uuid5 keeps it deterministic (re-attach the same files) and
     project-unique without truncation, so the existing unique(project_id, slug)
     constraint holds for both session and non-session mounts.
     """
-    validate_mount_name(name)
-    return f"{_RESERVED_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{name}"
+    return f"{_RESERVED_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
 
 
 def reject_reserved_slug(slug: str) -> None:
@@ -168,16 +168,18 @@ class MountsService:
     ) -> Mount:
         """Bind (idempotently) one durable mount for a session, keyed by `name`.
 
-        The minted session slug is deterministic per (session_id, name), so the upsert
-        keys on unique(project_id, slug): the same (session, name) always resolves to the
-        same row and the same durable storage prefix. No explicit create/edit, no 409
+        The minted session slug is deterministic per (session_id, slugify(name)), so the
+        upsert keys on unique(project_id, slug): the same (session, name) always resolves to
+        the same row and the same durable storage prefix. No explicit create/edit, no 409
         dance. `name="cwd"` is the original single-mount case; any other name (e.g. a
         harness's transcript dir) is an additional session-scoped mount sharing the same
-        shape with its own prefix.
+        shape with its own prefix. Names that slugify alike share the row by design; the
+        stored `name` is the slug so it never disagrees with it.
         """
+        slug_name = slugify_mount_name(name)
         mount_create = MountCreate(
-            slug=mint_session_slug(session_id=session_id, name=name),
-            name=name,
+            slug=mint_session_slug(session_id=session_id, name=slug_name),
+            name=slug_name,
             session_id=session_id,
         )
         return await self.mounts_dao.upsert_mount(

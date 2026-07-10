@@ -22,24 +22,29 @@ export const HEARTBEAT_WRITE_THRESHOLD_SECONDS = 60;
 // Key builders
 // ---------------------------------------------------------------------------
 
-export function aliveKey(sessionId: string): string {
-  return `alive:session:${sessionId}`;
+// Every key is project-scoped: `session_id` is caller-supplied and two projects may hold the
+// same one, so the project segment is the tenant boundary. The runner never builds these keys
+// (it reaches the coordination plane over HTTP, and the API resolves the project from the
+// credential); they exist to keep this mirror honest against the Python contract.
+
+export function aliveKey(projectId: string, sessionId: string): string {
+  return `alive:${projectId}:session:${sessionId}`;
 }
 
-export function runningKey(sessionId: string): string {
-  return `running:session:${sessionId}`;
+export function runningKey(projectId: string, sessionId: string): string {
+  return `running:${projectId}:session:${sessionId}`;
 }
 
-export function attachedKey(sessionId: string): string {
-  return `attached:session:${sessionId}`;
+export function attachedKey(projectId: string, sessionId: string): string {
+  return `attached:${projectId}:session:${sessionId}`;
 }
 
-export function ownerKey(sessionId: string): string {
-  return `owner:session:${sessionId}`;
+export function ownerKey(projectId: string, sessionId: string): string {
+  return `owner:${projectId}:session:${sessionId}`;
 }
 
-export function displacedChannel(sessionId: string): string {
-  return `displaced:session:${sessionId}`;
+export function displacedChannel(projectId: string, sessionId: string): string {
+  return `displaced:${projectId}:session:${sessionId}`;
 }
 
 // ---------------------------------------------------------------------------
