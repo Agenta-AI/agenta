@@ -102,7 +102,8 @@ const SessionTag = ({
             <SessionTabLabel
                 label={label}
                 onRename={onRename}
-                className="block min-w-0 flex-1 truncate"
+                sessionId={session.id}
+                createdAt={session.createdAt}
             />
             {closable && (
                 <Button
