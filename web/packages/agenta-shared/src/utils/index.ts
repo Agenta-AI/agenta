@@ -227,6 +227,7 @@ export {
     deriveElicitationPartState,
     hasPriorElicitationDegradation,
     parseElicitationPayload,
+    partitionElicitationDraft,
     serializeElicitationContent,
     type ElicitationAction,
     type ElicitationFieldSchema,
