@@ -78,6 +78,14 @@ spec:
             - name: DAYTONA_AUTOSTOP
               value: {{ $daytona.autostopDelay | quote }}
             {{- end }}
+            {{- if $daytona.autoarchiveDelay }}
+            - name: DAYTONA_AUTOARCHIVE
+              value: {{ $daytona.autoarchiveDelay | quote }}
+            {{- end }}
+            {{- if $daytona.autodeleteDelay }}
+            - name: DAYTONA_AUTODELETE
+              value: {{ $daytona.autodeleteDelay | quote }}
+            {{- end }}
             {{- if hasKey $daytona "installPi" }}
             - name: AGENTA_AGENT_SANDBOX_PI_INSTALLED
               value: {{ $daytona.installPi | quote }}

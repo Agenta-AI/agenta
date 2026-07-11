@@ -15,8 +15,6 @@ const fernRetrieve = vi.fn()
 // `workflow/api/api.ts` pulls from both SDK entrypoints: retrieveWorkflowRevision
 // goes through the per-resource getter (PR #4864), while fetchSimpleApplication
 // still uses the bare client. Mock both so no real transport is constructed.
-// The getters return the same fake every call, so per-test state lives on
-// `fernRetrieve`.
 vi.mock("@agenta/sdk", () => ({
     getAgentaSdkClient: () => ({
         applications: {

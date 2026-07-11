@@ -17,6 +17,7 @@ from ..types.tool_call_data import ToolCallData
 from ..types.tool_call_response import ToolCallResponse
 from ..types.tool_catalog_action_response import ToolCatalogActionResponse
 from ..types.tool_catalog_actions_response import ToolCatalogActionsResponse
+from ..types.tool_catalog_categories_response import ToolCatalogCategoriesResponse
 from ..types.tool_catalog_integration_response import ToolCatalogIntegrationResponse
 from ..types.tool_catalog_integrations_response import ToolCatalogIntegrationsResponse
 from ..types.tool_catalog_provider_response import ToolCatalogProviderResponse
@@ -119,7 +120,7 @@ class RawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogIntegrationsResponse]:
+    def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, category: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogIntegrationsResponse]:
         """
         Parameters
         ----------
@@ -128,6 +129,8 @@ class RawToolsClient:
         search : typing.Optional[str]
         
         sort_by : typing.Optional[str]
+        
+        category : typing.Optional[str]
         
         limit : typing.Optional[int]
         
@@ -145,7 +148,7 @@ class RawToolsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             f"tools/catalog/providers/{jsonable_encoder(provider_key)}/integrations/",method="GET",
-            params={"search": search, "sort_by": sort_by, "limit": limit, "cursor": cursor, "full_details": full_details, }
+            params={"search": search, "sort_by": sort_by, "category": category, "limit": limit, "cursor": cursor, "full_details": full_details, }
             ,
             request_options=request_options,)
         try:
@@ -154,6 +157,46 @@ class RawToolsClient:
                     ToolCatalogIntegrationsResponse,
                     parse_obj_as(
                         type_ =ToolCatalogIntegrationsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def list_tool_categories(self, provider_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogCategoriesResponse]:
+        """
+        Parameters
+        ----------
+        provider_key : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[ToolCatalogCategoriesResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"tools/catalog/providers/{jsonable_encoder(provider_key)}/categories/",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolCatalogCategoriesResponse,
+                    parse_obj_as(
+                        type_ =ToolCatalogCategoriesResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -880,7 +923,7 @@ class AsyncRawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogIntegrationsResponse]:
+    async def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, category: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogIntegrationsResponse]:
         """
         Parameters
         ----------
@@ -889,6 +932,8 @@ class AsyncRawToolsClient:
         search : typing.Optional[str]
         
         sort_by : typing.Optional[str]
+        
+        category : typing.Optional[str]
         
         limit : typing.Optional[int]
         
@@ -906,7 +951,7 @@ class AsyncRawToolsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             f"tools/catalog/providers/{jsonable_encoder(provider_key)}/integrations/",method="GET",
-            params={"search": search, "sort_by": sort_by, "limit": limit, "cursor": cursor, "full_details": full_details, }
+            params={"search": search, "sort_by": sort_by, "category": category, "limit": limit, "cursor": cursor, "full_details": full_details, }
             ,
             request_options=request_options,)
         try:
@@ -915,6 +960,46 @@ class AsyncRawToolsClient:
                     ToolCatalogIntegrationsResponse,
                     parse_obj_as(
                         type_ =ToolCatalogIntegrationsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def list_tool_categories(self, provider_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogCategoriesResponse]:
+        """
+        Parameters
+        ----------
+        provider_key : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[ToolCatalogCategoriesResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"tools/catalog/providers/{jsonable_encoder(provider_key)}/categories/",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolCatalogCategoriesResponse,
+                    parse_obj_as(
+                        type_ =ToolCatalogCategoriesResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )

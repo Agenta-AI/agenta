@@ -35,8 +35,9 @@ RUN set -eux; \
 
 RUN corepack enable
 
-# Install deps as a cached layer (manifest + lockfile only).
+# Install deps as a cached layer (manifest + lockfile + the patches they reference).
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 # Fallback copy for non-mounted runs; in dev these are bind-mounted over.

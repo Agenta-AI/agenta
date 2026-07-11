@@ -9,7 +9,11 @@ from oss.src.core.mounts.service import (
     reject_reserved_slug,
     validate_file_path,
 )
-from oss.src.core.mounts.types import MountPathInvalid, MountSlugReserved
+from oss.src.core.mounts.types import (
+    MountNameInvalid,
+    MountPathInvalid,
+    MountSlugReserved,
+)
 
 
 _MOUNTS_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "mounts")
@@ -37,8 +41,14 @@ class TestSessionSlugMinting:
         assert a != b
 
     def test_name_is_slugified(self):
-        slug = mint_session_slug(session_id="sess-1", name="Claude Home")
-        assert slug.endswith("__claude-home")
+        # The mount is an upsert: aliases share the row, so the slug is the canonical form.
+        assert mint_session_slug(session_id="sess-1", name="Claude Home").endswith(
+            "__claude-home"
+        )
+
+    def test_name_that_slugifies_to_nothing_is_rejected(self):
+        with pytest.raises(MountNameInvalid):
+            mint_session_slug(session_id="sess-1", name="!!!")
 
     def test_carries_full_undashed_uuid_no_truncation(self):
         slug = mint_session_slug(session_id="sess-1", name="cwd")

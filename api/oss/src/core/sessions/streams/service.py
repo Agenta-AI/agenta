@@ -26,20 +26,21 @@ from oss.src.dbs.redis.sessions.contract import (
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
+    claim_owner,
     clear_running,
     force_cancel_alive,
+    force_clear_owner,
     get_session_liveness,
     refresh_alive,
-    refresh_owner,
     refresh_running,
     release_attached,
-    set_owner,
     steal_attached,
 )
 
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionHeartbeatRequest,
+    SessionHeartbeatResult,
     SessionStream,
     SessionStreamCommandRequest,
     SessionStreamCommandResponse,
@@ -96,7 +97,9 @@ class SessionStreamsService:
         session_id = request.session_id
 
         if mode == CommandMode.send:
-            liveness = await get_session_liveness(self._lock, session_id=session_id)
+            liveness = await get_session_liveness(
+                self._lock, project_id=str(project_id), session_id=session_id
+            )
             if liveness["alive"]:
                 raise SessionTurnInUse(session_id=session_id, liveness=liveness)
             turn_id = await self._start_turn(
@@ -112,8 +115,12 @@ class SessionStreamsService:
             )
 
         elif mode == CommandMode.steer:
-            await force_cancel_alive(self._lock, session_id=session_id)
-            await clear_running(self._lock, session_id=session_id)
+            await force_cancel_alive(
+                self._lock, project_id=str(project_id), session_id=session_id
+            )
+            await clear_running(
+                self._lock, project_id=str(project_id), session_id=session_id
+            )
             turn_id = await self._start_turn(
                 project_id=project_id,
                 user_id=user_id,
@@ -127,8 +134,12 @@ class SessionStreamsService:
             )
 
         elif mode == CommandMode.cancel:
-            await force_cancel_alive(self._lock, session_id=session_id)
-            await clear_running(self._lock, session_id=session_id)
+            await force_cancel_alive(
+                self._lock, project_id=str(project_id), session_id=session_id
+            )
+            await clear_running(
+                self._lock, project_id=str(project_id), session_id=session_id
+            )
             await self._mark_stream_ended(
                 project_id=project_id,
                 user_id=user_id,
@@ -144,6 +155,7 @@ class SessionStreamsService:
             watcher_id = str(uuid.uuid7())
             await steal_attached(
                 self._lock,
+                project_id=str(project_id),
                 session_id=session_id,
                 watcher_id=watcher_id,
             )
@@ -172,6 +184,7 @@ class SessionStreamsService:
         _validate_session_id(session_id)
         await release_attached(
             self._lock,
+            project_id=str(project_id),
             session_id=session_id,
             watcher_id=watcher_id,
         )
@@ -191,17 +204,36 @@ class SessionStreamsService:
     ) -> bool:
         """KILL: collapse the whole nest and end the stream.
 
-        Force-clears alive + running + attached in Redis (losing the alive lock is the
-        runner's existing teardown signal), marks the row ended, and soft-deletes it.
+        Force-clears alive + running + attached + owner in Redis (losing the alive lock is
+        the runner's existing teardown signal), marks the row ended, and soft-deletes it.
         Idempotent: a kill on an already-dead session is a no-op success.
         """
         _validate_session_id(session_id)
-        await force_cancel_alive(self._lock, session_id=session_id)
-        await clear_running(self._lock, session_id=session_id)
+        await force_cancel_alive(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
+        await clear_running(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
+        # Drop affinity too: claim_owner never steals, so a surviving owner key would lock
+        # the session out of every other replica for the rest of OWNER_TTL_SECONDS.
+        await force_clear_owner(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
         # Displace any watcher by stealing then releasing a throwaway attach token.
         throwaway = str(uuid.uuid7())
-        await steal_attached(self._lock, session_id=session_id, watcher_id=throwaway)
-        await release_attached(self._lock, session_id=session_id, watcher_id=throwaway)
+        await steal_attached(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            watcher_id=throwaway,
+        )
+        await release_attached(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            watcher_id=throwaway,
+        )
         await self._mark_stream_ended(
             project_id=project_id,
             user_id=user_id,
@@ -217,52 +249,64 @@ class SessionStreamsService:
         *,
         project_id: UUID,
         request: SessionHeartbeatRequest,
-    ) -> SessionStream:
+    ) -> SessionHeartbeatResult:
         _validate_session_id(request.session_id)
 
-        # replica_id refreshes affinity (which container owns the session);
-        # turn_id refreshes the alive/running TTLs (proving this turn still owns the lock).
-        if not await refresh_owner(
+        # replica_id claims affinity without stealing from a live different owner; turn_id
+        # separately refreshes the alive/running TTLs. `owner` is the actual winner (this
+        # replica if it won or already held it, another replica otherwise).
+        owner = await claim_owner(
             self._lock,
+            project_id=str(project_id),
             session_id=request.session_id,
             replica_id=request.replica_id,
-        ):
-            await set_owner(
-                self._lock,
+        )
+        # A replica that lost the claim owns nothing here: mutating the nest would let it
+        # overwrite the winner's turn locks and stream row. Report the true owner and stop.
+        if owner != request.replica_id:
+            stream = await self._dao.get_by_session_id(
+                project_id=project_id,
                 session_id=request.session_id,
-                replica_id=request.replica_id,
             )
+            return SessionHeartbeatResult(stream=stream, replica_id=owner)
+
         if request.turn_id and request.is_running:
-            # Acquire-then-refresh: the runner heartbeats directly and never calls
-            # _start_turn, so the FIRST heartbeat must establish the nest locks itself.
-            # acquire_* is nx=True — a no-op if _start_turn already holds them.
+            # Acquire-then-refresh: the first heartbeat must establish the nest locks
+            # itself (acquire_* is nx=True — a no-op if _start_turn already holds them).
             if not await refresh_alive(
                 self._lock,
+                project_id=str(project_id),
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
                 await acquire_alive(
                     self._lock,
+                    project_id=str(project_id),
                     session_id=request.session_id,
                     turn_id=request.turn_id,
                 )
             if not await refresh_running(
                 self._lock,
+                project_id=str(project_id),
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
                 await acquire_running(
                     self._lock,
+                    project_id=str(project_id),
                     session_id=request.session_id,
                     turn_id=request.turn_id,
                 )
         elif not request.is_running:
-            # The release beat (turn finished): drop ONLY running. The sandbox is not
-            # killed when a turn ends, so `alive` stays (it has its own TTL and is cleared
-            # only by kill). This is what makes the session reattachable across turns.
-            await clear_running(self._lock, session_id=request.session_id)
+            # Turn ended: drop only `running`. `alive` outlives the turn (own TTL, cleared
+            # only by kill) — this is what makes the session reattachable.
+            await clear_running(
+                self._lock, project_id=str(project_id), session_id=request.session_id
+            )
 
-        liveness = await get_session_liveness(self._lock, session_id=request.session_id)
+        liveness = await get_session_liveness(
+            self._lock, project_id=str(project_id), session_id=request.session_id
+        )
         flags = SessionStreamFlags(
             is_alive=liveness["alive"],
             is_running=liveness["running"],
@@ -291,7 +335,10 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 stream=SessionStreamEdit(flags=flags, turn_id=request.turn_id),
             )
-        return stream
+        return SessionHeartbeatResult(
+            stream=stream,
+            replica_id=owner,
+        )
 
     async def fetch(
         self,
@@ -301,7 +348,9 @@ class SessionStreamsService:
     ) -> Optional[SessionStream]:
         """Single source-of-truth read: reconcile the Redis nest into the row's flags."""
         _validate_session_id(session_id)
-        snap = await get_session_liveness(self._lock, session_id=session_id)
+        snap = await get_session_liveness(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
         flags = SessionStreamFlags(
             is_alive=snap["alive"],
             is_running=snap["running"],
@@ -343,14 +392,22 @@ class SessionStreamsService:
         turn_id = str(uuid.uuid7())
         acquired = await acquire_alive(
             self._lock,
+            project_id=str(project_id),
             session_id=session_id,
             turn_id=turn_id,
         )
         if not acquired:
-            liveness = await get_session_liveness(self._lock, session_id=session_id)
+            liveness = await get_session_liveness(
+                self._lock, project_id=str(project_id), session_id=session_id
+            )
             raise SessionTurnInUse(session_id=session_id, liveness=liveness)
 
-        await acquire_running(self._lock, session_id=session_id, turn_id=turn_id)
+        await acquire_running(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
 
         flags = SessionStreamFlags(is_alive=True, is_running=True, is_attached=False)
         stream = await self._dao.get_by_session_id(
@@ -385,7 +442,9 @@ class SessionStreamsService:
         is_attached: Optional[bool] = None,
     ) -> None:
         """Re-read the Redis nest and mirror it (optionally overriding is_attached)."""
-        snap = await get_session_liveness(self._lock, session_id=session_id)
+        snap = await get_session_liveness(
+            self._lock, project_id=str(project_id), session_id=session_id
+        )
         flags = SessionStreamFlags(
             is_alive=snap["alive"],
             is_running=snap["running"],

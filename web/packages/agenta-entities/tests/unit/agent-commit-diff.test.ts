@@ -332,7 +332,7 @@ describe("classifyAgentChanges", () => {
         const remote = {agent: {mcps: [{name: "github"}]}}
         const local = {agent: {mcps: [{name: "github"}, {name: "linear"}]}}
         const mcps = classifyAgentChanges(local, remote).find((s) => s.id === "mcps")
-        expect(mcps?.title).toBe("MCP servers")
+        expect(mcps?.title).toBe("MCPs")
         expect(mcps?.items?.[0]).toMatchObject({kind: "added", label: "linear"})
     })
 

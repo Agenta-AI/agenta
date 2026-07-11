@@ -9,6 +9,7 @@ from ..types.tool_call_data import ToolCallData
 from ..types.tool_call_response import ToolCallResponse
 from ..types.tool_catalog_action_response import ToolCatalogActionResponse
 from ..types.tool_catalog_actions_response import ToolCatalogActionsResponse
+from ..types.tool_catalog_categories_response import ToolCatalogCategoriesResponse
 from ..types.tool_catalog_integration_response import ToolCatalogIntegrationResponse
 from ..types.tool_catalog_integrations_response import ToolCatalogIntegrationsResponse
 from ..types.tool_catalog_provider_response import ToolCatalogProviderResponse
@@ -93,7 +94,7 @@ class ToolsClient:
         _response = self._raw_client.fetch_tool_provider(provider_key, full_details=full_details, request_options=request_options)
         return _response.data
     
-    def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationsResponse:
+    def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, category: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationsResponse:
         """
         Parameters
         ----------
@@ -102,6 +103,8 @@ class ToolsClient:
         search : typing.Optional[str]
         
         sort_by : typing.Optional[str]
+        
+        category : typing.Optional[str]
         
         limit : typing.Optional[int]
         
@@ -128,7 +131,35 @@ class ToolsClient:
             provider_key="provider_key",
         )
         """
-        _response = self._raw_client.list_tool_integrations(provider_key, search=search, sort_by=sort_by, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
+        _response = self._raw_client.list_tool_integrations(provider_key, search=search, sort_by=sort_by, category=category, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
+        return _response.data
+    
+    def list_tool_categories(self, provider_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogCategoriesResponse:
+        """
+        Parameters
+        ----------
+        provider_key : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ToolCatalogCategoriesResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.tools.list_tool_categories(
+            provider_key="provider_key",
+        )
+        """
+        _response = self._raw_client.list_tool_categories(provider_key, request_options=request_options)
         return _response.data
     
     def fetch_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationResponse:
@@ -651,7 +682,7 @@ class AsyncToolsClient:
         _response = await self._raw_client.fetch_tool_provider(provider_key, full_details=full_details, request_options=request_options)
         return _response.data
     
-    async def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationsResponse:
+    async def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, category: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationsResponse:
         """
         Parameters
         ----------
@@ -660,6 +691,8 @@ class AsyncToolsClient:
         search : typing.Optional[str]
         
         sort_by : typing.Optional[str]
+        
+        category : typing.Optional[str]
         
         limit : typing.Optional[int]
         
@@ -694,7 +727,43 @@ class AsyncToolsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_tool_integrations(provider_key, search=search, sort_by=sort_by, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
+        _response = await self._raw_client.list_tool_integrations(provider_key, search=search, sort_by=sort_by, category=category, limit=limit, cursor=cursor, full_details=full_details, request_options=request_options)
+        return _response.data
+    
+    async def list_tool_categories(self, provider_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogCategoriesResponse:
+        """
+        Parameters
+        ----------
+        provider_key : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ToolCatalogCategoriesResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.tools.list_tool_categories(
+                provider_key="provider_key",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.list_tool_categories(provider_key, request_options=request_options)
         return _response.data
     
     async def fetch_tool_integration(self, provider_key: str, integration_key: str, *, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> ToolCatalogIntegrationResponse:
