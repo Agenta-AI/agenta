@@ -20,6 +20,8 @@ AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
 AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
 AGENTA_STORE_BUCKET="${AGENTA_STORE_BUCKET:-agenta-store}"
 AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-$(openssl rand -base64 32)}"
+AGENTA_RUNNER_CONTROL_TOKEN="${AGENTA_RUNNER_CONTROL_TOKEN:-}"
+AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY="${AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY:-}"
 # RSA key the API signs its store web-identity token with; the bundled SeaweedFS verifies it
 # against the API's JWKS. Generated once per configure run if unset (single-replica Railway).
 AGENTA_STORE_JWT_PRIVATE_KEY="${AGENTA_STORE_JWT_PRIVATE_KEY:-$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)}"
@@ -185,6 +187,18 @@ set_healthcheck() {
     railway_call environment edit --environment "$ENV_NAME" --service-config "$service" healthcheckPath "$path" --message "set healthcheck for ${service}" --json >/dev/null
 }
 
+resolve_runner_secrets() {
+    local existing
+    if [ -z "$AGENTA_RUNNER_CONTROL_TOKEN" ]; then
+        existing="$(railway_call variable list -k --service runner --environment "$ENV_NAME" | grep "^AGENTA_RUNNER_CONTROL_TOKEN=" | cut -d= -f2- || true)"
+        AGENTA_RUNNER_CONTROL_TOKEN="${existing:-$(openssl rand -hex 32)}"
+    fi
+    if [ -z "$AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY" ]; then
+        existing="$(railway_call variable list -k --service runner --environment "$ENV_NAME" | grep "^AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY=" | cut -d= -f2- || true)"
+        AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY="${existing:-$(openssl rand -hex 32)}"
+    fi
+}
+
 main() {
     require_cmd railway
     require_railway_auth
@@ -198,6 +212,7 @@ main() {
     # Resolve IDs for the GraphQL variableCollectionUpsert path (after link, so
     # the project/environment/services exist and are linked).
     resolve_railway_ids
+    resolve_runner_secrets
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true
 
@@ -252,6 +267,7 @@ main() {
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
         AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
         AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        AGENTA_RUNNER_CONTROL_TOKEN="$AGENTA_RUNNER_CONTROL_TOKEN" \
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
@@ -302,6 +318,8 @@ main() {
 
     set_vars runner \
         AGENTA_RUNNER_PORT=8765 \
+        AGENTA_RUNNER_CONTROL_TOKEN="$AGENTA_RUNNER_CONTROL_TOKEN" \
+        AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY="$AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY" \
         SANDBOX_AGENT_PROVIDER="${SANDBOX_AGENT_PROVIDER:-local}" \
         AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
         AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
