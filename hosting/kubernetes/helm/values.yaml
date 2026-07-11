@@ -138,6 +138,8 @@ redisDurable:
 # agentRunner:
 #   enabled: true
 #   enableMcp: true
+#   controlToken: ""  # shared only with API; use an existing Secret in production
+#   secretEpochHmacKey: ""  # runner-only, at least 32 random bytes
 #   daytona:
 #     sessionIdleTtlMs: ""
 #     sessionMaxWarm: ""
