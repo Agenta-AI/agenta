@@ -231,6 +231,9 @@ class AgentSecretLeasesDAO(AgentSecretLeasesDAOInterface):
             elif transition == LeaseTransition.REQUEST_CLEANUP:
                 lease.state = LeaseState.CLEANUP_PENDING.value
                 lease.cleanup_requested_at = lease.cleanup_requested_at or now
+                if mutation.error_code is not None:
+                    lease.last_error_code = mutation.error_code.value
+                    lease.last_error_at = now
             elif transition == LeaseTransition.BEGIN_CLEANUP:
                 lease.state = LeaseState.CLEANING.value
             elif transition == LeaseTransition.RECORD_RETRY:

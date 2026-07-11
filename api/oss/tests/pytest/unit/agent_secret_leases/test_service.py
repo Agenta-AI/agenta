@@ -3,6 +3,10 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.apis.fastapi.agent_secret_leases.models import (
+    ClaimResponse,
+    LeaseResponse,
+)
 from oss.src.core.agent_secret_leases.dtos import (
     AgentSecretLease,
     LeaseClaim,
@@ -17,6 +21,7 @@ from oss.src.core.agent_secret_leases.interfaces import AgentSecretLeasesDAOInte
 from oss.src.core.agent_secret_leases.service import (
     AgentSecretLeasesService,
     compute_plan_digest,
+    validate_mutation,
 )
 from oss.src.core.agent_secret_leases.types import LeaseConflict, LeaseInvalid
 
@@ -205,8 +210,6 @@ async def test_tenant_cannot_submit_organization_filter_but_janitor_can():
 
 
 def test_record_sandbox_requires_only_a_sandbox_id_and_preserves_provisioning_source():
-    from oss.src.core.agent_secret_leases.service import validate_mutation
-
     tenant = scope()
     lease = make_lease(tenant, state="provisioning")
     mutation = LeaseMutation(
@@ -217,5 +220,87 @@ def test_record_sandbox_requires_only_a_sandbox_id_and_preserves_provisioning_so
         validate_mutation(
             lease,
             LeaseMutation(expected_version=1, transition="recordSandbox"),
+            require_claim=False,
+        )
+
+
+def test_http_lease_response_is_camel_case_without_changing_core_dump():
+    lease = make_lease(scope())
+    assert "organization_id" in lease.model_dump(mode="json")
+    wire = LeaseResponse(count=1, lease=lease.model_dump()).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    assert "organizationId" in wire["lease"]
+    assert "organization_id" not in wire["lease"]
+    assert "providerSecretName" in wire["lease"]["resources"][0]
+    assert "provider_secret_name" not in wire["lease"]["resources"][0]
+
+
+def test_claim_response_remains_claim_only_and_camel_case():
+    wire = ClaimResponse(
+        claim_id=uuid4(),
+        claim_generation=3,
+        claim_expires_at=NOW,
+    ).model_dump(mode="json", by_alias=True)
+    assert set(wire) == {"claimId", "claimGeneration", "claimExpiresAt"}
+
+
+def test_in_phase_transitions_persist_one_child_cas_update_at_a_time():
+    tenant = scope()
+    provisioning = make_lease(tenant, state="provisioning")
+    validate_mutation(
+        provisioning,
+        LeaseMutation(
+            expected_version=1,
+            transition="beginProvisioning",
+            resource_updates=[
+                {
+                    "resource_id": provisioning.resources[0].id,
+                    "expected_version": 1,
+                    "provider_secret_id": "provider-secret",
+                    "state": "created",
+                }
+            ],
+        ),
+        require_claim=False,
+    )
+    cleaning = make_lease(tenant, state="cleaning")
+    validate_mutation(
+        cleaning,
+        LeaseMutation(
+            expected_version=1,
+            transition="beginCleanup",
+            resource_updates=[
+                {
+                    "resource_id": cleaning.resources[0].id,
+                    "expected_version": 1,
+                    "state": "deleted",
+                }
+            ],
+        ),
+        require_claim=False,
+    )
+
+
+@pytest.mark.parametrize("error_code", ["provision_failed", "sandbox_create_failed"])
+def test_request_cleanup_accepts_only_runner_failure_codes(error_code):
+    lease = make_lease(scope(), state="provisioning")
+    validate_mutation(
+        lease,
+        LeaseMutation(
+            expected_version=1,
+            transition="requestCleanup",
+            error_code=error_code,
+        ),
+        require_claim=False,
+    )
+    with pytest.raises(LeaseInvalid, match="unexpected_transition_fields"):
+        validate_mutation(
+            lease,
+            LeaseMutation(
+                expected_version=1,
+                transition="requestCleanup",
+                error_code="provider_unavailable",
+            ),
             require_claim=False,
         )

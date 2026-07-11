@@ -25,11 +25,15 @@ from oss.src.core.agent_secret_leases.types import (
     LeaseState,
     LeaseTransition,
     ResourceState,
+    SafeErrorCode,
 )
 
 
 _ALLOWED_SOURCE_STATES = {
-    LeaseTransition.BEGIN_PROVISIONING: {LeaseState.RESERVED},
+    LeaseTransition.BEGIN_PROVISIONING: {
+        LeaseState.RESERVED,
+        LeaseState.PROVISIONING,
+    },
     LeaseTransition.RECORD_SANDBOX: {LeaseState.PROVISIONING},
     LeaseTransition.ACTIVATE: {LeaseState.PROVISIONING},
     LeaseTransition.REQUEST_CLEANUP: {
@@ -38,7 +42,10 @@ _ALLOWED_SOURCE_STATES = {
         LeaseState.ACTIVE,
         LeaseState.CLEANING,
     },
-    LeaseTransition.BEGIN_CLEANUP: {LeaseState.CLEANUP_PENDING},
+    LeaseTransition.BEGIN_CLEANUP: {
+        LeaseState.CLEANUP_PENDING,
+        LeaseState.CLEANING,
+    },
     LeaseTransition.RECORD_RETRY: {LeaseState.CLEANING},
     LeaseTransition.MARK_DELETED: {LeaseState.CLEANING},
     LeaseTransition.QUARANTINE: {
@@ -48,6 +55,11 @@ _ALLOWED_SOURCE_STATES = {
         LeaseState.CLEANUP_PENDING,
         LeaseState.CLEANING,
     },
+}
+
+_REQUEST_CLEANUP_ERROR_CODES = {
+    SafeErrorCode.PROVISION_FAILED,
+    SafeErrorCode.SANDBOX_CREATE_FAILED,
 }
 
 
@@ -89,12 +101,13 @@ def validate_mutation(
 
     transition = mutation.transition
     if transition == LeaseTransition.BEGIN_PROVISIONING:
-        if any(
-            (
-                mutation.sandbox_id,
-                mutation.resource_updates,
-                mutation.next_attempt_at,
-                mutation.error_code,
+        if (
+            mutation.sandbox_id
+            or mutation.next_attempt_at
+            or mutation.error_code
+            or any(
+                update.state != ResourceState.CREATED
+                for update in mutation.resource_updates
             )
         ):
             raise LeaseInvalid("unexpected_transition_fields")
@@ -119,12 +132,26 @@ def validate_mutation(
             raise LeaseInvalid("activation_incomplete")
         if mutation.next_attempt_at or mutation.error_code:
             raise LeaseInvalid("unexpected_transition_fields")
-    elif transition in (LeaseTransition.REQUEST_CLEANUP, LeaseTransition.BEGIN_CLEANUP):
+    elif transition == LeaseTransition.REQUEST_CLEANUP:
         if (
             mutation.sandbox_id
             or mutation.resource_updates
             or mutation.next_attempt_at
+            or (
+                mutation.error_code is not None
+                and mutation.error_code not in _REQUEST_CLEANUP_ERROR_CODES
+            )
+        ):
+            raise LeaseInvalid("unexpected_transition_fields")
+    elif transition == LeaseTransition.BEGIN_CLEANUP:
+        if (
+            mutation.sandbox_id
+            or mutation.next_attempt_at
             or mutation.error_code
+            or any(
+                update.state != ResourceState.DELETED
+                for update in mutation.resource_updates
+            )
         ):
             raise LeaseInvalid("unexpected_transition_fields")
     elif transition == LeaseTransition.RECORD_RETRY:
