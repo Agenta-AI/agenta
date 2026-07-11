@@ -1,5 +1,11 @@
 # Verification plan
 
+Scope note (2026-07-11): the warm hold-open path is deferred behind the unlock gates in
+[plan.md](plan.md). The WP0 and WP1 layers below apply now. Every layer tied to WP2 through
+WP5 (registry, park, resume, hold, canary) applies only if the gates pass, and should then
+be re-read against the revised design note in [interface.md](interface.md) (pool-owned
+placement, slimmed delivery port, no standalone registry).
+
 ## Test layers
 
 This project needs real transport tests in addition to engine unit tests. A fake response object

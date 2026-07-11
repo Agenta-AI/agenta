@@ -96,10 +96,10 @@ server and session only for that case.
 `services/runner/src/engines/sandbox_agent/mcp.ts` skips the internal MCP channel on Daytona.
 `127.0.0.1` inside the sandbox is not the runner's loopback interface. Non-Pi Daytona runs with
 Agenta tools are rejected before session creation because no delivery path exists. PR #5234
-([../in-sandbox-tool-mcp/](../in-sandbox-tool-mcp/README.md)) narrows that refusal: after its
-slice 2, gateway tools reach MCP-client harnesses on Daytona through an in-sandbox stdio shim
-and the file relay, and the up-front refusal remains only for client tools and for non-Daytona
-remote providers.
+([../in-sandbox-tool-mcp/](../in-sandbox-tool-mcp/README.md)) narrows that refusal: once its
+shim ships, gateway tools reach MCP-client harnesses on Daytona through an in-sandbox stdio
+shim and the file relay, and the up-front refusal remains only for client tools and for
+non-Daytona remote providers.
 
 PR #5197 reconnects and resumes Daytona sandboxes, but it does not change this transport boundary.
 Exact client-tool continuation on Daytona therefore requires either a future MCP gateway or a

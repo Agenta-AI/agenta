@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-07-11
+Last updated: 2026-07-11 (late)
 
 ## Current phase
 
@@ -8,6 +8,12 @@ Design review. No implementation code has been changed.
 
 Draft design PR: [#5201](https://github.com/Agenta-AI/agenta/pull/5201), labelled
 `needs-review`.
+
+**Headline for the owner:** the warm hold-open path (old WP2 through WP5) is now DEFERRED
+behind two measurement gates, on the recommendation of a Codex xhigh review folded in while
+the owner slept. He had LGTM'd the fuller plan; this is a deliberate conservative rescope
+under his standing simplify-aggressively instruction, and it is reversible. It is the top
+item in [open-questions.md](open-questions.md).
 
 ## Completed
 
@@ -21,41 +27,59 @@ Draft design PR: [#5201](https://github.com/Agenta-AI/agenta/pull/5201), labelle
   continuity invalidation, sandbox lifecycle, native session load, and ownership work.
 - Classified existing risks separately from risks introduced by holding sockets open.
 - Defined a gateway-neutral pending-operation and delivery-port contract.
-- Split the implementation into six progressive work packages with rollback gates.
-- 2026-07-11: folded in the cross-consistency review round (requested by the owner alongside
-  his own review of the event-driven-tool-relay PR). interface.md now states the
-  transport-specific limits of `cancel` and `onClosed`, opens the `transport` union, and adds
-  the future in-sandbox stdio mapping (PR #5234) with its three missing prerequisites. plan.md
-  now places the WP1 bearer in the HTTP transport wrapper (never in the shared
-  `mcp-handler.ts` that PR #5234 extracts), declares that PR #5234 slice 1 lands before WP1
-  and WP3, and corrects the WP5 Daytona wording (refusal for client tools, cold elsewhere).
-  research.md notes how PR #5234 narrows the Daytona refusal. Combined landing order:
-  `../mcp-delivery-architecture/orchestration.md`.
+- 2026-07-11: folded in the cross-consistency review round (transport-specific limits of the
+  old port methods, the open transport union, the future in-sandbox stdio mapping and its
+  three missing prerequisites, the WP1 bearer placement, the WP5 Daytona wording).
+- 2026-07-11 (late): folded in the Codex xhigh review of this workspace. Changes:
+  - **Rescoped v1 to measure and harden.** WP0 expanded with cold-path baseline metrics
+    (first-reissue match rate, argument-drift rate, added model calls/latency/token cost,
+    wrong-replica resumption rate, user wait percentiles). WP1 gained the review's
+    hardening details (auth from headers before body parsing, timing-safe comparison,
+    per-environment token, rotation test, result-size cap separated from auth). WP2
+    through WP5 are deferred behind explicit unlock gates stated in [plan.md](plan.md).
+  - **Slimmed the delivery port** in [interface.md](interface.md): `deliver` returning
+    `accepted | unavailable(reason)` plus `dispose(reason)`; `cancel` and `onClosed` cut
+    (they modeled an HTTP response handle); transport liveness is an optional adapter-owned
+    closed signal; correctness rests on lease expiry and environment teardown.
+  - **Replaced the standalone registry with pool-owned placement**: `ParkedClientTool`
+    beside `ParkedApproval`, `awaiting_client_tool` plus checkout in `session-pool.ts`,
+    exact extraction beside the responder extractors, `McpHttpResultDelivery` under
+    `tools/`; a durable registry only at a future gateway boundary.
+  - **Renamed `harnessToolCallId` to `toolCallId`** with its provenance documented as an
+    invariant: warm registration requires a proven harness-correlated id; the best-effort
+    fallback id is cold-only.
+  - **Fixed the wrong-replica posture**: any future warm mode is restricted to owner-routed
+    deployments, and the delivery commit point is defined (before `accepted`: preserve the
+    inbound result for cold; after: never start a cold continuation).
+  - **Dropped the dependency on PR #5234's handler extraction** (cut from that project's
+    v1); WP1's batch rejection lands in `tool-mcp-http.ts` and moves only if a shared
+    dispatcher is extracted later.
 
 ## Decisions proposed
 
-- Ship local Claude first. Keep Daytona exact continuation out of scope.
-- Require the measured client timeout to exceed 60 seconds.
-- Add loopback authentication before hold-open.
-- Use a separate runner kill switch, default off.
-- Support one pending client tool per session.
-- Use exact ACP tool-call identity for live completion and retain name-and-arguments matching only
-  for cold fallback.
+- Defer the warm path behind the transport gate and the value gate; ship WP0 (expanded) and
+  WP1 now.
+- Require the measured client timeout to exceed 60 seconds, or cut (not defer) the warm
+  path.
+- Add loopback authentication before any hold-open work, and land it regardless.
+- Restrict any future warm mode to owner-routed deployments.
+- Use exact ACP tool-call identity for live completion and retain name-and-arguments
+  matching only for cold fallback.
 - Treat PR #5197 as the improved cold and lifecycle layer, not as a pending-operation store.
 
 ## Dependencies
 
 | Dependency | State | Effect |
 | --- | --- | --- |
-| Session keepalive pool and approval parking | Implemented on `big-agents` | Supplies live session parking and resume structure. |
+| Session keepalive pool and approval parking | Implemented on `big-agents` | Supplies live session parking and resume structure for the deferred warm path. |
 | Pi approval parking, PR #5185 | Merged | No client-tool work required for Pi. |
 | Session keepalive design, PR #5153 | Draft | Contains the original client-tool hold-open recommendation and experiments. |
-| Session continuity, PR #5197 | Open, next to merge | WP3 waits for merge because it changes the same lifecycle files. |
-| In-sandbox tool MCP, PR #5234 | Open, design review | Its slice 1 extracts `mcp-handler.ts` and `relay-client.ts` from the files WP1 and WP3 edit; land it before WP1 and WP3. |
-| Real MCP gateway | Out of scope | The interface preserves a future adapter boundary. |
+| Session continuity, PR #5197 | Open, next to merge | Gates only the deferred warm path, not WP0 or WP1. |
+| In-sandbox tool MCP, PR #5234 | Open, design review | No longer a code dependency; its v1 dropped the shared-handler extraction. |
+| Real MCP gateway | Out of scope | The interface note preserves a future adapter boundary. |
 
 ## Next step after approval
 
-Run WP0 and post the measured timeout report before authorizing hold-open implementation. WP1 can
-then harden the current MCP endpoint independently. WP3 starts only after PR #5197 merges and the
-implementation branch is rebased on the resulting `big-agents` head.
+Run WP0 (both measurements) and post the report scored against the unlock gates. WP1 can
+proceed in parallel as independent hardening. The warm path starts only if both gates pass,
+and then only after PR #5197 merges and the implementation branch is rebased.

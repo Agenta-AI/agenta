@@ -33,7 +33,8 @@ new call has a new id, and the model has made another decision.
 
 ## Desired warm flow
 
-The exact path changes steps 3 through 6:
+This flow is the deferred goal, not the first deliverable; [plan.md](plan.md) gates it on
+two measurements. The exact path changes steps 3 through 6:
 
 1. The runner leaves the original JSON-RPC response open.
 2. The session pool parks the live harness in `awaiting_client_tool` with the original prompt
@@ -101,9 +102,9 @@ a pending-operation ledger.
    continuation is unavailable.
 7. The default remains off until timeout, security, race, and resource tests pass.
 
-## Scope of the first release
+## Scope of the first warm release, if it unlocks
 
-The first release requires all of the following:
+A warm release requires all of the following:
 
 - Claude or another non-Pi harness using the internal MCP channel.
 - A local sandbox, because the internal MCP endpoint is runner-loopback only.
