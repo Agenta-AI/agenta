@@ -9,16 +9,27 @@ const Reveal = ({
     children,
     className = "",
     delay = 0,
+    enabled = true,
 }: {
     children: ReactNode
     className?: string
     delay?: number
+    /** When false, render fully shown with no entrance — for repeat mounts that already
+     * played it once (e.g. each additional chat session pane's composer). */
+    enabled?: boolean
 }) => {
-    const [shown, setShown] = useState(false)
+    const [shown, setShown] = useState(!enabled)
     useEffect(() => {
+        // `enabled` flipping false MUST still land on shown — if it flips while the entrance
+        // timeout is pending, the cleanup cancels it and an early return would strand the
+        // content at opacity-0 permanently.
+        if (!enabled) {
+            setShown(true)
+            return
+        }
         const id = window.setTimeout(() => setShown(true), delay)
         return () => window.clearTimeout(id)
-    }, [delay])
+    }, [delay, enabled])
 
     return (
         <div

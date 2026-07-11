@@ -21,16 +21,16 @@ base" agent for teammates (not customers; see knowledge-chatbot for a customer-f
 
 ## Required context (ask via one request_input form)
 - Channel to answer @mentions in: which Slack channel(s) the agent should listen in and reply
-  in. No default; the agent cannot know this. Description: "Recommended: #<guess>" if one
-  was mentioned.
+  in. The agent cannot know this; set the field default to a channel a prior read surfaced,
+  and leave no default otherwise.
 - What counts as "the docs": the Notion space or top-level pages to search, if the connected
   workspace holds more than docs (product specs, meeting notes, and so on). Description:
   "Leave empty to search the whole connected workspace."
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Additional sources beyond Notion: also search Confluence, Google Drive, or Slack history if
-  connected. Enum first option: "Figure it out from what's connected." Note: naming sources now
-  saves a research pass.
+  connected. Multi-select ({type: "array", items: {type: "string", enum: [...]}}) with default
+  ["Figure it out from what's connected"]. Note: naming sources now saves a research pass.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Notion search and page-read tools (and Confluence/Drive/Slack reads
@@ -90,9 +90,9 @@ teammate-only bot, see docs-qa instead).
   excluding anything internal-only. Description: "Leave empty to search the whole connected
   workspace" if there is no internal/external split.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Tone: match the brand voice found in existing customer-facing pages, or a plain, neutral
-  tone. Enum first option: "Figure it out from the docs I find."
+  tone. Enum with default "Figure it out from the docs I find."
 
 ## Explore first (read before proposing)
 1. discover_tools for the Notion search/fetch tools and the reply tool for the chosen platform
@@ -150,11 +150,12 @@ this one).
   #onboarding or #new-hires channel). No default; the agent cannot know this.
 - Which wiki counts as "the internal wiki": the Notion or Confluence space to search, if the
   workspace holds more than onboarding content. Description: "Leave empty to search the whole
-  connected workspace" as the proposed default.
+  connected workspace."
 
-## Researchable context (ask, but the first option is "figure it out")
-- Which topics to prioritize (benefits, tools setup, team structure). Enum first option:
-  "Figure it out from what the wiki covers."
+## Researchable context (ask, defaulting to "figure it out")
+- Which topics to prioritize (benefits, tools setup, team structure): a multi-pick, so use
+  multi-select ({type: "array", items: {type: "string", enum: [...]}}) with default
+  ["Figure it out from what the wiki covers"].
 
 ## Explore first (read before proposing)
 1. discover_tools for the Notion (or Confluence) search and page-read tools.
@@ -206,14 +207,16 @@ key content-repurposer. Matches free-text asks to repurpose a blog post, doc, or
 entry into social copy (this is a one-shot transform, not a standing Q&A bot).
 
 ## Required context (ask via one request_input form)
-- Source doc: the Notion page or Google Drive doc to repurpose. No default; the agent cannot
-  proceed without it. Description: "Recommended: <guess>" if a prior read surfaced one.
-- Where to post drafts for review: a Slack channel or a Notion draft page. Offer as an enum,
-  first option "Figure it out from what's connected."
+- Source doc: the Notion page or Google Drive doc to repurpose. The agent cannot proceed
+  without it. Set the field default to the doc a prior read surfaced; leave no default
+  otherwise.
+- Where to post drafts for review: a Slack channel or a Notion draft page. Offer as an enum
+  with default "Figure it out from what's connected."
 
-## Researchable context (ask, but the first option is "figure it out")
-- Which platforms to draft for (LinkedIn, X, or both). Enum first option: "Figure it out, draft
-  both."
+## Researchable context (ask, defaulting to "figure it out")
+- Which platforms to draft for (LinkedIn, X, or both): a multi-pick, so use multi-select
+  ({type: "array", items: {type: "string", enum: ["LinkedIn", "X"]}}) with default
+  ["LinkedIn", "X"] (draft both).
 
 ## Explore first (read before proposing)
 1. discover_tools for the source-read tool (Notion or Drive) and the draft-post tool (Slack
@@ -261,10 +264,12 @@ newsletter draft (for a Slack-only digest with no draft doc, see repo-slack-dige
 - Where to draft the newsletter: which Notion page or database to write the weekly draft into.
   No default; the agent cannot know this.
 
-## Researchable context (ask, but the first option is "figure it out")
-- Which sources to pull from: GitHub merged PRs, Linear completed issues, or both. Enum first
-  option: "Figure it out from what's connected."
-- Send day/time: default Monday 09:00 local. Enum first option: "Use Monday 09:00 local."
+## Researchable context (ask, defaulting to "figure it out")
+- Which sources to pull from: GitHub merged PRs, Linear completed issues, or both. A
+  multi-pick, so use multi-select ({type: "array", items: {type: "string", enum: [...]}})
+  with default ["Figure it out from what's connected"].
+- Send day/time: enum with default "Monday 09:00 local"; the built-in Other… option covers a
+  custom time.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub (merged PRs) and/or Linear (completed issues) read tools, and

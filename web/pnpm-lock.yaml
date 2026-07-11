@@ -147,6 +147,9 @@ importers:
       '@lexical/code-shiki':
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)
+      '@lexical/history':
+        specifier: ^0.46.0
+        version: 0.46.0(typescript@5.9.3)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)

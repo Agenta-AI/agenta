@@ -176,6 +176,11 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
         : null
 
     const {workflowReference} = useDrillInUI()
+    // Displaying an existing reference needs the workflow list to resolve its name — activate the
+    // (lazy) bridge. Configs with no reference never mount this view, so they never pull the list.
+    useEffect(() => {
+        if (slug) workflowReference?.activate?.()
+    }, [slug, workflowReference])
     const workflow = useMemo(
         () => workflowReference?.workflows.find((w) => w.slug === slug) ?? null,
         [workflowReference, slug],

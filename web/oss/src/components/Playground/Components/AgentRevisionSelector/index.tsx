@@ -29,6 +29,7 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
 
     const _variantId = runnableData?.id ?? null
     const variantRevision = (runnableData?.version as number | null) ?? null
+    const commitMessage = runnableData?.message?.trim() || null
     const hasChanges = isDirty
 
     // App browse picker (project-scoped only) — skip-variant, non-evaluator.
@@ -64,9 +65,27 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                 borderlessTrigger
             />
             {variantRevision !== null && variantRevision !== undefined && (
-                <span className="rounded bg-[var(--ant-color-fill-secondary)] px-1.5 py-0.5 text-xs text-[var(--ant-color-text-secondary)]">
-                    v{variantRevision}
-                </span>
+                <Tooltip
+                    styles={{root: {maxWidth: 360}}}
+                    title={
+                        commitMessage ? (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide opacity-65">
+                                    Commit message
+                                </span>
+                                <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">
+                                    {commitMessage}
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="text-xs italic">No commit message</span>
+                        )
+                    }
+                >
+                    <span className="cursor-default rounded bg-[var(--ant-color-fill-secondary)] px-1.5 py-0.5 text-xs text-[var(--ant-color-text-secondary)]">
+                        v{variantRevision}
+                    </span>
+                </Tooltip>
             )}
             <Tooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
                 <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">

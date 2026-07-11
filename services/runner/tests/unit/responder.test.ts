@@ -6,7 +6,10 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
+import {
+  createSandboxAgentOtel,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../../src/tracing/otel.ts";
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
 import type {
   GateDescriptor,
@@ -671,6 +674,63 @@ describe("client-tool output store (separate from approvals)", () => {
     assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), [
       "allow",
     ]);
+  });
+
+  it("excludes a DEFERRED_NOT_EXECUTED sibling so the model's retry re-parks", async () => {
+    // Turn parked on another connection; this one was force-settled as deferred. Its result must
+    // NOT enter the client-output store, or the re-request resolves against it and never re-parks.
+    const request: AgentRunRequest = {
+      sessionId: "s-client",
+      messages: [
+        { role: "user", content: "connect github and slack" },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "c-github",
+              toolName: "request_connection",
+              input: { integration: "github" },
+              output: { connected: true },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "c-slack",
+              toolName: "request_connection",
+              input: { integration: "slack" },
+              output: TOOL_NOT_EXECUTED_PAUSED,
+              isError: true,
+            },
+          ],
+        },
+      ],
+    };
+    const outputs = extractClientToolOutputs(request);
+    // The real github output is stored; the deferred slack result is not.
+    assert.deepEqual(
+      outputs.get(
+        approvedCallKey("request_connection", { integration: "github" })!,
+      ),
+      [{ connected: true }],
+    );
+    assert.equal(
+      outputs.has(
+        approvedCallKey("request_connection", { integration: "slack" })!,
+      ),
+      false,
+    );
+    // So the model's retry of slack re-parks (a fresh widget) instead of resolving as fulfilled.
+    const responder = new ApprovalResponder(
+      plan("ask"),
+      new ConversationDecisions(extractApprovalDecisions(request), outputs),
+    );
+    assert.deepEqual(
+      await responder.onClientTool(
+        { id: "i-1", toolCallId: "live-slack", gate: clientGate() },
+        { consume: true },
+      ),
+      { kind: "pendingApproval" },
+    );
   });
 
   it("resolves two identical client calls from the FIFO store, in order", async () => {

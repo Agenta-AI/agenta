@@ -35,9 +35,163 @@ interface EvaluatorTemplateDropdownProps {
     placement?: PopoverProps["placement"]
 }
 
+interface EvaluatorTemplateDropdownContentProps {
+    /** Fires with the chosen template (the popover is closed first). */
+    onSelect: (template: EvaluatorCatalogTemplate) => void
+    /** Closes the popover. */
+    onClose: () => void
+}
+
+/**
+ * Popover body: the evaluator template catalog (tabs + filterable list).
+ *
+ * The catalog comes from a dedicated GET /evaluators/catalog/templates fetch, and
+ * this component subscribes to it on mount. The parent renders it ONLY while the
+ * popover is open, so mounted-but-closed dropdowns (e.g. the playground header's
+ * always-present "Add evaluators" overlay anchor) never touch the catalog: the
+ * fetch happens on first open instead of on every page load. React-query caches
+ * it (5 min staleTime), so reopening is a cache hit with no refetch.
+ */
+const EvaluatorTemplateDropdownContent = memo(
+    ({onSelect, onClose}: EvaluatorTemplateDropdownContentProps) => {
+        const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
+
+        const templates = useAtomValue(evaluatorTemplatesDataAtom)
+        const {isPending: isLoadingEvaluators} = useAtomValue(evaluatorTemplatesQueryAtom)
+
+        const tabItems = useMemo(() => buildEvaluatorTabItems(templates), [templates])
+
+        const filteredEvaluators = useMemo(() => {
+            const enabledEvaluators = filterEnabledEvaluators(templates)
+            return filterEvaluatorsByTag(enabledEvaluators, activeTab)
+        }, [activeTab, templates])
+
+        const handleTabChange = useCallback((key: string) => {
+            setActiveTab(key)
+        }, [])
+
+        const handleTemplateSelect = useCallback(
+            (template: EvaluatorCatalogTemplate) => {
+                onClose()
+                onSelect(template)
+            },
+            [onClose, onSelect],
+        )
+
+        const renderList = () => {
+            if (isLoadingEvaluators) {
+                return (
+                    <div className="p-4 space-y-3">
+                        {Array.from({length: 3}).map((_, index) => (
+                            <Skeleton
+                                key={`skeleton-${index}`}
+                                active
+                                paragraph={{rows: 1, width: ["100%"]}}
+                            />
+                        ))}
+                    </div>
+                )
+            }
+
+            if (!filteredEvaluators.length) {
+                return (
+                    <div className="flex items-center justify-center py-8">
+                        <Empty description="No evaluators found for this category." />
+                    </div>
+                )
+            }
+
+            return (
+                <div className="flex flex-col max-h-[320px] overflow-y-auto">
+                    {filteredEvaluators.map((item) => {
+                        const tagColor = getEvaluatorTagColor(item)
+
+                        return (
+                            <div
+                                key={item.key}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => handleTemplateSelect(item)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault()
+                                        handleTemplateSelect(item)
+                                    }
+                                }}
+                                className={cn(
+                                    "border-0 border-b border-solid last:border-b-0",
+                                    borderColors.secondary,
+                                    "min-h-[56px] flex flex-col justify-center gap-1 py-2 px-4",
+                                    "cursor-pointer group transition-colors",
+                                    bgColors.hoverState,
+                                )}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Tag
+                                        variant="filled"
+                                        color={tagColor}
+                                        className="w-fit text-xs"
+                                    >
+                                        {item.name}
+                                    </Tag>
+                                    <ArrowRight
+                                        size={12}
+                                        className={cn(
+                                            textColors.tertiary,
+                                            "opacity-0 group-hover:opacity-100",
+                                            "-translate-x-2 group-hover:translate-x-0",
+                                            "transition-all duration-200 ease-in-out",
+                                        )}
+                                    />
+                                </div>
+                                <Typography.Text
+                                    className={cn("text-xs line-clamp-1", textColors.tertiary)}
+                                >
+                                    {item.description}
+                                </Typography.Text>
+                            </div>
+                        )
+                    })}
+                </div>
+            )
+        }
+
+        return (
+            <div className="w-[380px]">
+                <div className="px-4 pt-3 pb-0">
+                    <Typography.Text className="text-[14px] leading-[22px] font-[500]">
+                        Select evaluator type
+                    </Typography.Text>
+                </div>
+                <Tabs
+                    items={tabItems}
+                    activeKey={activeTab}
+                    onChange={handleTabChange}
+                    size="small"
+                    tabBarGutter={16}
+                    className={cn(
+                        "[&_.ant-tabs-nav]:px-4 [&_.ant-tabs-nav]:mb-0",
+                        "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
+                        "[&_.ant-tabs-nav-list]:overflow-auto",
+                        "border-b",
+                        borderColors.secondary,
+                    )}
+                />
+                {renderList()}
+            </div>
+        )
+    },
+)
+EvaluatorTemplateDropdownContent.displayName = "EvaluatorTemplateDropdownContent"
+
 /**
  * Dropdown component for selecting an evaluator template.
  * Shows a filterable list of enabled evaluator types with tab-based category filtering.
+ *
+ * The catalog-reading body lives in `EvaluatorTemplateDropdownContent`, which is
+ * mounted only while the popover is open — so a closed dropdown does no data work
+ * and fires no network request, even when it stays mounted as an anchor (e.g. the
+ * playground header's "Add evaluators" overlay).
  */
 const EvaluatorTemplateDropdown = ({
     onSelect,
@@ -47,7 +201,6 @@ const EvaluatorTemplateDropdown = ({
     onOpenChange: controlledOnOpenChange,
     placement = "bottomRight",
 }: EvaluatorTemplateDropdownProps) => {
-    const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
     const [internalOpen, setInternalOpen] = useState(false)
 
     // Support both controlled and uncontrolled modes
@@ -63,121 +216,7 @@ const EvaluatorTemplateDropdown = ({
         },
         [isControlled, controlledOnOpenChange],
     )
-    const nonArchivedEvaluators = useAtomValue(evaluatorTemplatesDataAtom)
-    const {isPending: isLoadingEvaluators} = useAtomValue(evaluatorTemplatesQueryAtom)
-
-    const tabItems = useMemo(() => {
-        return buildEvaluatorTabItems(nonArchivedEvaluators)
-    }, [nonArchivedEvaluators])
-
-    const filteredEvaluators = useMemo(() => {
-        const enabledEvaluators = filterEnabledEvaluators(nonArchivedEvaluators)
-        return filterEvaluatorsByTag(enabledEvaluators, activeTab)
-    }, [activeTab, nonArchivedEvaluators])
-
-    const handleTabChange = useCallback((key: string) => {
-        setActiveTab(key)
-    }, [])
-
-    const handleTemplateSelect = useCallback(
-        (template: EvaluatorCatalogTemplate) => {
-            setOpen(false)
-            setActiveTab(DEFAULT_TAB_KEY)
-            onSelect(template)
-        },
-        [onSelect],
-    )
-
-    const renderDropdownContent = () => {
-        if (isLoadingEvaluators) {
-            return (
-                <div className="p-4 space-y-3">
-                    {Array.from({length: 3}).map((_, index) => (
-                        <Skeleton
-                            key={`skeleton-${index}`}
-                            active
-                            paragraph={{rows: 1, width: ["100%"]}}
-                        />
-                    ))}
-                </div>
-            )
-        }
-
-        if (!filteredEvaluators.length) {
-            return (
-                <div className="flex items-center justify-center py-8">
-                    <Empty description="No evaluators found for this category." />
-                </div>
-            )
-        }
-
-        return (
-            <div className="flex flex-col max-h-[320px] overflow-y-auto">
-                {filteredEvaluators.map((item) => {
-                    const tagColor = getEvaluatorTagColor(item)
-
-                    return (
-                        <div
-                            key={item.key}
-                            onClick={() => handleTemplateSelect(item)}
-                            className={cn(
-                                "border-0 border-b border-solid last:border-b-0",
-                                borderColors.secondary,
-                                "min-h-[56px] flex flex-col justify-center gap-1 py-2 px-4",
-                                "cursor-pointer group transition-colors",
-                                bgColors.hoverState,
-                            )}
-                        >
-                            <div className="flex items-center gap-2">
-                                <Tag variant="filled" color={tagColor} className="w-fit text-xs">
-                                    {item.name}
-                                </Tag>
-                                <ArrowRight
-                                    size={12}
-                                    className={cn(
-                                        textColors.tertiary,
-                                        "opacity-0 group-hover:opacity-100",
-                                        "-translate-x-2 group-hover:translate-x-0",
-                                        "transition-all duration-200 ease-in-out",
-                                    )}
-                                />
-                            </div>
-                            <Typography.Text
-                                className={cn("text-xs line-clamp-1", textColors.tertiary)}
-                            >
-                                {item.description}
-                            </Typography.Text>
-                        </div>
-                    )
-                })}
-            </div>
-        )
-    }
-
-    const popoverContent = (
-        <div className="w-[380px]">
-            <div className="px-4 pt-3 pb-0">
-                <Typography.Text className="text-[14px] leading-[22px] font-[500]">
-                    Select evaluator type
-                </Typography.Text>
-            </div>
-            <Tabs
-                items={tabItems}
-                activeKey={activeTab}
-                onChange={handleTabChange}
-                size="small"
-                tabBarGutter={16}
-                className={cn(
-                    "[&_.ant-tabs-nav]:px-4 [&_.ant-tabs-nav]:mb-0",
-                    "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
-                    "[&_.ant-tabs-nav-list]:overflow-auto",
-                    "border-b",
-                    borderColors.secondary,
-                )}
-            />
-            {renderDropdownContent()}
-        </div>
-    )
+    const handleClose = useCallback(() => setOpen(false), [setOpen])
 
     const defaultTrigger = <Button icon={<PlusOutlined />}>Create new evaluator</Button>
 
@@ -186,7 +225,12 @@ const EvaluatorTemplateDropdown = ({
             open={open}
             onOpenChange={setOpen}
             trigger={["click"]}
-            content={popoverContent}
+            destroyOnHidden
+            content={
+                open ? (
+                    <EvaluatorTemplateDropdownContent onSelect={onSelect} onClose={handleClose} />
+                ) : null
+            }
             placement={placement}
             arrow={false}
             styles={{container: {padding: 0}}}

@@ -9,6 +9,8 @@ export {simulatedAgentRunAtomFamily} from "./simulatedAgentRun"
 export type {SimulatedAgentRunRequest} from "./simulatedAgentRun"
 export {openAgentConfigSectionAtom} from "./openConfigSection"
 export type {AgentConfigSection} from "./openConfigSection"
+export {agentSelfCommitSignalAtom} from "./agentCommitSignal"
+export type {AgentSelfCommitSignal} from "./agentCommitSignal"
 export {atomWithRefresh} from "jotai/utils"
 export {
     atomWithCompare,

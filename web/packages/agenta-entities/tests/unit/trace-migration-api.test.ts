@@ -15,16 +15,20 @@ const querySpans = vi.fn()
 const queryTraces = vi.fn()
 const querySpansAnalytics = vi.fn()
 
-// `trace/api` resolves its client via the per-resource getter (PR #4864).
+const fakeTracesClient = {
+    querySpansSessions,
+    deleteTrace,
+    fetchTrace,
+    querySpans,
+    queryTraces,
+    querySpansAnalytics,
+}
+
+// `trace/api` resolves its client via the per-resource getter (PR #4864); the low-priority
+// variant shares the fake (the priority is a fetch hint, not a behavior change).
 vi.mock("@agenta/sdk/resources", () => ({
-    getTracesClient: () => ({
-        querySpansSessions,
-        deleteTrace,
-        fetchTrace,
-        querySpans,
-        queryTraces,
-        querySpansAnalytics,
-    }),
+    getTracesClient: () => fakeTracesClient,
+    getLowPriorityTracesClient: () => fakeTracesClient,
 }))
 
 // Import AFTER the mock so the unit-under-test picks up the fake client.
