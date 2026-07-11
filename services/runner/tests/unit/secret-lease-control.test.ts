@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { HttpSecretLeaseControl, SecretLeaseControlError } from "../../src/engines/sandbox_agent/secret-lease-control.ts";
 
+const wireLease = { id: "lease", version: 1, state: "reserved", owner: { kind: "run", id: "run" }, credentialEpochDigest: "hmac-sha256:" + "a".repeat(64), sandboxLabel: "agenta.lease_id=lease", resources: [{ id: "resource", version: 1, ordinal: 0, consumer: { kind: "model" }, binding: { kind: "environment", name: "MODEL_KEY" }, usage: "opaque_http", allowedHost: "api.example.com", providerSecretName: "secret-name", state: "planned" }] };
+
 describe("lease control client", () => {
   it("keeps tenant Authorization distinct and sends metadata-only reserve", async () => {
-    const fetch = vi.fn(async () => new Response(JSON.stringify({ id: "l" }), { status: 200 }));
+    const fetch = vi.fn(async () => new Response(JSON.stringify(wireLease), { status: 200 }));
     const client = new HttpSecretLeaseControl({ baseUrl: "https://control.example", tenantAuthorization: "Secret caller", fetch: fetch as any });
     await client.reserve({ owner: { kind: "run", id: "r" }, idempotencyKey: "i", credentialEpochDigest: "h", resources: [] });
     const [, init] = (fetch.mock.calls as any[][])[0];
@@ -25,8 +27,13 @@ describe("lease control client", () => {
     expect(JSON.parse(String((fetch.mock.calls as any[][])[1][1].body))).toEqual({ claimOwner: "runner-1", ttlSeconds: 60 });
   });
 
+  it("rejects malformed lease responses instead of casting them", async () => {
+    const client = new HttpSecretLeaseControl({ baseUrl: "https://control.example", tenantAuthorization: "x", fetch: vi.fn(async () => new Response(JSON.stringify({ id: "lease" }), { status: 200 })) as any });
+    await expect(client.get("lease")).rejects.toEqual(new SecretLeaseControlError("invalid_response"));
+  });
+
   it("sends named CAS transitions and sanitizes upstream failures", async () => {
-    const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
+    const fetch = vi.fn(async () => new Response(JSON.stringify(wireLease), { status: 200 }));
     const client = new HttpSecretLeaseControl({ baseUrl: "https://control.example", tenantAuthorization: "x", fetch: fetch as any });
     await client.mutate("l", { expectedVersion: 4, claim: { id: "c", generation: 3 }, transition: "activate", sandboxId: "s" });
     expect(JSON.parse(String((fetch.mock.calls as any[][])[0][1].body))).toEqual({ expectedVersion: 4, claim: { id: "c", generation: 3 }, transition: "activate", sandboxId: "s" });
