@@ -5,29 +5,29 @@ import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import {
-    type AgentChatSession,
-    type SessionRunStatus,
-    sessionFirstUserTextAtomFamily,
-    sessionStatusAtomFamily,
-} from "../state/sessions"
+import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/liveness"
+import {type AgentChatSession, sessionFirstUserTextAtomFamily} from "../state/sessions"
 
 import SessionTabLabel from "./SessionTabLabel"
 
 /** `attention` states need the user (approval / input) or flag a failure — their semantic colour
- * outranks the active tab's clean white dot, so it's never masked on the session you're viewing. */
+ * outranks the active tab's clean white dot, so it's never masked on the session you're viewing.
+ * `alive` is the cross-device/warm signal: a backend sandbox that's live but idle here — a dim,
+ * non-pulsing accent so it reads as "resumes instantly" without competing with a live `running`. */
 const STATUS_META: Record<
-    SessionRunStatus,
+    SessionDotStatus,
     {dot: string; pulse: boolean; attention: boolean; title: string}
 > = {
     running: {dot: "bg-colorInfo", pulse: true, attention: false, title: "Responding…"},
     awaiting: {dot: "bg-colorWarning", pulse: true, attention: true, title: "Needs your input"},
     error: {dot: "bg-colorError", pulse: false, attention: true, title: "Last run failed"},
+    alive: {dot: "bg-colorInfoBorder", pulse: false, attention: false, title: "Session is live"},
     idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
 
-/** A session's run-state dot. Subscribes to just that session's status atom so a streaming
- * conversation repaints only its own dot, never the whole bar. */
+/** A session's run-state dot. Subscribes to just that session's effective-status atom (local run
+ * state, or backend liveness when idle here) so a streaming conversation repaints only its own dot,
+ * never the whole bar. */
 export const SessionStatusDot = ({
     sessionId,
     active = false,
@@ -35,7 +35,7 @@ export const SessionStatusDot = ({
     sessionId: string
     active?: boolean
 }) => {
-    const status = useAtomValue(sessionStatusAtomFamily(sessionId))
+    const status = useAtomValue(sessionDotStatusAtomFamily(sessionId))
     const meta = STATUS_META[status]
     // Whiten the dot to match the active tab's white text ONLY when the session is idle. Any live
     // state — running (streaming a response), awaiting (needs you), error — keeps its semantic

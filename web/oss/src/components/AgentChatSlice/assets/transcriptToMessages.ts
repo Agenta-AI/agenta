@@ -169,12 +169,20 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
     for (const row of records) {
         const payload = row.payload
         if (!payload || typeof payload !== "object") continue
+        const p = payload as Record<string, unknown>
+        // `done` terminates a turn. Records are runner-output-only (no user rows), so without
+        // this every turn folds into one assistant bubble; closing the draft here starts a
+        // fresh message per turn.
+        if (row.session_update === "done" || p.type === "done") {
+            current = null
+            continue
+        }
         const role = roleOf(row.sender)
         if (!current || current.role !== role) {
             current = newDraft(row.id, role)
             drafts.push(current)
         }
-        applyEvent(current, payload as Record<string, unknown>)
+        applyEvent(current, p)
     }
 
     const messages = drafts

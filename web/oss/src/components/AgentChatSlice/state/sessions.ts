@@ -5,7 +5,7 @@ import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
-import {clearSessionEphemera} from "./sessionEphemera"
+import {clearSessionEphemera, markSessionFresh} from "./sessionEphemera"
 
 /**
  * Multi-session model for the agent chat slice. The playground hosts several parallel agent
@@ -152,6 +152,8 @@ export const openSessionIdsAtomFamily = atomFamily((key: string) =>
 export const addSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set) => {
         const id = generateId()
+        // Brand-new, never-run session: no backend records yet, so skip its empty-cache hydration.
+        markSessionFresh(id)
         // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
         const open = currentOpenIds(get, key)
         const all = get(sessionsByAppAtom)

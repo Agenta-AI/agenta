@@ -21,7 +21,9 @@ export const loadSessionMessages = async (sessionId: string): Promise<UIMessage[
     const projectId = getDefaultStore().get(projectIdAtom)
     if (!projectId) return null
 
-    const records = await querySessionRecords({sessionId, projectId})
+    // Replay hydration is secondary to the live conversation stream — send it low-priority so
+    // Chromium schedules it behind render-critical traffic.
+    const records = await querySessionRecords({sessionId, projectId, lowPriority: true})
     if (!records || records.length === 0) return null
 
     return transcriptToMessages(records)

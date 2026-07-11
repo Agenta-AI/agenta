@@ -76,7 +76,7 @@ import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
-import {ComposerSkeleton} from "./components/AgentChatSkeleton"
+import {ComposerSkeleton, TranscriptSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
@@ -93,7 +93,9 @@ import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useChatScopeKey} from "./state/scope"
 import {
     attachmentsBySession,
+    clearSessionFresh,
     composerDraftBySession,
+    isSessionFresh,
     virtStateBySession,
 } from "./state/sessionEphemera"
 import {
@@ -549,22 +551,37 @@ const AgentConversation = ({
     // messages (a session this browser never ran, or after a storage clear), hydrate once from the
     // server (`queryRecords` → v6 messages) and seed. Locally-cached sessions skip the fetch, so no
     // regression for own runs.
+    // A to-be-hydrated session (empty local cache, not brand-new) shows a transcript skeleton
+    // instead of the "start a chat" hero, so a session WITH server history doesn't flash the empty
+    // state before its records land. Seeded synchronously so the first paint is already the skeleton.
     const hydratedRef = useRef(false)
+    const [isHydrating, setIsHydrating] = useState(
+        () => initialMessages.length === 0 && !isSessionFresh(sessionId),
+    )
     useEffect(() => {
-        if (hydratedRef.current || initialMessages.length > 0) return
+        // A session created brand-new in this browser and not yet run has no backend records —
+        // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
+        if (hydratedRef.current || initialMessages.length > 0 || isSessionFresh(sessionId)) {
+            setIsHydrating(false)
+            return
+        }
         hydratedRef.current = true
         let cancelled = false
-        loadSessionMessages(sessionId).then((msgs) => {
-            if (cancelled || !msgs || msgs.length === 0) return
-            // Restored history renders settled (no live fade-in) and pinned to the bottom.
-            msgs.forEach((m) => {
-                seenIdsRef.current.add(m.id)
-                restoredIdsRef.current.add(m.id)
+        loadSessionMessages(sessionId)
+            .then((msgs) => {
+                if (cancelled || !msgs || msgs.length === 0) return
+                // Restored history renders settled (no live fade-in) and pinned to the bottom.
+                msgs.forEach((m) => {
+                    seenIdsRef.current.add(m.id)
+                    restoredIdsRef.current.add(m.id)
+                })
+                armBottomRef.current = true
+                setMessages(msgs)
+                persistMessages({id: sessionId, messages: msgs})
             })
-            armBottomRef.current = true
-            setMessages(msgs)
-            persistMessages({id: sessionId, messages: msgs})
-        })
+            .finally(() => {
+                if (!cancelled) setIsHydrating(false)
+            })
         return () => {
             cancelled = true
         }
@@ -849,12 +866,47 @@ const AgentConversation = ({
     const busyRef = useRef(busy)
     busyRef.current = busy
 
+    // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
+    // we refetch the durable records ONCE (low-priority) and adopt the server transcript ONLY IF it's
+    // strictly ahead of what we're showing (a turn finished on another device). We never clobber a
+    // transcript that's live (`busyRef`), or that the server isn't strictly ahead of — so a local
+    // optimistic/unsent tail is safe. Cache-MISS sessions are hydrated by the effect above; fresh
+    // never-run sessions have no server records. Reconciliation is by message COUNT, not content:
+    // detecting a same-length server-side edit/regenerate is deferred, as is focus/interval
+    // revalidation. FOLLOWUP(sessions,swr): see docs/designs/sessions/frontend-integration.md.
+    const revalidatedRef = useRef(false)
+    useEffect(() => {
+        if (revalidatedRef.current || initialMessages.length === 0 || isSessionFresh(sessionId))
+            return
+        revalidatedRef.current = true
+        let cancelled = false
+        loadSessionMessages(sessionId).then((serverMsgs) => {
+            if (cancelled || !serverMsgs || serverMsgs.length === 0) return
+            const prev = messagesRef.current
+            if (busyRef.current || serverMsgs.length <= prev.length) return
+            serverMsgs.forEach((m) => {
+                seenIdsRef.current.add(m.id)
+                restoredIdsRef.current.add(m.id)
+            })
+            armBottomRef.current = true
+            setMessages(serverMsgs)
+            persistMessages({id: sessionId, messages: serverMsgs})
+        })
+        return () => {
+            cancelled = true
+        }
+        // Once per mounted session tab; `sessionId` is stable for this instance.
+    }, [sessionId])
+
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
     // release effect doesn't churn on every token.
     const sendQueued = useCallback(
         (item: QueuedMessage) => {
             stickRef.current = true
             setShowJump(false)
+            // A real send means this session has run — drop the never-run marker so a later
+            // cache-cleared reopen hydrates from the server.
+            clearSessionFresh(sessionId)
             // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
             // queue-release path; the manual path also clears it in handleSubmit) — otherwise the
             // "Stopped" tag would smear onto the freshly-sent turn.
@@ -867,7 +919,7 @@ const AgentConversation = ({
                     : {text: item.text},
             ).catch(ignoreStreamRejection)
         },
-        [sendMessage],
+        [sendMessage, sessionId],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
@@ -1857,6 +1909,10 @@ const AgentConversation = ({
                                 ) : onboardingActive && onboarding?.browseAll ? (
                                     // "Browse all templates" swaps the hero for the full gallery IN PLACE.
                                     <OnboardingBrowseTemplates />
+                                ) : isHydrating ? (
+                                    // Server-history hydration in flight — skeleton, not the "start a
+                                    // chat" hero, so a durable session doesn't flash the empty state.
+                                    <TranscriptSkeleton />
                                 ) : (
                                     <AgentChatEmptyState
                                         entityId={entityId}
