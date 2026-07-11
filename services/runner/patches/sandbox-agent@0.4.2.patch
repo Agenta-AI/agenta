@@ -1,5 +1,5 @@
 diff --git a/dist/chunk-TVCDKGSM.js b/dist/chunk-TVCDKGSM.js
-index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..32ccd013cdb22295485f3f40eee10a4680a8cbf3 100644
+index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..7d4585271c700e6222d24bd391604e7007e81b99 100644
 --- a/dist/chunk-TVCDKGSM.js
 +++ b/dist/chunk-TVCDKGSM.js
 @@ -738,6 +738,7 @@ var LiveAcpConnection = class _LiveAcpConnection {
@@ -31,7 +31,70 @@ index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..32ccd013cdb22295485f3f40eee10a46
    async sendSessionMethod(localSessionId, method, params, options) {
      const agentSessionId = this.sessionByLocalId.get(localSessionId);
      if (!agentSessionId) {
-@@ -1330,9 +1338,27 @@ var SandboxAgent = class _SandboxAgent {
+@@ -1135,11 +1143,15 @@ var SandboxAgent = class _SandboxAgent {
+     const rawSandboxId = existingSandbox?.rawId ?? await provider.create();
+     const prefixedSandboxId = `${provider.name}/${rawSandboxId}`;
+     const createdSandbox = !existingSandbox;
+-    if (existingSandbox) {
+-      await provider.reconnect?.(rawSandboxId);
+-      await provider.ensureServer?.(rawSandboxId);
+-    }
++    let reconnectedSandbox = false;
+     try {
++      if (existingSandbox) {
++        if (provider.reconnect) {
++          await provider.reconnect(rawSandboxId);
++          reconnectedSandbox = true;
++        }
++        await provider.ensureServer?.(rawSandboxId);
++      }
+       const fetcher = await resolveProviderFetch(provider, rawSandboxId);
+       const baseUrl = provider.getUrl ? await provider.getUrl(rawSandboxId) : void 0;
+       const providerFetch = options.fetch ?? fetcher;
+@@ -1170,6 +1182,13 @@ var SandboxAgent = class _SandboxAgent {
+           await provider.destroy(rawSandboxId);
+         } catch {
+         }
++      } else if (reconnectedSandbox) {
++        try {
++          if (provider.pause) {
++            await provider.pause(rawSandboxId);
++          }
++        } catch {
++        }
+       }
+       throw error;
+     }
+@@ -1226,6 +1245,7 @@ var SandboxAgent = class _SandboxAgent {
+   async pauseSandbox() {
+     const provider = this.sandboxProvider;
+     const rawSandboxId = this.sandboxProviderRawId;
++    let paused = false;
+     try {
+       if (provider && rawSandboxId) {
+         if (provider.pause) {
+@@ -1233,14 +1253,17 @@ var SandboxAgent = class _SandboxAgent {
+         } else {
+           await provider.destroy(rawSandboxId);
+         }
++        paused = true;
+       } else if (!provider || !rawSandboxId) {
+         throw new Error("SandboxAgent is not attached to a provisioned sandbox.");
+       }
+     } finally {
+       await this.dispose();
+-      this.sandboxProvider = void 0;
+-      this.sandboxProviderId = void 0;
+-      this.sandboxProviderRawId = void 0;
++      if (paused) {
++        this.sandboxProvider = void 0;
++        this.sandboxProviderId = void 0;
++        this.sandboxProviderRawId = void 0;
++      }
+     }
+   }
+   async killSandbox() {
+@@ -1330,9 +1353,27 @@ var SandboxAgent = class _SandboxAgent {
      if (existing.lastConnectionId === live.connectionId && live.hasBoundSession(id, existing.agentSessionId)) {
        return this.upsertSessionHandle(existing);
      }
@@ -60,7 +123,7 @@ index 29a0a22210d39ae9d886c0ccd7059cd9af0e26f0..32ccd013cdb22295485f3f40eee10a46
      const updated = {
        ...existing,
        agentSessionId: recreated.sessionId,
-@@ -2504,6 +2530,25 @@ function normalizeSessionInit(value, cwdShorthand, providerDefaultCwd) {
+@@ -2504,6 +2545,25 @@ function normalizeSessionInit(value, cwdShorthand, providerDefaultCwd) {
      mcpServers: value.mcpServers ?? []
    };
  }

@@ -31,9 +31,10 @@ export interface MountCredentials {
   expiresAt?: string;
   /**
    * The mount's owning project id, surfaced from the sign response's `mount` object. It is the
-   * only project scope the runner can trust for this request (the /run wire carries no project
-   * id today), so session keep-alive keys its pool on `<projectId>:<sessionId>`. Absent when the
-   * response omitted the mount object; keep-alive then refuses to park (no safe key source).
+   * FALLBACK project scope for session keep-alive: the pool prefers the service-stamped
+   * `runContext.project.id` and falls back to this mount scope when the run carries no stamped
+   * project (see `poolKeyFor`). Absent when the response omitted the mount object; keep-alive
+   * then parks only if the run context supplied a scope, and refuses to park when neither does.
    */
   projectId?: string;
 }
@@ -484,27 +485,75 @@ export interface MountStorageRemoteDeps {
   /** Tunnel URL for an in-network store; omit for a public store (geesefs uses `creds.endpoint`). */
   endpoint?: string;
   mountTimeoutMs?: number;
-  /** Liveness poll budget (attempts x 500ms). Lowered by tests. */
+  /**
+   * Liveness poll budget (attempts x ~5.5s: a 5s exec cap + a 500ms delay). Default 12, about a
+   * minute worst case. Lowered by tests.
+   */
   aliveAttempts?: number;
   log?: (msg: string) => void;
 }
 
-/** Poll a remote mountpoint until it serves I/O, mirroring the local `isMounted` loop. */
+/**
+ * Poll a remote mountpoint until it serves I/O, mirroring the local `isMounted` loop.
+ *
+ * Each attempt's exec is capped at 5s, not 10s: on a dead-but-registered mount the `ls` hangs
+ * for the FULL per-attempt timeout, so the old 30-attempt/10s budget was a ~5 minute worst
+ * case before the caller ever gave up. 12 attempts at ~5.5s each (exec + poll delay) bounds it
+ * to about a minute. Some sandbox providers throw on an exec timeout instead of returning a
+ * non-zero exit, so a throw counts as one failed attempt rather than aborting the whole poll —
+ * but two throws in a row break out early, since that means the sandbox itself is unreachable,
+ * not just slow.
+ */
 async function remoteMountAlive(
   sandbox: SandboxExec,
   cwd: string,
   attempts: number,
 ): Promise<boolean> {
+  let consecutiveThrows = 0;
   for (let i = 0; i < attempts; i++) {
-    const res = await sandbox.runProcess({
-      command: "sh",
-      args: ["-c", `mountpoint -q ${cwd} && ls ${cwd} >/dev/null 2>&1`],
-      timeoutMs: 10_000,
-    });
-    if (res?.exitCode === 0) return true;
+    try {
+      const res = await sandbox.runProcess({
+        command: "sh",
+        args: ["-c", `mountpoint -q ${cwd} && ls ${cwd} >/dev/null 2>&1`],
+        timeoutMs: 5_000,
+      });
+      consecutiveThrows = 0;
+      if (res?.exitCode === 0) return true;
+    } catch {
+      consecutiveThrows += 1;
+      if (consecutiveThrows >= 2) break;
+    }
     await new Promise((r) => setTimeout(r, 500));
   }
   return false;
+}
+
+/**
+ * Best-effort unmount inside the remote sandbox after a mount attempt that never came alive (or
+ * blew up before we could tell). geesefs may have registered the FUSE mount without ever serving
+ * I/O; leaving it in place shadows the cwd, so every later file operation hangs until the run
+ * limit kills the turn. Errors are swallowed and logged, never thrown — the caller is already on
+ * its way to returning false and must not fail harder because cleanup itself failed.
+ */
+async function unmountRemoteDeadMount(
+  sandbox: SandboxExec,
+  cwd: string,
+  log: (m: string) => void,
+): Promise<void> {
+  try {
+    await sandbox.runProcess({
+      command: "sh",
+      args: [
+        "-c",
+        `fusermount -u ${cwd} 2>/dev/null || umount -l ${cwd} 2>/dev/null || true`,
+      ],
+      timeoutMs: 10_000,
+    });
+  } catch (err) {
+    log(
+      `remote dead-mount cleanup failed ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
+    );
+  }
 }
 
 /**
@@ -520,7 +569,10 @@ export async function mountStorageRemote(
 ): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   try {
-    // Idempotent + ensure the dir exists before mounting.
+    // A reattached running sandbox may still hold a FUSE mount with expired credentials. Detach
+    // it before remounting; on a fresh sandbox this is one fast best-effort no-op.
+    await unmountRemoteDeadMount(sandbox, cwd, log);
+    // Ensure the directory exists before mounting.
     await sandbox.runProcess({
       command: "sh",
       args: ["-c", `mkdir -p ${cwd}`],
@@ -544,7 +596,7 @@ export async function mountStorageRemote(
       return false;
     }
     // The daemon backgrounds before the FUSE channel serves I/O, so wait for it.
-    if (!(await remoteMountAlive(sandbox, cwd, deps.aliveAttempts ?? 30))) {
+    if (!(await remoteMountAlive(sandbox, cwd, deps.aliveAttempts ?? 12))) {
       const tail = await sandbox.runProcess({
         command: "sh",
         args: ["-c", "tail -5 /tmp/geesefs-mount.log 2>/dev/null"],
@@ -554,6 +606,9 @@ export async function mountStorageRemote(
         `remote mount not alive ${creds.bucket}:${creds.prefix} -> ${cwd}` +
           `; geesefs: ${String(tail?.result ?? tail?.stderr ?? "").slice(-400)}`,
       );
+      // geesefs may have registered the FUSE node without ever serving I/O. Left in place it
+      // shadows cwd for every later file op, so detach it before giving up on this mount.
+      await unmountRemoteDeadMount(sandbox, cwd, log);
       return false;
     }
     log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
@@ -562,6 +617,9 @@ export async function mountStorageRemote(
     log(
       `remote mount failed: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
+    // Same reasoning as the not-alive branch above: whatever failed, a FUSE node may already be
+    // registered at cwd, so clear it before returning false rather than leaving a dead mount.
+    await unmountRemoteDeadMount(sandbox, cwd, log);
     return false;
   }
 }

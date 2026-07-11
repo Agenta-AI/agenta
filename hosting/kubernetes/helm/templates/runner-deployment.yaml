@@ -78,9 +78,13 @@ spec:
             - name: DAYTONA_AUTOSTOP
               value: {{ $daytona.autostopDelay | quote }}
             {{- end }}
-            {{- if $daytona.autoarchiveDelay }}
-            - name: DAYTONA_AUTOARCHIVE
-              value: {{ $daytona.autoarchiveDelay | quote }}
+            {{- if hasKey $daytona "sessionIdleTtlMs" }}
+            - name: AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS
+              value: {{ $daytona.sessionIdleTtlMs | quote }}
+            {{- end }}
+            {{- if hasKey $daytona "sessionMaxWarm" }}
+            - name: AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM
+              value: {{ $daytona.sessionMaxWarm | quote }}
             {{- end }}
             {{- if $daytona.autodeleteDelay }}
             - name: DAYTONA_AUTODELETE

@@ -8,8 +8,9 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
-  readStoredSandboxId,
-  writeSandboxId,
+  clearSandboxPointer,
+  readStoredSandboxPointer,
+  writeSandboxPointer,
 } from "../../src/engines/sandbox_agent/sandbox-reconnect.ts";
 
 const SILENT = () => {};
@@ -22,20 +23,24 @@ function errResponse(status: number): Response {
   return { ok: false, status, json: async () => ({}) } as unknown as Response;
 }
 
-describe("readStoredSandboxId", () => {
-  it("returns the stored id from the durable row", async () => {
-    const id = await readStoredSandboxId("sess-1", {
+describe("readStoredSandboxPointer", () => {
+  it("returns the stored pointer from the durable row", async () => {
+    const pointer = await readStoredSandboxPointer("sess-1", {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async () =>
-        okResponse({ session_state: { sandbox_id: "sbx-42" } })) as unknown as typeof fetch,
+        okResponse({
+          session_state: {
+            sandbox_id: "sbx-42",
+          },
+        })) as unknown as typeof fetch,
       log: SILENT,
     });
-    assert.equal(id, "sbx-42");
+    assert.deepEqual(pointer, { sandboxId: "sbx-42" });
   });
 
   it("returns undefined when the row has no sandbox_id", async () => {
-    const id = await readStoredSandboxId("sess-1", {
+    const id = await readStoredSandboxPointer("sess-1", {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async () =>
@@ -46,7 +51,7 @@ describe("readStoredSandboxId", () => {
   });
 
   it("returns undefined on a non-2xx (degrades to a fresh create)", async () => {
-    const id = await readStoredSandboxId("sess-1", {
+    const id = await readStoredSandboxPointer("sess-1", {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async () => errResponse(503)) as unknown as typeof fetch,
@@ -56,7 +61,7 @@ describe("readStoredSandboxId", () => {
   });
 
   it("returns undefined when fetch throws, no throw out", async () => {
-    const id = await readStoredSandboxId("sess-1", {
+    const id = await readStoredSandboxPointer("sess-1", {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async () => {
@@ -68,7 +73,7 @@ describe("readStoredSandboxId", () => {
   });
 
   it("ignores an empty-string id", async () => {
-    const id = await readStoredSandboxId("sess-1", {
+    const id = await readStoredSandboxPointer("sess-1", {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async () =>
@@ -79,24 +84,66 @@ describe("readStoredSandboxId", () => {
   });
 });
 
-describe("writeSandboxId", () => {
-  it("PUTs the sandbox id on the row", async () => {
+describe("clearSandboxPointer", () => {
+  it("PUTs null pointer fields with the guard token", async () => {
     let body: Record<string, unknown> | undefined;
-    await writeSandboxId("sess-1", "sbx-42", {
+    const outcome = await clearSandboxPointer("sess-1", 7, {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async (_url: string, init?: RequestInit) => {
         body = JSON.parse(init!.body as string);
-        return okResponse({});
+        return okResponse({ session_state: { sandbox_id: null } });
       }) as unknown as typeof fetch,
       log: SILENT,
     });
-    assert.equal(body!["sandbox_id"], "sbx-42");
+
+    assert.deepEqual(body, {
+      sandbox_id: null,
+      sandbox_turn_index: 7,
+    });
+    assert.equal(outcome, "applied");
+  });
+});
+
+describe("writeSandboxPointer", () => {
+  it("PUTs the sandbox pointer and guard token on the row", async () => {
+    let body: Record<string, unknown> | undefined;
+    const outcome = await writeSandboxPointer("sess-1", {
+      sandboxId: "sbx-42",
+      turnIndex: 3,
+    }, {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        body = JSON.parse(init!.body as string);
+        return okResponse({ session_state: { sandbox_id: "sbx-42" } });
+      }) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.deepEqual(body, {
+      sandbox_id: "sbx-42",
+      sandbox_turn_index: 3,
+    });
+    assert.equal(outcome, "applied");
+  });
+
+  it("returns rejected when the response keeps another sandbox id", async () => {
+    const outcome = await writeSandboxPointer("sess-1", {
+      sandboxId: "sbx-stale",
+      turnIndex: 1,
+    }, {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      fetchImpl: (async () =>
+        okResponse({ session_state: { sandbox_id: "sbx-current" } })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+    assert.equal(outcome, "rejected");
   });
 
   it("never throws when the PUT fails", async () => {
     await assert.doesNotReject(() =>
-      writeSandboxId("sess-1", "sbx-42", {
+      writeSandboxPointer("sess-1", { sandboxId: "sbx-42", turnIndex: 0 }, {
         apiBase: "http://api:8000",
         authorization: "ApiKey abc",
         fetchImpl: (async () => errResponse(503)) as unknown as typeof fetch,
@@ -107,7 +154,7 @@ describe("writeSandboxId", () => {
 
   it("never throws when fetch throws", async () => {
     await assert.doesNotReject(() =>
-      writeSandboxId("sess-1", "sbx-42", {
+      writeSandboxPointer("sess-1", { sandboxId: "sbx-42", turnIndex: 0 }, {
         apiBase: "http://api:8000",
         authorization: "ApiKey abc",
         fetchImpl: (async () => {

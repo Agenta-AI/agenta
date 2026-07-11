@@ -6,7 +6,7 @@
  */
 import { apiBase } from "../../apiBase.ts";
 
-export interface SandboxIdDeps {
+export interface SandboxPointerDeps {
   apiBase?: string;
   authorization: string;
   fetchImpl?: typeof fetch;
@@ -22,10 +22,21 @@ function defaultLog(msg: string): void {
  * turn, storage disabled, or unreachable). The id is a provider-scoped handle, so reconnect is
  * only attempted for the same provider that wrote it.
  */
-export async function readStoredSandboxId(
+export interface StoredSandboxPointer {
+  sandboxId: string;
+}
+
+export interface SandboxPointerWrite {
+  sandboxId: string;
+  turnIndex: number;
+}
+
+export type SandboxPointerWriteOutcome = "applied" | "rejected" | "failed";
+
+export async function readStoredSandboxPointer(
   sessionId: string,
-  deps: SandboxIdDeps,
-): Promise<string | undefined> {
+  deps: SandboxPointerDeps,
+): Promise<StoredSandboxPointer | undefined> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
   const base = deps.apiBase ?? apiBase();
@@ -36,10 +47,13 @@ export async function readStoredSandboxId(
     );
     if (!res.ok) return undefined;
     const body = (await res.json()) as {
-      session_state?: { sandbox_id?: string | null } | null;
+      session_state?: {
+        sandbox_id?: string | null;
+      } | null;
     };
     const id = body.session_state?.sandbox_id;
-    return typeof id === "string" && id.length > 0 ? id : undefined;
+    if (typeof id !== "string" || id.length === 0) return undefined;
+    return { sandboxId: id };
   } catch (err) {
     log(
       `read failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
@@ -49,14 +63,17 @@ export async function readStoredSandboxId(
 }
 
 /**
- * Write the live sandbox instance id forward (best-effort) so the next turn can reconnect it.
- * A local run records the literal "local"; a remote run records the provisioned instance id.
+ * Shared guarded pointer PUT. `write` and `clear` differ only in the sandbox_id they send and
+ * the returned-row value that counts as applied; the transport, guard token, and error handling
+ * must stay identical, so they live here once.
  */
-export async function writeSandboxId(
+async function putSandboxPointer(
   sessionId: string,
-  sandboxId: string,
-  deps: SandboxIdDeps,
-): Promise<void> {
+  sandboxId: string | null,
+  turnIndex: number,
+  deps: SandboxPointerDeps,
+  logPrefix: string,
+): Promise<SandboxPointerWriteOutcome> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
   const base = deps.apiBase ?? apiBase();
@@ -66,13 +83,47 @@ export async function writeSandboxId(
       {
         method: "PUT",
         headers: { "content-type": "application/json", authorization: deps.authorization },
-        body: JSON.stringify({ sandbox_id: sandboxId }),
+        body: JSON.stringify({
+          sandbox_id: sandboxId,
+          sandbox_turn_index: turnIndex,
+        }),
       },
     );
-    log(`write ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} sandbox=${sandboxId}`);
+    if (!res.ok) {
+      log(`${logPrefix} HTTP ${res.status} session=${sessionId}`);
+      return "failed";
+    }
+    const body = (await res.json()) as {
+      session_state?: { sandbox_id?: string | null } | null;
+    };
+    const stored = body.session_state?.sandbox_id;
+    const applied = sandboxId === null ? stored == null : stored === sandboxId;
+    return applied ? "applied" : "rejected";
   } catch (err) {
     log(
-      `write failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+      `${logPrefix} failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
+    return "failed";
   }
+}
+
+/**
+ * Write the live sandbox instance id forward (best-effort) so the next turn can reconnect it.
+ * Only Daytona runs record a pointer; a local run leaves the row untouched.
+ */
+export async function writeSandboxPointer(
+  sessionId: string,
+  pointer: SandboxPointerWrite,
+  deps: SandboxPointerDeps,
+): Promise<SandboxPointerWriteOutcome> {
+  return putSandboxPointer(sessionId, pointer.sandboxId, pointer.turnIndex, deps, "write");
+}
+
+/** Clear a terminal sandbox pointer under the same turn-index guard as pointer writes. */
+export async function clearSandboxPointer(
+  sessionId: string,
+  turnIndex: number,
+  deps: SandboxPointerDeps,
+): Promise<SandboxPointerWriteOutcome> {
+  return putSandboxPointer(sessionId, null, turnIndex, deps, "clear");
 }

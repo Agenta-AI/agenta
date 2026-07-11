@@ -202,3 +202,98 @@ class TestSessionStatesBasics:
         state = response.json()["session_state"]
         assert state["session_id"] == session_id
         assert state["sandbox_id"] == "sbx-runner"
+
+    def test_guarded_pointer_write_applies_at_latest_turn(self, authed_api):
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/states/",
+            params={"session_id": session_id},
+            json={
+                "data": {"latest_turn_index": 2},
+                "sandbox_id": "sbx-old",
+            },
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/states/",
+            params={"session_id": session_id},
+            json={
+                "sandbox_id": "sbx-new",
+                "sandbox_turn_index": 2,
+            },
+        )
+
+        assert response.status_code == 200
+        state = response.json()["session_state"]
+        assert state["sandbox_id"] == "sbx-new"
+
+    def test_stale_guarded_pointer_write_returns_unchanged_row(self, authed_api):
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/states/",
+            params={"session_id": session_id},
+            json={
+                "data": {"latest_turn_index": 3},
+                "sandbox_id": "sbx-current",
+            },
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/states/",
+            params={"session_id": session_id},
+            json={
+                "sandbox_id": "sbx-stale",
+                "sandbox_turn_index": 2,
+            },
+        )
+
+        assert response.status_code == 200
+        state = response.json()["session_state"]
+        assert state["sandbox_id"] == "sbx-current"
+        assert state["data"]["latest_turn_index"] == 3
+
+    def test_tokenless_pointer_write_remains_unconditional(self, authed_api):
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/states/",
+            params={"session_id": session_id},
+            json={
+                "data": {"latest_turn_index": 4},
+                "sandbox_id": "sbx-old",
+            },
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/states/",
+            params={"session_id": session_id},
+            json={
+                "sandbox_id": "sbx-tokenless",
+            },
+        )
+
+        assert response.status_code == 200
+        state = response.json()["session_state"]
+        assert state["sandbox_id"] == "sbx-tokenless"
+
+    def test_guarded_pointer_write_creates_missing_row(self, authed_api):
+        session_id = str(uuid.uuid4())
+        response = authed_api(
+            "PUT",
+            "/sessions/states/",
+            params={"session_id": session_id},
+            json={
+                "sandbox_id": "sbx-first",
+                "sandbox_turn_index": 7,
+            },
+        )
+
+        assert response.status_code == 200
+        state = response.json()["session_state"]
+        assert state["sandbox_id"] == "sbx-first"
+        assert state.get("data") is None

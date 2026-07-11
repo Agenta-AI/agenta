@@ -37,7 +37,7 @@ class SessionStreamCommandRequestModel(BaseModel):
 class SessionHeartbeatRequestModel(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
-    replica_id: str
+    replica_id: str = Field(min_length=1)
     turn_id: Optional[str] = None
     is_running: bool = True
 
@@ -95,6 +95,13 @@ class SessionStateUpsertRequest(BaseModel):
     sandbox_id: Optional[str] = Field(
         default=None,
         description="Remote sandbox id to record alongside the continuity state.",
+    )
+    sandbox_turn_index: Optional[int] = Field(
+        default=None,
+        description=(
+            "the writer's conversation turn index; the pointer write is applied only "
+            "when it is >= the row's data.latest_turn_index."
+        ),
     )
 
 
