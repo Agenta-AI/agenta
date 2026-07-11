@@ -66,10 +66,11 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     // form is born ready (one-click accept). Decline/Dismiss stay always-available.
     const watchedValues = Form.useWatch([], form) as Record<string, unknown> | undefined
     const requiredNames = parsed.ok ? (parsed.payload.requestedSchema.required ?? []) : []
-    const requiredReady = requiredNames.every((name) => {
+    const missingRequired = requiredNames.filter((name) => {
         const v = watchedValues?.[name]
-        return !(v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0))
+        return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)
     })
+    const requiredReady = missingRequired.length === 0
 
     // Degradation: invalid payload auto-settles errorText ONCE per turn; a repeat malformed
     // emission parks instead (visible notice, no auto-settle) — no settle→resume→re-emit loop.
@@ -244,7 +245,11 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                     type="primary"
                     loading={submitting}
                     disabled={!requiredReady}
-                    title={requiredReady ? undefined : "Answer the required questions first"}
+                    title={
+                        requiredReady
+                            ? undefined
+                            : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
+                    }
                     onClick={handleAccept}
                 >
                     Accept
