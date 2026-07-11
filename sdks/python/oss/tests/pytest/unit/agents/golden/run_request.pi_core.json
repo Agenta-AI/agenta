@@ -3,11 +3,13 @@
   "sandbox": "local",
   "sessionId": "sess-1",
   "agentsMd": "You are a helpful assistant.",
-  "model": "openai-codex/gpt-5.5",
+  "model": "gpt-5.5",
   "messages": [
-    {"role": "user", "content": "hi"}
+    {
+      "role": "user",
+      "content": "hi"
+    }
   ],
-  "secrets": {"OPENAI_API_KEY": "sk-test"},
   "context": {
     "propagation": {
       "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
@@ -29,40 +31,48 @@
       }
     }
   },
-  "runContext": {
-    "run": {"kind": "test"},
-    "workflow": {
-      "artifact": {"id": "wf_abc"},
-      "variant": {"id": "var_abc", "slug": "weather-agent"},
-      "revision": {"id": "rev_abc123", "version": "3"},
-      "is_draft": false
-    },
-    "trace": {
-      "trace_id": "0af7651916cd43dd8448eb211c80319c",
-      "span_id": "b7ad6b7169203331"
-    }
-  },
-  "tools": ["read", "write"],
+  "tools": [
+    "read",
+    "write"
+  ],
   "customTools": [
     {
       "name": "get_user",
       "description": "Get a user",
-      "inputSchema": {"type": "object", "properties": {}},
-      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "readOnly": true,
       "kind": "callback",
-      "contextBindings": {"target.workflow_variant_id": "$ctx.workflow.variant.id"},
-      "timeoutMs": 120000,
-      "readOnly": true
+      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "contextBindings": {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+      },
+      "timeoutMs": 120000
     },
     {
       "name": "get_weather",
       "description": "Look up weather for a city",
-      "inputSchema": {"type": "object", "properties": {"city": {"type": "string"}}},
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        }
+      },
       "kind": "callback",
       "call": {
         "method": "POST",
         "path": "/api/workflows/invoke",
-        "body": {"references": {"workflow_revision": {"id": "rev_abc123"}}},
+        "body": {
+          "references": {
+            "workflow_revision": {
+              "id": "rev_abc123"
+            }
+          }
+        },
         "args_into": "data.inputs"
       }
     }
@@ -71,7 +81,9 @@
     "endpoint": "https://api.example/tools/call",
     "authorization": "Access tok-123"
   },
-  "permissions": {"default": "allow_reads"},
+  "permissions": {
+    "default": "allow_reads"
+  },
   "systemPrompt": "You are Pi.",
   "appendSystemPrompt": "Be terse.",
   "skills": [
@@ -80,14 +92,62 @@
       "description": "Draft release notes from a changelog.",
       "body": "Read the changelog, then write release notes.",
       "files": [
-        {"path": "scripts/draft.py", "content": "print('draft')", "executable": true}
+        {
+          "path": "scripts/draft.py",
+          "content": "print('draft')",
+          "executable": true
+        }
       ],
       "disableModelInvocation": true,
       "allowExecutableFiles": true
     }
   ],
   "sandboxPermission": {
-    "network": {"mode": "off", "allowlist": []},
+    "network": {
+      "mode": "off",
+      "allowlist": []
+    },
     "enforcement": "strict"
+  },
+  "modelConnection": {
+    "provider": "openai-codex",
+    "deployment": "direct",
+    "credentialMode": "env",
+    "credentials": [
+      {
+        "binding": {
+          "kind": "environment",
+          "name": "OPENAI_API_KEY"
+        },
+        "value": "sk-test",
+        "usage": "opaque_http"
+      }
+    ],
+    "endpoint": {
+      "baseUrl": "https://api.openai.com/v1"
+    }
+  },
+  "runContext": {
+    "run": {
+      "kind": "test"
+    },
+    "workflow": {
+      "artifact": {
+        "id": "wf_abc"
+      },
+      "variant": {
+        "id": "var_abc",
+        "slug": "weather-agent"
+      },
+      "revision": {
+        "id": "rev_abc123",
+        "version": "3"
+      },
+      "is_draft": false
+    },
+    "trace": {
+      "trace_id": "0af7651916cd43dd8448eb211c80319c",
+      "span_id": "b7ad6b7169203331"
+    }
   }
 }
