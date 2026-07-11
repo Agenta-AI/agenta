@@ -4,9 +4,9 @@
   "capability": "builtin bash",
   "env_label": "E3",
   "sandbox": "daytona",
-  "harness": "pi",
-  "model": "gpt-4o-mini",
-  "ts": "2026-06-20T11:02:49.133906+00:00",
+  "harness": "pi_core",
+  "model": "openai/gpt-4o-mini",
+  "ts": "2026-07-11T15:28:06.701900+00:00",
   "request": {
     "data": {
       "inputs": {
@@ -19,24 +19,38 @@
       },
       "parameters": {
         "agent": {
-          "harness": "pi",
-          "sandbox": "daytona",
-          "model": "gpt-4o-mini",
-          "agents_md": "Use the bash tool when asked to run a command. Report only its stdout.",
+          "harness": {
+            "kind": "pi_core"
+          },
+          "sandbox": {
+            "kind": "daytona"
+          },
+          "llm": {
+            "model": "openai/gpt-4o-mini"
+          },
+          "instructions": {
+            "agents_md": "Use the bash tool when asked to run a command. Report only its stdout."
+          },
           "tools": [
             {
               "type": "builtin",
               "name": "bash"
             }
-          ]
+          ],
+          "runner": {
+            "permissions": {
+              "default": "allow"
+            }
+          }
         }
       }
     }
   },
   "http_status": 200,
   "response": {
-    "span_id": "5fc4483660ed338c",
-    "trace_id": "b6026a64a4a94ea48359943198dedcc6",
+    "session_id": "b1476563e296494ea79012af0ec35567",
+    "span_id": "3880627166641182",
+    "trace_id": "def0db6ab9f613f6f1bf78c01ed6ae0c",
     "version": "2025.07.14",
     "status": {
       "code": 200,
@@ -44,8 +58,28 @@
     },
     "data": {
       "outputs": {
-        "role": "assistant",
-        "content": "QA-BASH-x86_64"
+        "messages": [
+          {
+            "role": "tool",
+            "content": "",
+            "tool_call_id": "call_tSojUJhhVjgM1mFww8hzFA2R|fc_014a2915d446a818016a5261139f108192ac11a9132c80e5f5",
+            "tool_name": "bash",
+            "input": {
+              "command": "echo \"QA-BASH-$(uname -m)\""
+            }
+          },
+          {
+            "role": "tool",
+            "content": "QA-BASH-x86_64\n",
+            "tool_call_id": "call_tSojUJhhVjgM1mFww8hzFA2R|fc_014a2915d446a818016a5261139f108192ac11a9132c80e5f5",
+            "is_error": false
+          },
+          {
+            "role": "assistant",
+            "content": "QA-BASH-x86_64"
+          }
+        ],
+        "stop_reason": "end_turn"
       }
     }
   },

@@ -5,10 +5,10 @@
 """Build a Daytona snapshot for the Agenta sandbox-agent runner.
 
 The full sandbox-agent base image already bakes the Claude, Codex, and OpenCode
-native binaries and ACP adapters. It also includes the Pi ACP adapter, but not the
-standalone `pi` CLI that adapter launches. This recipe adds the pinned Pi CLI and
-verifies the other baked harnesses so Daytona runs do not pay their installation cost
-for every fresh sandbox. Set the runner service to use it:
+native binaries and ACP adapters. This recipe replaces its Pi ACP adapter with the
+pinned version, adds the pinned standalone `pi` CLI that adapter launches, and verifies
+the other baked harnesses so Daytona runs do not pay their installation cost for every
+fresh sandbox. Set the runner service to use it:
 
     DAYTONA_SNAPSHOT=agenta-sandbox-pi
     AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
@@ -41,7 +41,11 @@ from daytona.common.errors import DaytonaNotFoundError
 
 SNAPSHOT_NAME = "agenta-sandbox-pi"
 SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
-PI_PACKAGE = "@earendil-works/pi-coding-agent@0.80.6"
+PI_VERSION = "0.80.6"
+PI_PACKAGE = f"@earendil-works/pi-coding-agent@{PI_VERSION}"
+PI_ACP_VERSION = "0.0.29"
+PI_ACP_INSTALL_DIR = "/home/sandbox/.local/share/sandbox-agent/bin/agent_processes"
+PI_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/pi/node_modules/pi-acp/package.json"
 # Durable session cwd: geesefs (FUSE-over-S3) mounts the store prefix INSIDE the sandbox for
 # remote runs. fuse provides fusermount + /etc/fuse.conf; geesefs is the static mount binary.
 # amd64 is correct here regardless of the builder's local arch: the snapshot is built and run
@@ -101,6 +105,15 @@ def main() -> None:
             f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
             "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",
+            # Replace the base image's private Pi adapter. sandbox-agent resolves this launcher
+            # before PATH, so a global pi-acp install would leave the stale adapter active.
+            f"RUN sandbox-agent install-agent pi --reinstall "
+            f"--agent-process-version {PI_ACP_VERSION}",
+            # Assert the private launcher and its installed npm package, not a global package.
+            f"RUN test -x {PI_ACP_INSTALL_DIR}/pi-acp "
+            f'&& test "$(node -p "require(\'{PI_ACP_PACKAGE_JSON}\').version")" '
+            f'= "{PI_ACP_VERSION}" '
+            f"&& echo pi-acp-version={PI_ACP_VERSION}",
         ]
     )
 
