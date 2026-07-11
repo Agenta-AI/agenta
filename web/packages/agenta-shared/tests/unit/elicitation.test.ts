@@ -414,7 +414,7 @@ describe("SECRET_FIELD_PATTERN", () => {
 })
 
 describe("normalizeStringFormat", () => {
-    it.each(["date", "date-time", "email", "uri", "multiline"])(
+    it.each(["date", "date-time", "email", "uri", "multiline", "cron"])(
         "passes through canonical format %s",
         (f) => expect(normalizeStringFormat(f)).toBe(f),
     )
@@ -428,6 +428,7 @@ describe("normalizeStringFormat", () => {
         ["longtext", "multiline"],
         ["datetime", "date-time"],
         ["url", "uri"],
+        ["crontab", "cron"],
     ])("maps alias %s -> %s", (alias, canonical) =>
         expect(normalizeStringFormat(alias)).toBe(canonical),
     )

@@ -97,7 +97,7 @@ elicitation form supports real defaults and two richer field shapes
 - **Context-ful options** use `oneOf: [{const, title, description}]` (single fields and array
   items); options with descriptions render as selectable choice cards.
 - **Field leaves are string, number, integer, boolean** (plus the string-array multi-select).
-  No nested objects. Formats: date, date-time, email, uri, multiline.
+  No nested objects. Formats: date, date-time, email, uri, multiline, cron.
 - **Secrets are refused.** Credentials go through `request_connection`, never `request_input`.
 
 ## The index.md match table

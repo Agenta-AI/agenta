@@ -8,6 +8,7 @@ import {
     useState,
 } from "react"
 
+import {cronToBuilder, describeBuilder} from "@agenta/entities/gatewayTrigger"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
@@ -24,6 +25,8 @@ import {
     Typography,
 } from "antd"
 import type {FormInstance, InputRef} from "antd"
+
+import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
 
 import {
     OTHER_ENUM_OPTION,
@@ -869,9 +872,22 @@ function ChoiceCards({
     )
 }
 
+/** ScheduleBuilderField is controlled on a cron STRING and cannot take undefined — show a
+ * sensible daily default until the field holds a value (the form value stays untouched). */
+function CronField({value, onChange}: {value?: string; onChange?: (cron: string) => void}) {
+    return <ScheduleBuilderField value={value || "0 9 * * *"} onChange={(c) => onChange?.(c)} />
+}
+
 /** Compact review-row value: option labels, joined chips, Yes/No, formatted dates. */
 function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
     if (value === undefined || value === null || value === "") return "\u2014"
+    if (field.format === "cron" && typeof value === "string") {
+        try {
+            return describeBuilder(cronToBuilder(value).state)
+        } catch {
+            return value
+        }
+    }
     if (Array.isArray(value)) return value.map(String).join(", ") || "\u2014"
     if (typeof value === "object" && typeof (value as {format?: unknown}).format === "function")
         return (value as {format: (f: string) => string}).format("YYYY-MM-DD HH:mm")
@@ -1037,6 +1053,18 @@ function SchemaFormField({
 
         default:
             // Format-aware controls appear only when the host opted in via `formats`.
+            if (field.format === "cron") {
+                return (
+                    <Form.Item
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={field.default}
+                    >
+                        <CronField />
+                    </Form.Item>
+                )
+            }
             if (field.format === "date" || field.format === "date-time") {
                 // No initialValue: a wire default is an ISO STRING and DatePicker requires dayjs —
                 // a string value crashes it. Date fields render empty; other types prefill.
