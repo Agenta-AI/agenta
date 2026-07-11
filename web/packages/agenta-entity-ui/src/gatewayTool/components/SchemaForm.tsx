@@ -215,16 +215,22 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                     <div
                         className="flex flex-col gap-2"
                         onKeyDown={(e) => {
-                            // ←/→ page questions — never while a caret or dropdown owns arrows.
                             if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
-                            const t = e.target as HTMLElement
-                            if (
-                                t.tagName === "INPUT" ||
-                                t.tagName === "TEXTAREA" ||
-                                t.closest(".ant-select, .ant-picker")
-                            )
-                                return
+                            // ⌘/Ctrl+←/→ pages deterministically from ANY focus context —
+                            // inputs included. Plain arrows page only where nothing owns them
+                            // (a caret or dropdown keeps its native arrow behavior).
+                            const paging = e.metaKey || e.ctrlKey
+                            if (!paging) {
+                                const t = e.target as HTMLElement
+                                if (
+                                    t.tagName === "INPUT" ||
+                                    t.tagName === "TEXTAREA" ||
+                                    t.closest(".ant-select, .ant-picker")
+                                )
+                                    return
+                            }
                             e.preventDefault()
+                            e.stopPropagation()
                             if (e.key === "ArrowLeft" && step > 0) setStep(step - 1)
                             if (e.key === "ArrowRight" && !onReview) setStep(step + 1)
                         }}
