@@ -1,14 +1,12 @@
 import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
 
-import clsx from "clsx"
-
 import {
     AGENT_TEMPLATES,
     templateBuilderMessage,
     type AgentTemplate,
 } from "@/oss/components/pages/agent-home/assets/templates"
 
-import TemplateChip from "../components/TemplateChip"
+import TemplateChipDock from "../components/TemplateChipDock"
 
 interface ComposerApi {
     setText: (text: string) => void
@@ -104,25 +102,18 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         [selectedTemplate],
     )
 
-    // Always mounted (never null) so the chip can transition rather than pop: it fades + rises in
-    // on pick and fades out on clear. During the out-transition `selectedTemplate` is already null,
-    // so we show the retained last template (falling back to the registry's first only for the very
-    // first, never-picked render). `inert` drops the hidden chip's ✕ from tab order + the a11y tree.
+    // Always mounted (never null) so the chip can transition rather than pop. During the
+    // out-transition `selectedTemplate` is already null, so we show the retained last template
+    // (falling back to the registry's first only for the very first, never-picked render).
+    // TemplateChipDock owns the fade/rise + width-morph; passing `visible` drives them.
     const chipNode = useMemo(() => {
-        const visible = Boolean(selectedTemplate)
         const shown = selectedTemplate ?? lastTemplateRef.current ?? AGENT_TEMPLATES[0]
         return (
-            <div
-                className={clsx(
-                    "origin-bottom-left transition-[opacity,transform] duration-200 ease-out",
-                    visible
-                        ? "translate-y-0 opacity-100"
-                        : "pointer-events-none translate-y-1 opacity-0",
-                )}
-                inert={!visible}
-            >
-                <TemplateChip template={shown} onClear={clear} />
-            </div>
+            <TemplateChipDock
+                template={shown}
+                visible={Boolean(selectedTemplate)}
+                onClear={clear}
+            />
         )
     }, [selectedTemplate, clear])
 
