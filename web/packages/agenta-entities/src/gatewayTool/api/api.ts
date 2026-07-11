@@ -140,8 +140,10 @@ export const fetchToolActionDetail = async (
     providerKey: string,
     integrationKey: string,
     actionKey: string,
+    params?: {lowPriority?: boolean},
 ): Promise<ToolCatalogActionResponse> => {
-    return getToolsClient().fetchToolAction(
+    const client = params?.lowPriority ? getLowPriorityToolsClient() : getToolsClient()
+    return client.fetchToolAction(
         {
             provider_key: providerKey,
             integration_key: integrationKey,
