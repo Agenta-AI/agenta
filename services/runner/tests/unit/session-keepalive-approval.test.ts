@@ -577,13 +577,27 @@ describe("runWithKeepalive: approval resume validation degrades to cold", () => 
   });
 });
 
-describe("runWithKeepalive: approval resume ignores re-minted credentials/config", () => {
-  // The "approve twice" bug: every approval reply is a fresh /run carrying freshly minted
-  // short-lived material (gateway/Composio secret VALUES, a per-turn tool-callback bearer), so its
-  // credential epoch — and often its config fingerprint (per-turn tokens embed in it) — never match
-  // the parked session's. The parked live process already holds its own baked credentials; the
-  // resume only delivers the human's yes/no, so a mismatch there must NOT evict the live session.
-  async function parkThenResume(resume: AgentRunRequest) {
+describe("runWithKeepalive: approval credential lifecycle", () => {
+  const modelConnection = (
+    value: string,
+  ): NonNullable<AgentRunRequest["modelConnection"]> => ({
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value,
+        usage: "opaque_http",
+      },
+    ],
+  });
+
+  async function parkThenResume(
+    resume: AgentRunRequest,
+    initial: Partial<AgentRunRequest> = {},
+  ) {
     const { engine, calls } = makeApprovalEngine([
       {
         approvalPause: {
@@ -596,48 +610,73 @@ describe("runWithKeepalive: approval resume ignores re-minted credentials/config
       { result: { ok: true, output: "resumed", stopReason: "complete" } },
     ]);
     const ctx = makeCtx(engine);
-    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    await runWithKeepalive(
+      { ...pauseTurn(), ...initial },
+      undefined,
+      undefined,
+      ctx,
+    );
     const env1 = calls.acquiredEnvs[0];
     const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
     return { calls, env1, ctx, r2 };
   }
 
-  it("resumes LIVE when the resume carries a DIFFERENT credential epoch AND config fingerprint but a matching decision + history", async () => {
-    // The resume request re-mints a fresh tool-callback bearer (changes both the config fingerprint
-    // via toolCallback.endpoint and the credential epoch via secrets + toolCallback.authorization).
+  it("resumes live when only per-turn callback authorization rotates", async () => {
     const { calls, env1, r2 } = await parkThenResume(
       approveResume(true, {
         toolCallback: {
           endpoint: "https://gateway/tools/call",
           authorization: "fresh-per-turn-bearer",
         },
-        secrets: { OPENAI_API_KEY: "sk-freshly-minted" },
       }),
+      {
+        toolCallback: {
+          endpoint: "https://gateway/tools/call",
+          authorization: "original-per-turn-bearer",
+        },
+      },
     );
     assert.equal(r2.ok, true);
     assert.equal(
       calls.acquire,
       1,
-      "no cold re-acquire; the live parked session was reused",
+      "transient auth does not recreate the sandbox",
     );
-    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
-    assert.equal(
-      calls.resumes.length,
-      1,
-      "the gate was answered live exactly once (respondPermission)",
-    );
-    assert.equal(calls.resumes[0].reply, "once");
-    assert.equal(calls.resumes[0].permissionId, "perm-1");
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.resumes.length, 1, "the parked gate is answered live");
   });
 
-  it("a changed model on the resume still resumes live (config fingerprint no longer gates the approval branch)", async () => {
+  it("evicts and cold-acquires when a model credential baked into the sandbox rotates", async () => {
+    const { calls, env1, r2 } = await parkThenResume(
+      approveResume(true, { modelConnection: modelConnection("sk-model-b") }),
+      { modelConnection: modelConnection("sk-model-a") },
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(
+      env1.destroyed,
+      1,
+      "the stale credential environment is evicted",
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "the approval request cold-acquires with the new key",
+    );
+    assert.equal(
+      calls.resumes.length,
+      0,
+      "the stale live gate is never answered",
+    );
+  });
+
+  it("a changed model without credential rotation still resumes live", async () => {
     const { calls, env1, r2 } = await parkThenResume(
       approveResume(true, { model: "m2" }),
     );
     assert.equal(r2.ok, true);
-    assert.equal(calls.acquire, 1, "no cold re-acquire");
-    assert.equal(env1.destroyed, 0, "the parked session was reused");
-    assert.equal(calls.resumes.length, 1, "answered live exactly once");
+    assert.equal(calls.acquire, 1);
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.resumes.length, 1);
   });
 });
 
