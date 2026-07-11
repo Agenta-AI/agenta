@@ -370,6 +370,12 @@ is dated and ignorable.
 - 2026-07-03 ~14:15Z approval-boundary-session: INCIDENT + REPAIR. A commit subagent hit hunk-locking on op_catalog.py/test_op_catalog.py (locked to feat/annotate-trace-op-code's commit 2793d222d1), improvised ref surgery and an oplog RESTORE at 15:53 local that rewound other sessions' uncommitted files (apologies; recovered by the affected session). Subagent killed. Repair: restacking feat/annotate-trace-op-code INTO the approval-boundary stack (big-agents-work <- annotate <- docs/approval-boundary) because the approval-boundary phase-3 edits textually depend on the annotate commit. annotate lane has no remote/PR, so the move is local-only. Its owner: your lane now sits on big-agents-work instead of main; content unchanged; push/PR when ready with base big-agents-work. Subagent briefs now forbid oplog restore + raw ref surgery.
 
 ## BUT-LOCK
+FREE (released by codex-agent-thinking-effort 2026-07-10T23:36:00Z; design branch remote-repaired at b10d14adf9 on current big-agents; restore snapshot a1a5ea371a)
+
+<!-- prior release note preserved below -->
+FREE (released by codex-agent-thinking-effort 2026-07-10T22:51:50Z; created parallel lane chore/upgrade-claude-agent-acp; no project files changed yet)
+
+<!-- prior release note preserved below -->
 FREE (released by mount-file-viewer 2026-07-10T16:55:00Z; #5198 MERGED at 16:21Z on Mahmoud's ask (gh pr merge --merge --auto; PR head feat/pi-gpt-5-6-models was already at the repair commit 99b63d0738) and the MANDATORY post-merge base advance is DONE: snapshot 6f9d435e71 → parked all unassigned WIP in temp lane park-post-5198 → but pull (all lanes rebased; repair/pr-5198-gpt56 detected integrated and removed; common base now c38222a5d5 = the #5198 merge) → uncommitted both park commits, unstaged the board file, deleted the temp lane → verified the unassigned set matches pre-park exactly. Other sessions: your WIP is back as unassigned, unchanged. feat/mount-file-viewer rebased to e2a2de7fac and force-pushed, local == remote; draft PR #5204 (base big-agents, 6 inline author notes, coderabbit triggered) unaffected.)
 
 <!-- prior release note preserved below -->
@@ -1896,3 +1902,49 @@ F-018 (all daytona tool calls hang: pi-gate reverse-RPC never reaches the runner
 300s by run-limits), F-019 (stale Composio action bricks committed config, error detail
 swallowed), F-020 (daytona reconnect is a dead rung: sandboxes deleted between turns). 0 live
 Daytona sandboxes. Findings on lane chore/qa-driver-wire-shape.
+
+**BUT-LOCK TAKEN** (2026-07-10 ~22:49 UTC, gateway-tool-resolution-plan session): committing a
+plan-feature design workspace (docs/design/agent-workflows/projects/gateway-tool-resolution/,
+5 md files) to a new lane docs/gateway-tool-resolution-plan and pushing it. No code changes.
+Staging ONLY that project dir's files.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~22:56 UTC, gateway-tool-resolution-plan session). DONE:
+plan-feature workspace committed to lane docs/gateway-tool-resolution-plan (e3f9613ca7, 6 files,
+docs/design/agent-workflows/projects/gateway-tool-resolution/); pushed and SHA-verified
+(local==remote e3f9613ca7); draft PR #5212 opened against big-agents. No code changes; design
+only. Coordination-board edits stayed unassigned (not committed to the lane).
+
+**BUT-LOCK TAKEN** (2026-07-10 ~23:13 UTC, warm-daytona-sessions-plan session): committing a
+plan-feature design workspace (docs/design/agent-workflows/projects/warm-daytona-sessions/,
+6 md files) to a new lane docs/warm-daytona-sessions-plan and pushing it. No code changes.
+Staging ONLY that project dir's files.
+
+**BUT-LOCK RELEASED** (2026-07-10 ~23:20 UTC, warm-daytona-sessions-plan session). DONE:
+plan-feature workspace committed to lane docs/warm-daytona-sessions-plan (07accabe, 6 files,
+docs/design/agent-workflows/projects/warm-daytona-sessions/); pushed and SHA-verified
+(local==remote 07accabe); draft PR #5214 opened against big-agents with needs-review label +
+feedback comment. Design only, no code. Key finding for other agents: the vendored Daytona
+provider has NO pause/reconnect, so at HEAD keepWarm still DELETES every sandbox (F-020 stands
+despite commit 60990d396e). Coordination-board edits stayed unassigned (not committed).
+
+**BUT-LOCK TAKEN** (2026-07-11 ~09:17 UTC, warm-daytona-plan-rewrite session): committing a
+reader-focused rewrite of the SAME 6 warm-daytona-sessions md files (structure, vocabulary,
+navigation only; no design change) to lane docs/warm-daytona-sessions-plan and force-pushing
+PR #5214. Staging ONLY that project dir's files (cliIds vs/nsy/ml/rv/ww/opx). Board edit stays
+unassigned.
+
+**BUT-LOCK RELEASED** (2026-07-11 ~09:21 UTC, warm-daytona-plan-rewrite session). DONE: reader
+rewrite of the 6 warm-daytona-sessions md files committed to lane docs/warm-daytona-sessions-plan
+(6012adb061, fast-forward on 07accabe, only the 6 project files) and pushed; SHA-verified
+(local==remote 6012adb061). PR #5214 body + title rewritten (em dash removed) via gh api PATCH;
+posted review 4677359737 with 8 inline navigation comments (start-here / this-answers-X /
+decision-to-weigh). Design and all technical claims unchanged; only structure, vocabulary
+(Tier 1/2 -> park-to-stopped/park-to-running; P0 -> must-fix; rung/seam/fence removed), ordering,
+and navigation changed. Coordination-board edits stayed unassigned (not committed).
+
+**BUT-LOCK TAKEN** (2026-07-11 ~09:35 UTC, workspace-cleanup/daytona-qa session): committing
+authoring-time writing standards into the plan-feature + write-docs skills (learnings from the
+PR #5214 rewrite), one lane, push, release.
+**BUT-LOCK RELEASED** (2026-07-11 ~09:40 UTC, workspace-cleanup/daytona-qa session). DONE: lane
+chore/skill-writing-standards (4b255677a7) pushed with the write-docs jargon rules; the
+plan-feature authoring-time writing checklist landed locally (.claude/skills is gitignored).
