@@ -46,6 +46,21 @@ If so, use the `but` CLI instead of raw `git branch`/`git commit`:
 - To update an already-committed file, `but absorb <path>` amends it into the right
   commit; force-push with `but push <branch> -f`.
 
+### Wedge prevention and freeze rule
+
+`but pull` against a workspace with many applied lanes (~30) can trigger open GitButler
+integration bugs (#11364 "new head names do not match the current heads", #14497
+stale-parent workspace-commit wedge, #12355 mass auto-unapply). Keep applied lanes to
+about 15 or fewer; `but unapply` idle lanes before pulling. Never `but pull` a saturated
+workspace. Upgrading GitButler does not fix this; the bugs are open as of 0.21.0.
+
+The moment the workspace is wedged, freeze: run no `but` mutation of any kind, not even
+`but branch new`. Signs of a wedge: a failed pull integration, `Could not find branch CLI
+id '' in IdMap`, or a conflict message that attributes the conflict to a lane that cannot
+conflict (for example, one with no commits). A `but` mutation issued while wedged can
+create phantom commits, junk local refs at the wrong SHA, and display corruption. Stop and
+follow the `gitbutler-workspace-recovery` skill instead of retrying or improvising.
+
 ### Committing to specific lanes in a stack (the part that bites)
 
 Changes are assigned to the **stack**, not to an individual branch. `but rub <file>
@@ -167,6 +182,10 @@ lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in 
   workspace (including uncommitted changes) to any prior snapshot — this is how
   you undo a botched unapply/apply and get a collapsed stack's series back. Take
   a `but oplog snapshot -m "..."` before risky operations.
+- **`but oplog restore` wipes every agent's uncommitted work, not just yours.** Before
+  restoring, freeze all agents' tree writes and back up each file from
+  `git status --porcelain` to a tmp dir; restoring without a backup can destroy other
+  agents' in-flight edits, and it has happened twice.
 
 ## Before committing
 
