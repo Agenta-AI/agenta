@@ -8,8 +8,9 @@
  * Operational state never enters the draftable/committable agent config — that's why these live
  * outside {@link AgentTemplateControl}.
  */
-import {Typography} from "antd"
+import {Skeleton, Typography} from "antd"
 
+import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
 
@@ -20,6 +21,37 @@ const barClass = (sticky: boolean) =>
         sticky ? "sticky top-0 z-[10]" : ""
     } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]`
 const titleClass = "text-[13px] font-semibold text-[var(--ant-color-text)]"
+
+/**
+ * Loading shape for the operational regions, shown while the panel's hydration/agent-ness is
+ * still pending: the REAL header bars (their titles are static) over pulsing bodies — so the
+ * three-section structure is present from first paint and nothing shifts when data lands.
+ */
+export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
+    return (
+        <>
+            <section className="flex w-full flex-col" aria-busy>
+                <div className={barClass(sticky)}>
+                    <span className={titleClass}>Triggers</span>
+                    <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
+                </div>
+                <div className="flex flex-col px-4">
+                    <SkeletonSectionRow title={112} value={44} withAdd divider />
+                    <SkeletonSectionRow title={82} value={44} withAdd />
+                </div>
+            </section>
+            <section className="flex w-full flex-col" aria-busy>
+                <div className={barClass(sticky)}>
+                    <span className={titleClass}>Mounts</span>
+                    <Skeleton.Button active size="small" style={{width: 90, height: 14}} />
+                </div>
+                <div className="px-4 py-3">
+                    <Skeleton active title={false} paragraph={{rows: 2, width: ["100%", "60%"]}} />
+                </div>
+            </section>
+        </>
+    )
+}
 
 export function AgentOperationsSections({
     revisionId,

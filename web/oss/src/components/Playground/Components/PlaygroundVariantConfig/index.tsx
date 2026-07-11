@@ -12,6 +12,7 @@ import {
 import {
     AgentConfigSkeleton,
     AgentOperationsSections,
+    AgentOperationsSkeleton,
     PlaygroundConfigSection,
     LoadEvaluatorPresetModal,
     FieldsDetectionProvider,
@@ -296,10 +297,15 @@ const PlaygroundVariantConfig: React.FC<
                 )}
             </section>
             {/* Sections 2 + 3 (agent only): Triggers and Mounts — operational, never part of the
-                committable config, each with its own Configuration-style sticky header. */}
-            {isAgentHeaderMode && !hasPendingHydration && (
-                <AgentOperationsSections revisionId={variantId} sticky={!embedded} />
-            )}
+                committable config, each with its own Configuration-style sticky header. Skeleton
+                keeps the three-section shape while hydration is pending OR agent-ness is still
+                unknown (the real sections would fire trigger queries for a maybe-prompt app). */}
+            {isAgentHeaderMode &&
+                (hasPendingHydration || (!isAgent && earlyAgentState !== "agent") ? (
+                    <AgentOperationsSkeleton sticky={!embedded} />
+                ) : (
+                    <AgentOperationsSections revisionId={variantId} sticky={!embedded} />
+                ))}
         </div>
     )
 }
