@@ -971,6 +971,8 @@ class RunnerConfig(BaseModel):
     """Agent runner (services/runner) sidecar configuration."""
 
     concurrency_limit: int = int(os.getenv("AGENTA_RUNNER_CONCURRENCY_LIMIT") or "1000")
+    # Bootstrap workload identity for the internal lease janitor API only.
+    control_token: str | None = os.getenv("AGENTA_RUNNER_CONTROL_TOKEN") or None
 
     # `local` sandbox runs unconfined host bash — not a tenant boundary; on by default
     # for zero-config self-host. Canonical declaration; services/oss reads the same var directly.
