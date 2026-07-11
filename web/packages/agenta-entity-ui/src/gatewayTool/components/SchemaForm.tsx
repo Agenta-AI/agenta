@@ -304,6 +304,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                                     fields[step].name.split("."),
                                                     undefined,
                                                 )
+                                                // setFieldValue does not fire onValuesChange —
+                                                // sync the draft or a reload resurrects the
+                                                // skipped answer.
+                                                onValuesChange?.(form.getFieldsValue(true))
                                                 setStep(step + 1)
                                             }}
                                         >
