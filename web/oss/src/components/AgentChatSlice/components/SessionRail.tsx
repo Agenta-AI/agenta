@@ -220,14 +220,17 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                         addDisabled ? "Available after your agent's first response" : "New session"
                     }
                 >
-                    <Button
-                        type="text"
-                        aria-label="New session"
-                        icon={<Plus size={14} />}
-                        onClick={() => addSession()}
-                        disabled={addDisabled}
-                        className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                    />
+                    {/* Non-disabled span trigger: antd v6 Tooltips don't fire on a disabled Button. */}
+                    <span className="inline-flex">
+                        <Button
+                            type="text"
+                            aria-label="New session"
+                            icon={<Plus size={14} />}
+                            onClick={() => addSession()}
+                            disabled={addDisabled}
+                            className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                        />
+                    </span>
                 </Tooltip>
             </div>
 

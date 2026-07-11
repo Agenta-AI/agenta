@@ -28,7 +28,10 @@ export function computePagerState(
     // while card 6 is on screen).
     const visible = Math.max(1, Math.min(Math.floor((clientWidth + CARD_GAP) / PER), cardCount))
     const lastFirst = Math.max(cardCount - visible + 1, 1)
-    const first = atEnd ? lastFirst : Math.min(Math.round(scrollLeft / PER) + 1, lastFirst)
+    // Floor at 1: Safari exposes a transient negative scrollLeft during elastic overscroll.
+    const first = atEnd
+        ? lastFirst
+        : Math.max(1, Math.min(Math.round(scrollLeft / PER) + 1, lastFirst))
     const counterLabel = `${first}–${Math.min(first + visible - 1, cardCount)} of ${cardCount}`
     return {atStart, atEnd, counterLabel, showPager: cardCount > visible}
 }

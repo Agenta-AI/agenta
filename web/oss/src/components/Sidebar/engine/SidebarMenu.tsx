@@ -101,8 +101,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             href={item.link}
                             onClick={(event) => {
                                 event.stopPropagation()
-                                // Inert item: keep it highlighted but cancel the anchor navigation.
-                                if (item.inert) event.preventDefault()
+                                // Inert item: keep it highlighted but cancel navigation and its onClick.
+                                if (item.inert) {
+                                    event.preventDefault()
+                                    return
+                                }
                                 item.onClick?.(event)
                             }}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
@@ -223,8 +226,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             href={item.link}
                             onClick={(event) => {
                                 event.stopPropagation()
-                                // Inert item: keep it highlighted but cancel the anchor navigation.
-                                if (item.inert) event.preventDefault()
+                                // Inert item: keep it highlighted but cancel navigation and its onClick.
+                                if (item.inert) {
+                                    event.preventDefault()
+                                    return
+                                }
                                 item.onClick?.(event)
                             }}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}

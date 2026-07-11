@@ -43,6 +43,11 @@ describe("computePagerState", () => {
         expect(computePagerState(0, CLIENT_WIDTH, CLIENT_WIDTH, 2).counterLabel).toBe("1–2 of 2")
     })
 
+    it("floors first at 1 for a transient negative scrollLeft (Safari elastic overscroll)", () => {
+        // Without the Math.max(1, ...) floor this labels "0–2 of 6".
+        expect(computePagerState(-200, SCROLL_WIDTH, CLIENT_WIDTH, 6).counterLabel).toBe("1–3 of 6")
+    })
+
     it("shows the pager only above three cards", () => {
         expect(computePagerState(0, SCROLL_WIDTH, CLIENT_WIDTH, 3).showPager).toBe(false)
         expect(computePagerState(0, SCROLL_WIDTH, CLIENT_WIDTH, 4).showPager).toBe(true)
