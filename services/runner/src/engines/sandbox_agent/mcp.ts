@@ -167,13 +167,13 @@ export async function validateUserMcpUrl(
   } catch {
     return `http MCP server url is not a valid URL: ${rawUrl}`;
   }
+  if (parsed.protocol !== "https:") {
+    return `http MCP server url must use https (got ${parsed.protocol.replace(":", "")}): ${rawUrl}`;
+  }
   if (insecureEgressAllowed()) return undefined;
   const allowlist = mcpHostAllowlist();
   const host = parsed.hostname.toLowerCase();
   const allowed = allowlist.has(host);
-  if (parsed.protocol !== "https:" && !allowed) {
-    return `http MCP server url must use https (got ${parsed.protocol.replace(":", "")}): ${rawUrl}`;
-  }
   if (allowed) return undefined;
 
   if (host === "localhost" || host.endsWith(".localhost")) {
@@ -194,17 +194,57 @@ export async function validateUserMcpUrl(
   return undefined;
 }
 
+export async function validateUserMcpServers(
+  servers: McpServerConfig[] | undefined,
+): Promise<void> {
+  for (const server of servers ?? []) {
+    const transport = server.transport ?? "stdio";
+    if (transport === "stdio") {
+      if (server.headers || (server.credentials?.length ?? 0) > 0) {
+        throw new Error("stdio MCP server cannot carry HTTP headers");
+      }
+      continue;
+    }
+    if (!server.url) throw new Error("http MCP server requires url");
+    if (Object.keys(server.environment ?? {}).length > 0) {
+      throw new Error("http MCP server cannot carry process environment");
+    }
+    const names = new Set<string>();
+    for (const [name, value] of Object.entries(server.headers ?? {})) {
+      if (!name.trim() || !value) {
+        throw new Error("HTTP MCP headers require non-empty names and values");
+      }
+      names.add(name.toLowerCase());
+    }
+    for (const credential of server.credentials ?? []) {
+      const name = credential?.binding?.name;
+      if (
+        credential?.binding?.kind !== "header" ||
+        !name?.trim() ||
+        !credential.value ||
+        credential.usage !== "opaque_http"
+      ) {
+        throw new Error(
+          "HTTP MCP credential binding, value, or usage is invalid",
+        );
+      }
+      const normalized = name.toLowerCase();
+      if (names.has(normalized)) {
+        throw new Error(`duplicate HTTP MCP header binding '${name}'`);
+      }
+      names.add(normalized);
+    }
+    const urlError = await validateUserMcpUrl(server.url);
+    if (urlError) throw new Error(urlError);
+  }
+}
+
 /**
  * Convert USER-declared MCP servers into ACP entries. (This is the USER MCP capability layer —
  * distinct from the INTERNAL gateway-tool channel below; see `buildSessionMcpServers`.)
  *
- * - HTTP (`transport: "http"` + `url`) is ENABLED. A remote server has no child process on the
- *   runner host: the harness connects to the URL and the named secret rides in a request header,
- *   so it does not bypass the sandbox boundary the way a stdio child does. The resolved secret
- *   arrives on the `/run` wire in the server's `env` map (the SDK resolver merges named secrets
- *   into `env` regardless of transport, and the wire has no separate `headers` field), so each
- *   `env` entry is emitted as an HTTP header (`Authorization: <token>`, etc.). The author names
- *   the header via the secret-map key, exactly as a stdio server names its env var.
+ * - HTTP (`transport: "http"` + `url`) is enabled. Public headers and typed secret header
+ *   credentials stay separate until this final local ACP materialization boundary.
  * - STDIO (`transport: "stdio"` + `command`) is DISABLED. A stdio MCP server launches an
  *   arbitrary process on the runner host, outside the sandbox boundary, so the implementation is
  *   disabled (parity with the removed code execution) until its security is fixed. The wire shape
@@ -228,18 +268,21 @@ export async function toAcpMcpServers(
         log(`skipping http MCP server '${s?.name ?? "?"}' (no url)`);
         continue;
       }
-      // SSRF guard: the resolved named secret rides as a header on this author-supplied URL, so
-      // reject a non-https / internal / metadata target before any credential is attached.
-      const urlError = await validateUserMcpUrl(s.url);
-      if (urlError) throw new Error(urlError);
+      await validateUserMcpServers([s]);
       out.push({
         type: "http",
         name: s.name,
         url: s.url,
-        headers: Object.entries(s.env ?? {}).map(([name, value]) => ({
-          name,
-          value,
-        })),
+        headers: [
+          ...Object.entries(s.headers ?? {}).map(([name, value]) => ({
+            name,
+            value,
+          })),
+          ...(s.credentials ?? []).map((credential) => ({
+            name: credential.binding.name,
+            value: credential.value,
+          })),
+        ],
       });
       continue;
     }
