@@ -70,6 +70,7 @@ export function buildDaytonaCreate(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
+  secretAttachments: Record<string, string> = {},
 ): Record<string, unknown> {
   const snapshot = process.env.DAYTONA_SNAPSHOT;
   const target = process.env.DAYTONA_TARGET;
@@ -81,6 +82,7 @@ export function buildDaytonaCreate(
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
     envVars: daytonaEnvVars(piExtEnv, secrets),
+    ...(Object.keys(secretAttachments).length > 0 ? { secrets: secretAttachments } : {}),
     // `ephemeral: false` lets stop park the sandbox. Leave autoArchiveInterval unset so Daytona's
     // seven-day default sits beyond our 30-minute delete. The ladder is stop, then delete.
     // These intervals override the wrapper's hardcoded zeroes. A leaked sandbox self-reaps.
@@ -113,12 +115,13 @@ export function buildSandboxProvider(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
   sandboxPermission?: SandboxPermission,
+  secretAttachments: Record<string, string> = {},
 ) {
   if (sandboxId === "daytona") {
     const image = process.env.DAYTONA_IMAGE;
     return daytonaWithLifecycle({
       ...(image ? { image } : {}),
-      create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
+      create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission, secretAttachments) as any,
     });
   }
 
