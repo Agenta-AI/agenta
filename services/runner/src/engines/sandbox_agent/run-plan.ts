@@ -32,6 +32,7 @@ import {
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
 import { buildTurnText } from "./transcript.ts";
+import { buildDaytonaSecretPlan, type DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -78,8 +79,10 @@ export interface RunPlan {
   prompt: string;
   turnText: string;
   agentsMd?: string;
-  /** Final plaintext model environment, after validating modelConnection. */
+  /** Direct environment only; Daytona opaque_http values are excluded. */
   modelEnvironment: Record<string, string>;
+  /** In-memory only; populated for Daytona and consumed before provider creation. */
+  daytonaSecretPlan?: DaytonaSecretPlan;
   /**
    * Harness key name used only to decide whether the harness has an API key after the typed
    * connection is materialized. It never selects a provider.
@@ -137,7 +140,8 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  { ok: true; plan: RunPlan } | { ok: false; error: string };
+  | { ok: true; plan: RunPlan }
+  | { ok: false; error: string };
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
@@ -385,7 +389,16 @@ export function buildRunPlan(
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
-  const modelEnvironment = materializedModel.environment;
+  let modelEnvironment = materializedModel.environment;
+  let daytonaSecretPlan: DaytonaSecretPlan | undefined;
+  if (isDaytona) {
+    try {
+      daytonaSecretPlan = buildDaytonaSecretPlan({ modelConnection: request.modelConnection, mcpServers: request.mcpServers });
+      modelEnvironment = daytonaSecretPlan.environment;
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Invalid Daytona secret plan" };
+    }
+  }
   const harnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
@@ -420,11 +433,11 @@ export function buildRunPlan(
   }
 
   // Code tools were removed (F-010 security): the sidecar no longer executes author-supplied
-  // snippets. The dispatch sites still throw per-call as a backstop, but a per-call throw
-  // becomes a tool RESULT the model launders into an `ok:true` reply ("Code tools are not
-  // supported by the sidecar."), so a removed capability reads as a SUCCESS at the response
-  // envelope (F-016). Fail loud up-front instead: refuse any run that carries a `code` tool,
-  // the way stdio MCP is gated. Keep the wire shape; the delivery is not supported.
+  // snippets. `runCodeTool` throws per-call, but a per-call throw becomes a tool RESULT the
+  // model launders into an `ok:true` reply ("Code tools are not supported by the sidecar."),
+  // so a removed capability reads as a SUCCESS at the response envelope (F-016). Fail loud
+  // up-front instead: refuse any run that carries a `code` tool, the way stdio MCP is gated.
+  // Keep the wire shape; the delivery is not supported.
   if (hasCodeTool(toolSpecs)) {
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
@@ -564,6 +577,7 @@ export function buildRunPlan(
       turnText: buildTurnText(request, log),
       agentsMd: request.agentsMd?.trim() || undefined,
       modelEnvironment,
+      daytonaSecretPlan,
       harnessApiKeyVar,
       hasApiKey: !!modelEnvironment[harnessApiKeyVar],
       credentialMode: materializedModel.credentialMode,
