@@ -1,39 +1,54 @@
-# Warm and resumable Daytona sessions (F-020)
+# Warm and resumable Daytona sessions
 
-Design workspace for making follow-up turns on a Daytona agent skip full sandbox creation.
-Every Daytona turn today pays about 20 seconds of cold provision plus mount plus harness
-startup. This workspace plans two tiers that reuse a session's sandbox between turns, with
-honest cost trade-offs and a recommendation.
+## What this project is about
 
-This is a takeover of work that builds on PR #5197 (durable session continuity). A follow-up
-commit at HEAD (`60990d396e`, untested) already prototypes most of Tier 1. Read `context.md`
-first; the "what changed under our feet" section is load-bearing.
+When you chat with an agent that runs on Daytona, every message waits about twenty seconds before
+the agent starts to answer. That wait is a fresh cloud machine being built from scratch, once per
+turn, even though the previous turn already built one. This workspace plans how to reuse that
+machine between turns so the second message, and every message after it, starts fast. It is a
+design plan only. No code ships in this pull request.
 
-## Files
+A few words you will meet throughout, defined once:
 
-- `context.md` — why this exists, the symptom, why it happens, the untested lifecycle commit,
-  goals and non-goals.
-- `research.md` — the actual current code at HEAD (teardown, reconnect, provider flags, the
-  sandbox-agent patch), how the local keep-alive pool works, the three-tier fallback model, and
-  Daytona lifecycle and billing semantics.
-- `plan.md` — the two tiers, phased, with the recommendation. Tier 1 (cheap resume, park to
-  stopped) ships first behind a default-off flag. Tier 2 (true warm pool, park to running) is
-  an opt-in follow-up.
-- `open-questions.md` — the decisions a reviewer and a billing owner still have to make.
-- `status.md` — current state, decisions, the design-review round, blockers.
+- **Sandbox:** the isolated cloud machine an agent runs in. On Daytona it is a billed resource.
+- **Daytona:** the cloud provider that hosts these sandboxes.
+- **Runner:** the Agenta service that drives one agent turn. It builds the sandbox, runs the turn
+  inside it, and tears it down.
+- **Harness:** the agent program that runs inside the sandbox (Claude Code or Pi).
+- **Park a sandbox:** stop it but keep its disk, so the next turn can restart the same one instead
+  of rebuilding it. This is the whole idea behind the project.
 
-## Recommendation in one line
+## Read the files in this order
 
-Land Tier 1 (mostly prototyped, storage-only parked cost) behind a default-off flag, close the
-P0 lifecycle gaps the review round found, enable it after one credit-controlled live test, keep
-durable continuity as the floor, and defer Tier 2 (running compute; TTL and a running cap are
-the billing knobs) until F-018 lands and a billing owner sets those knobs.
+1. **context.md.** What a user sees today, what recent work already tried, why it still fails, and
+   the finding that shaped the whole plan: the code to keep a sandbox warm was already written, but
+   the piece of it that talks to Daytona is missing two functions it needs.
+2. **research.md.** The current code, function by function, with the exact reasons warm reuse does
+   not work yet. Read this for the evidence behind context.md. It also covers the local warm-reuse
+   pool and how Daytona bills a stopped sandbox.
+3. **plan.md.** The proposal. Two levels of reuse, the work each needs, the gaps to close first, and
+   a recommendation. Start here if you only want the decision.
+4. **open-questions.md.** The decisions that still need a human: a reviewer for the correctness ones,
+   a billing owner for the cost ones.
+5. **status.md.** Where the project stands, what was decided and why, and what the design review
+   changed.
+
+## The recommendation, in one paragraph
+
+Ship the cheaper level first. Park-to-stopped stops the sandbox at the end of a turn and restarts
+the same one on the next turn; its parked cost is disk storage only. Put it behind a flag that is
+off by default, close the handful of correctness gaps the design review found, and turn it on after
+one careful live test. Keep today's always-correct fallback (rebuild the sandbox and replay the
+transcript) underneath it. Defer the more expensive level, park-to-running, which keeps the sandbox
+running between turns, until a billing owner sets its cost limits.
 
 ## Related workspaces
 
-- `docs/design/agent-workflows/projects/session-keepalive/` — the local in-memory keep-alive
-  pool. Its deferred "slice 3 (Daytona)" is this project's Tier 2.
-- `docs/design/agent-workflows/projects/harness-session-resume/` — durable continuity via ACP
-  `session/load`. The fallback rung under both tiers.
-- `docs/design/agent-workflows/projects/qa/findings.md` — F-020 (this problem), F-018 (the
-  Daytona tool-call hang that gates the benefit), F-017 (the mount fix PR #5197 shipped).
+- `docs/design/agent-workflows/projects/session-keepalive/`: the local, in-memory pool that already
+  gives non-Daytona sessions warm reuse. Its deferred Daytona slice is this project's park-to-running
+  level.
+- `docs/design/agent-workflows/projects/harness-session-resume/`: how a restarted sandbox reloads the
+  past conversation. This is the fallback both levels rely on.
+- `docs/design/agent-workflows/projects/qa/findings.md`: the QA findings referenced here. F-020 (this
+  slow-turn problem), F-018 (a separate Daytona bug that hangs tool calls), and F-017 (a mount bug
+  already fixed).

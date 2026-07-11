@@ -1,83 +1,111 @@
-# Context: warm and resumable Daytona sessions (F-020)
+# Context: warm and resumable Daytona sessions
 
-## The symptom
+## What a user sees today
 
-Every conversational turn on a Daytona agent pays full sandbox creation. QA measured this at
-about 20 seconds or more per turn on a live E3 run. A user sends a second message in the same
-chat and waits through a cold provision, a mount, and a harness startup that the previous turn
-already paid for. This is the whole problem: Daytona has no warm reuse between turns.
+When you chat with an agent that runs on Daytona, every message waits about twenty seconds
+before the agent starts to answer. QA measured this on a live run (the E3 scenario, a scripted
+chat used to test the agent runtime). The wait is the same on every turn. Your second message
+in a conversation waits just as long as your first, because the runner builds a brand-new
+sandbox for it, mounts its files, and starts the harness from scratch. Nothing from the
+previous turn is reused.
 
-## Why it happens
+A few terms, since they recur below:
 
-Three independent mechanisms combine to force a cold create on every turn.
+- **Sandbox**: the isolated cloud machine an agent runs in. On Daytona it is a billed resource.
+- **Runner**: the Agenta service that drives one agent turn. It creates the sandbox, runs the
+  turn inside it, and tears it down.
+- **Harness**: the agent program inside the sandbox (Claude Code or Pi).
+- **Park a sandbox**: stop it but keep its disk, so the next turn can restart the same one
+  instead of rebuilding it.
 
-1. The runner tore the sandbox down at turn end. Before the lifecycle work described below,
-   `provider.ts` created the Daytona sandbox with `ephemeral: true`, and an ephemeral sandbox
-   auto-deletes when it stops. So the sandbox was gone by the time the next turn arrived.
+The slow turn is the whole problem. This is QA finding F-020.
 
-2. PR #5197 added a `sandbox-reconnect` module that stores the sandbox id and restarts a
-   stopped or archived sandbox on the next turn instead of provisioning fresh. But because the
-   sandbox was deleted at turn end, the stored id never resolved. Reconnect was a dead rung:
-   the runner logged "reconnect failed ... not found, creating fresh" on every follow-up turn.
+The answer itself is still correct. A separate feature, durable session continuity (PR #5197),
+saves the conversation to storage and replays it into the fresh sandbox, so the agent remembers
+what was said. The only cost is speed. Correctness is fine; every turn just pays the full build
+time.
 
-3. The in-memory keep-alive pool that gives local sessions warm reuse is gated local-only on
-   purpose (`resolvesToLocalProvider` in `session-pool.ts`, `isLocalSandbox` in `server.ts`).
-   The gate is deliberate. Local keep-alive spends host RAM only; a warm Daytona sandbox spends
-   billed compute, and a leaked one costs money. The `session-keepalive` workspace deferred the
-   remote extension to "slice 3" for exactly this reason.
+## What recent work already tried
 
-The 15-minute `SANDBOX_AGENT_DAYTONA_AUTOSTOP_MINUTES` that existed at the time was a leak
-backstop, not a reuse mechanism. It stopped an abandoned sandbox so it stopped billing; it did
-nothing to make the next turn fast.
+The working tree has moved past the state F-020 described. A recent, still-untested commit
+(`60990d396e`, "Resolve hot/warm/cold/dead/new lifecycle") already wired up most of the
+warm-reuse machinery. Any plan has to start from this real current state, not from F-020's
+older premise. Here is what that commit put in place:
 
-This is finding F-020 in `docs/design/agent-workflows/projects/qa/findings.md`. It is triaged
-`minor` and `defer`: correctness is fine (durable continuity restores the transcript and the
-resumed turn answers correctly in about 20 seconds), but every turn pays create latency.
+- **Keep the sandbox instead of deleting it.** `provider.ts` now creates the sandbox with
+  `ephemeral: false`, which means a stopped sandbox is parked, not auto-deleted. It also sets
+  three idle timers: stop after 5 minutes, move to cheaper cold storage after 15, delete after
+  30. Daytona runs these timers itself.
+- **Park at a clean turn end.** The teardown path (`sandbox_agent.ts`) takes a `keepWarm`
+  option. On a Daytona turn that finished cleanly, it calls `pauseSandbox()` (stop, keep the
+  disk) instead of `destroySandbox()` (delete). Both run paths request `keepWarm` only when the
+  turn succeeded, was not aborted, and the user did not disconnect.
+- **Reconnect on the next turn.** The runner stores the sandbox id, and on the next turn it
+  reads that id back and restarts the same sandbox instead of provisioning a fresh one.
+- **Reload the conversation in place.** A patch on the vendored `sandbox-agent` package adds a
+  native "reload this session" call, so a restarted sandbox resumes the harness where it left
+  off, with transcript replay as the fallback.
 
-## What changed under our feet: the untested lifecycle commit
+So on paper, a follow-up turn should restart the parked sandbox and pick up the conversation.
+In practice it does not, for the reason below.
 
-F-020 and the brief that started this project describe the PR #5197 state. The working tree has
-since moved past it. Commit `60990d396e` ("[fix] Resolve hot/warm/cold/dead/new lifecycle
-(untested)") already implements most of Tier 1 below, and it is unverified. Any plan here has to
-start from the real current state, not from F-020's premise. See `research.md` for the exact
-code. In short, at HEAD:
+## Why it still fails
 
-- `provider.ts` now creates with `ephemeral: false` and a five-state lifecycle: `autoStop = 5`
-  min, `autoArchive = 15` min, `autoDelete = 30` min. Daytona's own reapers park then reap.
-- `sandbox_agent.ts` teardown takes a `keepWarm` option. On a resumable Daytona turn it calls
-  `pauseSandbox()` (stop, keep the disk) instead of `destroySandbox()` (delete).
-- Both run paths (`runSandboxAgent` and the keep-alive `runCold`) pass `keepWarm` when the turn
-  succeeded, was not aborted, the client did not disconnect, and the turn did not pause.
-- Reconnect is wired: `readStoredSandboxId` at acquire restarts the stored sandbox; a failure
-  falls through to a fresh create; `writeSandboxId` records the live id forward.
-- A `pnpm patch` on `sandbox-agent@0.4.2` adds native ACP `loadSession` so a reconnected
-  sandbox resumes the harness session in place, with transcript replay as the fallback.
+The runner asks for the right behavior, but the piece that carries it out is missing.
 
-So Tier 1 is prototyped end to end but untested and unproven live. This project is a takeover:
-verify it, close its gaps, decide the orphan-cleanup story, and decide whether and when to add
-the true warm pool (Tier 2).
+The code that talks to Daytona is called the *provider*. The runner's park and reconnect calls
+depend on two provider functions: one to pause (stop) a sandbox, and one to reconnect to a
+stopped one. The Daytona provider implements neither. As a result:
+
+- `pauseSandbox()` finds no pause function and falls through to a plain delete. The sandbox is
+  gone at turn end, `keepWarm` or not.
+- The reconnect call finds a deleted sandbox id and cannot revive it, so the runner builds a
+  fresh sandbox anyway.
+
+The net effect is a full rebuild on every turn, exactly what F-020 reported. `research.md`
+walks the code that proves each step.
+
+## The key finding
+
+The warm-reuse machinery is mostly written already and sitting untested in the working tree.
+What blocks it is small and specific: two missing functions in the Daytona provider, plus a few
+correctness gaps around them that a design review surfaced. This project is a takeover. Verify
+the existing code, add the two functions, close the gaps, decide how the runner cleans up
+abandoned sandboxes, and decide how far to push reuse.
+
+Two older facts are worth carrying forward, because a later decision depends on them:
+
+- The Daytona sandbox used to be created `ephemeral: true`, which auto-deleted it the moment it
+  stopped. That was a safety backstop: a crashed runner could not leave a sandbox billing for
+  long. Switching to `ephemeral: false` removes that reflex, so the plan has to answer what now
+  cleans up an abandoned sandbox.
+- The local (non-Daytona) sessions already get warm reuse from an in-memory pool, but that pool
+  is deliberately kept off Daytona. A leaked local session costs only host memory; a leaked
+  Daytona sandbox costs real money. `research.md` covers the pool in full.
 
 ## Goals
 
-- Make a second Daytona turn in the same conversation avoid a full cold create.
-- Keep the parked cost honest and bounded. Storage-only for the default tier; a clear billing
-  knob for any tier that parks live compute.
-- Never leak a running sandbox. The orphan-cleanup story has to be at least as safe as the
+- Make a second Daytona turn in the same conversation skip the full rebuild.
+- Keep the parked cost honest and bounded. Storage only for the default level; a clear cost
+  limit for any level that keeps a sandbox running.
+- Never leak a running sandbox. Cleanup of abandoned sandboxes has to be at least as safe as the
   `ephemeral: true` behavior it replaces.
-- Keep durable continuity (PR #5197) as the always-correct fallback rung.
+- Keep durable continuity (PR #5197) as the always-correct fallback.
 
 ## Non-goals
 
-- Fixing the Daytona tool-call hang (F-018). Warmth helps chat first; tool turns fail on
-  Daytona until F-018 lands, and a failed turn does not park.
-- Multi-replica pool routing. The runner is single-replica; a pool miss degrades to cold.
+- Fixing the Daytona tool-call hang (F-018, a separate bug). Warm reuse helps chat first. Tool
+  turns fail on Daytona until F-018 lands, and a failed turn does not park.
+- Routing across multiple runner replicas. The runner is single-replica; a miss just falls back
+  to a cold build.
 - Changing the wire contract, the SDK, or the frontend. This is a runner-only change.
-- Running live Daytona sandboxes during this design pass (credits). Verification is by code
-  read and unit or contract tests; live QA is called out as a follow-up, not done here.
+- Running live Daytona sandboxes during this design pass, which would spend credits.
+  Verification here is by code read and unit or contract tests. Live testing is called out as a
+  later step, not done here.
 
-## Who cares
+## Who is affected
 
-Anyone running a multi-turn chat agent on Daytona through the deployed app. Today they wait 20
-seconds per turn. The build-kit default agent is hit hardest because its "read the skill first"
-instruction makes the model open with a tool call, though that path is currently blocked by
-F-018 rather than by cold-create latency.
+Anyone running a multi-turn chat agent on Daytona through the deployed app. Today they wait
+about twenty seconds per turn. The build-kit default agent feels it most, because its "read the
+skill first" instruction makes the model open with a tool call. That path is currently blocked
+by F-018 rather than by build latency, so it will not benefit until F-018 lands.
