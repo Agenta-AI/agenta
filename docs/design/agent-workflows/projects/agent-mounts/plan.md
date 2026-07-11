@@ -9,7 +9,8 @@ the workflow artifact id, no schema change, no configuration, no wire change.
 1. The API can mint, upsert, and sign an **agent mount**: a mount row with `session_id`
    NULL whose slug derives from the workflow artifact id.
 2. The runner mounts it into every run of that agent, next to the session cwd, local and
-   Daytona, and tells the harness where it is.
+   Daytona, and makes it discoverable from inside the workspace without any agent.md
+   change (env var + `agent-files` symlink + seeded README; D3).
 3. The frontend can look the mount up by artifact id and browse its files with the
    existing mount file browser.
 
@@ -93,10 +94,38 @@ lands.
   Rejected: a fixed absolute path (collides across concurrent local runs of the same
   agent) and a directory inside the cwd (a FUSE mount nested inside the durable cwd's FUSE
   mount).
-- **Harness discovery:** one env var on the daemon env, `AGENTA_AGENT_MOUNT_DIR=<path>`,
-  set only when the mount is live. Follow-up (not this project): a line in the rendered
-  instructions file so the model knows the folder exists; the env-var-naming cleanup in
-  the runner-selfhosting-explainer notes applies to this name too.
+- **Harness discovery (decided 2026-07-11, Mahmoud):** the env var alone is plumbing, not
+  discovery — neither Pi nor Claude inspects `env` or lists the cwd's parent unprompted,
+  and the mount would sit unused until an instructions change ships. The constraint is to
+  make the folder obvious **without touching the author's agent.md**: for `pi_core` and
+  `claude` the rendered instructions file is the author's text verbatim
+  (research.md, "The rendered instructions file"), so a platform-injected line would
+  change the no-wrapping policy for those harnesses. The filesystem itself carries the
+  signal instead, with three mechanisms:
+  1. `AGENTA_AGENT_MOUNT_DIR=<path>` on the daemon env, set only when the mount is live
+     (machine-readable pointer; the env-var-naming cleanup in the
+     runner-selfhosting-explainer notes applies to this name too).
+  2. A **symlink inside the cwd**: `<cwd>/agent-files -> <cwd>-agent`, created after both
+     mounts are up. Listing the working directory is the one discovery action every
+     harness performs, and the link shows up there. This does not reintroduce the
+     rejected dir-inside-cwd option: that rejection was about nesting a FUSE mount inside
+     a FUSE mount; a symlink is a pointer, not a mount. Caveat: the session cwd is itself
+     geesefs, so creating the link needs geesefs symlink support on the pinned version —
+     a slice-2 verification task. Failure to create it is logged and non-fatal (env var
+     and README still stand); the ephemeral sessionless cwd is a plain local dir where
+     symlinks trivially work.
+  3. A **seeded `README.md` in the agent mount**, written by the runner after mount only
+     when absent: files here persist across all sessions and runs of this agent; the
+     working directory persists only for the current session (or not at all, sessionless).
+     Write-if-absent keeps it idempotent and never clobbers an agent's own edit. It also
+     gives the D4 frontend panel real content the first time anyone opens it.
+     Alternative rejected: seeding from the API at upsert time — it would need S3 write
+     access on the sign path for a purely presentational file; the runner already holds
+     the mounted path.
+  The agent's discovery story, with zero instructions text: list the cwd → see
+  `agent-files/` → open it → the README states the persistence rule. Follow-up (not this
+  project): a line in the rendered instructions file, now nice-to-have rather than
+  load-bearing.
 - **Keepalive interplay (#5197):** the mount lives and dies with the run environment;
   `destroy({keepWarm})` keeps it, final destroy unmounts it. Same rule the durable cwd
   follows; implementation must add the agent mountpoint to the same unmount bookkeeping.
@@ -126,7 +155,7 @@ moves to the agent page instead.
 | # | Lane | Content | Tests |
 |---|---|---|---|
 | 1 | api | `mint_agent_slug` (with UUID canonicalization), `get_or_create_agent_mount`, `fetch_mount_by_slug`, the two endpoints; verify runContext + `RUN_SESSIONS` coverage per run type (playground, trigger, evaluation, API) | pytest: slug format + parse-back, non-UUID rejected 422, upsert idempotence (same row id twice), query returns row/empty and never creates, reserved-slug guard still rejects forged `__ag__agent__` slugs, permission checks |
-| 2 | runner | sign call with artifact id from runContext, `<cwd>-agent` mount local+remote, `AGENTA_AGENT_MOUNT_DIR`, teardown, keepalive + warm-resume idempotency | vitest: plan wiring (artifact id present/absent), path derivation, env var set only when mounted, unmount on final destroy, no re-mount on warm resume; wire-contract goldens untouched (asserts no protocol change) |
+| 2 | runner | sign call with artifact id from runContext, `<cwd>-agent` mount local+remote, `AGENTA_AGENT_MOUNT_DIR`, `agent-files` symlink in cwd (verify geesefs symlink support first), seeded README (write-if-absent), teardown, keepalive + warm-resume idempotency | vitest: plan wiring (artifact id present/absent), path derivation, env var set only when mounted, symlink created best-effort and skipped when present, README seeded only when absent, unmount on final destroy, no re-mount on warm resume; wire-contract goldens untouched (asserts no protocol change) |
 | 3 | web | Agent files panel per D4 (includes exporting `MountFilesPanel`) | vitest for the lookup hook; manual e2e in QA |
 | 4 | docs | keep-docs-in-sync sweep: `documentation/` mounts page, runner-selfhosting-explainer, env reference | docs build |
 
@@ -137,6 +166,9 @@ mount. The live QA below needs both deployed together.
 Live QA (after slice 2): local and Daytona; agent writes a file into
 `$AGENTA_AGENT_MOUNT_DIR` in session A, session B of the same agent reads it back; a
 sessionless run writes and a later session reads; a different agent does not see it.
+Discovery QA, run without any instructions hint: ask the agent to list its working
+directory and explain what it has — it must find `agent-files/`, read the README, and
+state the persistence rule unaided.
 
 ## Open questions (comment on the PR)
 
@@ -146,8 +178,9 @@ sessionless run writes and a later session reads; a different agent does not see
 2. **Endpoint placement:** `/mounts/agents/*` as specified, or hang the sign off the
    sessions router's sibling for symmetry? Current shape keeps the sessions router
    session-only.
-3. **Mount point:** `<cwd>-agent` and the `AGENTA_AGENT_MOUNT_DIR` name. Better ideas
-   welcome; both are one-line constants.
+3. **Mount point and visible name:** `<cwd>-agent`, the `AGENTA_AGENT_MOUNT_DIR` name,
+   and — now user-visible to the model — the `agent-files` symlink name and the seeded
+   README wording. Better ideas welcome; all are one-line constants.
 4. **Query semantics:** confirmed no-create-on-read?
 5. **Scope check:** slice 3 in this project, or hand the panel to the mount-file-viewer
    work (draft PR #5204, the session file browser this panel builds on)?

@@ -106,6 +106,28 @@ extracting it), `deriveRows`/`formatSize` in `mountBrowser.ts`, and the
 takes a `sessionId` and queries session mounts), so it is the integration point, not the
 reusable unit.
 
+## The rendered instructions file (load-bearing for the discovery decision)
+
+What the harness reads as its instructions file (`AGENTS.md`, or `CLAUDE.md` for the
+claude harness; `prepareWorkspace`, `services/runner/src/engines/sandbox_agent/workspace.ts:53-54`)
+is the author's `agent.instructions` **verbatim** for `pi_core` and `claude`
+(`sdks/python/agenta/sdk/agents/adapters/harnesses.py:68,102`). Only `pi_agenta` composes
+a platform preamble in front of it (`compose_instructions`, harnesses.py:131 →
+`agenta_builtins.py:762`). Consequence: a platform-injected "you have an agent folder"
+line in the instructions would change the no-wrapping policy for two of the three
+harnesses; discovery that must not touch agent.md has to ride the filesystem or the env.
+
+What the agent sees in its workspace today: the cwd containing the instructions file,
+skill packages (`.claude/skills/<name>` for claude; Pi loads skills via its agent dir),
+pre-rendered `harnessFiles`, and prior-turn session files. Sibling directories (relay
+scratch, transcript mounts) and the daemon env are effectively invisible — neither Pi nor
+Claude lists the parent directory or dumps `env` unprompted.
+
+Unverified, slice-2 verification task: whether the pinned geesefs version supports
+creating symlinks (the session cwd is a geesefs mount, and the planned `agent-files`
+symlink lives inside it). The sessionless ephemeral cwd is a plain local directory where
+symlinks work unconditionally.
+
 ## Concurrency fact to carry into the design
 
 Multiple live geesefs mounts of one prefix are possible (different mountpoints, same S3
