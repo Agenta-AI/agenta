@@ -48,6 +48,18 @@ spec:
           env:
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
+            - name: AGENTA_RUNNER_CONTROL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_RUNNER_CONTROL_TOKEN
+                  optional: true
+            - name: AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY
+                  optional: true
             - name: SANDBOX_AGENT_PROVIDER
               value: {{ default "local" $runner.provider | quote }}
             {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}

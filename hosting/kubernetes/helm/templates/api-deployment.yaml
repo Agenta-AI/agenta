@@ -75,6 +75,12 @@ spec:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             - name: SCRIPT_NAME
               value: "/api"
+            - name: AGENTA_RUNNER_CONTROL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_RUNNER_CONTROL_TOKEN
+                  optional: true
             {{- range $key, $val := $api.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
