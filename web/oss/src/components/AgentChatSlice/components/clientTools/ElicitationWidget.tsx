@@ -24,6 +24,8 @@ import {CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons
 import {Button, Form, Typography} from "antd"
 import dayjs from "dayjs"
 
+import {resolveToolDisplay} from "../../assets/toolDisplay"
+
 import type {ClientToolHandlerProps} from "./types"
 
 const {Text} = Typography
@@ -206,7 +208,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                     <Text className="!text-xs">{parsed.payload.message}</Text>
                     {/* Requester attribution — muted subtext, never a banner (design D-spec). */}
                     <Text type="secondary" className="!text-[11px]">
-                        Asked by {meta.toolName}
+                        Asked by {resolveToolDisplay(meta.toolName).label}
                         {requiredCount > 0
                             ? ` · Waiting on your input · ${requiredCount} required`
                             : " · Waiting on your input"}

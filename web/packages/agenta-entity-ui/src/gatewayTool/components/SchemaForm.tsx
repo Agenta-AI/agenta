@@ -410,11 +410,14 @@ function MultiEnumWithOther({
     )
 }
 
-// Selected state: primary border + the filled indicator only — a full primary-bg fill reads
-// far too heavy in the dark theme (dogfooding feedback).
+// Elevation over borders (the providers-grid treatment): unselected cards are borderless
+// elevated fills — a stack of outlined boxes reads exhausting in the dark theme. The one
+// selected card per group carries the single accent border.
 const choiceCardCls = (selected: boolean) =>
     `flex cursor-pointer items-start gap-2 rounded-lg border border-solid p-3 transition-colors ${
-        selected ? "border-colorPrimary" : "border-colorBorderSecondary hover:border-colorPrimary"
+        selected
+            ? "border-colorPrimary bg-colorFillTertiary"
+            : "border-transparent bg-colorFillQuaternary hover:bg-colorFillTertiary"
     }`
 
 /** Presentational check/dot — the CARD is the single interactive element (no nested input). */
