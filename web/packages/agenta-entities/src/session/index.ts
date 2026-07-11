@@ -15,6 +15,8 @@ export {
     fetchSessionStream,
     commandSessionStream,
     killSession,
+    queryMountFiles,
+    readMountFile,
     type QueryRecordsParams,
     type SessionScopedParams,
     type QueryInteractionsParams,
@@ -45,6 +47,8 @@ export {
     type SessionStreamCommandResponse,
     type StreamStatusCode,
     type CommandMode,
+    mountFileSchema,
+    type MountFile,
 } from "./core/schema"
 export {
     deriveStreamNest,
@@ -54,3 +58,4 @@ export {
     type SessionStreamNest,
     type SandboxLiveness,
 } from "./core/liveness"
+export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"

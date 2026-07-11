@@ -10,6 +10,8 @@
  */
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
+    mountFileContentResponseSchema,
+    mountFileListResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
@@ -17,6 +19,7 @@ import {
     sessionStreamCommandResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
+    type MountFile,
     type SessionInteraction,
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
@@ -28,7 +31,9 @@ import {
 
 import {
     callFern,
+    getLowPriorityMountsClient,
     getLowPrioritySessionsClient,
+    getMountsClient,
     getSessionsClient,
     projectScopedRequest,
 } from "./client"
@@ -347,4 +352,64 @@ export async function killSession({
         ),
     )
     return data !== null
+}
+
+export interface MountFilesParams {
+    mountId: string
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+    /** Scope the listing to a sub-path (still recursive under it). Omit for the whole mount. */
+    path?: string
+    lowPriority?: boolean
+}
+
+/**
+ * List a mount's durable files. The backend returns the WHOLE tree under the prefix (no server-side
+ * one-level delimiter), so `deriveMountRows` folds it into a one-level browse view client-side.
+ * Returns `null` on failure/missing scope.
+ */
+export async function queryMountFiles({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+    lowPriority,
+}: MountFilesParams): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    const data = await callFern("[queryMountFiles]", () =>
+        client.getMountFiles(
+            {mount_id: mountId, path},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[queryMountFiles]")
+    return validated?.files ?? null
+}
+
+/** Read one mount file's text content (`?read=<path>`). Returns `null` on failure/missing scope. */
+export async function readMountFile({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+}: Omit<MountFilesParams, "path" | "lowPriority"> & {path: string}): Promise<string | null> {
+    if (!projectId || !mountId || !path) return null
+
+    const data = await callFern("[readMountFile]", () =>
+        getMountsClient().getMountFiles(
+            {mount_id: mountId, read: path},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(mountFileContentResponseSchema, data, "[readMountFile]")
+    return validated?.content ?? null
 }

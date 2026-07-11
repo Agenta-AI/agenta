@@ -141,6 +141,27 @@ export const sessionStreamCommandResponseSchema = z.object({
 export type SessionStream = z.infer<typeof sessionStreamSchema>
 export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
 
+/** One entry in a mount's durable file listing. `path` is relative to the mount root; folders
+ * are flagged (`is_folder`) or implied by nested file paths. The backend lists the whole tree
+ * under the prefix, so the one-level browse view is derived client-side (see `deriveMountRows`). */
+export const mountFileSchema = z.object({
+    path: z.string(),
+    size: z.number().nullish(),
+    is_folder: z.boolean().nullish(),
+})
+
+export const mountFileListResponseSchema = z.object({
+    count: z.number().nullish(),
+    files: z.array(mountFileSchema).nullish(),
+})
+
+export const mountFileContentResponseSchema = z.object({
+    path: z.string().nullish(),
+    content: z.string().nullish(),
+})
+
+export type MountFile = z.infer<typeof mountFileSchema>
+
 /** Stream lifecycle codes from `SessionStream.status.code`. */
 export type StreamStatusCode = "running" | "detached" | "idle" | "ended"
 /** Stream command modes (prompt × force matrix). */
