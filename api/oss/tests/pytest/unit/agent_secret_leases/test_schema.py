@@ -106,9 +106,10 @@ def test_claim_columns_are_all_null_or_form_a_positive_generation_fence():
 
 
 def test_migration_matches_runtime_cursor_indexes_and_claim_constraint():
-    migration = Path(
-        "/tmp/daytona-api-qa-fix/api/oss/databases/postgres/migrations/"
-        "core_oss/versions/oss000000011_add_agent_secret_leases.py"
+    migration = (
+        Path(__file__).resolve().parents[4]
+        / "databases/postgres/migrations/core_oss/versions/"
+        "oss000000011_add_agent_secret_leases.py"
     ).read_text()
     assert "ck_agent_secret_leases_claim_consistency" in migration
     assert "(provider, state, created_at, id)" in migration
