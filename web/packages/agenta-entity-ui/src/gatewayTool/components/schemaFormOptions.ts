@@ -11,6 +11,14 @@ import type {FormFieldDescriptor} from "@agenta/shared/utils"
 
 export const OTHER_ENUM_OPTION = "__ag_enum_other__"
 
+/** ScheduleBuilderField has no empty state, so a cron field is born answered: the schedule the
+ * builder displays must also be the seeded form value (WYSIWYG), never just a visual fallback. */
+export const DEFAULT_CRON = "0 9 * * *"
+
+/** Form seed for a cron field: the wire default when present, else the builder's display default. */
+export const cronInitialValue = (fieldDefault: unknown): string =>
+    typeof fieldDefault === "string" && fieldDefault ? fieldDefault : DEFAULT_CRON
+
 /** A renderable option: bare enum values get {value}, oneOf options add label/description. */
 export interface EnumOption {
     value: string
