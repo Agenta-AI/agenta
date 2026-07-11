@@ -249,8 +249,8 @@ function applyClaudeConnectionEnv(
   request: AgentRunRequest,
   acpAgent: string,
   logger: Log,
-): boolean {
-  if (acpAgent !== "claude") return false;
+): void {
+  if (acpAgent !== "claude") return;
 
   // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
   // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
@@ -290,9 +290,18 @@ function applyClaudeConnectionEnv(
     logger(
       `claude model=${selectedModel} deployment=${deployment ?? "<none>"}`,
     );
-    return true;
   }
-  return false;
+}
+
+/**
+ * Whether a requested-but-unsettable model fails the run (F-007). Strict by default on every
+ * harness path: a user who picks a model either runs that model or sees a loud error, never a
+ * silent (often pricier) fallback to the harness default. `AGENTA_AGENT_MODEL_STRICT=false` is
+ * the explicit opt-out that restores the legacy warn-and-fallback behavior. A run that requests
+ * no model is unaffected either way — it keeps the harness default.
+ */
+function modelResolutionStrict(): boolean {
+  return process.env.AGENTA_AGENT_MODEL_STRICT !== "false";
 }
 
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
@@ -693,12 +702,8 @@ export async function acquireEnvironment(
     clearProviderEnv,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
-  const strictModel = applyClaudeConnectionEnv(
-    env,
-    request,
-    plan.acpAgent,
-    logger,
-  );
+  applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
+  const strictModel = modelResolutionStrict();
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
