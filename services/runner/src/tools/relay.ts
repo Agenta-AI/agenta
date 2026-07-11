@@ -24,7 +24,7 @@ import {
 } from "node:fs";
 
 import { callAgentaTool } from "./callback.ts";
-import { runCodeTool } from "./code.ts";
+import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
 import {
   applyContextBindings,
   assembleBody,
@@ -276,7 +276,9 @@ async function executeAllowedRelayedTool(
 ): Promise<string> {
   assertRequiredArguments(spec, req.args);
   if (spec.kind === "code") {
-    return runCodeTool(spec.runtime, spec.code ?? "", spec.env, req.args);
+    // Code execution was removed (F-010). Refused up front in `buildRunPlan`; this inline throw
+    // is the defense-in-depth backstop so a code spec reaching the relay fails loud (F-016).
+    throw new Error(CODE_TOOL_UNSUPPORTED_MESSAGE);
   }
   if (!callback?.endpoint) {
     throw new Error(`missing toolCallback endpoint for '${spec.name}'`);

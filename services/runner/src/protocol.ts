@@ -133,9 +133,6 @@ export interface ResolvedToolSpec {
     args_into?: string;
   };
   kind?: "callback" | "code" | "client";
-  runtime?: "python" | "node";
-  code?: string;
-  env?: Record<string, string>;
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
   readOnly?: boolean;

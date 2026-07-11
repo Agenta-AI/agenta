@@ -29,7 +29,7 @@ import {
 
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { callAgentaTool } from "./callback.ts";
-import { runCodeTool } from "./code.ts";
+import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 import {
   RELAY_POLL_MS,
@@ -122,13 +122,11 @@ export async function runResolvedTool(
 ): Promise<string> {
   assertRequiredArguments(spec, params);
   if (spec.kind === "code") {
-    return runCodeTool(
-      spec.runtime,
-      spec.code ?? "",
-      spec.env,
-      params,
-      opts.signal,
-    );
+    // Code execution was removed (F-010). A code tool is refused up front in `buildRunPlan`;
+    // this inline throw is the defense-in-depth backstop so a code spec that reaches dispatch
+    // fails loud rather than falling through to the callback default and laundering into an
+    // `ok:true` reply (F-016).
+    throw new Error(CODE_TOOL_UNSUPPORTED_MESSAGE);
   }
   if (spec.kind === "client") {
     if (opts.relayDir) {
