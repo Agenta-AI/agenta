@@ -50,6 +50,12 @@ class AgentSecretLeaseDBE(Base):
             name="ck_agent_secret_leases_counters",
         ),
         CheckConstraint(
+            "(claim_id IS NULL AND claim_owner IS NULL AND claim_expires_at IS NULL) "
+            "OR (claim_id IS NOT NULL AND claim_owner IS NOT NULL "
+            "AND claim_expires_at IS NOT NULL AND claim_generation > 0)",
+            name="ck_agent_secret_leases_claim_consistency",
+        ),
+        CheckConstraint(
             "last_error_code IS NULL OR last_error_code IN "
             "('provision_failed','sandbox_create_failed','provider_unavailable',"
             "'provider_conflict','persistence_failed','sandbox_delete_failed',"
@@ -60,14 +66,14 @@ class AgentSecretLeaseDBE(Base):
             "ix_agent_secret_leases_provider_retry",
             "provider",
             "state",
-            text("COALESCE(next_attempt_at, created_at)"),
+            "created_at",
             "id",
         ),
         Index(
             "ix_agent_secret_leases_org_retry",
             "organization_id",
             "state",
-            text("COALESCE(next_attempt_at, created_at)"),
+            "created_at",
             "id",
         ),
         Index("ix_agent_secret_leases_owner", "project_id", "owner_kind", "owner_id"),
