@@ -59,10 +59,12 @@ relay request files. Pi has one; MCP-client harnesses have none.
   rules as `mcp__agenta-tools__<tool>` into `.claude/settings.json`
   (`sdks/python/agenta/sdk/agents/adapters/claude_settings.py:60`, `:175`). The in-sandbox
   server must keep the name or every rendered allow/deny rule silently stops matching.
-- **The relay request file bytes.** Both writers must emit byte-identical
-  `{"toolName":...,"toolCallId":...,"args":...}` JSON so one relay loop serves both. Today
-  there is exactly one writer implementation (`relayToolCall`, `dispatch.ts:62`); the design
-  keeps it that way and pins it with a golden test.
+- **The relay request record.** Both front-ends must emit the same
+  `{"toolName":...,"toolCallId":...,"args":...}` record so one relay loop serves both.
+  Today there is exactly one writer implementation (`relayToolCall`, `dispatch.ts:62`); the
+  design keeps it that way by consuming the relay client PR #5232 extracts. The reader uses
+  `JSON.parse` (`relay.ts:342`), so property order and whitespace are not protocol
+  semantics; the contract tests pin the record shape, not bytes.
 - **The public-spec env contract.** `AGENTA_AGENT_TOOLS_PUBLIC_SPECS` (a JSON array of
   `AdvertisedToolSpec`: name, description, inputSchema, kind, render, timeoutMs,
   `tools/public-spec.ts:12-19`) and `AGENTA_AGENT_TOOLS_RELAY_DIR`. One contract, one pair
@@ -96,9 +98,15 @@ Implications: a long-lived runner-started shim process (the A1 shape) must be fo
 killed or replaced on cold rebuild in a reused sandbox (stale specs on a fixed port), must be
 restarted after park-to-stopped, and must be health-checked on park-to-running resume. A
 harness-spawned shim (the A2 shape) inherits the session lifecycle instead: the harness
-spawns it with the session's env at session creation and it dies with the session. This is
-the strongest new fact since the prior designs were written, and it flips the transport
-recommendation (see [plan.md](plan.md)).
+spawns it with the session's env at session creation and normally dies with the session.
+Two caveats bound that claim. First, the restart path after park-to-stopped can seed
+persisted `sessionInit.mcpServers` and call `resumeSession()` / `session/load`
+(`engines/sandbox_agent.ts:1267`) instead of creating a fresh session; whether the Claude
+ACP adapter respawns dead MCP subprocesses there is adapter behavior the plan's slice 0
+spike must prove. Second, the runner itself warns that an ACP subprocess can reparent to
+PID 1 without graceful session cancellation (`engines/sandbox_agent.ts:827`), so
+exit-on-stdin-close is an expectation, not a guarantee. With those caveats, this lifecycle
+fact still flips the transport recommendation (see [plan.md](plan.md)).
 
 One pre-existing residue risk, shared with Pi, stated precisely: workspace preparation
 already clears the relay dir on Daytona before each environment build (`rm -rf` at
@@ -173,9 +181,10 @@ Why it never merged, and what a straight rebase would miss:
    lifecycle analysis in [plan.md](plan.md) is new.
 
 The verdict: the architecture and most of the code are sound and reviewed (Codex xhigh at
-the time); the revival re-homes it onto today's paths, shares the handler instead of copying
-it, fixes the env names and timeout, and adds the reuse lifecycle and live QA that were
-missing.
+the time); the revival re-homes it onto today's paths, consumes the relay client PR #5232
+extracts instead of carrying its own copy, replaces the parallel env names with a specs
+file plus the shared relay-dir variable, restores the per-tool timeout, and adds the reuse
+lifecycle and live QA that were missing.
 
 ## Constraints carried over (summary; full list in prior art)
 

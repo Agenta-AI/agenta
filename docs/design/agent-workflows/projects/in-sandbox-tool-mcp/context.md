@@ -63,8 +63,8 @@ them caused the #4831 regression). This plan touches only the second.
 2. The delivery is harness-agnostic on the sandbox side: any MCP-client harness (Codex next)
    gets the same tools with no per-harness work beyond its ACP adapter.
 3. One shared implementation of "turn a tool call into a relay request" serves the Pi
-   extension, the local Claude channel, and the new in-sandbox server, pinned by a golden
-   test on the relay request file bytes.
+   extension, the local Claude channel, and the new in-sandbox server: the relay client
+   that PR #5232 extracts and pins with contract tests, consumed here.
 4. The lifecycle survives warm sandbox reuse (PR #5225): a parked-and-resumed sandbox, a
    stopped-and-restarted sandbox, and a tool-set change between turns must all behave
    correctly.

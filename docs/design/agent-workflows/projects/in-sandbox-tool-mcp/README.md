@@ -8,8 +8,9 @@ server-side. Today that combination gets zero tools and the run is refused up fr
 `REMOTE_TOOLS_UNSUPPORTED_MESSAGE`).
 
 The design goal the owner cares about most is unification with Pi: one gateway-tool code
-path serving both the Pi extension and the new MCP server, pinned by a golden test so the
-relay protocol cannot fork per harness.
+path serving both the Pi extension and the new MCP server. That shared path is the relay
+client and file protocol that PR #5232 (event-driven-tool-relay) extracts as its slice 0;
+this project consumes those modules, so the relay protocol cannot fork per harness.
 
 ## Glossary
 

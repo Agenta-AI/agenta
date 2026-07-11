@@ -1,18 +1,24 @@
 # Plan
 
+Revised 2026-07-11 after a Codex xhigh review. The verdict: approve A2 conditionally, reject
+the earlier scope. This revision adopts the cuts. The minimum viable feature is now: prove
+the restart path (slice 0), consume the relay modules that PR #5232 owns, add a small stdio
+entrypoint, deliver executable tools on Claude+Daytona, and prove the warm lifecycle live.
+Everything else moved to explicit follow-ups.
+
 ## The design in one paragraph
 
 Ship a small, dependency-free MCP server bundle into the Daytona sandbox and advertise it to
 the harness as an internal stdio MCP entry named `agenta-tools`. The harness's own ACP
 adapter spawns it inside the sandbox at session creation; its `tools/list` serves the run's
-public specs, and its `tools/call` writes a relay request file through the same relay-writer
-module the Pi extension already uses. The runner's existing relay loop executes every call
+public specs, and its `tools/call` writes a relay request file through the shared relay
+client that PR #5232 extracts. The runner's existing relay loop executes every call
 server-side, behind the existing permission guard, with credentials that never enter the
-sandbox. The handler and the relay writer become shared modules with a golden test pinning
-the request file bytes, so Pi, local Claude, and the in-sandbox server are three transports
-over one implementation. This revives PR #4873 onto today's code rather than building new.
+sandbox. This revives PR #4873 onto today's code rather than building new. One condition
+gates the transport choice: a pre-implementation spike must prove that the pinned Claude ACP
+adapter respawns the shim on the stop-and-restart path.
 
-## Transport: reconciling A1, A2, and daemon-spawned into one choice
+## Transport: A2, conditionally
 
 Three candidates existed across the prior designs:
 
@@ -29,51 +35,41 @@ Three candidates existed across the prior designs:
 
 The daemon-spawned candidate collapses into A2: #4873 demonstrated that no daemon change is
 needed, because the daemon already forwards `sessionInit.mcpServers` verbatim and the Claude
-ACP adapter already spawns a stdio entry inside the sandbox. The daemon concept
-`remote-tools-delivery` asked for exists; it is the harness adapter's own MCP-server list.
+ACP adapter already spawns a stdio entry inside the sandbox.
 
-Between A1 and A2, the decision is **A2**, flipping the earlier `claude-daytona-tools`
-recommendation. Two facts changed since that document:
+Between A1 and A2, the recommendation stays **A2**, but for a narrower reason than earlier
+drafts claimed. A2's real advantage is mechanism count: no listener, no port allocation, no
+readiness endpoint, no PID bookkeeping, and no runner-side process supervision. A2 is also
+already implemented and unit-tested (#4873), including the ACP entry mapping that was the
+main unknown when A1 was recommended. It works under `network: off` since it is stdio plus
+file I/O.
 
-1. **Warm sandbox reuse (PR #5225) makes a runner-managed long-lived process the wrong
-   shape.** An A1 shim must be health-checked when a parked sandbox resumes, restarted after
-   park-to-stopped (the VM stop killed it), and found and replaced when a tool-set change
-   forces a cold session inside a reused sandbox (a stale process on the fixed port serving
-   last turn's specs). Every one of those is a new failure mode with a live-QA cell. An A2
-   shim inherits the session lifecycle instead: the adapter spawns it with the session's env
-   at session creation, so a new session always means a fresh shim with fresh specs, a
-   stopped VM cannot leave a stale one (the process died with the VM and respawns with the
-   session), and an orphan whose parent died exits on its own when stdin closes.
-2. **A2 is already implemented and unit-tested** (#4873), including the ACP entry mapping
-   that was the main unknown when A1 was recommended ("stdio as fallback if port/readiness
-   is fiddly"). The port and readiness management A1 requires is exactly the part with no
-   existing code.
+**What earlier drafts overstated, corrected here:**
 
-A2 also removes surface rather than adding it: no listener at all (not even loopback), no
-port to choose, no readiness poll racing Claude's `tools/list` (the MCP handshake is
-synchronous at spawn), and it works under `network: off` since it is stdio plus file I/O.
+- **Restart is not "correct by construction".** The restart path after park-to-stopped can
+  seed persisted `sessionInit.mcpServers` and call `resumeSession()` / `session/load`
+  (`engines/sandbox_agent.ts:1267`) rather than create a fresh ACP session. Whether the
+  Claude ACP adapter recreates dead MCP subprocesses on that path is external adapter
+  behavior. It must be proven, not inferred. Slice 0 is that proof, and A2 is locked only
+  after it passes.
+- **Orphan exit is an expectation, not a guarantee.** The runner itself warns that an ACP
+  subprocess can reparent to PID 1 unless graceful session cancellation occurs
+  (`engines/sandbox_agent.ts:827`). "Stdin closes, so the shim exits" describes the normal
+  path; the live QA must watch for reparented survivors.
 
-Costs of A2, stated honestly:
-
-- **Stdio optics.** User stdio MCP is disabled, permanently. This entry is stdio too, but it
-  is synthesized by the runner from resolved tools, never user-declared, and it runs inside
-  the sandbox, not on the runner host. The implementation must keep the layers structurally
-  separate: the internal entry is built after the user-stdio gate has already run
-  (`run-plan.ts:341`), never flows through `toAcpMcpServers`, and a test pins that a
-  user-declared stdio server is still refused on the exact path that ships the shim.
-- **Dependence on the ACP adapter's typeless-entry-to-stdio mapping.** Verified against the
-  adapter pin at #4873 time; re-verify against the current pin, and against Codex's ACP
-  adapter when that harness lands. If an adapter ever refuses stdio entries, A1 is the
-  documented fallback: the same bundle grows an HTTP mode (`tool-mcp-http.ts` relocated),
-  the runner starts it via `runProcess`, and the lifecycle work above becomes real. Nothing
-  in the shared modules is transport-specific, so the fallback swaps the outer loop only.
+**Documented fallbacks, in order:** if the spike shows that `session/load` silently loses
+MCP servers, force a cold `createSession` for any session that contains the internal shim
+(the sandbox is still reused; only the harness session rebuilds). If the adapter cannot
+spawn stdio entries at all, A1 is the last resort: the same bundle grows an HTTP mode, the
+runner starts it via `runProcess`, and the lifecycle work A1 requires becomes real. Do not
+build transport-neutral machinery for A1 now.
 
 ## What runs where
 
 ```
 runner (holds credentials, executes)                sandbox (holds nothing secret)
 ------------------------------------                ------------------------------
-resolve tools -> public specs ----------------------> shim env (specs + relay dir)
+resolve tools -> public specs (file) ---------------> specs file beside the bundle
 upload shim bundle (daemon FS API) -----------------> /home/sandbox/.agenta/tool-mcp.js
 advertise McpServerStdio "agenta-tools" -----------> harness ACP adapter spawns shim
 startToolRelay polls relay dir <--------------------- shim writes <id>.req.json
@@ -88,83 +84,62 @@ Local runs are unchanged: Claude on the local sandbox keeps the runner-loopback 
 
 No `/run` wire change and no new protocol field. Every new element classified:
 
-- **Input (what to serve):** the public tool specs, carried to the shim as
-  `AGENTA_AGENT_TOOLS_PUBLIC_SPECS` in the stdio entry's per-server `env`. This is the exact
-  variable and shape the Pi extension reads (`pi-assets.ts:71`); #4873's parallel names are
-  dropped so the public-spec contract has one source of truth.
-- **Routing (where calls go):** `AGENTA_AGENT_TOOLS_RELAY_DIR`, same reuse.
+- **Input (what to serve):** the public tool specs, delivered as a file uploaded next to
+  the bundle, with the path in the stdio entry's per-server `env`. Decided now, not
+  deferred: `AGENTA_AGENT_TOOLS_PUBLIC_SPECS` can carry many large JSON Schemas, and under
+  A2 the env is copied through four layers (runner session config, daemon/ACP protocol
+  state, adapter spawn environment, child process environment). An unbounded input through
+  an exec environment is not acceptable, and a size limit would trade a working case for a
+  loud failure. The relay directory is already a path capability and public specs are not
+  credentials, so a file is the robust shape. Pi keeps its env variable; the spec content
+  contract (the `AdvertisedToolSpec` array) stays one shape for both consumers.
+- **Routing (where calls go):** `AGENTA_AGENT_TOOLS_RELAY_DIR`, reused unchanged.
 - **Protocol context:** the ACP `McpServerStdio` entry `{name, command, args, env}`. `name`
   is `agenta-tools`, a stable identity coupled to the rendered permission rules
   (`claude_settings.py:60`); `command`/`args` are `node` plus the in-sandbox bundle path.
+  The `McpServerStdio` shape moves out of `tools/mcp-bridge.ts` (which is the local HTTP
+  channel) into `engines/sandbox_agent/mcp.ts` or a small ACP MCP types module beside it.
 - **Config (runner-side, operator-owned):** `SANDBOX_AGENT_RELAY_MCP_BUNDLE`, the bundle
   location override (test and packaging use), defaulting to the esbuild output next to the
-  Pi extension bundle. Later, a snapshot-bake skip flag mirroring
-  `AGENTA_AGENT_SANDBOX_PI_INSTALLED`.
+  Pi extension bundle. The override selects code, so it is trusted deployment
+  configuration, never run or request configuration.
 - **Credentials:** none, anywhere in this design. The shim has no credential field because
-  execution stays where the credentials are. The entry's `headers` concept does not exist
-  for stdio; nothing rides `env` except the two public variables above.
-- **The relay file protocol:** unchanged, and now golden-pinned as the stable contract
-  between any in-sandbox writer and the runner loop.
+  execution stays where the credentials are.
+- **The relay file protocol:** unchanged, owned by PR #5232 together with the relay client
+  and its contract tests.
 
-## Unification with Pi
+## Unification with Pi, stated honestly
 
-The owner's priority. Today the "turn a model's tool call into a relay request" logic exists
-in two call sites that both route through one writer (`runResolvedTool` ->
-`relayToolCall`), plus an MCP message handler that exists once (`tool-mcp-http.ts:101`) and
-was duplicated by #4873. The unification target is: one writer, one handler, three thin
-transports.
+The owner's priority is one gateway-tool logic. The earlier draft oversold what an MCP
+handler buys here, so this section now separates the real unification from the local one.
 
-**U1 (do now): shared modules.** Extract two pieces:
+**The real unification is the relay client and the relay file protocol.** Pi never speaks
+MCP: pi-acp drops `mcpServers`, and the Pi extension registers tools directly and calls
+`runResolvedTool` (`extensions/agenta.ts:280`). What Pi, local Claude, and the shim
+genuinely share is the code that turns a tool call into a relay request file and waits for
+the response. That code is `tools/relay-client.ts` and `tools/relay-protocol.ts`, and
+**PR #5232 (event-driven-tool-relay) owns their extraction as its slice 0**. That PR is an
+explicit prerequisite of this project. This project consumes those modules and adds only
+shim-specific tests. Earlier drafts had this project extracting the modules and landing
+first; that ordering is reversed and the conflict is closed.
 
-1. `tools/relay-client.ts`: the relay writer (`relayToolCall` plus its wait loop), moved
-   out of `dispatch.ts` as #4873 did, with `dispatch.ts` re-exporting so existing call sites
-   (the Pi extension, local Claude) are unchanged. It must bundle with zero non-relay code
-   and honor the per-tool `timeoutMs` and an abort signal. The response wait is one exported
-   function with the contract `waitForRelayResponse(resPath, { timeoutMs, signal })` (final
-   name at implementation time), implemented today as the existing 300 ms poll. That
-   function is the seam the `event-driven-tool-relay` sibling swaps for `fs.watch`; see the
-   coordination section below for the landing order.
-2. `tools/mcp-handler.ts`: the transport-neutral MCP message handler (initialize,
-   tools/list with the shared schema accessor, tools/call, notifications, errors), factored
-   from `tool-mcp-http.ts`, parameterized by an "execute" function and an optional
-   client-tool pause hook. The HTTP server keeps its socket-abort pause; the stdio shim
-   passes no pause hook in slice 1 (client tools are not delivered there yet).
+**An MCP handler is not Pi unification.** A shared MCP message dispatcher would unify
+exactly two transports: the local HTTP server and the stdio shim. That is useful but local.
+The plan therefore cuts the standalone "transport-neutral handler, zero behavior change"
+slice. Instead, while implementing the stdio shim, extract the smallest reusable MCP method
+dispatcher only if it clearly reduces duplication against `tool-mcp-http.ts`; otherwise
+temporarily duplicate the small protocol switch with focused parity tests and extract after
+both transports stabilize. If a module is extracted, name it for what it is:
+`internal-tool-mcp-handler.ts`, not a generic `mcp-handler.ts`, in a repository that also
+has user HTTP MCP and deliberately disabled user stdio MCP. Do not pre-design a client-tool
+pause hook for a protocol that is not designed yet; that insertion point gets added when
+the continuation or bridge work needs it.
 
-   Layering rule, stated once: `mcp-handler.ts` stays credential-free. The per-environment
-   bearer that `mcp-client-tool-continuation` WP1 adds
-   ([../mcp-client-tool-continuation/plan.md](../mcp-client-tool-continuation/plan.md))
-   lives in the HTTP transport wrapper in `tool-mcp-http.ts`, never in the shared handler,
-   so the stdio shim (a harness-spawned child process with no listener) inherits no auth
-   requirement. Ordering with that project: this slice 1 lands first, and its WP1 (auth,
-   client-tool batch rejection) and WP3 (register-before-pause hold-open) then build on the
-   extracted handler; the optional pause hook here is WP3's insertion point.
+**One build pipeline (kept, nearly free).** The shim bundles in the same esbuild step as
+the Pi extension, into `dist/`, baked into the runner image the same way.
 
-The golden test pins the request file: the Pi extension path and the shim path, given the
-same call, produce byte-identical `.req.json` content. That single test is what keeps "one
-gateway-tool logic" true over time.
-
-**U3 (do now, nearly free): one build pipeline.** The shim bundles in the same esbuild step
-as the Pi extension, into `dist/`, baked into the runner image the same way. Same packaging,
-same upload helper pattern, same snapshot-bake story later.
-
-**U2 (explore later, not now): Pi consumes the in-sandbox MCP server directly.** The idea:
-the Pi extension stops reading specs from env and instead dials the shim, lists its tools,
-and registers a forwarding `registerTool` for each; eventually the extension is a generic
-MCP client and user HTTP MCP could reach Pi through the same code. Honest trade-offs:
-
-- Pi has no MCP client by design (pi-acp drops `mcpServers`), so this is new client code in
-  the extension, not configuration.
-- It adds a process and a hop to the one path that currently works on every backend, for no
-  functional gain today: the extension already shares the writer and (after U1) would share
-  nothing further by speaking MCP, because MCP is the part Pi does not need.
-- Its real payoff is a different feature: user MCP on Pi (the open F-009 question) and
-  retiring the env-var spec channel. Both are worth a decision when Codex lands and the
-  MCP-client population grows, not before.
-
-Recommendation: land U1+U3 now; write U2 up as a follow-up decision for the owner (see
-[open-questions.md](open-questions.md)). After U1, "one gateway-tool logic" is concretely
-true at the module level: both harness families execute tool calls through the same handler
-semantics and the same writer bytes, verified by the golden.
+**Pi consuming the shim directly (the old U2) is cut from this project** and recorded as a
+follow-up decision; see the follow-ups list in the slices section.
 
 ## Lifecycle
 
@@ -179,78 +154,89 @@ semantics and the same writer bytes, verified by the golden.
   shim dies after writing `<id>.req.json` but before reading the response, the runner still
   executes the call (side effects happen) and writes a `.res.json` nobody consumes, while
   the model sees an MCP failure. The relay is at-least-once from the executor's point of
-  view, and this property is shared with Pi's writer today (an aborted or timed-out wait
-  after the request file is written behaves the same). The orphaned response file is inert
-  (the runner loop lists only `.req.json`) and the workspace preparation clears it on the
-  next cold build. Slice 2's integration tests must cover crash-after-write.
+  view, and this property is shared with Pi's writer today. Slice 1's integration tests
+  must cover crash-after-write.
 - **Teardown, ephemeral delete.** The shim dies with the sandbox. Nothing to do.
 - **Warm reuse, park-to-running.** The harness session stays alive, so the shim stays alive
-  with it, still serving the specs that session was created with. Correct by construction:
-  the keep-alive fingerprint includes `customTools` (`session-pool.ts:170`), so a live
-  session is only continued when the tool set is unchanged.
+  with it, still serving the specs that session was created with. The keep-alive fingerprint
+  includes `customTools` (`session-pool.ts:170`), so a live session is only continued when
+  the tool set is unchanged.
 - **Warm reuse, park-to-stopped.** The VM stop kills the harness and the shim. The next turn
-  restarts the sandbox and builds or loads a session; the adapter respawns the shim from the
-  session's MCP config. The bundle file survives on the sandbox filesystem; the upload
-  helper can skip an unchanged existing file as an optimization.
+  restarts the sandbox and either builds a fresh session or loads the old one. The fresh
+  build respawns the shim by construction. The `session/load` path is the open risk that
+  slice 0 proves: the adapter may seed the persisted MCP config without respawning the
+  subprocess, or may restore it, or may fail the load. Until the spike answers this, no
+  claim is made. The documented fallback if restoration fails is a forced cold
+  `createSession` for sessions containing the shim.
 - **Tool-set change between turns.** The fingerprint mismatch forces a cold session in the
   reused sandbox. The old session is destroyed (`destroySession`,
-  `engines/sandbox_agent.ts:829-832`), which ends the old shim (stdin closes, the readline
-  loop ends, the process exits). The new session spawns a fresh shim with the new specs in
-  its env. No fixed port means no collision window.
-- **Spec freshness invariant, stated once:** the shim's spec list is immutable per process,
-  and a shim process never outlives the session that spawned it. Everything above is that
-  invariant applied to each reuse case, and the live-QA matrix checks each case.
+  `engines/sandbox_agent.ts:829-832`), which normally ends the old shim (stdin closes, the
+  readline loop ends, the process exits); the reparenting caveat above applies and the live
+  QA checks for survivors. The new session spawns a fresh shim with the new specs. No fixed
+  port means no collision window.
+- **Warm-reuse edge cases the tests must cover, beyond the above:**
+  - `session/load` after VM stop (the slice 0 spike, then a live QA cell).
+  - Sanitized tool-call-ID collision: distinct raw IDs can sanitize to the same relay
+    filename; two concurrent calls must not share a file.
+  - Bundle-version skew in a reused sandbox: a sandbox that survived a runner deploy holds
+    an old bundle file; the upload helper must overwrite rather than skip when content
+    differs (hash or size check, not existence check).
+  - Partial request visibility: the writer writes directly to the final `.req.json` path
+    while the runner polls. PR #5232's plan amends the protocol with write-to-temp plus
+    atomic rename; this project inherits that amendment through the shared relay client and
+    must not work around it.
 
-## Client tools: sequenced after, not in, the first slice
+## Client tools: sequenced after, not in, this project
 
 Client tools are advertised-and-paused on the local HTTP channel today (`MCP_PAUSED`
 aborts the in-flight request so no result settles). Through the in-sandbox shim the shape is
 different: the relay loop parks the call and writes no response file (`relay.ts:249-252`),
-so the shim's wait would hang until the relay timeout and return an error to the model,
-which is exactly the park-must-emit-no-result problem the client-tool continuation work
-exists to solve (a parked call must produce no tool result, and the resumed turn must settle
-the original call).
+so the shim's wait would hang until the relay timeout and return an error to the model.
 
-Sequencing, matching the prior designs: **slice 1 delivers executable (gateway/callback)
-tools only.** A run that carries a client tool on the Claude+Daytona path keeps failing loud
-with a narrowed, honest message (options considered: silently dropping client specs repeats
-the F-032 silent-drop bug; advertising them and returning a synthetic error teaches the
-model the tool is broken). When the continuation work lands, the shim inherits the pause
-semantics by adding the pause hook to the shared handler, and the relay response protocol
-gains whatever the continuation design chooses; that is deliberately not designed here.
+This project delivers executable (gateway/callback) tools only. A run that carries a client
+tool on the Claude+Daytona path keeps failing loud with a narrowed, honest message (options
+considered: silently dropping client specs repeats the F-032 silent-drop bug; advertising
+them and returning a synthetic error teaches the model the tool is broken).
 
 Ownership, stated plainly so the gap cannot hide: neither this project nor
 [../mcp-client-tool-continuation/](../mcp-client-tool-continuation/README.md) designs the
-Daytona client-tool bridge. That bridge needs a relay park protocol (a paused call must
-produce no result until the browser answers, but the shim's wait times out at 60 s today),
-a stdio analogue for abort-without-result (`res.destroy()` does not exist for a spawned
-child), and an answer to the race between a held browser wait and the five-minute Daytona
-auto-stop that kills the shim on park-to-stopped. The recommendation to open one owned
-workspace for it lives in
+Daytona client-tool bridge. That bridge needs a relay park protocol, a stdio analogue for
+abort-without-result, and an answer to the Daytona auto-stop race. The recommendation to
+open one owned workspace for it lives in
 [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
 
 ## Gate change
 
-`REMOTE_TOOLS_UNSUPPORTED_MESSAGE` narrows instead of disappearing. After slice 2 the refusal
+`REMOTE_TOOLS_UNSUPPORTED_MESSAGE` narrows instead of disappearing. After slice 1 the refusal
 fires only when: the harness is MCP-capable but the remote provider is not Daytona (fail
-closed per provider until proven), or the run carries a client tool (until the continuation
-work). The message text updates to say what is and is not supported and to point at this
-workspace. The capability gate (`assertRequiredCapabilities`) is unchanged: Claude truthfully
-advertises `mcpTools`, and now the advertisement is true on Daytona too.
+closed per provider until proven), or the run carries a client tool (until the bridge work).
+The message text updates to say what is and is not supported and to point at this workspace.
+The capability gate (`assertRequiredCapabilities`) is unchanged: Claude truthfully advertises
+`mcpTools`, and now the advertisement is true on Daytona too.
 
 ## Security
 
 The invariant, restated: **the sandbox sees public specs and a relay directory, nothing
 else; every credentialed action executes runner-side; the shim opens no network surface.**
 
-- No credential enters the sandbox: the shim env carries specs and a path. Private spec
-  fields never leave runner memory (unchanged, `public-spec.ts`).
+- No credential enters the sandbox: the shim env carries a specs-file path and the relay
+  dir. Private spec fields never leave runner memory (unchanged, `public-spec.ts`).
 - No listener: stdio only. The loopback-only rule of the HTTP variant becomes "no socket at
   all".
-- The user-stdio disable is not relaxed. The internal entry is synthesized downstream of the
-  user gates, shares no constant and no code path with `toAcpMcpServers`' stdio branch, and
-  a layering test pins: user stdio still refused, user HTTP still delivered, internal entry
-  present, on the same Daytona run.
+- The user-stdio disable is not relaxed, and the separation is structural, not test-only:
+  - The internal entry gets its own constructor and type, separate from any user MCP entry
+    type. Its `command`, `args`, and `env` are built entirely from runner constants and
+    operator configuration; no user-supplied `command`, `args`, `env`, or `transport` field
+    can flow into it.
+  - The internal entry is synthesized after the user-stdio refusal has already run
+    (`run-plan.ts:341`) and never flows through `toAcpMcpServers`. `toAcpMcpServers` stays
+    incapable of returning stdio; this project must not generalize it.
+  - The reserved server name `agenta-tools` is rejected for user-declared MCP servers at
+    validation time. The Python adapter already ignores user MCP permissions with that name
+    (`claude_settings.py:119`); the runner adds the matching refusal on the declaration
+    itself.
+  - A layering test pins: user stdio still refused, user HTTP still delivered, internal
+    entry present, on the same Daytona run.
 - The relay directory remains an in-sandbox capability: any sandbox process can write a
   request file. That is the accepted, pre-existing Pi posture, and the runner-side
   permission guard (`relay.ts:105`) re-checks every executable call, so a forged file cannot
@@ -258,81 +244,102 @@ else; every credentialed action executes runner-side; the shim opens no network 
 - Strict-network runs with executable tools stay refused (`run-plan.ts:368`): execution
   still happens on the runner, outside the sandbox egress boundary. Unchanged.
 
-## Coordination with event-driven-tool-relay
+## Coordination with event-driven-tool-relay (PR #5232)
 
-The sibling project replaces relay polling with filesystem-event wakeups. Three contact
-points:
+The sibling owns the relay mechanics this project rides on. Contact points:
 
-1. **The file contract is shared and golden-pinned.** Request and response names, bytes, and
-   delete-after-read semantics do not change in either project. The golden test in slice 1
-   is the enforcement.
-2. **The shim's response wait is one small function, and this project creates it.**
-   `relay-client.ts` isolates "wait for `<id>.res.json`" behind
-   `waitForRelayResponse(resPath, { timeoutMs, signal })`, currently implemented as the
-   existing poll. The sibling swaps its internals for `fs.watch` without touching the
-   handler or the writer. Landing order: this project's slice 1 lands first, so the
-   sibling's in-sandbox watch goes into that function rather than into `dispatch.ts`. The
-   sibling's plan currently names `relayToolCall` in `dispatch.ts` as its seam and does not
-   name `relay-client.ts`; that pending alignment is recorded in
+1. **PR #5232 slice 0 is this project's prerequisite.** It extracts `tools/relay-client.ts`
+   and `tools/relay-protocol.ts` and lands their contract tests. This project consumes the
+   modules; it does not create, move, or re-test them beyond shim-specific integration.
+2. **The response-wait seam lives in the extracted client.** The sibling swaps its internals
+   for `fs.watch`; nothing in this project depends on how the wait is implemented, and
+   adopting the watch inside the shim is a follow-up, not v1.
+3. **The relay file protocol, including the atomic-rename amendment and the
+   orphaned-request residue across warm-continued turns, is owned there.** This project's
+   tests exercise the protocol; they do not redefine it. The residue ownership decision is
+   tracked in
    [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
-   Nothing else in this project depends on how the wait is implemented.
-3. **The orphaned-request residue across warm-continued turns** (see
-   [research.md](research.md)) needs an owner. The sibling owns relay mechanics but its
-   current plan disclaims this property; the ownership decision is tracked in the same
-   orchestration file.
+
+## Naming and placement
+
+- Stdio entrypoint: `tools/tool-mcp-stdio.ts` (bundled to the sandbox).
+- If a shared dispatcher is extracted: `tools/internal-tool-mcp-handler.ts`.
+- Upload and bundle-path helpers: under `engines/sandbox_agent/`, analogous to
+  `pi-assets.ts`.
+- ACP MCP entry shapes (`McpServerStdio`): move out of `tools/mcp-bridge.ts` into
+  `engines/sandbox_agent/mcp.ts` or a small types module beside it; `mcp-bridge.ts` is the
+  local HTTP channel and should not export ACP entry types.
+- Server name: `agenta-tools`, unchanged; `claude_settings.py` couples the rendered
+  permission rules to it.
 
 ## Packaging
 
-Per-run upload first: `writeFsFile` the bundle (about 5 kB) via the fail-loud helper,
-mirroring the Pi extension upload. Cold-start cost is one small FS write, negligible next to
-the session create it rides along with, and the file persists across warm reuse. Snapshot
-bake is a follow-up optimization in `build_snapshot.py` (same pattern as the pinned `pi`
-install) with an env flag to skip the upload, worth doing once the path is hot; it changes
-no licensing posture because the shim is Agenta code.
+Per-run upload: `writeFsFile` the bundle (about 5 kB) plus the specs file via the fail-loud
+helper, mirroring the Pi extension upload. Cold-start cost is two small FS writes,
+negligible next to the session create they ride along with. Five kilobytes does not justify
+snapshot lifecycle and version-skew machinery, so snapshot bake stays a follow-up with its
+own decision.
 
 ## Slices
 
-**Slice 1: shared modules, no behavior change.**
-Extract `tools/relay-client.ts` (writer + wait, timeout + signal) and `tools/mcp-handler.ts`
-(transport-neutral handler) from `dispatch.ts`/`tool-mcp-http.ts`; re-export so all call
-sites compile unchanged. Add the golden test pinning the request file bytes across the Pi
-path and the handler path. All existing runner tests stay green.
-Acceptance: zero behavior diff; golden committed.
+**Slice 0: the restart spike (gates A2).**
+Against the exact pinned Claude ACP adapter: create a session with the internal stdio MCP,
+stop and restart the VM, exercise the real `resumeSession` / `session/load` path, and verify
+that `tools/list` succeeds and a new shim PID exists. Define what happens when MCP
+restoration fails: does `session/load` fail and fall back to `session/new`, or does it
+return a session with zero tools? Record the answer in this workspace. Only then lock A2.
+If restoration silently loses MCP servers, adopt the documented fallback (force cold
+`createSession` for sessions containing the shim); A1 is the last resort.
+Acceptance: a written spike report with the adapter pin, the observed behavior, and the
+decision.
 
-**Slice 2: the shim, Daytona delivery, gate narrowing.**
-Revive #4873 onto today's paths: the stdio entry bundle (thin loop over the shared handler +
-writer), the esbuild step, the fail-loud upload helper, the `mcp.ts` Daytona non-Pi branch
-building the internal `McpServerStdio` entry, engine wiring next to
-`prepareDaytonaPiAssets`, and the narrowed run-plan gate (executable tools pass on Daytona
-for MCP-capable harnesses; client tools and non-Daytona remotes still refuse loud). Unit
-tests: handler over stdio framing, upload fail-loud, layering (user stdio refused / user
-HTTP delivered / internal entry present), gate matrix.
-Acceptance: runner tests + typecheck green; a fake-daemon integration test drives
+**Prerequisite (external): PR #5232 slice 0** lands `tools/relay-client.ts` and
+`tools/relay-protocol.ts` with their contract tests.
+
+**Slice 1: the shim, Daytona delivery, gate narrowing.**
+Revive #4873 onto today's paths: `tool-mcp-stdio.ts` (a thin stdio loop over the consumed
+relay client), the esbuild step, the fail-loud upload helper for bundle and specs file, the
+`engines/sandbox_agent/mcp.ts` Daytona non-Pi branch building the internal `McpServerStdio`
+entry via its dedicated constructor, engine wiring next to `prepareDaytonaPiAssets`, and the
+narrowed run-plan gate (executable tools pass on Daytona for MCP-capable harnesses; client
+tools and non-Daytona remotes still refuse loud). Tests are semantic contract tests, not
+byte goldens: the shim's request is accepted by a real `startToolRelay` loop; IDs are
+sanitized, bounded, and collision-free; timeout and abort clean up; concurrent calls get
+distinct files and distinct responses; stdout carries only complete JSON-RPC lines and
+logging stays on stderr; the layering test (user stdio refused / user HTTP delivered /
+internal entry present); the gate matrix; upload fail-loud.
+Acceptance: runner tests and typecheck green; a fake-daemon integration test drives
 shim -> relay dir -> `startToolRelay(localRelayHost())` -> mocked callback and asserts the
 round trip.
 
-**Slice 3: live QA and the replay pin.**
+**Slice 2: live acceptance before merge.**
 The matrix cell that has never been green: Claude + Daytona + gateway tool (github via the
 `pi-agents` project, which holds live Composio connections), asserting the tool executes and
 the result reaches the answer. Negatives: Claude+Daytona with no tools still runs (no shim
 uploaded); Pi+Daytona unchanged; Claude+local unchanged. Warm-reuse cells: second turn
 within the idle window (live session, same shim), second turn after park-to-stopped
-(restart, respawn), tool-set change between turns (cold session in the reused sandbox,
-fresh shim). Network-off cell: gateway tool executes with `network` restricted +
-`best_effort` (relay is file I/O; `best_effort` is required because the strict-network
-refusal for executable tools at `run-plan.ts:368` stays, unchanged by this project, and
-only an explicit `best_effort` opts out of it). Capture one green run and pin it with the
-agent-replay-test recipe so the path regression-tests without a live LLM. Sandbox hygiene:
-cheap model, verify the park/delete reaps everything.
-Acceptance: matrix recorded in this workspace; replay test committed.
+(restart, respawn, per the slice 0 finding), tool-set change between turns (cold session in
+the reused sandbox, fresh shim, no reparented survivor). Network-off cell: gateway tool
+executes with `network` restricted + `best_effort` (relay is file I/O; `best_effort` is
+required because the strict-network refusal for executable tools at `run-plan.ts:368`
+stays, unchanged by this project). Sandbox hygiene: cheap model, verify the park/delete
+reaps everything.
+Acceptance: matrix recorded in this workspace.
 
-**Slice 4 (follow-ups, each its own decision):** client tools through the shim (after the
-continuation work), snapshot bake, Codex ACP adapter verification, the U2 exploration
-(Pi as an MCP client), and adopting the sibling's watch-based wait.
+**Follow-ups, cut from v1, each its own decision:**
+
+- Client tools through the shim (needs the Daytona client-tool bridge workspace).
+- Codex-on-Daytona verification (when the Codex harness is in scope).
+- Snapshot bake and its skip flag.
+- Pi as an MCP client (the old U2 exploration).
+- Adopting the sibling's watch-based response wait inside the shim.
+- Replay capture: a recorded `/run` response does not prove Daytona process spawning or
+  restart behavior; add a replay test later only if it protects a deterministic
+  runner/service contract worth pinning.
 
 ## Effort
 
-Slices 1+2 are roughly two focused days (most code exists in #4873); slice 3 is one day
-dominated by live QA. Risk is low: no wire change, no new network surface, local paths
-untouched, and the one novel dependency (the adapter's stdio mapping) was already proven
-once and is re-verified before merge.
+Slice 0 is half a day of live spike work. Slice 1 is roughly one focused day once PR #5232
+slice 0 has landed (most code exists in #4873); slice 2 is one day dominated by live QA.
+Risk concentrates in the one novel dependency: the adapter's stdio mapping and its restart
+behavior, which slice 0 proves before any implementation is committed.
