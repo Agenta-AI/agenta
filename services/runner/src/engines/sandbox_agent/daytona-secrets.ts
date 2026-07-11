@@ -31,19 +31,24 @@ async function deleteIdempotently(api: DaytonaSecretApi, id: string): Promise<vo
 }
 
 function isConflict(error: unknown): boolean { return typeof error === "object" && error !== null && "statusCode" in error && error.statusCode === 409; }
+export function assertDaytonaSecretMetadata(secret: DaytonaSecretRecord, expectedName: string, allowedHost: string): DaytonaSecretRecord {
+  if (secret.name !== expectedName) throw new Error("Daytona Secret has an unexpected deterministic name.");
+  if (!secret.hosts || secret.hosts.length !== 1 || secret.hosts[0] !== allowedHost) throw new Error("Daytona Secret has an unexpected host restriction.");
+  return secret;
+}
 async function recoverByName(api: DaytonaSecretApi, name: string, allowedHost: string): Promise<DaytonaSecretRecord> {
   if (!api.list) throw new Error("Daytona Secret conflict cannot be reconciled without list support.");
   let cursor: string | undefined;
+  const matches: DaytonaSecretRecord[] = [];
   do {
     const page = await api.list({ cursor, limit: 200, name });
-    const match = page.items.find((item) => item.name === name);
-    if (match) {
-      if (match.hosts && (match.hosts.length !== 1 || match.hosts[0] !== allowedHost)) throw new Error("Recovered Daytona Secret has an unexpected host restriction.");
-      return match;
-    }
+    matches.push(...page.items.filter((item) => item.name === name));
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
-  throw new Error("Conflicting Daytona Secret was not found by deterministic name.");
+  if (matches.length !== 1) throw new Error(matches.length === 0
+    ? "Conflicting Daytona Secret was not found by deterministic name."
+    : "Deterministic Daytona Secret name matched multiple provider records.");
+  return assertDaytonaSecretMetadata(matches[0], name, allowedHost);
 }
 
 async function compensate(api: DaytonaSecretApi, ids: string[]): Promise<void> {
@@ -65,12 +70,12 @@ export async function provisionDaytonaSecrets(input: { plan: DaytonaSecretPlan; 
       let created: DaytonaSecretRecord;
       if (resource.state === "created") {
         if (!resource.providerSecretId) throw new Error("Created lease resource is missing providerSecretId.");
-        created = await input.api.get(resource.providerSecretId);
+        created = assertDaytonaSecretMetadata(await input.api.get(resource.providerSecretId), resource.providerSecretName, candidate.allowedHost);
       } else if (resource.state === "planned") {
-        try { created = await input.api.create({ name: resource.providerSecretName, value: candidate.value, description: `Agenta ephemeral credential lease ${lease.id}`, hosts: [candidate.allowedHost] }); }
+        try { created = await input.api.create({ name: resource.providerSecretName, value: candidate.value, description: `Agenta ephemeral credential lease ${lease.id}`, hosts: [candidate.allowedHost] }); createdIds.push(created.id); created = assertDaytonaSecretMetadata(created, resource.providerSecretName, candidate.allowedHost); }
         catch (error) { if (!isConflict(error)) throw error; created = await recoverByName(input.api, resource.providerSecretName, candidate.allowedHost); }
         createdNames.push(resource.providerSecretName);
-        createdIds.push(created.id);
+        if (!createdIds.includes(created.id)) createdIds.push(created.id);
         try {
           lease = await input.control.mutate(lease.id, { expectedVersion: lease.version, claim: claimOf(lease), transition: "beginProvisioning", resourceUpdates: [{ resourceId: resource.id, expectedVersion: resource.version, providerSecretId: created.id, state: "created" }] });
         } catch (error) { await deleteIdempotently(input.api, created.id).catch(() => undefined); throw error; }
