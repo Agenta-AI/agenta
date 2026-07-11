@@ -6,23 +6,26 @@ import {
 import IntegrationBadges from "./IntegrationBadges"
 
 /**
- * One 238px template card in the strip. A real button (keyboard focusable); the border is
- * a constant 1.5px so the box never shifts between default/hover/selected states.
+ * One template card. Fixed 238px in the scroll strip; `fluid` fills its grid cell on the
+ * home 3-up layout. A real button (keyboard focusable); the border is a constant 1.5px so
+ * the box never shifts between default/hover/selected states.
  */
 const StripCard = ({
     template,
     selected,
     onPick,
+    fluid = false,
 }: {
     template: AgentTemplate
     selected: boolean
     onPick: (template: AgentTemplate) => void
+    fluid?: boolean
 }) => (
     <button
         type="button"
         aria-pressed={selected}
         onClick={() => onPick(template)}
-        className={`w-[238px] flex-none cursor-pointer snap-start rounded-[10px] border-[1.5px] border-solid p-[15px] text-left transition-[border-color,box-shadow] duration-150 ${
+        className={`${fluid ? "w-full" : "w-[238px] flex-none snap-start"} cursor-pointer rounded-[10px] border-[1.5px] border-solid p-[15px] text-left transition-[border-color,box-shadow] duration-150 ${
             selected
                 ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-strip-selected-bg)]"
                 : "border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] hover:border-[var(--ag-colorBorder)] hover:shadow-[var(--ag-strip-card-hover-shadow)]"

@@ -13,6 +13,7 @@ import {
 } from "@/oss/components/pages/agent-home/assets/templates"
 
 import {STRIP_COPY} from "./assets/constants"
+import {PAGE_SIZE} from "./assets/pagerMath"
 import StripCard from "./components/StripCard"
 import {useStripPager} from "./hooks/useStripPager"
 import {stripHiddenAtom} from "./state"
@@ -29,10 +30,16 @@ export interface TemplateStripProps {
     onHide?: () => void
     /** CSS variable the right-edge fade blends into (defaults to the container surface). */
     surfaceColorVar?: string
+    /**
+     * Card-row layout. `scroll` (default) is the compact horizontal scroller for docked
+     * playground strips. `grid` shows exactly one 3-card page (arrows page, nothing clips) —
+     * the wide home surface, where a partially clipped fourth card reads as a bug.
+     */
+    layout?: "scroll" | "grid"
     className?: string
 }
 
-/** 26px square header button (arrows + menu) — plain button so the spec's disabled colors apply.
+/** 32px square header button (arrows + menu) — plain button so the spec's disabled colors apply.
  * Spreads rest props so antd Dropdown can inject its trigger handlers via cloneElement. */
 const HeaderButton = ({
     label,
@@ -51,7 +58,7 @@ const HeaderButton = ({
         aria-label={label}
         disabled={disabled}
         {...rest}
-        className={`flex size-[26px] items-center justify-center rounded-[7px] border border-solid bg-[var(--ag-colorBgContainer)] p-0 ${
+        className={`flex size-8 items-center justify-center rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] p-0 ${
             disabled ? "" : "cursor-pointer"
         } ${className ?? ""}`}
     >
@@ -72,11 +79,13 @@ const TemplateStrip = ({
     onPick,
     onHide,
     surfaceColorVar = "--ag-colorBgContainer",
+    layout = "scroll",
     className,
 }: TemplateStripProps) => {
     const hideable = surface !== "home"
     const [hidden, setHidden] = useAtom(stripHiddenAtom)
     const [activeCategory, setActiveCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
+    const [gridPage, setGridPage] = useState(0)
 
     const categories = useMemo(
         () => [ALL_TEMPLATES_CATEGORY, ...templateCategories()],
@@ -96,8 +105,27 @@ const TemplateStrip = ({
         [templates, activeCategory],
     )
 
-    const {scrollerRef, atStart, atEnd, counterLabel, showPager, pageBy, resetScroll} =
-        useStripPager(filtered.length)
+    const scrollPager = useStripPager(filtered.length)
+
+    // Grid mode: exactly one PAGE_SIZE window, arrows page — plain state, no scroll math.
+    // Clamp instead of effect-reset so a shrinking filter can't strand the page out of range.
+    const pageCount = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1)
+    const page = Math.min(gridPage, pageCount - 1)
+    const gridStart = page * PAGE_SIZE
+    const gridItems = filtered.slice(gridStart, gridStart + PAGE_SIZE)
+
+    const isGrid = layout === "grid"
+    const {scrollerRef, resetScroll} = scrollPager
+    const atStart = isGrid ? page === 0 : scrollPager.atStart
+    const atEnd = isGrid ? page >= pageCount - 1 : scrollPager.atEnd
+    const showPager = isGrid ? filtered.length > PAGE_SIZE : scrollPager.showPager
+    const counterLabel = isGrid
+        ? `${gridStart + 1}–${Math.min(gridStart + PAGE_SIZE, filtered.length)} of ${filtered.length}`
+        : scrollPager.counterLabel
+    const pageBy = (direction: 1 | -1) => {
+        if (isGrid) setGridPage(Math.min(Math.max(page + direction, 0), pageCount - 1))
+        else scrollPager.pageBy(direction)
+    }
 
     if (hideable && hidden) {
         return (
@@ -131,6 +159,7 @@ const TemplateStrip = ({
                                 aria-pressed={active}
                                 onClick={() => {
                                     setActiveCategory(category)
+                                    setGridPage(0)
                                     resetScroll()
                                 }}
                                 className={`cursor-pointer rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
@@ -207,13 +236,13 @@ const TemplateStrip = ({
                 </div>
             </div>
 
-            {/* Card row: native horizontal scroll, hidden scrollbar, snap, right-edge fade. */}
-            <div className="relative mt-3">
-                <div
-                    ref={scrollerRef}
-                    className="flex snap-x snap-proximity gap-[14px] overflow-x-auto px-0.5 pb-1.5 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                >
-                    {filtered.map((template) => (
+            {isGrid ? (
+                /* Card page: a full-width 3-up grid — every visible card is whole (no clipped
+                   fourth card), and the window always matches the "X–Y of N" counter. The cards
+                   keep their scroll-strip styling; only the fixed 238px width is overridden so
+                   each card fills its grid cell. */
+                <div className="mt-5 grid grid-cols-3 gap-[18px] [&>button]:!w-full">
+                    {gridItems.map((template) => (
                         <StripCard
                             key={template.key}
                             template={template}
@@ -222,16 +251,33 @@ const TemplateStrip = ({
                         />
                     ))}
                 </div>
-                {showPager ? (
+            ) : (
+                /* Card row: native horizontal scroll, hidden scrollbar, snap, right-edge fade. */
+                <div className="relative mt-3">
                     <div
-                        aria-hidden
-                        className="pointer-events-none absolute bottom-1.5 right-0 top-0 w-9"
-                        style={{
-                            background: `linear-gradient(to right, transparent, var(${surfaceColorVar}))`,
-                        }}
-                    />
-                ) : null}
-            </div>
+                        ref={scrollerRef}
+                        className="flex snap-x snap-proximity gap-[14px] overflow-x-auto px-0.5 pb-1.5 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    >
+                        {filtered.map((template) => (
+                            <StripCard
+                                key={template.key}
+                                template={template}
+                                selected={template.key === selectedTemplateKey}
+                                onPick={onPick}
+                            />
+                        ))}
+                    </div>
+                    {showPager ? (
+                        <div
+                            aria-hidden
+                            className="pointer-events-none absolute bottom-1.5 right-0 top-0 w-9"
+                            style={{
+                                background: `linear-gradient(to right, transparent, var(${surfaceColorVar}))`,
+                            }}
+                        />
+                    ) : null}
+                </div>
+            )}
         </div>
     )
 }
