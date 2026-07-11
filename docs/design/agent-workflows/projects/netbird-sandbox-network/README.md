@@ -1,65 +1,70 @@
-# NetBird sandbox overlay network
+# Sandbox network paths
 
-Research and effort assessment for one idea: put the runner and its Daytona sandboxes on a
-shared private WireGuard mesh (an overlay network) using NetBird, so the runner and a sandbox
-can open connections to each other in both directions. That would attack a whole class of
-connectivity problems at once, instead of one workaround per feature, and could carry MCP
-traffic later. Includes a side assessment of Cloudflare Tunnel as a near-term, zero-auth
-replacement for the ngrok store tunnel.
+This workspace answers a narrower question than its first draft:
 
-This is research only. No code changed. Owner: Mahmoud.
+> Which agent features actually need a Daytona sandbox to open a new network path into
+> Agenta infrastructure, and which transport should serve each one?
 
-## The problem it targets
+## Recommendation
 
-Today the runner reaches a Daytona sandbox one way (the Daytona signed preview URL). The
-sandbox has no direct way back to the runner; it only writes files the runner polls. That
-missing return direction is the root cause behind three separate workarounds:
+Do not build NetBird as a general sandbox-to-runner transport.
 
-- **F-017:** a remote sandbox cannot reach the runner-side store, so mounts go through a
-  public ngrok tunnel (`../qa/findings.md`,
-  `services/runner/src/engines/sandbox_agent/mount.ts`).
-- **F-018:** the reverse permission RPC from sandbox to runner never arrives, so gate
-  decisions are being routed through polled files instead (`../daytona-gate-delivery/`).
-- **MCP delivery:** the runner's tool-MCP server binds a loopback the sandbox cannot reach,
-  so it is skipped on Daytona and an in-sandbox shim is planned
-  (`../mcp-delivery-architecture/directions.md`).
+The original proposal treated every reverse application message as a missing reverse
+network connection. That premise was wrong. The runner already connects to sandbox-agent
+with HTTP POST plus a persistent server-sent events (SSE) GET. Notifications and
+server-initiated ACP requests share that SSE stream. PR #5218 found that Pi permissions
+failed because the old `pi-acp` adapter never emitted `session/request_permission`, not
+because Daytona could not carry it.
 
-A shared overlay would give the sandbox a direct, private route back to the runner, which is
-the one thing all three lack.
+After separating the flows, one current capability needs direct sandbox-initiated access
+to Agenta-side infrastructure:
 
-## Files (reading order)
+- geesefs inside Daytona must reach the configured S3-compatible mount store when that
+  endpoint is private.
 
-- [plan.md](plan.md) — start here: the whole sandbox network story in one place. The four
-  problems as they exist today, the near-term Cloudflare quick-tunnel step, the longer-term
-  NetBird overlay phases, which workarounds retire in which order, local mode and
-  self-hosters, and the sequencing against the work in flight.
-- [research.md](research.md) — the five research questions answered with sources
-  (feasibility inside a Daytona sandbox, architecture, security and tenancy, local mode,
-  effort and alternatives), plus the Cloudflare Tunnel assessment.
-- [recommendation.md](recommendation.md) — the verdict, the one-day confirmation run, phase
-  estimates, and the Cloudflare quick-tunnel call.
+A second possible future capability has the same network direction:
 
-## Glossary
+- Claude on Daytona could call Agenta gateway tools through a separately exposed,
+  authenticated HTTP MCP endpoint. That capability is rejected today and is not part of
+  this project.
 
-- **Overlay network.** A virtual private network on top of the internet. Peers get private
-  addresses and reach each other by them, wherever they run. WireGuard does the encryption.
-- **Peer.** One machine on the overlay (the runner; each sandbox).
-- **TUN device.** A kernel virtual network interface at `/dev/net/tun`. Kernel-mode WireGuard
-  creates one for transparent routing; it needs the `NET_ADMIN` capability.
-- **Userspace mode (netstack).** WireGuard entirely inside one process, own TCP/IP stack, no
-  TUN, no `NET_ADMIN`. Not transparent: it proxies specific ports rather than routing all
-  traffic.
-- **Management plane.** NetBird's control service: registers peers, holds the network map,
-  distributes access policy. Separate from the data path; peer traffic does not flow through
-  it.
-- **Setup key.** A token a headless machine uses to join the overlay with no human login. Can
-  be reusable and ephemeral (auto-removed when the peer goes offline).
+Keep the current ngrok path while we make mount endpoint resolution generic and test any
+Cloudflare Quick Tunnel replacement against the real S3 workload. Retain NetBird only as a
+conditional private-store option if public endpoints or tunnels prove unacceptable.
 
-## One-line verdict
+## Current transport map
 
-Feasible and documented: Daytona's docs support NetBird inside sandboxes as a first-class
-flow with setup-key join, and their OpenVPN flow shows TUN devices exist, so kernel mode is
-the design basis. One short confirmation run in our stack (join, both directions, latency,
-egress-policy interaction), then it is a prioritization decision. Near term, adopt
-Cloudflare quick tunnels for the store mount path to remove the ngrok token requirement. See
-[recommendation.md](recommendation.md).
+| Capability | Current path | Needs NetBird? |
+| --- | --- | --- |
+| Pi builtin permissions | Pi dialog to `pi-acp`, then ACP request over existing POST and SSE | No |
+| Claude native permissions | Native ACP permission request over existing POST and SSE | No |
+| Pi custom and gateway tools | Extension file request; runner polls the sandbox filesystem and executes with runner credentials | No |
+| User HTTP MCP on Claude | Sandbox connects directly to the user's remote HTTPS URL | No |
+| User MCP on Pi | Rejected before the run | No |
+| User stdio MCP | Rejected for every harness | No |
+| Claude Agenta gateway tools on Daytona | Rejected because runner-loopback MCP is not reachable from sandbox loopback | Maybe later, but NetBird alone is insufficient |
+| Durable mount with public S3 endpoint | geesefs connects directly to that endpoint | No |
+| Durable mount with private S3 endpoint | geesefs uses the discovered ngrok endpoint today | This is the only current candidate |
+| Telemetry | Runner reconstructs and exports spans from ACP events | No |
+
+## Documents
+
+- [Context](context.md): why the first framing changed and what remains in scope.
+- [Research](research.md): code paths, authentication, limits, topology, and security.
+- [Plan](plan.md): near-term mount work and the decision gate for any overlay.
+- [Recommendation](recommendation.md): the decision and alternatives in one place.
+- [Status](status.md): current state, answered review threads, and remaining experiments.
+
+## Terms
+
+- **ACP**: Agent Client Protocol. The runner and harness exchange JSON-RPC messages through
+  sandbox-agent.
+- **SSE**: Server-sent events. The daemon-to-runner half of the ACP HTTP transport.
+- **Public endpoint**: reachable from Daytona over the internet. It does not mean
+  anonymously readable.
+- **Private endpoint**: reachable only inside the deployment network, such as Docker DNS or
+  a Kubernetes ClusterIP.
+- **Overlay**: a private network layered over existing networks. NetBird builds one with
+  WireGuard.
+- **Runner-loopback MCP**: Agenta's internal HTTP MCP server bound to the runner's
+  `127.0.0.1`. This is separate from user-configured remote HTTP MCP.

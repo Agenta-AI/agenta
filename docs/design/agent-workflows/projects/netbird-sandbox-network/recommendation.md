@@ -1,93 +1,88 @@
 # Recommendation
 
-## Verdict
+## Decision
 
-Feasible and documented. Daytona's own docs treat VPN clients inside sandboxes, NetBird
-included, as a supported first-class flow with SDK examples
-([Daytona VPN connections](https://www.daytona.io/docs/en/vpn-connections/#netbird)). The
-remaining work before committing to a build is a short confirmation run in our own stack, not
-a go/no-go spike on an unknown. After the confirmation, this is a build-decision question
-(priority against the roadmap), not a feasibility question.
+Do not build NetBird as the common sandbox transport, and do not replace ngrok with a
+Cloudflare Quick Tunnel by default yet.
 
-## What the confirmation run must show
+Build the smaller abstraction first: resolve one sandbox-reachable S3 endpoint, wait for it
+to become ready, and fail clearly when a requested durable mount cannot be provisioned.
+Then qualify Quick Tunnels against geesefs before choosing a default.
 
-Daytona documents the flow but does not document the container's capability set, gives no
-ACL guidance, and says nothing about performance or its own egress policy. So confirm in our
-stack, about one day:
+## Why
 
-1. Bake the NetBird client into a test Daytona snapshot next to Pi and geesefs (the
-   documented per-run install works too, but costs seconds per run).
-2. Mint an ephemeral setup key and join one sandbox non-interactively
-   (`sudo netbird up --setup-key ...`, per the Daytona page).
-3. Verify kernel mode: the WireGuard interface exists (`ip addr`, `netbird status`), no
-   userspace fallback needed.
-4. Verify both directions: the runner dials the sandbox daemon at its overlay address, and a
-   sandbox process (geesefs against the store port) dials the runner at its overlay address.
-5. Measure join time and round-trip latency against the current preview-proxy and ngrok
-   paths.
-6. Check the interaction with a restricted Daytona egress policy (`networkAllowList`), since
-   the docs are silent on it.
+### Permissions already have a return path
 
-If kernel mode fails on our tier, NetBird's userspace (netstack) mode is the fallback; it
-runs with no capabilities but proxies specific ports instead of giving a transparent
-interface, and it is slower. Detail in `research.md`, Question 1.
+ACP over sandbox-agent uses POST for runner-to-daemon messages and one SSE GET for
+daemon-to-runner notifications and requests. The runner answers reverse requests with POST.
+PR #5218 found the Pi permission failure before this transport: the stale adapter never
+created the request. NetBird would add infrastructure without fixing that cause.
 
-## What it would replace
+### Most other flows already use the right boundary
 
-- The ngrok tunnel for remote store mounts, the `with-tunnel` compose profile,
-  `discoverTunnelEndpoint`, and the public-store requirement (F-017).
-- Later, the file-relay gate channel that the F-018 fix adds now (Option B), by making the
-  ACP reverse permission RPC work over a direct channel (Option A, which the F-018 project
-  deferred as unfixable over the Daytona proxy).
-- Later, the MCP loopback swap on Daytona and the planned in-sandbox MCP shim.
+- Pi custom tools execute on the runner and use a runner-polled file relay.
+- User HTTP MCP already connects Daytona Claude to the user's remote server.
+- Pi user MCP is rejected and stdio MCP is disabled.
+- Telemetry is exported by the runner from ACP events.
+- Runner filesystem and process operations use Daytona or sandbox-agent APIs.
 
-## What it must not block
+### Private mounts are the concrete exception
 
-The F-018 fix is being implemented now and stays the near-term answer. Nothing here changes
-that. The relationship:
+geesefs runs inside the sandbox and must speak S3. When the configured endpoint is public,
+it connects directly. When the endpoint is private, the current stack supplies an ngrok
+URL. ACP is not an S3 data-plane tunnel, so this case needs a reachable endpoint.
 
-- Option C of that fix (precompute builtin allow/deny on the runner, resolve in-sandbox with
-  no round-trip) is complementary and permanent. Keep it regardless.
-- Option B of that fix (carry the gate over the polled file relay) is the near-term bridge
-  the overlay could later retire. It is not throwaway: it ships the fix ahead of the overlay,
-  and it is a small channel to remove later.
+## Public does not mean anonymous
 
-Build the F-018 fix as planned. Frame NetBird as the possible longer-term transport.
+The tunnel exposes the SeaweedFS S3 and STS network surface. It does not grant object
+access. Agenta's bundled SeaweedFS configuration requires S3 authentication, and the API
+mints short-lived credentials restricted to one mount prefix. geesefs signs its requests
+with those credentials.
 
-## Phases after the confirmation run (estimates UNVERIFIED)
+The tunnel provider token authenticates the tunnel agent, not clients of the public URL.
+The public layer still increases the reachable attack surface and denial-of-service risk.
+Use TLS, keep SeaweedFS current, and retain strict S3 and STS authentication.
 
-- Phase 1, about 1 week: MVP behind a flag, Daytona only, default off. Per-run ephemeral key
-  minting in the runner, injected into the sandbox env; join on boot; route the store mount
-  over the overlay and drop ngrok on that path. NetBird cloud as the control plane first.
-- Phase 2, 1 to 2 weeks: production hardening. Default-deny ACL generated per run, per-run
-  groups, key and peer revocation on teardown, fail-loud when the overlay does not come up,
-  observability, the self-hosted control-plane option, and self-hosting docs.
+## Deployment topology, not environment name
 
-## Cloudflare Tunnel (the near-term mounts fix, separate from the overlay)
+Do not describe this as development versus production.
 
-Adopt TryCloudflare quick tunnels as the default dev and self-host tunnel for the store
-mount path, keeping ngrok as an alternative for anyone who already holds a token. A quick
-tunnel needs no account and no token, which removes exactly the F-017 failure mode (no
-`NGROK_AUTHTOKEN`, tunnel down, zombie mounts). It trades away any SLA and is explicitly not
-for production, which is acceptable because the tunnel path itself is a dev and self-host
-workaround; Agenta Cloud's store is genuinely public and uses no tunnel. Integration is 1 to
-2 days (**UNVERIFIED**): a `cloudflared` compose service under the existing `with-tunnel`
-profile and a second discovery branch in `mount.ts` against cloudflared's `/quicktunnel`
-metrics endpoint (verified in cloudflared source). Everything added is deleted wholesale when
-the overlay lands, and the overlay is far enough out that the interim fix pays for itself.
-Full analysis in `research.md`, last section.
+- External, publicly reachable S3: no tunnel.
+- Bundled private SeaweedFS in Compose, Railway, or Kubernetes: Daytona needs another
+  route.
+- Authentication is S3 based in both cases.
 
-## Local mode
+Agenta durable mounts require an S3-compatible endpoint. SeaweedFS may support other
+protocols, but the current mount implementation does not use them.
 
-Leave local as-is. Local sandboxes share the docker network with the runner and need no
-overlay. Make the overlay a remote-sandbox transport, gated on the Daytona path. See the
-local mode section in `research.md`.
+## Cloudflare versus ngrok
 
-## Alternatives considered
+Cloudflare's 200 limit counts simultaneous requests. It may fit one light development
+mount, but the design has no workload evidence yet. ngrok documents other free limits,
+including requests per minute, monthly requests, and outbound transfer. Neither set of
+limits establishes a general winner.
 
-NetBird over Tailscale (Tailscale is equally feasible per the same Daytona page, but its
-control plane is proprietary SaaS with per-user pricing that fits ephemeral machine peers
-poorly; NetBird self-hosts the whole control plane as one open-source project). Both over
-plain WireGuard (which would make us rebuild the management plane). Any of them over keeping
-per-feature tunnels (whose count grows with each new sandbox-to-runner need). Detail in
-`research.md`, Question 5.
+Quick Tunnels also use random hostnames and are documented for testing. Make them an
+experiment whose rollout depends on S3 multipart, concurrency, restart, readiness, and
+fail-loud checks.
+
+## When NetBird becomes reasonable
+
+Reconsider NetBird when an operator requires a private store route and rejects public
+endpoints and tunnels. A future authenticated Claude gateway-tool endpoint may create a
+second use case, but it needs a separate product decision.
+
+Even then, joining two peers is only the first step. The design must add:
+
+- an explicit SeaweedFS peer, route, or overlay-bound proxy;
+- an overlay-bound and authenticated MCP endpoint if needed;
+- default-deny, port-scoped, paired-peer ACLs before enrollment;
+- one-off setup-key delivery outside environment variables;
+- teardown for peers, policies, groups, listeners, and keys;
+- a plan for Daytona's documented VPN tier requirement.
+
+## Next decision
+
+Run the Quick Tunnel qualification in [plan.md](plan.md). After that evidence exists,
+choose direct public S3, a stable authenticated tunnel, a development-only Quick Tunnel, or
+a private overlay for each supported deployment topology.
