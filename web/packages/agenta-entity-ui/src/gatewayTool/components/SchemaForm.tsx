@@ -10,7 +10,7 @@ import {
 
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
-import {Check, MinusCircle, Plus} from "@phosphor-icons/react"
+import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
 import {
     Button,
     Collapse,
@@ -223,12 +223,52 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                     )}
                                 </div>
                             )}
-                            <Typography.Text
-                                type="secondary"
-                                className="shrink-0 rounded-full bg-colorFillQuaternary px-2 py-0.5 !text-[11px]"
-                            >
-                                {`${Math.min(step + 1, fields.length)}/${fields.length}`}
-                            </Typography.Text>
+                            <div className="flex shrink-0 items-center gap-0.5">
+                                {!onReview && !fields[step].required && (
+                                    <Button
+                                        type="text"
+                                        className="!h-6 !px-1.5 !text-[11px] opacity-60"
+                                        onClick={() => {
+                                            // Skip = no answer: clear the field (incl. a schema
+                                            // default the user didn't endorse). setFieldValue
+                                            // fires no onValuesChange — sync the draft or a
+                                            // reload resurrects the skipped answer.
+                                            form.setFieldValue(
+                                                fields[step].name.split("."),
+                                                undefined,
+                                            )
+                                            onValuesChange?.(form.getFieldsValue(true))
+                                            setStep(step + 1)
+                                        }}
+                                    >
+                                        Skip
+                                    </Button>
+                                )}
+                                <Button
+                                    type="text"
+                                    aria-label="Previous question"
+                                    className="!h-6 !w-6 !p-0"
+                                    disabled={step === 0}
+                                    onClick={() => setStep(step - 1)}
+                                >
+                                    <CaretLeft size={12} />
+                                </Button>
+                                <Typography.Text
+                                    type="secondary"
+                                    className="!text-[11px] tabular-nums"
+                                >
+                                    {`${Math.min(step + 1, fields.length)}/${fields.length}`}
+                                </Typography.Text>
+                                <Button
+                                    type="text"
+                                    aria-label={onReview ? "On review" : "Next question"}
+                                    className="!h-6 !w-6 !p-0"
+                                    disabled={onReview}
+                                    onClick={() => setStep(step + 1)}
+                                >
+                                    <CaretRight size={12} />
+                                </Button>
+                            </div>
                         </div>
                         {fields.map((field, i) => (
                             <div key={field.name} className={step === i ? undefined : "hidden"}>
@@ -272,43 +312,6 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 })}
                             </div>
                         )}
-                        <div className="flex items-center justify-between">
-                            <Button
-                                type="text"
-                                disabled={step === 0}
-                                onClick={() => setStep(step - 1)}
-                            >
-                                Back
-                            </Button>
-                            {!onReview && (
-                                <div className="flex items-center gap-1">
-                                    {!fields[step].required && (
-                                        <Button
-                                            type="text"
-                                            className="opacity-60"
-                                            onClick={() => {
-                                                // Skip = no answer: clear the field (incl. a
-                                                // schema default the user didn't endorse).
-                                                form.setFieldValue(
-                                                    fields[step].name.split("."),
-                                                    undefined,
-                                                )
-                                                // setFieldValue does not fire onValuesChange —
-                                                // sync the draft or a reload resurrects the
-                                                // skipped answer.
-                                                onValuesChange?.(form.getFieldsValue(true))
-                                                setStep(step + 1)
-                                            }}
-                                        >
-                                            Skip
-                                        </Button>
-                                    )}
-                                    <Button onClick={() => setStep(step + 1)}>
-                                        {step === fields.length - 1 ? "Review" : "Next"}
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
                     </div>
                 ) : (
                     <>
