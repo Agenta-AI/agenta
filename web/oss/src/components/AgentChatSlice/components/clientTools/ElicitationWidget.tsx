@@ -71,13 +71,6 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
         return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)
     })
     const requiredReady = missingRequired.length === 0
-    // Stepper position (null outside stepper mode) — while stepping, the PRIMARY action is
-    // Next/Review; a dominant disabled Accept invites submitting unfinished forms.
-    const [stepState, setStepState] = useState<{
-        index: number
-        total: number
-        onReview: boolean
-    } | null>(null)
 
     // Degradation: invalid payload auto-settles errorText ONCE per turn; a repeat malformed
     // emission parks instead (visible notice, no auto-settle) — no settle→resume→re-emit loop.
@@ -244,18 +237,12 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 formats
                 openEnums
                 stepper={stepperHint}
-                onStepChange={stepperHint ? setStepState : undefined}
                 onValuesChange={persistDraft}
             />
 
             <div className="flex items-center gap-2">
-                {stepperHint && stepState && !stepState.onReview && (
-                    <Button type="primary" onClick={() => formRef.current?.nextStep?.()}>
-                        {stepState.index === stepState.total - 1 ? "Review" : "Next"}
-                    </Button>
-                )}
                 <Button
-                    type={stepperHint && stepState && !stepState.onReview ? "default" : "primary"}
+                    type="primary"
                     loading={submitting}
                     disabled={!requiredReady}
                     title={
