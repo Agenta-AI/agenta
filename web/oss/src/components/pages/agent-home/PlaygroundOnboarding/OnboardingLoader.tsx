@@ -1,7 +1,10 @@
-import {Button, Spin} from "antd"
+import {Button} from "antd"
+
+import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
+import PlaygroundLoadingShell from "@/oss/components/PlaygroundRouter/PlaygroundLoadingShell"
 
 interface OnboardingLoaderProps {
-    /** Mint failed — show a retry affordance instead of an endless spinner. */
+    /** Mint failed — show a retry affordance instead of an endless skeleton. */
     error?: boolean
     onRetry?: () => void
 }
@@ -9,14 +12,15 @@ interface OnboardingLoaderProps {
 /**
  * The single loading surface for playground-native onboarding. Used at every boundary the onboarding
  * flow crosses — the `/apps` redirect decision, the lazy-`Playground` chunk download, and the ephemeral
- * mint — so the user sees ONE continuous "setting up" screen instead of a basic spinner → header shell →
- * mint spinner. Fills the same content area (`100dvh - 46px` top bar) at each boundary for continuity.
- * On mint failure it swaps the spinner for an error + Retry so the flow never dead-ends.
+ * mint — so the user sees ONE continuous screen: the real agent playground shell (agent header + the
+ * live chat skeleton) rather than a bare spinner. Onboarding always targets an agent, so we force the
+ * agent header without waiting for any data to resolve. On mint failure the body swaps to an error +
+ * Retry so the flow never dead-ends.
  */
 const OnboardingLoader = ({error, onRetry}: OnboardingLoaderProps = {}) => (
-    <div className="flex h-[calc(100dvh-46px)] w-full flex-col items-center justify-center gap-3">
+    <PlaygroundLoadingShell agent>
         {error ? (
-            <>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3">
                 <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                     Couldn&apos;t set up your agent.
                 </span>
@@ -25,16 +29,11 @@ const OnboardingLoader = ({error, onRetry}: OnboardingLoaderProps = {}) => (
                         Try again
                     </Button>
                 ) : null}
-            </>
+            </div>
         ) : (
-            <>
-                <Spin />
-                <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                    Setting up your agent…
-                </span>
-            </>
+            <AgentChatSkeleton />
         )}
-    </div>
+    </PlaygroundLoadingShell>
 )
 
 export default OnboardingLoader
