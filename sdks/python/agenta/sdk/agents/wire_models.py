@@ -319,6 +319,9 @@ class WireMcpCredential(_WireModel):
 class WireMcpServer(_WireModel):
     """A resolved MCP server, mirrors ``ResolvedMCPServer.to_wire``."""
 
+    # Retired mixed secret metadata must be dropped rather than preserved as an extra.
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
     name: str
     transport: Optional[str] = None
     command: Optional[str] = None
