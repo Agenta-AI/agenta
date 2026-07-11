@@ -93,7 +93,9 @@ These are counterintuitive and every first draft gets them backwards. State them
    free-text escape hatch, so keep lists short and likely, not exhaustive. Multi-pick
    questions use `{type: "array", items: {type: "string", enum: [...]}}`; options needing a
    sentence of explanation use `oneOf: [{const, title, description}]`, which renders as
-   selectable choice cards.
+   selectable choice cards. Forms with several questions can set `"x-ag-stepper": true` on
+   requestedSchema (one question at a time + review) — the tool description teaches this;
+   playbooks do not re-state it.
 2. **`test_run` exercises uncommitted tools** through its in-memory delta
    (`delta.set.parameters.agent.tools` carries the FULL tools list, lists replace wholesale).
    So exploration does NOT require commit-and-stop-turn. Explore the real repo or workspace

@@ -88,3 +88,37 @@ export const commitCustomValue = (
 /** The selection's off-options entries (custom values), preserving selection order. */
 export const partitionCustomValues = (selected: string[], options: EnumOption[]): string[] =>
     selected.filter((v) => !options.some((o) => o.value === v))
+
+/**
+ * Single-select "Other" input typing: the value commits as the user types. Empty text clears
+ * the value only when the input owned it (an off-options custom value) — a listed selection
+ * must survive stray focus-and-clear in the input.
+ */
+export const typeCustomValue = (
+    current: string | undefined,
+    text: string,
+    options: EnumOption[],
+): {changed: boolean; value: string | undefined} => {
+    if (text === OTHER_ENUM_OPTION) return {changed: false, value: current}
+    if (!text.trim()) {
+        if (isOffOptionsValue(current, options)) return {changed: true, value: undefined}
+        return {changed: false, value: current}
+    }
+    return {changed: text !== current, value: text}
+}
+
+/** "1".."9" → index 0..8; anything else (incl. "0") → null. */
+export const digitKeyIndex = (key: string): number | null =>
+    /^[1-9]$/.test(key) ? Number(key) - 1 : null
+
+/** Digit-key hit for a choice-card group: a listed option, the trailing Other tile, or nothing. */
+export const resolveDigitSelection = (
+    key: string,
+    options: EnumOption[],
+): {kind: "option"; value: string} | {kind: "other"} | null => {
+    const i = digitKeyIndex(key)
+    if (i === null) return null
+    if (i < options.length) return {kind: "option", value: options[i].value}
+    if (i === options.length) return {kind: "other"}
+    return null
+}

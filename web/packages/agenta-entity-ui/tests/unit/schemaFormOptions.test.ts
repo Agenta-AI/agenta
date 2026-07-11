@@ -13,12 +13,15 @@ import type {FormFieldDescriptor} from "@agenta/shared/utils"
 import {
     OTHER_ENUM_OPTION,
     commitCustomValue,
+    digitKeyIndex,
     enumOptionsOf,
     isOffOptionsValue,
     partitionCustomValues,
+    resolveDigitSelection,
     selectOptionsWithOther,
     splitOtherFromSelection,
     toggleCardSelection,
+    typeCustomValue,
     wantsChoiceCards,
 } from "../../src/gatewayTool/components/schemaFormOptions"
 
@@ -157,5 +160,66 @@ describe("partitionCustomValues", () => {
         const options = [{value: "a"}, {value: "b"}]
         expect(partitionCustomValues(["x", "a", "y"], options)).toEqual(["x", "y"])
         expect(partitionCustomValues(["a", "b"], options)).toEqual([])
+    })
+})
+
+describe("typeCustomValue (single-select inline Other input)", () => {
+    const options = [{value: "red"}, {value: "green"}]
+
+    it("commits typed text as the value", () => {
+        expect(typeCustomValue(undefined, "linear", options)).toEqual({
+            changed: true,
+            value: "linear",
+        })
+        expect(typeCustomValue("linea", "linear", options)).toEqual({
+            changed: true,
+            value: "linear",
+        })
+    })
+
+    it("re-typing the identical value reports no change", () => {
+        expect(typeCustomValue("linear", "linear", options).changed).toBe(false)
+    })
+
+    it("clearing the input clears a custom value it owns", () => {
+        expect(typeCustomValue("linear", "", options)).toEqual({changed: true, value: undefined})
+        expect(typeCustomValue("linear", "   ", options)).toEqual({changed: true, value: undefined})
+    })
+
+    it("REGRESSION: clearing the input must not clear a LISTED selection", () => {
+        expect(typeCustomValue("red", "", options)).toEqual({changed: false, value: "red"})
+        expect(typeCustomValue(undefined, "", options).changed).toBe(false)
+    })
+
+    it("INVARIANT: typing the sentinel itself never becomes a value", () => {
+        expect(typeCustomValue("red", OTHER_ENUM_OPTION, options)).toEqual({
+            changed: false,
+            value: "red",
+        })
+    })
+})
+
+describe("digitKeyIndex / resolveDigitSelection (choice-card hotkeys)", () => {
+    const options = [{value: "a"}, {value: "b"}, {value: "c"}]
+
+    it("maps 1..9 to indices and rejects everything else", () => {
+        expect(digitKeyIndex("1")).toBe(0)
+        expect(digitKeyIndex("9")).toBe(8)
+        expect(digitKeyIndex("0")).toBeNull()
+        expect(digitKeyIndex("a")).toBeNull()
+        expect(digitKeyIndex("Enter")).toBeNull()
+    })
+
+    it("digits within the option list pick that option", () => {
+        expect(resolveDigitSelection("2", options)).toEqual({kind: "option", value: "b"})
+    })
+
+    it("the next digit after the options targets the Other tile", () => {
+        expect(resolveDigitSelection("4", options)).toEqual({kind: "other"})
+    })
+
+    it("digits past the Other tile and non-digits resolve to nothing", () => {
+        expect(resolveDigitSelection("5", options)).toBeNull()
+        expect(resolveDigitSelection("x", options)).toBeNull()
     })
 })
