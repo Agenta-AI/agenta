@@ -84,12 +84,14 @@ import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
 import QueuedMessages from "./components/QueuedMessages"
 import RevealCollapse from "./components/RevealCollapse"
-import TurnInspector from "./components/TurnInspector/TurnInspector"
+import RightPanel from "./components/RightPanel/RightPanel"
+import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
 import {expandedKeysForMessages, pruneExpandedAtom} from "./state/expandState"
 import {agentFirstRunSeedAtom} from "./state/firstRunSeed"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
+import {rightPanelAtom} from "./state/rightPanel"
 import {useChatScopeKey} from "./state/scope"
 import {
     attachmentsBySession,
@@ -107,7 +109,6 @@ import {
     stampMessagesCreatedAtAtom,
 } from "./state/sessions"
 import {captureTurnRequestAtom} from "./state/turnCaptures"
-import {turnInspectorAtom} from "./state/turnInspector"
 import {
     agentChatItemEstimateAtom,
     agentChatOverscanAtom,
@@ -336,15 +337,20 @@ const AgentConversation = ({
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
-    const openTurnInspector = useSetAtom(turnInspectorAtom)
-    const inspectorTarget = useAtomValue(turnInspectorAtom)
+    const [rightPanel, setRightPanel] = useAtom(rightPanelAtom)
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    const inspectorOpen = inspectorTarget?.sessionId === sessionId
-    // Leaving Build for Chat dismisses the inspector — it's a Build-mode tool, and the panel would
-    // otherwise linger (and keep tinting a turn) in the maximized chat view.
+    const rightPanelOpen = rightPanel?.sessionId === sessionId
+    const turnInspectorOpen = rightPanelOpen && rightPanel?.mode === "turn"
+    // The assistant turn the panel is inspecting (turn mode only), else null.
+    const inspectedTurnId =
+        rightPanel?.mode === "turn" && rightPanel.sessionId === sessionId
+            ? rightPanel.assistantMessageId
+            : null
+    // Leaving Build for Chat dismisses the TURN view — it's a Build-mode tool that would otherwise
+    // linger (and keep tinting a turn). The session view stays: it's valid in chat mode too.
     useEffect(() => {
-        if (!buildMode && inspectorOpen) openTurnInspector(null)
-    }, [buildMode, inspectorOpen, openTurnInspector])
+        if (!buildMode && turnInspectorOpen) setRightPanel(null)
+    }, [buildMode, turnInspectorOpen, setRightPanel])
 
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
     // pending attachments survive alongside the composer draft. Rejections stay transient.
@@ -1686,11 +1692,10 @@ const AgentConversation = ({
         // While the inspector is open, an assistant turn tints when it's the target and is
         // click-to-refocus otherwise (click any other turn to re-point the inspector at it).
         const isAssistantTurn = message.role === "assistant"
-        const isInspected =
-            inspectorOpen && isAssistantTurn && message.id === inspectorTarget?.assistantMessageId
+        const isInspected = isAssistantTurn && message.id === inspectedTurnId
         const onInspect =
-            inspectorOpen && isAssistantTurn
-                ? () => openTurnInspector({sessionId, assistantMessageId: message.id})
+            turnInspectorOpen && isAssistantTurn
+                ? () => setRightPanel({mode: "turn", sessionId, assistantMessageId: message.id})
                 : undefined
         const showInspect = buildMode && isAssistantTurn
         const showWorking =
@@ -1750,7 +1755,11 @@ const AgentConversation = ({
                             <button
                                 type="button"
                                 onClick={() =>
-                                    openTurnInspector({sessionId, assistantMessageId: message.id})
+                                    setRightPanel({
+                                        mode: "turn",
+                                        sessionId,
+                                        assistantMessageId: message.id,
+                                    })
                                 }
                                 className="flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorPrimary"
                             >
@@ -1785,360 +1794,371 @@ const AgentConversation = ({
         >
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
             {modalContextHolder}
-            {/* Chat column. The turn inspector is a flex sibling (below) so it pushes this column
-                aside rather than overlaying it. */}
-            <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3">
-                {isDragging && (
-                    <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
-                        <UploadSimple size={26} className="text-colorPrimary" />
-                        <span className="text-sm font-medium text-colorPrimary">
-                            Drop files here
-                        </span>
-                        <span className="text-xs text-colorTextSecondary">
-                            {limits.label} · up to {limits.maxCount},{" "}
-                            {Math.round(limits.maxBytes / 1024 / 1024)} MB each
-                        </span>
-                    </div>
-                )}
-                {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
-                real reason), stamped in the effect above — no separate top-level banner. */}
-                <div className="ag-canvas relative flex min-h-0 flex-1 flex-col">
-                    {useVirtuoso && messages.length > 0 && (
-                        <Virtuoso<UIMessage, VirtCtx>
-                            ref={virtuosoRef}
-                            scrollerRef={setVirtScroller}
-                            data={messages.slice(0, activeStart)}
-                            className="ag-canvas flex-1 [overflow-anchor:none]"
-                            style={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
-                            // Wide buffer so rows are rendered AND measured before they enter view — the
-                            // height correction (85–1022px vs the estimate) then happens off-screen, so
-                            // real content scrolls in without blanks or jitter. Tunable from settings.
-                            increaseViewportBy={{
-                                top: virtOverscan,
-                                bottom: Math.round(virtOverscan * 0.66),
-                            }}
-                            defaultItemHeight={virtItemEstimate}
-                            // A prior mount's snapshot restores true row heights + scroll in the
-                            // first frame; only a genuinely first visit anchors by index (the two
-                            // props conflict, so exactly one is passed).
-                            {...(virtRestoreState
-                                ? {restoreStateFrom: virtRestoreState}
-                                : {
-                                      initialTopMostItemIndex: {
-                                          index: Math.max(0, activeStart - 1),
-                                          align: "end" as const,
-                                      },
-                                  })}
-                            computeItemKey={(_i, m) => m.id}
-                            itemContent={(index, m) => (
-                                <div className="px-3 pb-3">{renderMessage(m, index)}</div>
-                            )}
-                            atBottomStateChange={(atBottom) => {
-                                virtFollowRef.current = atBottom
-                                setShowJump(!atBottom)
-                            }}
-                            context={{
-                                header: <div className="pt-8" />,
-                                footer:
-                                    activeStart < messages.length ? (
-                                        <div
-                                            // `pb-8` ≥ the 28px bottom fade so the meta row clears it at rest.
-                                            className={`flex flex-col gap-3 px-3 pb-8${reserveActive ? " pt-8" : ""}`}
-                                            // Explicit viewport-height reserve (min-h-full is inert in the
-                                            // Footer) so scrolling to bottom pins the question to the top.
-                                            style={
-                                                reserveActive && virtViewportH
-                                                    ? {minHeight: virtViewportH}
-                                                    : undefined
-                                            }
-                                        >
-                                            {messages
-                                                .slice(activeStart)
-                                                .map((m, i) => renderMessage(m, activeStart + i))}
-                                        </div>
-                                    ) : null,
-                            }}
-                            components={virtComponents}
-                        />
-                    )}
-                    {(!useVirtuoso || messages.length === 0) && (
-                        <div
-                            ref={(el) => {
-                                scrollRef.current = el
-                            }}
-                            onScroll={onScroll}
-                            // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
-                            // reasoning fold): those resize the transcript without a scroll, so onScroll never
-                            // refreshes the anchor and the ResizeObserver would compensate against a stale one.
-                            onPointerDownCapture={recordAnchor}
-                            role="log"
-                            aria-live="polite"
-                            aria-label="Agent conversation"
-                            // `pt-8`/`pb-8` (32px) ≥ the 28px fades so the first message and the last turn's
-                            // meta row (Inspect turn + streaming dots) clear them at rest; the bottom pad
-                            // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
-                            // anchoring off so our pin/anchor logic owns the scroll position).
-                            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-8 [overflow-anchor:none]"
-                            // Fade content into the top edge (under the tab bar) and the bottom edge (into the
-                            // composer) as it scrolls. A gradient mask on the scroll container: transparent at
-                            // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
-                            style={{
-                                maskImage: EDGE_FADE_MASK,
-                                WebkitMaskImage: EDGE_FADE_MASK,
-                            }}
-                        >
-                            {messages.length === 0 &&
-                                (pendingFirstTurn ? (
-                                    // Optimistic first turn: the submitted description as a sent user bubble +
-                                    // an assistant loading placeholder (mirrors a real `status:"submitted"`
-                                    // turn), so the commit reads as one continuous chat, not an empty state.
-                                    <MessageRow mid="pending-first-turn" enter>
-                                        <AgentMessage
-                                            message={pendingFirstMessage}
-                                            isLastMessage
-                                            onRewind={handleRewind}
-                                            onClientToolOutput={handleClientToolOutput}
-                                        />
-                                        <Bubble
-                                            placement="start"
-                                            variant="borderless"
-                                            loading
-                                            content=""
-                                        />
-                                    </MessageRow>
-                                ) : onboardingActive && onboarding?.browseAll ? (
-                                    // "Browse all templates" swaps the hero for the full gallery IN PLACE.
-                                    <OnboardingBrowseTemplates />
-                                ) : isHydrating ? (
-                                    // Server-history hydration in flight — skeleton, not the "start a
-                                    // chat" hero, so a durable session doesn't flash the empty state.
-                                    <TranscriptSkeleton />
-                                ) : (
-                                    <AgentChatEmptyState
-                                        entityId={entityId}
-                                        onStart={handleSubmit}
-                                        firstRunPrompt={firstRunPrompt}
-                                        canStart={!modelBlocked}
-                                        onboarding={onboardingActive}
-                                        onPrefill={(text) =>
-                                            richInputRef.current?.setMarkdown(text)
-                                        }
-                                    />
-                                ))}
-                            {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
-                            {activeStart < messages.length && (
-                                // The active turn reserves a viewport (min-h-full) when there's prior
-                                // conversation, so sticking to the bottom shows the question at the top with the
-                                // answer streaming into the space below — the "pin" is this layout, not JS.
-                                // `pt-8` keeps the question clear of the top fade once it reaches the top.
-                                <div
-                                    className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
-                                >
-                                    {messages
-                                        .slice(activeStart)
-                                        .map((m, i) => renderMessage(m, activeStart + i))}
-                                </div>
-                            )}
+            {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
+                pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
+            <RightPanelSplit
+                open={rightPanelOpen}
+                panel={<RightPanel sessionId={sessionId} messages={messages} />}
+            >
+                <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3">
+                    {isDragging && (
+                        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
+                            <UploadSimple size={26} className="text-colorPrimary" />
+                            <span className="text-sm font-medium text-colorPrimary">
+                                Drop files here
+                            </span>
+                            <span className="text-xs text-colorTextSecondary">
+                                {limits.label} · up to {limits.maxCount},{" "}
+                                {Math.round(limits.maxBytes / 1024 / 1024)} MB each
+                            </span>
                         </div>
                     )}
+                    {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
+                real reason), stamped in the effect above — no separate top-level banner. */}
+                    <div className="ag-canvas relative flex min-h-0 flex-1 flex-col">
+                        {useVirtuoso && messages.length > 0 && (
+                            <Virtuoso<UIMessage, VirtCtx>
+                                ref={virtuosoRef}
+                                scrollerRef={setVirtScroller}
+                                data={messages.slice(0, activeStart)}
+                                className="ag-canvas flex-1 [overflow-anchor:none]"
+                                style={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                                // Wide buffer so rows are rendered AND measured before they enter view — the
+                                // height correction (85–1022px vs the estimate) then happens off-screen, so
+                                // real content scrolls in without blanks or jitter. Tunable from settings.
+                                increaseViewportBy={{
+                                    top: virtOverscan,
+                                    bottom: Math.round(virtOverscan * 0.66),
+                                }}
+                                defaultItemHeight={virtItemEstimate}
+                                // A prior mount's snapshot restores true row heights + scroll in the
+                                // first frame; only a genuinely first visit anchors by index (the two
+                                // props conflict, so exactly one is passed).
+                                {...(virtRestoreState
+                                    ? {restoreStateFrom: virtRestoreState}
+                                    : {
+                                          initialTopMostItemIndex: {
+                                              index: Math.max(0, activeStart - 1),
+                                              align: "end" as const,
+                                          },
+                                      })}
+                                computeItemKey={(_i, m) => m.id}
+                                itemContent={(index, m) => (
+                                    <div className="px-3 pb-3">{renderMessage(m, index)}</div>
+                                )}
+                                atBottomStateChange={(atBottom) => {
+                                    virtFollowRef.current = atBottom
+                                    setShowJump(!atBottom)
+                                }}
+                                context={{
+                                    header: <div className="pt-8" />,
+                                    footer:
+                                        activeStart < messages.length ? (
+                                            <div
+                                                // `pb-8` ≥ the 28px bottom fade so the meta row clears it at rest.
+                                                className={`flex flex-col gap-3 px-3 pb-8${reserveActive ? " pt-8" : ""}`}
+                                                // Explicit viewport-height reserve (min-h-full is inert in the
+                                                // Footer) so scrolling to bottom pins the question to the top.
+                                                style={
+                                                    reserveActive && virtViewportH
+                                                        ? {minHeight: virtViewportH}
+                                                        : undefined
+                                                }
+                                            >
+                                                {messages
+                                                    .slice(activeStart)
+                                                    .map((m, i) =>
+                                                        renderMessage(m, activeStart + i),
+                                                    )}
+                                            </div>
+                                        ) : null,
+                                }}
+                                components={virtComponents}
+                            />
+                        )}
+                        {(!useVirtuoso || messages.length === 0) && (
+                            <div
+                                ref={(el) => {
+                                    scrollRef.current = el
+                                }}
+                                onScroll={onScroll}
+                                // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
+                                // reasoning fold): those resize the transcript without a scroll, so onScroll never
+                                // refreshes the anchor and the ResizeObserver would compensate against a stale one.
+                                onPointerDownCapture={recordAnchor}
+                                role="log"
+                                aria-live="polite"
+                                aria-label="Agent conversation"
+                                // `pt-8`/`pb-8` (32px) ≥ the 28px fades so the first message and the last turn's
+                                // meta row (Inspect turn + streaming dots) clear them at rest; the bottom pad
+                                // + `[overflow-anchor:none]` are the SC scroll-engineering essentials (browser
+                                // anchoring off so our pin/anchor logic owns the scroll position).
+                                className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden p-3 pt-8 pb-8 [overflow-anchor:none]"
+                                // Fade content into the top edge (under the tab bar) and the bottom edge (into the
+                                // composer) as it scrolls. A gradient mask on the scroll container: transparent at
+                                // each edge → opaque across the middle. GPU-composited, no JS, theme-agnostic.
+                                style={{
+                                    maskImage: EDGE_FADE_MASK,
+                                    WebkitMaskImage: EDGE_FADE_MASK,
+                                }}
+                            >
+                                {messages.length === 0 &&
+                                    (pendingFirstTurn ? (
+                                        // Optimistic first turn: the submitted description as a sent user bubble +
+                                        // an assistant loading placeholder (mirrors a real `status:"submitted"`
+                                        // turn), so the commit reads as one continuous chat, not an empty state.
+                                        <MessageRow mid="pending-first-turn" enter>
+                                            <AgentMessage
+                                                message={pendingFirstMessage}
+                                                isLastMessage
+                                                onRewind={handleRewind}
+                                                onClientToolOutput={handleClientToolOutput}
+                                            />
+                                            <Bubble
+                                                placement="start"
+                                                variant="borderless"
+                                                loading
+                                                content=""
+                                            />
+                                        </MessageRow>
+                                    ) : onboardingActive && onboarding?.browseAll ? (
+                                        // "Browse all templates" swaps the hero for the full gallery IN PLACE.
+                                        <OnboardingBrowseTemplates />
+                                    ) : isHydrating ? (
+                                        // Server-history hydration in flight — skeleton, not the "start a
+                                        // chat" hero, so a durable session doesn't flash the empty state.
+                                        <TranscriptSkeleton />
+                                    ) : (
+                                        <AgentChatEmptyState
+                                            entityId={entityId}
+                                            onStart={handleSubmit}
+                                            firstRunPrompt={firstRunPrompt}
+                                            canStart={!modelBlocked}
+                                            onboarding={onboardingActive}
+                                            onPrefill={(text) =>
+                                                richInputRef.current?.setMarkdown(text)
+                                            }
+                                        />
+                                    ))}
+                                {messages.slice(0, activeStart).map((m, i) => renderMessage(m, i))}
+                                {activeStart < messages.length && (
+                                    // The active turn reserves a viewport (min-h-full) when there's prior
+                                    // conversation, so sticking to the bottom shows the question at the top with the
+                                    // answer streaming into the space below — the "pin" is this layout, not JS.
+                                    // `pt-8` keeps the question clear of the top fade once it reaches the top.
+                                    <div
+                                        className={`flex flex-col gap-3${reserveActive ? " min-h-full pt-8" : ""}`}
+                                    >
+                                        {messages
+                                            .slice(activeStart)
+                                            .map((m, i) => renderMessage(m, activeStart + i))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                    {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
+                        {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
                     keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}
-                    <Button
-                        size="small"
-                        shape="round"
-                        icon={<ArrowDown size={14} />}
-                        onClick={useVirtuoso ? virtJumpToLatest : jumpToLatest}
-                        tabIndex={showJump ? 0 : -1}
-                        aria-hidden={!showJump}
-                        // Solid elevated surface + border + shadow so the pill reads clearly when it
-                        // floats over streamed text (a transparent pill let the text bleed through).
-                        className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
-                            showJump
-                                ? "translate-y-0 opacity-100"
-                                : "pointer-events-none translate-y-3 opacity-0"
-                        }`}
-                        aria-label="Jump to latest message"
-                    >
-                        Jump to latest
-                    </Button>
-                </div>
+                        <Button
+                            size="small"
+                            shape="round"
+                            icon={<ArrowDown size={14} />}
+                            onClick={useVirtuoso ? virtJumpToLatest : jumpToLatest}
+                            tabIndex={showJump ? 0 : -1}
+                            aria-hidden={!showJump}
+                            // Solid elevated surface + border + shadow so the pill reads clearly when it
+                            // floats over streamed text (a transparent pill let the text bleed through).
+                            className={`!absolute bottom-2 left-1/2 -translate-x-1/2 !border !border-solid !border-colorBorderSecondary !bg-colorBgElevated shadow-md transition-[opacity,transform] duration-200 ease-out ${
+                                showJump
+                                    ? "translate-y-0 opacity-100"
+                                    : "pointer-events-none translate-y-3 opacity-0"
+                            }`}
+                            aria-label="Jump to latest message"
+                        >
+                            Jump to latest
+                        </Button>
+                    </div>
 
-                {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
+                    {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
                 composer (and the editor) upward. Streaming itself is signalled by the composer's
                 send button (it becomes a spinning Stop button), so there's no "Streaming…" row. */}
-                <RevealCollapse open={queued.length > 0} className={CHAT_COLUMN}>
-                    <div className="flex items-center gap-2 px-3 pb-2">
-                        <QueuedMessages
-                            queued={queued}
-                            onRemove={removeQueued}
-                            onClear={clearQueue}
-                        />
-                    </div>
-                </RevealCollapse>
+                    <RevealCollapse open={queued.length > 0} className={CHAT_COLUMN}>
+                        <div className="flex items-center gap-2 px-3 pb-2">
+                            <QueuedMessages
+                                queued={queued}
+                                onRemove={removeQueued}
+                                onClear={clearQueue}
+                            />
+                        </div>
+                    </RevealCollapse>
 
-                {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
+                    {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
                 Wrapper `px-3` keeps the session-bar gutter; the input centers on CHAT_COLUMN so it
                 aligns with the (also centered) message column when the panel is wide. The persistent
                 HITL approval dock lives in this same block (above the input) — always mounted so it
                 animates in/out, and inside the composer region so the paused gate can't scroll out
                 of reach and its collapse adds no gap to the surrounding column. */}
-                {/* The whole composer fades + rises in ONCE on mount (Reveal), so the input joins the
+                    {/* The whole composer fades + rises in ONCE on mount (Reveal), so the input joins the
                     empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                     onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
-                <Reveal className="px-3" enabled={playComposerEntrance}>
-                    {/* Agent empty-chat strip (S6): docked above the composer, unmounts once a
+                    <Reveal className="px-3" enabled={playComposerEntrance}>
+                        {/* Agent empty-chat strip (S6): docked above the composer, unmounts once a
                         message exists or a first-run prompt is pending. Build-mode + fresh-agent
                         only — never in maximized chat mode, and gone for good after any commit. */}
-                    {TEMPLATE_STRIP_MODE &&
-                    !onboardingActive &&
-                    buildMode &&
-                    isFreshAgentRevision &&
-                    messages.length === 0 &&
-                    !firstRunPrompt &&
-                    !pendingFirstTurn ? (
-                        <div className={`${CHAT_COLUMN} mb-3`}>
-                            <TemplateStrip
-                                surface="agent-chat"
-                                selectedTemplateKey={stripProvenance.selectedTemplateKey}
-                                onPick={handleStripPick}
-                                surfaceColorVar="--ag-surface-chat"
-                            />
-                        </div>
-                    ) : null}
-                    {/* Always mounted so it animates in/out (RevealCollapse) instead of popping. Pre-commit
+                        {TEMPLATE_STRIP_MODE &&
+                        !onboardingActive &&
+                        buildMode &&
+                        isFreshAgentRevision &&
+                        messages.length === 0 &&
+                        !firstRunPrompt &&
+                        !pendingFirstTurn ? (
+                            <div className={`${CHAT_COLUMN} mb-3`}>
+                                <TemplateStrip
+                                    surface="agent-chat"
+                                    selectedTemplateKey={stripProvenance.selectedTemplateKey}
+                                    onPick={handleStripPick}
+                                    surfaceColorVar="--ag-surface-chat"
+                                />
+                            </div>
+                        ) : null}
+                        {/* Always mounted so it animates in/out (RevealCollapse) instead of popping. Pre-commit
                         onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
                         committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
-                    <div className={CHAT_COLUMN}>
-                        <ConnectModelBanner {...modelKey} suppressed={chromeHidden} />
-                    </div>
-                    <ApprovalDock
-                        className={CHAT_COLUMN}
-                        approvals={pendingApprovals}
-                        onApprovalResponse={handleApprovalResponse}
-                        onViewTrace={openPausedTurnTrace}
-                        entityId={entityId}
-                    />
-                    {/* Owner call: a template pick must not shift the composer, so no chip renders here
+                        <div className={CHAT_COLUMN}>
+                            <ConnectModelBanner {...modelKey} suppressed={chromeHidden} />
+                        </div>
+                        <ApprovalDock
+                            className={CHAT_COLUMN}
+                            approvals={pendingApprovals}
+                            onApprovalResponse={handleApprovalResponse}
+                            onViewTrace={openPausedTurnTrace}
+                            entityId={entityId}
+                        />
+                        {/* Owner call: a template pick must not shift the composer, so no chip renders here
                         (unlike the home surface) — the strip card's own selected state is the
                         "which template" indicator; the composer text is the only other feedback. */}
-                    {/* Onboarding strip: docked directly above the composer (mb-3 gap), mirroring the
+                        {/* Onboarding strip: docked directly above the composer (mb-3 gap), mirroring the
                         agent-chat strip's rhythm — hero stays top-aligned above the flex space, and
                         the strip + composer read as one bottom-anchored cluster. */}
-                    {showBareOnboardingHero ? (
-                        <div className={`${CHAT_COLUMN} mb-3`}>
-                            <TemplateStrip
-                                surface="onboarding"
-                                selectedTemplateKey={stripProvenance.selectedTemplateKey}
-                                onPick={handleStripPick}
-                                surfaceColorVar="--ag-surface-chat"
-                            />
-                        </div>
-                    ) : null}
-                    {/* Composer region hydrates independently (Lexical chunk); the fallback is the
+                        {showBareOnboardingHero ? (
+                            <div className={`${CHAT_COLUMN} mb-3`}>
+                                <TemplateStrip
+                                    surface="onboarding"
+                                    selectedTemplateKey={stripProvenance.selectedTemplateKey}
+                                    onPick={handleStripPick}
+                                    surfaceColorVar="--ag-surface-chat"
+                                />
+                            </div>
+                        ) : null}
+                        {/* Composer region hydrates independently (Lexical chunk); the fallback is the
                         same skeleton the pane-level gates render for this slot, so the box never
                         changes shape — the editor just materializes inside it. */}
-                    <Suspense fallback={<ComposerSkeleton className={`${CHAT_COLUMN} mb-3`} />}>
-                        <RichChatInput
-                            ref={richInputRef}
-                            className={`${CHAT_COLUMN} mb-3`}
-                            // Onboarding: submit = commit the ephemeral — Enter creates the agent
-                            // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
-                            // for longer descriptions.
-                            onSubmit={onboardingActive ? () => handleCreateAgent() : handleSubmit}
-                            disabled={onboardingActive ? ideHandoffActive : modelBlocked}
-                            hideSendButton={onboardingActive}
-                            placeholder={
-                                onboardingActive
-                                    ? ideHandoffActive
-                                        ? "Continue in your IDE from the steps above — or start over."
-                                        : "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
-                                    : modelBlocked
-                                      ? "Connect a model to start chatting…"
-                                      : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                            }
-                            initialMarkdown={initialDraft}
-                            onChange={handleComposerChange}
-                            onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                            sendForceEnabled={files.length > 0}
-                            streaming={busy}
-                            onStop={handleStop}
-                            prefix={
-                                // Attach button is gated until the agent service is ready for inline
-                                // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                                <Tooltip
-                                    title={
-                                        atMax
-                                            ? `Up to ${limits.maxCount} files`
-                                            : "Attach files coming soon"
-                                    }
-                                >
-                                    <Button
-                                        type="text"
-                                        icon={<Paperclip size={16} />}
-                                        disabled={true}
-                                        onClick={() => setAttachmentsOpen((open) => !open)}
-                                        aria-label="Attach files"
-                                    />
-                                </Tooltip>
-                            }
-                            header={
-                                <HeightCollapse open={attachmentsOpen || files.length > 0}>
-                                    <ComposerAttachments
-                                        files={files}
-                                        rejections={rejections}
-                                        limits={limits}
-                                        onAdd={addFiles}
-                                        onRemove={removeFile}
-                                        onDismissRejections={() => setRejections([])}
-                                    />
-                                </HeightCollapse>
-                            }
-                            trailing={
-                                onboardingActive ? (
-                                    ideHandoffActive ? (
-                                        <Button onClick={handleStartOver} className="!shadow-none">
-                                            Start over
-                                        </Button>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            {TEMPLATE_STRIP_MODE ? (
-                                                // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
-                                                <Button
-                                                    icon={<Terminal size={15} />}
-                                                    onClick={handleCodingAgentCopy}
-                                                    className="!shadow-none"
-                                                >
-                                                    {STRIP_COPY.useCodingAgent}
-                                                </Button>
-                                            ) : (
-                                                <Button
-                                                    icon={<Code size={14} />}
-                                                    onClick={streamIdeBubble}
-                                                    className="!shadow-none"
-                                                >
-                                                    Continue in IDE
-                                                </Button>
-                                            )}
+                        <Suspense fallback={<ComposerSkeleton className={`${CHAT_COLUMN} mb-3`} />}>
+                            <RichChatInput
+                                ref={richInputRef}
+                                className={`${CHAT_COLUMN} mb-3`}
+                                // Onboarding: submit = commit the ephemeral — Enter creates the agent
+                                // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
+                                // for longer descriptions.
+                                onSubmit={
+                                    onboardingActive ? () => handleCreateAgent() : handleSubmit
+                                }
+                                disabled={onboardingActive ? ideHandoffActive : modelBlocked}
+                                hideSendButton={onboardingActive}
+                                placeholder={
+                                    onboardingActive
+                                        ? ideHandoffActive
+                                            ? "Continue in your IDE from the steps above — or start over."
+                                            : "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
+                                        : modelBlocked
+                                          ? "Connect a model to start chatting…"
+                                          : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                                }
+                                initialMarkdown={initialDraft}
+                                onChange={handleComposerChange}
+                                onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                                sendForceEnabled={files.length > 0}
+                                streaming={busy}
+                                onStop={handleStop}
+                                prefix={
+                                    // Attach button is gated until the agent service is ready for inline
+                                    // file parts (big-agents d4b119af26); paste / drag-to-add still work.
+                                    <Tooltip
+                                        title={
+                                            atMax
+                                                ? `Up to ${limits.maxCount} files`
+                                                : "Attach files coming soon"
+                                        }
+                                    >
+                                        <Button
+                                            type="text"
+                                            icon={<Paperclip size={16} />}
+                                            disabled={true}
+                                            onClick={() => setAttachmentsOpen((open) => !open)}
+                                            aria-label="Attach files"
+                                        />
+                                    </Tooltip>
+                                }
+                                header={
+                                    <HeightCollapse open={attachmentsOpen || files.length > 0}>
+                                        <ComposerAttachments
+                                            files={files}
+                                            rejections={rejections}
+                                            limits={limits}
+                                            onAdd={addFiles}
+                                            onRemove={removeFile}
+                                            onDismissRejections={() => setRejections([])}
+                                        />
+                                    </HeightCollapse>
+                                }
+                                trailing={
+                                    onboardingActive ? (
+                                        ideHandoffActive ? (
                                             <Button
-                                                type="primary"
-                                                icon={<ArrowRight size={14} />}
-                                                iconPosition="end"
-                                                loading={!!onboarding?.committing}
-                                                onClick={handleCreateAgent}
+                                                onClick={handleStartOver}
                                                 className="!shadow-none"
                                             >
-                                                Create agent
+                                                Start over
                                             </Button>
-                                        </div>
-                                    )
-                                ) : undefined
-                            }
-                        />
-                    </Suspense>
-                </Reveal>
-            </div>
-            <TurnInspector sessionId={sessionId} messages={messages} />
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                {TEMPLATE_STRIP_MODE ? (
+                                                    // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
+                                                    <Button
+                                                        icon={<Terminal size={15} />}
+                                                        onClick={handleCodingAgentCopy}
+                                                        className="!shadow-none"
+                                                    >
+                                                        {STRIP_COPY.useCodingAgent}
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        icon={<Code size={14} />}
+                                                        onClick={streamIdeBubble}
+                                                        className="!shadow-none"
+                                                    >
+                                                        Continue in IDE
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    type="primary"
+                                                    icon={<ArrowRight size={14} />}
+                                                    iconPosition="end"
+                                                    loading={!!onboarding?.committing}
+                                                    onClick={handleCreateAgent}
+                                                    className="!shadow-none"
+                                                >
+                                                    Create agent
+                                                </Button>
+                                            </div>
+                                        )
+                                    ) : undefined
+                                }
+                            />
+                        </Suspense>
+                    </Reveal>
+                </div>
+            </RightPanelSplit>
             {TEMPLATE_STRIP_MODE ? (
                 <CopiedToast
                     open={copiedToastOpen}

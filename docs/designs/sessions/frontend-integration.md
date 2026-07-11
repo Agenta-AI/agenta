@@ -33,6 +33,7 @@ debug drawer is `web/oss/src/components/SessionInspector/`.
 | Request priority | Low-priority Fern client for secondary reads (records hydration, liveness) | `agenta-sdk/src/resources.ts`, `session/api/{client,api}.ts` |
 | Debug inspector | Streams/Records/States/Mounts/Interactions tabs on the real endpoints | `SessionInspector/` |
 | Mount file browser (read-only) | Navigable folder/file tree + text preview in the inspector Mounts tab; whole-tree fetched once, `deriveMountRows` folds it to a one-level view client-side (7 unit tests) | `session/core/mountBrowser.ts`, `session/api` (`queryMountFiles`/`readMountFile`), `SessionInspector/tabs/MountsTab.tsx` |
+| Unified right panel | One resizable panel beside the chat (nested `Splitter`, min/max + chat floor, persisted width) that adapts by context: **Turn** view (inspect a turn) or **Session** view (Mounts/State/Interactions). Replaces the old fixed-width TurnInspector | `AgentChatSlice/components/RightPanel/*`, `state/rightPanel.ts` |
 
 ## Blocked / waiting on others — wire when the dependency lands
 
@@ -64,6 +65,7 @@ debug drawer is `web/oss/src/components/SessionInspector/`.
 | Same-length content reconciliation | Revalidation adopts only when server is strictly LONGER (count-based). A same-length server-side edit/regenerate won't reconcile — content-diffing across live-vs-replay id-spaces is unreliable | `FOLLOWUP(sessions,swr)` |
 | id-only cache slim | Drop the `:messages` store (keep the index), derive labels from records — needs a first-user-message preview stamped on the index at send. Trades instant-open for a fetch-per-open | — |
 | Read-write mounts | The browser is read-only; the backend also has write/upload/delete/create-folder + archive/unarchive. Add file management + a user-facing mount surface once JP's artifact-level mounts direction lands | — |
+| Records-driven Turn view | The right panel's Turn view reads the live `useChat` messages, so it only works inside a mounted chat. Make it records-backed (queryRecords → group by turn) to inspect a turn cross-device / outside the live chat | `FOLLOWUP(sessions,turn-records)` |
 | Env-gate the debug `SessionInspector` | It's a debug drawer; the user-facing liveness/history/files surfaces are separate | — |
 | Steer / cancel / attach in chat | These control-plane calls only edit Redis locks on the product path (no runner cooperation, no live-turn re-watch) → surfacing them would be no-op stubs. Deliberately NOT wired. Revisit when the runner cooperates | `FOLLOWUP(sessions,lifecycle)` |
 
