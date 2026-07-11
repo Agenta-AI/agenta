@@ -131,7 +131,7 @@ class AgentSecretLeasesRouter:
             scope=scope,
             reservation=LeaseReserve.model_validate(body.model_dump()),
         )
-        return LeaseResponse(count=1, lease=lease)
+        return LeaseResponse(count=1, lease=lease.model_dump())
 
     @intercept_exceptions()
     @handle_lease_errors
@@ -139,7 +139,7 @@ class AgentSecretLeasesRouter:
         del request
         scope = await self._tenant_scope_with_access()
         lease = await self.leases_service.retrieve(lease_id=lease_id, scope=scope)
-        return LeaseResponse(count=1, lease=lease)
+        return LeaseResponse(count=1, lease=lease.model_dump())
 
     @intercept_exceptions()
     @handle_lease_errors
@@ -158,7 +158,7 @@ class AgentSecretLeasesRouter:
             mutation=LeaseMutation.model_validate(body.model_dump()),
             janitor=janitor,
         )
-        return LeaseResponse(count=1, lease=lease)
+        return LeaseResponse(count=1, lease=lease.model_dump())
 
     @intercept_exceptions()
     @handle_lease_errors
@@ -177,7 +177,9 @@ class AgentSecretLeasesRouter:
         if page.next_cursor is not None:
             windowing = Windowing(next=page.next_cursor, limit=query.windowing.limit)
         return LeasesResponse(
-            count=len(page.leases), leases=page.leases, windowing=windowing
+            count=len(page.leases),
+            leases=[lease.model_dump() for lease in page.leases],
+            windowing=windowing,
         )
 
     @intercept_exceptions()

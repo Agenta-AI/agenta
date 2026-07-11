@@ -76,6 +76,8 @@ class LeaseTransition(str, Enum):
 
 
 class SafeErrorCode(str, Enum):
+    PROVISION_FAILED = "provision_failed"
+    SANDBOX_CREATE_FAILED = "sandbox_create_failed"
     PROVIDER_UNAVAILABLE = "provider_unavailable"
     PROVIDER_CONFLICT = "provider_conflict"
     PERSISTENCE_FAILED = "persistence_failed"
