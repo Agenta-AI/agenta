@@ -72,7 +72,7 @@ authorization decision and is not the live browser-result key.
 | `projectId`, `sessionId` | Scope | Platform | Session | Prevents cross-project and cross-session completion. |
 | `runnerInstanceId` | Routing | Runner deployment | Process lifetime | Identifies the process that owns the live handle. |
 | `environmentId` | Routing | Session engine | Live environment lifetime | Prevents a stale operation from completing a replacement session. |
-| `transport` | Protocol context | Delivery adapter | One operation | Selects the adapter without exposing its implementation. |
+| `transport` | Protocol context | Delivery adapter | One operation | Selects the adapter without exposing its implementation. The union is open: it holds only `"mcp_streamable_http"` today and grows a value per new adapter (for example `"mcp_stdio_relay"` for the in-sandbox shim, see below). |
 | `requestId` | Protocol context | MCP client | One JSON-RPC request | Required in the JSON-RPC response. |
 | `name`, `inputDigest` | Data description | Tool call | One operation | Supports validation and safe diagnosis without raw input. |
 | `state`, timestamps | Lifecycle policy | Registry | One operation | Bounds ownership, retries, and cleanup. |
@@ -93,6 +93,21 @@ interface ClientToolResultDelivery {
 
 The in-memory registry stores the interface, not the response object. A later gateway adapter can
 implement the same port with a gateway result endpoint or message queue.
+
+Two of the port's semantics are transport-specific, and the kernel must not assume the HTTP
+meanings:
+
+- `cancel(reason)` means "release the handle and stop expecting delivery". Only the HTTP
+  adapter can promise that the client saw an abort without a result (`res.destroy()`). A stdio
+  or relay-backed adapter has no per-request abort: its `cancel` settles the call with a
+  JSON-RPC error, or does nothing and lets the shim-side wait time out. The kernel treats a
+  cancelled operation as terminal either way; what the MCP client observed is an adapter
+  property.
+- `onClosed` is best-effort per transport. The HTTP adapter observes the socket close. A
+  relay-backed adapter running inside a sandbox has no close signal the runner can observe, so
+  `onClosed` may never fire and cancellation degrades to TTL expiry and environment teardown.
+  Registry cleanup must never depend on `onClosed` alone; the TTL, teardown, and shutdown
+  paths in WP4 are the guaranteed exits.
 
 ## Registry contract
 
@@ -139,6 +154,10 @@ end-to-end exactly-once delivery across a process crash. The browser-side action
 completed before the result reaches the registry, and the cold path can return that stored output
 without repeating the browser action.
 
+The "socket closes" row is transport-specific. It exists only where the adapter can observe a
+close (the HTTP adapter). An adapter without a close signal (a relay-backed one) skips that row,
+and its operations leave `pending` only through delivery, TTL expiry, teardown, or shutdown.
+
 ## Exact resume input
 
 The first implementation can derive the live resume input from the existing `/run` messages:
@@ -174,6 +193,28 @@ The server validates the token before `initialize`, `tools/list`, or `tools/call
 token only for the live environment, never places it in operation metadata, and never logs it. The
 harness receives it as connection credentials and may retain its own session configuration, so the
 token has no value after the environment closes its dedicated server.
+
+## Future in-sandbox stdio mapping
+
+The in-sandbox tool MCP project
+([../in-sandbox-tool-mcp/](../in-sandbox-tool-mcp/README.md), PR #5234) commits Daytona
+delivery to a harness-spawned stdio shim that writes relay request files. If exact
+continuation ever extends to that path, the kernel stays unchanged and a relay-backed adapter
+implements the port as follows:
+
+| Port method | Relay-backed implementation |
+| --- | --- |
+| `deliver(output)` | Write a late `<id>.res.json` that the shim's response wait picks up and answers on the original JSON-RPC id. |
+| `cancel(reason)` | Write an error response, or write nothing and let the shim-side wait time out. No abort-without-result exists. |
+| `onClosed` | Never fires. TTL and teardown are the only exits. |
+
+Three prerequisites do not exist yet and belong to a separate bridge design, not to this
+project: the relay response protocol must gain a park shape (today a paused client tool writes
+no response file and the shim's wait times out at 60 seconds), the shim's per-call wait must
+learn to outlive that timeout for parked calls, and the held browser wait must survive or
+refuse the five-minute Daytona auto-stop that kills the shim on park-to-stopped. The
+recommendation to open one owned workspace for that bridge is recorded in
+[../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
 
 ## Future gateway mapping
 

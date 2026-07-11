@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 ## Current phase
 
@@ -22,6 +22,15 @@ Draft design PR: [#5201](https://github.com/Agenta-AI/agenta/pull/5201), labelle
 - Classified existing risks separately from risks introduced by holding sockets open.
 - Defined a gateway-neutral pending-operation and delivery-port contract.
 - Split the implementation into six progressive work packages with rollback gates.
+- 2026-07-11: folded in the cross-consistency review round (requested by the owner alongside
+  his own review of the event-driven-tool-relay PR). interface.md now states the
+  transport-specific limits of `cancel` and `onClosed`, opens the `transport` union, and adds
+  the future in-sandbox stdio mapping (PR #5234) with its three missing prerequisites. plan.md
+  now places the WP1 bearer in the HTTP transport wrapper (never in the shared
+  `mcp-handler.ts` that PR #5234 extracts), declares that PR #5234 slice 1 lands before WP1
+  and WP3, and corrects the WP5 Daytona wording (refusal for client tools, cold elsewhere).
+  research.md notes how PR #5234 narrows the Daytona refusal. Combined landing order:
+  `../mcp-delivery-architecture/orchestration.md`.
 
 ## Decisions proposed
 
@@ -42,6 +51,7 @@ Draft design PR: [#5201](https://github.com/Agenta-AI/agenta/pull/5201), labelle
 | Pi approval parking, PR #5185 | Merged | No client-tool work required for Pi. |
 | Session keepalive design, PR #5153 | Draft | Contains the original client-tool hold-open recommendation and experiments. |
 | Session continuity, PR #5197 | Open, next to merge | WP3 waits for merge because it changes the same lifecycle files. |
+| In-sandbox tool MCP, PR #5234 | Open, design review | Its slice 1 extracts `mcp-handler.ts` and `relay-client.ts` from the files WP1 and WP3 edit; land it before WP1 and WP3. |
 | Real MCP gateway | Out of scope | The interface preserves a future adapter boundary. |
 
 ## Next step after approval

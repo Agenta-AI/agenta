@@ -69,6 +69,10 @@ Hold-open increases its lifetime, so authentication and direct transport tests c
 - Generate a random bearer token per session environment.
 - Advertise the token in the MCP server's standard `authorization` header.
 - Reject missing or wrong tokens before parsing or dispatching a tool call.
+- Place the token validation in the HTTP transport wrapper in `tool-mcp-http.ts`, never in
+  the transport-neutral message handler that PR #5234 extracts as `tools/mcp-handler.ts`.
+  The in-sandbox stdio shim shares that handler and must stay credential-free; only the
+  listener-owning HTTP transport has anything to authenticate.
 - Keep the existing one-megabyte request-body cap and add an explicit result-size cap.
 - Reject a JSON-RPC batch containing a client tool before executing any item in that batch.
 - Keep non-client batches unchanged unless a test finds a protocol violation.
@@ -208,7 +212,9 @@ Default-off happy-path code is not ready to enable until every long-lived-resour
 ### Stage 2: limited environment
 
 - Enable only where local Claude sessions and session keepalive are already enabled.
-- Keep Daytona and other unsupported harnesses on the cold path.
+- Keep Daytona and other unsupported harnesses on today's behavior: cold replay where a
+  delivery path exists, and the up-front refusal for Daytona client tools (which PR #5234
+  narrows but keeps for client tools).
 - Watch pending count, completion path, wait duration, socket close, expiry, wrong-replica, pool
   eviction, and process file descriptors.
 
@@ -222,6 +228,14 @@ disabled without a frontend or API deployment.
 
 - PR #5197 must merge before WP3 starts. Rebase and re-check `sandbox_agent.ts`, `server.ts`,
   `session-pool.ts`, continuity invalidation, and `shouldPark` before editing.
+- PR #5234 ([../in-sandbox-tool-mcp/](../in-sandbox-tool-mcp/README.md)) refactors the same
+  files WP1 and WP3 edit: its slice 1 extracts the transport-neutral message handler from
+  `tool-mcp-http.ts` into `tools/mcp-handler.ts` (with an optional client-tool pause hook)
+  and the relay writer from `dispatch.ts` into `tools/relay-client.ts`. Land that slice
+  first. WP1's batch rejection then goes into the shared handler, WP1's bearer stays in the
+  HTTP transport wrapper (see WP1), and WP3's register-before-pause logic plugs into the
+  handler's pause hook. The combined landing order across the three tool projects is in
+  [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
 - PR #5197's Daytona auto-stop default is five minutes, the same as the approval TTL. This project
   does not rely on that equality because the exact path is local only.
 - A wrong replica cannot access the live handle. It uses cold fallback. A future gateway can route
