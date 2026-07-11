@@ -49,6 +49,7 @@ RUN corepack enable
 # installed (not --prod): the runtime uses `tsx` and the extension build uses `esbuild`,
 # both devDependencies.
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 # Bake the source (no bind mount in production).

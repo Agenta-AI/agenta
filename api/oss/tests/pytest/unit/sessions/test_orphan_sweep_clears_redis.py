@@ -18,11 +18,13 @@ from oss.src.core.sessions.streams.types import SessionTurnInUse
 from oss.src.tasks.asyncio.sessions.orphan_sweep import run_orphan_sweep
 
 _SESSION_ID = "sess-orphan-1"
+_PROJECT_ID = "proj-orphan-1"
 
 
 class _FakeRow:
     def __init__(self, *, session_id: str, updated_at: datetime):
         self.session_id = session_id
+        self.project_id = _PROJECT_ID
         self.id = "stream-1"
         self.deleted_at = None
         self.flags = {"is_alive": True, "is_running": True, "is_attached": False}
@@ -103,8 +105,12 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
 
     # Seed the alive lock as a live runner would, past the Postgres orphan threshold.
     # Keys are plain str (locks.py never encodes the key, only the value).
-    await lock_engine.set(f"alive:session:{_SESSION_ID}", b"turn-1", ex=3600)
-    await lock_engine.set(f"running:session:{_SESSION_ID}", b"turn-1", ex=3600)
+    await lock_engine.set(
+        f"alive:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
+    )
+    await lock_engine.set(
+        f"running:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
+    )
 
     stale_row = _FakeRow(
         session_id=_SESSION_ID,
@@ -113,7 +119,9 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
     pg_engine = _FakeTransactionsEngine([stale_row])
 
     # Before the sweep: SEND gate sees alive=True and must refuse.
-    liveness_before = await get_session_liveness(lock_engine, session_id=_SESSION_ID)
+    liveness_before = await get_session_liveness(
+        lock_engine, project_id=_PROJECT_ID, session_id=_SESSION_ID
+    )
     assert liveness_before["alive"] is True
 
     await run_orphan_sweep(pg_engine, lock_engine)
@@ -126,7 +134,9 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
     }
 
     # Redis side (the fix): the locks the SEND gate reads are gone too.
-    liveness_after = await get_session_liveness(lock_engine, session_id=_SESSION_ID)
+    liveness_after = await get_session_liveness(
+        lock_engine, project_id=_PROJECT_ID, session_id=_SESSION_ID
+    )
     assert liveness_after == {"alive": False, "running": False, "attached": False}
 
     # SEND gate logic (service.py:99-101): would raise if alive were still true.

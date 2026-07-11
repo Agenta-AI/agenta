@@ -682,7 +682,7 @@ export function AgentTemplateControl({
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,
-            title: fieldTitle("mcps", "MCP servers"),
+            title: fieldTitle("mcps", "MCPs"),
             summary: countSummary(mcpServers.length, "server"),
             indicator: headerIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,

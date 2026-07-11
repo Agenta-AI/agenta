@@ -8,7 +8,7 @@ from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
 )
-from oss.src.core.sessions.states.dtos import SessionState
+from oss.src.core.sessions.states.dtos import SessionState, SessionStateData
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -65,6 +65,13 @@ class SessionStreamResponseModel(BaseModel):
     stream: Optional[SessionStream] = None
 
 
+class SessionHeartbeatResponseModel(BaseModel):
+    # the replica owning the session after the heartbeat's claim; the runner compares it
+    # to its own replica_id to refuse serving a session it doesn't own.
+    stream: Optional[SessionStream] = None
+    replica_id: str
+
+
 class SessionStreamsResponseModel(BaseModel):
     count: int
     streams: List[SessionStream]
@@ -81,13 +88,13 @@ class SessionStateResponse(BaseModel):
 
 
 class SessionStateUpsertRequest(BaseModel):
-    data: Optional[Dict[str, Any]] = Field(
+    data: Optional[SessionStateData] = Field(
         default=None,
-        description="Opaque SDK session state to persist.",
+        description="Full replacement of the continuity state (resume ids + staleness guard).",
     )
     sandbox_id: Optional[str] = Field(
         default=None,
-        description="Remote sandbox id to record alongside the SDK record.",
+        description="Remote sandbox id to record alongside the continuity state.",
     )
 
 
@@ -134,8 +141,7 @@ class SessionInteractionTransitionRequest(BaseModel):
 
 
 class SessionInteractionCancelStaleRequest(BaseModel):
-    # Runner-called at turn start: cancel prior turns' still-pending gates for this session,
-    # sparing the current turn's own. project_id comes from the credential (request.state).
+    # Cancels prior turns' pending gates, sparing this turn's own.
     session_id: str
     turn_id: str
 

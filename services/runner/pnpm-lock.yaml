@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  sandbox-agent@0.4.2:
+    hash: 492bf733a926e4302acbcfe3d9ad229003a6d2f6f0b818f8fe0947a8cbfa33a2
+    path: patches/sandbox-agent@0.4.2.patch
+
 importers:
 
   .:
@@ -46,7 +51,7 @@ importers:
         version: 0.0.29
       sandbox-agent:
         specifier: 0.4.2
-        version: 0.4.2(@daytonaio/sdk@0.187.0(ws@8.21.0))(zod@4.4.3)
+        version: 0.4.2(patch_hash=492bf733a926e4302acbcfe3d9ad229003a6d2f6f0b818f8fe0947a8cbfa33a2)(@daytonaio/sdk@0.187.0(ws@8.21.0))(zod@4.4.3)
       undici:
         specifier: 8.3.0
         version: 8.3.0
@@ -4708,7 +4713,7 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sandbox-agent@0.4.2(@daytonaio/sdk@0.187.0(ws@8.21.0))(zod@4.4.3):
+  sandbox-agent@0.4.2(patch_hash=492bf733a926e4302acbcfe3d9ad229003a6d2f6f0b818f8fe0947a8cbfa33a2)(@daytonaio/sdk@0.187.0(ws@8.21.0))(zod@4.4.3):
     dependencies:
       '@sandbox-agent/cli-shared': 0.4.2
       acp-http-client: 0.4.2(zod@4.4.3)

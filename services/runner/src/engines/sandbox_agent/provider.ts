@@ -31,37 +31,40 @@ export function daytonaNetworkFields(
 }
 
 /**
- * Default Daytona auto-stop backstop (minutes of idle before the runner stops the sandbox).
- *
- * 15 minutes is the Daytona SDK's own documented default and sits comfortably beyond a normal
- * run (an actively prompting sandbox is BUSY, not idle, so this measures leaked-and-idle time,
- * not total run time). Override with `DAYTONA_AUTOSTOP` if runs idle
- * longer (e.g. long paused HITL turns).
+ * Idle-minute thresholds for the three Daytona lifecycle transitions. Each is measured from
+ * last activity and refreshed on every turn: stop (HOT→WARM), archive (WARM→COLD), delete
+ * (COLD→DEAD). A stopped sandbox keeps its disk (fast restart, no compute billing); an archived
+ * one moves to cold storage (slower restore); a deleted one is gone (respawn + remount + load).
  */
-export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
+export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 5;
+export const DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES = 15;
+export const DEFAULT_DAYTONA_AUTODELETE_MINUTES = 30;
 
-/**
- * The auto-stop backstop, in minutes, that self-reaps a LEAKED Daytona sandbox.
- *
- * THE LEAK: the per-run teardown (`finally` in `sandbox_agent.ts`) deletes the sandbox on every
- * normal / error / client-disconnect path, but a process KILL (docker stop / SIGTERM / SIGKILL
- * / OOM mid-run) skips the `finally`, so the sandbox leaks. The Daytona create object pairs
- * `ephemeral: true` (auto-DELETE on stop) with a non-zero auto-stop interval here: the upstream
- * sandbox-agent wrapper hardcodes `autoStopInterval: 0` (auto-stop OFF) BUT spreads our create
- * object AFTER it, so this value wins. With auto-stop > 0 an idle leaked sandbox stops on its
- * own, which then fires the ephemeral auto-delete — so it self-reaps instead of burning credit.
- *
- * Returns a positive integer minute count, clamped to >= 1 (0 would re-disable auto-stop and
- * reintroduce the leak). Invalid / non-positive env values fall back to the default.
- */
+function positiveMinutes(rawValue: string | undefined, fallback: number): number {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.floor(parsed);
+}
+
+/** Idle minutes before a warm (stopped) sandbox is reached. Override `DAYTONA_AUTOSTOP`. */
 export function daytonaAutoStopMinutes(
   rawValue: string | undefined = process.env.DAYTONA_AUTOSTOP,
 ): number {
-  const parsed = Number(rawValue);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return DEFAULT_DAYTONA_AUTOSTOP_MINUTES;
-  }
-  return Math.floor(parsed);
+  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
+}
+
+/** Idle minutes before a stopped sandbox is archived (cold). Override `DAYTONA_AUTOARCHIVE`. */
+export function daytonaAutoArchiveMinutes(
+  rawValue: string | undefined = process.env.DAYTONA_AUTOARCHIVE,
+): number {
+  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES);
+}
+
+/** Idle minutes before an archived sandbox is deleted (dead). Override `DAYTONA_AUTODELETE`. */
+export function daytonaAutoDeleteMinutes(
+  rawValue: string | undefined = process.env.DAYTONA_AUTODELETE,
+): number {
+  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTODELETE_MINUTES);
 }
 
 /**
@@ -87,14 +90,14 @@ export function buildDaytonaCreate(
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
     envVars: daytonaEnvVars(piExtEnv, secrets),
-    // Server-side leak backstop: `ephemeral` only auto-DELETES a sandbox when it STOPS, and the
-    // sandbox-agent wrapper hardcodes `autoStopInterval: 0` (auto-stop OFF) — the two cancel out,
-    // so a sandbox the runner leaks (a process KILL skips the per-run teardown `finally`) never
-    // self-reaps and burns credit forever. Setting a non-zero auto-stop here (our create object
-    // is spread AFTER the wrapper's hardcode, so this wins) makes an idle leaked sandbox stop on
-    // its own, which then triggers the ephemeral auto-delete.
+    // Native five-state lifecycle: stop preserves the disk (warm), archive moves it to cold
+    // storage, delete reaps it (dead). `ephemeral: false` so a stop parks rather than deletes;
+    // the three intervals (spread after the wrapper's hardcoded 0s, so they win) are the
+    // platform-run reapers. A leaked sandbox self-reaps via autoDelete instead of ephemeral.
     autoStopInterval: daytonaAutoStopMinutes(),
-    ephemeral: true,
+    autoArchiveInterval: daytonaAutoArchiveMinutes(),
+    autoDeleteInterval: daytonaAutoDeleteMinutes(),
+    ephemeral: false,
   };
 }
 

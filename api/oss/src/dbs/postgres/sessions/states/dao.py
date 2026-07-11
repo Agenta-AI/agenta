@@ -64,11 +64,19 @@ class SessionStatesDAO(SessionStatesDAOInterface):
     ) -> Optional[SessionState]:
         now = datetime.now(timezone.utc)
 
+        data_json = (
+            upsert.data.model_dump(
+                mode="json",
+            )
+            if upsert.data is not None
+            else None
+        )
+
         values = {
             "id": uuid_utils.uuid7(),
             "project_id": project_id,
             "session_id": session_id,
-            "data": upsert.data,
+            "data": data_json,
             "sandbox_id": upsert.sandbox_id,
             "flags": SessionStateFlags().model_dump(mode="json"),
             "created_at": now,

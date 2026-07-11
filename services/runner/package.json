@@ -50,6 +50,9 @@
       "@sandbox-agent/cli-darwin-x64",
       "@sandbox-agent/cli-linux-arm64",
       "esbuild"
-    ]
+    ],
+    "patchedDependencies": {
+      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
+    }
   }
 }

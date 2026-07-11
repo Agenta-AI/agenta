@@ -1,5 +1,5 @@
 /**
- * Session keep-alive pool (slice 1: normal turn boundaries, local sandbox, flag-gated off).
+ * Session keep-alive pool: normal turn boundaries, local sandbox, flag-gated off by default.
  *
  * Background: today the runner destroys the sandbox and harness session at the end of every
  * turn (`sandbox_agent.ts` teardown). Keep-alive parks a live session for a short TTL so the
@@ -11,8 +11,6 @@
  * dispatch needs to decide continue-versus-cold (two fingerprints, a credential epoch, an LRU
  * timestamp, a state) and a complete idempotent `destroy()` closure the engine supplies. It
  * never imports the engine, so it stays a pure map + timer + policy unit.
- *
- * See docs/design/agent-workflows/projects/session-keepalive/plan.md.
  */
 import { createHash } from "node:crypto";
 
@@ -68,6 +66,21 @@ export function readKeepaliveConfig(): KeepaliveConfig {
   };
 }
 
+/**
+ * `poolMax` (and the LRU/TTL eviction it drives) is a LOCAL-provider parameter — "how many
+ * ~300 MB hot Claude trees fit on this runner host" — never a global one. Mirrors `run-plan.ts`'s
+ * own sandbox-id resolution (`request.sandbox || SANDBOX_AGENT_PROVIDER env || "local"`), kept
+ * here (not imported from there) so this module stays engine-agnostic. The pool dispatch
+ * (`server.ts` `isLocalSandbox`) and the continuity module's own local/remote framing both
+ * resolve through this one function, so the "local-only" invariant has a single source of truth.
+ */
+export function resolvesToLocalProvider(
+  requestSandbox: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return (requestSandbox || env.SANDBOX_AGENT_PROVIDER || "local") === "local";
+}
+
 // --- Fingerprints and the pool key ------------------------------------------ //
 
 function sha256(value: string): string {
@@ -89,10 +102,10 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
- * A canonical hash over the config-bearing request fields (architecture-notes "Continuation
- * versus cold decision"). Per-turn volatiles are excluded: `messages`, `turnId`, trace
- * propagation (`context`), the rotating telemetry headers, and secret VALUES (`secrets` — the
- * credential epoch covers rotation, and values must never enter any hash used for logging). The
+ * A canonical hash over the config-bearing request fields (the continuation-versus-cold
+ * decision). Per-turn volatiles are excluded: `messages`, `turnId`, trace propagation
+ * (`context`), the rotating telemetry headers, and secret VALUES (`secrets` — the credential
+ * epoch covers rotation, and values must never enter any hash used for logging). The
  * tool-callback ENDPOINT is included (routing config); its authorization is a credential and
  * lives in the credential epoch instead.
  */
@@ -250,8 +263,7 @@ export function approvalDecisionForToolCall(
 /**
  * True when the request's tail is a fresh user message with text and NOT an approval envelope.
  * A continuation only takes the live path for a plain new user turn; an approval reply (a
- * trailing tool-role message, or a user turn carrying a tool_result) is slice 2's concern and
- * stays cold here.
+ * trailing tool-role message, or a user turn carrying a tool_result) stays cold here.
  */
 export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
   const messages = request.messages ?? [];

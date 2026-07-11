@@ -8,4 +8,6 @@
  */
 export interface SignSessionMountCredentialsRequest {
     session_id: string;
+    /** Which session-scoped mount to sign, e.g. 'cwd' (default) or a per-harness transcript dir mount (e.g. 'claude-projects', 'pi-sessions'). Each name is its own mount row / durable prefix. */
+    name?: string;
 }
