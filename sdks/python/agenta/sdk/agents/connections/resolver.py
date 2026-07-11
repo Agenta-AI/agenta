@@ -18,6 +18,7 @@ import os
 from typing import Any, Dict, Optional
 
 from ..capabilities import PROVIDER_ENV_VARS
+from .endpoints import build_resolved_connection
 from .errors import UnsupportedProviderError
 from .models import (
     Endpoint,
@@ -55,11 +56,11 @@ class EnvConnectionResolver:
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
         if model.connection.mode == "self_managed":
-            return ResolvedConnection(
+            return build_resolved_connection(
                 provider=model.provider or "",
                 model=model.model,
                 credential_mode="runtime_provided",
-                env={},
+                values={},
             )
 
         provider = model.provider
@@ -72,18 +73,18 @@ class EnvConnectionResolver:
         env_var = _PROVIDER_ENV_VARS.get(provider.lower())
         key = self._env.get(env_var) if env_var else None
         if env_var and key:
-            return ResolvedConnection(
+            return build_resolved_connection(
                 provider=provider,
                 model=model.model,
                 credential_mode="env",
-                env={env_var: key},
+                values={env_var: key},
             )
         # Absence is valid: inject nothing and let the harness use its own login/OAuth.
-        return ResolvedConnection(
+        return build_resolved_connection(
             provider=provider,
             model=model.model,
             credential_mode="runtime_provided",
-            env={},
+            values={},
         )
 
 
@@ -134,11 +135,11 @@ class StaticConnectionResolver:
             if env_var:
                 env[env_var] = self._api_key
         endpoint = Endpoint(base_url=self._base_url) if self._base_url else None
-        return ResolvedConnection(
+        return build_resolved_connection(
             provider=provider,
             model=model.model,
-            deployment=self._deployment,  # type: ignore[arg-type]
+            deployment=self._deployment,
             credential_mode="env" if env else "runtime_provided",
-            env=env,
+            values=env,
             endpoint=endpoint,
         )

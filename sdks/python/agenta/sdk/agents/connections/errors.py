@@ -25,6 +25,10 @@ class ConnectionResolutionError(AgentConnectionError):
     """Raised when a connection cannot be resolved into a credential plan."""
 
 
+class InvalidConnectionConfigurationError(AgentConnectionError):
+    """Raised when resolved routing and credentials form an unsafe combination."""
+
+
 class ConnectionNotFoundError(ConnectionResolutionError):
     """Raised when a named connection (``mode == agenta`` + ``slug``) does not exist."""
 
