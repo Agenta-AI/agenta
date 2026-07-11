@@ -77,7 +77,10 @@ function fakeEnv() {
   };
 }
 
-const epoch: CredentialEpoch = { secretsHash: "h" };
+const epoch: CredentialEpoch = {
+  sandboxCredentialsHash: "h",
+  transientCredentialsHash: "t",
+};
 
 function parkInput(key: string, env = fakeEnv()) {
   return {
@@ -232,13 +235,40 @@ describe("configFingerprint", () => {
     messages: [{ role: "user", content: "hi" }],
   };
 
-  it("ignores per-turn volatiles (messages, turnId, telemetry, secrets)", () => {
-    const a = configFingerprint(base);
+  it("ignores per-turn volatiles and credential values", () => {
+    const a = configFingerprint({
+      ...base,
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "original",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
     const b = configFingerprint({
       ...base,
       messages: [{ role: "user", content: "totally different" }],
       turnId: "t-2",
-      secrets: { ANTHROPIC_API_KEY: "sekret" },
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "sekret",
+            usage: "opaque_http",
+          },
+        ],
+      },
       telemetry: {
         exporters: { otlp: { headers: { authorization: "Bearer x" } } },
       },
@@ -248,6 +278,30 @@ describe("configFingerprint", () => {
       a,
       b,
       "config fingerprint is stable across per-turn volatiles",
+    );
+  });
+
+  it("ignores MCP credential values while retaining their binding contract", () => {
+    const withMcp = (value: string): AgentRunRequest => ({
+      ...base,
+      mcpServers: [
+        {
+          name: "linear",
+          transport: "http",
+          url: "https://mcp.linear.app/sse",
+          credentials: [
+            {
+              binding: { kind: "header", name: "Authorization" },
+              value,
+              usage: "opaque_http",
+            },
+          ],
+        },
+      ],
+    });
+    assert.equal(
+      configFingerprint(withMcp("secret-a")),
+      configFingerprint(withMcp("secret-b")),
     );
   });
 
@@ -409,31 +463,118 @@ describe("tailIsFreshUserMessage", () => {
 describe("credential epoch", () => {
   it("same secrets + tool-callback auth hash equal; a changed secret value differs", () => {
     const a = computeCredentialEpoch({
-      secrets: { A: "1" },
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "1",
+            usage: "opaque_http",
+          },
+        ],
+      },
       toolCallback: { endpoint: "e", authorization: "z" },
     });
     const b = computeCredentialEpoch({
-      secrets: { A: "1" },
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "1",
+            usage: "opaque_http",
+          },
+        ],
+      },
       toolCallback: { endpoint: "e", authorization: "z" },
     });
     const c = computeCredentialEpoch({
-      secrets: { A: "2" },
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "2",
+            usage: "opaque_http",
+          },
+        ],
+      },
       toolCallback: { endpoint: "e", authorization: "z" },
     });
-    assert.equal(a.secretsHash, b.secretsHash);
+    assert.equal(a.sandboxCredentialsHash, b.sandboxCredentialsHash);
     assert.notEqual(
-      a.secretsHash,
-      c.secretsHash,
+      a.sandboxCredentialsHash,
+      c.sandboxCredentialsHash,
       "a rotated same-slug secret changes the hash",
+    );
+  });
+
+  it("rotates the sandbox epoch when an MCP header credential changes", () => {
+    const withMcp = (value: string): AgentRunRequest => ({
+      mcpServers: [
+        {
+          name: "linear",
+          transport: "http",
+          url: "https://mcp.linear.app/sse",
+          credentials: [
+            {
+              binding: { kind: "header", name: "Authorization" },
+              value,
+              usage: "opaque_http",
+            },
+          ],
+        },
+      ],
+    });
+    assert.notEqual(
+      computeCredentialEpoch(withMcp("secret-a")).sandboxCredentialsHash,
+      computeCredentialEpoch(withMcp("secret-b")).sandboxCredentialsHash,
     );
   });
 
   it("valid until the mount expiry elapses; invalid once expired", () => {
     const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
+      {
+        modelConnection: {
+          provider: "test",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://model.example" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "A" },
+              value: "1",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
       "2026-01-01T00:00:10.000Z",
     );
-    const incoming = computeCredentialEpoch({ secrets: { A: "1" } });
+    const incoming = computeCredentialEpoch({
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "1",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
     assert.equal(credentialEpochValid(parked, incoming, before), true);
@@ -445,18 +586,88 @@ describe("credential epoch", () => {
   });
 
   it("invalid when the secret material changed even if not expired", () => {
-    const parked = computeCredentialEpoch({ secrets: { A: "1" } });
-    const incoming = computeCredentialEpoch({ secrets: { A: "2" } });
+    const parked = computeCredentialEpoch({
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "1",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
+    const incoming = computeCredentialEpoch({
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "2",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
     assert.equal(credentialEpochValid(parked, incoming, Date.now()), false);
   });
 
   it("credentialEpochMismatch splits the reason: expired vs rotated vs none", () => {
     const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
+      {
+        modelConnection: {
+          provider: "test",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://model.example" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "A" },
+              value: "1",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
       "2026-01-01T00:00:10.000Z",
     );
-    const same = computeCredentialEpoch({ secrets: { A: "1" } });
-    const rotated = computeCredentialEpoch({ secrets: { A: "2" } });
+    const same = computeCredentialEpoch({
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "1",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
+    const rotated = computeCredentialEpoch({
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "2",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
     assert.equal(credentialEpochMismatch(parked, same, before), undefined);
@@ -475,9 +686,23 @@ describe("credential epoch", () => {
     );
   });
 
-  it("mountCredentialsExpired checks only the mount lifetime, ignoring the secret hash", () => {
+  it("mountCredentialsExpired checks only the mount lifetime, ignoring the sandbox credential hash", () => {
     const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
+      {
+        modelConnection: {
+          provider: "test",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://model.example" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "A" },
+              value: "1",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
       "2026-01-01T00:00:10.000Z",
     );
     const before = Date.parse("2026-01-01T00:00:05.000Z");
@@ -485,7 +710,21 @@ describe("credential epoch", () => {
     assert.equal(mountCredentialsExpired(parked, before), false);
     assert.equal(mountCredentialsExpired(parked, after), true);
     // No expiry recorded => never expired, regardless of the secret material.
-    const noExpiry = computeCredentialEpoch({ secrets: { A: "1" } });
+    const noExpiry = computeCredentialEpoch({
+      modelConnection: {
+        provider: "test",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://model.example" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "A" },
+            value: "1",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
     assert.equal(mountCredentialsExpired(noExpiry, after), false);
   });
 });
@@ -603,11 +842,9 @@ describe("SessionPool", () => {
         stoppingEnv.state.reasons.push(reason);
       },
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", stoppingEnv).input, 10_000);
 
     const replacement = parkInput("b");
@@ -622,17 +859,19 @@ describe("SessionPool", () => {
 
     releaseTeardown?.();
     assert.equal(await parked, true);
-    assert.equal(teardownCompleted, true, "teardown completes before park resolves");
+    assert.equal(
+      teardownCompleted,
+      true,
+      "teardown completes before park resolves",
+    );
     assert.equal(pool.get("a"), undefined);
     assert.equal(pool.get("b")?.state, "idle");
   });
 
   it("strict capacity returns false at cap when no idle entry exists", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     const busy = parkInput("busy");
     await pool.park(busy.input, 10_000);
     pool.checkoutIdle("busy");
@@ -645,16 +884,10 @@ describe("SessionPool", () => {
   });
 
   it("strict approval checkout stays seated while it is busy", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
-    await pool.park(
-      parkInput("approval").input,
-      10_000,
-      "awaiting_approval",
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
+    await pool.park(parkInput("approval").input, 10_000, "awaiting_approval");
 
     const live = pool.checkoutApproval("approval");
 
@@ -674,11 +907,9 @@ describe("SessionPool", () => {
           releaseTeardown = resolve;
         }),
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", environment).input, 10_000);
     const stopping = pool.get("a")!;
     const replacement = pool.park(parkInput("b").input, 10_000);
@@ -688,14 +919,22 @@ describe("SessionPool", () => {
     assert.equal(pool.checkoutIdle("a"), undefined);
     assert.equal(pool.checkoutApproval("a"), undefined);
     assert.equal(
-      await pool.repark(stopping, {
-        configFingerprint: "new",
-        historyFingerprint: "new",
-        credentialEpoch: epoch,
-      }, 10_000),
+      await pool.repark(
+        stopping,
+        {
+          configFingerprint: "new",
+          historyFingerprint: "new",
+          credentialEpoch: epoch,
+        },
+        10_000,
+      ),
       false,
     );
-    assert.equal(pool.get("a"), stopping, "repark does not clobber the seated stop");
+    assert.equal(
+      pool.get("a"),
+      stopping,
+      "repark does not clobber the seated stop",
+    );
 
     releaseTeardown?.();
     assert.equal(await replacement, true);

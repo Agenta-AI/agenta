@@ -199,10 +199,13 @@ describe("insecureEgressAllowed + validateUserMcpUrl bypass", () => {
     );
   });
 
-  it("allows http and private MCP hosts when egress is unrestricted", async () => {
+  it("keeps HTTPS mandatory while unrestricted mode permits private hosts", async () => {
     process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "true";
-    assert.equal(await validateUserMcpUrl("http://example.com/sse"), undefined);
-    assert.equal(await validateUserMcpUrl("http://127.0.0.1/sse"), undefined);
+    assert.match(
+      (await validateUserMcpUrl("http://example.com/sse")) ?? "",
+      /must use https/,
+    );
+    assert.equal(await validateUserMcpUrl("https://127.0.0.1/sse"), undefined);
   });
 
   it("surfaces a DNS-resolution failure distinctly from an SSRF block", async () => {
