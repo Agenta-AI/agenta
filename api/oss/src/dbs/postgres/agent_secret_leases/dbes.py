@@ -49,18 +49,25 @@ class AgentSecretLeaseDBE(Base):
             "version >= 1 AND attempt_count >= 0 AND claim_generation >= 0",
             name="ck_agent_secret_leases_counters",
         ),
+        CheckConstraint(
+            "last_error_code IS NULL OR last_error_code IN "
+            "('provision_failed','sandbox_create_failed','provider_unavailable',"
+            "'provider_conflict','persistence_failed','sandbox_delete_failed',"
+            "'secret_delete_failed','ownership_ambiguous','invalid_provider_response')",
+            name="ck_agent_secret_leases_safe_error_code",
+        ),
         Index(
             "ix_agent_secret_leases_provider_retry",
             "provider",
             "state",
-            "next_attempt_at",
+            text("COALESCE(next_attempt_at, created_at)"),
             "id",
         ),
         Index(
             "ix_agent_secret_leases_org_retry",
             "organization_id",
             "state",
-            "next_attempt_at",
+            text("COALESCE(next_attempt_at, created_at)"),
             "id",
         ),
         Index("ix_agent_secret_leases_owner", "project_id", "owner_kind", "owner_id"),
@@ -153,6 +160,17 @@ class AgentSecretLeaseResourceDBE(Base):
         CheckConstraint(
             "version >= 1 AND ordinal >= 0",
             name="ck_agent_secret_lease_resources_counters",
+        ),
+        CheckConstraint(
+            "(consumer_kind = 'model' AND consumer_key IS NULL) OR "
+            "(consumer_kind = 'http_mcp' AND consumer_key IS NOT NULL "
+            "AND consumer_key <> '')",
+            name="ck_agent_secret_lease_resources_consumer_key",
+        ),
+        CheckConstraint(
+            "state <> 'created' OR "
+            "(provider_secret_id IS NOT NULL AND provider_secret_id <> '')",
+            name="ck_agent_secret_lease_resources_created_id",
         ),
         Index(
             "uq_agent_secret_lease_resources_binding",

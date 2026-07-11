@@ -67,6 +67,13 @@ def upgrade() -> None:
             "version >= 1 AND attempt_count >= 0 AND claim_generation >= 0",
             name="ck_agent_secret_leases_counters",
         ),
+        sa.CheckConstraint(
+            "last_error_code IS NULL OR last_error_code IN "
+            "('provision_failed','sandbox_create_failed','provider_unavailable',"
+            "'provider_conflict','persistence_failed','sandbox_delete_failed',"
+            "'secret_delete_failed','ownership_ambiguous','invalid_provider_response')",
+            name="ck_agent_secret_leases_safe_error_code",
+        ),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"]),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"]),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"]),
@@ -88,15 +95,15 @@ def upgrade() -> None:
             "sandbox_label", name="uq_agent_secret_leases_sandbox_label"
         ),
     )
-    op.create_index(
-        "ix_agent_secret_leases_provider_retry",
-        "agent_secret_leases",
-        ["provider", "state", "next_attempt_at", "id"],
+    op.execute(
+        "CREATE INDEX ix_agent_secret_leases_provider_retry "
+        "ON agent_secret_leases "
+        "(provider, state, COALESCE(next_attempt_at, created_at), id)"
     )
-    op.create_index(
-        "ix_agent_secret_leases_org_retry",
-        "agent_secret_leases",
-        ["organization_id", "state", "next_attempt_at", "id"],
+    op.execute(
+        "CREATE INDEX ix_agent_secret_leases_org_retry "
+        "ON agent_secret_leases "
+        "(organization_id, state, COALESCE(next_attempt_at, created_at), id)"
     )
     op.create_index(
         "ix_agent_secret_leases_owner",
@@ -156,6 +163,17 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "version >= 1 AND ordinal >= 0",
             name="ck_agent_secret_lease_resources_counters",
+        ),
+        sa.CheckConstraint(
+            "(consumer_kind = 'model' AND consumer_key IS NULL) OR "
+            "(consumer_kind = 'http_mcp' AND consumer_key IS NOT NULL "
+            "AND consumer_key <> '')",
+            name="ck_agent_secret_lease_resources_consumer_key",
+        ),
+        sa.CheckConstraint(
+            "state <> 'created' OR "
+            "(provider_secret_id IS NOT NULL AND provider_secret_id <> '')",
+            name="ck_agent_secret_lease_resources_created_id",
         ),
         sa.ForeignKeyConstraint(
             ["lease_id", "organization_id", "workspace_id", "project_id"],
