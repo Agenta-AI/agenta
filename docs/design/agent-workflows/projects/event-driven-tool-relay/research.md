@@ -42,15 +42,34 @@ It writes `<id>.req.json`, then loops: check `existsSync(resPath)`, sleep `RELAY
 (300 ms, `dispatch.ts:104`), until `RELAY_TIMEOUT_MS` (or the tool's own `timeoutMs` plus
 10 s). On success it deletes both files (`dispatch.ts:91-100`).
 
-Both writers reach this one function:
+All writers reach this one function:
 
 - Pi's in-sandbox extension registers each tool with an `execute` that calls
   `runResolvedTool(spec, params, { toolCallId, relayDir, signal })`
   (`services/runner/src/extensions/agenta.ts:341-345`), which routes to `relayToolCall`
   when `relayDir` is set (`dispatch.ts:133-158`).
-- The future Claude MCP shim is planned to use the same dispatch module
-  (`dispatch.ts:1-21` documents this sharing). A hop 1 change inside `relayToolCall`
-  therefore covers both writers automatically.
+- Local Claude's loopback MCP handler dispatches every non-client `tools/call` to the
+  same `runResolvedTool` with the run's `relayDir` (`tools/tool-mcp-http.ts:210-212`),
+  so local Claude is a relay writer today, not a future one.
+- The future Claude MCP shim on Daytona is planned to use the same dispatch module
+  (`dispatch.ts:1-21` documents this sharing). A hop 1 change inside the shared writer
+  therefore covers all three automatically.
+
+## Partial-file exposure today
+
+Nothing in the current relay publishes atomically; polling delay is what hides the write
+interval:
+
+- The writer creates the final request path directly with `writeFileSync`
+  (`dispatch.ts:73`).
+- The runner adds a discovered filename to `seen` before reading it (`relay.ts:338`) and
+  parses asynchronously (`relay.ts:380`), so a partial read would error once and never
+  retry that request.
+- The runner writes the final response path directly (`relay.ts:362`), and the writer
+  parses the moment `existsSync` is true (`dispatch.ts:87`).
+
+Under 300 ms polling these windows are rarely hit. Any event-driven wake makes them hot,
+which is why the plan amends publication (plan.md decision 2).
 
 ## The relay directory is a local filesystem on both ends of hop 1
 
@@ -91,6 +110,11 @@ response.
   built precisely so a request held open for human-timescale approval pauses is not
   reaped. Held requests through the preview proxy are therefore already a proven,
   production-exercised pattern; the watch exec adds nothing new in kind.
+- The daemon file API includes a move endpoint: `moveFs` / `post_v1_fs_move`
+  (`node_modules/sandbox-agent/dist/index.d.ts:2103`, `:3253`). Whether it performs a
+  `rename(2)`-atomic same-directory move is not documented; the atomic-publication
+  amendment (plan.md decision 2) needs that verified, with a shell `mv` exec as the
+  fallback implementation.
 - Node is present in the sandbox image (Pi runs on it), so a node one-liner watch script
   needs no install. Custom snapshots without node need the poll fallback.
 - The SDK also offers `createProcess` (start a background process) plus

@@ -37,7 +37,9 @@ milliseconds instead of seconds. Explicitly unchanged:
 
 - The security model. No new network surface, no credentials into the sandbox, the relay
   files stay the data channel.
-- The req/res file contract (names, contents, who deletes what).
+- The req/res file contract (final names, contents, who deletes what). Publication
+  becomes atomic (a temp name plus a same-directory rename, plan.md decision 2), which
+  changes how a file appears, not what it is once it exists.
 - The `/run` wire contract and the SDK.
 
 ## The reliability principle (non-negotiable)
