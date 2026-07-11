@@ -36,6 +36,7 @@ import { apiBase } from "../apiBase.ts";
 import { Redactor, seedFromEnv } from "../redaction.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
+import { Daytona, DaytonaNotFoundError } from "@daytonaio/sdk";
 
 import {
   createSandboxAgentOtel,
@@ -125,6 +126,9 @@ import {
 } from "./sandbox_agent/teardown.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import { DaytonaReconnectTerminalError } from "./sandbox_agent/daytona-provider.ts";
+import { credentialEpochHmac, daytonaLeaseResources } from "./sandbox_agent/daytona-secret-plan.ts";
+import { HttpSecretLeaseControl } from "./sandbox_agent/secret-lease-control.ts";
+import { createDaytonaSecretLeaseRuntime, daytonaWithSecretLease, type SecretLeaseProviderRuntime } from "./sandbox_agent/daytona-secret-provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
@@ -711,7 +715,7 @@ export async function acquireEnvironment(
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
   // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.modelEnvironment` are
-  // present and an inherited key for another provider cannot leak. For runtime_provided/none/
+  // present and an inherited key for another provider cannot leak. For runtime_provided/none
   // or a request without modelConnection, the harness login remains available.
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
@@ -978,14 +982,47 @@ export async function acquireEnvironment(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
-    const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
-      plan.sandboxId,
-      env,
-      binaryPath,
-      piExtEnv,
-      plan.modelEnvironment,
-      plan.sandboxPermission,
-    );
+    const providerFactory = deps.buildSandboxProvider ?? buildSandboxProvider;
+    let secretLeaseRuntime: SecretLeaseProviderRuntime | undefined;
+    let sandboxProvider;
+    if (plan.isDaytona && (plan.daytonaSecretPlan?.candidates.length ?? 0) > 0) {
+      const hmacKey = process.env.AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY;
+      const ownerId = sessionForMount || request.runContext?.trace?.trace_id;
+      if (!runCred || !hmacKey || !ownerId) {
+        throw new Error("Daytona opaque credentials require invoke authorization, a stable run/session owner, and AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY.");
+      }
+      const owner = { kind: sessionForMount ? "session" as const : "run" as const, id: ownerId };
+      const daytonaClient = new Daytona();
+      const control = new HttpSecretLeaseControl({ baseUrl: apiBase(), tenantAuthorization: runCred });
+      secretLeaseRuntime = createDaytonaSecretLeaseRuntime({
+        plan: plan.daytonaSecretPlan!,
+        reservation: {
+          owner,
+          idempotencyKey: `daytona-secret:${owner.kind}:${owner.id}`,
+          credentialEpochDigest: credentialEpochHmac(plan.daytonaSecretPlan!, hmacKey),
+          resources: daytonaLeaseResources(plan.daytonaSecretPlan!),
+        },
+        control,
+        api: daytonaClient.secret,
+        deleteSandbox: async (sandboxId) => {
+          try { await daytonaClient.delete(await daytonaClient.get(sandboxId)); }
+          catch (error) { if (!(error instanceof DaytonaNotFoundError)) throw error; }
+        },
+        confirmSandboxAbsent: async (sandboxId) => {
+          try { await daytonaClient.get(sandboxId); return false; }
+          catch (error) { if (error instanceof DaytonaNotFoundError) return true; throw error; }
+        },
+      });
+      // Prepare before reconnect/create so warm reconnect can recover provider placeholders without
+      // re-creating Secrets. The provider's prepare call is cached and side-effect free thereafter.
+      await secretLeaseRuntime.prepare();
+      sandboxProvider = daytonaWithSecretLease(
+        (attachments) => providerFactory(plan.sandboxId, env, binaryPath, piExtEnv, plan.modelEnvironment, plan.sandboxPermission, attachments),
+        secretLeaseRuntime,
+      );
+    } else {
+      sandboxProvider = providerFactory(plan.sandboxId, env, binaryPath, piExtEnv, plan.modelEnvironment, plan.sandboxPermission);
+    }
     const startOptions = {
       sandbox: sandboxProvider,
       persist,
@@ -1209,7 +1246,18 @@ export async function acquireEnvironment(
       harness: plan.harness,
       isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
-      userMcpServers: request.mcpServers,
+      userMcpServers: request.mcpServers?.map((server) => {
+        const replacements = secretLeaseRuntime?.currentMcpHeaderPlaceholders()[server.name];
+        if (!replacements) return server;
+        return {
+          ...server,
+          credentials: server.credentials?.map((credential) => {
+            const placeholder = replacements[credential.binding.name];
+            if (!placeholder) throw new Error(`Daytona Secret placeholder is missing for MCP header '${credential.binding.name}'.`);
+            return { ...credential, value: placeholder };
+          }),
+        };
+      }),
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
@@ -1855,6 +1903,9 @@ export async function runTurn(
     }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+    // Pause notification is immediate, but terminalization must wait for managed cancellation
+    // and already-queued ACP updates. Re-sweep after the drain so a sibling announced during
+    // cancellation receives exactly one deterministic terminal result before `done`.
     if (stopReason === "paused") {
       await pause.waitForEventDrain();
       run.settleOpenToolCalls(
