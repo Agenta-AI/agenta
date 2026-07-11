@@ -27,8 +27,9 @@ const TemplateChip = ({
     <div
         style={style}
         // box-border so an explicit width (set by TemplateChipDock) measures border-box, matching
-        // the ghost's offsetWidth exactly.
-        className={`box-border inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-t-[9px] border-[1.5px] border-b-0 border-solid border-[var(--ag-strip-input-border)] bg-[var(--ag-strip-selected-bg)] px-3 py-1.5 text-[12.5px] text-[var(--ag-colorTextSecondary)] ${className ?? ""}`}
+        // the ghost's offsetWidth exactly. Border matches the selected composer's accent so the
+        // chip + composer read as one connected shape (the composer forces --ag-colorPrimary too).
+        className={`box-border inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-t-[9px] border-[1.5px] border-b-0 border-solid border-[var(--ag-colorPrimary)] bg-[var(--ag-strip-selected-bg)] px-3 py-1.5 text-[12.5px] text-[var(--ag-colorTextSecondary)] ${className ?? ""}`}
     >
         <span
             className="flex size-[18px] shrink-0 items-center justify-center rounded-[5px] text-[9px] font-semibold text-white"
