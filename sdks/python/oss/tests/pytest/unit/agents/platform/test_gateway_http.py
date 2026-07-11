@@ -151,3 +151,70 @@ async def test_http_status_failure_is_typed(fake_http, connection):
     with pytest.raises(GatewayToolResolutionError) as caught:
         await _resolver(connection).resolve([_gateway()])
     assert caught.value.status == 400
+
+
+async def test_stale_action_404_surfaces_backend_detail(fake_http, connection):
+    """F-019: the resolver body naming the dead action reaches the run error."""
+    fake_http(
+        gateway,
+        status=404,
+        payload={"detail": "Action not found: composio/github/COMMIT_MULTIPLE_FILES"},
+    )
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([_gateway(action="COMMIT_MULTIPLE_FILES")])
+    error = caught.value
+    assert error.status == 404
+    # The structured field carries the raw backend reason verbatim.
+    assert error.detail == "Action not found: composio/github/COMMIT_MULTIPLE_FILES"
+    message = str(error)
+    # The message names the tool, the reason, and the actionable remedy.
+    assert "composio/github/COMMIT_MULTIPLE_FILES" in message
+    assert "(HTTP 404)" in message
+    assert "no longer in the catalog" in message
+
+
+async def test_non_json_error_body_falls_back_to_bounded_text(fake_http, connection):
+    """A non-JSON 500 body still yields a non-empty detail without a secondary error."""
+    fake_http(
+        gateway,
+        status=500,
+        payload={},  # no "detail" key -> fall through to text
+        text="Internal Server Error: upstream boom",
+    )
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([_gateway()])
+    error = caught.value
+    assert error.status == 500
+    assert error.detail == "Internal Server Error: upstream boom"
+    assert "upstream boom" in str(error)
+    # No stale-action remedy for a non-action failure.
+    assert "no longer in the catalog" not in str(error)
+
+
+def test_extract_detail_prefers_json_detail_field():
+    response = httpx.Response(
+        status_code=404,
+        json={"detail": "Action not found: composio/github/GONE"},
+    )
+    assert (
+        gateway._extract_resolution_detail(response)
+        == "Action not found: composio/github/GONE"
+    )
+
+
+def test_extract_detail_falls_back_to_text_for_non_json_body():
+    response = httpx.Response(status_code=502, text="<html>Bad Gateway</html>")
+    assert gateway._extract_resolution_detail(response) == "<html>Bad Gateway</html>"
+
+
+def test_extract_detail_truncates_a_long_body():
+    response = httpx.Response(status_code=500, text="x" * 5000)
+    detail = gateway._extract_resolution_detail(response)
+    assert detail is not None
+    assert detail.endswith(" ... (truncated)")
+    assert len(detail) <= gateway._MAX_DETAIL_LENGTH + len(" ... (truncated)")
+
+
+def test_extract_detail_returns_none_for_empty_body():
+    response = httpx.Response(status_code=500, text="")
+    assert gateway._extract_resolution_detail(response) is None

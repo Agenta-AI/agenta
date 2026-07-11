@@ -31,9 +31,64 @@ from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
 
+# Cap the reason string so a stray HTML error page (or any oversized body) cannot flood
+# the run error. The useful backend detail is a single short sentence; this is only a
+# fallback bound for the non-JSON case.
+_MAX_DETAIL_LENGTH = 500
+
+# The backend raises ActionNotFoundError with this exact prefix when a committed config
+# points at a Composio action that has left the catalog (the F-019 case). Detecting it
+# lets us append an actionable remedy the bare "not found" message does not spell out.
+_STALE_ACTION_PREFIX = "Action not found:"
+
 
 def _normalize_reference(reference: str) -> str:
     return reference.replace("__", ".")
+
+
+def _extract_resolution_detail(response: httpx.Response) -> Optional[str]:
+    """Pull the human-facing reason out of a non-2xx ``/tools/resolve`` response.
+
+    The backend puts the useful sentence in the FastAPI error envelope
+    (``{"detail": "Action not found: ..."}``). Prefer that. Fall back to a bounded slice
+    of the raw body so a non-JSON error page still yields something, without letting a
+    large page through. Returns ``None`` when there is nothing usable to surface.
+    """
+    detail: Optional[str] = None
+
+    try:
+        payload = response.json()
+    except (ValueError, TypeError):
+        payload = None
+
+    if isinstance(payload, dict):
+        raw = payload.get("detail")
+        if isinstance(raw, str) and raw.strip():
+            detail = raw.strip()
+
+    if detail is None:
+        text = (response.text or "").strip()
+        if text:
+            detail = text
+
+    if detail is None:
+        return None
+
+    if len(detail) > _MAX_DETAIL_LENGTH:
+        detail = detail[:_MAX_DETAIL_LENGTH].rstrip() + " ... (truncated)"
+    return detail
+
+
+def _format_resolution_failure(status_code: int, detail: Optional[str]) -> str:
+    """Build the run-error message from the status code and the extracted detail."""
+    if not detail:
+        return f"Gateway tool resolution failed (HTTP {status_code})"
+    message = f"Gateway tool resolution failed: {detail} (HTTP {status_code})"
+    if detail.startswith(_STALE_ACTION_PREFIX):
+        message += (
+            ". Remove or re-resolve this tool; the action is no longer in the catalog."
+        )
+    return message
 
 
 def _to_gateway_reference(tool_config: GatewayToolConfig) -> Dict[str, Any]:
@@ -109,10 +164,16 @@ class AgentaGatewayToolResolver:
             ) from exc
 
         if response.status_code >= 400:
+            # Read the body the backend already sent. It names the failing tool/action
+            # and the real reason (F-019: the SDK used to drop it and surface only the
+            # bare status code). Carry the reason on the exception, in both the message
+            # and the structured ``detail`` field.
+            detail = _extract_resolution_detail(response)
             error = GatewayToolResolutionError(
-                f"Gateway tool resolution failed (HTTP {response.status_code})",
+                _format_resolution_failure(response.status_code, detail),
                 status=response.status_code,
                 ref_count=len(tools),
+                detail=detail,
             )
             log.warning("agent: %s", error)
             raise error
