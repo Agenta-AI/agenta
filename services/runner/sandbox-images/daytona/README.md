@@ -20,15 +20,26 @@ AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
 ## What is baked
 
 The recipe bases on `rivetdev/sandbox-agent:*-full`. That base image already installs the
-Claude, Codex, and OpenCode native binaries and ACP adapters. It also includes the Pi ACP
-adapter, but not the standalone `pi` CLI that the adapter launches.
+Claude, Codex, and OpenCode native binaries and ACP adapters. It also includes a Pi ACP
+adapter, but its version can differ from the runner's adapter and it does not include the
+standalone `pi` CLI that the adapter launches.
 
 The snapshot recipe therefore:
 
 - installs `@earendil-works/pi-coding-agent@0.80.6`;
 - fails the build unless `pi --version` succeeds;
+- reinstalls the private Pi ACP adapter at `pi-acp@0.0.29` through
+  `sandbox-agent install-agent`, rather than installing a global package that the daemon
+  would not resolve;
+- fails the build unless the private launcher exists and its installed package reports
+  version `0.0.29`;
 - verifies that the Claude, Codex, and OpenCode binaries are still present; and
 - installs the FUSE and geesefs dependencies used for durable remote working directories.
+
+The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
+runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the
+adapter version must not be inherited implicitly from the base image because older versions
+do not forward Pi extension dialogs as ACP permission requests.
 
 ## Pi installation controls
 
