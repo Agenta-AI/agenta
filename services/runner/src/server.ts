@@ -15,6 +15,7 @@
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { Daytona, DaytonaNotFoundError } from "@daytonaio/sdk";
 import {
   createServer,
   type IncomingMessage,
@@ -66,6 +67,8 @@ import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
+import { HttpSecretLeaseControl } from "./engines/sandbox_agent/secret-lease-control.ts";
+import { startDaytonaSecretJanitor } from "./engines/sandbox_agent/daytona-secret-janitor.ts";
 
 const PORT = Number(process.env.AGENTA_RUNNER_PORT ?? 8765);
 
@@ -1108,11 +1111,30 @@ if (isEntrypoint(import.meta.url)) {
     );
   });
 
-  // On `docker stop` (SIGTERM) / Ctrl-C (SIGINT), drain the keep-alive pool (its complete
-  // per-session destroy) and then delete any sandbox a run created, so a kill does not leak a
-  // parked session or an in-flight sandbox (the per-run teardown never runs on a process kill).
+  const janitorToken = process.env.AGENTA_RUNNER_CONTROL_TOKEN;
+  let stopSecretJanitor = () => {};
+  if (janitorToken) {
+    const daytonaClient = new Daytona();
+    stopSecretJanitor = startDaytonaSecretJanitor({
+      control: new HttpSecretLeaseControl({ baseUrl: apiBase(), controlToken: janitorToken }),
+      api: daytonaClient.secret,
+      workerId: process.env.AGENTA_RUNNER_REPLICA_ID ?? `runner-${process.pid}`,
+      deleteSandbox: async (sandboxId) => {
+        try { await daytonaClient.delete(await daytonaClient.get(sandboxId)); }
+        catch (error) { if (!(error instanceof DaytonaNotFoundError)) throw error; }
+      },
+      confirmSandboxAbsent: async (sandboxId) => {
+        try { await daytonaClient.get(sandboxId); return false; }
+        catch (error) { if (error instanceof DaytonaNotFoundError) return true; throw error; }
+      },
+      onError: (error) => process.stderr.write(`[sandbox-agent] secret janitor sweep failed: ${error instanceof Error ? error.name : "unknown"}\n`),
+    });
+  }
+
+  // On `docker stop` (SIGTERM) / Ctrl-C (SIGINT), drain the keep-alive pool and janitor.
   registerShutdownHandler({
     onCleanup: async (timeoutMs?: number) => {
+      stopSecretJanitor();
       await Promise.all(
         Object.values(keepalivePools).map((pool) =>
           pool.destroyAll(
