@@ -8,6 +8,7 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  clearSandboxPointer,
   readStoredSandboxPointer,
   writeSandboxPointer,
 } from "../../src/engines/sandbox_agent/sandbox-reconnect.ts";
@@ -84,6 +85,28 @@ describe("readStoredSandboxPointer", () => {
       log: SILENT,
     });
     assert.equal(id, undefined);
+  });
+});
+
+describe("clearSandboxPointer", () => {
+  it("PUTs null pointer fields with the guard token", async () => {
+    let body: Record<string, unknown> | undefined;
+    const outcome = await clearSandboxPointer("sess-1", 7, {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        body = JSON.parse(init!.body as string);
+        return okResponse({ session_state: { sandbox_id: null } });
+      }) as unknown as typeof fetch,
+      log: SILENT,
+    });
+
+    assert.deepEqual(body, {
+      sandbox_id: null,
+      sandbox_fingerprint: null,
+      sandbox_turn_index: 7,
+    });
+    assert.equal(outcome, "applied");
   });
 });
 

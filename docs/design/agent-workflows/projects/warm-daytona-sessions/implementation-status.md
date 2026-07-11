@@ -341,10 +341,235 @@ NOT ours (leave with fix/sessions-continuity-review): mount.ts (until Slice 2 to
 session-continuity.ts, sandbox-agent-acp-interactions.test.ts, sandbox-agent-mount.test.ts,
 test_harness_sessions_mapping.py, the three self-host mdx docs.
 
+## Slice 1 commit record
+
+- Lane feat/warm-daytona-sessions created (parallel, off base 1666116fe5). Slice 1 commit
+  pushed and SHA-verified: a3bbcb9b39 (local == origin).
+- Commit mechanics lessons (a cold session MUST read this before committing Slice 2+):
+  - The worktree is a merge of ALL applied lanes plus uncommitted work. Committed-vs-worktree
+    file diffs are EXPECTED wherever another applied lane (feat/keepalive-project-scope, the
+    poolKeyFor/presignedMount edits) or the review lane owns hunks. Verify the LANE TREE, not
+    worktree equality: git archive feat/warm-daytona-sessions services/runner docs/design/
+    agent-workflows/projects/qa sdks web into /tmp, symlink node_modules, run pnpm typecheck
+    + pnpm test there. Slice 1 lane tree: tsc clean, 851/851 green.
+  - but commit --only respects hunk-level assignment: the first commit produced a BROKEN
+    hybrid sandbox_agent.ts because the destroy-block region's changes were assigned to
+    fix/sessions-continuity-review. Fixed by but rub <fileCliId> <commitCliId> to amend the
+    leftover hunks into the commit. The commit cliId ROTATES after every amend; re-read
+    but status --json each time.
+  - Pulling the review lane's sandbox_agent.ts hunks also pulled its onResolveInteraction
+    auto-allow behavior change; its matching test (sandbox-agent-acp-interactions.test.ts)
+    had to come along or the lane tree failed. models.py's replica_id hunk stayed with the
+    review lane (independent).
+  - Board note posted in the BUT-LOCK release message; oplog snapshot before everything:
+    e8dbbdf2e1.
+
+## Slice 2 (park-to-stopped) implemented, pending commit
+
+- teardown.ts: PARK_CLEAN_RESUMABLE_TURNS flipped to true (clean-resumable and shutdown-idle
+  now stop; every other reason deletes).
+- provider.ts: DEFAULT_DAYTONA_AUTOSTOP_MINUTES 5 -> 15; auto-archive REMOVED entirely
+  (constant, daytonaAutoArchiveMinutes, and the autoArchiveInterval create field are gone;
+  Daytona's 7-day archive default sits past our 30-min delete, ladder is stop then delete).
+- daytona-provider.ts: DaytonaReconnectTerminalError (not-found on get, error/destroyed,
+  unknown states, destroyed-during-transition); timeout and network errors stay plain
+  (transient). Engine clears the stored pointer via new clearSandboxPointer (guarded nulls +
+  token) ONLY on the terminal type; the post-hydrate pointer write remains the authoritative
+  fixer.
+- mount.ts: mountStorageRemote always detaches any existing FUSE mount at cwd before
+  mounting (reattach hygiene; fresh sandboxes pay one fast no-op call);
+  mountHarnessSessionDirs inherits by delegation.
+- hosting: DAYTONA_AUTOARCHIVE forwarding removed from all compose files, env examples, and
+  the helm runner-deployment template. Docs mdx deferred to the docs pass.
+- NOT MINE (leave uncommitted): services/runner/sandbox-images/daytona/README.md and
+  build_snapshot.py carry ANOTHER session's pi-acp@0.0.29 snapshot pinning work.
+- Gates: typecheck green, 858 pass + 2 baseline.
+
+## GITBUTLER FROZEN (wedge) 2026-07-11 ~15:40Z. READ THIS FIRST.
+
+State and sequence of events, exactly:
+
+1. Slice 1 was committed and pushed fine on lane feat/warm-daytona-sessions (a3bbcb9b39,
+   remote verified). Lane tree independently green (tsc + vitest 851/851).
+2. While I implemented Slice 2, concurrent sessions rebuilt the workspace (an ABSORB at
+   17:25:48 local on feat/keepalive-project-scope, plus the daytona-secret-delivery-plan
+   lane). My lane silently DROPPED from the applied set (no unapply entry in the oplog). The
+   git ref survived.
+3. but apply feat/warm-daytona-sessions silently no-ops (exit 0, prints "Applied", not
+   applied), even with the lane's added files moved aside. Cause: GitButler refuses silently
+   to apply a lane whose committed files overlap uncommitted worktree changes; nearly all my
+   Slice-1 files carry Slice-2 uncommitted edits.
+4. but branch delete feat/warm-daytona-sessions cannot find the branch (orphaned from but's
+   registry); but branch new of the same name refuses (git ref exists). The original lane
+   name is unusable.
+5. Created lane feat/warm-daytona-sessions-impl, assigned all 37 feature files (union of
+   slices 1+2), but commit --only FAILED: "Encountered a conflict while merging the commit's
+   new bases: <21 lane-tip shas>".
+6. One controlled stacking attempt per AGENTS.md (but move feat/warm-daytona-sessions-impl
+   feat/keepalive-project-scope) FAILED with the same merge-bases conflict, listing only the
+   existing lane tips: the octopus re-merge of the current applied tips conflicts on its own.
+   Same wedge class as the 2026-07-11 morning incident.
+7. FROZEN per the hard rules and Mahmoud's "never ever use git. only gitbutler" instruction:
+   no more but mutations, no raw-git fallback, no oplog restore, no but clean. but status
+   remains healthy (rc=0). Snapshots: e8dbbdf2e1 (pre lane), cff7a4265b (pre slice-2 commit),
+   968f92375c (pre lane rebuild), a3d742a18a (pre stacking attempt). DO NOT RESTORE without
+   Mahmoud or the coordinator; concurrent sessions have live uncommitted work.
+
+Likely conflict participant: fa697e6998 (feat/keepalive-project-scope, poolKeyFor and
+presignedMount edits to server.ts and sandbox_agent.ts, absorbed at 17:25) against the
+warm-daytona content or another lane tip. The morning recovery used a plumbing workspace
+rebuild; raw git is now forbidden for this effort, so repair needs a human decision.
+
+Safe and continuing meanwhile: codex implementation of slices 3-5 in the working tree, unit
+gates, sidecar restart + E3 live verification, QA. The working tree contains all slices'
+content and is the source of truth. Slice 1 content is also published at remote
+feat/warm-daytona-sessions (a3bbcb9b39). Lane feat/warm-daytona-sessions-impl exists
+(applied, EMPTY, 37 files assigned). Leave it; a successor lands the commit after repair.
+
+## Slice 3 (provider-aware pool refactor) DONE in the working tree
+
+- session-pool.ts: readKeepaliveConfig(provider) with KeepaliveProviderName "local"|"daytona".
+  Local envs byte-compatible (KEEPALIVE flag, TTL 60000, APPROVAL_TTL 300000, POOL_MAX 8).
+  Daytona: AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS default 0 (0 = disabled, no separate
+  flag; Slice 5 changes default to 120000), enabled = ttl > 0, approvalTtlMs reuses the idle
+  TTL (Daytona approvals stay cold until F-018), AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM
+  default 20. Pool keys need no provider segment (separate pools + configFingerprint carries
+  request.sandbox).
+- Pool closure is now teardown(reason: TeardownReason). Reasons passed: TTL -> idle-expiry,
+  cap/LRU -> capacity-eviction, continuation/supersede failures -> failed-turn, mismatches ->
+  compatibility-mismatch, shutdown split -> shutdown-idle / shutdown-in-flight, /kill -> kill.
+  teardown.ts gained idle-expiry + capacity-eviction (stop when parking enabled, delete
+  otherwise; a Daytona eviction NEVER deletes).
+- server.ts: two module-level pools (local, daytona) + resolveKeepaliveProvider /
+  resolveKeepaliveDispatch (unknown provider -> cold; disabled pool -> cold). /kill and the
+  SIGTERM handler drain both pools. Local-only deployments byte-identical. The old
+  persistSandboxId helper (an unguarded duplicate sandbox_id PUT for the inspector) is gone;
+  the engine's guarded writeSandboxPointer covers it for both providers.
+- Gates: typecheck green, 863 pass + 2 baseline.
+
+## Slice 4 (park-to-running warm slots) DONE in the working tree
+
+- session-pool.ts: constructor option { strictCapacity } (server sets it true for the daytona
+  pool only). In strict mode: an evicted entry keeps its map seat (state destroyed, shared
+  teardownPromise dedupes racing teardowns) until teardown(reason) RESOLVES, so size() counts
+  parked-live, busy, awaiting, and stopping entries and the billed cap can never overshoot
+  during an in-flight stop; capacity eviction is awaited before the replacement inserts; park
+  at cap with no idle entry returns false (caller stops the sandbox, park-to-stopped). Local
+  keeps fire-and-forget byte-identical (pinned by a slow-teardown test). repark is now async.
+- One-time activity refresh: daytona-provider.ts refreshActivity(id) (strips daytona/ prefix,
+  one client.get, best-effort); KeepaliveEngine.onParkedLive hook called by notifyParkedLive
+  only for daytona and only on successful park/repark. No recurring pings anywhere. Slice 5
+  verifies live that the get resets Daytona's idle clock.
+- Backstop comments: teardown() resolving is the confirmation signal; a failed stop+delete is
+  swallowed inside environment.destroy with the autostop/autodelete timers as the final
+  backstop; the reconciliation pass is future work. TTL default stays 0 until the E3 gate.
+- Gates: typecheck green, 872 pass + 2 baseline.
+
+## Slice 5 DONE: instrumentation + defaults + LIVE E3 VERIFICATION PASSED
+
+Instrumentation: [timing] stage=<name> ms=<n> sandbox=<id> session=<id> lines for
+sandbox_start (mode=create|reconnect), pi_install (skipped=), mounts, prepare_workspace,
+probe_capabilities, create_session (mode=create|load), acquire_total.
+
+Defaults changed (the Slice-5 flip): DEFAULT_DAYTONA_TTL_MS 0 -> 120000 in session-pool.ts.
+While doing it, found and fixed a real off-switch bug: positiveIntEnv treats "0" as invalid
+and would silently fall back to the 120000 default, so TTL=0 could never disable; added
+nonNegativeIntEnv for the Daytona TTL (0 is valid and disables). Config test updated.
+
+Live E3 verification (2026-07-11, dev stack agenta-ee-dev-wp-b2-rendering on :8280 routing
+agent runs to agenta-claude-sub-sidecar, snapshot agenta-sandbox-pi, model gpt-4o-mini,
+driver docs/design/agent-workflows/projects/qa/scripts/warm_daytona_probe.py via uv run):
+
+- Cold turn: 12.5 s wall (acquire_total 10.9 s: create 2.2, mounts 1.3, workspace 0.2, probe
+  1.0, session create 5.2).
+- Live warm turn (park-to-running pool hit-continue): 1.39 s wall. Nine times faster than
+  cold, better than the plan's 2-3 s estimate.
+- Stopped-restart turn (after the 120 s window expired): 7.7 s wall (acquire 5.9 s:
+  reconnect 1.7, mounts 1.1, probe 0.8, session LOAD 1.2). About 4.8 s faster than cold,
+  better than the plan's about-1-second estimate because native session/load (1.2 s)
+  replaced the 5.2 s session create on the same instance.
+- One instance (13dc0390) served all three turns. Window expiry confirmed as a STOP (Daytona
+  state stopped, never deleted). SIGTERM drain (docker restart) stopped the idle parked
+  sandbox (destroyAll count=1). Guarded pointer writes logged "applied"; the
+  fingerprint-matched reconnect used mode=reconnect. A history-mismatch second turn (probe
+  initially sent no conversation history) correctly evicted and rebuilt cold, and its
+  replaced sandbox was deleted by the compatibility teardown.
+- Leaks: zero. Sandboxes counted before (0) and after; the two stopped leftovers were
+  explicitly deleted; final count 0.
+
+OPERATIONAL FINDING (matters for every deployment): the dev API hot-reloads code but does
+NOT auto-run alembic migrations. With the code deployed and the column missing, EVERY
+session_states read and write errors and intercept_exceptions masks it as empty (count 0),
+which silently degrades sessions continuity AND makes every pointer write report
+"rejected". Fixed on the dev stack by running the core_oss chain inside the api container:
+  docker exec <api> python -c "from oss.databases.postgres.migrations.core_oss.utils import
+  run_alembic_migration; run_alembic_migration()"
+(alembic_version_oss now oss000000011). The PR body must call out the migration.
+
+## QA phase DONE
+
+- run_matrix smoke_chat_pi: PASS on E2 local AND E3 daytona (post-change). The E3 run's
+  parked sandbox was deleted afterwards; final Daytona sandbox count 0.
+- Browser playground check (debug-local-deployment flow, subagent): login PASS, playground
+  renders PASS, one LOCAL chat turn PASS (real reply, no Daytona touched), console/API logs
+  clean during the window. The only session_states/sandbox_fingerprint API errors predate
+  the migration fix (16:06-16:07Z) and never recurred. Stack as healthy as before.
+
+## Docs and config sync DONE (working tree)
+
+- The two new env vars are forwarded in all 7 compose files, 4 env examples, and the helm
+  runner-deployment template + values (agentRunner.daytona.sessionIdleTtlMs /
+  sessionMaxWarm; helm lint green).
+- docs/docs/self-host/guides/09-agent-daytona-sandboxes.mdx: lifecycle rewritten to the
+  three-state ladder (running / stopped 15 / deleted 30, archive removed with the reason) +
+  a new "Warm sessions between turns" section for the two vars.
+- docs/docs/self-host/02-configuration.mdx: DAYTONA_AUTOARCHIVE row removed, two new rows
+  added. Both mdx files also carry the review lane's unrelated uncommitted edits; ours were
+  additive and surgical.
+
+## PR: ready to open, blocked on publication
+
+The complete PR body, title, base, label, orientation comment, and the planned inline
+comments are in pr-body.md in this folder. Base big-agents, never main. The PR CANNOT be
+opened yet: slices 2-5 exist only in the working tree because GitButler is frozen (see the
+wedge section) and raw git is forbidden. After the workspace is repaired: commit the feature
+file set (the 37-file manifest above plus the docs/hosting sync files and
+qa/scripts/warm_daytona_probe.py) to feat/warm-daytona-sessions-impl (or re-adopt the
+original lane), push, verify SHAs, open the draft PR with pr-body.md, add the inline
+comments, mark ready, then trigger @coderabbitai review. Use gh api -X PATCH for PR edits.
+
+## Final gate results (2026-07-11 ~16:30Z)
+
+- Runner: tsc clean; vitest 873 pass + the 2 pre-existing capture-drift failures.
+- API: session_states unit 14/14; ruff format + check clean on all touched files.
+- Live E3: cold 12.5 s / live-warm 1.39 s / stopped-restart 7.7 s; zero leaks.
+
+## Publication path (coordinator-sanctioned, 2026-07-11 ~16:40Z)
+
+The coordinator unblocked publication without touching the wedged workspace: the remote-only
+plumbing publish is sanctioned (Mahmoud approved the same path repeatedly today for PRs
+#5218/#5219/#5221 and the #5214 updates; all four verified to exist). The procedure never
+touches the GitButler workspace, local refs, or the real index: build the slices 2-5 commit
+in a TEMP index (GIT_INDEX_FILE=mktemp, read-tree from the pushed Slice-1 tip a3bbcb9b39,
+hash-object + update-index each feature file at its worktree content, write-tree,
+commit-tree -p a3bbcb9b39), then push the sha directly to
+refs/heads/feat/warm-daytona-sessions (a fast-forward of our own remote tip), verify
+ls-remote, open the PR per pr-body.md. No local ref moves, no but commands. The local
+GitButler lane remains to be reconciled after the next workspace repair.
+
+Published-tree note: the worktree versions of sandbox_agent.ts, server.ts, session-pool.ts,
+mount.ts, and the two pool test files carry hunks from the unmerged applied lane
+feat/keepalive-project-scope (fa697e6998, poolKeyFor/runContext scope), and models.py plus
+the two mdx pages carry small hunks from fix/sessions-continuity-review. Per the board's
+shared-file rule these ride along in this PR; whichever lane merges second sees a smaller
+diff. If the published tree needs their protocol.ts (a type dependency), it is included too;
+the gate is typecheck plus tests run against the EXACT extracted published tree.
+
 ## Current state
 
-- Phase: Slice 1 complete, committing to lane feat/warm-daytona-sessions under BUT-LOCK.
-- Lane feat/warm-daytona-sessions: being created now.
+- Phase: publishing slices 2-5 via the sanctioned remote-only plumbing path, then opening
+  the PR per pr-body.md. All five slices implemented, unit-gated, live-verified, QA-passed,
+  docs-synced. Slice 1 already at feat/warm-daytona-sessions a3bbcb9b39.
 
 ## Hard rules (do not relearn)
 

@@ -9,13 +9,16 @@ export type TeardownReason =
   | "aborted"
   | "compatibility-mismatch"
   | "clean-resumable"
+  | "idle-expiry"
+  | "capacity-eviction"
   | "shutdown-in-flight"
   | "shutdown-idle";
 
 export type TeardownDisposition = "delete" | "stop";
 
-// Slice 2 flips this constant after the park-to-stopped path is enabled end to end.
-export const PARK_CLEAN_RESUMABLE_TURNS = false;
+// Clean resumable Daytona turns now stop (park) instead of delete, as does idle shutdown.
+// Slice 5's E3 live verification gates this default in the merged feature.
+export const PARK_CLEAN_RESUMABLE_TURNS = true;
 
 export function teardownDisposition(
   reason: TeardownReason,
@@ -23,7 +26,10 @@ export function teardownDisposition(
 ): TeardownDisposition {
   if (
     parkCleanResumableTurns &&
-    (reason === "clean-resumable" || reason === "shutdown-idle")
+    (reason === "clean-resumable" ||
+      reason === "idle-expiry" ||
+      reason === "capacity-eviction" ||
+      reason === "shutdown-idle")
   ) {
     return "stop";
   }

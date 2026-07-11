@@ -3,6 +3,7 @@ import { afterEach, describe, it, vi } from "vitest";
 
 import {
   createSpecFingerprint,
+  DaytonaReconnectTerminalError,
   daytonaWithLifecycle,
 } from "../../src/engines/sandbox_agent/daytona-provider.ts";
 
@@ -94,6 +95,8 @@ describe("Daytona provider pause", () => {
 });
 
 describe("Daytona provider reconnect", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("starts only stopped or archived sandboxes", async () => {
     for (const state of ["stopped", "archived"]) {
       let starts = 0;
@@ -128,14 +131,39 @@ describe("Daytona provider reconnect", () => {
     assert.equal(starts, 1);
   });
 
-  it("refuses error and destroyed states", async () => {
-    for (const state of ["error", "destroyed"]) {
-      const provider = buildProvider({ state });
+  it("throws the terminal type for missing, failed, and unknown states", async () => {
+    const cases = [
+      { state: "not-found", provider: buildProvider({}, { statusCode: 404 }) },
+      ...["error", "destroyed", "mystery"].map((state) => ({
+        state,
+        provider: buildProvider({ state }),
+      })),
+    ];
+    for (const { state, provider } of cases) {
       await assert.rejects(
         () => provider.reconnect("sandbox-1"),
-        new RegExp(`state '${state}'`),
+        (error: unknown) =>
+          error instanceof DaytonaReconnectTerminalError &&
+          error.sandboxId === "sandbox-1" &&
+          error.state === state,
       );
     }
+  });
+
+  it("throws a plain error when a transitional state times out", async () => {
+    vi.useFakeTimers();
+    const reconnect = buildProvider({
+      state: "starting",
+      async refreshData() {},
+    }).reconnect("sandbox-1");
+    const rejection = assert.rejects(
+      reconnect,
+      (error: unknown) =>
+        error instanceof Error && !(error instanceof DaytonaReconnectTerminalError),
+    );
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejection;
   });
 });
 
@@ -148,6 +176,25 @@ describe("Daytona provider delete", () => {
 
     const missingProvider = buildProvider({}, { statusCode: 404 });
     await assert.doesNotReject(() => missingProvider.deleteSandbox("sandbox-missing"));
+  });
+});
+
+describe("Daytona provider activity refresh", () => {
+  it("strips the provider prefix and performs exactly one lookup", async () => {
+    const ids: string[] = [];
+    const provider = daytonaWithLifecycle({}, {
+      client: { get: async (id: string) => { ids.push(id); return {} as any; } } as any,
+      buildBaseProvider: fakeProvider,
+    });
+
+    await provider.refreshActivity("daytona/sandbox-1");
+
+    assert.deepEqual(ids, ["sandbox-1"]);
+  });
+
+  it("swallows a missing sandbox", async () => {
+    const provider = buildProvider({}, { statusCode: 404 });
+    await assert.doesNotReject(() => provider.refreshActivity("daytona/missing"));
   });
 });
 

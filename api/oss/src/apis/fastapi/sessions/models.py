@@ -37,7 +37,7 @@ class SessionStreamCommandRequestModel(BaseModel):
 class SessionHeartbeatRequestModel(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
-    replica_id: str
+    replica_id: str = Field(min_length=1)
     turn_id: Optional[str] = None
     is_running: bool = True
 

@@ -112,3 +112,41 @@ export async function writeSandboxPointer(
     return "failed";
   }
 }
+
+/** Clear a terminal sandbox pointer under the same turn-index guard as pointer writes. */
+export async function clearSandboxPointer(
+  sessionId: string,
+  turnIndex: number,
+  deps: SandboxPointerDeps,
+): Promise<SandboxPointerWriteOutcome> {
+  const log = deps.log ?? defaultLog;
+  const doFetch = deps.fetchImpl ?? fetch;
+  const base = deps.apiBase ?? apiBase();
+  try {
+    const res = await doFetch(
+      `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json", authorization: deps.authorization },
+        body: JSON.stringify({
+          sandbox_id: null,
+          sandbox_fingerprint: null,
+          sandbox_turn_index: turnIndex,
+        }),
+      },
+    );
+    if (!res.ok) {
+      log(`clear HTTP ${res.status} session=${sessionId}`);
+      return "failed";
+    }
+    const body = (await res.json()) as {
+      session_state?: { sandbox_id?: string | null } | null;
+    };
+    return body.session_state?.sandbox_id == null ? "applied" : "rejected";
+  } catch (err) {
+    log(
+      `clear failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+    );
+    return "failed";
+  }
+}

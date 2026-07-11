@@ -171,7 +171,8 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 | `DAYTONA_SNAPSHOT` | `runner` | `agentRunner.daytona.snapshot` |
 | `DAYTONA_IMAGE` | `runner` | `agentRunner.daytona.image` |
 | `DAYTONA_AUTOSTOP` | `runner` | `agentRunner.daytona.autostopDelay` |
-| `DAYTONA_AUTOARCHIVE` | `runner` | `agentRunner.daytona.autoarchiveDelay` |
+| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | `runner` | `agentRunner.daytona.sessionIdleTtlMs` |
+| `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` | `runner` | `agentRunner.daytona.sessionMaxWarm` |
 | `DAYTONA_AUTODELETE` | `runner` | `agentRunner.daytona.autodeleteDelay` |
 | `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `runner` | `agentRunner.daytona.installPi` |
 
@@ -278,7 +279,7 @@ docker-compose this is wired automatically.
 :::warning Remote sandboxes (Daytona) need a reachable store endpoint
 A local sandbox mounts durable storage on the runner host against the in-network store. A
 **remote** sandbox mounts from inside the cloud sandbox, so the store endpoint must be publicly
-reachable. Enable the `ngrok` tunnel (the compose `remote` profile) or point
+reachable. Enable the `ngrok` tunnel (the compose `with-tunnel` profile) or point
 `AGENTA_STORE_ENDPOINT_URL` at a public S3 URL. Only the scoped, short-lived credentials ever
 cross into a remote sandbox.
 :::

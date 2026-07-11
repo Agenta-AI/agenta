@@ -24,6 +24,16 @@ const TRANSITIONAL_STATES = new Set([
 ]);
 const FAILED_STATES = new Set(["error", "destroyed"]);
 
+export class DaytonaReconnectTerminalError extends Error {
+  constructor(
+    readonly sandboxId: string,
+    readonly state: string,
+  ) {
+    super(`Cannot reconnect Daytona sandbox '${sandboxId}' from state '${state}'.`);
+    this.name = "DaytonaReconnectTerminalError";
+  }
+}
+
 function isNotFound(error: unknown): boolean {
   return (
     error instanceof DaytonaNotFoundError ||
@@ -77,6 +87,22 @@ export function daytonaWithLifecycle(
 
   return {
     ...baseProvider,
+    async refreshActivity(sandboxId: string): Promise<void> {
+      const id = sandboxId.startsWith("daytona/")
+        ? sandboxId.slice("daytona/".length)
+        : sandboxId;
+      try {
+        // Daytona counts API interactions as activity. This is believed to reset its idle-timer
+        // clock; Slice 5 verifies that behavior against a live sandbox.
+        await client.get(id);
+      } catch (error) {
+        process.stderr.write(
+          `[daytona] activity refresh failed sandbox=${id}: ${String(
+            error instanceof Error ? error.message : error,
+          ).slice(0, 200)}\n`,
+        );
+      }
+    },
     async pause(sandboxId: string): Promise<void> {
       let sandbox: Sandbox;
       try {
@@ -98,7 +124,15 @@ export function daytonaWithLifecycle(
       }
     },
     async reconnect(sandboxId: string): Promise<void> {
-      const sandbox = await client.get(sandboxId);
+      let sandbox: Sandbox;
+      try {
+        sandbox = await client.get(sandboxId);
+      } catch (error) {
+        if (isNotFound(error)) {
+          throw new DaytonaReconnectTerminalError(sandboxId, "not-found");
+        }
+        throw error;
+      }
       const state = await waitForStableState(sandbox, sandboxId, "reconnect");
       if (RUNNING_STATES.has(state)) return;
       if (STOPPED_STATES.has(state)) {
@@ -106,11 +140,9 @@ export function daytonaWithLifecycle(
         return;
       }
       if (FAILED_STATES.has(state)) {
-        throw new Error(`Cannot reconnect Daytona sandbox '${sandboxId}' from state '${state}'.`);
+        throw new DaytonaReconnectTerminalError(sandboxId, state);
       }
-      throw new Error(
-        `Cannot reconnect Daytona sandbox '${sandboxId}' from unknown state '${state}'.`,
-      );
+      throw new DaytonaReconnectTerminalError(sandboxId, state);
     },
     async deleteSandbox(sandboxId: string): Promise<void> {
       try {

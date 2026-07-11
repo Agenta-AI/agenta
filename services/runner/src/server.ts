@@ -56,6 +56,7 @@ import {
   SessionPool,
   tailIsFreshUserMessage,
   type KeepaliveConfig,
+  type KeepaliveProviderName,
   type LiveSession,
 } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
@@ -201,10 +202,15 @@ export interface KeepaliveEngine {
   resolveKeepaliveMount(
     request: AgentRunRequest,
   ): Promise<MountCredentials | null>;
+  /**
+   * `presignedMount` follows the same convention as `runCold`: a value threads the up-front
+   * sign in, null = signed with no mount (do not re-sign, run mount-less), undefined = the
+   * up-front sign attempt threw (the acquire retries the sign itself).
+   */
   acquireEnvironment(
     request: AgentRunRequest,
     signal: AbortSignal | undefined,
-    presignedMount: MountCredentials | null,
+    presignedMount: MountCredentials | null | undefined,
   ): Promise<
     { ok: true; env: SessionEnvironment } | { ok: false; error: string }
   >;
@@ -215,6 +221,8 @@ export interface KeepaliveEngine {
     signal: AbortSignal | undefined,
     opts: RunTurnOptions,
   ): Promise<AgentRunResult>;
+  /** Best-effort provider activity refresh after a live park succeeds. */
+  onParkedLive?(env: SessionEnvironment): Promise<void>;
   /**
    * Today's cold path (acquire -> runTurn -> teardown). Used when a request must not park.
    * `presignedMount` threads an already-signed mount in (null = signed, no mount — do not sign
@@ -237,6 +245,10 @@ const realKeepaliveEngine: KeepaliveEngine = {
     acquireEnvironment(request, {}, signal, presignedMount),
   runTurn: (env, request, emit, signal, opts) =>
     runTurn(env, request, emit, signal, opts),
+  onParkedLive: async (env) => {
+    if (!env.plan.isDaytona) return;
+    await env.sandbox?.sandbox?.refreshActivity?.(env.sandbox.sandboxId);
+  },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
   // mount threaded through so an up-front keep-alive sign is never repeated.
   runCold: async (request, emit, signal, presignedMount, clientGone) => {
@@ -280,12 +292,25 @@ export interface KeepaliveContext {
 }
 
 /**
- * True when the request resolves to exactly the `local` provider (the same resolution
- * `buildRunPlan` uses). Keep-alive is local-only, and an unknown/future REMOTE provider must
- * fail closed to cold rather than park, so anything not literally "local" is out.
+ * The keep-alive provider this request resolves to (the same resolution `buildRunPlan`
+ * uses): "local", "daytona", or undefined for anything else. An unknown or future provider
+ * must fail closed to cold rather than park, so only the two known names route to a pool.
  */
-function isLocalSandbox(request: AgentRunRequest): boolean {
-  return resolvesToLocalProvider(request.sandbox);
+export function resolveKeepaliveProvider(
+  request: AgentRunRequest,
+): KeepaliveProviderName | undefined {
+  if (resolvesToLocalProvider(request.sandbox)) return "local";
+  const provider =
+    request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local";
+  return provider === "daytona" ? "daytona" : undefined;
+}
+
+export function resolveKeepaliveDispatch(
+  request: AgentRunRequest,
+  configs: Record<KeepaliveProviderName, KeepaliveConfig>,
+): KeepaliveProviderName | undefined {
+  const provider = resolveKeepaliveProvider(request);
+  return provider && configs[provider].enabled ? provider : undefined;
 }
 
 /**
@@ -317,30 +342,39 @@ export async function runWithKeepalive(
       }
     : undefined;
 
-  // Eligibility: session-owned + local sandbox. Otherwise never park; run cold as today
+  // Eligibility: session-owned. Provider eligibility is resolved before this dispatch. Otherwise
+  // never park; run cold as today
   // (no up-front sign happened, so the cold path signs itself: still exactly once).
-  if (!sessionId || !isLocalSandbox(request)) {
+  if (!sessionId) {
     return engine.runCold(request, emit, signal, undefined, clientGone);
   }
 
-  // Sign the mount once, up front. The mount's owning project is the only trustworthy project
-  // scope; no mount (store unconfigured, 503) or no projectId => no safe pool key => never park,
-  // and the sign result — null included — is threaded into the cold path so it never re-signs.
+  // Sign the mount once, up front. The mount's owning project is the FALLBACK project scope; the
+  // preferred scope is the service-stamped `runContext.project.id` (see `poolKeyFor`). No scope
+  // from either source => no safe pool key => never park, and the sign result — null included — is
+  // threaded into the cold path so it never re-signs.
   let signed: MountCredentials | null | undefined;
   try {
     signed = await engine.resolveKeepaliveMount(request);
   } catch {
     signed = undefined; // sign attempt failed outright: let the cold acquire retry it
   }
-  const key = poolKeyFor(request, signed?.projectId);
-  if (!key) {
-    klog(`miss (no mount project scope) session=${sessionId}; cold`);
+  const scope = poolKeyFor(request, signed?.projectId);
+  if (!scope) {
+    klog(`miss (no project scope) session=${sessionId}; cold`);
     return engine.runCold(request, emit, signal, signed, clientGone);
   }
-  const mountCreds = signed!;
+  const key = scope.key;
+  klog(`scope=${scope.source} key=${key} session=${sessionId}`);
 
+  // The mount may be null here (store unconfigured, 503, ephemeral fallback) or undefined (the
+  // sign attempt threw) when the run-context scope produced the key. A mount-less session still
+  // parks: the epoch simply carries no mount expiry, and the acquire receives `signed` verbatim
+  // (null = do not re-sign; undefined = the acquire retries the sign itself). Never dereference
+  // the mount unconditionally past this point — a keep-alive gap may only ever cost a cold
+  // restart, never a failed turn.
   const cfgFp = configFingerprint(request);
-  const incomingEpoch = computeCredentialEpoch(request, mountCreds.expiresAt);
+  const incomingEpoch = computeCredentialEpoch(request, signed?.expiresAt);
 
   // The fingerprint the NEXT request's prior conversation is expected to hash to; the same
   // one works for an approval park, whose gated tool_call id the FE folds back into the
@@ -357,6 +391,11 @@ export async function runWithKeepalive(
       : signal?.aborted || clientGone?.()
         ? "aborted"
         : "failed-turn";
+
+  const notifyParkedLive = async (env: SessionEnvironment): Promise<void> => {
+    if (resolveKeepaliveProvider(request) !== "daytona") return;
+    await engine.onParkedLive?.(env);
+  };
 
   // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi
   // ACP gate). Only such a gate carries a `respondPermission`-answerable id; a client-tool MCP
@@ -398,7 +437,7 @@ export async function runWithKeepalive(
       const current = pool.get(key);
       if (current !== entry || current.state !== "awaiting_approval") return;
       klog(`parked-prompt-rejected key=${key}; evict`);
-      void pool.evict(key, "parked-prompt-rejected");
+      void pool.evict(key, "parked-prompt-rejected", "failed-turn");
     });
   };
 
@@ -414,9 +453,7 @@ export async function runWithKeepalive(
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
       credentialEpoch: incomingEpoch,
-      // The pool signature gains eviction reasons in Slice 3. Today every pool eviction is a
-      // hard removal, so its zero-argument closure uses the explicit kill disposition.
-      destroy: () => env.destroy({ reason: "kill" }),
+      teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
     if (approvalToPark(env, result)) {
       klog(
@@ -427,11 +464,15 @@ export async function runWithKeepalive(
       ) {
         await env.destroy({ reason: "failed-turn" });
       } else {
+        await notifyParkedLive(env);
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await pool.park(input, config.ttlMs)))
+      if (!(await pool.park(input, config.ttlMs))) {
         await env.destroy({ reason: "clean-resumable" });
+      } else {
+        await notifyParkedLive(env);
+      }
     } else {
       await env.destroy({ reason: resultTeardownReason(result) });
     }
@@ -454,24 +495,35 @@ export async function runWithKeepalive(
         `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
       );
       if (
-        !pool.repark(live, update, config.approvalTtlMs, "awaiting_approval")
+        !(await pool.repark(
+          live,
+          update,
+          config.approvalTtlMs,
+          "awaiting_approval",
+        ))
       ) {
-        await live.destroy();
+        await live.teardown("failed-turn");
       } else {
+        await notifyParkedLive(env);
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!pool.repark(live, update, config.ttlMs)) await live.destroy();
+      if (!(await pool.repark(live, update, config.ttlMs))) {
+        await live.teardown("failed-turn");
+      } else {
+        await notifyParkedLive(env);
+      }
     } else {
       await pool.evictIfCurrent(
         live,
         `no-park:${result.stopReason ?? "failed"}`,
+        resultTeardownReason(result),
       );
     }
   };
 
   const coldAndPark = async (): Promise<AgentRunResult> => {
-    const acq = await engine.acquireEnvironment(request, signal, mountCreds);
+    const acq = await engine.acquireEnvironment(request, signal, signed);
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
     let result: AgentRunResult;
@@ -513,7 +565,11 @@ export async function runWithKeepalive(
       klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
-      await pool.evict(key, `mismatch:${mismatch}`);
+      await pool.evict(
+        key,
+        `mismatch:${mismatch}`,
+        "compatibility-mismatch",
+      );
       return coldAndPark();
     }
 
@@ -539,7 +595,7 @@ export async function runWithKeepalive(
         // it) and awaited (the teardown's unmount must finish before the cold acquire remounts).
         // But NOT if the failed turn already streamed to the client: a cold retry would duplicate.
         live.environment.clearTurn();
-        await pool.evictIfCurrent(live, "continuation-threw");
+        await pool.evictIfCurrent(live, "continuation-threw", "failed-turn");
         if (emitted) {
           klog(
             `evict (continuation-threw) key=${key}; already streamed, no retry`,
@@ -558,7 +614,7 @@ export async function runWithKeepalive(
         // (identity-checked + awaited, same as the throw path above). But NOT if the failed turn
         // already streamed to the client: return the failure, a cold retry would duplicate.
         live.environment.clearTurn();
-        await pool.evictIfCurrent(live, "continuation-failed");
+        await pool.evictIfCurrent(live, "continuation-failed", "failed-turn");
         if (emitted) {
           klog(
             `evict (continuation-failed) key=${key}; already streamed, no retry`,
@@ -616,7 +672,11 @@ export async function runWithKeepalive(
       klog(
         `approval-mismatch (${mismatch ?? "unknown"}) key=${key}; evict + cold`,
       );
-      await pool.evict(key, `approval-mismatch:${mismatch ?? "unknown"}`);
+      await pool.evict(
+        key,
+        `approval-mismatch:${mismatch ?? "unknown"}`,
+        "compatibility-mismatch",
+      );
       return coldAndPark();
     }
 
@@ -653,7 +713,7 @@ export async function runWithKeepalive(
       } catch (err) {
         // As in the continuation branch: retry cold only if nothing streamed to the client yet.
         live.environment.clearTurn();
-        await pool.evictIfCurrent(live, "resume-threw");
+        await pool.evictIfCurrent(live, "resume-threw", "failed-turn");
         if (emitted) {
           klog(`evict (resume-threw) key=${key}; already streamed, no retry`);
           return {
@@ -667,7 +727,7 @@ export async function runWithKeepalive(
       }
       if (!result.ok) {
         live.environment.clearTurn();
-        await pool.evictIfCurrent(live, "resume-failed");
+        await pool.evictIfCurrent(live, "resume-failed", "failed-turn");
         if (emitted) {
           klog(`evict (resume-failed) key=${key}; already streamed, no retry`);
           return result;
@@ -686,7 +746,11 @@ export async function runWithKeepalive(
     // environment can never be destroyed by this branch). Supersede — destroy the parked one and
     // cold-start — awaited so its teardown cannot overlap our acquire.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
-    await pool.evict(key, `supersede-${existing.state}`);
+    await pool.evict(
+      key,
+      `supersede-${existing.state}`,
+      "failed-turn",
+    );
   } else {
     klog(`miss key=${key}; cold`);
   }
@@ -697,19 +761,30 @@ export async function runWithKeepalive(
 // One engine: `sandbox-agent` drives a harness (Pi or Claude) over ACP. The harness is
 // selected by `request.harness`, not by an engine selector.
 //
-// The keep-alive pool is a single per-replica singleton, consulted only when the flag is on.
-// With the flag off (default) the pool is never touched and the dispatch is byte-identical to
-// today (`runSandboxAgent`). `/kill` and shutdown drain it through `destroyAll`.
-const keepalivePool = new SessionPool<SessionEnvironment>(
-  readKeepaliveConfig(),
-);
+// Provider pools stay separate because their caps budget different resources.
+const keepaliveConfigs: Record<KeepaliveProviderName, KeepaliveConfig> = {
+  local: readKeepaliveConfig("local"),
+  daytona: readKeepaliveConfig("daytona"),
+};
+const keepalivePools: Record<
+  KeepaliveProviderName,
+  SessionPool<SessionEnvironment>
+> = {
+  local: new SessionPool<SessionEnvironment>(keepaliveConfigs.local),
+  daytona: new SessionPool<SessionEnvironment>(
+    keepaliveConfigs.daytona,
+    klog,
+    { strictCapacity: true },
+  ),
+};
 
 const runAgent: RunAgent = (request, emit, signal, options) => {
-  const config = readKeepaliveConfig();
-  if (!config.enabled) return runSandboxAgent(request, emit, signal);
+  const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
+  if (!provider) return runSandboxAgent(request, emit, signal);
+  const config = keepaliveConfigs[provider];
   return runWithKeepalive(request, emit, signal, {
     engine: realKeepaliveEngine,
-    pool: keepalivePool,
+    pool: keepalivePools[provider],
     config,
     clientGone: options?.clientGone,
   });
@@ -890,7 +965,11 @@ export function createRequestListener(
         // orphan sweeper force a process-wide teardown out-of-band. Drain the keep-alive
         // pool first (its complete per-session destroy), then the sandbox registry as a
         // second line of defense. Always ok.
-        await keepalivePool.destroyAll();
+        await Promise.all(
+          Object.values(keepalivePools).map((pool) =>
+            pool.destroyAll(5000, "kill", "kill"),
+          ),
+        );
         await destroyInFlightSandboxes(5000, "kill");
         return send(res, 200, { ok: true });
       }
@@ -1025,9 +1104,15 @@ if (isEntrypoint(import.meta.url)) {
   // parked session or an in-flight sandbox (the per-run teardown never runs on a process kill).
   registerShutdownHandler({
     onCleanup: async (timeoutMs?: number) => {
-      await keepalivePool.destroyAll(timeoutMs);
-      // The current registry contains only environments with active turns. The idle split
-      // activates with the provider-aware pool refactor slice.
+      await Promise.all(
+        Object.values(keepalivePools).map((pool) =>
+          pool.destroyAll(
+            timeoutMs,
+            "shutdown-idle",
+            "shutdown-in-flight",
+          ),
+        ),
+      );
       await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
     },
   });

@@ -352,7 +352,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
-            AGENTA_AGENT_MCPS_ENABLED: ${AGENTA_AGENT_MCPS_ENABLED:-false}
+            AGENTA_AGENT_MCPS_ENABLED: ${AGENTA_AGENT_MCPS_ENABLED:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -415,7 +415,8 @@ services:
             DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-agenta-sandbox-pi}
             DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
             DAYTONA_AUTOSTOP: ${DAYTONA_AUTOSTOP:-}
-            DAYTONA_AUTOARCHIVE: ${DAYTONA_AUTOARCHIVE:-}
+            AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS: ${AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS:-}
+            AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             DAYTONA_AUTODELETE: ${DAYTONA_AUTODELETE:-}
             AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
         # === STORAGE ============================================== #
