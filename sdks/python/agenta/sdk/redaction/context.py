@@ -21,7 +21,9 @@ def get_active_redactor() -> Redactor:
     try:
         return _redactor_context.get()
     except LookupError:
-        return Redactor()
+        redactor = Redactor()
+        _redactor_context.set(redactor)
+        return redactor
 
 
 def set_active_redactor(redactor: Redactor) -> Token:
