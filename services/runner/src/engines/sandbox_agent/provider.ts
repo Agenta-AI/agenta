@@ -1,8 +1,8 @@
 import { local } from "sandbox-agent/local";
-import { daytona } from "sandbox-agent/daytona";
 
 import type { SandboxPermission } from "../../protocol.ts";
 import { daytonaEnvVars } from "./daytona.ts";
+import { daytonaWithLifecycle } from "./daytona-provider.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -101,6 +101,17 @@ export function buildDaytonaCreate(
   };
 }
 
+/** Resolve the create-time fields used to decide whether an existing sandbox is compatible. */
+export function buildResolvedDaytonaCreate(
+  piExtEnv: Record<string, string>,
+  secrets: Record<string, string>,
+  sandboxPermission: SandboxPermission | undefined,
+): Record<string, unknown> {
+  const create = buildDaytonaCreate(piExtEnv, secrets, sandboxPermission);
+  const image = process.env.DAYTONA_IMAGE;
+  return image && !create.snapshot ? { ...create, image } : create;
+}
+
 /** Sandbox ids this runner can actually provision (the "expected one of" set). */
 export const KNOWN_SANDBOX_IDS = ["local", "daytona"] as const;
 
@@ -127,7 +138,7 @@ export function buildSandboxProvider(
 ) {
   if (sandboxId === "daytona") {
     const image = process.env.DAYTONA_IMAGE;
-    return daytona({
+    return daytonaWithLifecycle({
       ...(image ? { image } : {}),
       create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
     });

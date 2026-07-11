@@ -11,6 +11,9 @@ import assert from "node:assert/strict";
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
+import { createSpecFingerprint } from "../../src/engines/sandbox_agent/daytona-provider.ts";
+import { buildResolvedDaytonaCreate } from "../../src/engines/sandbox_agent/provider.ts";
+import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
 
 interface FakeOpts {
   /** What the harness reports for the turn. `"paused"` must never park. */
@@ -19,15 +22,22 @@ interface FakeOpts {
   promptThrows?: boolean;
   /** Reject the first start that carries a sandboxId (the dead rung: archived/deleted). */
   reconnectThrows?: boolean;
+  /**
+   * pauseSandbox() throws while retaining its provider handles for the delete fallback.
+   */
+  pauseThrows?: boolean;
 }
 
 function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
+  const continuityStore = new SessionContinuityStore();
   const calls = {
     starts: [] as Array<{ sandboxId: string | undefined }>,
     paused: 0,
     destroyed: 0,
     disposed: 0,
-    wrote: [] as string[],
+    deleted: [] as string[],
+    wrote: [] as Array<{ sandboxId: string; turnIndex: number }>,
+    logs: [] as string[],
   };
   const session = {
     id: "session-1",
@@ -41,17 +51,24 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
       };
     },
   };
-  const sandbox = {
+  const sandbox: any = {
     sandboxId,
+    sandboxProvider: { destroy: async () => {} },
+    sandboxProviderRawId: sandboxId,
     async createSession() {
       return session;
     },
     async destroySession() {},
     async pauseSandbox() {
       calls.paused += 1;
+      if (opts.pauseThrows) throw new Error("pause RPC failed: daemon unreachable");
     },
     async destroySandbox() {
       calls.destroyed += 1;
+      // Mirror the vendored behavior post-clear: no attached provider means "not attached".
+      if (!this.sandboxProvider || !this.sandboxProviderRawId) {
+        throw new Error("SandboxAgent is not attached to a provisioned sandbox.");
+      }
     },
     async dispose() {
       calls.disposed += 1;
@@ -59,14 +76,20 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
   };
 
   const deps: SandboxAgentDeps = {
-    log: () => {},
+    log: (message) => { calls.logs.push(message); },
     createDaytonaCwd: (durable?: string) => durable ?? "/home/sandbox/agenta-fake-cwd",
     createLocalCwd: (durable?: string) => durable ?? "/tmp/agenta-fake-cwd",
     resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
     buildDaemonEnv: () => ({}),
     resolveDaemonBinary: () => "/bin/sandbox-agent",
-    buildSandboxProvider: () => ({ provider: true }) as any,
+    buildSandboxProvider: () => ({
+      provider: true,
+      deleteSandbox: async (id: string) => { calls.deleted.push(id); },
+    }) as any,
     createPersist: () => ({}) as any,
+    sessionContinuityStore: continuityStore,
+    hydrateHarnessSessionFromDurable: async () => {},
+    syncHarnessSessionDurable: async () => {},
     startSandboxAgent: (async (startOpts: any) => {
       calls.starts.push({ sandboxId: startOpts.sandboxId });
       // The dead rung: Daytona already archived/deleted the parked sandbox, so reconnect
@@ -111,9 +134,13 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
       },
     }),
     // Lifecycle seam under test:
-    readStoredSandboxId: async () => sandboxId,
-    writeSandboxId: async (_sess: string, id: string) => {
-      calls.wrote.push(id);
+    readStoredSandboxPointer: async () => sandboxId ? ({
+      sandboxId,
+      fingerprint: createSpecFingerprint(buildResolvedDaytonaCreate({}, {}, undefined)),
+    }) : undefined,
+    writeSandboxPointer: async (_sessionId, pointer) => {
+      calls.wrote.push({ sandboxId: pointer.sandboxId, turnIndex: pointer.turnIndex });
+      return "applied";
     },
   };
   return { calls, deps };
@@ -156,16 +183,70 @@ describe("remote sandbox reconnect ladder", () => {
   it("writes the live sandbox id forward for the next turn", async () => {
     const { calls, deps } = fakeSandbox("sbx-99");
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
-    assert.deepEqual(calls.wrote, ["sbx-99"]);
+    assert.deepEqual(calls.wrote, [{ sandboxId: "sbx-99", turnIndex: 0 }]);
+  });
+
+  it("writes the next turn index after durable continuity hydration", async () => {
+    const { calls, deps } = fakeSandbox("sbx-99");
+    deps.hydrateHarnessSessionFromDurable = async (sessionId, _harness, store) => {
+      store.restoreLatestTurn(sessionId, 5);
+    };
+
+    await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
+
+    assert.deepEqual(calls.wrote, [{ sandboxId: "sbx-99", turnIndex: 6 }]);
+  });
+
+  it("does not reconnect and deletes best-effort when the fingerprint is absent", async () => {
+    const { calls, deps } = fakeSandbox("sbx-legacy");
+    deps.readStoredSandboxPointer = async () => ({
+      sandboxId: "sbx-legacy",
+      fingerprint: undefined,
+    });
+
+    await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
+
+    assert.equal(calls.starts[0].sandboxId, undefined);
+    assert.deepEqual(calls.deleted, ["sbx-legacy"]);
+    assert.ok(calls.logs.some((message) => message.includes("compatibility teardown")));
+  });
+
+  it("does not reconnect when the stored fingerprint differs", async () => {
+    const { calls, deps } = fakeSandbox("sbx-incompatible");
+    deps.readStoredSandboxPointer = async () => ({
+      sandboxId: "sbx-incompatible",
+      fingerprint: "different-fingerprint",
+    });
+
+    await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
+
+    assert.equal(calls.starts[0].sandboxId, undefined);
+    assert.deepEqual(calls.deleted, ["sbx-incompatible"]);
+  });
+
+  it("awaits a rejected pointer write and logs the outcome without failing", async () => {
+    const { calls, deps } = fakeSandbox(undefined);
+    let writeFinished = false;
+    deps.writeSandboxPointer = async () => {
+      await Promise.resolve();
+      writeFinished = true;
+      return "rejected";
+    };
+
+    const result = await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
+
+    assert.equal(result.ok, true);
+    assert.equal(writeFinished, true);
+    assert.ok(calls.logs.some((message) => message.includes("pointer write rejected")));
   });
 });
 
-describe("remote sandbox park (warm) vs destroy", () => {
-  it("pauses (parks warm) instead of destroying on a clean turn-end", async () => {
+describe("remote sandbox teardown", () => {
+  it("deletes a clean resumable turn while parking is inert", async () => {
     const { calls, deps } = fakeSandbox("sbx-99");
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
-    assert.equal(calls.paused, 1, "a resumable remote turn parks to warm");
-    assert.equal(calls.destroyed, 0, "it must not hard-delete a parkable sandbox");
+    assert.equal(calls.paused, 0, "Slice 1 must not park yet");
+    assert.equal(calls.destroyed, 1, "clean resumable teardown still deletes");
   });
 
   it("destroys (not parks) when the run is aborted", async () => {

@@ -115,7 +115,15 @@ import {
   buildWorkflowReferences,
 } from "../sessions/interactions.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../sessions/alive.ts";
-import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
+import {
+  teardownDisposition,
+  type TeardownReason,
+} from "./sandbox_agent/teardown.ts";
+import {
+  buildResolvedDaytonaCreate,
+  buildSandboxProvider,
+} from "./sandbox_agent/provider.ts";
+import { createSpecFingerprint } from "./sandbox_agent/daytona-provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
@@ -140,8 +148,8 @@ import {
   syncHarnessSessionDurable,
 } from "./sandbox_agent/session-continuity-durable.ts";
 import {
-  readStoredSandboxId,
-  writeSandboxId,
+  readStoredSandboxPointer,
+  writeSandboxPointer,
 } from "./sandbox_agent/sandbox-reconnect.ts";
 import {
   assertLocalRunnerOwnership,
@@ -191,7 +199,7 @@ const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
 // best-effort delete any still-running sandbox before exit. Remote (Daytona) sandboxes that even a
 // signal can never reach (SIGKILL/OOM) self-reap via the lifecycle reapers in `provider.ts`.
 const inFlightSandboxes = new Set<{
-  destroySandbox?: () => Promise<unknown>;
+  destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
 }>();
 
 /**
@@ -202,12 +210,13 @@ const inFlightSandboxes = new Set<{
  */
 export async function destroyInFlightSandboxes(
   timeoutMs = 5000,
+  reason: TeardownReason = "shutdown-in-flight",
 ): Promise<void> {
   const pending = [...inFlightSandboxes];
   if (pending.length === 0) return;
   const sweep = Promise.allSettled(
-    pending.map((sandbox) =>
-      Promise.resolve(sandbox.destroySandbox?.()).catch(() => {}),
+    pending.map((environment) =>
+      Promise.resolve(environment.destroy({ reason })).catch(() => {}),
     ),
   );
   await Promise.race([
@@ -318,9 +327,9 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   /** Durable read-back/write-forward of the continuity store (tests inject fakes). */
   hydrateHarnessSessionFromDurable?: typeof hydrateHarnessSessionFromDurable;
   syncHarnessSessionDurable?: typeof syncHarnessSessionDurable;
-  /** Durable read/write of the sandbox id, for the remote reconnect ladder (tests inject fakes). */
-  readStoredSandboxId?: typeof readStoredSandboxId;
-  writeSandboxId?: typeof writeSandboxId;
+  /** Durable read/write of the sandbox pointer, for the remote reconnect ladder. */
+  readStoredSandboxPointer?: typeof readStoredSandboxPointer;
+  writeSandboxPointer?: typeof writeSandboxPointer;
   /**
    * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
    * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
@@ -542,8 +551,8 @@ export interface SessionEnvironment {
    */
   approvalGateCount: number;
   destroyed: boolean;
-  /** Complete, idempotent teardown. `keepWarm` parks a remote sandbox instead of deleting it. */
-  destroy: (opts?: { keepWarm?: boolean }) => Promise<void>;
+  /** Complete, idempotent teardown selected from the typed teardown reason. */
+  destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
   /** End the active turn: clear the current-turn sink (called before a park). */
   clearTurn: () => void;
 }
@@ -787,11 +796,11 @@ export async function acquireEnvironment(
   // The one complete, idempotent teardown — the same steps the old per-run `finally` ran, in the
   // same order. Every resource is null-checked, so it is safe after a partial acquire and safe to
   // call twice (the guard returns on a second call). It must never throw.
-  environment.destroy = async (opts?: { keepWarm?: boolean }) => {
+  environment.destroy = async (opts?: { reason?: TeardownReason }) => {
     if (environment.destroyed) return;
     environment.destroyed = true;
     await environment.runtimeRemount?.catch(() => {});
-    if (environment.sandbox) inFlightSandboxes.delete(environment.sandbox);
+    inFlightSandboxes.delete(environment);
     await environment.currentTurn?.toolRelay?.stop().catch(() => {});
     // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
     environment.mcpAbort.abort();
@@ -802,14 +811,24 @@ export async function acquireEnvironment(
       await environment.sandbox
         ?.destroySession?.(environment.session.id)
         .catch(() => {});
-    // keepWarm pauses a remote sandbox (parked, resumable) instead of deleting it; falls back to destroy.
-    const parked =
-      opts?.keepWarm && plan.isDaytona && environment.sandbox?.pauseSandbox
-        ? await environment.sandbox
-            .pauseSandbox()
-            .then(() => true)
-            .catch(() => false)
-        : false;
+    const disposition = teardownDisposition(opts?.reason ?? "failed-turn");
+    let parked = false;
+    if (
+      disposition === "stop" &&
+      plan.isDaytona &&
+      environment.sandbox?.pauseSandbox
+    ) {
+      const sandboxLogId = environment.sandbox.sandboxId ?? plan.sandboxId;
+      try {
+        await environment.sandbox.pauseSandbox();
+        parked = true;
+        logger(`parked sandbox=${sandboxLogId}`);
+      } catch (err) {
+        logger(
+          `pause failed sandbox=${sandboxLogId}: ${conciseError(err, plan.harness)}`,
+        );
+      }
+    }
     if (!parked) await environment.sandbox?.destroySandbox().catch(() => {});
     await environment.sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
@@ -923,6 +942,15 @@ export async function acquireEnvironment(
       plan.secrets,
       plan.sandboxPermission,
     );
+    const sandboxFingerprint = plan.isDaytona
+      ? createSpecFingerprint(
+          buildResolvedDaytonaCreate(
+            piExtEnv,
+            plan.secrets,
+            plan.sandboxPermission,
+          ),
+        )
+      : undefined;
     const startOptions = {
       sandbox: sandboxProvider,
       persist,
@@ -936,41 +964,56 @@ export async function acquireEnvironment(
         : (deps.createAcpFetch ?? createAcpFetch)(),
     };
     // Reconnect a parked remote sandbox by id; any failure falls through to a fresh create.
-    const storedSandboxId =
+    const storedSandboxPointer =
       plan.isDaytona && sessionForMount && runCred
-        ? await (deps.readStoredSandboxId ?? readStoredSandboxId)(
+        ? await (deps.readStoredSandboxPointer ?? readStoredSandboxPointer)(
             sessionForMount,
             { authorization: runCred, log: logger },
           )
         : undefined;
-    if (storedSandboxId) {
+    if (
+      storedSandboxPointer &&
+      storedSandboxPointer.fingerprint === sandboxFingerprint
+    ) {
       try {
         environment.sandbox = await startSandboxAgent({
           ...startOptions,
-          sandboxId: storedSandboxId,
+          sandboxId: storedSandboxPointer.sandboxId,
         });
-        logger(`reconnected sandbox=${storedSandboxId} session=${sessionForMount}`);
+        logger(
+          `reconnected sandbox=${storedSandboxPointer.sandboxId} session=${sessionForMount}`,
+        );
       } catch (err) {
         logger(
-          `reconnect failed sandbox=${storedSandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
+          `reconnect failed sandbox=${storedSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
         );
       }
+    }
+    if (
+      storedSandboxPointer &&
+      storedSandboxPointer.fingerprint !== sandboxFingerprint
+    ) {
+      logger(
+        `compatibility teardown sandbox=${storedSandboxPointer.sandboxId} session=${sessionForMount}`,
+      );
+      const lifecycleProvider = sandboxProvider as typeof sandboxProvider & {
+        deleteSandbox?: (sandboxId: string) => Promise<void>;
+      };
+      await lifecycleProvider
+        .deleteSandbox?.(storedSandboxPointer.sandboxId)
+        .catch((err) =>
+          logger(
+            `compatibility teardown failed sandbox=${storedSandboxPointer.sandboxId}: ${conciseError(err, plan.harness)}`,
+          ),
+        );
     }
     if (!environment.sandbox) {
       environment.sandbox = await startSandboxAgent(startOptions);
     }
-    // Record the live sandbox id so the next turn can reconnect it.
-    if (sessionForMount && runCred) {
-      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
-      void (deps.writeSandboxId ?? writeSandboxId)(sessionForMount, liveSandboxId, {
-        authorization: runCred,
-        log: logger,
-      });
-    }
     environment.resumable = Boolean(plan.isDaytona && sessionForMount);
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
-    if (environment.sandbox) inFlightSandboxes.add(environment.sandbox);
+    if (environment.sandbox) inFlightSandboxes.add(environment);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     if (plan.isDaytona) {
@@ -1141,6 +1184,23 @@ export async function acquireEnvironment(
     environment.continuityTurnIndex = continuitySessionKey
       ? nextTurnIndex(continuitySessionKey, continuityStore)
       : undefined;
+    if (sessionForMount && runCred) {
+      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
+      const pointerWriteOutcome = await (
+        deps.writeSandboxPointer ?? writeSandboxPointer
+      )(
+        sessionForMount,
+        {
+          sandboxId: liveSandboxId,
+          fingerprint: sandboxFingerprint,
+          turnIndex: environment.continuityTurnIndex ?? 0,
+        },
+        { authorization: runCred, log: logger },
+      );
+      logger(
+        `sandbox pointer write ${pointerWriteOutcome} session=${sessionForMount} sandbox=${liveSandboxId}`,
+      );
+    }
     let loadedFromContinuity = false;
     if (priorAgentSessionId && localSessionId) {
       await persist.updateSession({
@@ -1208,7 +1268,7 @@ export async function acquireEnvironment(
     const error = conciseError(err, plan.harness, request.provider);
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
-    await environment.destroy();
+    await environment.destroy({ reason: "failed-turn" });
     return { ok: false, error };
   }
 }
@@ -1877,11 +1937,16 @@ export async function runSandboxAgent(
     return result;
   } finally {
     // `result` is undefined when runTurn threw: a failed turn, so destroy.
+    const cleanResumable =
+      env.resumable &&
+      result !== undefined &&
+      shouldPark(result, signal, undefined);
     await env.destroy({
-      keepWarm:
-        env.resumable &&
-        result !== undefined &&
-        shouldPark(result, signal, undefined),
+      reason: cleanResumable
+        ? "clean-resumable"
+        : signal?.aborted
+          ? "aborted"
+          : "failed-turn",
     });
   }
 }

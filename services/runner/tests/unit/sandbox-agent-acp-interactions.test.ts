@@ -379,7 +379,12 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(events, []);
   });
 
-  it("onResolveInteraction fires only after a successful reply", async () => {
+  it("onResolveInteraction never fires for an auto-allowed gate (no durable row exists)", async () => {
+    // Only a PAUSED gate creates a durable interaction row. An auto-allowed gate replies to
+    // the harness without ever creating one, so resolving its id would 404 against the
+    // interactions plane. The responder must therefore stay silent on onResolveInteraction
+    // for the auto-allow path; the live resume path resolves parked rows explicitly in the
+    // engine instead.
     let releaseReply: (() => void) | undefined;
     const replies: Array<{ id: string; reply: string }> = [];
     const { session, emit } = makeSession(async (id, reply) => {
@@ -407,7 +412,36 @@ describe("attachPermissionResponder", () => {
 
     releaseReply?.();
     await flushPromises();
-    assert.deepEqual(resolved, ["perm-1"]);
+    assert.deepEqual(
+      resolved,
+      [],
+      "an auto-allowed gate created no row, so nothing must be resolved",
+    );
+  });
+
+  it("a paused gate creates a durable row (the one onResolveInteraction may later resolve)", async () => {
+    const { session, emit } = makeSession();
+    const created: string[] = [];
+    const resolved: string[] = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }),
+      latch: new PendingApprovalLatch(),
+      onCreateInteraction: (token) => {
+        created.push(token);
+      },
+      onResolveInteraction: (token) => {
+        resolved.push(token);
+      },
+    });
+    emit({ id: "perm-2", availableReplies: ["once", "reject"] });
+    await flushPromises();
+
+    // The pause creates the row and sends no reply; resolution belongs to the resume path.
+    assert.deepEqual(created, ["perm-2"]);
+    assert.deepEqual(resolved, []);
   });
 
   it("uses recorded tool_call name for harness gates without mutating the ACP object", async () => {

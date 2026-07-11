@@ -96,6 +96,17 @@ class SessionStateUpsertRequest(BaseModel):
         default=None,
         description="Remote sandbox id to record alongside the continuity state.",
     )
+    sandbox_fingerprint: Optional[str] = Field(
+        default=None,
+        description="Fingerprint of the sandbox create specification.",
+    )
+    sandbox_turn_index: Optional[int] = Field(
+        default=None,
+        description=(
+            "the writer's conversation turn index; the pointer write is applied only "
+            "when it is >= the row's data.latest_turn_index."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

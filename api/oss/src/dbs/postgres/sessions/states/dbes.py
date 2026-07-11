@@ -51,3 +51,4 @@ class SessionStateDBE(
 
     # resume pointer: which sandbox to reconnect (null = no live sandbox)
     sandbox_id = Column(String, nullable=True)
+    sandbox_fingerprint = Column(String, nullable=True)

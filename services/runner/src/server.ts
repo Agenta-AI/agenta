@@ -40,6 +40,7 @@ import {
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
+import type { TeardownReason } from "./engines/sandbox_agent/teardown.ts";
 import {
   approvalDecisionForToolCall,
   computeCredentialEpoch,
@@ -255,11 +256,16 @@ const realKeepaliveEngine: KeepaliveEngine = {
     } finally {
       // A remote sandbox parks to warm on the same policy the warm path uses. `result` is
       // undefined when runTurn threw, which is a failed turn: destroy.
+      const cleanResumable =
+        acquired.env.resumable &&
+        result !== undefined &&
+        shouldPark(result, signal, clientGone);
       await acquired.env.destroy({
-        keepWarm:
-          acquired.env.resumable &&
-          result !== undefined &&
-          shouldPark(result, signal, clientGone),
+        reason: cleanResumable
+          ? "clean-resumable"
+          : signal?.aborted || clientGone?.()
+            ? "aborted"
+            : "failed-turn",
       });
     }
   },
@@ -345,6 +351,13 @@ export async function runWithKeepalive(
       env.lastTurnToolCallIds ?? [],
     );
 
+  const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
+    shouldPark(result, signal, clientGone)
+      ? "clean-resumable"
+      : signal?.aborted || clientGone?.()
+        ? "aborted"
+        : "failed-turn";
+
   // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi
   // ACP gate). Only such a gate carries a `respondPermission`-answerable id; a client-tool MCP
   // pause never records `parkedApproval`, and more than one pending gate cannot be answered by
@@ -401,7 +414,9 @@ export async function runWithKeepalive(
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
       credentialEpoch: incomingEpoch,
-      destroy: env.destroy,
+      // The pool signature gains eviction reasons in Slice 3. Today every pool eviction is a
+      // hard removal, so its zero-argument closure uses the explicit kill disposition.
+      destroy: () => env.destroy({ reason: "kill" }),
     };
     if (approvalToPark(env, result)) {
       klog(
@@ -410,14 +425,15 @@ export async function runWithKeepalive(
       if (
         !(await pool.park(input, config.approvalTtlMs, "awaiting_approval"))
       ) {
-        await env.destroy();
+        await env.destroy({ reason: "failed-turn" });
       } else {
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await pool.park(input, config.ttlMs))) await env.destroy();
+      if (!(await pool.park(input, config.ttlMs)))
+        await env.destroy({ reason: "clean-resumable" });
     } else {
-      await env.destroy();
+      await env.destroy({ reason: resultTeardownReason(result) });
     }
   };
 
@@ -467,7 +483,7 @@ export async function runWithKeepalive(
         loaded: env.loadedFromContinuity,
       });
     } catch (err) {
-      await env.destroy();
+      await env.destroy({ reason: "failed-turn" });
       return {
         ok: false,
         error: String(err instanceof Error ? err.message : err),
@@ -875,7 +891,7 @@ export function createRequestListener(
         // pool first (its complete per-session destroy), then the sandbox registry as a
         // second line of defense. Always ok.
         await keepalivePool.destroyAll();
-        await destroyInFlightSandboxes();
+        await destroyInFlightSandboxes(5000, "kill");
         return send(res, 200, { ok: true });
       }
 
@@ -1010,7 +1026,9 @@ if (isEntrypoint(import.meta.url)) {
   registerShutdownHandler({
     onCleanup: async (timeoutMs?: number) => {
       await keepalivePool.destroyAll(timeoutMs);
-      await destroyInFlightSandboxes(timeoutMs);
+      // The current registry contains only environments with active turns. The idle split
+      // activates with the provider-aware pool refactor slice.
+      await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
     },
   });
 

@@ -68,6 +68,10 @@ class SessionState(Lifecycle):
         default=None,
         description="Remote sandbox id — the single source of truth resume pointer.",
     )
+    sandbox_fingerprint: Optional[str] = Field(
+        default=None,
+        description="Fingerprint of the sandbox create specification.",
+    )
     flags: SessionStateFlags = Field(default_factory=SessionStateFlags)
     tags: Optional[Dict[str, Any]] = Field(default=None)
     meta: Optional[Dict[str, Any]] = Field(default=None)
@@ -84,4 +88,15 @@ class SessionStateUpsert(BaseModel):
     sandbox_id: Optional[str] = Field(
         default=None,
         description="Remote sandbox id to record alongside the continuity state.",
+    )
+    sandbox_fingerprint: Optional[str] = Field(
+        default=None,
+        description="Fingerprint of the sandbox create specification.",
+    )
+    sandbox_turn_index: Optional[int] = Field(
+        default=None,
+        description=(
+            "the writer's conversation turn index; the pointer write is applied only "
+            "when it is >= the row's data.latest_turn_index."
+        ),
     )
