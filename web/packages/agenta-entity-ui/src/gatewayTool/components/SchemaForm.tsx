@@ -561,18 +561,18 @@ function MultiEnumWithOther({
 // Elevation over borders (the providers-grid treatment): unselected cards are borderless
 // elevated fills — a stack of outlined boxes reads exhausting in the dark theme. The one
 // selected card per group carries the single accent border.
+// No accent border — the filled indicator + a stronger fill carry selection. Borders were
+// the whole dark-mode problem (nested yellow rectangles once an input sits inside a card).
 const choiceCardCls = (selected: boolean) =>
-    `flex cursor-pointer items-start gap-2 rounded-lg border border-solid p-3 transition-colors ${
-        selected
-            ? "border-colorPrimary bg-colorFillTertiary"
-            : "border-transparent bg-colorFillQuaternary hover:bg-colorFillTertiary"
+    `flex cursor-pointer items-start gap-2 rounded-lg p-3 transition-colors ${
+        selected ? "bg-colorFillSecondary" : "bg-colorFillQuaternary hover:bg-colorFillTertiary"
     }`
 
 /** Digit hotkey badge (1..9) — pressing the digit selects the card (see the group onKeyDown). */
 const DigitBadge = ({digit}: {digit: number}) => (
     <span
         aria-hidden
-        className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded bg-colorFillSecondary text-[10px] leading-none text-colorTextSecondary"
+        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-[11px] leading-none text-colorTextTertiary"
     >
         {digit}
     </span>
@@ -696,7 +696,6 @@ function ChoiceCards({
                     className={choiceCardCls(isChecked(o.value))}
                 >
                     <CardIndicator checked={isChecked(o.value)} multiple={multiple} />
-                    {i < 9 && <DigitBadge digit={i + 1} />}
                     <div className="flex min-w-0 flex-col">
                         <Typography.Text className="!text-xs font-medium">
                             {o.label ?? o.value}
@@ -707,6 +706,7 @@ function ChoiceCards({
                             </Typography.Text>
                         )}
                     </div>
+                    {i < 9 && <DigitBadge digit={i + 1} />}
                 </div>
             ))}
             <div
@@ -717,7 +717,6 @@ function ChoiceCards({
                 className={choiceCardCls(otherActive)}
             >
                 <CardIndicator checked={otherActive} multiple={multiple} />
-                {options.length < 9 && <DigitBadge digit={options.length + 1} />}
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <Typography.Text className="!text-xs font-medium">Other</Typography.Text>
                     {multiple && customValues.length > 0 && (
@@ -758,8 +757,12 @@ function ChoiceCards({
                             if (multiple) commitDraft()
                             else if (otherText !== otherText.trim()) typeOther(otherText.trim())
                         }}
+                        variant="borderless"
+                        spellCheck={false}
+                        className="!bg-colorBgContainer !px-2"
                     />
                 </div>
+                {options.length < 9 && <DigitBadge digit={options.length + 1} />}
             </div>
         </div>
     )
