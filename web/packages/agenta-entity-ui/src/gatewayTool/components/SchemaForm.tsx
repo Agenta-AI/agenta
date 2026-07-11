@@ -23,7 +23,7 @@ import {
     Tag,
     Typography,
 } from "antd"
-import type {FormInstance} from "antd"
+import type {FormInstance, InputRef} from "antd"
 
 import {
     OTHER_ENUM_OPTION,
@@ -31,9 +31,11 @@ import {
     enumOptionsOf,
     isOffOptionsValue,
     partitionCustomValues,
+    resolveDigitSelection,
     selectOptionsWithOther,
     splitOtherFromSelection,
     toggleCardSelection,
+    typeCustomValue,
     wantsChoiceCards,
     type EnumOption,
 } from "./schemaFormOptions"
@@ -193,15 +195,55 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 }
             >
                 {stepperOn ? (
-                    <div className="flex flex-col gap-2">
-                        <Typography.Text type="secondary" className="!text-[11px]">
-                            {onReview
-                                ? "Review answers"
-                                : `Question ${step + 1} of ${fields.length}`}
-                        </Typography.Text>
+                    <div
+                        className="flex flex-col gap-2"
+                        onKeyDown={(e) => {
+                            // Enter = Next (the ⏎ hint on the button). Skips: review step (Accept
+                            // is the host's), textareas (newline), focused buttons (their own
+                            // click), already-handled presses.
+                            if (onReview || e.key !== "Enter" || e.shiftKey || e.defaultPrevented)
+                                return
+                            const tag = (e.target as HTMLElement).tagName
+                            if (tag === "TEXTAREA" || tag === "BUTTON") return
+                            e.preventDefault()
+                            setStep(step + 1)
+                        }}
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            {/* Stepper promotes the active question to a header — field labels
+                                are hidden below (hideLabel), this IS the question. */}
+                            {onReview ? (
+                                <Typography.Text className="!text-[13px] !font-semibold">
+                                    Review answers
+                                </Typography.Text>
+                            ) : (
+                                <div className="flex min-w-0 flex-col">
+                                    <Typography.Text className="!text-[13px] !font-semibold">
+                                        {fields[step].label}
+                                        {fields[step].required && (
+                                            <span className="text-red-500 ml-1">*</span>
+                                        )}
+                                    </Typography.Text>
+                                    {fields[step].description && (
+                                        <Typography.Text
+                                            type="secondary"
+                                            className="!text-xs leading-snug"
+                                        >
+                                            {fields[step].description}
+                                        </Typography.Text>
+                                    )}
+                                </div>
+                            )}
+                            <Typography.Text
+                                type="secondary"
+                                className="shrink-0 rounded-full bg-colorFillQuaternary px-2 py-0.5 !text-[11px]"
+                            >
+                                {`${Math.min(step + 1, fields.length)}/${fields.length}`}
+                            </Typography.Text>
+                        </div>
                         {fields.map((field, i) => (
                             <div key={field.name} className={step === i ? undefined : "hidden"}>
-                                <SchemaFormField field={field} />
+                                <SchemaFormField field={field} hideLabel />
                             </div>
                         ))}
                         {onReview && (
@@ -250,9 +292,31 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 Back
                             </Button>
                             {!onReview && (
-                                <Button type="text" onClick={() => setStep(step + 1)}>
-                                    {step === fields.length - 1 ? "Review" : "Next"}
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                    {!fields[step].required && (
+                                        <Button
+                                            type="text"
+                                            className="opacity-60"
+                                            onClick={() => {
+                                                // Skip = no answer: clear the field (incl. a
+                                                // schema default the user didn't endorse).
+                                                form.setFieldValue(
+                                                    fields[step].name.split("."),
+                                                    undefined,
+                                                )
+                                                setStep(step + 1)
+                                            }}
+                                        >
+                                            Skip
+                                        </Button>
+                                    )}
+                                    <Button type="text" onClick={() => setStep(step + 1)}>
+                                        {step === fields.length - 1 ? "Review" : "Next"}
+                                        <span aria-hidden className="opacity-50">
+                                            ⏎
+                                        </span>
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -491,7 +555,12 @@ function MultiEnumWithOther({
                     placeholder="Type a value and press Enter"
                     value={otherDraft}
                     onChange={(e) => setOtherDraft(e.target.value)}
-                    onPressEnter={commitDraft}
+                    onPressEnter={(e) => {
+                        // preventDefault marks the press handled — the stepper's Enter-advance
+                        // must not fire on a chip commit.
+                        e.preventDefault()
+                        commitDraft()
+                    }}
                     onBlur={commitDraft}
                 />
             )}
@@ -508,6 +577,16 @@ const choiceCardCls = (selected: boolean) =>
             ? "border-colorPrimary bg-colorFillTertiary"
             : "border-transparent bg-colorFillQuaternary hover:bg-colorFillTertiary"
     }`
+
+/** Digit hotkey badge (1..9) — pressing the digit selects the card (see the group onKeyDown). */
+const DigitBadge = ({digit}: {digit: number}) => (
+    <span
+        aria-hidden
+        className="mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded bg-colorFillSecondary text-[10px] leading-none text-colorTextSecondary"
+    >
+        {digit}
+    </span>
+)
 
 /** Presentational check/dot — the CARD is the single interactive element (no nested input). */
 const CardIndicator = ({checked, multiple}: {checked: boolean; multiple?: boolean}) => (
@@ -551,29 +630,63 @@ function ChoiceCards({
     /** Injected by Form.Item so the field label associates with the group. */
     id?: string
 }) {
-    const [otherDraft, setOtherDraft] = useState<string | null>(null)
+    const otherInputRef = useRef<InputRef>(null)
+    // Multi: pending chip text (commits on Enter/blur). Single: mirror of the committed custom
+    // value — the value commits as the user types (typeCustomValue).
+    const [otherText, setOtherText] = useState("")
     const selected = multiple
         ? ((value as string[] | undefined) ?? [])
         : value != null
           ? [value as string]
           : []
     const customValues = partitionCustomValues(selected, options)
-    const isChecked = (v: string) => selected.includes(v)
+    const customSingle = customValues[0] ?? ""
+    // Single-select custom values also arrive from OUTSIDE the input (schema default, restored
+    // draft) and picking a listed card clears them — keep the input mirrored to the value.
+    useEffect(() => {
+        if (!multiple) setOtherText(customSingle)
+    }, [multiple, customSingle])
 
+    const isChecked = (v: string) => selected.includes(v)
     const pick = (v: string) => {
         if (disabled) return
         onChange?.(toggleCardSelection(selected, v, !!multiple))
     }
     const commitDraft = () => {
-        const commit = commitCustomValue(selected, otherDraft, !!multiple)
-        setOtherDraft(null)
+        const commit = commitCustomValue(selected, otherText, true)
+        setOtherText("")
         if (commit.changed) onChange?.(commit.value)
     }
-    const otherActive = otherDraft !== null || customValues.length > 0
+    const typeOther = (text: string) => {
+        setOtherText(text)
+        if (multiple) return
+        const commit = typeCustomValue(value as string | undefined, text, options)
+        if (commit.changed) onChange?.(commit.value)
+    }
+    const focusOther = () => {
+        if (!disabled) otherInputRef.current?.focus()
+    }
+    const otherActive = customValues.length > 0 || otherText.trim() !== ""
 
     return (
-        <div id={id} role={multiple ? "group" : "radiogroup"} className="flex flex-col gap-2">
-            {options.map((o) => (
+        <div
+            id={id}
+            role={multiple ? "group" : "radiogroup"}
+            className="flex flex-col gap-2"
+            onKeyDown={(e) => {
+                // Digit hotkeys 1..9 select the matching card (badge affordance). Never while
+                // typing, never with modifiers (browser tab shortcuts).
+                if (disabled || e.ctrlKey || e.metaKey || e.altKey) return
+                const tag = (e.target as HTMLElement).tagName
+                if (tag === "INPUT" || tag === "TEXTAREA") return
+                const hit = resolveDigitSelection(e.key, options)
+                if (!hit) return
+                e.preventDefault()
+                if (hit.kind === "option") pick(hit.value)
+                else focusOther()
+            }}
+        >
+            {options.map((o, i) => (
                 <div
                     key={o.value}
                     role={multiple ? "checkbox" : "radio"}
@@ -581,14 +694,19 @@ function ChoiceCards({
                     tabIndex={disabled ? -1 : 0}
                     onClick={() => pick(o.value)}
                     onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                        // Space selects (checkbox convention). Enter also selects in single mode
+                        // but stays unprevented so a stepper host advances on the same press.
+                        if (e.key === " ") {
                             e.preventDefault()
+                            pick(o.value)
+                        } else if (e.key === "Enter" && !multiple) {
                             pick(o.value)
                         }
                     }}
                     className={choiceCardCls(isChecked(o.value))}
                 >
                     <CardIndicator checked={isChecked(o.value)} multiple={multiple} />
+                    {i < 9 && <DigitBadge digit={i + 1} />}
                     <div className="flex min-w-0 flex-col">
                         <Typography.Text className="!text-xs font-medium">
                             {o.label ?? o.value}
@@ -604,21 +722,14 @@ function ChoiceCards({
             <div
                 role={multiple ? "checkbox" : "radio"}
                 aria-checked={otherActive}
-                tabIndex={disabled ? -1 : 0}
-                onClick={() => {
-                    if (!disabled && otherDraft === null) setOtherDraft("")
-                }}
-                onKeyDown={(e) => {
-                    if ((e.key === "Enter" || e.key === " ") && otherDraft === null) {
-                        e.preventDefault()
-                        if (!disabled) setOtherDraft("")
-                    }
-                }}
+                tabIndex={-1}
+                onClick={focusOther}
                 className={choiceCardCls(otherActive)}
             >
                 <CardIndicator checked={otherActive} multiple={multiple} />
+                {options.length < 9 && <DigitBadge digit={options.length + 1} />}
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <Typography.Text className="!text-xs font-medium">Other…</Typography.Text>
+                    <Typography.Text className="!text-xs font-medium">Other</Typography.Text>
                     {multiple && customValues.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                             {customValues.map((v) => (
@@ -636,23 +747,28 @@ function ChoiceCards({
                             ))}
                         </div>
                     )}
-                    {!multiple && customValues.length > 0 && otherDraft === null && (
-                        <Typography.Text type="secondary" className="!text-[11px]">
-                            {customValues[0]}
-                        </Typography.Text>
-                    )}
-                    {otherDraft !== null && (
-                        <Input
-                            autoFocus
-                            disabled={disabled}
-                            placeholder="Type your answer"
-                            value={otherDraft}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setOtherDraft(e.target.value)}
-                            onPressEnter={commitDraft}
-                            onBlur={commitDraft}
-                        />
-                    )}
+                    <Input
+                        ref={otherInputRef}
+                        disabled={disabled}
+                        placeholder={multiple ? "Type and press Enter to add" : "Type your answer"}
+                        value={otherText}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => typeOther(e.target.value)}
+                        onPressEnter={
+                            multiple
+                                ? (e) => {
+                                      // Handled press — the stepper's Enter-advance must not
+                                      // fire on a chip commit.
+                                      e.preventDefault()
+                                      commitDraft()
+                                  }
+                                : undefined
+                        }
+                        onBlur={() => {
+                            if (multiple) commitDraft()
+                            else if (otherText !== otherText.trim()) typeOther(otherText.trim())
+                        }}
+                    />
                 </div>
             </div>
         </div>
@@ -670,9 +786,18 @@ function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
     return meta?.label ?? String(value)
 }
 
-function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?: number}) {
+function SchemaFormField({
+    field,
+    depth = 0,
+    hideLabel,
+}: {
+    field: FormFieldDescriptor
+    depth?: number
+    /** Stepper mode renders the question as a header above the control — no field label. */
+    hideLabel?: boolean
+}) {
     const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
-    const label = <FieldLabel field={field} />
+    const label = hideLabel ? undefined : <FieldLabel field={field} />
 
     // Object with nested children → render in a collapsible section
     if (field.type === "object" && field.children && field.children.length > 0) {
@@ -759,7 +884,7 @@ function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?
 
     // Array with structured item schema → Form.List with add/remove
     if (field.type === "array") {
-        return <ArrayField field={field} rules={rules} depth={depth} />
+        return <ArrayField field={field} rules={rules} depth={depth} hideLabel={hideLabel} />
     }
 
     switch (field.type) {
@@ -865,10 +990,12 @@ function ArrayField({
     field,
     rules,
     depth,
+    hideLabel,
 }: {
     field: FormFieldDescriptor
     rules: {required: boolean; message: string}[]
     depth: number
+    hideLabel?: boolean
 }) {
     const namePath = field.name.split(".")
     const hasObjectItems = !!field.itemChildren && field.itemChildren.length > 0
@@ -876,22 +1003,24 @@ function ArrayField({
 
     return (
         <div className={depth > 0 ? "ml-2 border-l border-gray-200 pl-3 mb-3" : "mb-3"}>
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex flex-col leading-tight">
-                    <span className="font-medium">
-                        {field.label}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </span>
-                    {field.description && (
-                        <Typography.Text
-                            type="secondary"
-                            className="!text-[11px] font-normal leading-snug"
-                        >
-                            {field.description}
-                        </Typography.Text>
-                    )}
+            {!hideLabel && (
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-col leading-tight">
+                        <span className="font-medium">
+                            {field.label}
+                            {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </span>
+                        {field.description && (
+                            <Typography.Text
+                                type="secondary"
+                                className="!text-[11px] font-normal leading-snug"
+                            >
+                                {field.description}
+                            </Typography.Text>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <Form.List
                 name={namePath}
