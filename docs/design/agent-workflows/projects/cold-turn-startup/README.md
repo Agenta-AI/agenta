@@ -59,4 +59,6 @@ Read this once. Later files use these terms without re-defining them.
 3. `plan.md` answers: what to change, in what order, and how to test each step.
 4. `open-questions.md` answers: what must be confirmed at runtime before or during the work,
    because static reading of the code could not settle it.
-5. `status.md` tracks progress and decisions. It is the running source of truth.
+5. `upstream-issue-draft.md` is the ready-to-file text for the upstream `pi-acp` issue asking
+   for a switch that disables the update-check probes (plan Stage 2b).
+6. `status.md` tracks progress and decisions. It is the running source of truth.

@@ -97,7 +97,8 @@ copy of the adapter here:
 ```
 
 So the copy that actually runs the probes is version `0.0.31`, installed by the CLI from the
-ACP registry into a directory outside the repository, against a floating `^0.0.31` range. The
+ACP registry into a directory outside the repository. (The `^0.0.31` range looks floating but
+is effectively pinned; see "How the installed adapter version is actually chosen" below.) The
 runner's patchable `0.0.29` copy is a different file tree. The CLI's resolution order (also
 visible in the strings) tries a builtin, then a "PATH binary hint", then a local launcher,
 then the registry install. The runner does put its own `pi-acp` on `PATH`
@@ -112,8 +113,9 @@ Consequences either way:
   not fix Daytona, because inside the sandbox the CLI installs its own adapter copy from the
   registry (see below), where there is no runner `node_modules` to patch.
 - If the registry install wins, the pnpm patch is inert even locally, because the running copy
-  lives under `~/.local/share/sandbox-agent` and floats to whatever `^0.0.31` currently
-  resolves to.
+  lives under `~/.local/share/sandbox-agent`, outside anything pnpm manages. In that case the
+  fix must be a pre-seeded copy, a registry override, or an upstream release (see the
+  version-pinning section below).
 
 ### How the adapter reaches a Daytona sandbox
 
@@ -122,10 +124,82 @@ the sandbox itself (`services/runner/src/engines/sandbox_agent/daytona.ts`, `ins
 runs `npm install @earendil-works/pi-coding-agent@<pinned>` into
 `/home/sandbox/.agenta-pi`). The `pi-acp` ADAPTER, however, is resolved by the same
 `@sandbox-agent/cli` agent manager running inside the sandbox, which installs it from the ACP
-registry the same way it does on the host. So the in-sandbox adapter is also the floating
-registry copy, and its `npm view` probe runs from the sandbox's network location. There is no
-repository file to patch for the sandbox copy; reaching it means either baking a fixed adapter
-into the Daytona snapshot or making the in-sandbox CLI resolve an adapter the runner controls.
+registry the same way it does on the host. So the in-sandbox adapter is also the registry
+copy, and its `npm view` probe runs from the sandbox's network location. There is no
+repository file to patch for the sandbox copy; reaching it means baking a fixed adapter into
+the Daytona snapshot (pre-seeding the `agent_processes/pi` directory), overriding the registry
+URL the in-sandbox CLI reads, or an upstream release the registry then pins.
+
+### Upstream pi-acp: versions, issues, and switches (checked 2026-07-11)
+
+The upstream source is `github.com/svkozak/pi-acp` (npm package `pi-acp`, MIT, 498 stars,
+42 open issues, last code push 2026-06-17). Facts that bear on the plan:
+
+- **There is no newer version than 0.0.31.** npm's latest is `0.0.31`, published 2026-06-17,
+  the same version the sandbox-agent CLI installs. The repository HEAD equals that release, and
+  HEAD still contains both probes: `src/acp/agent.ts` line 352 calls `buildUpdateNotice()`
+  unconditionally, and `buildUpdateNotice` (line 1430) still spawns `pi --version` and
+  `npm view`. So "upgrade to a fixed version" is not available today; the fix must be a patch,
+  a pre-seeded copy, or an upstream contribution followed by a release.
+- **The README documents `quietStartup` and confirms its limit.** It states that with
+  `quietStartup: true` the adapter "will still emit a 'New version available' message". This
+  confirms from upstream documentation what the code reading found: the settings flag removes
+  only the `buildStartupInfo` probe.
+- **Upstream already has complaints adjacent to these probes.** Open issue #70 (filed
+  2026-07-09) reports that the update-check notice arrives as an `agent_message_chunk` after
+  the turn has ended, an ACP protocol violation, and asks for it to be queued or moved out of
+  band. Closed issue #68 reported the startup banner being emitted outside a turn. Open PRs
+  #61 ("emit startup info in-turn") and #42 ("dedupe startup info emission") touch the same
+  emission path. Nobody has yet filed the latency complaint or asked for a switch that
+  disables the update check entirely.
+- **Upstream has precedent for adding exactly this kind of switch.** Commit `bae31bce`
+  replaced a `PI_ACP_STARTUP_INFO` environment variable with the `quietStartup` Pi setting, so
+  the maintainer has already accepted a settings-gated startup-output control once. A small
+  issue or PR proposing a `checkForUpdates: false` setting (or folding the update check under
+  `quietStartup`) is plausible to land. A ready-to-file draft is in `upstream-issue-draft.md`.
+
+### How the installed adapter version is actually chosen (pinning levers)
+
+The floating `^0.0.31` range in `agent_processes/pi/package.json` looked risky but is tamer
+than it appears. The ACP registry entry pins the version exactly:
+
+```
+{"id": "pi-acp", "version": "0.0.31",
+ "distribution": {"npx": {"package": "pi-acp@0.0.31"}}, ...}
+```
+
+The CLI installs that exact spec; npm then writes `^0.0.31` into the scratch `package.json`,
+but the adjacent `package-lock.json` resolves `pi-acp` to exactly `0.0.31`. The effective
+version therefore follows the registry JSON and moves only when the registry publishes a new
+entry. Levers to control it, visible as strings in the CLI binary:
+
+- `SANDBOX_AGENT_ACP_REGISTRY_URL` overrides the registry URL (default
+  `https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json`). Pointing it at a
+  registry JSON the runner hosts pins the adapter package and version outright, on the host
+  and inside the sandbox alike.
+- Pre-seeding `.../sandbox-agent/bin/agent_processes/pi/` short-circuits the install: the CLI
+  logs `agent_manager.install_agent_process: already installed` and uses what is there. A
+  pre-seeded, patched copy is therefore honored. For Daytona, baking that directory into the
+  snapshot is the clean delivery for the in-sandbox copy.
+- `SANDBOX_AGENT_REQUIRE_PREINSTALL` (also read by the CLI) can forbid on-the-fly installs,
+  making the pre-seeded copy the only possible resolution and turning drift into a loud
+  failure instead of a silent registry fetch.
+
+### Daytona measurement and the Pi install-skip interaction
+
+A Daytona measurement on 2026-07-11 put the probes at about 2.0 seconds inside the EU
+sandbox: two `pi --version` at about 750 ms each plus `npm view` at about 305 ms. The sandbox
+is worse than the local 1.6 seconds, as predicted, which makes reaching the in-sandbox copy
+(Stage 4) worth more than the local fix alone.
+
+Separately, that measurement found the runner redundantly npm-installs Pi into every sandbox
+(about 5.2 seconds) even though the snapshot bakes it. That is being fixed elsewhere as a
+configuration change (`AGENTA_AGENT_SANDBOX_PI_INSTALLED=false`) and is out of scope here. It
+interacts with this plan in one way: with the install skipped, `daytonaEnvVars` no longer sets
+`PI_ACP_PI_COMMAND` (it only sets it when the install runs), so the adapter resolves `pi` from
+PATH, the baked `/usr/local/bin/pi`. That changes which `pi` binary the probes spawn and may
+change which adapter copy runs. Stage 0's runtime confirmation must be done with that setting
+in its final state.
 
 ### The runner already deletes the probe output
 

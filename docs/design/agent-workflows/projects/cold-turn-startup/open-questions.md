@@ -39,13 +39,19 @@ timing question.
 - Depends on it: whether Fix B's overlap variant is worth building, or whether only the full
   lazy-mount design would pay off. This is the first task of the Fix B follow-up.
 
-## 4. What is the correct Daytona delivery for a fixed adapter?
+## 4. What is the correct Daytona delivery for a fixed adapter? (largely answered)
 
-If Fix A's adapter change is a local patch rather than an upstream version, the in-sandbox copy
-must be fixed separately. Whether that is a snapshot bake, a pinned in-sandbox install, or a
-runner-controlled adapter resolution depends on how the Daytona snapshot is currently built and
-how the in-sandbox CLI resolves adapters.
+Upstream research answered the mechanism question: the CLI honors a pre-seeded
+`agent_processes/pi/` directory ("already installed" short-circuit), so baking a fixed adapter
+copy into the Daytona snapshot at that path is the preferred delivery, with a runner-hosted
+registry JSON via `SANDBOX_AGENT_ACP_REGISTRY_URL` as the alternative. See `research.md`,
+"How the installed adapter version is actually chosen".
 
-- How to answer: inspect the Daytona snapshot build for whether it bakes or installs the
-  adapter, and confirm the in-sandbox CLI's resolution order matches the host's.
+What remains open is only verification: confirm the in-sandbox CLI's data directory path (the
+in-sandbox equivalent of `~/.local/share/sandbox-agent/bin/agent_processes/pi/`) and that the
+snapshot build can write there.
+
+- How to answer: run a Daytona cold turn and locate the adapter install directory inside the
+  sandbox; then add the pre-seed to the snapshot build and confirm the CLI logs
+  "already installed" instead of a registry fetch.
 - Depends on it: Stage 4.

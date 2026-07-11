@@ -19,6 +19,11 @@ self-installed `0.0.31` copy under `~/.local/share/sandbox-agent`.
   (`SANDBOX_AGENT_LOG_STDOUT` and related, seen in the binary strings) and read which branch it
   reports; or `strace`/`lsof` the adapter child process to see which `index.js` path it opened.
 - Output: a one-line answer recorded in `status.md`, plus the exact path of the running copy.
+- Run the check with the Pi install-skip setting (`AGENTA_AGENT_SANDBOX_PI_INSTALLED=false`,
+  being shipped separately) in its final state: with the install skipped, `PI_ACP_PI_COMMAND`
+  is no longer set on Daytona, the adapter resolves the baked `/usr/local/bin/pi` from PATH,
+  and adapter resolution may differ from today's. See `research.md`, "Daytona measurement and
+  the Pi install-skip interaction".
 - Why it blocks: Stage 2's patch target and Stage 4's Daytona approach both depend on this.
 
 ## Stage 1: turn on `quietStartup` (no patch, removes one probe)
@@ -58,18 +63,36 @@ Choose the mechanism by Stage 0's answer:
   spawning `pi --version` and skip the `npm view` entirely. Returning `null` is simplest and
   loses only an upgrade hint the runner already deletes.
 - If the running local copy is the CLI's self-installed `0.0.31`: a runner pnpm patch will not
-  reach it. Prefer fixing this upstream in the `pi-acp` source (gate `buildUpdateNotice` behind
-  an environment variable, or drop the `npm view` network call and read the version locally),
-  then pin the CLI to that version. If an upstream fix is not available in this project's
-  timeframe, the fallback is to force the CLI to resolve an adapter the runner controls (via the
-  PATH binary hint or a pinned local launcher) and patch that copy. Record the chosen path in
-  `status.md` with its reasoning.
+  reach it. Upstream research (see `research.md`, "Upstream pi-acp") settled two facts that
+  narrow the choice: no published version removes or gates the probes (0.0.31 is the latest and
+  its source still runs both), so "pin to a fixed version" is not available today; and the CLI
+  honors a pre-seeded `agent_processes/pi/` directory ("already installed" short-circuit), so
+  the runner can install its own patched copy there before the CLI ever consults the registry.
+  Prefer, in order: pre-seed the patched adapter into `agent_processes/pi/` at runner startup
+  or image build (works identically on the host and, via the snapshot, in the sandbox);
+  or override `SANDBOX_AGENT_ACP_REGISTRY_URL` to a registry JSON the runner hosts that pins a
+  runner-published adapter build. Optionally set `SANDBOX_AGENT_REQUIRE_PREINSTALL` so a
+  missing pre-seed fails loudly instead of silently reinstalling the unpatched registry copy.
+  Record the chosen path in `status.md` with its reasoning.
 
 - Test: if a pnpm patch is used, a runner test that imports or executes the patched
   `buildUpdateNotice` equivalent and asserts it performs no child-process spawn and returns
-  empty. If the fix is upstream, the regression guard is the cold-turn timing test in Stage 5.
+  empty. If the fix ships as a pre-seeded copy, add a startup check (or test) that the seeded
+  `dist/index.js` carries the patch marker. Either way the durable guard is Stage 5.
 - Design note: prefer removing the network `npm view` call over merely caching it. A cached
   result still costs the first cold turn and still reaches npm from a sandbox.
+
+## Stage 2b: file the upstream issue (parallel, not blocking)
+
+Upstream is active and has precedent for a settings-gated startup switch (it replaced a
+`PI_ACP_STARTUP_INFO` environment variable with the `quietStartup` setting). An adjacent open
+issue, svkozak/pi-acp#70, already complains about the update-check notice on protocol grounds.
+File the latency issue with the measured numbers and propose a `checkForUpdates: false`
+setting (or folding the update check under `quietStartup`); the draft text is in
+`upstream-issue-draft.md`. If the maintainer lands it and releases, and the ACP registry pins
+the new version, Stage 2's local patch and Stage 4's pre-seed both collapse into "wait for the
+registry to move, then delete the workaround". Do not block any stage on this; treat an
+upstream release as the retirement path for the patch, not the delivery path for the fix.
 
 ## Stage 3: retire or shrink the banner-stripping in `otel.ts`
 
@@ -89,15 +112,21 @@ output.
 ## Stage 4: make Fix A reach Daytona
 
 Local removal does not fix the in-sandbox adapter copy (`research.md`, "How the adapter reaches
-a Daytona sandbox"). Depending on Stage 2's mechanism:
+a Daytona sandbox"). A Daytona measurement on 2026-07-11 put the in-sandbox probes at about
+2.0 seconds (two `pi --version` at about 750 ms each plus `npm view` at about 305 ms), worse
+than the local 1.6 seconds, so this stage carries the largest single saving in the plan.
 
-- If Stage 2 is an upstream `pi-acp` fix plus a version pin: ensure the in-sandbox CLI resolves
-  the pinned, fixed version. Confirm the Daytona snapshot or the in-sandbox install path picks
-  it up.
-- If Stage 2 is a local patch only: bake a fixed adapter into the Daytona snapshot, or set the
-  in-sandbox CLI to resolve a runner-controlled adapter, so the sandbox copy is also fixed. The
-  `npm view` from a European sandbox is the worst single instance of this cost, so the sandbox
-  copy is the higher-value target even though it is harder to reach.
+- Preferred delivery: pre-seed the fixed adapter into the sandbox's
+  `agent_processes/pi/` directory in the Daytona snapshot, the same mechanism as the host
+  pre-seed in Stage 2. The CLI's "already installed" short-circuit then uses it and never
+  fetches the registry from inside the sandbox.
+- Alternative: set `SANDBOX_AGENT_ACP_REGISTRY_URL` in the sandbox environment to a
+  runner-hosted registry JSON pinning a fixed adapter build.
+- If an upstream release with the fix exists by then: confirm the public ACP registry has
+  pinned it and let the normal install path deliver it; then remove the pre-seed.
+- Out of scope but adjacent: the redundant in-sandbox Pi npm install (about 5.2 s) is being
+  removed separately via `AGENTA_AGENT_SANDBOX_PI_INSTALLED=false`. Coordinate timing tests
+  with that change, since both move the Daytona cold-turn number.
 - Test: a Daytona cold run with the timing captured, compared against the same run before the
   change. Record both numbers in `status.md`.
 
