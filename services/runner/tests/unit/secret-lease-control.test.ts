@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { HttpSecretLeaseControl, SecretLeaseControlError } from "../../src/engines/sandbox_agent/secret-lease-control.ts";
 
@@ -25,6 +26,25 @@ describe("lease control client", () => {
     const claim = await client.claim("lease", { claimOwner: "runner-1", ttlSeconds: 60 });
     expect(claim).toEqual({ claimId: "c", claimGeneration: 3, claimExpiresAt: "later" });
     expect(JSON.parse(String((fetch.mock.calls as any[][])[1][1].body))).toEqual({ claimOwner: "runner-1", ttlSeconds: 60 });
+  });
+
+  it("accepts the API-owned canonical lease fixture", async () => {
+    const payload = JSON.parse(
+      await readFile(
+        new URL(
+          "../../../../api/oss/tests/pytest/unit/agent_secret_leases/fixtures/secret_lease_wire.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const client = new HttpSecretLeaseControl({
+      baseUrl: "https://control.example",
+      tenantAuthorization: "x",
+      fetch: vi.fn(async () => new Response(JSON.stringify(payload), { status: 200 })) as any,
+    });
+
+    await expect(client.get(payload.id)).resolves.toEqual(payload);
   });
 
   it("rejects malformed lease responses instead of casting them", async () => {
