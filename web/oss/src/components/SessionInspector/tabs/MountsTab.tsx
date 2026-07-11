@@ -189,7 +189,8 @@ const MountsTab = ({sessionId}: {sessionId: string}) => {
     if (error) return <Alert type="error" message="Failed to load mounts" showIcon />
 
     const mounts = data?.mounts ?? []
-    if (!mounts.length) return <Empty description="No mounts bound to this session" />
+    if (!mounts.length)
+        return <Empty description="No files yet — this conversation gets its drive on first run" />
 
     if (mountId) {
         const mount = mounts.find((m) => m.id === mountId)

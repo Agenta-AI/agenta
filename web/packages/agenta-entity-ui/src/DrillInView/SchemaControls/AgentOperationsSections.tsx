@@ -11,6 +11,8 @@
  * Naming: "Storage" + "drive" (App drive / Session drive), not "mounts" — a mount is the
  * MECHANISM (geesefs/FUSE mount points); a drive is the thing users have a model for.
  */
+import {useState, type ReactNode} from "react"
+
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {ChatCircle, HardDrives} from "@phosphor-icons/react"
 import {Skeleton, Typography} from "antd"
@@ -63,14 +65,21 @@ export function AgentOperationsSections({
     revisionId,
     disabled,
     sticky = true,
+    sessionDrive,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
     disabled?: boolean
     /** Non-sticky headers for embedded (drawer) surfaces, matching the embedded config header. */
     sticky?: boolean
+    /** The active conversation's file browser, slotted in by the app layer (which owns the chat
+     * session state this package can't reach). Absent → an explanatory placeholder. */
+    sessionDrive?: ReactNode
 }) {
     const {count: triggerCount} = useAgentTriggers(revisionId)
+    // Session drive is controlled so the browser (and its queries) mounts only when expanded —
+    // a collapsed HeightCollapse body stays mounted, which would fetch on every playground load.
+    const [sessionDriveOpen, setSessionDriveOpen] = useState(false)
 
     return (
         <>
@@ -111,15 +120,21 @@ export function AgentOperationsSections({
                         icon={<ChatCircle size={16} />}
                         title="Session drive"
                         summary="Per conversation"
-                        defaultOpen={false}
+                        open={sessionDriveOpen}
+                        onOpenChange={setSessionDriveOpen}
                         noDivider
-                        animateInitialOpen
                     >
-                        <Typography.Text type="secondary" className="text-xs">
-                            Each conversation gets its own working folder while it runs — the files
-                            the agent reads and writes live there. Open a chat and browse them from
-                            the session panel beside the transcript.
-                        </Typography.Text>
+                        {sessionDrive ? (
+                            sessionDriveOpen ? (
+                                sessionDrive
+                            ) : null
+                        ) : (
+                            <Typography.Text type="secondary" className="text-xs">
+                                Each conversation gets its own working folder while it runs — the
+                                files the agent reads and writes live there. Open a chat and browse
+                                them from the session panel beside the transcript.
+                            </Typography.Text>
+                        )}
                     </ConfigAccordionSection>
                 </div>
             </section>

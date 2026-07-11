@@ -34,6 +34,11 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
+// Session drive body (agent Storage region) — lazy: it pulls in the mount file browser.
+const SessionDriveContent = dynamic(
+    () => import("@/oss/components/AgentChatSlice/components/SessionDriveContent"),
+    {ssr: false},
+)
 
 // Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
 const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
@@ -304,7 +309,11 @@ const PlaygroundVariantConfig: React.FC<
                 (hasPendingHydration || (!isAgent && earlyAgentState !== "agent") ? (
                     <AgentOperationsSkeleton sticky={!embedded} />
                 ) : (
-                    <AgentOperationsSections revisionId={variantId} sticky={!embedded} />
+                    <AgentOperationsSections
+                        revisionId={variantId}
+                        sticky={!embedded}
+                        sessionDrive={<SessionDriveContent />}
+                    />
                 ))}
         </div>
     )
