@@ -112,7 +112,7 @@ Batch `/invoke` follows this path:
    fields `harness` and `sandbox`, plus the permission policy at
    `runner.permissions.default`.
 3. The service resolves three things independently: tools, MCP servers, and provider-key
-   secrets. MCP resolution is gated by `AGENTA_AGENT_ENABLE_MCP`
+   secrets. MCP resolution is gated by `AGENTA_AGENT_MCPS_ENABLED`
    (`services/oss/src/agent/tools/resolver.py:23`, off by default).
 4. The service builds `SessionConfig` and constructs a harness over an `Environment` and
    `SandboxAgentBackend`.
