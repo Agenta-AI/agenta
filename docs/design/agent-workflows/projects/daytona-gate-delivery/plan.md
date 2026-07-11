@@ -4,6 +4,18 @@ This plan implements Option A from [options.md](options.md): update the Daytona 
 private Pi ACP adapter, keep the existing ACP permission plane, and verify live and cold
 approval behavior. It does not add a file-gate protocol or an injected policy map.
 
+## Implementation checkpoint
+
+The snapshot recipe now pins the private Pi ACP adapter to 0.0.29 and asserts the
+actual private launcher and package under
+`/home/sandbox/.local/share/sandbox-agent/bin/agent_processes/`. The named
+`agenta-sandbox-pi` snapshot was force-rebuilt successfully on 2026-07-11.
+
+Focused Daytona verification passed allow-mode Bash and deny-mode Bash. Ask mode produced
+a real `interaction_request` immediately, which proves the repaired adapter emitted
+`session/request_permission` through the existing ACP HTTP/SSE path. The supported UI
+approve/reject continuation and Claude control remain follow-up checks.
+
 ## Phase 0: confirm the deployed version
 
 - Create one short-lived Daytona sandbox from the currently selected
@@ -29,7 +41,7 @@ Change `services/runner/sandbox-images/daytona/build_snapshot.py`:
   ```
 
 - Add a build-time assertion against the private adapter installation under
-  `/home/sandbox/.local/share/sandbox-agent/agent_processes/`. The assertion must prove the
+  `/home/sandbox/.local/share/sandbox-agent/bin/agent_processes/`. The assertion must prove the
   resolved adapter is exactly 0.0.29.
 - Keep the standalone Pi CLI pin at 0.80.6. The CLI and ACP adapter are different
   dependencies with different responsibilities.

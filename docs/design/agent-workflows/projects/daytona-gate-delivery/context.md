@@ -55,7 +55,7 @@ request to forward.
 - The snapshot recipe inherits private ACP adapter installations from its base image.
   Installing only the standalone Pi CLI does not update `pi-acp`.
 - `sandbox-agent` prefers its private adapter launcher under
-  `/home/sandbox/.local/share/sandbox-agent/agent_processes/`. A global npm install alone
+  `/home/sandbox/.local/share/sandbox-agent/bin/agent_processes/`. A global npm install alone
   is not a reliable fix.
 - A live permission continuation exists only while the sandbox, adapter process, ACP
   connection, permission id, and prompt promise remain alive.
