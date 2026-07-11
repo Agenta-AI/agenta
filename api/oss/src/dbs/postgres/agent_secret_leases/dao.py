@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import base64
+import binascii
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -52,6 +54,30 @@ class AgentSecretLeasesDAO(AgentSecretLeasesDAOInterface):
     @staticmethod
     def _provider_secret_name(lease_id: UUID, resource_id: UUID, ordinal: int) -> str:
         return f"agenta_lease_{lease_id.hex}_{ordinal}_{resource_id.hex[-8:]}"
+
+    @staticmethod
+    def _encode_cursor(sort_time: datetime, lease_id: UUID) -> str:
+        micros = int(sort_time.timestamp() * 1_000_000)
+        payload = f"{micros}:{lease_id.hex}".encode()
+        return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+    @staticmethod
+    def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
+        try:
+            padding = "=" * (-len(cursor) % 4)
+            payload = base64.urlsafe_b64decode(cursor + padding).decode()
+            micros_text, lease_hex = payload.split(":", maxsplit=1)
+            if not micros_text.isdigit() or len(lease_hex) != 32:
+                raise ValueError
+            sort_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
+                microseconds=int(micros_text)
+            )
+            lease_id = UUID(hex=lease_hex)
+            if AgentSecretLeasesDAO._encode_cursor(sort_time, lease_id) != cursor:
+                raise ValueError
+            return sort_time, lease_id
+        except (binascii.Error, OverflowError, UnicodeDecodeError, ValueError) as exc:
+            raise LeaseInvalid("invalid_cursor") from exc
 
     async def reserve(
         self,
@@ -301,22 +327,10 @@ class AgentSecretLeasesDAO(AgentSecretLeasesDAOInterface):
                     AgentSecretLeaseDBE.owner_id == query.owner.id,
                 )
             if query.windowing.next:
-                anchor_stmt = select(AgentSecretLeaseDBE).where(
-                    AgentSecretLeaseDBE.id == UUID(str(query.windowing.next))
-                )
-                if scope is not None:
-                    anchor_stmt = self._scope(anchor_stmt, scope)
-                if query.organization_id is not None and scope is None:
-                    anchor_stmt = anchor_stmt.where(
-                        AgentSecretLeaseDBE.organization_id == query.organization_id
-                    )
-                anchor = (await session.execute(anchor_stmt)).scalar_one_or_none()
-                if anchor is None:
-                    raise LeaseInvalid("invalid_cursor")
-                anchor_time = anchor.next_attempt_at or anchor.created_at
+                anchor_time, anchor_id = self._decode_cursor(query.windowing.next)
                 stmt = stmt.where(
                     tuple_(sort_time, AgentSecretLeaseDBE.id)
-                    > tuple_(anchor_time, anchor.id)
+                    > tuple_(anchor_time, anchor_id)
                 )
             limit = min(max(query.windowing.limit or 100, 1), 200)
             stmt = stmt.order_by(sort_time.asc(), AgentSecretLeaseDBE.id.asc()).limit(
@@ -325,7 +339,14 @@ class AgentSecretLeasesDAO(AgentSecretLeasesDAOInterface):
             leases = (await session.execute(stmt)).scalars().unique().all()
             return LeasePage(
                 leases=[lease_dbe_to_dto(lease) for lease in leases],
-                next_cursor=leases[-1].id if len(leases) == limit else None,
+                next_cursor=(
+                    self._encode_cursor(
+                        leases[-1].next_attempt_at or leases[-1].created_at,
+                        leases[-1].id,
+                    )
+                    if len(leases) == limit
+                    else None
+                ),
             )
 
     async def claim(

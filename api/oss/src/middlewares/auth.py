@@ -101,13 +101,24 @@ def _is_runner_control_route(request: Request) -> bool:
     path = request.url.path
     if path.startswith("/api/"):
         path = path[4:]
-    if not path.startswith("/agent-secret-leases/"):
-        return False
     if request.method == "POST" and path == "/agent-secret-leases/query":
         return True
-    if request.method == "POST" and path.endswith("/claim"):
-        return True
-    return request.method == "PATCH"
+    prefix = "/agent-secret-leases/"
+    if not path.startswith(prefix):
+        return False
+    suffix = path[len(prefix) :]
+    parts = suffix.split("/")
+    if len(parts) not in (1, 2):
+        return False
+    try:
+        lease_id = UUID(parts[0])
+    except ValueError:
+        return False
+    if str(lease_id) != parts[0].lower():
+        return False
+    if len(parts) == 2:
+        return request.method == "POST" and parts[1] == "claim"
+    return request.method in {"GET", "PATCH"}
 
 
 def _verify_runner_control_request(request: Request) -> bool:
