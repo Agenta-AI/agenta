@@ -140,6 +140,13 @@ from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 from oss.src.dbs.postgres.sessions.states.dbes import SessionStateDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.states.dao import SessionStatesDAO
 from oss.src.core.sessions.states.service import SessionStatesService
+from oss.src.dbs.postgres.agent_secret_leases.dbes import (  # noqa: F401
+    AgentSecretLeaseDBE,
+    AgentSecretLeaseResourceDBE,
+)
+from oss.src.dbs.postgres.agent_secret_leases.dao import AgentSecretLeasesDAO
+from oss.src.core.agent_secret_leases.service import AgentSecretLeasesService
+from oss.src.apis.fastapi.agent_secret_leases.router import AgentSecretLeasesRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
@@ -1030,6 +1037,14 @@ session_states_service = SessionStatesService(
     session_states_dao=session_states_dao,
 )
 
+agent_secret_leases_dao = AgentSecretLeasesDAO(engine=_transactions_engine)
+agent_secret_leases_service = AgentSecretLeasesService(
+    leases_dao=agent_secret_leases_dao,
+)
+agent_secret_leases = AgentSecretLeasesRouter(
+    leases_service=agent_secret_leases_service,
+)
+
 sessions = SessionsRouter(
     streams_service=session_streams_service,
     states_service=session_states_service,
@@ -1248,6 +1263,12 @@ app.include_router(
     router=folders.router,
     prefix="/folders",
     tags=["Folders"],
+)
+
+app.include_router(
+    router=agent_secret_leases.router,
+    prefix="/agent-secret-leases",
+    tags=["Internal Agent Secret Leases"],
 )
 
 app.include_router(

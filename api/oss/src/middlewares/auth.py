@@ -3,6 +3,7 @@ from uuid import UUID
 from datetime import datetime, timezone, timedelta
 import asyncio
 import traceback
+from hmac import compare_digest
 
 from pydantic import ValidationError
 from fastapi import Request, HTTPException
@@ -93,6 +94,30 @@ _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
 
 _SUPERTOKENS_TIMEOUT = 15  # 15 seconds or whatever you need
+_RUNNER_CONTROL_HEADER = "X-Agenta-Runner-Control-Token"
+
+
+def _is_runner_control_route(request: Request) -> bool:
+    path = request.url.path
+    if path.startswith("/api/"):
+        path = path[4:]
+    if not path.startswith("/agent-secret-leases/"):
+        return False
+    if request.method == "POST" and path == "/agent-secret-leases/query":
+        return True
+    if request.method == "POST" and path.endswith("/claim"):
+        return True
+    return request.method == "PATCH"
+
+
+def _verify_runner_control_request(request: Request) -> bool:
+    supplied = request.headers.get(_RUNNER_CONTROL_HEADER)
+    if supplied is None or not _is_runner_control_route(request):
+        return False
+    configured = env.runner.control_token
+    if not configured or not compare_digest(configured, supplied):
+        raise HTTPException(status_code=401, detail="invalid workload identity")
+    return True
 
 
 def _auth_id_tail(value: Optional[str]) -> Optional[str]:
@@ -153,6 +178,9 @@ async def auth_middleware(request: Request, call_next):
 
     auth_token = None
     try:
+        if _verify_runner_control_request(request):
+            return await call_next(request)
+
         await _check_authentication_token(request)
 
         await _check_organization_policy(request)
