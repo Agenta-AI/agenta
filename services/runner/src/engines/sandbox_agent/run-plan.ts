@@ -78,19 +78,19 @@ export interface RunPlan {
   prompt: string;
   turnText: string;
   agentsMd?: string;
-  secrets: Record<string, string>;
+  /** Final plaintext model environment, after validating modelConnection. */
+  modelEnvironment: Record<string, string>;
   /**
-   * Back-compat inputs to the OAuth-upload decision (see `shouldUploadOwnLogin`). `legacyHarnessApiKeyVar`
-   * does not choose the provider; it only feeds the fallback `hasApiKey` heuristic for an un-migrated caller that sends no
-   * `credentialMode`.
+   * Harness key name used only to decide whether the harness has an API key after the typed
+   * connection is materialized. It never selects a provider.
    */
-  legacyHarnessApiKeyVar: string;
+  harnessApiKeyVar: string;
   hasApiKey: boolean;
   /**
    * How the credential is delivered: "env" (managed, resolved key) | "runtime_provided" (the
    * harness owns its login) | "none". From the resolved connection (provider-model-auth design,
-   * Concern 3). `undefined` when an un-migrated caller sends no credentialMode; the run then
-   * falls back to the `hasApiKey` heuristic. Drives clear-then-apply env (Security rule 5) and
+   * Concern 3). `undefined` only when a direct runner request has no resolved modelConnection;
+   * that request may still use the harness login. Drives clear-then-apply env (Security rule 5) and
    * the OAuth-upload gate (rule 6).
    */
   credentialMode?: string;
@@ -245,6 +245,99 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
+export function materializeModelEnvironment(
+  request: AgentRunRequest,
+):
+  | { ok: true; environment: Record<string, string>; credentialMode?: string }
+  | { ok: false; error: string } {
+  const connection = request.modelConnection;
+  if (!connection) return { ok: true, environment: {} };
+  if (!connection.provider?.trim() || !connection.deployment?.trim()) {
+    return {
+      ok: false,
+      error: "modelConnection requires provider and deployment",
+    };
+  }
+
+  const environment: Record<string, string> = {};
+  for (const [name, value] of Object.entries(connection.environment ?? {})) {
+    if (!name.trim() || typeof value !== "string" || !value) {
+      return {
+        ok: false,
+        error:
+          "modelConnection environment requires non-empty names and values",
+      };
+    }
+    environment[name] = value;
+  }
+
+  const credentials = Array.isArray(connection.credentials)
+    ? connection.credentials
+    : [];
+  if (connection.credentialMode === "env" && credentials.length === 0) {
+    return {
+      ok: false,
+      error: "modelConnection credentialMode env requires credentials",
+    };
+  }
+  if (connection.credentialMode !== "env" && credentials.length > 0) {
+    return {
+      ok: false,
+      error: "modelConnection credentials require credentialMode env",
+    };
+  }
+
+  for (const credential of credentials) {
+    const name = credential?.binding?.name;
+    if (
+      credential?.binding?.kind !== "environment" ||
+      !name?.trim() ||
+      !credential.value
+    ) {
+      return {
+        ok: false,
+        error: "modelConnection credential binding and value must be non-empty",
+      };
+    }
+    if (
+      credential.usage !== "opaque_http" &&
+      credential.usage !== "local_use"
+    ) {
+      return {
+        ok: false,
+        error: "modelConnection credential usage is invalid",
+      };
+    }
+    try {
+      const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
+      if (endpoint.protocol !== "https:" || !endpoint.hostname) {
+        throw new Error("invalid endpoint");
+      }
+    } catch {
+      return {
+        ok: false,
+        error:
+          credential.usage === "opaque_http"
+            ? "opaque_http model credentials require an effective HTTPS endpoint"
+            : "local_use model credentials require an effective HTTPS endpoint",
+      };
+    }
+    if (Object.hasOwn(environment, name)) {
+      return {
+        ok: false,
+        error: `duplicate modelConnection environment binding '${name}'`,
+      };
+    }
+    environment[name] = credential.value;
+  }
+
+  return {
+    ok: true,
+    environment,
+    credentialMode: connection.credentialMode,
+  };
+}
+
 export function buildRunPlan(
   request: AgentRunRequest,
   {
@@ -290,8 +383,10 @@ export function buildRunPlan(
   // ships one, and "unknown" must not silently behave like "reachable loopback".
   const isRemoteSandbox = sandboxId !== "local";
 
-  const secrets = request.secrets ?? {};
-  const legacyHarnessApiKeyVar =
+  const materializedModel = materializeModelEnvironment(request);
+  if (!materializedModel.ok) return materializedModel;
+  const modelEnvironment = materializedModel.environment;
+  const harnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
@@ -468,10 +563,10 @@ export function buildRunPlan(
       prompt,
       turnText: buildTurnText(request, log),
       agentsMd: request.agentsMd?.trim() || undefined,
-      secrets,
-      legacyHarnessApiKeyVar,
-      hasApiKey: !!secrets[legacyHarnessApiKeyVar],
-      credentialMode: request.credentialMode,
+      modelEnvironment,
+      harnessApiKeyVar,
+      hasApiKey: !!modelEnvironment[harnessApiKeyVar],
+      credentialMode: materializedModel.credentialMode,
       cwd,
       relayDir,
       toolMcpDir,
@@ -509,13 +604,12 @@ export function buildRunPlan(
  *    the credential).
  *  - `credentialMode === "runtime_provided"`: upload (the harness authenticates with its login).
  *  - `credentialMode === "none"`: do not upload (no credential asserted).
- *  - no `credentialMode` on the wire (un-migrated caller): fall back to today's heuristic —
- *    upload only when no api key was supplied (`!hasApiKey`).
+ *  - no resolved `modelConnection`: use the harness login when no key is materialized.
  */
 export function shouldUploadOwnLogin(
   plan: Pick<RunPlan, "credentialMode" | "hasApiKey">,
 ): boolean {
   if (plan.credentialMode === "runtime_provided") return true;
   if (plan.credentialMode) return false; // "env" / "none": a resolved decision, never upload
-  return !plan.hasApiKey; // back-compat: un-migrated caller, no credentialMode
+  return !plan.hasApiKey; // direct request with no resolved modelConnection
 }
