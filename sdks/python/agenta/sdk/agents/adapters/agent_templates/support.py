@@ -21,14 +21,14 @@ key support-triage. Also matches free-text asks about watching a support channel
 ticket urgency, or routing threads to the right person.
 
 ## Required context (ask via one request_input form)
-- Support channel: which Slack (or Discord) channel to watch. Description: "Recommended:
-  <guess>" when a prior read surfaced one.
+- Support channel: which Slack (or Discord) channel to watch. Set the field default to the
+  guess a prior read surfaced; leave no default otherwise.
 - Owners and their areas: who routes get sent to, and what each owns. No default; the agent
   cannot invent your team's routing.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Urgency scale: how many tiers (for example urgent/normal/low) and what counts as urgent.
-  Enum first option: "Use your best judgment (I'll propose a 3-tier scale)." Note in the
+  Enum with default "Use your best judgment (I'll propose a 3-tier scale)." Note in the
   description: handing this over is faster than the agent inferring it from past threads.
 
 ## Explore first (read before proposing)
@@ -87,16 +87,16 @@ support-reply-drafter. Also matches free-text asks about auto-drafting ticket re
 answering tickets from a knowledge base.
 
 ## Required context (ask via one request_input form)
-- Ticket source: which Zendesk (or Intercom) instance to watch for new tickets. Description:
-  "Recommended: <guess>" when a prior read surfaced one.
+- Ticket source: which Zendesk (or Intercom) instance to watch for new tickets. Set the field
+  default to the guess a prior read surfaced; leave no default otherwise.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Knowledge source: where answers come from (Notion, Confluence, Google Drive, or the ticket
-  system's own help center). Enum first option: "Figure it out from what's connected." These
+  system's own help center). Enum with default "Figure it out from what's connected." These
   are optional extensions, not required to run; without one the agent drafts from ticket
   history alone and says so.
-- Draft posture: draft-only for review, or auto-send for high-confidence matches. Enum first
-  option: "Use your best judgment (draft-only until you say otherwise)."
+- Draft posture: draft-only for review, or auto-send for high-confidence matches. Enum with
+  default "Use your best judgment (draft-only until you say otherwise)."
 
 ## Explore first (read before proposing)
 1. discover_tools for the ticket read tools (get ticket, list tickets) and, if connected, the
@@ -156,11 +156,11 @@ Slack or Intercom messages into filed bugs, or being mentioned to file one.
 
 ## Required context (ask via one request_input form)
 - Bug tracker and project: which Linear team, Jira project, or GitHub repo new tickets go to.
-  Description: "Recommended: <guess>" when a prior read surfaced one.
+  Set the field default to the guess a prior read surfaced; leave no default otherwise.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - Repro-steps extraction: whether to ask the reporter follow-up questions when steps are
-  missing, or file with what is given. Enum first option: "Use your best judgment (ask once
+  missing, or file with what is given. Enum with default "Use your best judgment (ask once
   if repro steps are missing, then file anyway)."
 
 ## Explore first (read before proposing)
@@ -220,13 +220,13 @@ similar. Card key feedback-clusterer. Also matches free-text asks about summariz
 trends or grouping complaints by topic.
 
 ## Required context (ask via one request_input form)
-- Feedback source: which Slack channel (or Intercom inbox) to read feedback from.
-  Description: "Recommended: <guess>" when a prior read surfaced one.
+- Feedback source: which Slack channel (or Intercom inbox) to read feedback from. Set the
+  field default to the guess a prior read surfaced; leave no default otherwise.
 - Where clusters are logged: a Notion database or page. No default; the agent cannot invent
   where you track this.
 
-## Researchable context (ask, but the first option is "figure it out")
-- Clustering granularity: broad themes (3-5) or fine-grained topics. Enum first option: "Use
+## Researchable context (ask, defaulting to "figure it out")
+- Clustering granularity: broad themes (3-5) or fine-grained topics. Enum with default "Use
   your best judgment (I'll propose 3-5 themes from a sample day)." Note in the description:
   handing this over is faster than the agent researching your past feedback volume.
 
