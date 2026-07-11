@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
+import oss.src.models.db_models  # noqa: F401
+
 import pytest
 from fastapi import HTTPException
 from starlette.requests import Request
