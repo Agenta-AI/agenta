@@ -37,6 +37,8 @@ Don't pollute a page with another type. Link out instead. A how-to that explains
 
 **Words to avoid:** "comprehensive", "powerful", "seamlessly", "easily", "simply", "robust", "leverage". Marketing words.
 
+**Jargon to avoid:** engineering-culture metaphors as bare nouns: "rung", "seam", "fence"/"fencing", "load-bearing", "soak". Say the literal thing (a fallback level; the spot where cleanup breaks; a guard against stale writes). Labels like Tier 1/2 or P0/P1 need a one-sentence definition at first use, or a self-describing name instead. Section titles state their content plainly; a reader should predict the section from its title.
+
 **Punctuation:**
 - **Never use em dashes (—).** Use a period, parentheses, or a semicolon.
 - Bold and bullets sparingly; only when they aid scanning.
