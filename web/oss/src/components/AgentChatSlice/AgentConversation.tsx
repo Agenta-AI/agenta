@@ -10,6 +10,7 @@ import {
     type MutableRefObject,
 } from "react"
 
+import {revalidateSessionMountsAtom} from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
     invalidateAgentCommittedRevisionCache,
@@ -519,6 +520,8 @@ const AgentConversation = ({
         [sessionId],
     )
 
+    const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
+
     const {
         messages,
         sendMessage,
@@ -542,7 +545,12 @@ const AgentConversation = ({
         // The turn's trace may not be ingested yet when the row asks for its summary —
         // marking it fresh lets the trace queries retry through the ingestion lag
         // (historical traces get no such grace; a 404 there means the trace is gone).
-        onFinish: ({message}) => markTraceAsFresh(getMessageTraceId(message)),
+        // A finished turn may also have written files: mark the session's drive data stale so
+        // every mount surface (open or opened later) refetches — no live channel exists for this.
+        onFinish: ({message}) => {
+            markTraceAsFresh(getMessageTraceId(message))
+            revalidateSessionMounts(sessionId)
+        },
         onError: (err) => {
             // Render the error in-chat (the `error` alert below); swallow it here so an
             // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).

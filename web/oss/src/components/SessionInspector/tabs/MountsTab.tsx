@@ -3,17 +3,13 @@ import {useMemo, useState} from "react"
 import {
     deriveMountRows,
     mountBreadcrumbs,
-    queryMountFiles,
-    readMountFile,
+    mountFileContentQueryFamily,
+    mountFilesQueryFamily,
+    sessionMountsQueryFamily,
 } from "@agenta/entities/session"
 import {CaretRight, File, Folder, House} from "@phosphor-icons/react"
-import {useQuery} from "@tanstack/react-query"
 import {Alert, Breadcrumb, Button, Empty, List, Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
-
-import {projectIdAtom} from "@/oss/state/project"
-
-import {fetchMounts} from "../api"
 
 const {Text} = Typography
 
@@ -25,28 +21,19 @@ const humanSize = (bytes?: number): string => {
 }
 
 /** Read-only file browser for ONE mount: the whole tree is fetched once, then drilled client-side
- * (deriveMountRows) so folder navigation is instant; clicking a file previews its text content. */
+ * (deriveMountRows) so folder navigation is instant; clicking a file previews its text content.
+ * Data comes from the centralized mount atoms, so the listing is shared with every other drive
+ * surface and refreshes when the chat revalidates after a turn. */
 const MountFileBrowser = ({mountId}: {mountId: string}) => {
-    const projectId = useAtomValue(projectIdAtom)
     const [path, setPath] = useState("")
     const [filePath, setFilePath] = useState<string | null>(null)
 
-    const {data, isLoading, error} = useQuery({
-        queryKey: ["session-inspector", "mount-files", projectId, mountId],
-        queryFn: () => queryMountFiles({mountId, projectId: projectId ?? "", lowPriority: true}),
-        enabled: Boolean(mountId && projectId),
-        refetchOnWindowFocus: false,
-    })
+    const {data, isLoading, error} = useAtomValue(mountFilesQueryFamily(mountId))
 
     const rows = useMemo(() => deriveMountRows(data ?? [], path), [data, path])
     const crumbs = useMemo(() => mountBreadcrumbs(path), [path])
 
-    const file = useQuery({
-        queryKey: ["session-inspector", "mount-file", projectId, mountId, filePath],
-        queryFn: () => readMountFile({mountId, projectId: projectId ?? "", path: filePath ?? ""}),
-        enabled: Boolean(mountId && projectId && filePath),
-        refetchOnWindowFocus: false,
-    })
+    const file = useAtomValue(mountFileContentQueryFamily({mountId, path: filePath ?? ""}))
 
     if (isLoading) return <Skeleton active />
     // `data === null` means the fetch failed (e.g. the object store isn't configured — the API
@@ -175,20 +162,16 @@ const MountFileBrowser = ({mountId}: {mountId: string}) => {
 }
 
 const MountsTab = ({sessionId}: {sessionId: string}) => {
-    const projectId = useAtomValue(projectIdAtom)
     const [mountId, setMountId] = useState<string | null>(null)
 
-    const {data, isLoading, error} = useQuery({
-        queryKey: ["session-inspector", "mounts", projectId, sessionId],
-        queryFn: () => fetchMounts(sessionId, projectId),
-        enabled: Boolean(sessionId),
-        refetchOnWindowFocus: false,
-    })
+    const {data, isLoading, error} = useAtomValue(sessionMountsQueryFamily(sessionId))
 
     if (isLoading) return <Skeleton active />
-    if (error) return <Alert type="error" message="Failed to load mounts" showIcon />
+    // The fetcher maps failures to `null` (callFern); `[]` is a real empty result.
+    if (error || data === null)
+        return <Alert type="error" message="Failed to load mounts" showIcon />
 
-    const mounts = data?.mounts ?? []
+    const mounts = data ?? []
     if (!mounts.length)
         return <Empty description="No files yet — this conversation gets its drive on first run" />
 

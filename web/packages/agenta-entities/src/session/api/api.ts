@@ -17,9 +17,11 @@ import {
     sessionRecordsQueryResponseSchema,
     sessionStateResponseSchema,
     sessionStreamCommandResponseSchema,
+    sessionMountsResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
     type MountFile,
+    type Mount,
     type SessionInteraction,
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
@@ -352,6 +354,39 @@ export async function killSession({
         ),
     )
     return data !== null
+}
+
+/** List the mounts (drives) bound to one session. Returns `null` on failure/missing scope. */
+export async function querySessionMounts({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+}: {
+    sessionId: string
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+}): Promise<Mount[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const data = await callFern("[querySessionMounts]", () =>
+        client.querySessionMounts(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(
+        sessionMountsResponseSchema,
+        data,
+        "[querySessionMounts]",
+    )
+    return validated?.mounts ?? null
 }
 
 export interface MountFilesParams {

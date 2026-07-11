@@ -160,7 +160,21 @@ export const mountFileContentResponseSchema = z.object({
     content: z.string().nullish(),
 })
 
+/** A mount row (a drive): the durable prefix bound to a session (or, later, an agent). */
+export const mountSchema = z.object({
+    id: z.string(),
+    slug: z.string().nullish(),
+    name: z.string().nullish(),
+    session_id: z.string().nullish(),
+})
+
+export const sessionMountsResponseSchema = z.object({
+    count: z.number().nullish(),
+    mounts: z.array(mountSchema).nullish(),
+})
+
 export type MountFile = z.infer<typeof mountFileSchema>
+export type Mount = z.infer<typeof mountSchema>
 
 /** Stream lifecycle codes from `SessionStream.status.code`. */
 export type StreamStatusCode = "running" | "detached" | "idle" | "ended"
