@@ -29,8 +29,10 @@ import type {FormInstance, InputRef} from "antd"
 import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
 
 import {
+    DEFAULT_CRON,
     OTHER_ENUM_OPTION,
     commitCustomValue,
+    cronInitialValue,
     enumOptionsOf,
     isOffOptionsValue,
     partitionCustomValues,
@@ -872,10 +874,10 @@ function ChoiceCards({
     )
 }
 
-/** ScheduleBuilderField is controlled on a cron STRING and cannot take undefined — show a
- * sensible daily default until the field holds a value (the form value stays untouched). */
+/** ScheduleBuilderField is controlled on a cron STRING and cannot take undefined. The form value
+ * is seeded via cronInitialValue, so the fallback only covers a post-mount clear (stepper Skip). */
 function CronField({value, onChange}: {value?: string; onChange?: (cron: string) => void}) {
-    return <ScheduleBuilderField value={value || "0 9 * * *"} onChange={(c) => onChange?.(c)} />
+    return <ScheduleBuilderField value={value || DEFAULT_CRON} onChange={(c) => onChange?.(c)} />
 }
 
 /** Compact review-row value: option labels, joined chips, Yes/No, formatted dates. */
@@ -1054,12 +1056,14 @@ function SchemaFormField({
         default:
             // Format-aware controls appear only when the host opted in via `formats`.
             if (field.format === "cron") {
+                // Seed the displayed schedule as the value — the builder has no empty state,
+                // so an unseeded required field would look answered while Accept stays disabled.
                 return (
                     <Form.Item
                         name={field.name.split(".")}
                         label={label}
                         rules={rules}
-                        initialValue={field.default}
+                        initialValue={cronInitialValue(field.default)}
                     >
                         <CronField />
                     </Form.Item>
