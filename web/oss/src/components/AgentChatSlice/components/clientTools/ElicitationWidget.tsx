@@ -61,6 +61,16 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
 
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
 
+    // Accept stays disabled until every required question has an answer — a dominant, always-
+    // enabled primary invites submitting unfinished forms. Defaults count, so a fully-prefilled
+    // form is born ready (one-click accept). Decline/Dismiss stay always-available.
+    const watchedValues = Form.useWatch([], form) as Record<string, unknown> | undefined
+    const requiredNames = parsed.ok ? (parsed.payload.requestedSchema.required ?? []) : []
+    const requiredReady = requiredNames.every((name) => {
+        const v = watchedValues?.[name]
+        return !(v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0))
+    })
+
     // Degradation: invalid payload auto-settles errorText ONCE per turn; a repeat malformed
     // emission parks instead (visible notice, no auto-settle) — no settle→resume→re-emit loop.
     const parked = !parsed.ok && degradedEarlierInTurn === true
@@ -230,7 +240,13 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             />
 
             <div className="flex items-center gap-2">
-                <Button type="primary" loading={submitting} onClick={handleAccept}>
+                <Button
+                    type="primary"
+                    loading={submitting}
+                    disabled={!requiredReady}
+                    title={requiredReady ? undefined : "Answer the required questions first"}
+                    onClick={handleAccept}
+                >
                     Accept
                 </Button>
                 <Button
