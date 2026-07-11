@@ -55,6 +55,7 @@ from .connections import (
 from .dtos import (
     AgentaAgentTemplate,
     AgentTemplate,
+    AgentTemplateShapeError,
     Event,
     AgentResult,
     ClaudeAgentTemplate,
@@ -265,6 +266,7 @@ __all__ = [
     "UnsupportedHarnessError",
     "ToolResolutionError",
     "InvalidPermissionDefaultError",
+    "AgentTemplateShapeError",
     # Adapters
     "SandboxAgentBackend",
     "LocalBackend",
