@@ -2,71 +2,67 @@
 
 ## Current state
 
-Design revised after owner review. No implementation code changed. Research identified the
-root cause as Pi ACP adapter version skew, not Daytona preview-proxy behavior.
+Implementation is ready for review on the stacked fix branch. The Daytona snapshot recipe
+now replaces the base image's private Pi ACP adapter with version 0.0.29, verifies the
+private launcher and package version during the build, and keeps the standalone Pi CLI at
+0.80.6.
 
-The checked-in snapshot recipe inherits `pi-acp` 0.0.23 from
-`rivetdev/sandbox-agent:0.5.0-rc.2-full`; local runs use the repo-pinned 0.0.29. Version
-0.0.23 predates the extension UI permission bridge. The proposed fix is now a snapshot
-dependency pin and rebuild.
+The named `agenta-sandbox-pi` snapshot was force-rebuilt on 2026-07-11. Daytona reported
+the snapshot as active after 96.4 seconds.
+
+## Live verification
+
+- Snapshot build: passed. The installer reported private `pi-acp` 0.0.29 at
+  `/home/sandbox/.local/share/sandbox-agent/bin/agent_processes/pi-acp`.
+- Build assertion: passed with `pi-acp-version=0.0.29`.
+- Pi core, allow mode, Bash: passed on Daytona. The command returned
+  `QA-BASH-x86_64`.
+- Pi core, deny mode, Bash: passed on Daytona. The runner returned
+  `Denied by the permission policy.` and the command did not execute.
+- Pi core, ask mode: the runner returned a real `interaction_request` instead of
+  hanging. This proves the adapter now emits the ACP permission request.
+- Sandbox hygiene: zero live sandboxes before the matrix and zero after it.
+- Live Agenta deployments: the EE health endpoint on port 8280 and the OSS health endpoint
+  on port 8290 both returned `{"status":"ok"}`.
+
+The supported playground approve and reject clicks, the cold approval replay, the
+`pi_agenta` opening skill read, and the Claude Daytona control remain to be completed.
+Two hand-built raw API resume payloads re-prompted rather than consuming the approval.
+That result is not enough to call a product regression because the payloads did not come
+from the supported UI client.
 
 ## Decisions
 
-- Option A is the primary correctness fix.
-- Option A means adapter parity, not a Daytona proxy rewrite.
+- Option A is implemented as adapter parity. No file permission protocol or policy map was
+  added.
 - ACP remains the only permission plane for Pi builtins on local and Daytona.
-- Option B is not planned. It opens only if a fresh, corrected adapter emits a permission
-  request that a focused transport probe proves is lost after emission.
-- Option C does not depend on Option B. It is deferred as a separate latency optimization.
-- Live and cold approval are separate lifecycle paths:
-  - live answers the held ACP permission id and continues the original call;
-  - cold stores the human decision, recreates or reloads, and answers the reissued call.
-- A file relay cannot preserve a pending RPC after the process holding it has stopped.
-- F-018's evidence applies to Pi. Claude ask on Daytona needs its own control run.
-- Pi custom and gateway tools use the extension execution relay, not user MCP.
+- The build checks the private sandbox-agent installation, not a global npm package.
+- The correct v0.5.0-rc.2 private install root contains `/bin/agent_processes/`. The
+  earlier design text omitted `/bin`; this implementation corrects it.
+- Existing sandboxes created before the snapshot rebuild retain their old filesystem and
+  must be drained before rollout verification.
 
-## Evidence
+## Verification commands
 
-- `services/runner/package.json` pins local `pi-acp` 0.0.29.
-- `services/runner/src/engines/sandbox_agent/daemon.ts` puts the local runner dependency on
-  the daemon `PATH`.
-- `services/runner/sandbox-images/daytona/build_snapshot.py` inherits ACP adapters from
-  `rivetdev/sandbox-agent:0.5.0-rc.2-full` and installs only the standalone Pi CLI.
-- The upstream 0.5.0-rc.2 adapter manifest pins `pi-acp` 0.0.23.
-- The upstream 0.0.23 adapter has no `extension_ui_request` handler.
-- The bridge landed in pi-acp commit `1412ea6110` and shipped in 0.0.28.
-- The installed 0.0.29 adapter converts confirm dialogs to ACP permission requests.
-- The last public Daytona proxy source uses a generic Go reverse proxy and contains no
-  ACP method filter.
+- `python3 -m py_compile services/runner/sandbox-images/daytona/build_snapshot.py`
+- `ruff format --check services/runner/sandbox-images/daytona/build_snapshot.py`
+- `ruff check services/runner/sandbox-images/daytona/build_snapshot.py`
+- `git diff --check`
+- `uv run services/runner/sandbox-images/daytona/build_snapshot.py --force`
+- `uv run docs/design/agent-workflows/projects/qa/scripts/run_matrix.py --env-label E3 --sandbox daytona --only builtin_bash_pi --timeout 300`
 
-## Remaining validation
+## Remaining work
 
-- Query the private adapter version in the currently deployed snapshot.
-- Rebuild a temporary or replacement snapshot with 0.0.29.
-- Run the allow, deny, ask-live, and ask-cold checks in [plan.md](plan.md).
-- Run one Claude Daytona ask control.
-- Measure the repaired ACP round-trip before considering Option C.
-
-The live Daytona checks require confirmation that cloud credits are available. Every run
-must count sandboxes before and after and delete its test sandbox.
-
-## Blockers
-
-None for the design. Implementation and live verification require a Daytona snapshot
-rebuild window and available credits.
-
-## Next steps
-
-1. Review this revised design.
-2. If approved, implement the snapshot recipe pin and build assertion.
-3. Rebuild and rotate `agenta-sandbox-pi`.
-4. Run focused live verification.
-5. Close or reopen the transport contingency from evidence.
+1. Review and merge the stacked implementation PR.
+2. Exercise approve and reject from the playground UI.
+3. Confirm cold approval replay through the supported UI message history.
+4. Run the `pi_agenta` opening read and one Claude ask-mode control.
+5. Update F-018 to resolved after those lifecycle checks pass.
 
 ## Provenance
 
-- Finding: F-018 in [../qa/findings.md](../qa/findings.md).
-- Owner review: nine inline threads on PR #5218.
-- Research pass: three independent tracks for Daytona proxy source, sandbox-agent and ACP
-  transport, and permission lifecycle and harness scope.
-- No live Daytona sandbox was started during this review pass.
+- Design PR: #5218.
+- Root cause: the Daytona snapshot inherited `pi-acp` 0.0.23, which predates the Pi
+  extension UI permission bridge.
+- Implementation review: one narrow implementer and one independent reviewer.
+- Live verification date: 2026-07-11.
