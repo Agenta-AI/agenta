@@ -194,21 +194,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         : "[&_.ant-form-item]:!mb-3"
                 }
             >
+                {/* No Enter-advance in the stepper: in chat, Enter means "send" (the composer
+                    says ↵ Send) — overloading it to page a form is a conflicting affordance. */}
                 {stepperOn ? (
-                    <div
-                        className="flex flex-col gap-2"
-                        onKeyDown={(e) => {
-                            // Enter = Next (the ⏎ hint on the button). Skips: review step (Accept
-                            // is the host's), textareas (newline), focused buttons (their own
-                            // click), already-handled presses.
-                            if (onReview || e.key !== "Enter" || e.shiftKey || e.defaultPrevented)
-                                return
-                            const tag = (e.target as HTMLElement).tagName
-                            if (tag === "TEXTAREA" || tag === "BUTTON") return
-                            e.preventDefault()
-                            setStep(step + 1)
-                        }}
-                    >
+                    <div className="flex flex-col gap-2">
                         <div className="flex items-start justify-between gap-3">
                             {/* Stepper promotes the active question to a header — field labels
                                 are hidden below (hideLabel), this IS the question. */}
@@ -314,11 +303,8 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                             Skip
                                         </Button>
                                     )}
-                                    <Button type="text" onClick={() => setStep(step + 1)}>
+                                    <Button onClick={() => setStep(step + 1)}>
                                         {step === fields.length - 1 ? "Review" : "Next"}
-                                        <span aria-hidden className="opacity-50">
-                                            ⏎
-                                        </span>
                                     </Button>
                                 </div>
                             )}
