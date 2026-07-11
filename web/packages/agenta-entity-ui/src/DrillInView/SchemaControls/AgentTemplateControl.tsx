@@ -21,7 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {Fragment, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -833,9 +833,11 @@ export function AgentTemplateControl({
             inlineContent: mh.advancedInline,
         },
         // --- Operational sections: NOT part of the draftable/committable agent config (no
-        // classifier bucket, own persistence). Rendered after the configuration sections.
+        // classifier bucket, own persistence). Grouped under an "Operations" header below the
+        // configuration sections.
         {
             key: "triggers",
+            group: "operations",
             icon: <Lightning size={16} />,
             title: "Triggers",
             summary: countSummary(triggerCount, "trigger"),
@@ -845,6 +847,7 @@ export function AgentTemplateControl({
         },
         {
             key: "mounts",
+            group: "operations",
             icon: <HardDrives size={16} />,
             title: "Mounts",
             summary: (
@@ -864,6 +867,7 @@ export function AgentTemplateControl({
         },
     ].filter(Boolean) as {
         key: string
+        group?: "operations"
         icon: React.ReactNode
         title: React.ReactNode
         summary?: React.ReactNode
@@ -880,6 +884,18 @@ export function AgentTemplateControl({
     // Each config section is a contained card on the raised Config panel — the surface tokens give
     // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
     const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
+
+    // "Operations" heads the operational sections (triggers, mounts) — typography matches the
+    // panel's "Configuration" header (PlaygroundVariantConfigHeader) so the two regions read as
+    // peers, not as another collapsible section.
+    const firstOpsKey = sections.find((s) => s.group === "operations")?.key
+    const opsHeader = (
+        <div className="pt-5 pb-2">
+            <span className="text-[13px] font-semibold text-[var(--ant-color-text)]">
+                Operations
+            </span>
+        </div>
+    )
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -946,8 +962,30 @@ export function AgentTemplateControl({
             ) : layout === "cards" ? (
                 <div className="flex flex-col gap-3 pt-1">
                     {sections.map((s) => (
+                        <Fragment key={s.key}>
+                            {s.key === firstOpsKey ? opsHeader : null}
+                            <ConfigAccordionSection
+                                icon={s.icon}
+                                title={s.title}
+                                titleBadge={sectionBadge(s.key)}
+                                summary={s.summary}
+                                extra={s.extra}
+                                indicator={s.indicator ?? agentChangeIndicator(s.key)}
+                                onOpen={s.onOpen}
+                                collapsible={false}
+                                noDivider
+                                className={sectionCardClass}
+                            >
+                                {s.content}
+                            </ConfigAccordionSection>
+                        </Fragment>
+                    ))}
+                </div>
+            ) : (
+                sections.map((s, index) => (
+                    <Fragment key={s.key}>
+                        {s.key === firstOpsKey ? opsHeader : null}
                         <ConfigAccordionSection
-                            key={s.key}
                             icon={s.icon}
                             title={s.title}
                             titleBadge={sectionBadge(s.key)}
@@ -955,33 +993,15 @@ export function AgentTemplateControl({
                             extra={s.extra}
                             indicator={s.indicator ?? agentChangeIndicator(s.key)}
                             onOpen={s.onOpen}
-                            collapsible={false}
-                            noDivider
-                            className={sectionCardClass}
+                            defaultOpen={s.defaultOpen}
+                            noDivider={index === sections.length - 1}
+                            // Mount collapsed, then unfold via the normal collapse transition — first
+                            // paint matches the skeleton's collapsed rows instead of shifting the layout.
+                            animateInitialOpen
                         >
                             {s.content}
                         </ConfigAccordionSection>
-                    ))}
-                </div>
-            ) : (
-                sections.map((s, index) => (
-                    <ConfigAccordionSection
-                        key={s.key}
-                        icon={s.icon}
-                        title={s.title}
-                        titleBadge={sectionBadge(s.key)}
-                        summary={s.summary}
-                        extra={s.extra}
-                        indicator={s.indicator ?? agentChangeIndicator(s.key)}
-                        onOpen={s.onOpen}
-                        defaultOpen={s.defaultOpen}
-                        noDivider={index === sections.length - 1}
-                        // Mount collapsed, then unfold via the normal collapse transition — first
-                        // paint matches the skeleton's collapsed rows instead of shifting the layout.
-                        animateInitialOpen
-                    >
-                        {s.content}
-                    </ConfigAccordionSection>
+                    </Fragment>
                 ))
             )}
 
