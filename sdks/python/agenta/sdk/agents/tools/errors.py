@@ -39,6 +39,7 @@ class ToolResolutionError(ToolError):
         spec_count: Optional[int] = None,
         provider: Optional[str] = None,
         reference: Optional[str] = None,
+        detail: Optional[str] = None,
     ) -> None:
         super().__init__(message)
         self.status = status
@@ -46,6 +47,10 @@ class ToolResolutionError(ToolError):
         self.spec_count = spec_count
         self.provider = provider
         self.reference = reference
+        # Human-facing reason string from the resolver response body (the FastAPI
+        # ``detail`` field). Diagnostic metadata: it travels server -> exception -> run
+        # error so the user learns which tool broke without backend access. Never a secret.
+        self.detail = detail
 
 
 class GatewayToolResolutionError(ToolResolutionError):
