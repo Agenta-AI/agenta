@@ -44,6 +44,8 @@ export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
     /** Stepper mode: jump to the step holding this field (e.g. after a validation failure). */
     goToField?: (name: string | (string | number)[]) => void
+    /** Stepper mode: advance one step (the host renders the primary Next button). */
+    nextStep?: () => void
 }
 
 interface Props {
@@ -61,11 +63,24 @@ interface Props {
     onValuesChange?: (values: Record<string, unknown>) => void
     /** One question at a time + a final review step (elicitation "x-ag-stepper" hint). */
     stepper?: boolean
+    /** Stepper position updates, so the host can render the primary Next/Review action. */
+    onStepChange?: (state: {index: number; total: number; onReview: boolean}) => void
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
     (
-        {schema, form, disabled, jsonMode, flat, formats, openEnums, onValuesChange, stepper},
+        {
+            schema,
+            form,
+            disabled,
+            jsonMode,
+            flat,
+            formats,
+            openEnums,
+            onValuesChange,
+            stepper,
+            onStepChange,
+        },
         ref,
     ) => {
         const fields = useMemo(
@@ -97,6 +112,14 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 )?.focus()
             })
         }, [step, stepperOn, onReview])
+        useEffect(() => {
+            if (stepperOn)
+                onStepChange?.({
+                    index: Math.min(step, fields.length),
+                    total: fields.length,
+                    onReview,
+                })
+        }, [step, stepperOn, onReview, fields.length, onStepChange])
         Form.useWatch([], form) // review rows re-render as answers change
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
 
@@ -158,6 +181,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                     const i = fields.findIndex((f) => f.name === flatName)
                     if (i >= 0) setStep(i)
                 },
+                nextStep: () => setStep((s) => Math.min(s + 1, fields.length)),
             }),
             [jsonMode, form, fields],
         )
@@ -235,6 +259,19 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             if (e.key === "ArrowRight" && !onReview) setStep(step + 1)
                         }}
                     >
+                        {/* Segmented progress: multi-step-ness at a glance. */}
+                        <div className="flex gap-1" aria-hidden>
+                            {fields.map((f, i) => (
+                                <span
+                                    key={f.name}
+                                    className={`h-0.5 flex-1 rounded-full ${
+                                        i < (onReview ? fields.length : step + 1)
+                                            ? "bg-[var(--ant-color-primary)]"
+                                            : "bg-colorFillSecondary"
+                                    }`}
+                                />
+                            ))}
+                        </div>
                         <div className="flex items-start justify-between gap-3">
                             {/* Stepper promotes the active question to a header — field labels
                                 are hidden below (hideLabel), this IS the question. */}
