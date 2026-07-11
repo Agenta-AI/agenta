@@ -69,9 +69,12 @@ const StripHome: React.FC = () => {
         [provenance.pick, posthog],
     )
 
-    const handleCreate = useCallback(() => {
-        onCreate(provenance.resolveTemplateName())
-    }, [onCreate, provenance.resolveTemplateName])
+    const handleCreate = useCallback(
+        (markdown?: string) => {
+            onCreate(provenance.resolveTemplateName(), markdown)
+        },
+        [onCreate, provenance.resolveTemplateName],
+    )
 
     const handleCodingAgentCopy = useCallback(async () => {
         const text = composerRef.current?.getMarkdown().trim() ?? ""

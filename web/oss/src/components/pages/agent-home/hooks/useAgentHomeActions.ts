@@ -35,8 +35,10 @@ export function useAgentHomeActions(
     )
 
     const onCreate = useCallback(
-        (templateName?: string) => {
-            const message = readPrompt()
+        // `prompt` overrides the ref read for Enter-submit, where the editor has already
+        // serialized + cleared itself and hands the markdown to the submit callback.
+        (templateName?: string, prompt?: string) => {
+            const message = prompt?.trim() || readPrompt()
             if (message) {
                 captureFirstAgentIntent(posthog, {
                     source: "composer",
