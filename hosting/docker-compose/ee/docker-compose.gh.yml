@@ -279,6 +279,9 @@ services:
             DAYTONA_TARGET: ${DAYTONA_TARGET:-}
             DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-}
             DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
+            DAYTONA_AUTOSTOP: ${DAYTONA_AUTOSTOP:-}
+            DAYTONA_AUTOARCHIVE: ${DAYTONA_AUTOARCHIVE:-}
+            DAYTONA_AUTODELETE: ${DAYTONA_AUTODELETE:-}
             AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-true}
         # === NETWORK ============================================== #
         networks:

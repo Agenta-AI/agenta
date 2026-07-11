@@ -65,14 +65,7 @@ def test_custom_provider_public_url_passes_through_as_api_base(monkeypatch):
     assert settings["api_base"] == "https://93.184.216.34/v1"
 
 
-def test_custom_provider_ssrf_guard_defaults_secure_with_no_env_var(monkeypatch):
-    # net._ALLOW_INSECURE is a module-level constant read at import time; assert the
-    # constant itself defaults False rather than relying on env-var presence at test time.
-    from agenta.sdk.utils import net
-
-    assert net._ALLOW_INSECURE is False
-
-    monkeypatch.setattr(net, "_ALLOW_INSECURE", False)
+def test_custom_provider_private_ip_is_dropped_from_api_base(monkeypatch):
     monkeypatch.setattr(
         SecretsManager,
         "get_from_route",

@@ -93,13 +93,7 @@ async def test_oidc_connection_allows_public_issuer_url(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_oidc_connection_defaults_secure_with_no_env_var(monkeypatch):
-    # _WEBHOOK_ALLOW_INSECURE is a module-level constant read at import time; assert the
-    # constant itself is False (secure by default), not env-var presence at test time.
-    from oss.src.core.webhooks import utils as webhook_utils
-
-    assert webhook_utils._WEBHOOK_ALLOW_INSECURE is False
-
+async def test_oidc_connection_blocks_private_ip_by_default(monkeypatch):
     monkeypatch.setattr(
         "ee.src.core.organizations.service.httpx.AsyncClient", _FakeAsyncClient
     )

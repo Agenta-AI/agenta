@@ -88,36 +88,58 @@ def test_unresolvable_hostname_raises(monkeypatch):
         net.validate_endpoint_url("https://this-does-not-exist.invalid/v1")
 
 
-def test_allow_insecure_defaults_false(monkeypatch):
-    monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
-    monkeypatch.delenv("AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
-    assert net._ALLOW_INSECURE is False
+_ALLOW_INSECURE_ENV_VARS = (
+    "AGENTA_INSECURE_EGRESS_ALLOWED",
+    "AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE",
+    "AGENTA_WEBHOOKS_ALLOW_INSECURE",
+    "AGENTA_WEBHOOK_ALLOW_INSECURE",
+)
 
 
-def test_allow_insecure_canonical_env_var(monkeypatch):
-    # _ALLOW_INSECURE is resolved once at import time; reload to re-run resolution.
+@pytest.fixture
+def resolve_allow_insecure(monkeypatch):
+    """Re-run net's import-time env resolution under `env` and return the resulting flag.
+
+    Clears every recognized var first so the ambient shell cannot leak in; reloads once more
+    on teardown to restore module state for later tests.
+    """
+
+    def _resolve(env=None):
+        for name in _ALLOW_INSECURE_ENV_VARS:
+            monkeypatch.delenv(name, raising=False)
+        for name, value in (env or {}).items():
+            monkeypatch.setenv(name, value)
+        importlib.reload(net)
+        return net._ALLOW_INSECURE
+
+    try:
+        yield _resolve
+    finally:
+        for name in _ALLOW_INSECURE_ENV_VARS:
+            monkeypatch.delenv(name, raising=False)
+        importlib.reload(net)
+
+
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_defaults_false(resolve_allow_insecure):
+    assert resolve_allow_insecure() is False
+
+
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_canonical_env_var(resolve_allow_insecure):
+    assert resolve_allow_insecure({"AGENTA_INSECURE_EGRESS_ALLOWED": "true"}) is True
+
+
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_legacy_alias_still_honored(resolve_allow_insecure):
+    assert (
+        resolve_allow_insecure({"AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE": "true"})
+        is True
+    )
+
+
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_ignores_ambient_env(resolve_allow_insecure, monkeypatch):
+    # The ambient shell may export it (a loaded dev env file); resolution must still start clean.
     monkeypatch.setenv("AGENTA_INSECURE_EGRESS_ALLOWED", "true")
-    monkeypatch.delenv("AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
-    try:
-        importlib.reload(net)
-        assert net._ALLOW_INSECURE is True
-    finally:
-        monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
-        importlib.reload(net)
-
-
-def test_allow_insecure_legacy_alias_still_honored(monkeypatch):
-    monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
-    monkeypatch.setenv("AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE", "true")
-    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
-    try:
-        importlib.reload(net)
-        assert net._ALLOW_INSECURE is True
-    finally:
-        monkeypatch.delenv("AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE", raising=False)
-        importlib.reload(net)
+    assert resolve_allow_insecure() is False

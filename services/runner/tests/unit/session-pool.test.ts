@@ -19,10 +19,47 @@ import {
   poolKeyFor,
   priorConversation,
   readKeepaliveConfig,
+  resolvesToLocalProvider,
   SessionPool,
   tailIsFreshUserMessage,
   type CredentialEpoch,
 } from "../../src/engines/sandbox_agent/session-pool.ts";
+
+describe("resolvesToLocalProvider (local/remote gate)", () => {
+  it("is true when the request explicitly asks for local", () => {
+    assert.equal(resolvesToLocalProvider("local", {}), true);
+  });
+
+  it("is false when the request explicitly asks for daytona", () => {
+    assert.equal(resolvesToLocalProvider("daytona", {}), false);
+  });
+
+  it("falls back to SANDBOX_AGENT_PROVIDER when the request omits sandbox", () => {
+    assert.equal(
+      resolvesToLocalProvider(undefined, { SANDBOX_AGENT_PROVIDER: "daytona" }),
+      false,
+    );
+    assert.equal(
+      resolvesToLocalProvider(undefined, { SANDBOX_AGENT_PROVIDER: "local" }),
+      true,
+    );
+  });
+
+  it("defaults to local when neither the request nor env specify a provider", () => {
+    assert.equal(resolvesToLocalProvider(undefined, {}), true);
+  });
+
+  it("the request value wins over the env fallback", () => {
+    assert.equal(
+      resolvesToLocalProvider("local", { SANDBOX_AGENT_PROVIDER: "daytona" }),
+      true,
+    );
+    assert.equal(
+      resolvesToLocalProvider("daytona", { SANDBOX_AGENT_PROVIDER: "local" }),
+      false,
+    );
+  });
+});
 
 // A fake environment: only `destroy` matters to the pool; we count destroys. Idempotent like
 // the real engine `destroy()` closure (the pool's contract): a second call is a no-op.

@@ -34,7 +34,7 @@ export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
  * conflating the two is exactly the #4831 regression this project fixed.
  */
 export const USER_MCP_UNSUPPORTED_MESSAGE =
-  "MCP servers are not supported by the sidecar.";
+  "MCPs are not supported by the sidecar.";
 
 /**
  * Pi-family refusal for ANY user-declared MCP server (stdio AND http). The Pi runtime delivers
@@ -46,7 +46,7 @@ export const USER_MCP_UNSUPPORTED_MESSAGE =
  * non-Pi harness to use one.
  */
 export const PI_USER_MCP_UNSUPPORTED_MESSAGE =
-  "User MCP servers are not supported on the Pi harness (Pi delivers tools through its bundled " +
+  "User MCPs are not supported on the Pi harness (Pi delivers tools through its bundled " +
   "extension, not MCP). Use a non-Pi harness (e.g. claude) for a user MCP server, or remove " +
   "mcpServers.";
 

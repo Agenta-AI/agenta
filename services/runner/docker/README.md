@@ -5,7 +5,7 @@ Images for the agent runner (the `sandbox-agent server` runtime in
 `:8765`.
 
 - `Dockerfile.dev` — dev image. `tsx watch`, source bind-mounted, hot reload.
-- `Dockerfile` — production image. Source baked in, no watcher.
+- `Dockerfile.gh` — production image. Source baked in, no watcher.
 
 ## Licensing posture (read before changing any image or build recipe)
 
@@ -61,6 +61,6 @@ We never bake an OAuth login or an API key into an image.
   install Claude from Anthropic at build, so the snapshot's Claude comes straight
   from Anthropic rather than from a third party's bundled image. Relocation of the
   builder into this folder is a follow-up.
-- **Self-host (API key, OAuth optional).** Build the production `Dockerfile` (it
+- **Self-host (API key, OAuth optional).** Build the production `Dockerfile.gh` (it
   bakes neither Claude nor a credential), then supply auth at runtime: an
   `ANTHROPIC_API_KEY` env var, or, for individual use, a mounted OAuth login dir.

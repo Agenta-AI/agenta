@@ -12,6 +12,8 @@ export default defineConfig({
           name: "unit",
           include: ["tests/unit/**/*.test.ts"],
           environment: "node",
+          // Scrub ambient dev-env vars so unit tests never depend on the caller's shell.
+          setupFiles: ["tests/setup/hermetic-env.ts"],
         },
       },
       {

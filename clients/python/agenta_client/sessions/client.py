@@ -8,6 +8,7 @@ from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_file_written_response import MountFileWrittenResponse
+from ..types.session_heartbeat_response_model import SessionHeartbeatResponseModel
 from ..types.session_interaction_data import SessionInteractionData
 from ..types.session_interaction_flags import SessionInteractionFlags
 from ..types.session_interaction_kind import SessionInteractionKind
@@ -19,6 +20,7 @@ from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
 from ..types.session_record_response import SessionRecordResponse
 from ..types.session_records_query_response import SessionRecordsQueryResponse
+from ..types.session_state_data import SessionStateData
 from ..types.session_state_response import SessionStateResponse
 from ..types.session_stream_command_response_model import SessionStreamCommandResponseModel
 from ..types.session_stream_response_model import SessionStreamResponseModel
@@ -194,7 +196,7 @@ class SessionsClient:
         _response = self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
-    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResponseModel:
         """
         Parameters
         ----------
@@ -211,7 +213,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionStreamResponseModel
+        SessionHeartbeatResponseModel
             Successful Response
         
         Examples
@@ -486,11 +488,14 @@ class SessionsClient:
         _response = self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
-    def sign_session_mount_credentials(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+    def sign_session_mount_credentials(self, *, session_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
         """
         Parameters
         ----------
         session_id : str
+        
+        name : typing.Optional[str]
+            Which session-scoped mount to sign, e.g. 'cwd' (default) or a per-harness transcript dir mount (e.g. 'claude-projects', 'pi-sessions'). Each name is its own mount row / durable prefix.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -511,7 +516,7 @@ class SessionsClient:
             session_id="session_id",
         )
         """
-        _response = self._raw_client.sign_session_mount_credentials(session_id=session_id, request_options=request_options)
+        _response = self._raw_client.sign_session_mount_credentials(session_id=session_id, name=name, request_options=request_options)
         return _response.data
     
     def upload_session_mount_file(self, mount_id: str, *, file: core.File, path: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountFileWrittenResponse:
@@ -634,11 +639,13 @@ class SessionsClient:
         _response = self._raw_client.get_record_event(record_id, request_options=request_options)
         return _response.data
     
-    def ingest_record(self, *, session_id: str, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
         session_id : str
+        
+        record_id : typing.Optional[str]
         
         record_index : typing.Optional[int]
         
@@ -669,7 +676,7 @@ class SessionsClient:
             session_id="session_id",
         )
         """
-        _response = self._raw_client.ingest_record(session_id=session_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, request_options=request_options)
+        _response = self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, request_options=request_options)
         return _response.data
     
     def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
@@ -700,17 +707,17 @@ class SessionsClient:
         _response = self._raw_client.get_state(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def set_state(self, *, session_id: str, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
         session_id : str
         
-        data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK session state to persist.
+        data : typing.Optional[SessionStateData]
+            Full replacement of the continuity state (resume ids + staleness guard).
         
         sandbox_id : typing.Optional[str]
-            Remote sandbox id to record alongside the SDK record.
+            Remote sandbox id to record alongside the continuity state.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -939,7 +946,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
-    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResponseModel:
         """
         Parameters
         ----------
@@ -956,7 +963,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionStreamResponseModel
+        SessionHeartbeatResponseModel
             Successful Response
         
         Examples
@@ -1303,11 +1310,14 @@ class AsyncSessionsClient:
         _response = await self._raw_client.query_session_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
-    async def sign_session_mount_credentials(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+    async def sign_session_mount_credentials(self, *, session_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
         """
         Parameters
         ----------
         session_id : str
+        
+        name : typing.Optional[str]
+            Which session-scoped mount to sign, e.g. 'cwd' (default) or a per-harness transcript dir mount (e.g. 'claude-projects', 'pi-sessions'). Each name is its own mount row / durable prefix.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1336,7 +1346,7 @@ class AsyncSessionsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.sign_session_mount_credentials(session_id=session_id, request_options=request_options)
+        _response = await self._raw_client.sign_session_mount_credentials(session_id=session_id, name=name, request_options=request_options)
         return _response.data
     
     async def upload_session_mount_file(self, mount_id: str, *, file: core.File, path: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountFileWrittenResponse:
@@ -1491,11 +1501,13 @@ class AsyncSessionsClient:
         _response = await self._raw_client.get_record_event(record_id, request_options=request_options)
         return _response.data
     
-    async def ingest_record(self, *, session_id: str, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    async def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
         session_id : str
+        
+        record_id : typing.Optional[str]
         
         record_index : typing.Optional[int]
         
@@ -1534,7 +1546,7 @@ class AsyncSessionsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.ingest_record(session_id=session_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, request_options=request_options)
+        _response = await self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, request_options=request_options)
         return _response.data
     
     async def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
@@ -1573,17 +1585,17 @@ class AsyncSessionsClient:
         _response = await self._raw_client.get_state(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def set_state(self, *, session_id: str, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    async def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
         session_id : str
         
-        data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK session state to persist.
+        data : typing.Optional[SessionStateData]
+            Full replacement of the continuity state (resume ids + staleness guard).
         
         sandbox_id : typing.Optional[str]
-            Remote sandbox id to record alongside the SDK record.
+            Remote sandbox id to record alongside the continuity state.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

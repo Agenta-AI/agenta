@@ -8,7 +8,6 @@ from .gateway_tool_config_permission import GatewayToolConfigPermission
 
 
 class GatewayToolConfig(UniversalBaseModel):
-    needs_approval: typing.Optional[bool] = None
     render: typing.Optional[typing.Dict[str, typing.Any]] = None
     permission: typing.Optional[GatewayToolConfigPermission] = None
     provider: typing.Optional[str] = None
