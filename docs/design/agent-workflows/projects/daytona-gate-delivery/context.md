@@ -2,65 +2,63 @@
 
 ## What breaks
 
-A tool-using agent on a Daytona sandbox hangs on its first tool call. Chat-only turns
-work. Any turn that calls a Pi builtin (bash, read, edit, write, grep, find, ls) stalls
-until the 300s run-limits guard kills it. The user sees no approval prompt and no result,
-just a long wait and then a failed turn.
+A Pi agent on Daytona hangs on its first builtin tool call. Chat-only turns work. A call
+to bash, read, edit, write, grep, find, or ls waits until the 300-second run limit kills
+the turn. The user sees no approval prompt and no tool result.
 
-The QA matrix caught this as F-018 during the E3 (Daytona) runs. It reproduces in the
-playground UI, not only the driver. Sessions `fd02cd78` and `7ec8186b` both hung on
-Daytona with no approval prompt shown.
+The QA matrix recorded the failure as F-018. It reproduced in the playground in sessions
+`fd02cd78` and `7ec8186b` and in the captured E3 bash run `f61a67f8...`.
 
 ## Why it matters
 
-Chat on Daytona works after the F-017 remote-mount fix (PR #5197). Tool use does not. That
-leaves Daytona usable for pure conversation and broken for the agents people actually
-build.
+Daytona can run conversation-only agents but not tool-using Pi agents. It also breaks the
+build-kit default agent because that agent begins by reading its skill. When the model
+obeys the instruction, the first turn stalls.
 
-It also breaks the build-kit default agent on Daytona. That agent's instructions tell the
-model to read its skill file first. The model opens the turn with a `read`, which is a
-builtin, so the first turn dies whenever the model follows its own instructions.
+## Corrected mechanism
 
-## The mechanism in one paragraph
+The Pi extension calls `ctx.ui.confirm` for each granted builtin. Pi emits an
+`extension_ui_request`. Local runs start the repo-pinned `pi-acp` 0.0.29 adapter, which
+converts that event into ACP `session/request_permission`. The Daytona snapshot inherits
+`pi-acp` 0.0.23 from `rivetdev/sandbox-agent:0.5.0-rc.2-full`. That older adapter ignores
+the extension UI event because the bridge did not land until `pi-acp` 0.0.28.
 
-Builtin gating is on. For every builtin call, the Pi extension inside the sandbox raises
-`ctx.ui.confirm`, even when the policy would allow the call. The allow, ask, or deny
-decision is made on the runner, after the gate surfaces there. The `pi-acp` bridge turns
-that confirm into an ACP `session/request_permission` reverse request. On a Daytona
-sandbox that reverse request never reaches the runner, so the confirm never resolves. The
-confirm is deliberately built with no reaper, so the tool waits forever. The 300s guard is
-the only thing that ends it. The full path, with file and line references, is in
-[research.md](research.md).
+The request therefore disappears before the HTTP transport. Ordinary `session/update`
+events still work because version 0.0.23 supports them. This explains the exact symptom:
+the runner sees the tool call but never logs `[HITL] pi-gate`.
+
+The Daytona preview proxy is not the source of the failure. It never receives a permission
+request to forward.
 
 ## Goals
 
-- A builtin call on Daytona that the policy allows runs without stalling.
-- A builtin call on Daytona that the policy denies is blocked with a clear result.
-- A builtin call on Daytona that needs a human decision (ask) surfaces a real approval
-  prompt in the UI and resumes correctly when the human answers.
-- Any gate that cannot be answered fails closed with a clear error, and never stalls to
-  the 300s guard.
-- Local behavior is unchanged. Daytona and local stay interchangeable for the `pi`
-  harness, which is the whole promise of the sandbox axis.
+- Pin the Daytona Pi adapter to the same version the local runner uses.
+- Prove allow, deny, and ask behavior on a fresh Daytona sandbox.
+- Keep one ACP permission plane for local and Daytona.
+- Preserve live approval continuation through `respondPermission`.
+- Preserve cold approval through durable decisions and call reissue.
+- Detect future snapshot adapter drift during the snapshot build.
+- Bound and explain any remaining delivery failure instead of waiting 300 seconds.
 
 ## Non-goals
 
-- Fixing the Daytona proxy itself, or rewriting the vendored `sandbox-agent` transport.
-  Option A in [options.md](options.md) would need that, and the plan rejects it as the
-  primary path.
-- Changing the approval model, the permission plan schema, or the `pi-gate-envelope`
-  contract for the local path.
-- Sandboxing where code tools execute (F-010) or session-resume sandbox reuse (F-020).
-  Those are separate findings.
+- A new file-based permission protocol unless the adapter parity fix fails its focused
+  transport test.
+- Moving allow or deny policy into the sandbox before latency measurements justify it.
+- Adding Pi MCP delivery or enabling Claude gateway tools on Daytona. Those are separate
+  forward-delivery capabilities.
+- Changing the public agent configuration or approval policy schema.
+- Replacing the Daytona preview proxy.
 
-## Constraints the fix must respect
+## Constraints
 
-- The sandbox is not trusted to state its own permissions. The current
-  `pi-gate-envelope` design carries tool identity only, never policy, for exactly this
-  reason. Any option that moves a decision into the sandbox must argue why it is safe for
-  the specific tool class it covers.
-- Builtin execution already happens inside the sandbox with no runner mediation. The gate
-  is the only control point for a builtin. This shapes which trust arguments hold.
-- Custom (callback and gateway) tool execution relays back to the runner, which re-checks
-  the decision at the relay guard. That second enforcement point exists for custom tools
-  and does not exist for builtins.
+- The snapshot recipe inherits private ACP adapter installations from its base image.
+  Installing only the standalone Pi CLI does not update `pi-acp`.
+- `sandbox-agent` prefers its private adapter launcher under
+  `/home/sandbox/.local/share/sandbox-agent/agent_processes/`. A global npm install alone
+  is not a reliable fix.
+- A live permission continuation exists only while the sandbox, adapter process, ACP
+  connection, permission id, and prompt promise remain alive.
+- Stopping or recreating a sandbox destroys that continuation. The cold path must use a
+  durable human decision and a reissued call. A file relay cannot keep a dead process
+  alive.

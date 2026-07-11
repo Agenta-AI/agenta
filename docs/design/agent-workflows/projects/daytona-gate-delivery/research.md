@@ -1,194 +1,198 @@
 # Research
 
-This is grounded in the working tree with PR #5197 (feat/sessions-continuity) applied.
-File and line references are to that state.
+This document separates confirmed facts, ruled-out hypotheses, and remaining live
+validation. File references describe the current working tree unless a versioned upstream
+link is provided.
 
-## The gate path, end to end
+## Root cause
 
-### 1. The extension raises a gate for every builtin call
+Daytona and local runs use different `pi-acp` adapter versions.
 
-`services/runner/src/extensions/agenta.ts` registers builtin gating when
-`AGENTA_AGENT_BUILTIN_GATING` is set. `registerBuiltinGating` (lines 210-239) does two
-things:
+### Local uses `pi-acp` 0.0.29
 
-- On `before_agent_start`, it narrows the model's active builtin set to the granted ones
-  (`replaceActiveBuiltinTools`). A builtin the run did not grant is not offered to the
-  model at all.
-- On every `tool_call` event for a granted builtin, it calls `piDialogAllows` and blocks
-  the call unless the answer is allow (lines 224-238).
+`services/runner/package.json` pins `pi-acp` 0.0.29. The local daemon prepends the
+runner's `node_modules/.bin` directory to `PATH` in
+`services/runner/src/engines/sandbox_agent/daemon.ts`, so the local sandbox-agent process
+starts that adapter.
 
-`piDialogAllows` (lines 102-126) calls `ctx.ui.confirm(PI_GATE_DIALOG_TITLE, message)`,
-where `message` is the JSON gate envelope. It passes no `opts`, so Pi arms no reaper and
-the dialog waits indefinitely. The comment at lines 94-100 states this on purpose: an
-unavailable UI plane blocks, and a cancellation resolves to a fail-closed block.
+The installed 0.0.29 adapter handles Pi's `extension_ui_request`. For a confirm dialog it
+calls ACP `requestPermission`, waits for the answer, and sends an
+`extension_ui_response` back to Pi. See the installed adapter near
+`node_modules/.pnpm/pi-acp@0.0.29/node_modules/pi-acp/dist/index.js:1050-1143`.
 
-The key fact: this confirm fires for every builtin call, including calls the policy would
-allow. The extension does not know the policy. The runner decides allow, ask, or deny
-after the gate surfaces on the runner side. So even a pure allow needs a full round-trip
-to the runner and back.
+### Daytona inherits `pi-acp` 0.0.23
 
-### 2. The confirm becomes an ACP reverse request
+`services/runner/sandbox-images/daytona/build_snapshot.py` builds
+`agenta-sandbox-pi` from `rivetdev/sandbox-agent:0.5.0-rc.2-full`. The recipe installs
+`@earendil-works/pi-coding-agent` 0.80.6, but it does not update the base image's private
+Pi ACP adapter.
 
-`services/runner/src/engines/sandbox_agent/pi-gate-envelope.ts` documents the tunnel. The
-`pi-acp` bridge forwards the confirm as an ACP `session/request_permission` with a
-synthetic `pi-ui-<uuid>` tool-call id. The real identity (tool name, the model's tool-call
-id, the arguments) rides inside the `message` field as the envelope JSON (lines 1-20). The
-envelope carries identity only, never policy (lines 16-19). The runner recovers policy
-from its own resolved specs.
+The official sandbox-agent 0.5.0-rc.2 adapter manifest pins `pi-acp` 0.0.23:
+[adapters.json](https://github.com/rivet-dev/sandbox-agent/blob/cb42971b565cbe20c28f0d14a4d72b614c79eac7/scripts/audit-acp-deps/adapters.json#L21-L25).
 
-### 3. The runner classifies and answers the reverse request
+Version 0.0.23 has no `extension_ui_request` branch. It ignores the event in its default
+case: [pi-acp 0.0.23 session.ts](https://github.com/svkozak/pi-acp/blob/9c9bc93dc02228add0cbc0c7297eca2d964aacd0/src/acp/session.ts#L618-L620).
+The bridge landed later in commit
+[`1412ea6110`](https://github.com/svkozak/pi-acp/commit/1412ea611006a86f71c76600f3f0a7d1f3daffcb)
+and shipped in 0.0.28.
 
-`services/runner/src/engines/sandbox_agent/acp-interactions.ts` wires
-`session.onPermissionRequest` (line 104). `handleRequest` detects a Pi gate by the dialog
-title, parses the envelope, builds a `GateDescriptor` from the envelope identity plus the
-run's resolved specs (`buildPiGateDescriptor`, lines 421-450), runs it through the
-responder policy, and either answers the reverse request or pauses the turn for a human
-(lines 274-326). It logs `[HITL] pi-gate ...` for every Pi gate it handles (lines
-297-309).
+### Why this matches F-018
 
-On a Daytona session this log line never appears. `session.onPermissionRequest` never
-fires. The reverse request does not arrive. On an identical local run it fires and
-round-trips. That is the whole defect.
+The Pi extension calls `ctx.ui.confirm` in `services/runner/src/extensions/agenta.ts`.
+Pi emits an extension UI event. On local, adapter 0.0.29 converts it into
+`session/request_permission`. On Daytona, adapter 0.0.23 ignores it, so the confirm never
+gets an answer.
 
-### 4. The policy decision
+Normal Pi events still become `session/update`, which is why the runner sees the tool call.
+The runner never logs `[HITL] pi-gate` because no permission request exists. The request is
+lost before HTTP, SSE, or the Daytona proxy.
 
-`services/runner/src/permission-plan.ts` computes the decision. For a builtin there is no
-`specPermission` or `serverPermission`, so `effectivePermission` (lines 125-136) falls to
-a matching rule (`matchingRulePermission`) or the default (`defaultPermission`, lines
-248-256):
+This is the root cause with high confidence. One live version query against the deployed
+snapshot remains useful confirmation, not an open architecture question.
 
-- Default `allow`: every builtin resolves to allow.
-- Default `allow_reads`: read-only builtins (read, grep, find, ls) resolve to allow; write
-  builtins (bash, edit, write) resolve to ask.
-- Default `ask` or `deny`: as named.
-- A rule can override per builtin. A prefix rule like `Bash(git:*)` makes the decision
-  depend on the call arguments (`ruleMatches`, lines 214-224).
+## What the Daytona preview proxy is
 
-`decide` (lines 138-151) returns allow, deny, or pendingApproval. A pendingApproval that
-no stored decision answers pauses the turn and surfaces an approval prompt.
+The preview proxy is authenticated public ingress to one TCP port inside a Daytona
+sandbox. It is not an ACP-specific service and it is not the outbound proxy Daytona uses
+for protected secrets.
 
-The QA runs use allow mode, where every builtin resolves to allow. Both read and bash
-still hang, because the gate fires before the allow decision is reached.
+The sandbox-agent Daytona provider does the following:
 
-## Why the reverse request dies on Daytona and not local
+1. Starts `sandbox-agent server` on sandbox port 3000.
+2. Requests a signed preview URL for port 3000 with a four-hour TTL.
+3. Connects the outer SDK to that HTTPS URL.
 
-Both local and Daytona drive the harness through the same `sandbox-agent` package over
-HTTP. The local provider spawns the `sandbox-agent` binary as an HTTP server
-(`node_modules/sandbox-agent/dist/providers/local.js`, `spawnSandboxAgent` runs
-`server --host --port --token`). The runner connects to it with `AcpHttpClient`. On
-Daytona the same server binary runs inside the sandbox, and the runner connects to it
-through the Daytona preview proxy, with a cookie jar for the proxy auth
-(`createCookieFetch` in `services/runner/src/engines/sandbox_agent/daytona.ts`, lines
-143-181).
+The signed URL has the form `https://{port}-{signed-token}.{proxy-domain}`. Daytona
+documents the authentication and expiry model in its
+[preview documentation](https://www.daytona.io/docs/en/preview/).
 
-`AcpHttpClient` (in `acp-http-client@0.4.2`, bundled under `node_modules/.pnpm`) uses two
-HTTP channels to one endpoint:
+The last public Daytona proxy source before the repository maintenance change shows the
+request path. The proxy authenticates the signed hostname token, resolves the regional
+runner that owns the sandbox, and forwards the request to the selected sandbox port. The
+final forwarding layer is Go's `httputil.ReverseProxy` with a 100 millisecond flush
+interval for streams. It handles HTTP methods and bodies without parsing ACP or JSON-RPC.
 
-- Client to server: a `POST` per JSON-RPC message. A `200` response body is read inline as
-  a direct response (`postMessage`, dist/index.js lines 245-268).
-- Server to client: a single persistent `GET` SSE stream, started after the first POST
-  (`ensureSseLoop` / `runSseLoop`, lines 271-320). Both server-initiated notifications
-  (`session/update`) and server-initiated requests (`session/request_permission`) arrive
-  on this one stream. The client answers a server request by POSTing the response envelope
-  back.
+The repo's `createCookieFetch` wrapper in
+`services/runner/src/engines/sandbox_agent/daytona.ts` persists the
+`daytona-sandbox-auth-*` cookie because Node fetch has no cookie jar. The wrapper also uses
+the long-timeout ACP dispatcher. It does not translate protocol messages.
 
-The reverse-request handler is wired all the way through:
-`client.requestPermission -> live.handlePermissionRequest -> onPermissionRequest ->
-enqueuePermissionRequest` (chunk-TVCDKGSM.js lines 763-768, 888-914, 2025). Local proves
-this path works over HTTP.
+### Account tier is not the cause
 
-So the only variable between local and Daytona is the preview proxy. On Daytona the SSE
-stream does deliver `session/update` (the finding confirms the `tool_call` ingests fine),
-which means the stream is alive. Yet the `session/request_permission` envelope on that
-same stream never reaches the runner. Static analysis cannot pin the exact proxy behavior
-that drops or stalls the server-initiated request while passing notifications. Confirming
-and fixing it would need live proxy-level inspection and probably a change in the vendored
-`sandbox-agent` transport or the proxy itself.
+The documented Tier 3 preview difference is removal of the browser warning page. The
+warning middleware bypasses non-browser clients, including the runner's Node and Undici
+requests. A tier, token, expiry, or request-rate problem would fail or redirect an HTTP
+request. It would not selectively remove one JSON-RPC method from an SSE byte stream while
+letting another method through.
 
-This uncertainty is the strongest argument against fixing the transport as the primary
-path, and for options that do not depend on the reverse request at all. See
-[options.md](options.md).
+The source contains no filter for `session/request_permission`. More importantly, the
+adapter version proof shows that the failing Daytona process never emits that method.
 
-### A related transport fragility already documented
+## The ACP HTTP path
 
-F-017 in [../qa/findings.md](../qa/findings.md) records a Daytona proxy idle-stream
-timeout around 60s that killed quiet streams before PR #5197 detached the mount process.
-That history reinforces the read that server-initiated traffic over the proxy is fragile,
-and that a HITL pause (a human-timescale wait with no traffic) is exactly the shape the
-proxy handles worst.
+The outer runner-to-sandbox-agent connection uses concurrent HTTP channels to one URL:
 
-## Substrate the fix can reuse
+- Client-to-daemon JSON-RPC uses one POST per envelope.
+- Daemon-to-client traffic uses one persistent GET with
+  `Accept: text/event-stream`.
+- Notifications and server-initiated requests share that SSE stream.
+- The answer to a server-initiated request is another POST.
 
-### The file relay already works on Daytona
+The installed `acp-http-client` implements POST near `dist/index.js:230-268`, starts the
+SSE GET near `269-330`, and sends every parsed SSE message through the same inbound path
+near `333-393`. The sandbox-agent client installs `requestPermission` beside
+`sessionUpdate`, so both message types use the same transport.
 
-`services/runner/src/tools/relay.ts` runs a runner-side loop that polls the sandbox
-filesystem for request files, executes each, and writes a result file back (lines 16,
-317-378). It supports both a local filesystem host and a Daytona sandbox filesystem host
-(`host.list(relayDir)`, `host.read`, `sandbox.readFsFile`). This is how custom tool calls
-already cross the Daytona boundary. The MCP loopback channel is deliberately skipped on
-Daytona and swapped for this relay (`services/runner/src/engines/sandbox_agent/mcp.ts`
-lines 164-264). This is the proven precedent an ask-mode surface can follow.
+This is HTTP plus SSE. It is not WebSocket, long polling, callback delivery, or filesystem
+polling.
 
-Two caveats for reuse:
+Upstream sandbox-agent already fixed an earlier client deadlock that prevented permission
+answers while a long-running prompt POST remained open. The installed 0.4.2 client contains
+that fix and upstream pins it with a test named
+`answers session/request_permission while session/prompt is still in flight` in
+[the 0.4.2 smoke suite](https://github.com/rivet-dev/sandbox-agent/blob/v0.4.2/sdks/acp-http-client/tests/smoke.test.ts).
 
-- The relay loop starts only when `plan.useToolRelay` is set, which today tracks having
-  custom tools (`services/runner/src/engines/sandbox_agent.ts` line 1631). A builtins-only
-  run does not start it. Delivering builtin gates over the relay would need the loop
-  running whenever builtin gating is active on Daytona.
-- Builtin gating passes no relay dir to the extension today. `buildPiExtensionEnv` sets
-  `AGENTA_AGENT_BUILTIN_GATING` and `AGENTA_AGENT_BUILTIN_GRANTS` but notes the gate rides
-  the confirm dialog, not the file relay
-  (`services/runner/src/engines/sandbox_agent/pi-assets.ts` lines 74-79). An option that
-  uses the relay for builtins would set the relay dir there too.
+## Permission delivery, end to end after parity
 
-### The relay guard already re-decides runner-side
+With adapter 0.0.29 in the snapshot, the live path is:
 
-For Pi custom tools the relay guard re-runs `decide()` on the runner before executing a
-relayed call (`services/runner/src/engines/sandbox_agent.ts` lines 1594-1630). A forged
-execute record cannot run an ask or deny tool. This is the same runner-side enforcement an
-ask-mode file-relay gate would use. It shows the pattern is already in the codebase.
+1. The Pi extension raises `ctx.ui.confirm` for the builtin call.
+2. Pi emits `extension_ui_request` to `pi-acp`.
+3. `pi-acp` emits ACP `session/request_permission`.
+4. sandbox-agent broadcasts the request on the same SSE stream as updates.
+5. The outer SDK maps the agent session id to the Agenta session and invokes its permission
+   listener.
+6. `acp-interactions.ts` evaluates the runner-owned permission plan.
+7. The runner POSTs the selected ACP permission response.
+8. `pi-acp` sends the extension UI answer to Pi and the original tool call continues or is
+   blocked.
 
-### The runner already computes builtin grants up front
+The existing runner path already supports allow, deny, and pending human approval. Option A
+does not add a new interface.
 
-`run-plan.ts` computes `builtinGrants` and `builtinGatingActive`
-(`normalizePiBuiltinGrants`, `computeBuiltinGatingActive`, lines 289-293) and injects them
-into the sandbox env. Adding a per-builtin decision alongside the grant list is a small
-extension of an injection that already exists.
+## Live and cold approval are lifecycle states, not transports
 
-## Facts that constrain the approval state machine
+### Live continuation
 
-Surfaced during the design review ([design-review.md](design-review.md)); verify at the
-referenced sites.
+When the sandbox and prompt remain alive, the runner can retain the ACP permission id and
+the original prompt promise. A human answer calls `respondPermission` on the same session.
+The original call continues with its byte-exact arguments. The relevant state is in
+`services/runner/src/engines/sandbox_agent.ts` around the parked-approval type and the
+resume path near lines 1653-1689.
 
-- The relay loop stops as soon as the turn pauses (`runTurn` stops the relay,
-  `services/runner/src/engines/sandbox_agent.ts` around line 1713), and the loop marks a
-  request seen before processing (`services/runner/src/tools/relay.ts` around lines
-  336-350). A pending gate file inside a paused turn is not answered later by the same
-  loop.
-- Live approval parking is ACP-only: a parked gate holds an ACP permission id answered
-  via `respondPermission` (`sandbox_agent.ts` around line 427, `server.ts` around line
-  590), and a unit test asserts Pi file-relay gates are non-parkable
-  (`services/runner/tests/unit/session-keepalive-approval.test.ts` around line 428). A
-  file-transport gate cannot park without extending that union.
-- Keep-alive is off by default (`session-pool.ts` around line 53), and F-020 records that
-  Daytona sandboxes are deleted at turn end regardless. So the default resume path for a
-  Daytona ask gate is cold: the sandbox that raised the gate is gone by the time the
-  human answers, and the stored decision must answer the reissued call on the next turn.
-- The extension trusts relay response JSON as-is (`services/runner/src/tools/dispatch.ts`
-  around line 89). That is safe for custom-tool results because execution happens
-  runner-side behind the relay guard. It is not safe for a builtin decision file, where
-  the file itself would be the authorization: the relay dir is sandbox-writable, so an
-  unsigned `allow` is not demonstrably runner-authored.
-- `run-limits.ts` freezes every deadline on a HITL pause (`notePaused`) on purpose. Any
-  gate timeout must not reap a legitimately parked approval, which forces the
-  delivery-versus-human split rather than one timer.
+### Cold replay
 
-## What the runner can and cannot precompute
+If the sandbox stops, archives, is deleted, or loses its live connection while approval is
+pending, the adapter process and its pending RPC die. No transport can answer that dead
+request. A file channel does not change this.
 
-The runner can precompute a builtin's decision when it does not depend on the call
-arguments: the default mode applied to the builtin's read-only hint, or a plain
-name-match rule. The runner cannot precompute a single decision when a prefix rule like
-`Bash(git:*)` makes the answer depend on the arguments, and it cannot precompute an ask
-that a human must answer per call. Those cases must still reach the runner at call time
-(they compile to the `runner` disposition). This split is what shapes the recommended
-layering in [options.md](options.md).
+The cold path stores the human decision durably. On the next run, the runner restarts or
+recreates the session, the model reissues the pending call, and the responder consumes the
+stored decision. The call is authorized through a new ACP request on the new live
+connection.
+
+Option B is therefore not required for cold approval. Durable decisions and replay are.
+
+## Pi, Claude, MCP, and custom tools
+
+The first draft grouped different delivery mechanisms under “MCP.” The current behavior is:
+
+| Case | Daytona behavior |
+| --- | --- |
+| Pi builtins | Pi extension dialog through `pi-acp` to ACP permission. F-018 is the stale-adapter failure on this path. |
+| Pi Agenta custom and gateway tools | Pi extension plus filesystem execution relay. This is not user MCP. |
+| Pi user-declared MCP | Rejected before the run. Pi receives no ACP MCP server list. |
+| Claude native tools | Native ACP permission requests. F-018 does not prove this path fails. |
+| Claude Agenta gateway tools | Unsupported on Daytona because the internal runner-loopback MCP endpoint is not reachable from sandbox loopback. |
+| Claude user HTTP MCP | Delivered when the harness advertises MCP; the sandbox connects to the remote URL. |
+| User stdio MCP | Disabled for every harness. |
+
+Evidence lives in `services/runner/src/engines/sandbox_agent/mcp.ts` and
+`run-plan.ts`. In particular, `buildSessionMcpServers` returns no ACP MCP servers for Pi,
+skips the internal loopback server on Daytona, retains user HTTP servers for capable
+non-Pi harnesses, and rejects stdio.
+
+Option A fixes the Pi reverse permission path. It does not add new forward-delivery
+capabilities for MCP or custom tools.
+
+## Focused validation
+
+The implementation pass should run these checks in order:
+
+1. Query the current Daytona snapshot's private Pi adapter version. Expect 0.0.23.
+2. Rebuild a temporary snapshot with private adapter 0.0.29 and verify the version before
+   creating a run.
+3. Run allow-mode read and bash. Expect `[HITL] pi-gate`, immediate runner allow, and a
+   completed tool call.
+4. Run deny mode. Expect a denied result and no execution.
+5. Run ask mode while the sandbox remains live. Approve and reject once; expect the
+   original prompt to continue through `respondPermission`.
+6. Exercise cold approval by letting the live continuation go away, then answer and resume.
+   Expect a reissued gate to consume the stored decision.
+7. Run a Claude ask-mode control on Daytona. Record its result separately from F-018.
+8. List Daytona sandboxes before and after the run and delete every test sandbox.
+
+Only if step 3 still fails after the adapter emits a permission request should the team
+instrument raw adapter stdout and the proxy SSE stream. That experiment would establish
+whether a real envelope disappears after generation. Until then, a file permission channel
+has no evidence-based trigger.
