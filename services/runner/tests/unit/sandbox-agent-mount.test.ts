@@ -17,6 +17,9 @@ import {
   unmountStorage,
   discoverTunnelEndpoint,
   mountStorageRemote,
+  harnessSessionMounts,
+  mountHarnessSessionDirs,
+  storeReachableFromSandbox,
   type MountCredentials,
 } from "../../src/engines/sandbox_agent/mount.ts";
 
@@ -73,8 +76,11 @@ describe("signSessionMountCredentials", () => {
     assert.equal(creds.secretKey, "SCOPED-SK");
     assert.equal(creds.sessionToken, "SCOPED-TOK");
     assert.equal(creds.endpoint, "http://seaweedfs:8333");
-    // session_id rides the query; auth header is forwarded.
-    assert.match(calledUrl, /\/sessions\/mounts\/sign\?session_id=sess-1$/);
+    // session_id rides the query; name defaults to "cwd" (S4); auth header is forwarded.
+    assert.match(
+      calledUrl,
+      /\/sessions\/mounts\/sign\?session_id=sess-1&name=cwd$/,
+    );
     assert.equal(calledAuth, "ApiKey abc");
   });
 
@@ -111,6 +117,110 @@ describe("signSessionMountCredentials", () => {
       log: SILENT,
     });
     assert.equal(creds, null);
+  });
+
+  it("passes a non-default name through to the sign URL (S4 per-harness mounts)", async () => {
+    let calledUrl = "";
+    await signSessionMountCredentials(
+      "sess-1",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        fetchImpl: (async (url: string) => {
+          calledUrl = url;
+          return okResponse(SIGNED_BODY);
+        }) as unknown as typeof fetch,
+        log: SILENT,
+      },
+      "claude-projects",
+    );
+    assert.match(
+      calledUrl,
+      /\/sessions\/mounts\/sign\?session_id=sess-1&name=claude-projects$/,
+    );
+  });
+});
+
+describe("harnessSessionMounts (S4)", () => {
+  it("claude mounts ~/.claude/projects only, never the credentials file", () => {
+    const dirs = harnessSessionMounts("claude", "/home/agent");
+    assert.deepEqual(dirs, [
+      { name: "claude-projects", path: "/home/agent/.claude/projects" },
+    ]);
+    assert.ok(
+      !dirs.some((d) => d.path.includes(".credentials.json")),
+      "credentials file must never appear in the mount list",
+    );
+  });
+
+  it("pi mounts <homeDir>/.pi/agent/sessions by default", () => {
+    const dirs = harnessSessionMounts("pi", "/home/agent");
+    assert.deepEqual(dirs, [
+      { name: "pi-sessions", path: "/home/agent/.pi/agent/sessions" },
+    ]);
+  });
+
+  it("pi honors PI_CODING_AGENT_DIR override for its base dir", () => {
+    const dirs = harnessSessionMounts("pi", "/home/agent", "/custom/pi-dir");
+    assert.deepEqual(dirs, [
+      { name: "pi-sessions", path: "/custom/pi-dir/sessions" },
+    ]);
+  });
+
+  it("an unknown/unlisted harness mounts nothing (callers fall back to cwd only)", () => {
+    assert.deepEqual(harnessSessionMounts("unknown-harness", "/home/agent"), []);
+  });
+});
+
+describe("mountHarnessSessionDirs (S4, remote-only)", () => {
+  it("signs and mounts each dir independently; a failed sign for one does not block another", async () => {
+    const signedNames: string[] = [];
+    const mountedPaths: string[] = [];
+    const dirs = [
+      { name: "claude-projects", path: "/home/agent/.claude/projects" },
+      { name: "pi-sessions", path: "/home/agent/.pi/agent/sessions" },
+    ];
+    const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
+
+    await mountHarnessSessionDirs(sandbox, "sess-1", dirs, "https://tunnel.example", {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      log: SILENT,
+      signSessionMountCredentials: async (_sessionId, _deps, name) => {
+        signedNames.push(name ?? "cwd");
+        if (name === "pi-sessions") return null; // simulate one failed sign
+        return {
+          region: "us-east-1",
+          bucket: "agenta-store",
+          prefix: `mounts/proj-1/${name}`,
+          accessKey: "AK",
+          secretKey: "SK",
+        };
+      },
+      mountStorageRemote: async (_sandbox, path) => {
+        mountedPaths.push(path);
+        return true;
+      },
+    });
+
+    assert.deepEqual(signedNames, ["claude-projects", "pi-sessions"]);
+    // Only the successfully-signed dir got mounted; the failed one was skipped, not fatal.
+    assert.deepEqual(mountedPaths, ["/home/agent/.claude/projects"]);
+  });
+
+  it("is a no-op for an empty dir list", async () => {
+    let called = false;
+    const sandbox = { runProcess: async () => ({ exitCode: 0 }) };
+    await mountHarnessSessionDirs(sandbox, "sess-1", [], "https://tunnel.example", {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      log: SILENT,
+      signSessionMountCredentials: async () => {
+        called = true;
+        return null;
+      },
+    });
+    assert.equal(called, false);
   });
 });
 
@@ -298,6 +408,29 @@ describe("discoverTunnelEndpoint (remote)", () => {
 });
 
 describe("mountStorageRemote", () => {
+  it("detaches an existing mount before starting geesefs", async () => {
+    const commands: string[] = [];
+    const sandbox = {
+      runProcess: async (opts: { args?: string[] }) => {
+        const command = opts.args?.[1] ?? "";
+        commands.push(command);
+        return { exitCode: 0 };
+      },
+    };
+
+    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      aliveAttempts: 1,
+      log: SILENT,
+    });
+
+    assert.equal(ok, true);
+    const unmountIndex = commands.findIndex((command) => command.includes("fusermount -u"));
+    const mountIndex = commands.findIndex((command) => command.includes("geesefs --log-file"));
+    assert.ok(unmountIndex >= 0);
+    assert.ok(mountIndex > unmountIndex, "unmount attempt precedes the geesefs mount");
+  });
+
   it("execs geesefs IN the sandbox with the tunnel endpoint and creds in env", async () => {
     const calls: Array<{
       command: string;
@@ -321,24 +454,28 @@ describe("mountStorageRemote", () => {
     });
 
     assert.equal(ok, true);
-    const geesefs = calls.find((c) => c.command === "geesefs");
+    // geesefs runs through `sh -c "geesefs ... &"` so it backgrounds and the RPC returns.
+    const geesefs = calls.find(
+      (c) => c.command === "sh" && (c.args?.[1] ?? "").includes("geesefs"),
+    );
     assert.ok(geesefs);
+    const shellCmd = geesefs.args![1];
     // Tunnel endpoint overrides the in-network one.
-    const ei = geesefs.args!.indexOf("--endpoint");
-    assert.equal(geesefs.args![ei + 1], "https://abc.ngrok.io");
-    assert.deepEqual(geesefs.args!.slice(-2), [
-      "agenta-store:mounts/proj-1/mount-9",
-      "/home/sandbox/work",
-    ]);
-    // Scoped creds cross into the sandbox via env only.
+    assert.ok(shellCmd.includes("--endpoint https://abc.ngrok.io"));
+    assert.ok(shellCmd.includes("agenta-store:mounts/proj-1/mount-9"));
+    assert.ok(shellCmd.includes("/home/sandbox/work"));
+    // Backgrounded so the RPC returns instead of blocking on a foreground mount.
+    assert.ok(shellCmd.trimEnd().endsWith("&"));
+    // Scoped creds cross into the sandbox via env only, never the shell string.
     assert.equal(geesefs.env!.AWS_ACCESS_KEY_ID, "SCOPED-AK");
     assert.equal(geesefs.env!.AWS_SESSION_TOKEN, "SCOPED-TOK");
+    assert.ok(!shellCmd.includes("SCOPED-AK"));
   });
 
   it("returns false on a non-zero geesefs exit (no throw)", async () => {
     const sandbox = {
-      runProcess: async (opts: { command: string }) =>
-        opts.command === "geesefs"
+      runProcess: async (opts: { command: string; args?: string[] }) =>
+        opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs")
           ? { exitCode: 1, stderr: "mount error" }
           : { exitCode: 0 },
     };
@@ -347,5 +484,142 @@ describe("mountStorageRemote", () => {
       log: SILENT,
     });
     assert.equal(ok, false);
+  });
+
+  it("backgrounds geesefs (no -f) so the runProcess RPC returns", async () => {
+    let shellCmd = "";
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        if (opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs"))
+          shellCmd = opts.args![1];
+        return { exitCode: 0 };
+      },
+    };
+
+    await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      log: SILENT,
+    });
+
+    // A foreground geesefs (-f) never returns, so `runProcess` blocks until its timeout kills
+    // the mount it just made; the trailing `&` backgrounds it instead.
+    assert.ok(!/\s-f(\s|$)/.test(shellCmd), "remote geesefs must not run foreground");
+    assert.ok(shellCmd.trimEnd().endsWith("&"), "geesefs must be backgrounded");
+  });
+
+  it("returns false when the mount never comes alive", async () => {
+    // geesefs backgrounds cleanly (exit 0) but the FUSE channel never serves I/O. Without the
+    // liveness poll this returned true and the next mkdir hit a dead mount ("Stream Error").
+    const sandbox = {
+      runProcess: async (opts: { args?: string[] }) => ({
+        exitCode: opts.args?.some((a) => a.includes("mountpoint")) ? 1 : 0,
+      }),
+    };
+
+    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      aliveAttempts: 2,
+      log: SILENT,
+    });
+    assert.equal(ok, false);
+  });
+
+  it("returns true once the mountpoint probe succeeds", async () => {
+    let probes = 0;
+    const sandbox = {
+      runProcess: async (opts: { args?: string[] }) => {
+        if (opts.args?.some((a) => a.includes("mountpoint"))) {
+          probes += 1;
+          return { exitCode: probes >= 2 ? 0 : 1 }; // alive on the second poll
+        }
+        return { exitCode: 0 };
+      },
+    };
+
+    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      log: SILENT,
+    });
+    assert.equal(ok, true);
+    assert.equal(probes, 2, "polls until the mount serves I/O");
+  });
+
+  it("unmounts the dead FUSE node before giving up when the alive poll never succeeds", async () => {
+    // geesefs may register the mountpoint without ever serving I/O. If nothing detaches it, it
+    // shadows cwd and every later file op on the sandbox hangs until the run limit kills the turn.
+    const unmountCalls: string[] = [];
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        const shellCmd = opts.args?.[1] ?? "";
+        if (opts.command === "sh" && /mountpoint -q/.test(shellCmd)) {
+          return { exitCode: 1 }; // never alive
+        }
+        if (
+          opts.command === "sh" &&
+          (shellCmd.includes("fusermount") || shellCmd.includes("umount"))
+        ) {
+          unmountCalls.push(shellCmd);
+          return { exitCode: 0 };
+        }
+        return { exitCode: 0 };
+      },
+    };
+
+    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      aliveAttempts: 2,
+      log: SILENT,
+    });
+
+    assert.equal(ok, false);
+    assert.equal(
+      unmountCalls.length,
+      2,
+      "cleans before mounting and again after the alive check fails",
+    );
+    assert.ok(unmountCalls[1].includes("fusermount -u /home/sandbox/work"));
+    assert.ok(unmountCalls[1].includes("umount -l /home/sandbox/work"));
+  });
+
+  it("uses the store's own endpoint when no tunnel is passed", async () => {
+    let shellCmd = "";
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        if (opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs"))
+          shellCmd = opts.args![1];
+        return { exitCode: 0 };
+      },
+    };
+    // CREDS.endpoint is the real store URL; with no override geesefs must use it, not the tunnel.
+    await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      log: SILENT,
+    });
+    assert.ok(
+      shellCmd.includes(`--endpoint ${CREDS.endpoint}`),
+      "falls back to the store's own endpoint",
+    );
+  });
+});
+
+describe("storeReachableFromSandbox", () => {
+  it("public stores are reachable directly (no tunnel)", () => {
+    // Omitted -> geesefs default (real AWS S3).
+    assert.equal(storeReachableFromSandbox(undefined), true);
+    assert.equal(
+      storeReachableFromSandbox("https://s3.eu-central-1.amazonaws.com"),
+      true,
+    );
+    assert.equal(storeReachableFromSandbox("https://minio.example.com"), true);
+  });
+
+  it("in-network stores need the tunnel", () => {
+    // Compose service name (no dot), loopback, and RFC1918 literals are unreachable from a
+    // cloud sandbox, so they must route through the tunnel.
+    assert.equal(storeReachableFromSandbox("http://seaweedfs:8333"), false);
+    assert.equal(storeReachableFromSandbox("seaweedfs:8333"), false);
+    assert.equal(storeReachableFromSandbox("http://localhost:8333"), false);
+    assert.equal(storeReachableFromSandbox("http://127.0.0.1:8333"), false);
+    assert.equal(storeReachableFromSandbox("http://10.0.0.5:8333"), false);
+    assert.equal(storeReachableFromSandbox("http://192.168.1.5:8333"), false);
   });
 });

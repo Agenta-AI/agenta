@@ -35,8 +35,6 @@ const requiredClientSpec = {
 const codeSpec: ResolvedToolSpec = {
   name: "code_tool",
   kind: "code",
-  runtime: "python",
-  code: 'def main(**kw):\n    return {"echo": kw}\n',
 };
 
 const realFetch = globalThis.fetch;

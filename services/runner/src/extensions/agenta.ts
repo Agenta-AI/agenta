@@ -30,6 +30,7 @@ import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import {
   isToolCallEventType,
   type ExtensionAPI,
+  type ExtensionContext,
   type ToolCallEvent,
   type ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
@@ -37,7 +38,16 @@ import {
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
-import { requiredFields, specInputSchema } from "../tools/spec-schema.ts";
+import {
+  assertRequiredArguments,
+  requiredFields,
+  specInputSchema,
+} from "../tools/spec-schema.ts";
+import {
+  buildPiGateEnvelope,
+  PI_GATE_DIALOG_TITLE,
+  type PiGateKind,
+} from "../engines/sandbox_agent/pi-gate-envelope.ts";
 
 /** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
 export function readOtlpAuthFile(path?: string): string | undefined {
@@ -56,7 +66,7 @@ export function readOtlpAuthFile(path?: string): string | undefined {
   }
   return value || undefined;
 }
-import { relayPermissionCheck, runResolvedTool } from "../tools/dispatch.ts";
+import { runResolvedTool } from "../tools/dispatch.ts";
 
 function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
@@ -79,6 +89,40 @@ const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
 function isTruthyFlag(raw: string | undefined): boolean {
   const normalized = raw?.trim().toLowerCase();
   return normalized === "1" || normalized === "true";
+}
+
+/**
+ * Raise a Pi approval gate as an extension-UI dialog carrying the JSON envelope, instead of the
+ * file-relay poll. The `pi-acp` bridge surfaces this as a real ACP `session/request_permission`
+ * the runner holds, classifies, and (under keep-alive) parks. No `opts` are passed to `confirm`,
+ * so Pi arms no reaper and the dialog waits indefinitely; any cancellation resolves it to `false`,
+ * which is a fail-closed block. If the UI plane is somehow unavailable, block (never run
+ * unapproved).
+ */
+async function piDialogAllows(
+  ctx: ExtensionContext | undefined,
+  gate: PiGateKind,
+  toolName: string,
+  toolCallId: string,
+  input: unknown,
+): Promise<{ allowed: boolean; reason?: string }> {
+  const ui = ctx?.ui;
+  const confirm = ui?.confirm;
+  if (!ui || typeof confirm !== "function") {
+    return { allowed: false, reason: "Permission dialog is unavailable." };
+  }
+  const message = buildPiGateEnvelope({ gate, toolName, toolCallId, input });
+  try {
+    const confirmed = await confirm.call(ui, PI_GATE_DIALOG_TITLE, message);
+    return confirmed === true
+      ? { allowed: true }
+      : { allowed: false, reason: "Denied by the permission policy." };
+  } catch (err) {
+    return {
+      allowed: false,
+      reason: err instanceof Error ? err.message : "Permission dialog failed.",
+    };
+  }
 }
 
 function isPiBuiltinToolName(name: string): name is PiBuiltinToolName {
@@ -165,7 +209,6 @@ function blockReason(reason: string | undefined): ToolCallEventResult {
 
 function registerBuiltinGating(
   pi: ExtensionAPI,
-  relayDir: string | undefined,
   builtinGrants: readonly PiBuiltinToolName[],
 ): void {
   pi.on("before_agent_start", async () => {
@@ -180,29 +223,17 @@ function registerBuiltinGating(
 
   pi.on(
     "tool_call",
-    async (event): Promise<ToolCallEventResult | undefined> => {
+    async (event, ctx): Promise<ToolCallEventResult | undefined> => {
       const toolName = builtinToolNameFromEvent(event);
       if (!toolName) return undefined;
-      if (!relayDir) {
-        return blockReason(
-          "Permission check denied because the relay directory is missing.",
-        );
-      }
-
-      try {
-        const response = await relayPermissionCheck(
-          relayDir,
-          toolName,
-          event.toolCallId,
-          event.input,
-        );
-        if (response.verdict === "allow") return undefined;
-        return blockReason(response.reason);
-      } catch (err) {
-        return blockReason(
-          err instanceof Error ? err.message : "Permission check failed.",
-        );
-      }
+      const { allowed, reason } = await piDialogAllows(
+        ctx,
+        "pi-builtin",
+        toolName,
+        event.toolCallId,
+        event.input,
+      );
+      return allowed ? undefined : blockReason(reason);
     },
   );
 }
@@ -261,6 +292,10 @@ function registerTools(pi: ExtensionAPI): void {
 
   let registered = 0;
   for (const spec of specs) {
+    // The dialog gate applies to EXECUTABLE custom tools only. `client` tools are
+    // browser-fulfilled across a turn boundary through the relay's own pause semantics; gating
+    // one via the dialog would be wrong, so they keep their path.
+    const gateViaDialog = (spec.kind ?? "callback") !== "client";
     pi.registerTool({
       name: spec.name,
       label: spec.name,
@@ -269,7 +304,40 @@ function registerTools(pi: ExtensionAPI): void {
       promptGuidelines: promptGuidelines(spec),
       // Pi accepts plain JSON Schema here (non-TypeBox validation path).
       parameters: (specInputSchema(spec) as any) ?? EMPTY_OBJECT_SCHEMA,
-      async execute(toolCallId: string, params: unknown, signal?: AbortSignal) {
+      // The positional shape (ctx 5th) is pi-coding-agent's registerTool execute contract. If
+      // upstream changes the arity, the gate fails closed (no ui -> block); it never fails open.
+      async execute(
+        toolCallId: string,
+        params: unknown,
+        signal?: AbortSignal,
+        _onUpdate?: unknown,
+        ctx?: ExtensionContext,
+      ) {
+        // Validate BEFORE the gate: a malformed call must error to the model, never reach a
+        // human as an approval prompt (and never relay as a no-op).
+        assertRequiredArguments(spec, params);
+        // Gate BEFORE the relay execution: only an allow proceeds. A deny surfaces as the tool's
+        // result text, so the model loop continues.
+        if (gateViaDialog) {
+          const { allowed, reason } = await piDialogAllows(
+            ctx,
+            "pi-custom-tool",
+            spec.name,
+            toolCallId,
+            params,
+          );
+          if (!allowed) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: reason ?? "Denied by the permission policy.",
+                },
+              ],
+              details: { toolName: spec.name },
+            };
+          }
+        }
         const text = await runResolvedTool(spec, params, {
           toolCallId,
           relayDir,
@@ -305,7 +373,7 @@ const factory = (pi: ExtensionAPI): void => {
   if (!hasTracing && !hasTools && !hasBuiltinGating && !usageOut) return;
 
   if (hasTools) registerTools(pi);
-  if (hasBuiltinGating) registerBuiltinGating(pi, relayDir, builtinGrants);
+  if (hasBuiltinGating) registerBuiltinGating(pi, builtinGrants);
   // Tracing exports the span tree (when the OTLP target is reachable, i.e. local runs).
   // Usage accumulation is needed both for that export AND for the writeback the runner
   // uses on Daytona (where the in-sandbox process can't reach Agenta's OTLP, so the

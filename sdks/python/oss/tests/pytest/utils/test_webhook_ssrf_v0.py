@@ -11,41 +11,67 @@ import pytest
 
 from agenta.sdk.workflows import handlers as hook_handlers
 from agenta.sdk.workflows.handlers import (
-    _HOOK_ALLOW_INSECURE,
     _pin_webhook_url,
     _validate_webhook_url,
 )
 
+_HOOK_ALLOW_INSECURE_ENV_VARS = (
+    "AGENTA_INSECURE_EGRESS_ALLOWED",
+    "AGENTA_SERVICES_HOOK_ALLOW_INSECURE",
+    "AGENTA_WEBHOOKS_ALLOW_INSECURE",
+    "AGENTA_WEBHOOK_ALLOW_INSECURE",
+)
 
-def test_allow_insecure_defaults_false():
-    assert _HOOK_ALLOW_INSECURE is False
+
+@pytest.fixture
+def resolve_hook_allow_insecure(monkeypatch):
+    """Re-run the handler's import-time env resolution under `env` and return the flag.
+
+    Clears every recognized var first so the ambient shell cannot leak in; reloads once more
+    on teardown to restore module state for later tests.
+    """
+
+    def _resolve(env=None):
+        for name in _HOOK_ALLOW_INSECURE_ENV_VARS:
+            monkeypatch.delenv(name, raising=False)
+        for name, value in (env or {}).items():
+            monkeypatch.setenv(name, value)
+        importlib.reload(hook_handlers)
+        return hook_handlers._HOOK_ALLOW_INSECURE
+
+    try:
+        yield _resolve
+    finally:
+        for name in _HOOK_ALLOW_INSECURE_ENV_VARS:
+            monkeypatch.delenv(name, raising=False)
+        importlib.reload(hook_handlers)
 
 
-def test_allow_insecure_canonical_env_var(monkeypatch):
-    # _HOOK_ALLOW_INSECURE is resolved once at import time; reload to re-run resolution.
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_defaults_false(resolve_hook_allow_insecure):
+    assert resolve_hook_allow_insecure() is False
+
+
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_canonical_env_var(resolve_hook_allow_insecure):
+    assert (
+        resolve_hook_allow_insecure({"AGENTA_INSECURE_EGRESS_ALLOWED": "true"}) is True
+    )
+
+
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_legacy_alias_still_honored(resolve_hook_allow_insecure):
+    assert (
+        resolve_hook_allow_insecure({"AGENTA_SERVICES_HOOK_ALLOW_INSECURE": "true"})
+        is True
+    )
+
+
+@pytest.mark.allow_insecure_env
+def test_allow_insecure_ignores_ambient_env(resolve_hook_allow_insecure, monkeypatch):
+    # The ambient shell may export it (a loaded dev env file); resolution must still start clean.
     monkeypatch.setenv("AGENTA_INSECURE_EGRESS_ALLOWED", "true")
-    monkeypatch.delenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
-    try:
-        importlib.reload(hook_handlers)
-        assert hook_handlers._HOOK_ALLOW_INSECURE is True
-    finally:
-        monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
-        importlib.reload(hook_handlers)
-
-
-def test_allow_insecure_legacy_alias_still_honored(monkeypatch):
-    monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
-    monkeypatch.setenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE", "true")
-    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
-    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
-    try:
-        importlib.reload(hook_handlers)
-        assert hook_handlers._HOOK_ALLOW_INSECURE is True
-    finally:
-        monkeypatch.delenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE", raising=False)
-        importlib.reload(hook_handlers)
+    assert resolve_hook_allow_insecure() is False
 
 
 class TestValidateWebhookUrlSecureDefault:

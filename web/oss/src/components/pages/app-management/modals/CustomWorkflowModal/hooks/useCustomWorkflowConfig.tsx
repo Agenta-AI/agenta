@@ -1,15 +1,16 @@
 import {useCallback} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
+import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
 import {removeTrailingSlash} from "@agenta/shared/utils"
 import {useQueryClient} from "@tanstack/react-query"
-import {useSetAtom, useStore} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {createAppWithTemplate, ServiceType} from "@/oss/services/app-selector/api"
-import {useAppsData} from "@/oss/state/app"
+import {currentAppAtom} from "@/oss/state/app"
 import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 import {
     normalizeAppKey,
@@ -30,7 +31,10 @@ const useCustomWorkflowConfig = ({
     folderId,
     afterConfigSave,
 }: useCustomWorkflowConfigProps) => {
-    const {currentApp, mutate} = useAppsData()
+    // Resolve the current app by id (read-only) instead of `useAppsData()` — the
+    // latter subscribes to the whole apps catalog, and this hook is mounted by the
+    // always-present CustomWorkflowBanner, which would pull every app on page load.
+    const currentApp = useAtomValue(currentAppAtom)
     const {secrets} = useVaultSecret()
     const rawAppId = propsAppId ?? currentApp?.id ?? ""
     const modalAtomKey = normalizeAppKey(rawAppId)
@@ -65,7 +69,7 @@ const useCustomWorkflowConfig = ({
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
                 if (status === "success") {
-                    await mutate()
+                    await invalidateWorkflowsListCache()
                     await invalidateAppManagementWorkflowQueries()
                     posthog?.capture?.("app_deployment", {
                         properties: {

@@ -29,6 +29,14 @@ export function parseGatewayToolName(name: string): ParsedToolName {
         }
     }
 
+    // Generic short form: {source}__ACTION (e.g. "gmail__FETCH_EMAILS").
+    if (parts.length >= 2) {
+        return {
+            label: titleCase(parts[parts.length - 1]),
+            source: titleCase(parts[parts.length - 2]),
+        }
+    }
+
     // Plain function name (e.g. "gmail_search_emails") — humanize it.
     return {label: titleCase(name)}
 }

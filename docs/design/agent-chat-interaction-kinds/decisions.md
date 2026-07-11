@@ -31,6 +31,33 @@ so they travel with the code.
   surface with a retry cap. One card chrome; state carried by status line (`{state} · {next}`
   pill vocabulary, always neutral).
 
+## Elicitation dialect extensions (2026-07-10, PR #5177)
+
+The M1 dialect ("top-level primitives/enums only") gained three extensions once template
+questionnaires (Mahmoud's agent-templates work) hit its limits. The governing principle for
+all three: **adopt the standard JSON Schema idiom over bespoke hints** — the payload author
+is an LLM, and it already knows these shapes from training data.
+
+- **`default`** (issue #5190): a proposed value prefilling the field, so the user can accept
+  the whole form in one click. Primitives on scalar fields; array-of-strings on multi-select.
+  Date/date-time fields ignore it (a wire default is an ISO string; antd DatePicker requires
+  dayjs — render-side guard, not a contract rule).
+- **Multi-select**: exactly one array shape is admitted — `{type: "array", items: {type:
+  "string", enum?/oneOf?}}`. String leaves only, nothing deeper; the answer is an array of
+  strings. Renders as a chip picker (checkbox choice cards when options carry descriptions).
+- **Context-ful options**: `oneOf: [{const, title, description}]` on single fields and array
+  items. Any option description upgrades the control from a Select to selectable choice
+  cards; titles alone upgrade Select labels. Parse canonicalizes consts into `enum`, so
+  downstream consumers never branch on the authored shape.
+
+Rendering ruling that shipped with these: **enum options are SUGGESTIONS, not a hard
+constraint** — the consumer of the answer is the agent, which handles off-menu values fine.
+Every enum control therefore carries an explicit "Other…" escape hatch (free-text). This is
+elicitation-only (`openEnums`/`formats` opt-in flags on the shared form builder); gateway
+tool execution forms keep strict enums and `Form.List` arrays, because their schemas are
+real API parameters. The `__ag_enum_other__` UI sentinel must never reach the settled
+`content` — pinned by unit tests on both the control logic and the E2E resume body.
+
 ## Model-composed UI: deliberately OUT OF SCOPE, with a re-evaluation trigger
 
 Evaluated and rejected for now (2026-07-04): letting the model freely compose dashboards /

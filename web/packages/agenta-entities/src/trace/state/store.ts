@@ -51,7 +51,39 @@ export const invalidateTraceEntityCache = () => {
     const store = getDefaultStore()
     const queryClient = store.get(queryClientAtom)
     queryClient.invalidateQueries({queryKey: ["trace-entity"]})
+    queryClient.invalidateQueries({queryKey: ["trace-summary"]})
 }
+
+// ============================================================================
+// TRACE FRESHNESS
+// Traces are immutable once ingested; only a trace whose run JUST finished in
+// this session may legitimately 404 (ingestion lag) and earn the full retry
+// ladder. Historical traces that 404 are gone — retrying hammers the API.
+// ============================================================================
+
+const FRESH_TRACE_WINDOW_MS = 2 * 60_000
+const freshTraceMarks = new Map<string, number>()
+
+const canonicalTraceKey = (traceId: string) => traceId.replace(/-/g, "")
+
+/** Call at run completion (stream finish / invocation success) with the run's trace id. */
+export const markTraceAsFresh = (traceId: string | null | undefined) => {
+    if (!traceId) return
+    freshTraceMarks.set(canonicalTraceKey(traceId), Date.now())
+}
+
+const isTraceFresh = (traceId: string) => {
+    const markedAt = freshTraceMarks.get(canonicalTraceKey(traceId))
+    return markedAt !== undefined && Date.now() - markedAt < FRESH_TRACE_WINDOW_MS
+}
+
+/** Retry not-found aggressively only for fresh traces; once for everything else. */
+const traceNotFoundRetry =
+    (traceId: string | null) =>
+    (failureCount: number, error: Error): boolean => {
+        if (!(error instanceof TraceNotFoundError) || !traceId) return false
+        return failureCount < (isTraceFresh(traceId) ? 5 : 1)
+    }
 
 // ============================================================================
 // BATCH FETCHER FOR SPANS
@@ -218,6 +250,108 @@ export const traceBatchFetcher = createBatchFetcher<
         return response.get(serializedKey) ?? null
     },
     maxBatchSize: 50,
+})
+
+// ============================================================================
+// BATCH FETCHER FOR TRACE SUMMARIES (root span + errored spans, flat)
+// The chat transcript / result chips only need the root span (timing,
+// cumulative metrics, ag.data) plus any errored span for the failure message.
+// Fetching full trace trees for that pulled megabytes per transcript; this
+// flat /spans/query fetches orders of magnitude less.
+// ============================================================================
+
+/** The flat spans a trace summary needs: the root span + errored spans. */
+export interface TraceSummarySpans {
+    rootSpan: TraceSpan | null
+    errorSpans: TraceSpan[]
+}
+
+const traceSummaryBatchFetcher = createBatchFetcher<
+    TraceRequest,
+    TraceSummarySpans | null,
+    Map<string, TraceSummarySpans | null>
+>({
+    serializeKey: ({projectId, traceId}) => `${projectId}:${canonicalTraceKey(traceId)}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, TraceSummarySpans | null>()
+        serializedKeys.forEach((key) => results.set(key, null))
+
+        // Exactly one project is in scope at a time in the web app.
+        const projectId = requests[0]?.projectId
+        if (!projectId) return results
+        if (requests.some((req) => req.projectId !== projectId)) {
+            throw new Error("traceSummaryBatchFetcher: requests span multiple projects")
+        }
+
+        const canonicalIds = [
+            ...new Set(requests.map((req) => canonicalTraceKey(req.traceId)).filter(Boolean)),
+        ]
+        if (canonicalIds.length === 0) return results
+
+        try {
+            const filter = {
+                operator: "and",
+                conditions: [
+                    {field: "trace_id", operator: "in", value: canonicalIds},
+                    {
+                        operator: "or",
+                        conditions: [
+                            // parent_id rejects existence operators; `is` + null → IS NULL.
+                            {field: "parent_id", operator: "is", value: null},
+                            {field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"},
+                        ],
+                    },
+                ],
+            }
+
+            const data = await fetchAllPreviewTraces(
+                // Roots = one per trace; errored spans are rare. 500 leaves headroom
+                // for pathological runs without approaching a full-tree payload.
+                {size: 500, focus: "span", filter: JSON.stringify(filter)},
+                "",
+                projectId,
+                // Transcript chrome, not user-initiated — yield to critical traffic.
+                {lowPriority: true},
+            )
+
+            const byTrace = new Map<string, TraceSummarySpans>()
+            if (isSpansResponse(data)) {
+                // Spans are already schema-validated by fetchAllPreviewTraces.
+                data.spans.forEach((span) => {
+                    const key = canonicalTraceKey(span.trace_id)
+                    let entry = byTrace.get(key)
+                    if (!entry) {
+                        entry = {rootSpan: null, errorSpans: []}
+                        byTrace.set(key, entry)
+                    }
+                    if (!span.parent_id && !entry.rootSpan) entry.rootSpan = span
+                    if (span.status_code === "STATUS_CODE_ERROR") entry.errorSpans.push(span)
+                })
+            }
+
+            requests.forEach((req, idx) => {
+                results.set(
+                    serializedKeys[idx],
+                    byTrace.get(canonicalTraceKey(req.traceId)) ?? null,
+                )
+            })
+        } catch (error) {
+            console.error(
+                `[traceSummaryBatchFetcher] Failed to fetch trace summaries:`,
+                error instanceof Error ? error.message : String(error),
+                error,
+            )
+        }
+
+        return results
+    },
+    resolveResult: (response, _request, serializedKey) => {
+        return response.get(serializedKey) ?? null
+    },
+    maxBatchSize: 50,
+    // Background hydration: wait for main-thread idle so boot-critical queries
+    // win the race, and more concurrent turns coalesce into one batch.
+    flushScheduling: "idle",
 })
 
 // ============================================================================
@@ -563,9 +697,12 @@ export const traceEntityAtomFamily = instrumentedAtomFamily(
             return {
                 queryKey: ["trace-entity", projectId, traceId ?? "none"],
                 enabled: Boolean(get(sessionAtom) && traceId && projectId),
-                staleTime: 60_000,
+                // Traces are immutable once ingested — never refetch a found one.
+                // invalidateTraceEntityCache still forces a refresh after runs.
+                staleTime: Infinity,
                 gcTime: 5 * 60_000,
                 refetchOnWindowFocus: false,
+                retryOnMount: false,
                 structuralSharing: true,
                 queryFn: async () => {
                     if (!traceId || !projectId) return null
@@ -599,17 +736,53 @@ export const traceEntityAtomFamily = instrumentedAtomFamily(
                     return response
                 },
                 // Retry configuration for traces not yet ingested
-                retry: (failureCount, error) => {
-                    // Only retry TraceNotFoundError, not other errors
-                    if (error instanceof TraceNotFoundError && failureCount < 5) {
-                        return true
-                    }
-                    return false
-                },
+                retry: traceNotFoundRetry(traceId),
                 retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // 1s, 2s, 4s, 8s, 10s
             }
         }),
     {name: "trace.traceEntityAtomFamily"},
+)
+
+// ============================================================================
+// TRACE SUMMARY QUERY ATOM FAMILY (root span + errored spans, flat)
+// ============================================================================
+
+/**
+ * Lightweight per-trace summary query: the root span (timing, cumulative
+ * metrics, ag.data) plus errored spans (run-failure message). Backed by a
+ * flat /spans/query, batched across concurrent traces — use this instead of
+ * `traceEntityAtomFamily` when the full span tree isn't needed (transcript
+ * rows, result chips). The full tree stays an on-demand fetch (trace drawer).
+ *
+ * Usage: const summary = useAtomValue(traceSummaryQueryAtomFamily(traceId))
+ */
+export const traceSummaryQueryAtomFamily = instrumentedAtomFamily(
+    (traceId: string | null) =>
+        atomWithQuery((get) => {
+            const projectId = get(projectIdAtom)
+
+            return {
+                queryKey: ["trace-summary", projectId, traceId ?? "none"],
+                enabled: Boolean(get(sessionAtom) && traceId && projectId),
+                // Immutable once ingested; invalidateTraceEntityCache covers reruns.
+                staleTime: Infinity,
+                gcTime: 5 * 60_000,
+                refetchOnWindowFocus: false,
+                retryOnMount: false,
+                queryFn: async (): Promise<TraceSummarySpans | null> => {
+                    if (!traceId || !projectId) return null
+                    const result = await traceSummaryBatchFetcher({projectId, traceId})
+                    // Throw if not found - triggers retry (trace may not be ingested yet)
+                    if (!result || (!result.rootSpan && result.errorSpans.length === 0)) {
+                        throw new TraceNotFoundError(traceId)
+                    }
+                    return result
+                },
+                retry: traceNotFoundRetry(traceId),
+                retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
+            }
+        }),
+    {name: "trace.traceSummaryQueryAtomFamily"},
 )
 
 // ============================================================================

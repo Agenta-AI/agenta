@@ -18,7 +18,7 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Tooltip, Typography} from "antd"
+import {Avatar, Skeleton, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -73,8 +73,17 @@ const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMe
     // Latency comes from the trace; tokens/cost come from the streamed message usage
     // (the agent-run trace summary doesn't surface them on the Pi/local path). Usage
     // wins where both exist so the figures match what the model actually reported.
-    const metrics = {...summary.metrics, ...usage}
-    return <ExecutionMetricsDisplay metrics={metrics} isLoading={summary.isPending} size="small" />
+    // Only the latency slot waits on the trace — usage renders immediately, and a fixed-size
+    // placeholder holds latency's spot so the row doesn't shift (or blank known data) meanwhile.
+    if (summary.isPending) {
+        return (
+            <div className="flex items-center gap-1">
+                <Skeleton.Button active size="small" style={{width: 56, height: 22}} />
+                {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
+            </div>
+        )
+    }
+    return <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} size="small" />
 }
 
 interface AgentMessageProps {
@@ -262,16 +271,6 @@ const AgentMessage = ({
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
         .join("")
-    const handleCopy = async () => {
-        try {
-            await navigator.clipboard.writeText(fullText)
-            setCopied(true)
-            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
-            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-        } catch {
-            setCopied(false)
-        }
-    }
     const sources = message.parts.filter((p) => p.type === "source-url") as {
         type: "source-url"
         url: string
@@ -311,6 +310,21 @@ const AgentMessage = ({
     // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
     // failure (red), with the message inline — not a nested alert box.
     const isError = noResponse && showError
+
+    // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
+    // failure) so the button isn't a no-op when the agent only returned an error.
+    const copyText = [fullText, errorText].filter(Boolean).join("\n\n")
+    const handleCopy = async () => {
+        if (!copyText) return
+        try {
+            await navigator.clipboard.writeText(copyText)
+            setCopied(true)
+            if (copyResetTimeoutRef.current) clearTimeout(copyResetTimeoutRef.current)
+            copyResetTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+        } catch {
+            setCopied(false)
+        }
+    }
 
     // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
     // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
@@ -552,13 +566,22 @@ const AgentMessage = ({
         icon: <ArrowUUpLeft size={14} />,
         onItemClick: () => onRewind(message),
     }
+    // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
+    const rewindItems = isLastMessage ? [] : [rewindAction]
 
-    const timestamp = messageTime ? <MessageTimestamp createdAt={messageTime} /> : null
+    // Restored turns have no first-seen stamp (a reload isn't their send time), so until their
+    // trace time arrives the slot holds a placeholder — never a wrong "just now". Settled with no
+    // trace (deleted/expired) → no stamp at all. Live turns show first-seen instantly as before.
+    const timestamp = messageTime ? (
+        <MessageTimestamp createdAt={messageTime} />
+    ) : timeSummary.isPending ? (
+        <Skeleton.Button active size="small" style={{width: 64, height: 16}} />
+    ) : null
 
     const toolbar = isUser ? (
         <>
             {timestamp}
-            <Actions variant="borderless" items={[rewindAction]} />
+            {rewindItems.length > 0 && <Actions variant="borderless" items={rewindItems} />}
         </>
     ) : (
         <>
@@ -580,7 +603,7 @@ const AgentMessage = ({
                         icon: copied ? <Check size={14} /> : <Copy size={14} />,
                         onItemClick: handleCopy,
                     },
-                    rewindAction,
+                    ...rewindItems,
                     ...(traceId
                         ? [
                               {

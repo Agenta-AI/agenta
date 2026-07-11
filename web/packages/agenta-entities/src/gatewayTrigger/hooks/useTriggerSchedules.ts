@@ -9,7 +9,8 @@ import type {TriggerSchedule, TriggerSchedulesResponse} from "../core/types"
 // Distinct from subscription/catalog/connection keys.
 export const triggerSchedulesQueryAtom = atomWithQuery<TriggerSchedulesResponse>(() => ({
     queryKey: ["triggers", "schedules"],
-    queryFn: () => queryTriggerSchedules(),
+    // Secondary (trigger count badge / section); yield to the render-critical playground queries.
+    queryFn: () => queryTriggerSchedules(undefined, {lowPriority: true}),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
 }))

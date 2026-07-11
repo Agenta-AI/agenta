@@ -50,7 +50,7 @@ capability below — the two toggle separately.)
 
 User-declared `mcp_servers` are a separate thing and effectively off today. They would reach
 Claude through `toAcpMcpServers` as additional ACP stdio servers, but only when
-`AGENTA_AGENT_ENABLE_MCP` is set (off by default), so in practice no user MCP server is
+`AGENTA_AGENT_MCPS_ENABLED` is set (off by default), so in practice no user MCP server is
 attached. See [tools.md](../tools.md#status-and-known-gaps).
 
 ## Permissions

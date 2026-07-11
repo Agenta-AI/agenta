@@ -103,22 +103,21 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
     );
   });
 
-  it("starts the server for a code run too (executable)", async () => {
+  it("starts the server for a callback run too (executable)", async () => {
     const specs: ResolvedToolSpec[] = [
       {
         name: "adder",
-        kind: "code",
-        runtime: "python",
-        code: "def main(**k): return 1",
-        env: { PRIVATE: "secret" },
+        kind: "callback",
+        callRef: "composio.add",
+        description: "Add numbers",
       },
     ];
     const { servers } = await build(specs, relayDir);
     assert.equal(servers.length, 1);
     assert.equal(servers[0].type, "http");
     assert.ok(
-      !JSON.stringify(servers[0]).includes("secret"),
-      "scoped env never crosses to the advertisement",
+      !JSON.stringify(servers[0]).includes("composio.add"),
+      "the private callRef never crosses to the advertisement",
     );
   });
 
@@ -138,9 +137,8 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       { name: "confirm", kind: "client" },
       {
         name: "adder",
-        kind: "code",
-        runtime: "python",
-        code: "def main(**k): return 1",
+        kind: "callback",
+        callRef: "composio.add",
       },
     ];
     const { servers } = await build(specs, relayDir);

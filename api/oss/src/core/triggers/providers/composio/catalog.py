@@ -20,6 +20,7 @@ from oss.src.core.triggers.dtos import (
     TriggerCatalogEvent,
     TriggerCatalogEventDetails,
     TriggerCatalogEventsPage,
+    TriggerCatalogEventsSnapshot,
 )
 from oss.src.core.triggers.exceptions import AdapterError
 
@@ -28,6 +29,10 @@ log = get_module_logger(__name__)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 1000
+# Composio clamps larger page limits to 50, so ask for exactly that.
+ALL_EVENTS_PAGE_SIZE = 50
+# Runaway-cursor guard for the full-catalog crawl (~8 pages live today).
+ALL_EVENTS_MAX_PAGES = 50
 
 
 class ComposioTriggersCatalogClient:
@@ -109,6 +114,73 @@ class ComposioTriggersCatalogClient:
             events=items,
             next_cursor=next_cursor,
             total=total_items,
+        )
+
+    async def list_all_events(self) -> TriggerCatalogEventsSnapshot:
+        """Fetch the complete trigger-types catalog, following ``next_cursor`` to exhaustion.
+
+        LIST items carry ``config`` and ``payload`` (verified live), so the snapshot
+        holds full event details plus the toolkit slug -> display name map.
+        """
+        events: List[TriggerCatalogEventDetails] = []
+        integration_names: Dict[str, str] = {}
+        cursor: Optional[str] = None
+        seen_cursors: set = set()
+
+        for _ in range(ALL_EVENTS_MAX_PAGES):
+            params: Dict[str, Any] = {"limit": ALL_EVENTS_PAGE_SIZE}
+            if cursor:
+                params["cursor"] = cursor
+
+            try:
+                resp = await self._client.get(
+                    f"{self.api_url}/triggers_types",
+                    headers={
+                        "x-api-key": self.api_key,
+                        "Content-Type": "application/json",
+                    },
+                    params=params,
+                    timeout=30.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except httpx.HTTPError as e:
+                raise AdapterError(
+                    provider_key="composio",
+                    operation="list_all_events",
+                    detail=str(e),
+                ) from e
+
+            items_raw: List[Dict[str, Any]] = (
+                data.get("items", []) if isinstance(data, dict) else data
+            )
+            for item in items_raw:
+                toolkit_slug = _toolkit_slug(item, "")
+                events.append(_parse_event_detail(item, toolkit_slug))
+                toolkit = item.get("toolkit")
+                if toolkit_slug and isinstance(toolkit, dict) and toolkit.get("name"):
+                    integration_names[toolkit_slug] = toolkit["name"]
+
+            next_cursor = data.get("next_cursor") if isinstance(data, dict) else None
+            if not next_cursor or next_cursor in seen_cursors:
+                break
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        else:
+            log.warning(
+                "[composio] list_all_events hit the %d-page cap; snapshot may be partial",
+                ALL_EVENTS_MAX_PAGES,
+            )
+
+        log.debug(
+            "[composio] list_all_events items=%d toolkits=%d",
+            len(events),
+            len(integration_names),
+        )
+
+        return TriggerCatalogEventsSnapshot(
+            events=events,
+            integration_names=integration_names,
         )
 
     async def get_event(

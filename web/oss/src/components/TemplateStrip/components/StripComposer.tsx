@@ -1,19 +1,20 @@
 import {type RefObject} from "react"
 
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {Terminal} from "@phosphor-icons/react"
-import {Button} from "antd"
-import {ArrowRight} from "lucide-react"
-
-import {HERO, COMPOSER} from "@/oss/components/pages/agent-home/assets/constants"
 
 import {STRIP_COPY} from "../assets/constants"
+
+import AgentIntentActions from "./AgentIntentActions"
 
 interface StripComposerProps {
     /** Composer handle owned by the page (read/prefill markdown). */
     composerRef: RefObject<RichChatInputHandle | null>
-    /** Create the agent from the current text (Build-in-UI). */
-    onCreate: () => void
+    /**
+     * Create the agent. Enter passes the submitted markdown (the editor clears itself on
+     * submit, so a ref read after the fact would see an empty composer); the button passes
+     * nothing and the caller reads the ref.
+     */
+    onCreate: (markdown?: string) => void
     /** Copy the coding-agent install command + current text to the clipboard. */
     onCodingAgentCopy: () => void
     /** Chip-docking border/radius classes from `useTemplateProvenance`. */
@@ -23,9 +24,11 @@ interface StripComposerProps {
 }
 
 /**
- * Strip-era home composer. Renders `RichChatInput` directly (no shared `AgentComposer`): the
- * trailing actions are `Use my coding agent` (clipboard handoff) and the primary `Create agent`,
- * and the wrapper classes dock flush against the provenance chip's squared top-left corner.
+ * The home hero's "describe an agent" composer. Deliberately the SAME `RichChatInput`
+ * configuration as the playground onboarding composer (AgentConversation) — Enter creates the
+ * agent, the shortcut hints show, and the trailing actions are the shared `AgentIntentActions` —
+ * so the two surfaces can't drift apart. Only hero-scale presentation differs (taller min-height,
+ * `text-sm`, and the provenance-chip docking classes).
  */
 const StripComposer = ({
     composerRef,
@@ -37,30 +40,19 @@ const StripComposer = ({
     return (
         <RichChatInput
             ref={composerRef}
-            onSubmit={() => onCreate()}
+            onSubmit={(markdown) => onCreate(markdown)}
             onChange={onTextChange}
-            placeholder={HERO.placeholder}
+            placeholder={STRIP_COPY.describeAgentPlaceholder}
             hideSendButton
-            hideShortcutHints
-            submitOnEnter={false}
-            minHeightClassName="min-h-[112px]"
+            size="comfortable"
+            minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
-            className={`!bg-[var(--ag-colorBgContainer)] !shadow-[0_1px_3px_0_rgb(0_0_0_/_0.1),0_1px_2px_-1px_rgb(0_0_0_/_0.1)] ${composerClassName}`}
+            className={composerClassName}
             trailing={
-                <div className="flex items-center gap-2">
-                    <Button icon={<Terminal size={15} />} onClick={onCodingAgentCopy}>
-                        {STRIP_COPY.useCodingAgent}
-                    </Button>
-                    <Button
-                        type="primary"
-                        icon={<ArrowRight size={14} />}
-                        iconPosition="end"
-                        onClick={onCreate}
-                        className="!shadow-none"
-                    >
-                        {COMPOSER.createAgent}
-                    </Button>
-                </div>
+                <AgentIntentActions
+                    onCreate={() => onCreate()}
+                    onCodingAgentCopy={onCodingAgentCopy}
+                />
             }
         />
     )

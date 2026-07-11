@@ -14,6 +14,8 @@ import {
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
+import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
+import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -36,7 +38,7 @@ interface FakeOptions {
   streamUsage?: Record<string, number>;
   output?: string;
   promptError?: Error;
-  permissionDecision?: PermissionDecision;
+  permissionDecision?: PermissionDecision | "pendingApproval";
   emitPermission?: boolean;
   permissionToolCallId?: string;
   permissionToolName?: string;
@@ -413,7 +415,10 @@ describe("runSandboxAgent orchestration", () => {
       "local durable cwd is mounted before first workspace write",
     );
     assert.equal(workspaceCalls, 2, "workspace prep is retried once");
-    assert.equal(calls.createSessionOptions.cwd, "/tmp/agenta/mounts/proj-1/mount-1");
+    assert.equal(
+      calls.createSessionOptions.cwd,
+      "/tmp/agenta/mounts/proj-1/mount-1",
+    );
     assert.equal(cleanupCalls, 1);
   });
 
@@ -496,7 +501,11 @@ describe("runSandboxAgent orchestration", () => {
       "initial mount + one capped runtime remount after ENOTCONN",
     );
     assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
-    assert.equal(unmountCalls, 1, "cleanup waits for runtime remount before unmount");
+    assert.equal(
+      unmountCalls,
+      1,
+      "cleanup waits for runtime remount before unmount",
+    );
   });
 
   it("skips the durable cwd delete when unmount is not confirmed", async () => {
@@ -688,17 +697,16 @@ describe("runSandboxAgent orchestration", () => {
       [{ name: "server_tool", kind: "callback" }],
       undefined,
     ]);
-    const relayPermissions = calls.toolRelayArgs?.[4] as any;
-    assert.equal(relayPermissions.enforce, true, "Pi enforces at the relay");
-    assert.equal(typeof relayPermissions.decide, "function");
-    assert.equal(typeof relayPermissions.onPendingApproval, "function");
-    // No runContext on the request.
-    assert.equal(calls.toolRelayArgs?.[5], undefined);
+    // The relay carries execution only (no permissions argument): no runContext here.
+    assert.equal(calls.toolRelayArgs?.[4], undefined);
     // Trailing arg is the relay callbacks object (client-tool + park handlers).
     assert.deepEqual(
-      Object.keys((calls.toolRelayArgs?.[6] ?? {}) as object).sort(),
+      Object.keys((calls.toolRelayArgs?.[5] ?? {}) as object).sort(),
       ["onClientTool", "onPause"],
     );
+    // A Pi run passes the execution guard: the relay dir is sandbox-writable, so every execute
+    // record is re-checked runner-side (a forged record must not run an ask/deny tool).
+    assert.equal(typeof calls.toolRelayArgs?.[6], "function");
     assert.equal(
       calls.toolRelayStops,
       2,
@@ -730,11 +738,9 @@ describe("runSandboxAgent orchestration", () => {
       true,
       "the run succeeds; gateway tools reach Claude",
     );
-    assert.equal(
-      (calls.toolRelayArgs?.[4] as any)?.enforce,
-      false,
-      "Claude gates before the relay, so the relay does not re-enforce",
-    );
+    // The relay carries execution only; Claude's own ACP gates decide before a call reaches it,
+    // so a Claude run never gets the Pi execution guard.
+    assert.equal(calls.toolRelayArgs?.[6], undefined);
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
     assert.equal(
@@ -777,7 +783,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.deepEqual(result, {
       ok: false,
-      error: "MCP servers are not supported by the sidecar.",
+      error: USER_MCP_UNSUPPORTED_MESSAGE,
     });
   });
 
@@ -1018,10 +1024,7 @@ describe("runSandboxAgent orchestration", () => {
     // The harness-readable env carries a file path, never the bearer itself.
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(typeof env.AGENTA_AGENT_OTLP_AUTH_FILE, "string");
-    assert.equal(
-      JSON.stringify(env).includes("reusable-caller-token"),
-      false,
-    );
+    assert.equal(JSON.stringify(env).includes("reusable-caller-token"), false);
   });
 
   it("sets Claude Bedrock env and strict selected model pass-through", async () => {
@@ -1235,7 +1238,10 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         isError: true,
       },
     ]);
-    assert.equal(toolResults?.some((event) => event.id === "tool-a"), false);
+    assert.equal(
+      toolResults?.some((event) => event.id === "tool-a"),
+      false,
+    );
   });
 
   it("settles a latch-loser sibling when read-only permission requests race", async () => {
@@ -1476,9 +1482,11 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     );
   });
 
-  it("drops teardown tool updates after a Pi relay approval pause while keeping other ids", async () => {
-    const relayPause = { fire: () => {} };
-    const { calls, deps } = fakeHarness({
+  it("drops teardown tool updates after a Pi approval pause while keeping other ids", async () => {
+    // The Pi ask arrives as an ACP permission request carrying the gate envelope (the dialog
+    // plane); the pause must suppress the GATED call's teardown updates while the sibling is
+    // settled deterministically.
+    const { deps } = fakeHarness({
       promptEvents: [
         {
           payload: {
@@ -1499,7 +1507,28 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
           },
         },
       ],
-      afterPromptEvents: () => relayPause.fire(),
+      emitPermission: true,
+      permissionDecision: "pendingApproval",
+      permissionRequests: [
+        {
+          id: "perm-pi",
+          availableReplies: ["once", "reject"],
+          toolCall: {
+            toolCallId: "pi-ui-synthetic",
+            title: "agenta-approval",
+            rawInput: {
+              method: "confirm",
+              title: "agenta-approval",
+              message: buildPiGateEnvelope({
+                gate: "pi-custom-tool",
+                toolName: "approval_needed",
+                toolCallId: "tool-1",
+                input: { path: "a" },
+              }),
+            },
+          },
+        },
+      ],
       postPermissionEvents: [
         {
           payload: {
@@ -1524,14 +1553,6 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
       ],
     });
     deps.createOtel = createSandboxAgentOtel as any;
-    relayPause.fire = () => {
-      const relayPermissions = calls.toolRelayArgs?.[4] as any;
-      relayPermissions.onPendingApproval({
-        toolCallId: "tool-1",
-        toolName: "approval_needed",
-        args: { path: "a" },
-      });
-    };
 
     const result = await runSandboxAgent(
       {
@@ -1553,8 +1574,12 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     assert.deepEqual(
       result.events
         ?.filter((event) => event.type === "interaction_request")
-        .map((event) => ({ id: (event as any).id, kind: (event as any).kind })),
-      [{ id: "tool-1", kind: "user_approval" }],
+        .map((event) => ({
+          id: (event as any).id,
+          kind: (event as any).kind,
+          toolCallId: (event as any).payload?.toolCallId,
+        })),
+      [{ id: "perm-pi", kind: "user_approval", toolCallId: "tool-1" }],
     );
     assert.deepEqual(
       result.events
@@ -1685,27 +1710,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     ]);
   });
 });
-
-describe("runSandboxAgent run-limits deadline", () => {
-  // Tiny real-ms limits: the run-limits DI seam overrides the whole resolve step, and the
-  // integration path needs the real createRunLimits (timers + abort wiring) rather than a fake
-  // clock, so the windows are set to a few ms and driven by real timers here.
+describe("runTurn run-limits deadline (split path)", () => {
+  // Tiny real-ms limits injected through the run-limits DI seam: the integration path exercises
+  // the real createRunLimits (timers + trip wiring), so the windows are a few ms and driven by
+  // real timers. TTFB (5ms) is the shortest, so a silent harness trips it first.
   const fastLimits = {
     resolveRunLimits: () => ({
-      totalMs: 5,
-      idleMs: 5,
+      totalMs: 50,
+      idleMs: 50,
       ttfbMs: 5,
-      toolCallMs: 5,
+      toolCallMs: 50,
     }),
   };
 
-  it("aborts a wedged never-responding run so the existing finally reclaims the sandbox", async () => {
-    const { calls, deps } = fakeHarness({
-      // The harness comes up but the prompt never resolves on its own — a wedged run. Only an
-      // abort of the run signal (which a tripped deadline fires) can unstick it.
-      hangPrompt: true,
-      abortSignalCancelsHungPrompt: true,
-    });
+  it("ends a wedged never-responding turn as an error so the finally reclaims the sandbox", async () => {
+    // The harness comes up but the prompt never resolves on its own — a wedged run. With no
+    // deadline it would hold the sandbox forever; the tripped TTFB limit must end the turn.
+    const { calls, deps } = fakeHarness({ hangPrompt: true });
 
     const result = await runSandboxAgent(
       { harness: "claude", messages: [{ role: "user", content: "hello" }] },
@@ -1714,25 +1735,25 @@ describe("runSandboxAgent run-limits deadline", () => {
       { ...deps, ...fastLimits },
     );
 
-    // The run RETURNED (did not hang) and the teardown finally ran: sandbox destroyed + disposed.
+    // The run RETURNED (did not hang) as a failure, and the teardown finally reclaimed the sandbox.
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error ?? "", /first response|deadline|idle|run limit/i);
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
-    assert.equal(calls.runFinished, 1);
-    // The prompt resolved via the deadline-driven abort, so the turn ends cancelled, not a hang.
-    if (result.ok) assert.equal(result.stopReason, "cancelled");
   });
 
-  it("does NOT abort a turn that paused for human input, even past every deadline window", async () => {
-    // A gated tool call parks the turn (pause path), which retires the deadlines. With tiny
-    // limits, a wedged turn WOULD trip almost immediately — so a clean `paused` finish (never a
-    // deadline `cancelled`) proves the pause exemption held. The prompt hangs; only the local
-    // park signal ends the turn. Setup mirrors the F-040 park test above (real ApprovalResponder).
+  it("does NOT trip a turn that paused for human input, even past every deadline window", async () => {
+    // A gated tool call parks the turn (pause path), which retires the deadlines via notePaused.
+    // With tiny limits a wedged turn WOULD trip almost immediately — so a clean `paused` finish
+    // (never a deadline error) proves the pause exemption held. The prompt hangs; only the local
+    // park signal ends the turn. Setup mirrors the F-040 park test (real ApprovalResponder).
     const { calls, deps } = (() => {
       const { calls, deps } = fakeHarness({
         emitPermission: true,
         hangPrompt: true,
       });
-      delete deps.responderFactory; // engine ApprovalResponder -> pauses (effective ask, no decision)
+      delete deps.responderFactory; // engine ApprovalResponder -> pauses (ask, no stored decision)
       return { calls, deps };
     })();
 
@@ -1751,9 +1772,8 @@ describe("runSandboxAgent run-limits deadline", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    // Paused, not cancelled: the pause path — not a deadline abort — ended the turn.
+    // Paused, not a deadline error: the pause path — not a tripped limit — ended the turn.
     assert.equal(result.stopReason, "paused");
-    // The finally still reclaimed the sandbox on the pause path.
     assert.equal(calls.sandboxDestroyed, 1);
   });
 });

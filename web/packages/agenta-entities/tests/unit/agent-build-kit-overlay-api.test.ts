@@ -7,6 +7,10 @@ vi.mock("@agenta/sdk/resources", () => ({
     getWorkflowsClient: () => ({
         retrieveWorkflowRevision: fernRetrieve,
     }),
+    // Low-priority variant shares the fake — the priority is a fetch hint, not a behavior change.
+    getLowPriorityWorkflowsClient: () => ({
+        retrieveWorkflowRevision: fernRetrieve,
+    }),
 }))
 
 vi.mock("@agenta/sdk", () => ({

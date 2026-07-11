@@ -11,6 +11,8 @@
  * gatewayTool so the two lists stay byte-compatible.
  */
 
+import {lowPriorityWhenCached} from "@agenta/shared/api"
+
 import {safeParseWithLogging} from "../../shared"
 import {
     triggerCatalogEventResponseSchema,
@@ -265,11 +267,12 @@ export const revokeTriggerConnection = async (
 
 export const queryTriggerSubscriptions = async (
     subscription?: TriggerSubscriptionQuery,
+    opts?: {lowPriority?: boolean},
 ): Promise<TriggerSubscriptionsResponse> => {
     const {data} = await axios.post(
         `${triggersBaseUrl()}/subscriptions/query`,
         {subscription: subscription ?? null},
-        projectScopedParams(),
+        {...projectScopedParams(), ...lowPriorityWhenCached(opts?.lowPriority)},
     )
     return (
         safeParseWithLogging(
@@ -435,11 +438,12 @@ export const stopTriggerSubscription = async (
 
 export const queryTriggerSchedules = async (
     schedule?: TriggerScheduleQuery,
+    opts?: {lowPriority?: boolean},
 ): Promise<TriggerSchedulesResponse> => {
     const {data} = await axios.post(
         `${triggersBaseUrl()}/schedules/query`,
         {schedule: schedule ?? null},
-        projectScopedParams(),
+        {...projectScopedParams(), ...lowPriorityWhenCached(opts?.lowPriority)},
     )
     return (
         safeParseWithLogging(triggerSchedulesResponseSchema, data, "[queryTriggerSchedules]") ?? {

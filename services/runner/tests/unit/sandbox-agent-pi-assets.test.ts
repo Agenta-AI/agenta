@@ -46,7 +46,8 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: {
@@ -67,7 +68,9 @@ describe("buildPiExtensionEnv", () => {
             properties: { x: { type: "string" } },
           },
           callRef: "server-secret-ref",
-          contextBindings: { "target.workflow_variant_id": "$ctx.workflow.variant.id" },
+          contextBindings: {
+            "target.workflow_variant_id": "$ctx.workflow.variant.id",
+          },
           timeoutMs: 120000,
           env: { SECRET: "do-not-expose" },
           kind: "callback",
@@ -148,7 +151,7 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
   });
 
-  it("sets builtin gating env and relay dir without custom tools", () => {
+  it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
     const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
       relayDir: "/tmp/relay",
       builtinGatingActive: true,
@@ -157,7 +160,7 @@ describe("buildPiExtensionEnv", () => {
 
     assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
     assert.equal(env.AGENTA_AGENT_BUILTIN_GRANTS, "read,write");
-    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
   });
 
@@ -192,7 +195,8 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: { capture: { content: { enabled: true } } },
@@ -212,14 +216,16 @@ describe("buildPiExtensionEnv", () => {
     const request = {
       context: {
         propagation: {
-          traceparent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
       },
       telemetry: { capture: { content: { enabled: true } } },
     } as AgentRunRequest;
 
     assert.equal(
-      buildPiExtensionEnv(request, true, { skills: [] }).AGENTA_AGENT_SKILLS_LOADED,
+      buildPiExtensionEnv(request, true, { skills: [] })
+        .AGENTA_AGENT_SKILLS_LOADED,
       undefined,
     );
     assert.equal(

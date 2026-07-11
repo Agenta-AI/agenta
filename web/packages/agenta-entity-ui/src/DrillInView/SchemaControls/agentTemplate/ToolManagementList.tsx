@@ -19,11 +19,17 @@ import {atomWithStorage} from "jotai/utils"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {CollapsibleProviderGroup, SubSectionHeader} from "../sectionGroups"
-import {parseGatewayFunctionName} from "../toolUtils"
+import {parseGatewayTool} from "../toolUtils"
 
-import {describeTool, isFunctionTool, toolName} from "./itemDescriptors"
+import {describeTool, isFunctionTool} from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
-import {ItemChildRow, ItemRow, type ItemRowStatus} from "./ItemRow"
+import {
+    ItemChildRow,
+    ItemRow,
+    StatusTag,
+    type ItemRowStatus,
+    type ItemRowStatusTone,
+} from "./ItemRow"
 
 /** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
 type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
@@ -59,6 +65,36 @@ function prettifyProvider(key: string): string {
     return key.charAt(0).toUpperCase() + key.slice(1)
 }
 
+// Blocking problems outrank draft markers, mirroring the section-header rollup.
+const STATUS_TONE_PRIORITY: Record<ItemRowStatusTone, number> = {
+    invalid: 0,
+    incomplete: 1,
+    edited: 2,
+    new: 3,
+}
+
+/** The group's worst child status, so a collapsed provider card still points at the problem. */
+function rollupGroupStatus(
+    items: IndexedTool[],
+    statusFor?: ToolStatusFor,
+): ItemRowStatus | undefined {
+    if (!statusFor) return undefined
+    let worst: ItemRowStatus | undefined
+    let count = 0
+    for (const {item, index} of items) {
+        const status = statusFor(item, index)
+        if (!status) continue
+        if (!worst || STATUS_TONE_PRIORITY[status.tone] < STATUS_TONE_PRIORITY[worst.tone]) {
+            worst = status
+            count = 1
+        } else if (status.tone === worst.tone) {
+            count += 1
+        }
+    }
+    if (!worst) return undefined
+    return count > 1 ? {...worst, tooltip: `${count} tools — expand for details.`} : worst
+}
+
 function GatewayProviderGroup({
     group,
     entityId,
@@ -76,6 +112,11 @@ function GatewayProviderGroup({
     const name = integration?.name || prettifyProvider(group.key)
     const open =
         (entityId ? expanded[`${entityId}:${group.key}`] : undefined) ?? group.items.length === 1
+    // Collapsed only: expanded groups already show the tag on the offending row itself.
+    const groupStatus = useMemo(
+        () => (open ? undefined : rollupGroupStatus(group.items, statusFor)),
+        [open, group.items, statusFor],
+    )
 
     const toggle = () => {
         if (!entityId) return
@@ -95,6 +136,7 @@ function GatewayProviderGroup({
             onToggle={toggle}
             onAdd={!disabled && onOpenIntegration ? () => onOpenIntegration(group.key) : undefined}
             addLabel={`Add ${name} tool`}
+            statusTag={groupStatus ? <StatusTag status={groupStatus} /> : undefined}
         >
             {group.items.map(({item, index}) => (
                 <ItemChildRow
@@ -250,7 +292,7 @@ export function ToolManagementList({
                 references.push({item, index})
                 return
             }
-            const gw = parseGatewayFunctionName(toolName(item))
+            const gw = parseGatewayTool(item)
             if (gw) {
                 let group = groups.get(gw.integration)
                 if (!group) {

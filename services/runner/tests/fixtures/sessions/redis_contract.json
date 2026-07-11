@@ -8,11 +8,13 @@
     "heartbeat_write_threshold": 60
   },
   "keys": {
-    "alive_example": "alive:session:sess-123",
-    "running_example": "running:session:sess-123",
-    "attached_example": "attached:session:sess-123",
-    "owner_example": "owner:session:sess-123",
-    "displaced_channel_example": "displaced:session:sess-123"
+    "project_example": "proj-abc",
+    "session_example": "sess-123",
+    "alive_example": "alive:proj-abc:session:sess-123",
+    "running_example": "running:proj-abc:session:sess-123",
+    "attached_example": "attached:proj-abc:session:sess-123",
+    "owner_example": "owner:proj-abc:session:sess-123",
+    "displaced_channel_example": "displaced:proj-abc:session:sess-123"
   },
   "displacement_payload": {
     "reason": "stolen",

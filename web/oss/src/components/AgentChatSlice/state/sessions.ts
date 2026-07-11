@@ -5,6 +5,8 @@ import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
+import {clearSessionEphemera} from "./sessionEphemera"
+
 /**
  * Multi-session model for the agent chat slice. The playground hosts several parallel agent
  * conversations as top-level dynamic tabs (no side rail); this holds the session history, which
@@ -43,8 +45,24 @@ export const GLOBAL_APP_KEY = "__global__"
  * Default scope key when a surface provides no override: the current app (or `__global__` off an
  * app page). Kept as the bare app id (no prefix) so sessions persisted before scoping was
  * introduced still resolve under the same storage key.
+ *
+ * Fallback order matters: `routerAppIdAtom` derives from the app-state snapshot, which updates
+ * on routeChangeComplete — AFTER the destination page has rendered. During a client-side nav
+ * onto an app playground, a mounted chat panel would briefly scope to `__global__` (wrong/empty
+ * session store, stray seeded tab), then swap to the app scope when the snapshot settles —
+ * remounting the transcript (the warm re-entry "flash"). The live URL never lags, so parse the
+ * app id from it before conceding to the global scope. The non-reactive window read is safe:
+ * when the router atom catches up it yields the SAME id, so the scope value never swaps.
  */
-export const defaultScopeKeyAtom = atom((get) => get(routerAppIdAtom) || GLOBAL_APP_KEY)
+export const defaultScopeKeyAtom = atom((get) => {
+    const routed = get(routerAppIdAtom)
+    if (routed) return routed
+    if (typeof window !== "undefined") {
+        const fromUrl = window.location.pathname.match(/\/apps\/([^/]+)/)?.[1]
+        if (fromUrl) return fromUrl
+    }
+    return GLOBAL_APP_KEY
+})
 
 // One source of truth per concern, keyed by scope key. Scoped accessors below derive a single
 // scope's slice (mirrors the playground's `selectedVariantsByAppAtom` pattern).
@@ -219,7 +237,49 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
             delete messages[id]
             set(sessionMessagesAtom, messages)
         }
+
+        clearSessionEphemera(id)
     }),
+)
+
+/**
+ * Move one scope's session state (history, open tabs, active id) into another scope.
+ *
+ * Used by the onboarding commit: the founding conversation lives under the fixed `onboarding`
+ * scope until the real app exists, then is adopted by the app's own scope in the SAME React
+ * update that flips the scope provider — the mounted panel re-reads identical sessions under
+ * the new key (so nothing remounts), a reload on the app route finds the conversation, and a
+ * later onboarding entry's `resetScopeAtomFamily` wipe can no longer destroy it. Messages are
+ * keyed by session id (no scope dimension), so they don't move.
+ */
+export const adoptScopeSessionsAtom = atom(
+    null,
+    (get, set, {from, to}: {from: string; to: string}) => {
+        if (!from || !to || from === to) return
+        const sessions = get(sessionsByAppAtom)
+        const moved = sessions[from] ?? []
+        if (moved.length === 0) return
+
+        const movedIds = new Set(moved.map((s) => s.id))
+        const nextSessions = {...sessions}
+        delete nextSessions[from]
+        nextSessions[to] = [...moved, ...(sessions[to] ?? []).filter((s) => !movedIds.has(s.id))]
+        set(sessionsByAppAtom, nextSessions)
+
+        // Resolve the source's open set through the pre-upgrade fallback (everything open).
+        const movedOpen = currentOpenIds(get, from)
+        const open = get(openIdsByAppAtom)
+        const nextOpen = {...open}
+        delete nextOpen[from]
+        nextOpen[to] = [...movedOpen, ...(open[to] ?? []).filter((id) => !movedOpen.includes(id))]
+        set(openIdsByAppAtom, nextOpen)
+
+        const active = get(activeByAppAtom)
+        const nextActive = {...active}
+        delete nextActive[from]
+        if (active[from]) nextActive[to] = active[from]
+        set(activeByAppAtom, nextActive)
+    },
 )
 
 /**
@@ -259,6 +319,7 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
                     delete messages[id]
                     changed = true
                 }
+                clearSessionEphemera(id)
             }
             if (changed) set(sessionMessagesAtom, messages)
         }

@@ -26,7 +26,7 @@
  * </ConfigAccordionSection>
  * ```
  */
-import {type ReactNode, useCallback, useEffect, useState} from "react"
+import {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
 
 import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
 import {Tooltip, Typography} from "antd"
@@ -36,18 +36,22 @@ import {HeightCollapse} from "../../HeightCollapse"
 
 const {Text} = Typography
 
-export type SectionIndicatorTone = "draft" | "invalid" | "incomplete"
+export type SectionIndicatorTone = "draft" | "invalid" | "incomplete" | "agent"
 
 /**
  * The accent token for a section/item change indicator. Single source of truth for the
  * tone→token mapping, shared by the section header and the config panel's item indicators.
+ * "agent" (the agent changed this in a self-commit) is deliberately DISTINCT from "draft"
+ * blue — it uses the agent teal so it can't be read as the user's own unsaved edits.
  */
 export function sectionIndicatorColor(tone: SectionIndicatorTone): string {
     return tone === "invalid"
         ? "var(--ag-colorError)"
         : tone === "incomplete"
           ? "var(--ag-colorWarning)"
-          : "var(--ag-colorInfo)"
+          : tone === "agent"
+            ? "var(--ag-c-13C2C2, #13c2c2)"
+            : "var(--ag-colorInfo)"
 }
 
 export interface ConfigAccordionSectionProps {
@@ -103,7 +107,7 @@ export interface ConfigAccordionSectionProps {
      * agent config panel to flag sections with unsaved edits (`"draft"`), a blocking problem
      * (`"invalid"`), or an optional gap (`"incomplete"`).
      */
-    indicator?: {tone: "draft" | "invalid" | "incomplete"; tooltip?: ReactNode}
+    indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode}
     /** Only show `summary` while the section is collapsed. @default false (always). */
     summaryCollapsedOnly?: boolean
     /**
@@ -121,6 +125,13 @@ export interface ConfigAccordionSectionProps {
     revealOnMount?: boolean
     /** Stagger for `revealOnMount` — delay (ms) before this section fades in. @default 0 */
     revealDelayMs?: number
+    /**
+     * Mount the section COLLAPSED and expand it a beat later through the normal collapse
+     * transition. First paint then matches a collapsed-rows skeleton (no layout shift when the
+     * panel resolves); the content unfolds instead of appearing pre-expanded. Uncontrolled,
+     * collapsible, `defaultOpen` sections only — a no-op everywhere else.
+     */
+    animateInitialOpen?: boolean
     /** Section body. */
     children?: ReactNode
 }
@@ -149,6 +160,7 @@ export function ConfigAccordionSection({
     className,
     revealOnMount = false,
     revealDelayMs = 0,
+    animateInitialOpen = false,
     children,
 }: ConfigAccordionSectionProps) {
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
@@ -168,6 +180,10 @@ export function ConfigAccordionSection({
     }, [revealOnMount, revealDelayMs])
     // Indicator (unsaved edits / validation) takes precedence over the completion `status`.
     const indicatorColor = indicator ? sectionIndicatorColor(indicator.tone) : null
+    // Keep the last tone's color while the dot scales out, so it doesn't flash colorless.
+    const lastIndicatorColorRef = useRef<string | null>(null)
+    if (indicatorColor) lastIndicatorColorRef.current = indicatorColor
+    const dotColor = indicatorColor ?? lastIndicatorColorRef.current
     // The glyph gets a soft, desaturated tint; the full accent lives on the dot so it still reads.
     const iconColor = indicatorColor
         ? `color-mix(in srgb, ${indicatorColor} 45%, var(--ag-colorTextTertiary))`
@@ -177,7 +193,15 @@ export function ConfigAccordionSection({
             ? "var(--ag-colorWarning)"
             : "var(--ag-c-586673,#586673)"
     const isControlled = open !== undefined
-    const [internalOpen, setInternalOpen] = useState(defaultOpen)
+    // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
+    // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
+    const [internalOpen, setInternalOpen] = useState(animateInitialOpen ? false : defaultOpen)
+    useEffect(() => {
+        if (!animateInitialOpen || !defaultOpen || isControlled || !collapsible) return
+        const t = window.setTimeout(() => setInternalOpen(true), 120)
+        return () => window.clearTimeout(t)
+        // Mount-only: this drives a one-shot entrance, never reacts to later prop changes.
+    }, [])
     // A section can either open a drawer (onOpen) or expand inline (the accordion default).
     const opensDrawer = onOpen !== undefined && !locked
     // Non-collapsible sections (e.g. the "cards" layout) stay open; locked sections stay shut.
@@ -228,16 +252,20 @@ export function ConfigAccordionSection({
                     {icon ? (
                         <Tooltip title={indicator?.tooltip}>
                             <span
-                                className="relative flex shrink-0 items-center"
+                                className="relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-300"
                                 style={{color: iconColor}}
                             >
                                 {icon}
-                                {indicator ? (
-                                    <span
-                                        className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-[var(--ag-colorBgContainer)]"
-                                        style={{background: indicatorColor ?? undefined}}
-                                    />
-                                ) : null}
+                                {/* Always mounted: state changes play as scale/opacity/color
+                                    transitions instead of the dot popping in and out. */}
+                                <span
+                                    className={cn(
+                                        "absolute -right-1 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-[var(--ag-colorBgContainer)]",
+                                        "motion-safe:transition-[transform,opacity,background-color] motion-safe:duration-300 motion-safe:ease-out",
+                                        indicator ? "scale-100 opacity-100" : "scale-0 opacity-0",
+                                    )}
+                                    style={{background: dotColor ?? undefined}}
+                                />
                             </span>
                         </Tooltip>
                     ) : null}

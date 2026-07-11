@@ -27,6 +27,10 @@ export interface OnboardingContextValue {
      * gallery (set from the left config panel, read by the chat empty-state surface). */
     browseAll: boolean
     setBrowseAll: (next: boolean) => void
+    /** True until the founding conversation's first run settles (finishes, needs the user, or
+     * errors) — the session bar/rail disable "New session" so the user stays with the birth of
+     * their agent. Latched off permanently once it settles. */
+    newSessionLocked: boolean
 }
 
 export const OnboardingContext = createContext<OnboardingContextValue | null>(null)

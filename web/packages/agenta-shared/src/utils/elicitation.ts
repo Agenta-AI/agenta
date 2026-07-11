@@ -3,7 +3,8 @@
  *
  * The `elicitation` render kind lets a platform op request typed input mid-run: the wire
  * carries `{message, requestedSchema}` (the MCP-elicitation FLAT dialect — top-level
- * primitives/enums only, plus `x-ag-*` presentation hints), the chat renders a form, and the
+ * primitives/enums plus string multi-select arrays, with `x-ag-*` presentation hints), the chat
+ * renders a form, and the
  * settling tool result carries `{action: accept|decline|cancel, content?}`. This module is the
  * single source of truth for that contract on the TS side: payload validation (which doubles as
  * the fallback-tier dispatch check), the result envelope, and part-state derivation. Pinned by
@@ -47,13 +48,32 @@ export function normalizeStringFormat(format: unknown): string | undefined {
     return KNOWN_STRING_FORMATS.has(canonical) ? canonical : undefined
 }
 
+/**
+ * A context-ful option (standard JSON Schema `oneOf` + `const` idiom): `title`/`description`
+ * give the option a card-worthy explanation. Parse canonicalizes the consts into `enum`, so
+ * downstream consumers never branch on which shape the author used.
+ */
+export interface ElicitationOptionSchema {
+    const: string
+    title?: string
+    description?: string
+}
+
 export interface ElicitationFieldSchema {
-    type: "string" | "number" | "integer" | "boolean"
+    type: "string" | "number" | "integer" | "boolean" | "array"
     title?: string
     description?: string
     enum?: string[]
+    /** Context-ful options; when descriptions are present the renderer shows choice cards. */
+    oneOf?: ElicitationOptionSchema[]
     format?: string
-    default?: never
+    /**
+     * Multi-select (`type: "array"` only): the ONE array shape the dialect admits — string items,
+     * optionally constrained by an enum or context-ful `oneOf` options. Nothing deeper.
+     */
+    items?: {type: "string"; enum?: string[]; oneOf?: ElicitationOptionSchema[]}
+    /** Proposed value prefilling the field, so the user can accept the whole form in one click. */
+    default?: string | number | boolean | string[]
     minimum?: number
     maximum?: number
     minLength?: number
@@ -68,6 +88,8 @@ export interface ElicitationRequestPayload {
         type: "object"
         properties: Record<string, ElicitationFieldSchema>
         required?: string[]
+        /** Presentation hints, e.g. "x-ag-stepper": true → one question at a time + review. */
+        [key: `x-ag-${string}`]: unknown
     }
 }
 
@@ -92,6 +114,30 @@ export type ElicitationParseResult =
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
+const isStringArray = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((v) => typeof v === "string")
+
+/** A scalar default must match the field's declared type (integer ⇒ whole number). */
+const isValidScalarDefault = (type: string, value: unknown): boolean =>
+    type === "string"
+        ? typeof value === "string"
+        : type === "boolean"
+          ? typeof value === "boolean"
+          : type === "integer"
+            ? typeof value === "number" && Number.isInteger(value)
+            : typeof value === "number" && Number.isFinite(value)
+
+const isValidOneOf = (value: unknown): value is ElicitationOptionSchema[] =>
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+        (o) =>
+            isRecord(o) &&
+            typeof o.const === "string" &&
+            (o.title === undefined || typeof o.title === "string") &&
+            (o.description === undefined || typeof o.description === "string"),
+    )
+
 /**
  * Validate an incoming client-tool input as an elicitation payload (tolerant reader: unknown
  * extra keys are ignored; the hard rules below are the dialect). Failure reasons are stable
@@ -115,13 +161,43 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
     for (const [name, prop] of Object.entries(requestedSchema.properties)) {
         if (!isRecord(prop)) return {ok: false, reason: `property "${name}" is not an object`}
         const type = prop.type
-        if (typeof type !== "string" || !FIELD_TYPES.has(type))
+        if (typeof type !== "string" || (!FIELD_TYPES.has(type) && type !== "array"))
             return {ok: false, reason: `property "${name}" has unsupported type "${String(type)}"`}
-        if ("properties" in prop || "items" in prop)
+        if ("properties" in prop)
             return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
-        if (prop.enum !== undefined) {
-            if (!Array.isArray(prop.enum) || prop.enum.some((v) => typeof v !== "string"))
+        if (type === "array") {
+            // Multi-select: the ONE admitted array shape — string items, optional enum, no deeper.
+            const items = prop.items
+            if (!isRecord(items) || items.type !== "string")
+                return {ok: false, reason: `property "${name}" array items must be strings`}
+            if ("properties" in items || "items" in items)
+                return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
+            if (items.enum !== undefined && !isStringArray(items.enum))
+                return {ok: false, reason: `property "${name}" items enum must be strings`}
+            if (items.oneOf !== undefined && !isValidOneOf(items.oneOf))
+                return {ok: false, reason: `property "${name}" oneOf options need a string const`}
+            // Top-level enum/oneOf on an array is a natural author slip — canonicalization folds
+            // them into items, so validate them under the same rules here.
+            if (prop.enum !== undefined && !isStringArray(prop.enum))
+                return {ok: false, reason: `property "${name}" items enum must be strings`}
+            if (prop.oneOf !== undefined && !isValidOneOf(prop.oneOf))
+                return {ok: false, reason: `property "${name}" oneOf options need a string const`}
+            if (prop.default !== undefined && !isStringArray(prop.default))
+                return {
+                    ok: false,
+                    reason: `property "${name}" default must be an array of strings`,
+                }
+        } else {
+            if ("items" in prop)
+                return {ok: false, reason: `property "${name}" is nested — flat dialect only`}
+            if ((prop.enum !== undefined || prop.oneOf !== undefined) && type !== "string")
+                return {ok: false, reason: `property "${name}" enum/oneOf requires type "string"`}
+            if (prop.enum !== undefined && !isStringArray(prop.enum))
                 return {ok: false, reason: `property "${name}" enum must be strings`}
+            if (prop.oneOf !== undefined && !isValidOneOf(prop.oneOf))
+                return {ok: false, reason: `property "${name}" oneOf options need a string const`}
+            if (prop.default !== undefined && !isValidScalarDefault(type, prop.default))
+                return {ok: false, reason: `property "${name}" default must match type "${type}"`}
         }
         const title = typeof prop.title === "string" ? prop.title : ""
         if (SECRET_FIELD_PATTERN.test(name) || SECRET_FIELD_PATTERN.test(title))
@@ -137,14 +213,41 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
         if (unknown) return {ok: false, reason: `required field "${unknown}" is not a property`}
     }
 
-    // Canonicalize format hints once at the boundary so the renderer and the serializer never
-    // diverge (aliases like "datetime" → "date-time"); unknown formats are dropped.
+    // Canonicalize once at the boundary so the renderer and the serializer never diverge:
+    // format aliases → canonical ("datetime" → "date-time", unknown dropped); oneOf consts →
+    // enum (downstream consumers key on enum; oneOf stays for the option titles/descriptions);
+    // and misplaced top-level enum/oneOf on an array fold into items (declared items win) —
+    // left at the top level they would mis-promote the field to a single-select downstream.
     const properties = Object.fromEntries(
         Object.entries(requestedSchema.properties).map(([name, prop]) => {
             const field = {...(prop as ElicitationFieldSchema)}
             const canonical = normalizeStringFormat(field.format)
             if (canonical) field.format = canonical
             else delete field.format
+            // An empty default ("" or []) means "no proposal" — models emit these when they
+            // cannot pick; kept, they would mount enum fields in Other-mode with an empty input.
+            if (
+                field.default === "" ||
+                (Array.isArray(field.default) && field.default.length === 0)
+            )
+                delete field.default
+            if (field.type === "array" && field.items) {
+                field.items = {
+                    ...field.items,
+                    ...(field.items.enum === undefined && field.enum !== undefined
+                        ? {enum: field.enum}
+                        : {}),
+                    ...(field.items.oneOf === undefined && field.oneOf !== undefined
+                        ? {oneOf: field.oneOf}
+                        : {}),
+                }
+                delete field.enum
+                delete field.oneOf
+                if (field.items.oneOf)
+                    field.items = {...field.items, enum: field.items.oneOf.map((o) => o.const)}
+            } else if (field.oneOf) {
+                field.enum = field.oneOf.map((o) => o.const)
+            }
             return [name, field]
         }),
     ) as Record<string, ElicitationFieldSchema>
@@ -216,6 +319,26 @@ export function hasPriorElicitationDegradation(
             typeof part?.errorText === "string" &&
             part.errorText.startsWith("elicitation: unsupported payload"),
     )
+}
+
+/**
+ * Split a persisted form draft for restore: date/date-time fields serialized as ISO strings must
+ * be revived to date objects by the caller (antd DatePicker rejects strings); everything else
+ * restores as-is. Unknown keys stay in `plain` (tolerant — the schema may have changed).
+ */
+export function partitionElicitationDraft(
+    payload: ElicitationRequestPayload,
+    draft: Record<string, unknown>,
+): {plain: Record<string, unknown>; dates: Record<string, string>} {
+    const plain: Record<string, unknown> = {}
+    const dates: Record<string, string> = {}
+    for (const [name, value] of Object.entries(draft)) {
+        const format = payload.requestedSchema.properties[name]?.format
+        if ((format === "date" || format === "date-time") && typeof value === "string")
+            dates[name] = value
+        else plain[name] = value
+    }
+    return {plain, dates}
 }
 
 const isDateLike = (value: unknown): value is {toISOString: () => string} =>

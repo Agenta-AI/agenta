@@ -4,17 +4,18 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .session_state_data import SessionStateData
 
 
 class SessionStateUpsertRequest(UniversalBaseModel):
-    data: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(default=None)
+    data: typing.Optional[SessionStateData] = pydantic.Field(default=None)
     """
-    Opaque SDK session state to persist.
+    Full replacement of the continuity state (resume ids + staleness guard).
     """
     
     sandbox_id: typing.Optional[str] = pydantic.Field(default=None)
     """
-    Remote sandbox id to record alongside the SDK record.
+    Remote sandbox id to record alongside the continuity state.
     """
     
     

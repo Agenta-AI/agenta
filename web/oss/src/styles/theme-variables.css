@@ -193,6 +193,9 @@
     --ag-surface-error-well-border: #f3d0ce;
     --ag-strip-input-border: #d6dee6;
     --ag-strip-selected-bg: #f5f7fa;
+    --ag-strip-card-bg: #ffffff;
+    --ag-strip-card-border: #eaeff5;
+    --ag-strip-card-border-hover: #bdc7d1;
     --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(28, 44, 61, 0.12);
     --ag-sidebar-bg: var(--ag-surface-raised);
 
@@ -500,6 +503,9 @@
     --ag-drawer-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
     --ag-strip-input-border: #2e3136;
     --ag-strip-selected-bg: rgba(255, 255, 255, 0.06);
+    --ag-strip-card-bg: rgba(255, 255, 255, 0.04);
+    --ag-strip-card-border: #232327;
+    --ag-strip-card-border-hover: #3a3a40;
     --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
     --ag-sidebar-bg: var(--ag-surface-raised);
 

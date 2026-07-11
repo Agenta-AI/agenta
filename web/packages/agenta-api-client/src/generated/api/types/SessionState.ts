@@ -14,8 +14,8 @@ export interface SessionState {
     project_id?: (string | null) | undefined;
     /** Bare session correlator (not an FK). */
     session_id: string;
-    /** Opaque SDK session state stored as JSON. */
-    data?: (Record<string, unknown> | null) | undefined;
+    /** Durable continuity state (resume ids + staleness guard). */
+    data?: (AgentaApi.SessionStateData | null) | undefined;
     /** Remote sandbox id — the single source of truth resume pointer. */
     sandbox_id?: (string | null) | undefined;
     flags?: AgentaApi.SessionStateFlags | undefined;

@@ -51,6 +51,8 @@ interface RedisContractFixture {
     heartbeat_write_threshold: number;
   };
   keys: {
+    project_example: string;
+    session_example: string;
     alive_example: string;
     running_example: string;
     attached_example: string;
@@ -71,7 +73,8 @@ const fixture = JSON.parse(
   readFileSync(FIXTURE_PATH, "utf-8"),
 ) as RedisContractFixture;
 
-const SESSION_EXAMPLE = "sess-123";
+const PROJECT_EXAMPLE = fixture.keys.project_example;
+const SESSION_EXAMPLE = fixture.keys.session_example;
 const WATCHER_EXAMPLE = "watcher-abc";
 
 describe("session Redis contract: TTLs", () => {
@@ -100,20 +103,20 @@ describe("session Redis contract: TTLs", () => {
 
 describe("session Redis contract: key builders", () => {
   it("aliveKey matches golden", () => {
-    assert.equal(aliveKey(SESSION_EXAMPLE), fixture.keys.alive_example);
+    assert.equal(aliveKey(PROJECT_EXAMPLE, SESSION_EXAMPLE), fixture.keys.alive_example);
   });
   it("runningKey matches golden", () => {
-    assert.equal(runningKey(SESSION_EXAMPLE), fixture.keys.running_example);
+    assert.equal(runningKey(PROJECT_EXAMPLE, SESSION_EXAMPLE), fixture.keys.running_example);
   });
   it("attachedKey matches golden", () => {
-    assert.equal(attachedKey(SESSION_EXAMPLE), fixture.keys.attached_example);
+    assert.equal(attachedKey(PROJECT_EXAMPLE, SESSION_EXAMPLE), fixture.keys.attached_example);
   });
   it("ownerKey matches golden", () => {
-    assert.equal(ownerKey(SESSION_EXAMPLE), fixture.keys.owner_example);
+    assert.equal(ownerKey(PROJECT_EXAMPLE, SESSION_EXAMPLE), fixture.keys.owner_example);
   });
   it("displacedChannel matches golden", () => {
     assert.equal(
-      displacedChannel(SESSION_EXAMPLE),
+      displacedChannel(PROJECT_EXAMPLE, SESSION_EXAMPLE),
       fixture.keys.displaced_channel_example,
     );
   });

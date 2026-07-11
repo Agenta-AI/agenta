@@ -162,7 +162,7 @@ invoke immediately instead of failing the model mid-loop, and the agent only eve
 name, a schema, and an opaque slug. The Composio key and the connection's auth never leave the
 service.
 
-MCP servers resolve on the same path but only when `AGENTA_AGENT_ENABLE_MCP` is truthy. The
+MCP servers resolve on the same path but only when `AGENTA_AGENT_MCPS_ENABLED` is truthy. The
 gate lives in `resolve_mcp_servers` (`services/oss/src/agent/tools/resolver.py`): when the
 flag is off it returns an empty list before the SDK `MCPResolver` ever runs. When on, the
 `MCPResolver` injects each server's named secrets into its `env`, the same way code tools get
@@ -356,7 +356,7 @@ daemon launches the server's `command` with the resolved `env`, and the harness 
 over the MCP protocol.
 
 In practice user MCP is dead on the default path, and for two reasons that stack. First,
-resolution is gated behind `AGENTA_AGENT_ENABLE_MCP`, which is off by default, so the servers
+resolution is gated behind `AGENTA_AGENT_MCPS_ENABLED`, which is off by default, so the servers
 never reach the wire. Second, even with the flag on, `buildSessionMcpServers` drops user MCP
 for Pi (Pi's ACP adapter does not forward them), so it would reach Claude only. Pi and Agenta
 are the default harnesses, so the `mcp_servers` field is accepted and then silently ignored in
@@ -526,6 +526,19 @@ The contract and the field-by-field Composio→Agenta mapping live in the
 `build-an-agent` (slug `__ag__build_an_agent`), which replaced the three earlier authoring
 skills; see the [skills port](../projects/build-kit-tools-cleanup/skills-port.md).
 
+The skill body is a short router. It loads every turn, so before the generic loop it checks a
+bundled `references/agent-templates/index.md` match table for a playbook that fits the user's
+ask. When one matches, the builder reads that playbook and follows it; a playbook layers one
+use case (changelog writer, issue triager, support router, and so on) onto the loop and never
+drops its approval stops. When none matches, the builder falls back to the generic loop.
+The playbooks ship beside the skill as `references/agent-templates/<key>.md`, one per home-page
+template (28 today), plus the two field references `references/config-schema.md` and
+`references/trigger-inputs.md`. The index and every playbook are generated from the
+`agent_templates` package in `sdks/python/agenta/sdk/agents/adapters/`, so the router table can
+never drift from the files that exist. The canonical playbook format lives in the
+[agent-templates workspace](../projects/agent-templates/playbook-spec.md), and the
+`write-template-playbooks` repo skill authors one.
+
 ## The whole picture
 
 | Tool type | Resolves to | Who executes | Where | Secret handling |
@@ -574,7 +587,7 @@ skills; see the [skills port](../projects/build-kit-tools-cleanup/skills-port.md
 ## Status and known gaps
 
 - **User MCP is effectively dead on the default path.** Resolution is off unless
-  `AGENTA_AGENT_ENABLE_MCP` is truthy, and even on, the runner drops user MCP for Pi. Pi and
+  `AGENTA_AGENT_MCPS_ENABLED` is truthy, and even on, the runner drops user MCP for Pi. Pi and
   Agenta are the default harnesses, so `mcp_servers` is a silent no-op for most runs. It would
   reach Claude only. Do not confuse this with the `agenta-tools` server, which is an internal
   tool-delivery vehicle for Claude, not a user MCP server.

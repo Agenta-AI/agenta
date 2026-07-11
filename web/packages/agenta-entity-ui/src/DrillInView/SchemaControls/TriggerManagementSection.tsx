@@ -470,13 +470,30 @@ function TriggerRow({
     )
 }
 
-export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, count, defaultReferences, defaultBoundLabel} =
-        useAgentTriggers(entityId)
-
+// App triggers grouped by provider. Extracted into its own component so the connections +
+// catalog-integrations queries (the heavy ~90-app catalog fetch) mount ONLY when there are app
+// subscriptions to decorate — they are the sole consumers of that data. The always-mounted Triggers
+// section otherwise fired both on every agent-playground load just to render a count badge / empty
+// state, before the user ever opened the trigger picker.
+function AppTriggerProviderGroups({
+    scopedSubscriptions,
+    entityId,
+    disabled,
+    defaultReferences,
+    defaultBoundLabel,
+    subscriptionMenu,
+}: {
+    scopedSubscriptions: TriggerSubscription[]
+    entityId: string | null
+    disabled?: boolean
+    defaultReferences: Record<string, {id?: string; slug?: string}>
+    defaultBoundLabel: string
+    subscriptionMenu: (record: TriggerSubscription) => MenuProps["items"]
+}) {
     const {connections} = useTriggerConnectionsQuery()
     const {integrations} = useTriggerCatalogIntegrations()
     const [groupsExpanded, setGroupsExpanded] = useAtom(triggerGroupsExpandedAtom)
+    const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
 
     // Subscriptions grouped by provider (connection.integration_key); name/logo from the
     // catalog when loaded, else a prettified key + plug icon.
@@ -515,6 +532,94 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
         },
         [entityId, setGroupsExpanded],
     )
+    const connectionLabel = useCallback(
+        (connectionId?: string) => {
+            const c = connections.find((conn) => conn.id === connectionId)
+            return c ? c.name || c.slug || c.integration_key : undefined
+        },
+        [connections],
+    )
+
+    if (providerGroups.length === 0) return null
+
+    return (
+        <div className="flex flex-col gap-2">
+            <SubSectionHeader label="App triggers" count={scopedSubscriptions.length} />
+            {providerGroups.map((group) => {
+                const open = isGroupOpen(group)
+                const activeCount = group.subs.filter(isEntityActive).length
+                return (
+                    <CollapsibleProviderGroup
+                        key={group.key}
+                        logo={group.logo}
+                        name={group.name}
+                        countText={`${activeCount} active · ${group.subs.length} total`}
+                        open={open}
+                        onToggle={() => toggleGroup(group)}
+                        onAdd={
+                            !disabled
+                                ? () =>
+                                      openSubscriptionDrawer({
+                                          defaultReferences,
+                                          defaultBoundLabel,
+                                          playgroundEntityId: entityId ?? undefined,
+                                          integrationKey: group.key,
+                                          integrationName: group.name,
+                                      })
+                                : undefined
+                        }
+                        addLabel={`Add ${group.name} trigger`}
+                    >
+                        {group.subs.map((record) => {
+                            const named = !!record.name?.trim()
+                            const eventLabel = prettifyEventKey(record.data?.event_key ?? "")
+                            const primary = named
+                                ? (record.name as string)
+                                : eventLabel || "Untitled subscription"
+                            const secondary = named
+                                ? eventLabel || undefined
+                                : connectionLabel(record.connection_id) ||
+                                  record.description ||
+                                  undefined
+                            return (
+                                <SubscriptionChildRow
+                                    key={`subscription-${record.id}`}
+                                    primary={primary}
+                                    primaryMuted={!named && !eventLabel}
+                                    secondary={secondary}
+                                    active={isEntityActive(record)}
+                                    disabled={disabled}
+                                    runSlot={
+                                        <SubscriptionRunPopover
+                                            subscriptionId={record.id ?? ""}
+                                            label={record.name || eventLabel || "trigger"}
+                                            eventKey={record.data?.event_key ?? undefined}
+                                            playgroundEntityId={entityId}
+                                            disabled={disabled || !record.id}
+                                        />
+                                    }
+                                    onOpen={() =>
+                                        record.id &&
+                                        openSubscriptionDrawer({
+                                            subscriptionId: record.id,
+                                            playgroundEntityId: entityId ?? undefined,
+                                        })
+                                    }
+                                    menuItems={subscriptionMenu(record)}
+                                />
+                            )
+                        })}
+                    </CollapsibleProviderGroup>
+                )
+            })}
+        </div>
+    )
+}
+
+export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
+    const {scopedSubscriptions, scopedSchedules, count, defaultReferences, defaultBoundLabel} =
+        useAgentTriggers(entityId)
+
     const {
         remove: removeSubscription,
         refresh: refreshSubscription,
@@ -549,14 +654,6 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             message.success("Running in playground")
         },
         [entityId, setPendingRun],
-    )
-
-    const connectionLabel = useCallback(
-        (connectionId?: string) => {
-            const c = connections.find((conn) => conn.id === connectionId)
-            return c ? c.name || c.slug || c.integration_key : undefined
-        },
-        [connections],
     )
 
     // ---- subscription actions ----
@@ -719,90 +816,18 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 ) : null
             ) : (
                 <div className="flex flex-col gap-3">
-                    {/* App triggers — grouped by provider (subscriptions first). */}
-                    {providerGroups.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            <SubSectionHeader
-                                label="App triggers"
-                                count={scopedSubscriptions.length}
-                            />
-                            {providerGroups.map((group) => {
-                                const open = isGroupOpen(group)
-                                const activeCount = group.subs.filter(isEntityActive).length
-                                return (
-                                    <CollapsibleProviderGroup
-                                        key={group.key}
-                                        logo={group.logo}
-                                        name={group.name}
-                                        countText={`${activeCount} active · ${group.subs.length} total`}
-                                        open={open}
-                                        onToggle={() => toggleGroup(group)}
-                                        onAdd={
-                                            !disabled
-                                                ? () =>
-                                                      openSubscriptionDrawer({
-                                                          defaultReferences,
-                                                          defaultBoundLabel,
-                                                          playgroundEntityId: entityId ?? undefined,
-                                                          integrationKey: group.key,
-                                                          integrationName: group.name,
-                                                      })
-                                                : undefined
-                                        }
-                                        addLabel={`Add ${group.name} trigger`}
-                                    >
-                                        {group.subs.map((record) => {
-                                            const named = !!record.name?.trim()
-                                            const eventLabel = prettifyEventKey(
-                                                record.data?.event_key ?? "",
-                                            )
-                                            const primary = named
-                                                ? (record.name as string)
-                                                : eventLabel || "Untitled subscription"
-                                            const secondary = named
-                                                ? eventLabel || undefined
-                                                : connectionLabel(record.connection_id) ||
-                                                  record.description ||
-                                                  undefined
-                                            return (
-                                                <SubscriptionChildRow
-                                                    key={`subscription-${record.id}`}
-                                                    primary={primary}
-                                                    primaryMuted={!named && !eventLabel}
-                                                    secondary={secondary}
-                                                    active={isEntityActive(record)}
-                                                    disabled={disabled}
-                                                    runSlot={
-                                                        <SubscriptionRunPopover
-                                                            subscriptionId={record.id ?? ""}
-                                                            label={
-                                                                record.name ||
-                                                                eventLabel ||
-                                                                "trigger"
-                                                            }
-                                                            eventKey={
-                                                                record.data?.event_key ?? undefined
-                                                            }
-                                                            playgroundEntityId={entityId}
-                                                            disabled={disabled || !record.id}
-                                                        />
-                                                    }
-                                                    onOpen={() =>
-                                                        record.id &&
-                                                        openSubscriptionDrawer({
-                                                            subscriptionId: record.id,
-                                                            playgroundEntityId:
-                                                                entityId ?? undefined,
-                                                        })
-                                                    }
-                                                    menuItems={subscriptionMenu(record)}
-                                                />
-                                            )
-                                        })}
-                                    </CollapsibleProviderGroup>
-                                )
-                            })}
-                        </div>
+                    {/* App triggers — grouped by provider (subscriptions first). The connections +
+                        catalog queries live inside this child so they only fire when there ARE app
+                        subscriptions to decorate, not on every playground load. */}
+                    {scopedSubscriptions.length > 0 && (
+                        <AppTriggerProviderGroups
+                            scopedSubscriptions={scopedSubscriptions}
+                            entityId={entityId}
+                            disabled={disabled}
+                            defaultReferences={defaultReferences}
+                            defaultBoundLabel={defaultBoundLabel}
+                            subscriptionMenu={subscriptionMenu}
+                        />
                     )}
 
                     {/* Schedules — flat (no provider), listed last. */}

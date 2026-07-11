@@ -68,6 +68,23 @@ _STATIC_NAMESPACE_UUID = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "catalog")
 WorkflowRevisionDeclaration = Union[WorkflowRevision, Callable[[], WorkflowRevision]]
 
 
+def normalize_static_version(version: Optional[Union[str, int]]) -> Optional[str]:
+    """Canonical form for comparing static workflow versions.
+
+    Static versions are declared as ``vN`` but a round-tripped reference can arrive as ``N`` or the
+    integer ``N`` (the frontend coerces ``workflow.version`` to a number). Reduce all three to the
+    bare digits so ``"v1"``, ``"1"``, and ``1`` resolve the same revision.
+    """
+    if version is None:
+        return None
+    text = str(version).strip()
+    if not text:
+        return None
+    if text[0] in ("v", "V") and text[1:].isdigit():
+        return text[1:]
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Catalogue definition
 # ---------------------------------------------------------------------------
@@ -163,11 +180,23 @@ def _request_input_revision() -> WorkflowRevision:
                         "(subdomain, workspace) before request_connection; or collect schedule "
                         "details (frequency, time of day, timezone) before create_schedule. "
                         "`requestedSchema` must be a FLAT JSON object schema: top-level "
-                        "string/number/integer/boolean properties only (enum, format and title "
-                        "allowed) — no nested objects or arrays. Supported `format` values: "
+                        "string/number/integer/boolean properties (enum, format, title and "
+                        "default allowed). For a multi-pick question use {type: 'array', "
+                        "items: {type: 'string', enum: [...]}} — the ONLY array shape "
+                        "allowed; no nested objects or deeper arrays. When options need "
+                        "explaining, replace `enum` with oneOf: [{const, title, description}] "
+                        "(works inside `items` too) — such options render as selectable cards "
+                        "with the description under each title. When you can "
+                        "propose a sensible value, set it as the field's `default` (a "
+                        "primitive): it prefills the form so the user can accept everything "
+                        "in one click. Enum options are SUGGESTIONS, not a hard constraint — "
+                        "the form lets the user type their own value, so keep enums short and "
+                        "likely rather than exhaustive. Supported `format` values: "
                         "'date', 'date-time', 'email', 'uri', and 'multiline' — use 'multiline' "
                         "for any long or free-form text field (notes, a description, a message "
-                        "body). NEVER request secrets "
+                        'body). For a form with SEVERAL questions, set "x-ag-stepper": true on '
+                        "requestedSchema to present one question at a time with a final "
+                        "review step. NEVER request secrets "
                         "(passwords, API keys, tokens); use request_connection for credentials. "
                         "The result is {action: 'accept'|'decline'|'cancel', content?}: on "
                         "accept, `content` holds the user's values; respect a decline or "
@@ -387,14 +416,31 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
         # No version -> latest (the artifact-level lookup). A version pins that immutable revision.
         # "Latest" is never a version value; it is the no-version lookup.
         resolved_version = version if version is not None else entry.get("latest")
-        if resolved_version not in versions:
+        version_key = self._match_version(versions, resolved_version)
+        if version_key is None:
             return None
 
         return self._build_revision(
             slug=slug,
-            version=resolved_version,
-            declared=versions[resolved_version],
+            version=version_key,
+            declared=versions[version_key],
         )
+
+    @staticmethod
+    def _match_version(
+        versions: Dict[str, Any],
+        version: Optional[Union[str, int]],
+    ) -> Optional[str]:
+        """The stored version key matching ``version`` under normalized comparison, or None.
+
+        Every version compare in this catalogue routes through here so ``"v1"``, ``"1"``, and ``1``
+        all resolve the same declared revision.
+        """
+        target = normalize_static_version(version)
+        for stored in versions:
+            if normalize_static_version(stored) == target:
+                return stored
+        return None
 
     @staticmethod
     def _declared_revision(

@@ -11,6 +11,7 @@ import type {ConfigItemView} from "../ConfigItemDrawer"
 import {McpServerFormView} from "../McpServerFormView"
 import {SkillFormView} from "../SkillFormView"
 import {ToolFormView} from "../ToolFormView"
+import {parseGatewayTool} from "../toolUtils"
 
 import {
     describeMcp,
@@ -80,10 +81,15 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
             const name = describeTool(draft).name
             return name && name !== "Tool" ? name : "New tool"
         },
-        // Function tools and workflow-reference tools both have a structured Form; only bare
-        // builtin/provider tools (a naked `type`) stay JSON-only.
-        editView: (item) => (isFunctionTool(item) || isReferenceTool(item) ? "form" : "json"),
-        jsonOnly: (draft) => !isFunctionTool(draft) && !isReferenceTool(draft),
+        // Function, workflow-reference, and gateway tools (either encoding) have a structured Form;
+        // only bare builtin/provider tools (a naked `type`) stay JSON-only. A canonical gateway
+        // object opens the Form via `parseGatewayTool`; a legacy one is already a function tool.
+        editView: (item) =>
+            isFunctionTool(item) || isReferenceTool(item) || parseGatewayTool(item)
+                ? "form"
+                : "json",
+        jsonOnly: (draft) =>
+            !isFunctionTool(draft) && !isReferenceTool(draft) && !parseGatewayTool(draft),
         isReadOnly: () => false,
         // Unused for tools: creation seeds from the picker (buildInlineFunctionTool), not this.
         createSeed: () => ({}),
@@ -98,7 +104,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         field: "mcps",
         icon: <Plugs size={16} />,
         noun: "server",
-        emptyLabel: "No MCP servers yet",
+        emptyLabel: "No MCPs yet",
         describe: describeMcp,
         FormView: McpServerFormView,
         drawerTitle: (draft) => String(draft.name ?? "").trim() || "New MCP server",

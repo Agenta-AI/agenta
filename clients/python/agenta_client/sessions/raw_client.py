@@ -16,6 +16,7 @@ from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
 from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_file_written_response import MountFileWrittenResponse
+from ..types.session_heartbeat_response_model import SessionHeartbeatResponseModel
 from ..types.session_interaction_data import SessionInteractionData
 from ..types.session_interaction_flags import SessionInteractionFlags
 from ..types.session_interaction_kind import SessionInteractionKind
@@ -27,6 +28,7 @@ from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
 from ..types.session_record_response import SessionRecordResponse
 from ..types.session_records_query_response import SessionRecordsQueryResponse
+from ..types.session_state_data import SessionStateData
 from ..types.session_state_response import SessionStateResponse
 from ..types.session_stream_command_response_model import SessionStreamCommandResponseModel
 from ..types.session_stream_response_model import SessionStreamResponseModel
@@ -282,7 +284,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStreamResponseModel]:
+    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionHeartbeatResponseModel]:
         """
         Parameters
         ----------
@@ -299,7 +301,7 @@ class RawSessionsClient:
         
         Returns
         -------
-        HttpResponse[SessionStreamResponseModel]
+        HttpResponse[SessionHeartbeatResponseModel]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -318,9 +320,9 @@ class RawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SessionStreamResponseModel,
+                    SessionHeartbeatResponseModel,
                     parse_obj_as(
-                        type_ =SessionStreamResponseModel,  # type: ignore
+                        type_ =SessionHeartbeatResponseModel,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -748,11 +750,14 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def sign_session_mount_credentials(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountCredentialsResponse]:
+    def sign_session_mount_credentials(self, *, session_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountCredentialsResponse]:
         """
         Parameters
         ----------
         session_id : str
+        
+        name : typing.Optional[str]
+            Which session-scoped mount to sign, e.g. 'cwd' (default) or a per-harness transcript dir mount (e.g. 'claude-projects', 'pi-sessions'). Each name is its own mount row / durable prefix.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -764,7 +769,7 @@ class RawSessionsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "sessions/mounts/sign",method="POST",
-            params={"session_id": session_id, }
+            params={"session_id": session_id, "name": name, }
             ,
             request_options=request_options,)
         try:
@@ -979,11 +984,13 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def ingest_record(self, *, session_id: str, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Any]]:
+    def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Any]]:
         """
         Parameters
         ----------
         session_id : str
+        
+        record_id : typing.Optional[str]
         
         record_index : typing.Optional[int]
         
@@ -1007,6 +1014,7 @@ class RawSessionsClient:
             "sessions/records/ingest",method="POST",
             json={
                 "session_id": session_id,
+                "record_id": record_id,
                 "record_index": record_index,
                 "timestamp": timestamp,
                 "record_type": record_type,
@@ -1083,17 +1091,17 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def set_state(self, *, session_id: str, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
+    def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
         session_id : str
         
-        data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK session state to persist.
+        data : typing.Optional[SessionStateData]
+            Full replacement of the continuity state (resume ids + staleness guard).
         
         sandbox_id : typing.Optional[str]
-            Remote sandbox id to record alongside the SDK record.
+            Remote sandbox id to record alongside the continuity state.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1108,7 +1116,7 @@ class RawSessionsClient:
             params={"session_id": session_id, }
             ,
             json={
-                "data": data,
+                "data": convert_and_respect_annotation_metadata(object_=data, annotation=typing.Optional[SessionStateData], direction="write"),
                 "sandbox_id": sandbox_id,
             }
             ,
@@ -1385,7 +1393,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStreamResponseModel]:
+    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionHeartbeatResponseModel]:
         """
         Parameters
         ----------
@@ -1402,7 +1410,7 @@ class AsyncRawSessionsClient:
         
         Returns
         -------
-        AsyncHttpResponse[SessionStreamResponseModel]
+        AsyncHttpResponse[SessionHeartbeatResponseModel]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1421,9 +1429,9 @@ class AsyncRawSessionsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    SessionStreamResponseModel,
+                    SessionHeartbeatResponseModel,
                     parse_obj_as(
-                        type_ =SessionStreamResponseModel,  # type: ignore
+                        type_ =SessionHeartbeatResponseModel,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1851,11 +1859,14 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def sign_session_mount_credentials(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountCredentialsResponse]:
+    async def sign_session_mount_credentials(self, *, session_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountCredentialsResponse]:
         """
         Parameters
         ----------
         session_id : str
+        
+        name : typing.Optional[str]
+            Which session-scoped mount to sign, e.g. 'cwd' (default) or a per-harness transcript dir mount (e.g. 'claude-projects', 'pi-sessions'). Each name is its own mount row / durable prefix.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1867,7 +1878,7 @@ class AsyncRawSessionsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "sessions/mounts/sign",method="POST",
-            params={"session_id": session_id, }
+            params={"session_id": session_id, "name": name, }
             ,
             request_options=request_options,)
         try:
@@ -2082,11 +2093,13 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def ingest_record(self, *, session_id: str, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Any]]:
+    async def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Any]]:
         """
         Parameters
         ----------
         session_id : str
+        
+        record_id : typing.Optional[str]
         
         record_index : typing.Optional[int]
         
@@ -2110,6 +2123,7 @@ class AsyncRawSessionsClient:
             "sessions/records/ingest",method="POST",
             json={
                 "session_id": session_id,
+                "record_id": record_id,
                 "record_index": record_index,
                 "timestamp": timestamp,
                 "record_type": record_type,
@@ -2186,17 +2200,17 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def set_state(self, *, session_id: str, data: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
+    async def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
         session_id : str
         
-        data : typing.Optional[typing.Dict[str, typing.Any]]
-            Opaque SDK session state to persist.
+        data : typing.Optional[SessionStateData]
+            Full replacement of the continuity state (resume ids + staleness guard).
         
         sandbox_id : typing.Optional[str]
-            Remote sandbox id to record alongside the SDK record.
+            Remote sandbox id to record alongside the continuity state.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2211,7 +2225,7 @@ class AsyncRawSessionsClient:
             params={"session_id": session_id, }
             ,
             json={
-                "data": data,
+                "data": convert_and_respect_annotation_metadata(object_=data, annotation=typing.Optional[SessionStateData], direction="write"),
                 "sandbox_id": sandbox_id,
             }
             ,

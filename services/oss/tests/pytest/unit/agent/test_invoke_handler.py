@@ -698,3 +698,46 @@ async def test_agent_flag_cube(multi_message_patched, stream, trim, force):
         assert result["messages"] == _TRIMMED_MESSAGES
     else:
         assert result["messages"] == _FULL_FOLDED_MESSAGES
+
+
+async def test_pi_openai_codex_self_managed_reaches_session(monkeypatch, fake_backend):
+    """Pi + the ``openai-codex`` subscription provider + ``self_managed`` is NOT rejected.
+
+    Before ``openai-codex`` joined Pi's capability providers, the agent-layer pre-resolve check
+    raised ``UnsupportedProviderError`` here even though the runner drives the ChatGPT/Codex
+    subscription fine — so the playground's self-managed (no-API-key) path was dead at the service
+    boundary. The ``self_managed`` connection resolves to a no-credential (``runtime_provided``)
+    plan: the harness authenticates with its own OAuth login and no key is injected.
+    """
+    backend = fake_backend(result=AgentResult(output="echo", usage={"total": 1}))
+    captured = {}
+
+    async def _resolve(*, model, context):
+        captured["model"] = model
+        # Mirror the VaultConnectionResolver's self_managed short-circuit (no vault, empty env).
+        return ResolvedConnection(
+            provider="openai-codex",
+            model=model.model,
+            credential_mode="runtime_provided",
+            env={},
+        )
+
+    built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
+
+    body = await _invoke(
+        "pi_core",
+        model={
+            "provider": "openai-codex",
+            "model": "gpt-5.4-mini",
+            "connection": {"mode": "self_managed"},
+        },
+    )
+
+    assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
+    # The pre-resolve provider check let openai-codex through, so the resolver ran.
+    assert captured["model"].provider == "openai-codex"
+    assert captured["model"].connection.mode == "self_managed"
+    # No key injected: the harness uses its own subscription login.
+    assert backend.created_secrets == [{}]
+    assert built[0].secrets == {}
+    assert built[0].resolved_connection.credential_mode == "runtime_provided"

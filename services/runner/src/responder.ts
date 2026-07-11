@@ -7,6 +7,7 @@
  */
 
 import type { AgentRunRequest, ContentBlock } from "./protocol.ts";
+import { DEFERRED_NOT_EXECUTED_PREFIX } from "./tracing/otel.ts";
 import {
   decide,
   effectivePermission,
@@ -76,6 +77,34 @@ export function approvedCallKey(
 }
 
 /**
+ * Per-turn ledger of approval-equivalent allows for Pi relay executions. The dialog gate (or a
+ * parked-approval resume) grants; the relay execution guard consumes one grant per matching
+ * record. Keyed by `approvedCallKey(toolName, args)` with a count, so N approvals permit exactly
+ * N executions and a forged or replayed record for an `ask` tool fails closed.
+ */
+export class ApprovedExecutionGrants {
+  private counts = new Map<string, number>();
+
+  /** Record one approval-equivalent allow. No-op when the call is unkeyable (fails closed). */
+  grant(toolName: string | undefined, args: unknown): void {
+    const key = approvedCallKey(toolName, args);
+    if (!key) return;
+    this.counts.set(key, (this.counts.get(key) ?? 0) + 1);
+  }
+
+  /** Consume one grant for this exact call; false when absent, exhausted, or unkeyable. */
+  consume(toolName: string | undefined, args: unknown): boolean {
+    const key = approvedCallKey(toolName, args);
+    if (!key) return false;
+    const count = this.counts.get(key) ?? 0;
+    if (count <= 0) return false;
+    if (count === 1) this.counts.delete(key);
+    else this.counts.set(key, count - 1);
+    return true;
+  }
+}
+
+/**
  * Order-independent, stable serialization of tool args so the same call hashes the same.
  * Returns `undefined` for any value that is not plain JSON so the caller can fail closed
  * rather than collide.
@@ -100,12 +129,9 @@ function canonicalJson(value: unknown): string {
  */
 function normalizeJsonish(value: unknown): unknown {
   if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      if (isJsonContainer(parsed)) return normalizeJsonish(parsed);
-    } catch {
-      // Not a JSON-encoded object/array; keep the string literal.
-    }
+    const parsed = parseJsonContainer(value);
+    if (parsed !== undefined) return normalizeJsonish(parsed);
+    // Not a JSON-encoded object/array; keep the string literal.
     return value;
   }
   if (Array.isArray(value)) return value.map(normalizeJsonish);
@@ -124,6 +150,35 @@ function isJsonContainer(
   value: unknown,
 ): value is unknown[] | Record<string, unknown> {
   return Array.isArray(value) || isPlainObject(value);
+}
+
+/** How many stray trailing `}`/`]` characters `parseJsonContainer` tolerates. */
+const MAX_TRAILING_CLOSERS_TRIMMED = 3;
+
+/**
+ * Parse a string to a JSON object/array, tolerating a small trailing-closer imbalance.
+ * Models copying object args out of the flattened replay transcript sometimes add a stray
+ * trailing `}` or `]` (cold-replay failure report, turn 6d34b1ea round 5); a strict parse
+ * throws and the raw string hashes past the stored approval key. Only trailing whitespace
+ * and closers are trimmed, so a string that is genuinely not JSON still returns undefined
+ * and keeps its literal value.
+ */
+function parseJsonContainer(
+  value: string,
+): unknown[] | Record<string, unknown> | undefined {
+  let candidate = value;
+  for (let trimmed = 0; trimmed <= MAX_TRAILING_CLOSERS_TRIMMED; trimmed++) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      return isJsonContainer(parsed) ? parsed : undefined;
+    } catch {
+      candidate = candidate.trimEnd();
+      const last = candidate[candidate.length - 1];
+      if (last !== "}" && last !== "]") return undefined;
+      candidate = candidate.slice(0, -1);
+    }
+  }
+  return undefined;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -340,6 +395,10 @@ export function extractClientToolOutputs(
   const callShapeById = buildCallShapeIndex(request);
   for (const block of currentTurnToolResultBlocks(request)) {
     if (approvalDecisionOf(block) !== undefined) continue; // an approval, not a client output
+    // A sibling force-settled while another interaction paused this turn was NOT executed
+    // (`DEFERRED_NOT_EXECUTED`). It must not fulfill the model's retry of the same call, or the
+    // re-request resolves against the deferral and never re-parks (no new widget).
+    if (isDeferredNotExecuted(block)) continue;
     const argsKey = coldReplayKey(block, callShapeById);
     if (!argsKey) continue;
     const list = outputs.get(argsKey) ?? [];
@@ -422,6 +481,18 @@ function coldReplayKey(
 
 function isPermissionDecision(value: unknown): value is PermissionDecision {
   return value === "allow" || value === "deny";
+}
+
+/**
+ * A sibling force-settle result: the turn paused on another interaction, so this client tool was
+ * never executed and carries the `DEFERRED_NOT_EXECUTED` sentinel. It is not a browser output — the
+ * model is meant to re-issue the same call, which must re-park rather than resolve against this.
+ */
+function isDeferredNotExecuted(block: ContentBlock): boolean {
+  return (
+    typeof block.output === "string" &&
+    block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
+  );
 }
 
 /**

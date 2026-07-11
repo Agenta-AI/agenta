@@ -108,7 +108,7 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
     const showEmpty = forceEmpty || (!isLoading && rows.length === 0)
 
     return (
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-5">
             <Typography.Title level={5} className="!m-0">
                 Your agents
             </Typography.Title>

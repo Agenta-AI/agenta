@@ -3,35 +3,44 @@ import {type FC, useCallback, useEffect, useMemo} from "react"
 import {executeToolCall} from "@agenta/entities/gatewayTool"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {CatalogDrawer} from "@agenta/entity-ui/gatewayTool"
 import {GatewayToolAssistantActions, type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {
-    AgentChatScopeProvider,
-    ONBOARDING_SCOPE_KEY,
-} from "@/oss/components/AgentChatSlice/state/scope"
+// Synchronous thin frame (Splitter + Tabs + region slots): its real structure paints immediately;
+// the heavy conversation body / bar / rail are lazy leaves inside it, each behind its own skeleton.
+import AgentChatPanel from "@/oss/components/AgentChatSlice/AgentChatPanel"
+import {AgentChatScopeProvider} from "@/oss/components/AgentChatSlice/state/scope"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {OnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
 import {useAgentOnboarding} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/useAgentOnboarding"
-import {SessionInspectorDrawer} from "@/oss/components/SessionInspector"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
+import AgentCatalogPrefetcher from "./Components/AgentCatalogPrefetcher"
 import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
 
-// Agent-chat surface (third generation arm). Lazy — only loads the AI SDK when an
-// agent workflow is opened in the playground.
-const AgentChatPanel = dynamic(() => import("@/oss/components/AgentChatSlice/AgentChatPanel"), {
-    ssr: false,
-})
+// Agent-chat surface (third generation arm). The host is a LIGHT static import that lazy-loads
+// the AI-SDK panel internally and crossfades it in through a persistent skeleton overlay —
+// components materialize in place instead of a skeleton-discard → sudden pop.
+
+// Open-on-demand drawers: mounted closed until the user opens them, so their subtrees
+// load lazily instead of riding the playground's initial chunk.
+const CatalogDrawer = dynamic(
+    () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
+    {ssr: false},
+)
+const SessionInspectorDrawer = dynamic(
+    () => import("@/oss/components/SessionInspector/SessionInspectorDrawer"),
+    {ssr: false},
+)
 
 /**
  * Sync state tag slot — renders the sync state badge in each row header.
@@ -81,6 +90,12 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     // reuses all the machinery above). Fully inert when `onboarding` is false — normal playground path.
     const agentOnboarding = useAgentOnboarding(onboarding)
 
+    // Once we know this is an agent playground (instant on reload via the persisted agent-type map),
+    // warm the static agent catalogs in parallel with the revision/inspect waterfall — see
+    // AgentCatalogPrefetcher. Onboarding is always an agent, so prefetch there too.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const prefetchAgentCatalogs = onboarding || earlyAgentState === "agent"
+
     // Preload lazy editor plugins ASAP to reduce first-render editor suspense jank.
     useEffect(() => {
         void preloadEditorPlugins()
@@ -100,9 +115,9 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
         ChatTurnAssistantActions: (props) => (
             <GatewayToolAssistantActions {...props} onExecuteToolCall={executeToolCall} />
         ),
-        // Third generation arm: agent-type entities render the agent-chat surface.
-        // Lazy — pulls in the AI SDK only when an agent workflow is open. While onboarding, this is
-        // the onboarding composer that hands off to the live chat once the ephemeral is committed.
+        // Third generation arm: agent-type entities render the agent-chat surface. The frame is
+        // synchronous (real structure paints immediately); the AI SDK stays in the lazy conversation
+        // body. While onboarding, this is the onboarding composer that hands off to the live chat.
         AgentGenerationPanel: agentOnboarding.agentPanel ?? AgentChatPanel,
         renderSyncStateTag: PlaygroundSyncStateTag,
     } as unknown as PlaygroundUIProviders
@@ -110,6 +125,7 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const content = (
         <OSSPlaygroundShell providers={providers}>
             <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
+                {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />
                 <PlaygroundMainView
@@ -126,9 +142,11 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     // and scope the agent-chat state to a dedicated key. The onboarding runs on the app-less project
     // route, whose default chat scope is the shared `__global__` bucket — isolating it here (paired with
     // the reset in `useAgentOnboarding`) keeps a prior visit's persisted session from being restored.
+    // Once the app is committed, `chatScopeKey` flips to the app's own scope in the same update that
+    // adopts the session into it — so post-commit chat state lands where the app playground reads it.
     return agentOnboarding.contextValue ? (
         <OnboardingContext.Provider value={agentOnboarding.contextValue}>
-            <AgentChatScopeProvider scopeKey={ONBOARDING_SCOPE_KEY}>
+            <AgentChatScopeProvider scopeKey={agentOnboarding.chatScopeKey}>
                 {content}
             </AgentChatScopeProvider>
         </OnboardingContext.Provider>

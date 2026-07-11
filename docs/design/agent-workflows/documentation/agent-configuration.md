@@ -217,7 +217,7 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | --- | --- | --- | --- | --- |
 | model / provider | yes, `model: str` | yes, `Optional[str]` | wired to the runner | Loose string. No `ModelRef`, no provider enum. There is no separate provider field. |
 | tools | yes, strict list | yes, lenient coercion | wired, resolved to builtin names + tool specs | Entries strict, list lenient. |
-| mcp_servers | yes, strict list | yes | wired, resolved to runner mcp servers | Strict per entry. Gated by `AGENTA_AGENT_ENABLE_MCP` at the service. |
+| mcp_servers | yes, strict list | yes | wired, resolved to runner mcp servers | Strict per entry. Gated by `AGENTA_AGENT_MCPS_ENABLED` at the service. |
 | skills | yes, embed/inline list | yes | wired | Author-settable (`SkillConfig` inline or `@ag.embed` references). The playground build-kit overlay embeds one skill, the `build-an-agent` playbook; the `pi_agenta` harness additionally force-unions `getting-started`. See below. |
 | persona | no | no | wired but forced only | Not a config field. The Agenta harness hardcodes an append-system preamble. See below. |
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |

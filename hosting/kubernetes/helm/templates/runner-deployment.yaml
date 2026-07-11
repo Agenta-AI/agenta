@@ -78,6 +78,18 @@ spec:
             - name: DAYTONA_AUTOSTOP
               value: {{ $daytona.autostopDelay | quote }}
             {{- end }}
+            {{- if hasKey $daytona "sessionIdleTtlMs" }}
+            - name: AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS
+              value: {{ $daytona.sessionIdleTtlMs | quote }}
+            {{- end }}
+            {{- if hasKey $daytona "sessionMaxWarm" }}
+            - name: AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM
+              value: {{ $daytona.sessionMaxWarm | quote }}
+            {{- end }}
+            {{- if $daytona.autodeleteDelay }}
+            - name: DAYTONA_AUTODELETE
+              value: {{ $daytona.autodeleteDelay | quote }}
+            {{- end }}
             {{- if hasKey $daytona "installPi" }}
             - name: AGENTA_AGENT_SANDBOX_PI_INSTALLED
               value: {{ $daytona.installPi | quote }}

@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
+import {useEnsureEvaluatorEnrichment} from "@agenta/entity-ui/selection"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -286,6 +287,11 @@ const Filters: React.FC<Props> = ({
     reconcileFilterRows,
 }) => {
     const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
+    // The annotation/feedback filter genuinely needs every evaluator's output
+    // schema to build its options, so activate the shared enrichment gate eagerly
+    // here (the gate keeps the per-evaluator revision fan-out from running on
+    // pages that never read this atom, e.g. the playground).
+    useEnsureEvaluatorEnrichment()
     const evaluatorFeedbackSchemas = useAtomValue(evaluatorFeedbackSchemasAtom)
 
     const annotationEvaluatorOptions = useMemo(

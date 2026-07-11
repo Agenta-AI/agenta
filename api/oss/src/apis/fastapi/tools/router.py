@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -894,6 +894,23 @@ class ToolsRouter:
         state: Optional[str] = Query(default=None),
     ) -> HTMLResponse:
         """Handle OAuth callback from Composio."""
+        # Decode the HMAC-signed state up front to recover BOTH the project scope and the
+        # connection identity. The identity tags every card (success or failure) so the
+        # opener can tell WHICH connect flow finished — the playground can have several
+        # live at once (see ConnectToolWidget), and an untagged completion would settle
+        # all of them.
+        state_payload = (
+            decode_oauth_state(state, secret_key=env.agenta.crypt_key)
+            if state
+            else None
+        )
+        if not state:
+            log.warning("OAuth callback received without state token")
+        elif state_payload is None:
+            log.warning("OAuth callback: invalid or expired state token")
+        state_slug = state_payload.get("slug") if state_payload else None
+        state_integration = state_payload.get("integration") if state_payload else None
+
         if error_message or status == "failed":
             log.error("OAuth callback failed: status=%s", status)
             return HTMLResponse(
@@ -901,6 +918,8 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error=error_message or "Authorization failed. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
@@ -910,24 +929,19 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error="Missing connection identifier. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
-        # Decode HMAC-signed state to recover project scope. Activation is
-        # project-scoped, so a missing/invalid state is fatal — we never activate
-        # without a resolved project_id.
+        # Activation is project-scoped, so a missing/invalid state is fatal — we never
+        # activate without a resolved project_id.
         project_id: Optional[UUID] = None
-        if state:
-            payload = decode_oauth_state(state, secret_key=env.agenta.crypt_key)
-            if payload is None:
-                log.warning("OAuth callback: invalid or expired state token")
-            else:
-                try:
-                    project_id = UUID(payload["project_id"])
-                except (KeyError, ValueError):
-                    log.warning("OAuth callback state missing or invalid project_id")
-        else:
-            log.warning("OAuth callback received without state token")
+        if state_payload is not None:
+            try:
+                project_id = UUID(state_payload["project_id"])
+            except (KeyError, ValueError):
+                log.warning("OAuth callback state missing or invalid project_id")
 
         if project_id is None:
             return HTMLResponse(
@@ -935,6 +949,8 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error="Connection could not be activated. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
@@ -954,6 +970,8 @@ class ToolsRouter:
                     content=_oauth_card(
                         success=False,
                         error="Connection could not be activated. Please try again.",
+                        slug=state_slug,
+                        integration_key=state_integration,
                     ),
                 )
         except Exception:
@@ -963,6 +981,8 @@ class ToolsRouter:
                 content=_oauth_card(
                     success=False,
                     error="An internal error occurred. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
                 ),
             )
 
@@ -992,6 +1012,8 @@ class ToolsRouter:
                 integration_logo=integration_logo,
                 integration_url=integration_url,
                 agenta_url=env.agenta.web_url,
+                slug=conn.slug,
+                integration_key=conn.integration_key,
             ),
         )
 
@@ -1428,6 +1450,13 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 
 
+def _json_for_inline_script(value: Any) -> str:
+    # `json.dumps` leaves `<` intact, so a value containing `</script>` would terminate
+    # the inline <script> block (the HTML parser ignores JS string boundaries). Escape it
+    # for every JSON payload embedded in a script tag.
+    return json.dumps(value).replace("<", "\\u003c")
+
+
 def _oauth_card(
     *,
     success: bool,
@@ -1436,6 +1465,8 @@ def _oauth_card(
     integration_url: Optional[str] = None,
     agenta_url: Optional[str] = None,
     error: Optional[str] = None,
+    slug: Optional[str] = None,
+    integration_key: Optional[str] = None,
 ) -> str:
     # HTML-escape all provider-supplied strings before interpolation.
     safe_label = html_lib.escape(integration_label) if integration_label else None
@@ -1448,7 +1479,19 @@ def _oauth_card(
         parsed_agenta_url = urlsplit(agenta_url)
         if parsed_agenta_url.scheme and parsed_agenta_url.netloc:
             agenta_origin = f"{parsed_agenta_url.scheme}://{parsed_agenta_url.netloc}"
-    agenta_post_message_origin_js = json.dumps(agenta_origin)
+    agenta_post_message_origin_js = _json_for_inline_script(agenta_origin)
+
+    # Tag the completion message with the connection's identity so the opener can tell
+    # WHICH connection finished. The playground can have several connect flows live at
+    # once (an agent may request multiple connections in one turn); without this, every
+    # open connect widget would settle on the first completion. Absent keys keep older
+    # openers working (they ignore the extra fields).
+    oauth_complete_payload: Dict[str, str] = {"type": "tools:oauth:complete"}
+    if slug:
+        oauth_complete_payload["slug"] = slug
+    if integration_key:
+        oauth_complete_payload["integration"] = integration_key
+    oauth_complete_message_js = _json_for_inline_script(oauth_complete_payload)
 
     accent = "#16a34a" if success else "#dc2626"
     agenta_favicon = (
@@ -1630,6 +1673,7 @@ def _oauth_card(
   </div>
   <script>
     const AGENTA_POST_MESSAGE_ORIGIN = {agenta_post_message_origin_js};
+    const AGENTA_OAUTH_COMPLETE = {oauth_complete_message_js};
 
     function returnToAgenta(event) {{
       if (event) {{
@@ -1638,7 +1682,7 @@ def _oauth_card(
 
       try {{
         if (window.opener && !window.opener.closed && AGENTA_POST_MESSAGE_ORIGIN) {{
-          window.opener.postMessage({{type: "tools:oauth:complete"}}, AGENTA_POST_MESSAGE_ORIGIN);
+          window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
           window.opener.focus();
         }}
       }} catch (_e) {{
@@ -1654,7 +1698,7 @@ def _oauth_card(
     }}
 
     if (window.opener && AGENTA_POST_MESSAGE_ORIGIN) {{
-      window.opener.postMessage({{type: "tools:oauth:complete"}}, AGENTA_POST_MESSAGE_ORIGIN);
+      window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
     }}
 
     const countdownEl = document.getElementById("auto-return-text");

@@ -6,7 +6,7 @@ import {
     type AgentTemplate,
 } from "@/oss/components/pages/agent-home/assets/templates"
 
-import TemplateChip from "../components/TemplateChip"
+import TemplateChipDock from "../components/TemplateChipDock"
 
 interface ComposerApi {
     setText: (text: string) => void
@@ -54,6 +54,10 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
     // an edited one. Null when nothing is seeded (cleared, or never picked).
     const seededTextRef = useRef<string | null>(null)
 
+    // The last template shown in the chip, retained after a clear so the chip fades OUT with its
+    // real content instead of flipping to the sizing placeholder mid-transition.
+    const lastTemplateRef = useRef<AgentTemplate | null>(null)
+
     // Drop provenance without touching composer text — used when the text is already empty
     // (typed/deleted away) so we don't re-set already-empty content.
     const clearProvenance = useCallback(() => {
@@ -65,6 +69,7 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         const seeded = templateBuilderMessage(template)
         apiRef.current.setText(seeded)
         seededTextRef.current = seeded.trim()
+        lastTemplateRef.current = template
         setSelectedTemplate(template)
     }, [])
 
@@ -97,23 +102,20 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         [selectedTemplate],
     )
 
-    // Always render a chip (never null) so its box reserves the same height whether or not a
-    // template is selected — picking/clearing never shifts the composer below it. When nothing
-    // is selected, render the first registry template purely for sizing and hide it with
-    // `invisible` (keeps layout, no paint) rather than guessing a pixel height.
-    const chipNode = useMemo(
-        () => (
-            <div
-                className={selectedTemplate ? undefined : "invisible"}
-                // `inert` (not just `invisible`) also drops the placeholder's ✕ button from
-                // tab order and the a11y tree — it's not really there.
-                inert={!selectedTemplate}
-            >
-                <TemplateChip template={selectedTemplate ?? AGENT_TEMPLATES[0]} onClear={clear} />
-            </div>
-        ),
-        [selectedTemplate, clear],
-    )
+    // Always mounted (never null) so the chip can transition rather than pop. During the
+    // out-transition `selectedTemplate` is already null, so we show the retained last template
+    // (falling back to the registry's first only for the very first, never-picked render).
+    // TemplateChipDock owns the fade/rise + width-morph; passing `visible` drives them.
+    const chipNode = useMemo(() => {
+        const shown = selectedTemplate ?? lastTemplateRef.current ?? AGENT_TEMPLATES[0]
+        return (
+            <TemplateChipDock
+                template={shown}
+                visible={Boolean(selectedTemplate)}
+                onClear={clear}
+            />
+        )
+    }, [selectedTemplate, clear])
 
     return {
         selectedTemplate,

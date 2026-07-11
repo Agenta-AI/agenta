@@ -1,9 +1,9 @@
 /**
  * Unit tests for callRef callback execution through the host relay.
  *
- * These pin the test_run runner contract: contextBindings are applied only after the permission
- * verdict and only in the callRef branch, timeoutMs reaches /tools/call, and runContext.run.kind
- * is forwarded as x-agenta-run-kind.
+ * These pin the test_run runner contract: contextBindings are applied only in the callRef
+ * branch, timeoutMs reaches /tools/call, and runContext.run.kind is forwarded as
+ * x-agenta-run-kind. (The relay carries execution only; permission gates ride the ACP plane.)
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -21,7 +21,6 @@ import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
 import {
   localRelayHost,
   startToolRelay,
-  type RelayPermissions,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
 
@@ -35,8 +34,6 @@ interface CapturedFetch {
   url: string;
   init: RequestInit;
 }
-
-type PendingInfo = { toolCallId: string; toolName: string; args: unknown };
 
 const realFetch = globalThis.fetch;
 const realTimeout = AbortSignal.timeout;
@@ -55,33 +52,10 @@ function stubFetch(body = "ok"): CapturedFetch[] {
   return calls;
 }
 
-function permissions(input: {
-  verdict?: "allow" | "deny" | "pendingApproval";
-  seenArgs?: unknown[];
-  pending?: PendingInfo[];
-} = {}): RelayPermissions {
-  return {
-    enforce: true,
-    decide: (gate) => {
-      input.seenArgs?.push(gate.args);
-      if (input.verdict === "deny") return { kind: "deny" };
-      if (input.verdict === "pendingApproval") {
-        return { kind: "pendingApproval" };
-      }
-      return { kind: "allow" };
-    },
-    onPendingApproval: (info) => {
-      input.pending?.push(info);
-      return { emitted: true };
-    },
-  };
-}
-
 async function relayOnce(input: {
   spec: ResolvedToolSpec;
   args: unknown;
   runContext?: RunContext;
-  permissions?: RelayPermissions;
   expectResponse?: boolean;
   stopWhen?: () => boolean;
 }): Promise<RelayResponse | undefined> {
@@ -90,14 +64,17 @@ async function relayOnce(input: {
     const id = "call-1";
     writeFileSync(
       join(dir, `${id}.req.json`),
-      JSON.stringify({ toolName: input.spec.name, toolCallId: id, args: input.args }),
+      JSON.stringify({
+        toolName: input.spec.name,
+        toolCallId: id,
+        args: input.args,
+      }),
     );
     const relay = startToolRelay(
       localRelayHost(),
       dir,
       [input.spec],
       { endpoint: ENDPOINT, authorization: "ApiKey secret" },
-      input.permissions ?? permissions(),
       input.runContext,
     );
     const resPath = join(dir, `${id}.res.json`);
@@ -109,7 +86,11 @@ async function relayOnce(input: {
     await relay.stop();
     const wroteResponse = existsSync(resPath);
     if (input.expectResponse === false) {
-      assert.equal(wroteResponse, false, "the relay did not write a response file");
+      assert.equal(
+        wroteResponse,
+        false,
+        "the relay did not write a response file",
+      );
       return undefined;
     }
     assert.ok(wroteResponse, "the relay wrote a response file");
@@ -119,7 +100,9 @@ async function relayOnce(input: {
   }
 }
 
-function callRefSpec(overrides: Partial<ResolvedToolSpec> = {}): ResolvedToolSpec {
+function callRefSpec(
+  overrides: Partial<ResolvedToolSpec> = {},
+): ResolvedToolSpec {
   return {
     name: "test_run",
     kind: "callback",
@@ -133,9 +116,8 @@ function callRefSpec(overrides: Partial<ResolvedToolSpec> = {}): ResolvedToolSpe
 }
 
 describe("startToolRelay callRef context bindings", () => {
-  it("applies bindings after the allow verdict and lets bindings override model args", async () => {
+  it("applies bindings in the callRef branch and lets bindings override model args", async () => {
     const calls = stubFetch();
-    const seenArgs: unknown[] = [];
 
     const res = await relayOnce({
       spec: callRefSpec(),
@@ -144,17 +126,10 @@ describe("startToolRelay callRef context bindings", () => {
         inputs: { city: "Berlin" },
       },
       runContext: RUN_CONTEXT,
-      permissions: permissions({ seenArgs }),
     });
 
     assert.equal(res?.ok, true);
     assert.equal(calls.length, 1);
-    assert.deepEqual(seenArgs, [
-      {
-        target: { workflow_variant_id: "model-variant" },
-        inputs: { city: "Berlin" },
-      },
-    ]);
     const posted = JSON.parse(calls[0].init.body as string);
     assert.deepEqual(posted.data.function, {
       name: "tools.agenta.test_run",
@@ -182,46 +157,12 @@ describe("startToolRelay callRef context bindings", () => {
     assert.equal(calls.length, 0);
   });
 
-  it("does not bind or fetch when the permission verdict denies", async () => {
+  it("binds context values on execution", async () => {
     const calls = stubFetch();
-
-    const res = await relayOnce({
-      spec: callRefSpec({ permission: "deny" }),
-      args: { target: { workflow_variant_id: "model-variant" } },
-      runContext: { run: { kind: "test" } },
-      permissions: permissions({ verdict: "deny" }),
-    });
-
-    assert.equal(res?.ok, true);
-    assert.equal(res?.text, "Tool 'test_run' is denied by policy.");
-    assert.equal(calls.length, 0);
-  });
-
-  it("redacts bound args from pending display but still binds them on execution", async () => {
-    const calls = stubFetch();
-    const pending: PendingInfo[] = [];
     const args = {
       target: { workflow_variant_id: "model-variant" },
       inputs: { city: "Berlin" },
     };
-
-    await relayOnce({
-      spec: callRefSpec(),
-      args,
-      runContext: { run: { kind: "test" } },
-      permissions: permissions({ verdict: "pendingApproval", pending }),
-      expectResponse: false,
-      stopWhen: () => pending.length === 1,
-    });
-
-    assert.deepEqual(pending, [
-      {
-        toolCallId: "call-1",
-        toolName: "test_run",
-        args: { inputs: { city: "Berlin" } },
-      },
-    ]);
-    assert.equal(calls.length, 0);
 
     const res = await relayOnce({
       spec: callRefSpec(),

@@ -162,6 +162,8 @@ class ConnectionsService:
             project_id=project_id,
             user_id=user_id,
             secret_key=env.agenta.crypt_key,
+            slug=connection_create.slug,
+            integration_key=integration_key,
         )
         callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
 
@@ -316,6 +318,8 @@ class ConnectionsService:
             project_id=project_id,
             user_id=project_id,  # refresh has no user_id; use project_id as entity
             secret_key=env.agenta.crypt_key,
+            slug=conn.slug,
+            integration_key=conn.integration_key,
         )
         callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
 

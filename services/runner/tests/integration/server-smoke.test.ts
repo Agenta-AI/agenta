@@ -181,7 +181,7 @@ describe("session record persist — skipped when Redis unavailable", () => {
     }
     // If Redis IS available, assert that the contract keys have the expected prefix format.
     const { aliveKey, runningKey } = await import("../../src/sessions/contract.ts");
-    assert.match(aliveKey("s1"), /^alive:session:/);
-    assert.match(runningKey("s1"), /^running:session:/);
+    assert.match(aliveKey("p1", "s1"), /^alive:p1:session:/);
+    assert.match(runningKey("p1", "s1"), /^running:p1:session:/);
   });
 });

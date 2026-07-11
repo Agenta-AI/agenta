@@ -17,10 +17,14 @@ import {
     buildDegradationErrorText,
     deriveElicitationPartState,
     parseElicitationPayload,
+    partitionElicitationDraft,
     serializeElicitationContent,
 } from "@agenta/shared/utils"
 import {CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
 import {Button, Form, Typography} from "antd"
+import dayjs from "dayjs"
+
+import {resolveToolDisplay} from "../../assets/toolDisplay"
 
 import type {ClientToolHandlerProps} from "./types"
 
@@ -28,6 +32,9 @@ const {Text} = Typography
 
 /** ElicitationResult → the settle channel's Record shape (interfaces carry no index signature). */
 const toOutput = (result: ElicitationResult) => ({...result}) as Record<string, unknown>
+
+/** In-progress field values survive a reload (localStorage draft keyed by the toolCallId). */
+const draftKeyFor = (toolCallId: string) => `agenta:elicitation-draft:${toolCallId}`
 
 /** Settled/parked single-line chip — one chrome for every terminal state (design: settled chip). */
 const Chip = ({
@@ -54,6 +61,17 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
 
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
 
+    // Accept stays disabled until every required question has an answer — a dominant, always-
+    // enabled primary invites submitting unfinished forms. Defaults count, so a fully-prefilled
+    // form is born ready (one-click accept). Decline/Dismiss stay always-available.
+    const watchedValues = Form.useWatch([], form) as Record<string, unknown> | undefined
+    const requiredNames = parsed.ok ? (parsed.payload.requestedSchema.required ?? []) : []
+    const missingRequired = requiredNames.filter((name) => {
+        const v = watchedValues?.[name]
+        return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)
+    })
+    const requiredReady = missingRequired.length === 0
+
     // Degradation: invalid payload auto-settles errorText ONCE per turn; a repeat malformed
     // emission parks instead (visible notice, no auto-settle) — no settle→resume→re-emit loop.
     const parked = !parsed.ok && degradedEarlierInTurn === true
@@ -63,6 +81,47 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
         settledRef.current = true
         settle({errorText: buildDegradationErrorText(parsed.reason)})
     }, [parsed, parked, meta.settled, settle])
+
+    // Draft persistence: typed values live only in antd Form state, so a reload would lose them.
+    const draftKey = draftKeyFor(meta.toolCallId)
+    const clearDraft = () => {
+        try {
+            localStorage.removeItem(draftKey)
+        } catch {
+            // storage unavailable — drafts are best-effort
+        }
+    }
+    const persistDraft = (values: Record<string, unknown>) => {
+        try {
+            localStorage.setItem(draftKey, JSON.stringify(values))
+        } catch {
+            // storage unavailable — drafts are best-effort
+        }
+    }
+    const settleAndClear: typeof settle = (args: Parameters<typeof settle>[0]) => {
+        clearDraft()
+        settle(args as {output: Record<string, unknown>})
+    }
+    const restoredRef = useRef(false)
+    useEffect(() => {
+        if (restoredRef.current || !parsed.ok || parked || meta.settled) return
+        restoredRef.current = true
+        try {
+            const raw = localStorage.getItem(draftKey)
+            if (!raw) return
+            const {plain, dates} = partitionElicitationDraft(
+                parsed.payload,
+                JSON.parse(raw) as Record<string, unknown>,
+            )
+            // DatePicker rejects strings — revive persisted ISO strings to dayjs.
+            form.setFieldsValue({
+                ...plain,
+                ...Object.fromEntries(Object.entries(dates).map(([k, v]) => [k, dayjs(v)])),
+            })
+        } catch {
+            // unreadable draft — fall back to schema defaults
+        }
+    }, [parsed, parked, meta.settled, draftKey, form])
 
     const partState = deriveElicitationPartState({
         state: meta.state,
@@ -136,29 +195,34 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
 
     const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
+    const stepperHint = Boolean(parsed.payload.requestedSchema["x-ag-stepper"])
 
     const handleAccept = async () => {
         setSubmitting(true)
         try {
             const values = await form.validateFields()
             const content = serializeElicitationContent(parsed.payload, values)
-            settle({output: toOutput(buildAcceptResult(content, "Provided the requested input."))})
-        } catch {
-            // antd surfaces inline field errors; Accept stays enabled for retry.
+            settleAndClear({
+                output: toOutput(buildAcceptResult(content, "Provided the requested input.")),
+            })
+        } catch (err) {
+            // antd surfaces inline field errors; in stepper mode, jump to the failing question.
+            const first = (err as {errorFields?: {name: (string | number)[]}[]})?.errorFields?.[0]
+            if (first?.name) formRef.current?.goToField?.(first.name)
         } finally {
             setSubmitting(false)
         }
     }
 
     return (
-        <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-[520px]">
+        <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-2xl">
             <div className="flex items-start gap-2">
                 <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
                 <div className="flex min-w-0 flex-col">
                     <Text className="!text-xs">{parsed.payload.message}</Text>
                     {/* Requester attribution — muted subtext, never a banner (design D-spec). */}
                     <Text type="secondary" className="!text-[11px]">
-                        Asked by {meta.toolName}
+                        Asked by {resolveToolDisplay(meta.toolName).label}
                         {requiredCount > 0
                             ? ` · Waiting on your input · ${requiredCount} required`
                             : " · Waiting on your input"}
@@ -171,16 +235,31 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 schema={parsed.payload.requestedSchema as unknown as Record<string, unknown>}
                 form={form}
                 formats
+                openEnums
+                stepper={stepperHint}
+                onValuesChange={persistDraft}
             />
 
             <div className="flex items-center gap-2">
-                <Button type="primary" loading={submitting} onClick={handleAccept}>
+                <Button
+                    type="primary"
+                    loading={submitting}
+                    disabled={!requiredReady}
+                    title={
+                        requiredReady
+                            ? undefined
+                            : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
+                    }
+                    onClick={handleAccept}
+                >
                     Accept
                 </Button>
                 <Button
                     type="text"
                     onClick={() =>
-                        settle({output: toOutput(buildDeclineResult("Declined the request."))})
+                        settleAndClear({
+                            output: toOutput(buildDeclineResult("Declined the request.")),
+                        })
                     }
                 >
                     Decline
@@ -189,7 +268,9 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                     type="text"
                     className="ml-auto opacity-60"
                     onClick={() =>
-                        settle({output: toOutput(buildCancelResult("Dismissed the request."))})
+                        settleAndClear({
+                            output: toOutput(buildCancelResult("Dismissed the request.")),
+                        })
                     }
                 >
                     Dismiss

@@ -6,7 +6,8 @@ import type {ToolConnectionsResponse} from "../core/types"
 
 export const toolConnectionsQueryAtom = atomWithQuery<ToolConnectionsResponse>(() => ({
     queryKey: ["tools", "connections"],
-    queryFn: () => queryToolConnections(),
+    // Secondary (tool selector); yield to the render-critical playground queries on load.
+    queryFn: () => queryToolConnections({lowPriority: true}),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
 }))
