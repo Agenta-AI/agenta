@@ -544,7 +544,7 @@ function AppTriggerProviderGroups({
 
     return (
         <div className="flex flex-col gap-2">
-            <SubSectionHeader label="App triggers" count={scopedSubscriptions.length} />
+            <SubSectionHeader label="Subscriptions" count={scopedSubscriptions.length} />
             {providerGroups.map((group) => {
                 const open = isGroupOpen(group)
                 const activeCount = group.subs.filter(isEntityActive).length
