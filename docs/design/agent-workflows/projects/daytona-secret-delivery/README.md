@@ -1,35 +1,37 @@
 # Daytona secret delivery for agent sandboxes
 
-This workspace evaluates replacing plaintext API keys in Daytona sandbox environment variables
-with Daytona Secrets. It is a focused extension of the broader
-[`secret-isolation`](../secret-isolation/README.md) project.
+This workspace designs a consumer-scoped credential contract and Daytona Secret delivery for
+agent sandboxes. It extends the broader [`secret-isolation`](../secret-isolation/README.md)
+project without copying the Agenta vault into Daytona.
 
 ## Recommendation
 
-Adopt Daytona Secrets for credentials that a Daytona-hosted agent sends unchanged in outbound
-HTTP(S) requests. Create a unique, short-lived Daytona organization Secret for each sandbox and
-credential binding, attach it when the sandbox is created, retain it while the sandbox can resume,
-and delete it after the sandbox is deleted.
+Use one resolved contract for local and Daytona runs. Each model or HTTP MCP consumer owns its
+route and credential bindings. The local provider materializes plaintext as it does today. The
+Daytona provider creates a unique organization Secret for each sandbox binding and gives the agent
+only a host-scoped placeholder.
 
-Do not put Agenta API credentials into Daytona Secrets. Keep callback authorization, telemetry
-authorization, the Daytona API key, and other Agenta control-plane credentials on the runner side.
-Do not copy every Agenta vault secret into Daytona. Resolve only credentials explicitly requested
-by the selected model connection, MCP server, or tool.
+Support opaque HTTP credentials whose destination is known before sandbox creation. This includes
+standard model API keys, Azure OpenAI keys, custom-provider API keys, HTTP MCP authorization, and
+potentially Bedrock bearer tokens. It does not include AWS SigV4 keys, Vertex service-account
+configuration, private keys, or other values that code must use locally.
 
-This mechanism does not support credentials that code must transform or use outside HTTP(S), such
-as AWS SigV4 keys, service-account JSON, private keys, database protocol passwords, or secrets used
-for local cryptography. Those need an out-of-sandbox gateway or narrowly scoped temporary
-credentials.
+Unsupported credentials may keep the current plaintext behavior only through an explicit
+non-isolated mode. Failure of isolated delivery never falls back silently. A gateway remains the
+general solution when plaintext must stay outside both local and Daytona sandboxes.
 
 ## Files
 
 - [`context.md`](context.md): problem, goals, threat model, and scope.
-- [`research.md`](research.md): current code, Daytona behavior, feasibility, and upgrade risk.
-- [`design.md`](design.md): recommended architecture, interfaces, lifecycle, and alternatives.
-- [`plan.md`](plan.md): implementation phases and migration sequence.
-- [`qa.md`](qa.md): security, compatibility, failure, and live verification matrix.
-- [`status.md`](status.md): decisions, blockers, and next action.
+- [`research.md`](research.md): current code, external behavior, credential feasibility, and
+  dependency risk.
+- [`design.md`](design.md): resolved contract, provider materialization, lease lifecycle, and
+  alternatives.
+- [`plan.md`](plan.md): implementation phases and rollout sequence.
+- [`qa.md`](qa.md): security, contract, provider, lifecycle, and live verification matrix.
+- [`open-questions.md`](open-questions.md): decisions required before implementation starts.
+- [`status.md`](status.md): current recommendation, constraints, and next action.
 
 ## Current state
 
-Planning only. No runtime code or dependency has changed.
+Planning only. No runtime dependency or production behavior changes in this PR.

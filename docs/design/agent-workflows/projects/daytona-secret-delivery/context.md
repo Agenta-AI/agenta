@@ -2,69 +2,67 @@
 
 ## Why this work exists
 
-Agenta currently resolves one model connection and sends its credential values to the runner. On
-the Daytona path, the runner puts those values into the sandbox creation request as plaintext
-`envVars`. The harness and agent shell can therefore read them.
+Agenta resolves credentials for the selected model and HTTP MCP servers. The current runner wire
+then flattens model values into `AgentRunRequest.secrets` and resolved MCP values into each
+server's `env` map. On Daytona, model values enter sandbox `envVars` as plaintext. HTTP MCP values
+enter ACP session configuration as plaintext headers. Agent code can therefore read both.
 
-Daytona added a Secrets feature in SDK 0.192.0. A Daytona Secret is organization-scoped and
-encrypted at rest. A sandbox receives an opaque placeholder in its environment. Daytona's outbound
-HTTP(S) proxy replaces that placeholder with the real value only when the destination matches the
-Secret's host allowlist. The plaintext is not placed in the sandbox.
+Daytona Secrets are organization-scoped encrypted credentials. A sandbox receives an opaque
+placeholder. Daytona's outbound HTTP(S) proxy replaces that placeholder only when the destination
+host matches the Secret allowlist. Secret reads return metadata, not plaintext.
 
-This feature is the egress-substitution option discussed but deferred in the broader
-[`secret-isolation`](../secret-isolation/api-design.md) project. It removes the need for Agenta to
-operate a separate model proxy for supported credentials on Daytona. It does not solve secret
-isolation on the local sandbox provider.
+The feature can remove plaintext from the Daytona agent boundary for opaque HTTP credentials. It
+cannot hide a value that code must parse, sign with, or use over another protocol. It also cannot
+provide the same property on the local provider without a separate proxy.
 
 ## Threat model
 
-The adversary is code running in the sandbox, including an agent following a malicious or
-prompt-injected instruction. It can read environment variables and files, inspect same-user
-processes, and make arbitrary network requests allowed by sandbox policy.
+The adversary is the agent and any code it runs inside a Daytona sandbox. It can read environment
+variables and files, inspect same-user processes, change its own requests, and make any network
+request permitted by sandbox policy.
 
-The desired property is narrow:
+The desired property is:
 
-> Sandbox code can use an approved credential against approved HTTP(S) hosts, but it cannot read
-> the plaintext credential or send it to another host.
+> Sandbox code can exercise an approved credential against one approved HTTP(S) host, but it
+> cannot read the plaintext credential or send it to another host.
 
-This does not prevent the agent from using the granted capability. An agent with an OpenAI key
-placeholder can still make OpenAI requests. Model restrictions, budgets, approvals, and tool
-allowlists remain separate policy controls.
+Daytona's control plane and Agenta's resolver are trusted with plaintext. The runner handles it
+transiently to create the Daytona Secret. The agent, harness process, shell, files, logs, traces,
+and durable session state must not receive it.
 
-We trust Daytona's control plane and egress proxy with the plaintext. This is not a zero-trust
-design with respect to Daytona. It is a boundary change from "Daytona and sandbox code hold the
-key" to "Daytona holds the key and sandbox code holds a constrained placeholder."
+The capability itself remains usable. An agent with an OpenAI placeholder can make OpenAI calls.
+Budgets, model restrictions, approvals, and tool policy remain separate controls.
 
 ## Goals
 
-1. Remove plaintext direct HTTP API keys from Daytona sandbox environment variables.
-2. Keep Agenta control-plane credentials outside Daytona Secrets and outside the sandbox.
-3. Create one isolated credential lease per sandbox, with deterministic cleanup and crash
-   reconciliation.
-4. Support standard model API keys, custom-provider API keys, and explicitly declared text custom
-   secrets when their allowed HTTP hosts are known.
-5. Fail closed for secret shapes that Daytona cannot safely substitute.
-6. Preserve least privilege. Never copy the whole Agenta vault into Daytona.
-7. Pin and verify the Daytona SDK upgrade before enabling secret delivery.
+1. Replace plaintext Daytona delivery for supported model and HTTP MCP credentials.
+2. Use one consumer-owned resolved contract for local and Daytona materialization.
+3. Derive the destination from the consumer's effective model endpoint or MCP URL.
+4. Create one isolated lease per sandbox binding and reconcile cleanup after crashes.
+5. Keep Agenta, Daytona, telemetry, session, and tool-relay control-plane credentials outside the
+   sandbox.
+6. Keep unsupported credentials explicit. Never claim isolation or downgrade silently.
+7. Pin and verify the Daytona SDK and control-plane behavior before rollout.
 
 ## Non-goals
 
-- Protecting local sandbox runs. They still need the separate proxy or gateway design.
-- Hiding the ability to call an approved provider from the agent.
-- Sending Agenta API keys, tool-callback authorization, OTLP authorization, or `DAYTONA_API_KEY`
-  into Daytona Secrets.
-- Making AWS access keys, service-account JSON, private keys, or signing credentials work through
-  placeholder substitution.
-- Adding a generic "all project secrets" field to the agent configuration.
-- Replacing Agenta's vault as the source of truth.
+- Giving the local provider secret isolation without a gateway or local egress proxy.
+- Hiding approved provider capability from the agent.
+- Copying all project or organization secrets into Daytona.
+- Migrating the legacy Python evaluator. It is outside the agent-runner scope.
+- Making SigV4, service-account JSON, private-key, or native-protocol credentials compatible with
+  proxy substitution.
+- Solving billing limits, provider authorization, model policy, or sandbox network policy through
+  the credential contract.
 
 ## Success criteria
 
-- `env`, `/proc`, files, logs, and process arguments inside a Daytona sandbox contain placeholders,
-  not plaintext, for supported credentials.
-- The credential works against its allowlisted provider host and remains a placeholder everywhere
-  else.
-- Sandbox deletion eventually deletes every Daytona Secret created for that sandbox, including
-  after runner crashes and failed sandbox creation.
-- A credential with no non-empty host allowlist is rejected.
-- Unsupported secret types fail with a clear error and never fall back silently to plaintext.
+- Supported Daytona runs contain placeholders, not plaintext, in environment, ACP configuration,
+  `/proc`, files, logs, arguments, traces, and persisted state.
+- The allowlisted exact host receives plaintext. Every other host receives a placeholder or no
+  request.
+- Local and Daytona consume the same resolved contract and differ only in materialization.
+- Missing values, resolution failures, empty hosts, wildcards, and unsupported isolated modes fail
+  before sandbox creation.
+- Sandbox deletion and crash reconciliation converge to zero orphan Secrets.
+- The product and logs distinguish `isolated` from `non_isolated` credential delivery.

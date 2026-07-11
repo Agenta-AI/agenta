@@ -1,110 +1,106 @@
 # Plan
 
-This is a design-only plan. Implementation starts only after review and approval.
+Implementation starts after the decisions in `open-questions.md` are resolved.
 
-## Phase 0: prove Daytona's security behavior
+## Phase 0: prove Daytona behavior
 
 Use a non-production Daytona organization and disposable credentials.
 
-1. Pin a small spike to `@daytona/sdk` 0.196.0 or the reviewed exact version selected at
-   implementation time.
-2. Create a Secret with a random value and one controlled HTTPS echo host.
-3. Create a sandbox with the Secret attached at creation.
-4. Prove the sandbox sees only a `dtn_secret_*` placeholder in environment, files, `/proc`, process
-   arguments, stdout, and stderr.
-5. Prove the allowlisted host receives plaintext and a non-allowlisted host receives only the
-   placeholder.
-6. Test redirects, subdomains, explicit ports, alternate URL forms, DNS changes, proxy errors, and
-   logs.
-7. Test value and host rotation, detach, Secret deletion while attached, pause, archive, resume,
-   sandbox deletion, and auto-delete.
-8. Measure Secret create/update/delete latency, rate limits, and organization quotas with realistic
-   per-sandbox counts.
+1. Pin the spike to one exact `@daytona/sdk` version at or above 0.192.0.
+2. Prove environment-backed Secret substitution with one random marker and one exact HTTPS host.
+3. Prove direct placeholder substitution when the placeholder is placed in an HTTP MCP header
+   through ACP session configuration.
+4. Confirm plaintext is absent from environment, `/proc`, files, process arguments, stdout,
+   stderr, ACP payload logs, and traces.
+5. Test the exact host, a different host, a subdomain, redirects, explicit ports, DNS changes, and
+   proxy failures. Reject every wildcard in the first version.
+6. Test Secret create, read, update, delete, sandbox stop, resume, manual archive, delete, and
+   auto-delete. Confirm Secret reads and audit records never return plaintext.
+7. Verify PATCH semantics. Reassert and read back the exact host set on rotation even though
+   Daytona documents omitted fields as unchanged.
+8. Measure latency, list behavior, rate limits, and organization quotas at realistic lease counts.
 
-Exit gate: do not implement if plaintext appears inside the sandbox, host restrictions can be
-bypassed, lifecycle semantics cannot be reconciled, or quotas make per-sandbox leases impractical.
+Exit gate: stop if plaintext appears inside the sandbox, direct MCP-header substitution fails
+without a safe alternative, host restrictions can be bypassed, or lifecycle and quotas make
+per-sandbox leases impractical.
 
-## Phase 1: isolate and pin the Daytona dependency
+## Phase 1: replace the resolved credential contract
 
-1. Add the current exact `@daytona/sdk` package. Remove the caret for this security-sensitive
-   dependency.
-2. Implement an Agenta-owned sandbox-agent Daytona provider adapter with dependency injection.
-3. Preserve current create, signed preview, server start, destroy, and reconnect behavior.
-4. Add native `pause()` support so keep-warm no longer falls back to deletion.
-5. Run runner unit tests and live Daytona smoke tests before any Secret behavior is enabled.
-6. Keep a kill switch that restores the existing plaintext path only in non-production during the
-   migration. Production isolated mode must fail closed rather than downgrade silently.
+1. Replace top-level model `secrets` with consumer-owned `modelConnection.credentials`.
+2. Make the resolver emit the effective HTTPS model endpoint for direct, custom, Azure, and
+   candidate Bedrock bearer-token deployments.
+3. Replace HTTP MCP's merged `env` secret values with typed header credential bindings. Keep
+   non-secret environment configuration separate.
+4. Classify each binding as `opaque_http` or `local_use` and validate combinations.
+5. Materialize the same contract to plaintext environment or headers for local runs.
+6. Add contract tests across Python serialization, TypeScript parsing, Pi, and Claude.
+7. Require missing names, empty values, and vault-resolution errors to fail before runner dispatch.
 
-Exit gate: existing Daytona chat, tools, previews, lifecycle timers, mounts, pause/resume, and
-cleanup work with no Secret attachment.
+Exit gate: local behavior works from the new contract with no compatibility copy of the old field,
+and model and MCP routes remain attached to their credentials.
 
-## Phase 2: model API keys behind per-sandbox leases
+## Phase 2: isolate and pin the Daytona dependency
 
-1. Add credential classification for reviewed direct HTTP providers and Azure/custom endpoint API
-   keys.
-2. Derive a non-empty exact host allowlist from the canonical provider registry or validated custom
-   endpoint.
-3. Split non-secret configuration from credential values before sandbox creation.
-4. Add `DaytonaSecretLease` provisioning and compensation.
-5. Pass Secret names through Daytona's `secrets` field and stop copying those values into
-   `envVars`.
-6. Persist only lease metadata needed for resume and cleanup.
-7. Rotate the Daytona Secret on same-binding credential changes.
-8. Reject unsupported Bedrock, Vertex service-account, signing, and unknown credential shapes with
-   an actionable error.
+1. Replace `@daytonaio/sdk` with one exact `@daytona/sdk` version.
+2. Extend the runner-owned Daytona lifecycle wrapper with Secret create, attach, delete, and
+   compensation hooks. Do not patch upstream for these hooks.
+3. Keep native pause, reconnect, and delete in the runner wrapper. Keep the vendored
+   `sandbox-agent@0.4.2` patch limited to cleanup behavior that belongs inside that package.
+4. Preserve current snapshot, target, network policy, signed preview, daemon start, mount,
+   stop/resume, and auto-delete behavior. Do not restore auto-archive configuration.
+5. Add startup capability validation for unsupported self-hosted Daytona control planes.
+6. Run the full runner unit suite, typecheck, and live Daytona smoke before Secret delivery is
+   enabled.
 
-Exit gate: direct provider and custom endpoint runs succeed, plaintext checks stay clean, and every
-normal and failed run leaves no orphan after reconciliation.
+Exit gate: existing Daytona behavior works on the pinned SDK and lifecycle ownership is explicit.
 
-## Phase 3: crash-safe lifecycle and janitor
+## Phase 3: model and HTTP MCP credentials
 
-1. Couple Secret cleanup to confirmed sandbox deletion, not turn completion.
-2. Retain leases across real pause, stop, archive, and resume.
-3. Add a cursor-paginated janitor for Agenta-owned leases.
-4. Cover partial Secret creation, failed sandbox creation, failed state persistence, runner crash,
-   sandbox auto-delete, deletion retry, and concurrent cleanup.
-5. Alert on orphan count, oldest orphan age, reconciliation failures, and Secret API errors without
-   logging names or values.
+1. Add the per-sandbox Secret lease provisioner.
+2. Derive one exact hostname from each validated effective consumer URL.
+3. Put environment bindings in Daytona's sandbox create `secrets` map.
+4. Put HTTP MCP placeholders in header bindings using the Phase 0 proven path.
+5. Support direct provider keys, Azure keys, custom-provider keys, and HTTP MCP authorization.
+6. Add Bedrock bearer tokens only if the regional endpoint and live substitution tests pass.
+7. Keep SigV4 and Vertex service-account credentials in the approved explicit non-isolated mode or
+   reject them when the run requires strict isolation.
+8. Never fall back to plaintext after Secret provisioning, attachment, or substitution fails.
 
-Exit gate: fault-injection tests and a runner-kill live test converge to zero orphan Secrets.
+Exit gate: supported consumers work, unsupported modes are explicit, and plaintext checks remain
+clean.
 
-## Phase 4: explicitly declared custom text secrets
+## Phase 4: crash-safe leases and cleanup
 
-1. Repair or replace the missing `POST /secrets/resolve` backend path while preserving project
-   authorization and requested-name filtering.
-2. Define consumer-scoped destination policy. Do not add a whole-vault export.
-3. Support text custom secrets only when the consumer sends the value unchanged over HTTP(S).
-4. Reuse the same per-sandbox lease and exact-host rules.
-5. Keep MCP and gateway tool secrets server-side when the existing callback plane can do so. Use
-   Daytona substitution only when the client truly runs inside Daytona.
-6. Reject JSON, signing, file, private-key, and native-protocol uses unless a separate secure
-   delivery design exists.
+1. Store only lease ID, sandbox ID, Secret IDs and names, exact hosts, binding metadata, timestamps,
+   and state. Never store plaintext or vault slugs.
+2. Compensate partial Secret creation and sandbox creation failure.
+3. Retain leases across stop and resume.
+4. On credential-epoch mismatch, delete the old sandbox and lease and provision fresh.
+5. Delete Secrets only after sandbox deletion is confirmed or absence is confirmed.
+6. Add durable cleanup retries and an organization-wide janitor.
+7. Cover runner crash, failed persistence, Daytona auto-delete, manual archive, concurrent cleanup,
+   and paginated listing.
 
-Exit gate: an explicitly requested text secret works against its declared host, is unavailable
-elsewhere, and undeclared project secrets never reach Daytona.
+Exit gate: fault injection and a runner-kill live test converge to zero orphan Secrets.
 
-## Phase 5: remove compatibility paths and document support
+## Phase 5: rollout and hardening
 
-1. Remove the production plaintext fallback for supported Daytona credentials.
-2. Document the minimum Daytona control-plane version and required API-key permissions.
-3. Document supported and unsupported credential classes.
-4. Decide separately whether to migrate or retire the legacy Python Daytona evaluator.
-5. Update the broader secret-isolation design: Daytona native substitution is the preferred remote
-   path; the Agenta model proxy remains the cross-provider and local-sandbox solution.
+1. Require the approved organization and API-key isolation boundary.
+2. Roll out by environment, then by a small percentage of Daytona sessions.
+3. Report resolved credential delivery as `isolated` or `non_isolated` without exposing values,
+   Secret names, or placeholders.
+4. Add operator policy for `isolated_required` versus an approved non-isolated migration mode.
+5. Document supported provider credential shapes and the minimum Daytona version.
+6. Keep local and unsupported-cloud gateway work as separate follow-up projects.
 
-## Rollout
-
-Roll out by environment, then by a small percentage of Daytona sessions. Track sandbox creation
-latency, authentication failures, proxy substitution errors, cleanup failures, and orphan count.
-
-Do not use a per-run best-effort fallback to plaintext. If Daytona Secret APIs fail, fail the run
-before sandbox creation or use an explicitly configured environment-level rollback during the
-early migration window.
+Metrics cover Secret API latency and failures, authentication failures, active leases, orphan age,
+cleanup retries, and fail-closed counts. An environment-level rollback may disable Secret delivery
+during rollout, but no individual run may downgrade silently.
 
 ## Dependencies and coordination
 
-- Coordinate the resolved credential contract with `provider-model-auth` and
-  `custom-providers-in-pi`.
-- Coordinate provider lifecycle changes with `session-keepalive` and `sandbox-agent-fork`.
-- Keep MCP secret delivery aligned with `secret-isolation` and the backend gateway direction.
-- Use the repository BUT-LOCK before any GitButler write during implementation.
+- Resolve every item in `open-questions.md`.
+- Coordinate the model connection shape with `provider-model-auth` and custom providers.
+- Coordinate HTTP MCP credential bindings with the current MCP resolver and SSRF guard.
+- Build on the current warm-Daytona runner wrapper and credential-epoch compatibility behavior.
+- Coordinate durable lease storage with the sessions control-plane owner.

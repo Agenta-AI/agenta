@@ -1,101 +1,112 @@
 # QA plan
 
-## Security assertions
+## Contract parity
 
-For every supported credential, assert the real random marker is absent from:
+For the same resolved model or HTTP MCP consumer, assert that local and Daytona accept the same
+consumer-owned contract.
 
-- `env` and language runtime environment APIs;
-- `/proc/self/environ` and readable peer-process environments;
-- process arguments and process listings;
-- uploaded files, harness settings, shell history, and durable mounts;
-- sandbox-agent, harness, runner, and Daytona-visible application logs;
-- traces, errors, request echoes, and persisted session state.
+- Local materializes plaintext only into the selected harness subprocess or MCP header.
+- Daytona materializes a placeholder and never copies an isolated value to `envVars` or ACP
+  plaintext.
+- Model destination derives from the effective endpoint.
+- HTTP MCP destination derives from the validated server URL.
+- Non-secret configuration never becomes a Daytona Secret.
+- Missing values, empty values, resolution errors, unknown usage, and missing routes fail before
+  sandbox creation.
 
-Assert the placeholder is present where the harness expects the credential. The test must search
-for the random plaintext marker, not only known variable names.
+## Plaintext absence
 
-## Network substitution matrix
+Use a unique random marker for every credential and search for it in:
+
+- environment APIs and `/proc` process environments;
+- process arguments and listings;
+- ACP session configuration and debug output;
+- uploaded files, settings, shell history, and durable mounts;
+- sandbox-agent, harness, runner, and application logs;
+- traces, errors, responses, and persisted session or lease state.
+
+The placeholder may appear only where the consumer needs it. Logs must not contain placeholders,
+vault slugs, Daytona Secret names, or full create payloads.
+
+## Network substitution
 
 | Case | Expected result |
 |---|---|
-| Exact allowlisted HTTPS host | Remote host receives plaintext; sandbox sees placeholder. |
-| Different host | Remote host receives placeholder or request is rejected; never plaintext. |
-| Subdomain without wildcard | No plaintext. |
-| Explicit allowed wildcard | Works only for the documented base and subdomains. |
-| Redirect to disallowed host | No plaintext at redirect destination. |
-| Redirect from disallowed to allowed host | Confirm documented behavior; no earlier disclosure. |
-| Non-HTTPS URL | Rejected by Agenta policy. |
-| IP literal, localhost, metadata IP | Rejected before Secret creation. |
-| Alternate port | Verify host matching and ensure policy cannot be widened accidentally. |
-| DNS change or rebinding attempt | No plaintext outside the approved TLS host boundary. |
+| Exact allowlisted HTTPS host | Host receives plaintext; sandbox sees placeholder. |
+| Different host | Placeholder or rejected request; never plaintext. |
+| Subdomain | No plaintext. |
+| Any wildcard declaration | Rejected before Secret creation. |
+| Redirect to another host | Redirect target never receives plaintext. |
+| Non-HTTPS URL | Rejected before Secret creation. |
+| IP literal, localhost, or metadata address | Rejected before Secret creation. |
+| Alternate port | Live result documented; policy never broadens beyond the host. |
+| DNS change or rebinding | No plaintext outside the approved TLS host boundary. |
 
-## Provider matrix
+Run the matrix for an environment-backed model key and a placeholder passed directly in an HTTP
+MCP header.
 
-- OpenAI direct.
-- Anthropic direct.
-- One additional header-key provider such as Mistral or Groq.
-- Azure OpenAI with exact custom endpoint host.
-- Custom OpenAI-compatible endpoint.
-- Bedrock access-key flow, expected fail-closed.
-- Vertex service-account flow, expected fail-closed.
-- Self-managed OAuth, explicitly unchanged and not claimed secure by this feature.
+## Provider and credential matrix
 
-## Custom-secret matrix
+| Credential | Expected mode |
+|---|---|
+| OpenAI and Anthropic direct API keys | Isolated |
+| One additional direct header-key provider | Isolated |
+| Azure OpenAI API key with configured endpoint | Isolated |
+| Custom OpenAI-compatible key with configured endpoint | Isolated |
+| HTTP MCP authorization header | Isolated if the Phase 0 header path passes |
+| Bedrock bearer token | Candidate isolated mode; live regional-host proof required |
+| AWS SigV4 access-key triple | Explicit non-isolated mode or rejected by strict policy |
+| Vertex service-account or ADC configuration | Explicit non-isolated mode or rejected by strict policy |
+| Vertex API key | Out of first scope unless the connection contract adds it explicitly |
+| Private key, signing seed, JSON parsed locally | Non-isolated unsupported; never proxy-claimed |
+| Self-managed subscription OAuth | Unchanged and outside this feature's isolation claim |
 
-- Text bearer token with explicit HTTPS host, supported.
-- Text value used in a request body unchanged, verify substitution.
-- Flat JSON parsed locally, expected fail-closed.
-- Private key or signing secret, expected fail-closed.
-- Secret requested by no consumer, never resolved or copied.
-- Missing custom secret, run fails before sandbox creation.
-- Hostless or wildcard-all declaration, rejected.
+## Custom-secret resolution
 
-## Lifecycle matrix
+- A selected HTTP MCP secret resolves only its requested name.
+- Missing name, empty resolved value, authorization failure, and resolver transport failure abort
+  before runner dispatch and sandbox creation.
+- A project secret requested by no selected consumer is never resolved.
+- The old MCP `env` merge cannot erase the distinction between non-secret headers and credential
+  headers.
+- A generic agent-wide secret list is rejected.
 
-- Successful create, run, destroy, and Secret delete.
+## Lifecycle and cleanup
+
+- Complete Secret creation, sandbox creation, run, delete, and Secret cleanup.
 - Partial multi-Secret creation failure with compensation.
-- Sandbox create failure after Secret creation.
-- Daemon start failure after sandbox creation.
-- Pause and resume with the same placeholders.
-- Stop, archive, and resume.
-- Value rotation during a parked session.
-- Host change requiring restart or fresh sandbox.
-- Runner termination before sandbox ID persistence.
-- Runner termination after sandbox persistence but before Secret metadata persistence.
-- Daytona sandbox auto-delete without runner teardown.
-- Secret deletion transient failure and retry.
-- Two cleanup workers racing on the same lease.
-- Janitor pagination beyond 200 Secrets.
+- Sandbox creation or daemon start failure after Secret creation.
+- Stop and resume with the same lease.
+- Manual archive is treated as existing, not orphaned.
+- Credential-epoch mismatch deletes the old sandbox and lease and creates fresh.
+- Runner termination before and after each persistence boundary.
+- Daytona auto-delete without runner teardown.
+- Secret deletion retry and two cleanup workers racing.
+- Listing beyond one SDK page or response limit.
+- An administrator-widened host list is restored to the exact approved set before any later
+  in-place rotation path proceeds.
 
-## Dependency upgrade checks
+## Dependency and regression checks
 
-- `pnpm test` for the runner unit suite.
-- runner TypeScript typecheck.
-- exact lockfile version, no caret drift.
-- no duplicate old/new Daytona SDK clients in the production bundle.
-- existing sandbox create, preview URL, process execution, file upload, mount, destroy, and reconnect
-  tests.
-- live Pi and Claude smoke runs on Daytona where currently supported.
-- verify self-hosted Daytona below the minimum version fails at startup capability validation, not
-  halfway through a run.
+- Runner `pnpm test` and TypeScript typecheck.
+- Python SDK agent contract tests.
+- Exact `@daytona/sdk` lockfile version and no production `@daytonaio/sdk` duplicate.
+- Existing create, preview, process, upload, mount, pause, reconnect, delete, timer, and network
+  policy tests.
+- Live Pi and Claude Daytona smoke runs where supported.
+- Unsupported self-hosted control plane fails startup capability validation.
 
-## Observability and redaction
+## Control-plane isolation
 
-Log only counts, provider class, sandbox ID where already permitted, and opaque lease ID. Never log
-Secret values, Daytona placeholders, Agenta secret slugs, Daytona Secret names, or full create
-payloads.
-
-Metrics:
-
-- Secret create/update/delete latency and failures;
-- sandbox create latency added by lease provisioning;
-- active leases and orphan leases;
-- oldest orphan age;
-- reconciliation deletions and failures;
-- provider authentication failures after rotation;
-- fail-closed counts by unsupported credential class.
+- Production uses the approved dedicated organization boundary or records explicit blast-radius
+  acceptance.
+- The runner credential has only required Daytona permissions.
+- Secret reads and audit events never return plaintext.
+- `DAYTONA_API_KEY`, Agenta/session authorization, OTLP authorization, and internal relay
+  credentials never enter a Daytona Secret or sandbox payload.
 
 ## Acceptance bar
 
-The feature is not ready based on unit tests alone. It requires live disposable-credential tests
-against the supported Daytona control plane and a deliberate runner-kill cleanup test.
+Unit tests are not sufficient. Release requires the Phase 0 adversarial live matrix, disposable
+provider and MCP credentials, a deliberate runner-kill cleanup test, and zero Daytona sandboxes and
+Agenta-owned Secrets left after the test.

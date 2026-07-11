@@ -1,200 +1,238 @@
 # Research
 
-Research date: 2026-07-10. External behavior was checked against Daytona's current documentation,
-SDK package, npm metadata, and public source history. No live Daytona resources were created.
+Research date: 2026-07-11. Findings combine the current shared worktree, the PR base, Daytona's
+current documentation and npm packages, and provider authentication documentation. No Daytona
+resource was created for this research.
 
-## 1. Current Agenta behavior
+## 1. Current Agenta credential paths
 
-### TypeScript agent runner
+### Model connections
 
-The live agent runner receives provider credentials as `AgentRunRequest.secrets`, currently
-documented as `{OPENAI_API_KEY: value, ...}`
-(`services/runner/src/protocol.ts:390-402`). The Python service fills this map from the selected
-`ResolvedConnection.env` (`sdks/python/agenta/sdk/agents/handler.py:278-307`). The connection
-resolver is already least-privilege for model credentials: it selects one connection rather than
-copying the whole provider vault.
+The Python connection resolver selects one model connection and returns `ResolvedConnection.env`.
+The agent handler copies that map into `SessionConfig.secrets`, and the TypeScript runner receives
+it as `AgentRunRequest.secrets`.
 
-For Daytona, `daytonaEnvVars` spreads the resolved values directly into the sandbox environment
-(`services/runner/src/engines/sandbox_agent/daytona.ts:31-45`). `buildDaytonaCreate` passes that map
-as `envVars` (`services/runner/src/engines/sandbox_agent/provider.ts:78-101`). Sandbox processes can
-read the plaintext.
+Relevant code:
 
-The runner deliberately blanks its own `DAYTONA_API_KEY` and other sandbox infrastructure
-credentials before starting the daemon (`services/runner/src/engines/sandbox_agent/daemon.ts`).
-Tool callback authorization and most private tool configuration remain on the runner. The new
-design must preserve those boundaries.
+- `sdks/python/agenta/sdk/agents/platform/connections.py`
+- `sdks/python/agenta/sdk/agents/handler.py`
+- `services/runner/src/protocol.ts`
 
-### Legacy Python Daytona evaluator
+The resolver already separates non-secret endpoint configuration from the credential map. Custom
+and Azure connections can carry `endpoint.baseUrl`, API version, and region. Standard direct
+providers do not always carry an explicit effective base URL, which leaves the runner without an
+authoritative exact host.
 
-The older Python Daytona evaluator also sends `AGENTA_API_KEY`, `AGENTA_CREDENTIALS`, and provider
-keys through `env_vars`
-(`sdks/python/agenta/sdk/engines/running/runners/daytona.py:275-301`). That path is separate from the
-TypeScript agent runner. It should not be migrated implicitly. If it remains supported, it needs a
-separate follow-up because this design explicitly keeps Agenta credentials out of Daytona Secrets.
+The current runner applies resolved provider values to the selected daemon environment. Daytona's
+`buildDaytonaCreate` then calls `daytonaEnvVars`, which spreads those values into sandbox
+`envVars`. They are plaintext inside the sandbox.
 
-### Agenta vault and custom secrets
+Before building the daemon environment, the runner sets known sandbox-infrastructure variables,
+including `DAYTONA_API_KEY`, to the empty string. "Empty" means an explicit `KEY=""` override. An
+absent entry would inherit the runner process value through the underlying spawn. This prevents the
+runner's Daytona credential from leaking into either local or remote harness processes.
 
-Agenta stores vault payloads through PostgreSQL `pgp_sym_encrypt` and decrypts them only under the
-configured data-encryption context
-(`api/oss/src/dbs/postgres/secrets/custom_fields.py:12-63`). `custom_secret` supports text or flat
-JSON payloads (`api/oss/src/core/secrets/enums.py:4-14`,
-`api/oss/src/core/secrets/dtos.py:71-78`).
+### HTTP MCP credentials
 
-The SDK contains a named-secret client that calls `POST /secrets/resolve`, but the current API
-vault router does not register that batch endpoint
-(`sdks/python/agenta/sdk/agents/platform/secrets.py:30-78`,
-`api/oss/src/apis/fastapi/vault/router.py:25-72`). Custom-secret delivery therefore has a backend
-prerequisite or must use an existing authorized read-by-slug path. This mismatch should be fixed
-without broadening which secrets a run may resolve.
+The authored MCP shape already ties a secret reference to a consumer:
 
-Current authored secret references are consumer-scoped:
+```text
+mcp server -> url + secrets {header name: vault secret name}
+```
 
-- a selected model connection resolves one provider credential;
-- MCP `secrets` maps a header or environment name to a vault secret name;
-- code-tool `secrets` names only the values that tool requested.
+The current resolver fetches all requested values, then merges them into `ResolvedMCPServer.env`.
+The runner interprets every HTTP MCP `env` entry as an ACP request header. This has two problems for
+Daytona isolation:
 
-There is no general agent-wide custom-secret list. That is a useful least-privilege property.
+1. secret and non-secret values lose their classification after the merge;
+2. plaintext travels in ACP session configuration to the in-sandbox harness.
 
-## 2. What Daytona Secrets guarantee
+The MCP URL is already the right host source. `validateUserMcpUrl` requires HTTPS, resolves DNS,
+and blocks loopback, private, link-local, metadata, and disallowed IP targets before attaching
+credentials. A revised resolved MCP contract can keep credential headers separate and derive the
+exact host from the validated URL without adding another public host field.
 
-Daytona documents Secrets as organization-scoped, encrypted credentials. The API accepts the
-plaintext only on create or update and never returns it. The sandbox environment contains an
-opaque `dtn_secret_*` placeholder. Daytona substitutes the real value in outbound HTTP(S) traffic
-only for allowed hosts. Requests to other hosts keep the placeholder unchanged.
+Relevant code:
+
+- `sdks/python/agenta/sdk/agents/mcp/resolver.py`
+- `sdks/python/agenta/sdk/agents/mcp/models.py`
+- `services/runner/src/engines/sandbox_agent/mcp.ts`
+
+The missing-secret policy already defaults to error. The full path must preserve that behavior for
+missing names, empty resolved values, authorization failures, and resolver request failures before
+sandbox creation.
+
+### Other secrets
+
+Custom tools execute through runner-side callbacks and file relays. Their private callback
+configuration does not need to enter Daytona. There is no valid reason to expose an agent-wide
+project vault. The first custom-secret use that belongs in this project is an HTTP MCP credential
+or another explicit in-sandbox HTTP consumer with its own route.
+
+The legacy Python evaluator is outside this project's scope.
+
+## 2. Daytona Secret semantics
+
+Daytona documents Secrets as organization-scoped credentials that are encrypted at rest. The
+plaintext is accepted on create or update and is never returned by Secret reads. A sandbox sees an
+opaque `dtn_secret_*` placeholder. The outbound proxy substitutes plaintext only when an HTTP(S)
+request carrying that placeholder targets an allowed host.
 
 Primary sources:
 
 - [Daytona Secrets guide](https://www.daytona.io/docs/en/secrets/)
-- [Daytona TypeScript SDK](https://www.daytona.io/docs/en/typescript-sdk/)
-- [SDK feature commit](https://github.com/daytona/clients/commit/6e763de2c7e6655d58c1371ad8ea4c48d88842d8)
+- [Daytona TypeScript Secret API](https://www.daytona.io/docs/en/typescript-sdk/secret/)
+- [Daytona SDK feature commit](https://github.com/daytona/clients/commit/6e763de2c7e6655d58c1371ad8ea4c48d88842d8)
 
-Important semantics:
+Important details:
 
-- `daytona.secret.create({name, value, hosts})` creates an organization Secret.
-- Sandbox creation accepts `secrets: {ENV_VAR: secretName}`.
-- Omitting `hosts` makes a Secret unrestricted. Agenta must never omit it.
-- Rotating a Secret preserves its placeholder and reaches attached sandboxes within about 15
-  seconds.
-- `sandbox.updateSecrets(...)` replaces the attached set, but new environment variables appear
-  only in newly spawned processes. A sandbox created with no secrets must restart before newly
-  attached secrets work.
-- Secret management needs `manage:secrets`. Sandbox creation or attachment uses
-  `write:sandboxes`. Operations appear in Daytona audit logs with masked values.
-- Daytona documents no per-Secret TTL, sandbox ownership link, automatic cascade delete, or
-  public quota for this feature. Agenta must own cleanup and verify limits in a live spike.
+- Secret names are unique within an organization.
+- Sandbox creation accepts `secrets: {ENVIRONMENT_NAME: secretName}`.
+- Omitting `hosts` creates an unrestricted Secret. Agenta must never omit the field on create.
+- Daytona supports exact hosts and `*.` wildcards. Agenta can apply a stricter policy and reject all
+  wildcards in the first version.
+- Host entries contain only hostnames, without protocol, path, port, or query.
+- Updating a value keeps the placeholder stable and propagates within about 15 seconds.
+- Update uses PATCH semantics. Omitted fields remain unchanged. Omitting `hosts` on update does not
+  itself remove the allowlist.
+- A later Agenta rotation path should still resend and verify the approved exact host list. This
+  repairs a Secret that an organization administrator may have widened outside the runner.
+- Secret management requires `manage:secrets`; sandbox attachment requires sandbox permissions.
+- Create, update, and delete operations appear in audit logs with masked values.
+- Daytona documents no Secret TTL, per-sandbox Secret ownership, cascade delete, or public quota.
 
-## 3. Feasibility by credential type
+Daytona's examples inject the placeholder through an environment mapping. The documentation says
+the proxy inspects outbound requests that carry a placeholder, but it does not demonstrate a
+placeholder placed directly into ACP HTTP MCP headers. That exact path is a live-spike gate.
 
-| Credential | Feasible with Daytona Secrets? | Reason |
+## 3. Where exact hosts come from
+
+The destination belongs to the consumer, not the vault entry.
+
+| Consumer | Current route source | Required change |
+|---|---|---|
+| Custom model provider | `ResolvedConnection.endpoint.baseUrl` | Parse and use its exact hostname. |
+| Azure OpenAI | Configured endpoint base URL | Parse and use its exact hostname. |
+| HTTP MCP | `ResolvedMCPServer.url` | Use after the existing SSRF validation. |
+| Standard direct provider | Often implicit in the client | Resolver emits the effective endpoint. |
+| Bedrock bearer token | Region plus AWS partition and runtime endpoint | Resolver emits the effective regional endpoint. |
+
+A runner-only provider-host registry is possible but weaker. It duplicates routing knowledge and
+can diverge from custom SDK behavior, regional endpoints, sovereign partitions, or a user-selected
+base URL. The resolved connection should carry the actual endpoint used by the harness.
+
+Redirects remain a live security question. An exact original host is not sufficient if Daytona
+substitutes the credential again after a cross-host redirect. Phase 0 must test this.
+
+## 4. Feasibility by credential shape
+
+| Credential | Daytona isolation | Evidence and constraint |
 |---|---:|---|
-| OpenAI, Anthropic, Mistral, Groq, Gemini and similar API keys | Yes | Client sends the unchanged value in an HTTP header or request. |
-| Azure OpenAI API key | Yes, with a derived exact host | The selected custom endpoint supplies the destination host. |
-| Custom-provider text API key | Usually | Works when the client sends it unchanged over HTTP(S) and the endpoint host is known. |
-| Text `custom_secret` used as bearer token or API key | Yes, with an explicit consumer and hosts | The value is opaque and does not need local transformation. |
-| MCP HTTP authorization | Technically yes | The adapter must receive the placeholder, not the plaintext. Backend gateway delivery may still be safer and works across sandbox providers. |
-| AWS access key, secret key, and session token | No | AWS clients need the plaintext to compute SigV4 signatures locally. Replacing a placeholder after signing invalidates the signature. |
-| `GOOGLE_APPLICATION_CREDENTIALS` JSON or file path | No | Code must parse and use the credential locally. A placeholder is not valid JSON or a file. |
-| JSON custom secret | Not generally | Code that parses the environment value sees the placeholder. It works only if the entire JSON string is forwarded unchanged in HTTP(S). |
-| Private key, signing seed, encryption key | No | The sandbox needs plaintext for local cryptographic operations. |
-| Database password over a native database protocol | No | Daytona documents substitution for HTTP(S), not arbitrary TCP protocols. |
-| Agenta callback or API credential | Do not attach | Agenta calls should execute on the runner or backend, outside the sandbox. |
-| Scoped mount STS credentials | No | The in-sandbox mount client performs AWS signing. Keep them short-lived and prefix-scoped, or move the mount outside the sandbox. |
+| OpenAI, Anthropic, Mistral, Groq, Gemini API keys | Yes | The unchanged key enters an HTTP header and the provider host is known. |
+| Azure OpenAI API key | Yes | Microsoft documents the unchanged key in the `api-key` header; the configured endpoint supplies the host. |
+| Custom-provider API key | Usually | Requires an HTTPS endpoint and an unchanged header or body value. |
+| HTTP MCP authorization | Candidate | URL supplies the host; direct ACP-header placeholder substitution needs a live proof. |
+| Bedrock API key in `AWS_BEARER_TOKEN_BEDROCK` | Candidate | AWS documents `Authorization: Bearer` for regional Bedrock Runtime HTTP requests. |
+| AWS access key, secret key, and session token | No | The SDK needs plaintext locally to calculate SigV4. |
+| Vertex service-account or ADC configuration | No | `GOOGLE_APPLICATION_CREDENTIALS` points to credential JSON used to mint OAuth tokens locally. |
+| Vertex API key | Candidate later | Google documents API-key authentication for some Vertex Gemini paths, but Agenta's current Vertex connection is ADC-shaped. |
+| JSON parsed by sandbox code | No | Code sees a placeholder, not parseable JSON. |
+| Private key, signing seed, encryption key | No | Local cryptographic use requires plaintext. |
+| Native database password | No | Daytona documents HTTP(S) substitution, not arbitrary database protocols. |
 
-The existing custom-provider resolver can emit both opaque keys and locally used cloud
-credentials (`sdks/python/agenta/sdk/agents/platform/connections.py:116-157`). The runner cannot
-treat every entry in `ResolvedConnection.env` alike. It must partition non-secret configuration,
-proxy-substitutable credentials, and unsupported confidential material.
+Provider sources:
 
-## 4. The organization-scope constraint
+- [AWS Bedrock API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys-use.html)
+- [Google Application Default Credentials](https://docs.cloud.google.com/docs/authentication/application-default-credentials)
+- [Vertex AI quickstart authentication choices](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/start/quickstart)
+- [Azure OpenAI REST authentication](https://learn.microsoft.com/en-us/azure/foundry/openai/reference)
 
-Daytona does not offer a sandbox-local secret object. Every Secret is organization-scoped. The
-closest safe match to the requested behavior is an ephemeral organization Secret with a random
-name, created for one sandbox and deleted with that sandbox.
+The current Agenta resolver supports both Bedrock bearer tokens and SigV4 environment fields. They
+must not share one classification. The bearer token can be proxy-substituted if its endpoint is
+known and the harness sends it unchanged. The access-key triple cannot.
 
-The plaintext must remain stored by Daytona while the sandbox uses it. Deleting the Secret right
-after sandbox creation would remove the value the egress proxy needs. Therefore we cannot both use
-Daytona Secrets and avoid organization-scoped storage entirely.
+A proxy is the only general way to keep local-use signing or service-account material completely
+outside the sandbox. Provider-specific bearer or API-key modes can avoid the proxy. Short-lived
+credentials, workload federation, restricted IAM, and process hardening reduce exposure but do not
+stop the agent from reading a token or key that its own process must use.
 
-We can minimize exposure:
+## 5. Current lifecycle implementation
 
-- create one unique Secret per sandbox binding;
-- use an opaque random lease identifier and never include project, provider, or environment names
-  in the Daytona Secret name;
-- attach an exact, non-empty host allowlist;
-- keep only Secret IDs, names, hosts, and lifecycle metadata in Agenta state, never a second copy
-  of the plaintext;
-- delete after sandbox destruction;
-- reconcile orphans after crashes.
+The active warm-Daytona worktree has moved beyond the earlier design assumptions:
 
-The Daytona API key gains `manage:secrets`, which can create, rotate, and delete every Secret in
-its organization. This is broader and more destructive than sandbox-only permissions. A dedicated
-runner API key and a dedicated Daytona organization or environment reduce the blast radius.
+- `services/runner/src/engines/sandbox_agent/daytona-provider.ts` wraps the vendored provider and
+  implements state-aware `pause`, `reconnect`, and `deleteSandbox` with the Daytona client.
+- `services/runner/src/engines/sandbox_agent/provider.ts` sets `ephemeral: false`, a 15-minute
+  auto-stop, and a 30-minute auto-delete. It no longer sets `autoArchiveInterval`.
+- `services/runner/src/engines/sandbox_agent/teardown.ts` distinguishes stop from delete.
+- the `sandbox-agent@0.4.2` patch fixes vendored session and process cleanup behavior. Secret
+  lifecycle does not belong in that patch.
 
-## 5. Lifecycle and reconnect risks
+These are concurrent implementation-lane changes, not part of this design PR. Secret delivery
+should extend the runner-owned provider boundary after that work lands. It should not wait for or
+require an upstream sandbox-agent change.
 
-The runner creates resumable Daytona sessions and stores a sandbox ID in session state
-(`services/runner/src/engines/sandbox_agent/sandbox-reconnect.ts:25-77`). A credential lease must
-live as long as that sandbox, including stopped or archived periods.
+The lifecycle ladder is running, stopped, then deleted. Reconciliation must still recognize a
+manually or provider-archived sandbox as existing, but Agenta does not intentionally archive one.
 
-The current `sandbox-agent` Daytona provider has no `pause` method. Its generic `pauseSandbox()`
-falls back to deleting the sandbox but reports successful completion to the caller. The runner then
-treats it as parked (`services/runner/node_modules/sandbox-agent/dist/providers/daytona.js:16-57`,
-`services/runner/node_modules/sandbox-agent/dist/chunk-TVCDKGSM.js:1226-1243`,
-`services/runner/src/engines/sandbox_agent.ts:808-817`). A secret implementation layered on this
-behavior could retain credentials for a sandbox that was already deleted. The current SDK adds a
-native `Sandbox.pause()` method, but the wrapper does not expose it.
+The current keepalive path also tracks a credential epoch. A changed epoch makes a reusable
+session incompatible. The simplest safe first version deletes the old sandbox and lease and
+provisions fresh instead of updating a live Secret and waiting for propagation.
 
-This is a prerequisite for reliable leases: the provider adapter must distinguish pause from
-delete and call lease cleanup only after confirmed deletion.
+## 6. Lease and organization risks
 
-Failure cases require saga-style compensation:
+Daytona has no sandbox-local Secret object. The closest boundary is one random organization Secret
+per sandbox credential binding, retained as long as the sandbox can resume and deleted afterward.
 
-1. Secret creation partly succeeds, then another Secret fails. Delete the ones already created.
-2. Secrets succeed, then sandbox creation fails. Delete all lease Secrets.
-3. Sandbox succeeds, then state persistence fails. Keep the live lease in memory and register it
-   for reconciliation; do not delete a credential out from under a live run.
-4. Runner crashes. A janitor compares Agenta-owned Daytona Secret leases with live sandboxes and
-   deletes only expired, unreferenced leases.
-5. Sandbox auto-delete runs without runner teardown. The janitor removes the orphan Secrets.
+The lease record needs sandbox ID, Secret IDs and opaque names, exact hosts, binding metadata,
+state, and timestamps. It must not store plaintext or user-facing vault names. A durable record is
+required for crash reconciliation; process memory alone is insufficient.
 
-## 6. SDK upgrade risk
+`manage:secrets` can manage every Secret in the organization. A dedicated API key prevents sharing
+the runner credential with other services but does not narrow its object scope. A dedicated
+Daytona organization for Agenta sandboxes is the strongest available documented boundary. A shared
+organization requires explicit acceptance of the broader blast radius.
 
-The runner pins `@daytonaio/sdk` 0.187.0 through its lockfile and uses `sandbox-agent` 0.4.2
-(`services/runner/package.json:22-35`). The old package name is deprecated in favor of
-`@daytona/sdk`.
+Failure compensation must cover:
 
-Daytona Secrets landed on 2026-06-26 and first shipped in 0.192.0. The current release checked on
-2026-07-10 is 0.196.0. The Secret list API then made a documented breaking pagination change on
-2026-07-06. This is a fast-moving API, so use an exact version rather than the current caret range.
+1. partial Secret creation;
+2. sandbox creation failure after Secret creation;
+3. sandbox success followed by lease persistence failure;
+4. runner crash at each boundary;
+5. sandbox auto-delete without runner teardown;
+6. Secret deletion failure and concurrent janitor retries.
 
-The public type diff from 0.187.0 to 0.196.0 is mostly additive for Agenta's current calls:
+## 7. SDK upgrade state and risk
 
-- sandbox create adds `secrets` and `domainAllowList`;
-- `Daytona` adds `secret`;
-- `Sandbox` adds `pause`, `updateSecrets`, and `updateEnv`;
-- existing `create`, `get`, process execution, signed preview, and delete APIs remain.
+The runner currently declares `@daytonaio/sdk` with `^0.187.0`; its lockfile resolves 0.187.0. It
+also uses `sandbox-agent` 0.4.2. The active worktree has not upgraded the Daytona package.
 
-Risks remain:
+On 2026-07-11, npm reports:
 
-- generated API clients and OpenTelemetry dependencies change across nine releases;
-- the package namespace migration conflicts with `sandbox-agent`, which imports the deprecated
-  package name as a peer dependency;
-- self-hosted or pinned Daytona control planes older than the feature will reject Secret APIs;
-- the list API changed once already and reconciliation depends on correct pagination;
-- no current Agenta live test covers Secret creation, proxy substitution, rotation, or cleanup.
+- `@daytona/sdk` current version: 0.196.0;
+- `@daytonaio/sdk` current version: 0.196.0 and deprecated in favor of `@daytona/sdk`;
+- the deprecation message states that the package move keeps the same API;
+- Daytona Secrets first shipped in 0.192.0.
 
-Upgrade risk is medium, not high. The methods Agenta already uses remain compatible, but the new
-security guarantee depends on recently released control-plane and proxy behavior that needs live
-verification.
+The upgrade remains medium risk. Secret APIs, native pause, and attachment are additive for the
+calls Agenta uses, but nine releases change generated clients and transitive dependencies. The
+package also changed Secret list behavior during this fast release sequence. Pin one exact version,
+remove the old package, test for duplicate clients, and verify the actual self-hosted control plane.
 
-## 7. Security limits that remain
+The upgrade must preserve snapshot/image selection, target routing, network policy fields, signed
+preview, process execution, file operations, mounts, state transitions, and deletion. Unit tests
+cannot replace a live Daytona smoke.
 
-- The runner and Daytona control plane see plaintext during Secret creation or rotation.
-- The Python service-to-runner wire still contains plaintext model credentials. This project moves
-  the boundary at the sandbox, not at the sidecar transport.
-- The agent can spend or otherwise use the credential against allowed hosts.
-- An allowed host that reflects credentials could reveal them. Host allowlists must name trusted,
-  purpose-specific API hosts, not broad wildcards.
-- Redirect handling, ports, DNS rebinding, proxy logs, quota behavior, and orphan cleanup are not
-  documented deeply enough to accept without a live security spike.
-- Self-managed OAuth files uploaded into the sandbox remain readable and are outside this design.
+## 8. Security limits
+
+Daytona Secrets prevent the sandbox from reading supported plaintext, but they do not make Agenta
+or Daytona unable to access it:
+
+- Agenta's authorized vault layer decrypts the value.
+- The runner handles it transiently in the create request.
+- Daytona stores an encrypted copy and performs egress substitution.
+- Daytona's API does not return the plaintext after creation.
+
+If the requirement includes hiding plaintext from Agenta operators or the runner process, this
+architecture is insufficient. It would require client-side encryption to a trusted execution
+boundary or a provider authorization flow that never gives Agenta the credential.
