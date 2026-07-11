@@ -1,4 +1,6 @@
-from sqlalchemy.schema import CreateIndex
+from pathlib import Path
+
+from sqlalchemy.schema import CreateIndex, CreateTable
 from sqlalchemy.dialects import postgresql
 
 from oss.src.dbs.postgres.agent_secret_leases.dbes import (
@@ -63,7 +65,8 @@ def test_claim_retry_owner_and_global_uniqueness_indexes_exist():
             if index.name == name
         )
         retry_sql = str(CreateIndex(retry).compile(dialect=postgresql.dialect()))
-        assert "coalesce(next_attempt_at, created_at)" in retry_sql.lower()
+        assert "created_at" in retry_sql.lower()
+        assert "next_attempt_at" not in retry_sql.lower()
 
 
 def test_database_enforces_bounded_errors_and_resource_consistency():
@@ -77,6 +80,35 @@ def test_database_enforces_bounded_errors_and_resource_consistency():
     }
     assert {
         "ck_agent_secret_leases_safe_error_code",
+        "ck_agent_secret_leases_claim_consistency",
         "ck_agent_secret_lease_resources_consumer_key",
         "ck_agent_secret_lease_resources_created_id",
     } <= constraint_names
+
+
+def test_claim_columns_are_all_null_or_form_a_positive_generation_fence():
+    ddl = str(
+        CreateTable(AgentSecretLeaseDBE.__table__).compile(dialect=postgresql.dialect())
+    ).lower()
+    constraint = ddl.split(
+        "constraint ck_agent_secret_leases_claim_consistency", maxsplit=1
+    )[1]
+    constraint = constraint.split("constraint", maxsplit=1)[0]
+    assert "claim_id is null" in constraint
+    assert "claim_owner is null" in constraint
+    assert "claim_expires_at is null" in constraint
+    assert "claim_id is not null" in constraint
+    assert "claim_owner is not null" in constraint
+    assert "claim_expires_at is not null" in constraint
+    assert "claim_generation > 0" in constraint
+
+
+def test_migration_matches_runtime_cursor_indexes_and_claim_constraint():
+    migration = Path(
+        "/tmp/daytona-api-qa-fix/api/oss/databases/postgres/migrations/"
+        "core_oss/versions/oss000000011_add_agent_secret_leases.py"
+    ).read_text()
+    assert "ck_agent_secret_leases_claim_consistency" in migration
+    assert "(provider, state, created_at, id)" in migration
+    assert "(organization_id, state, created_at, id)" in migration
+    assert "COALESCE(next_attempt_at, created_at)" not in migration
