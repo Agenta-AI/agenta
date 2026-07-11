@@ -334,7 +334,13 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                     hideLabel
                                     onAnswered={() =>
                                         window.setTimeout(
-                                            () => setStep((s) => Math.min(s + 1, fields.length)),
+                                            // Idempotent per-question: advance only if still on
+                                            // this question, so a double-pick or a stale timer
+                                            // after manual nav can't skip ahead.
+                                            () =>
+                                                setStep((s) =>
+                                                    s === i ? Math.min(i + 1, fields.length) : s,
+                                                ),
                                             180,
                                         )
                                     }
