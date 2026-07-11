@@ -36,6 +36,7 @@ import { apiBase } from "../apiBase.ts";
 import { Redactor, seedFromEnv } from "../redaction.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
+import { Daytona, DaytonaNotFoundError } from "@daytonaio/sdk";
 
 import {
   createSandboxAgentOtel,
@@ -129,6 +130,9 @@ import {
 } from "./sandbox_agent/teardown.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import { DaytonaReconnectTerminalError } from "./sandbox_agent/daytona-provider.ts";
+import { credentialEpochHmac, daytonaLeaseResources } from "./sandbox_agent/daytona-secret-plan.ts";
+import { HttpSecretLeaseControl } from "./sandbox_agent/secret-lease-control.ts";
+import { createDaytonaSecretLeaseRuntime, daytonaWithSecretLease, type SecretLeaseProviderRuntime } from "./sandbox_agent/daytona-secret-provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
@@ -725,7 +729,7 @@ export async function acquireEnvironment(
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
   // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.modelEnvironment` are
-  // present and an inherited key for another provider cannot leak. For runtime_provided/none/
+  // present and an inherited key for another provider cannot leak. For runtime_provided/none
   // or a request without modelConnection, the harness login remains available.
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
@@ -1281,7 +1285,18 @@ export async function acquireEnvironment(
       harness: plan.harness,
       isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
-      userMcpServers: request.mcpServers,
+      userMcpServers: request.mcpServers?.map((server) => {
+        const replacements = secretLeaseRuntime?.currentMcpHeaderPlaceholders()[server.name];
+        if (!replacements) return server;
+        return {
+          ...server,
+          credentials: server.credentials?.map((credential) => {
+            const placeholder = replacements[credential.binding.name];
+            if (!placeholder) throw new Error(`Daytona Secret placeholder is missing for MCP header '${credential.binding.name}'.`);
+            return { ...credential, value: placeholder };
+          }),
+        };
+      }),
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
