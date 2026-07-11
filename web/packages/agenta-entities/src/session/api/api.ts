@@ -26,13 +26,21 @@ import {
     type SessionStreamCommandResponse,
 } from "../core/schema"
 
-import {callFern, getSessionsClient, projectScopedRequest} from "./client"
+import {
+    callFern,
+    getLowPrioritySessionsClient,
+    getSessionsClient,
+    projectScopedRequest,
+} from "./client"
 
 export interface QueryRecordsParams {
     sessionId: string
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
+    /** Send with the `priority: "low"` fetch hint — for replay hydration that must yield to the
+     * live conversation stream (Chromium schedules it behind render-critical traffic). */
+    lowPriority?: boolean
 }
 
 /**
@@ -45,11 +53,13 @@ export async function querySessionRecords({
     projectId,
     appId,
     abortSignal,
+    lowPriority,
 }: QueryRecordsParams): Promise<SessionRecord[] | null> {
     if (!projectId || !sessionId) return null
 
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessionRecords]", () =>
-        getSessionsClient().queryRecords(
+        client.queryRecords(
             {session_id: sessionId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
@@ -218,15 +228,18 @@ export async function querySessionStreams({
     abortSignal,
     isAlive,
     isRunning,
+    lowPriority,
 }: Omit<SessionScopedParams, "sessionId"> & {
     sessionId?: string
     isAlive?: boolean
     isRunning?: boolean
+    lowPriority?: boolean
 }): Promise<SessionStream[] | null> {
     if (!projectId) return null
 
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessionStreams]", () =>
-        getSessionsClient().querySessionStreams(
+        client.querySessionStreams(
             {session_id: sessionId, is_alive: isAlive, is_running: isRunning},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
@@ -247,11 +260,13 @@ export async function fetchSessionStream({
     projectId,
     appId,
     abortSignal,
-}: SessionScopedParams): Promise<SessionStream | null> {
+    lowPriority,
+}: SessionScopedParams & {lowPriority?: boolean}): Promise<SessionStream | null> {
     if (!projectId || !sessionId) return null
 
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[fetchSessionStream]", () =>
-        getSessionsClient().fetchSessionStream(
+        client.fetchSessionStream(
             {session_id: sessionId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
@@ -279,6 +294,12 @@ export interface CommandSessionStreamParams extends SessionScopedParams {
  * a handle (`{mode, turn_id, watcher_id, …}`), NOT the token stream — the v6 chunk stream is
  * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
  * `detached` for fire-and-forget.
+ *
+ * FOLLOWUP(sessions,lifecycle): steer/cancel/attach are NOT surfaced in the user-facing chat on
+ * purpose — on the product path they only edit Redis locks; the runner doesn't cooperatively
+ * cancel/steer, and there's no live-turn re-watch, so wiring them into chat would be a no-op stub.
+ * The chat's send/stop (via `/invoke` + useChat abort) and `killSession` are the real ops. Revisit
+ * when the runner cooperates. See docs/designs/sessions/frontend-integration.md.
  */
 export async function commandSessionStream({
     sessionId,
@@ -303,4 +324,27 @@ export async function commandSessionStream({
         safeParseWithLogging(sessionStreamCommandResponseSchema, data, "[commandSessionStream]") ??
         null
     )
+}
+
+/**
+ * KILL — end a session: collapse the stream nest, force-clear the runner's alive lock (its
+ * existing teardown signal, so the sandbox tears down), mark the row ended, and cancel every
+ * pending interaction. Idempotent — a kill on an already-dead session is a no-op success.
+ * Returns `true` on success, `false` on failure/missing scope.
+ */
+export async function killSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[killSession]", () =>
+        getSessionsClient().deleteSessionStream(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
 }

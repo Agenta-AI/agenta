@@ -73,6 +73,7 @@ export const sessionInteractionSchema = z.object({
     token: z.string().nullish(),
     kind: z.string(),
     status: z.string().nullish(),
+    created_at: z.string().nullish(),
     data: z
         .object({
             request: z.record(z.string(), z.unknown()).nullish(),

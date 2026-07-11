@@ -6,16 +6,32 @@
  * The host app initialises the singleton at boot; every entity shares it through
  * `getAgentaSdkClient()`.
  */
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {
+    getLowPriorityMountsClient as getSdkLowPriorityMountsClient,
+    getLowPrioritySessionsClient as getSdkLowPrioritySessionsClient,
+    getMountsClient as getSdkMountsClient,
+    getSessionsClient as getSdkSessionsClient,
+} from "@agenta/sdk/resources"
 
 /** The Fern `sessions` resource client (streams, transcripts, states, interactions). */
 export function getSessionsClient() {
-    return getAgentaSdkClient().sessions
+    return getSdkSessionsClient()
+}
+
+/** Same client with the `priority: "low"` fetch hint — for secondary session reads
+ * (record-replay hydration, liveness polling) that must yield to the live conversation stream. */
+export function getLowPrioritySessionsClient() {
+    return getSdkLowPrioritySessionsClient()
 }
 
 /** The Fern `mounts` resource client (agent working-directory files). */
 export function getMountsClient() {
-    return getAgentaSdkClient().mounts
+    return getSdkMountsClient()
+}
+
+/** Same client with the `priority: "low"` fetch hint — for background mount listing. */
+export function getLowPriorityMountsClient() {
+    return getSdkLowPriorityMountsClient()
 }
 
 /**

@@ -14,6 +14,7 @@ export {
     querySessionStreams,
     fetchSessionStream,
     commandSessionStream,
+    killSession,
     type QueryRecordsParams,
     type SessionScopedParams,
     type QueryInteractionsParams,
@@ -45,3 +46,11 @@ export {
     type StreamStatusCode,
     type CommandMode,
 } from "./core/schema"
+export {
+    deriveStreamNest,
+    deriveSessionLifecycle,
+    refineLifecycleWithSandbox,
+    type SessionLifecycle,
+    type SessionStreamNest,
+    type SandboxLiveness,
+} from "./core/liveness"
