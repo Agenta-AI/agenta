@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import oss.src.models.db_models  # noqa: F401
+
 from sqlalchemy.schema import CreateIndex, CreateTable
 from sqlalchemy.dialects import postgresql
 
