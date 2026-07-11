@@ -132,7 +132,7 @@ redisDurable:
 
 # ================================================================== #
 # agentRunner — agent runner sidecar. enableMcp controls
-# AGENTA_AGENT_MCPS_ENABLED (on by default). See values.schema.json for
+# AGENTA_AGENT_MCPS_ENABLED (off by default). See values.schema.json for
 # the full agentRunner shape.
 # ================================================================== #
 # agentRunner:
