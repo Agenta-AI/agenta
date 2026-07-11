@@ -21,7 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {Fragment, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -833,10 +833,9 @@ export function AgentTemplateControl({
             inlineContent: mh.advancedInline,
         },
         // --- Operational sections: NOT part of the draftable/committable agent config (no
-        // classifier bucket, own persistence). Grouped visually below the configuration sections.
+        // classifier bucket, own persistence). Rendered after the configuration sections.
         {
             key: "triggers",
-            group: "operations",
             icon: <Lightning size={16} />,
             title: "Triggers",
             summary: countSummary(triggerCount, "trigger"),
@@ -846,7 +845,6 @@ export function AgentTemplateControl({
         },
         {
             key: "mounts",
-            group: "operations",
             icon: <HardDrives size={16} />,
             title: "Mounts",
             summary: (
@@ -866,7 +864,6 @@ export function AgentTemplateControl({
         },
     ].filter(Boolean) as {
         key: string
-        group?: "operations"
         icon: React.ReactNode
         title: React.ReactNode
         summary?: React.ReactNode
@@ -883,18 +880,6 @@ export function AgentTemplateControl({
     // Each config section is a contained card on the raised Config panel — the surface tokens give
     // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
     const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
-
-    // Operational sections (triggers, mounts) are separated from the draftable config sections by a
-    // labeled divider before the first one — they don't enter the commit/revert flow.
-    const firstOpsKey = sections.find((s) => s.group === "operations")?.key
-    const opsDivider = (
-        <div className="flex items-center gap-2 px-1 pt-3 pb-1">
-            <span className="text-[11px] font-medium tracking-wide text-[var(--ag-colorTextTertiary)] uppercase">
-                Operations
-            </span>
-            <div className="h-px flex-1 bg-[var(--ag-colorSplit)]" />
-        </div>
-    )
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -961,30 +946,8 @@ export function AgentTemplateControl({
             ) : layout === "cards" ? (
                 <div className="flex flex-col gap-3 pt-1">
                     {sections.map((s) => (
-                        <Fragment key={s.key}>
-                            {s.key === firstOpsKey ? opsDivider : null}
-                            <ConfigAccordionSection
-                                icon={s.icon}
-                                title={s.title}
-                                titleBadge={sectionBadge(s.key)}
-                                summary={s.summary}
-                                extra={s.extra}
-                                indicator={s.indicator ?? agentChangeIndicator(s.key)}
-                                onOpen={s.onOpen}
-                                collapsible={false}
-                                noDivider
-                                className={sectionCardClass}
-                            >
-                                {s.content}
-                            </ConfigAccordionSection>
-                        </Fragment>
-                    ))}
-                </div>
-            ) : (
-                sections.map((s, index) => (
-                    <Fragment key={s.key}>
-                        {s.key === firstOpsKey ? opsDivider : null}
                         <ConfigAccordionSection
+                            key={s.key}
                             icon={s.icon}
                             title={s.title}
                             titleBadge={sectionBadge(s.key)}
@@ -992,15 +955,33 @@ export function AgentTemplateControl({
                             extra={s.extra}
                             indicator={s.indicator ?? agentChangeIndicator(s.key)}
                             onOpen={s.onOpen}
-                            defaultOpen={s.defaultOpen}
-                            noDivider={index === sections.length - 1}
-                            // Mount collapsed, then unfold via the normal collapse transition — first
-                            // paint matches the skeleton's collapsed rows instead of shifting the layout.
-                            animateInitialOpen
+                            collapsible={false}
+                            noDivider
+                            className={sectionCardClass}
                         >
                             {s.content}
                         </ConfigAccordionSection>
-                    </Fragment>
+                    ))}
+                </div>
+            ) : (
+                sections.map((s, index) => (
+                    <ConfigAccordionSection
+                        key={s.key}
+                        icon={s.icon}
+                        title={s.title}
+                        titleBadge={sectionBadge(s.key)}
+                        summary={s.summary}
+                        extra={s.extra}
+                        indicator={s.indicator ?? agentChangeIndicator(s.key)}
+                        onOpen={s.onOpen}
+                        defaultOpen={s.defaultOpen}
+                        noDivider={index === sections.length - 1}
+                        // Mount collapsed, then unfold via the normal collapse transition — first
+                        // paint matches the skeleton's collapsed rows instead of shifting the layout.
+                        animateInitialOpen
+                    >
+                        {s.content}
+                    </ConfigAccordionSection>
                 ))
             )}
 
