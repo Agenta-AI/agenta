@@ -88,6 +88,8 @@ export interface ElicitationRequestPayload {
         type: "object"
         properties: Record<string, ElicitationFieldSchema>
         required?: string[]
+        /** Presentation hints, e.g. "x-ag-stepper": true → one question at a time + review. */
+        [key: `x-ag-${string}`]: unknown
     }
 }
 

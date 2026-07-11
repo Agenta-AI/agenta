@@ -40,6 +40,8 @@ import {
 
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
+    /** Stepper mode: jump to the step holding this field (e.g. after a validation failure). */
+    goToField?: (name: string | (string | number)[]) => void
 }
 
 interface Props {
@@ -55,10 +57,15 @@ interface Props {
     openEnums?: boolean
     /** Fires with ALL current values on any field change (e.g. draft persistence). */
     onValuesChange?: (values: Record<string, unknown>) => void
+    /** One question at a time + a final review step (elicitation "x-ag-stepper" hint). */
+    stepper?: boolean
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
-    ({schema, form, disabled, jsonMode, flat, formats, openEnums, onValuesChange}, ref) => {
+    (
+        {schema, form, disabled, jsonMode, flat, formats, openEnums, onValuesChange, stepper},
+        ref,
+    ) => {
         const fields = useMemo(
             () =>
                 buildFormFieldsFromSchema(schema, "", {
@@ -68,6 +75,12 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
             [schema, formats, openEnums],
         )
         const requiredFields = useMemo(() => fields.filter((f) => f.required), [fields])
+        // Stepper: fields stay MOUNTED and are CSS-hidden per step (unmounting would drop antd
+        // registration — defaults and typed values would vanish from an untouched submit).
+        const [step, setStep] = useState(0)
+        const stepperOn = !!stepper && fields.length > 1
+        const onReview = stepperOn && step >= fields.length
+        Form.useWatch([], form) // review rows re-render as answers change
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
 
         // JSON editor state
@@ -123,8 +136,13 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         return cleanFormValues(values)
                     }
                 },
+                goToField: (name) => {
+                    const flatName = Array.isArray(name) ? name.join(".") : name
+                    const i = fields.findIndex((f) => f.name === flatName)
+                    if (i >= 0) setStep(i)
+                },
             }),
-            [jsonMode, form],
+            [jsonMode, form, fields],
         )
 
         if (fields.length === 0 && !jsonMode) {
@@ -174,40 +192,111 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         : "[&_.ant-form-item]:!mb-3"
                 }
             >
-                {requiredFields.map((field) => (
-                    <SchemaFormField key={field.name} field={field} />
-                ))}
+                {stepperOn ? (
+                    <div className="flex flex-col gap-2">
+                        <Typography.Text type="secondary" className="!text-[11px]">
+                            {onReview
+                                ? "Review answers"
+                                : `Question ${step + 1} of ${fields.length}`}
+                        </Typography.Text>
+                        {fields.map((field, i) => (
+                            <div key={field.name} className={step === i ? undefined : "hidden"}>
+                                <SchemaFormField field={field} />
+                            </div>
+                        ))}
+                        {onReview && (
+                            <div className="flex flex-col gap-1">
+                                {fields.map((field, i) => {
+                                    const value = form.getFieldValue(field.name.split("."))
+                                    const empty =
+                                        value === undefined ||
+                                        value === null ||
+                                        value === "" ||
+                                        (Array.isArray(value) && value.length === 0)
+                                    return (
+                                        <div
+                                            key={field.name}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => setStep(i)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") setStep(i)
+                                            }}
+                                            className="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-colorFillQuaternary px-3 py-2 hover:bg-colorFillTertiary"
+                                        >
+                                            <Typography.Text type="secondary" className="!text-xs">
+                                                {field.label}
+                                            </Typography.Text>
+                                            {empty && field.required ? (
+                                                <Typography.Text type="danger" className="!text-xs">
+                                                    Required
+                                                </Typography.Text>
+                                            ) : (
+                                                <Typography.Text className="!text-xs max-w-[60%] truncate">
+                                                    {formatReviewValue(field, value)}
+                                                </Typography.Text>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                            <Button
+                                type="text"
+                                disabled={step === 0}
+                                onClick={() => setStep(step - 1)}
+                            >
+                                Back
+                            </Button>
+                            {!onReview && (
+                                <Button type="text" onClick={() => setStep(step + 1)}>
+                                    {step === fields.length - 1 ? "Review" : "Next"}
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {requiredFields.map((field) => (
+                            <SchemaFormField key={field.name} field={field} />
+                        ))}
 
-                {/* The collapse de-emphasizes optional EXTRAS below required fields; with no
+                        {/* The collapse de-emphasizes optional EXTRAS below required fields; with no
                     required fields there is nothing to de-emphasize, so render inline. */}
-                {flat || requiredFields.length === 0
-                    ? optionalFields.map((field) => (
-                          <SchemaFormField key={field.name} field={field} />
-                      ))
-                    : optionalFields.length > 0 && (
-                          <Collapse
-                              ghost
-                              size="small"
-                              className="!-mx-4 !mt-1"
-                              items={[
-                                  {
-                                      key: "optional",
-                                      // Collapsed Form.Items must still register their
-                                      // initialValues (schema defaults) — without forceRender an
-                                      // untouched submit silently drops every collapsed default.
-                                      forceRender: true,
-                                      label: (
-                                          <Typography.Text type="secondary" className="text-xs">
-                                              Optional ({optionalFields.length})
-                                          </Typography.Text>
-                                      ),
-                                      children: optionalFields.map((field) => (
-                                          <SchemaFormField key={field.name} field={field} />
-                                      )),
-                                  },
-                              ]}
-                          />
-                      )}
+                        {flat || requiredFields.length === 0
+                            ? optionalFields.map((field) => (
+                                  <SchemaFormField key={field.name} field={field} />
+                              ))
+                            : optionalFields.length > 0 && (
+                                  <Collapse
+                                      ghost
+                                      size="small"
+                                      className="!-mx-4 !mt-1"
+                                      items={[
+                                          {
+                                              key: "optional",
+                                              // Collapsed Form.Items must still register their
+                                              // initialValues (schema defaults) — without forceRender an
+                                              // untouched submit silently drops every collapsed default.
+                                              forceRender: true,
+                                              label: (
+                                                  <Typography.Text
+                                                      type="secondary"
+                                                      className="text-xs"
+                                                  >
+                                                      Optional ({optionalFields.length})
+                                                  </Typography.Text>
+                                              ),
+                                              children: optionalFields.map((field) => (
+                                                  <SchemaFormField key={field.name} field={field} />
+                                              )),
+                                          },
+                                      ]}
+                                  />
+                              )}
+                    </>
+                )}
             </Form>
         )
     },
@@ -568,6 +657,17 @@ function ChoiceCards({
             </div>
         </div>
     )
+}
+
+/** Compact review-row value: option labels, joined chips, Yes/No, formatted dates. */
+function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
+    if (value === undefined || value === null || value === "") return "\u2014"
+    if (Array.isArray(value)) return value.map(String).join(", ") || "\u2014"
+    if (typeof value === "object" && typeof (value as {format?: unknown}).format === "function")
+        return (value as {format: (f: string) => string}).format("YYYY-MM-DD HH:mm")
+    if (typeof value === "boolean") return value ? "Yes" : "No"
+    const meta = field.enumOptions?.find((o) => o.value === value)
+    return meta?.label ?? String(value)
 }
 
 function SchemaFormField({field, depth = 0}: {field: FormFieldDescriptor; depth?: number}) {

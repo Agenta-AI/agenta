@@ -184,6 +184,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     if (!parsed.ok) return null // degradation auto-settle in flight (effect above)
 
     const requiredCount = parsed.payload.requestedSchema.required?.length ?? 0
+    const stepperHint = Boolean(parsed.payload.requestedSchema["x-ag-stepper"])
 
     const handleAccept = async () => {
         setSubmitting(true)
@@ -193,8 +194,10 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             settleAndClear({
                 output: toOutput(buildAcceptResult(content, "Provided the requested input.")),
             })
-        } catch {
-            // antd surfaces inline field errors; Accept stays enabled for retry.
+        } catch (err) {
+            // antd surfaces inline field errors; in stepper mode, jump to the failing question.
+            const first = (err as {errorFields?: {name: (string | number)[]}[]})?.errorFields?.[0]
+            if (first?.name) formRef.current?.goToField?.(first.name)
         } finally {
             setSubmitting(false)
         }
@@ -222,6 +225,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 form={form}
                 formats
                 openEnums
+                stepper={stepperHint}
                 onValuesChange={persistDraft}
             />
 

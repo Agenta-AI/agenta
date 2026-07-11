@@ -194,7 +194,9 @@ def _request_input_revision() -> WorkflowRevision:
                         "likely rather than exhaustive. Supported `format` values: "
                         "'date', 'date-time', 'email', 'uri', and 'multiline' — use 'multiline' "
                         "for any long or free-form text field (notes, a description, a message "
-                        "body). NEVER request secrets "
+                        'body). For a form with SEVERAL questions, set "x-ag-stepper": true on '
+                        "requestedSchema to present one question at a time with a final "
+                        "review step. NEVER request secrets "
                         "(passwords, API keys, tokens); use request_connection for credentials. "
                         "The result is {action: 'accept'|'decline'|'cancel', content?}: on "
                         "accept, `content` holds the user's values; respect a decline or "
