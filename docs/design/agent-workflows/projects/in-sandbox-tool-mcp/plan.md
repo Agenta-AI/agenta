@@ -119,12 +119,25 @@ transports.
 1. `tools/relay-client.ts`: the relay writer (`relayToolCall` plus its wait loop), moved
    out of `dispatch.ts` as #4873 did, with `dispatch.ts` re-exporting so existing call sites
    (the Pi extension, local Claude) are unchanged. It must bundle with zero non-relay code
-   and honor the per-tool `timeoutMs` and an abort signal.
+   and honor the per-tool `timeoutMs` and an abort signal. The response wait is one exported
+   function with the contract `waitForRelayResponse(resPath, { timeoutMs, signal })` (final
+   name at implementation time), implemented today as the existing 300 ms poll. That
+   function is the seam the `event-driven-tool-relay` sibling swaps for `fs.watch`; see the
+   coordination section below for the landing order.
 2. `tools/mcp-handler.ts`: the transport-neutral MCP message handler (initialize,
    tools/list with the shared schema accessor, tools/call, notifications, errors), factored
    from `tool-mcp-http.ts`, parameterized by an "execute" function and an optional
    client-tool pause hook. The HTTP server keeps its socket-abort pause; the stdio shim
    passes no pause hook in slice 1 (client tools are not delivered there yet).
+
+   Layering rule, stated once: `mcp-handler.ts` stays credential-free. The per-environment
+   bearer that `mcp-client-tool-continuation` WP1 adds
+   ([../mcp-client-tool-continuation/plan.md](../mcp-client-tool-continuation/plan.md))
+   lives in the HTTP transport wrapper in `tool-mcp-http.ts`, never in the shared handler,
+   so the stdio shim (a harness-spawned child process with no listener) inherits no auth
+   requirement. Ordering with that project: this slice 1 lands first, and its WP1 (auth,
+   client-tool batch rejection) and WP3 (register-before-pause hold-open) then build on the
+   extracted handler; the optional pause hook here is WP3's insertion point.
 
 The golden test pins the request file: the Pi extension path and the shim path, given the
 same call, produce byte-identical `.req.json` content. That single test is what keeps "one
@@ -162,7 +175,14 @@ semantics and the same writer bytes, verified by the golden.
 - **Crash mid-turn.** If the shim dies, in-flight `tools/call`s fail in the harness and the
   model sees tool errors; the Claude SDK reports the server as failed. The runner relay loop
   is unaffected (it just stops seeing requests). No runner-side supervision is needed
-  because the runner never owned the process.
+  because the runner never owned the process. One case deserves its own statement: if the
+  shim dies after writing `<id>.req.json` but before reading the response, the runner still
+  executes the call (side effects happen) and writes a `.res.json` nobody consumes, while
+  the model sees an MCP failure. The relay is at-least-once from the executor's point of
+  view, and this property is shared with Pi's writer today (an aborted or timed-out wait
+  after the request file is written behaves the same). The orphaned response file is inert
+  (the runner loop lists only `.req.json`) and the workspace preparation clears it on the
+  next cold build. Slice 2's integration tests must cover crash-after-write.
 - **Teardown, ephemeral delete.** The shim dies with the sandbox. Nothing to do.
 - **Warm reuse, park-to-running.** The harness session stays alive, so the shim stays alive
   with it, still serving the specs that session was created with. Correct by construction:
@@ -199,6 +219,16 @@ model the tool is broken). When the continuation work lands, the shim inherits t
 semantics by adding the pause hook to the shared handler, and the relay response protocol
 gains whatever the continuation design chooses; that is deliberately not designed here.
 
+Ownership, stated plainly so the gap cannot hide: neither this project nor
+[../mcp-client-tool-continuation/](../mcp-client-tool-continuation/README.md) designs the
+Daytona client-tool bridge. That bridge needs a relay park protocol (a paused call must
+produce no result until the browser answers, but the shim's wait times out at 60 s today),
+a stdio analogue for abort-without-result (`res.destroy()` does not exist for a spawned
+child), and an answer to the race between a held browser wait and the five-minute Daytona
+auto-stop that kills the shim on park-to-stopped. The recommendation to open one owned
+workspace for it lives in
+[../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
+
 ## Gate change
 
 `REMOTE_TOOLS_UNSUPPORTED_MESSAGE` narrows instead of disappearing. After slice 2 the refusal
@@ -230,17 +260,26 @@ else; every credentialed action executes runner-side; the shim opens no network 
 
 ## Coordination with event-driven-tool-relay
 
-The sibling project replaces relay polling with filesystem-event wakeups. Two contact
-points, agreed on paper:
+The sibling project replaces relay polling with filesystem-event wakeups. Three contact
+points:
 
 1. **The file contract is shared and golden-pinned.** Request and response names, bytes, and
    delete-after-read semantics do not change in either project. The golden test in slice 1
    is the enforcement.
-2. **The shim's response wait is one small function.** `relay-client.ts` isolates "wait for
-   `<id>.res.json`" behind a single function with a timeout and an abort signal, currently
-   implemented as the existing poll. The sibling swaps its internals for `fs.watch` without
-   touching the handler or the writer. Nothing else in this project depends on how the wait
-   is implemented.
+2. **The shim's response wait is one small function, and this project creates it.**
+   `relay-client.ts` isolates "wait for `<id>.res.json`" behind
+   `waitForRelayResponse(resPath, { timeoutMs, signal })`, currently implemented as the
+   existing poll. The sibling swaps its internals for `fs.watch` without touching the
+   handler or the writer. Landing order: this project's slice 1 lands first, so the
+   sibling's in-sandbox watch goes into that function rather than into `dispatch.ts`. The
+   sibling's plan currently names `relayToolCall` in `dispatch.ts` as its seam and does not
+   name `relay-client.ts`; that pending alignment is recorded in
+   [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
+   Nothing else in this project depends on how the wait is implemented.
+3. **The orphaned-request residue across warm-continued turns** (see
+   [research.md](research.md)) needs an owner. The sibling owns relay mechanics but its
+   current plan disclaims this property; the ownership decision is tracked in the same
+   orchestration file.
 
 ## Packaging
 
@@ -280,7 +319,9 @@ uploaded); Pi+Daytona unchanged; Claude+local unchanged. Warm-reuse cells: secon
 within the idle window (live session, same shim), second turn after park-to-stopped
 (restart, respawn), tool-set change between turns (cold session in the reused sandbox,
 fresh shim). Network-off cell: gateway tool executes with `network` restricted +
-`best_effort` (relay is file I/O). Capture one green run and pin it with the
+`best_effort` (relay is file I/O; `best_effort` is required because the strict-network
+refusal for executable tools at `run-plan.ts:368` stays, unchanged by this project, and
+only an explicit `best_effort` opts out of it). Capture one green run and pin it with the
 agent-replay-test recipe so the path regression-tests without a live LLM. Sandbox hygiene:
 cheap model, verify the park/delete reaps everything.
 Acceptance: matrix recorded in this workspace; replay test committed.

@@ -17,7 +17,7 @@ on Daytona and logs that run-plan should have refused the run (`engines/sandbox_
 
 ## One execution path, two front-ends
 
-Execution is solved and shared. `startToolRelay` (`tools/relay.ts:322`) polls the relay
+Execution is solved and shared. `startToolRelay` (`tools/relay.ts:324`) polls the relay
 directory through a pluggable host: local filesystem (`relay.ts:182`) or the Daytona daemon
 FS API (`sandboxRelayHost`, `relay.ts:197`). Each request is executed against the private
 spec in runner memory (`executeRelayedTool`, `relay.ts:226`): client tools pause through the
@@ -82,8 +82,12 @@ Facts, verified:
   (`engines/sandbox_agent/session-pool.ts:154`, `:170-171`). A live session continues only
   when the tool set is unchanged; a changed tool set forces a cold session build, possibly
   inside the same reused sandbox.
-- The relay directory is derived from the durable cwd (`run-plan.ts:388-391`), so it is the
-  same path across turns of one conversation.
+- The relay directory is deliberately kept OFF the durable cwd: an ephemeral base
+  (`/home/sandbox/agenta/relay` on Daytona, `$TMPDIR/agenta/relay` locally) keyed by
+  `basename(cwd)` (`run-plan.ts:384-391`), so relay I/O never rides the geesefs mount (a
+  flaky mount surfaces as ENOTCONN on relay files; the comment there says exactly this).
+  Because the key comes from the durable cwd's basename, the path is stable across turns of
+  one conversation.
 - The internal MCP server's specs are fixed at session creation
   (`sessionInit.mcpServers`, `engines/sandbox_agent.ts:1275`); the engine closes it in
   `destroy` (`:826`).
@@ -96,11 +100,17 @@ spawns it with the session's env at session creation and it dies with the sessio
 the strongest new fact since the prior designs were written, and it flips the transport
 recommendation (see [plan.md](plan.md)).
 
-One pre-existing residue risk, shared with Pi: a relay directory reused across turns can hold
-an orphaned `.req.json` from a crashed turn, and the next turn's fresh relay loop (whose
-seen-set is per turn, `relay.ts:332`) would execute it. This is not new with the shim; it is
-flagged to the [../event-driven-tool-relay/](../event-driven-tool-relay/README.md) sibling,
-which owns relay mechanics.
+One pre-existing residue risk, shared with Pi, stated precisely: workspace preparation
+already clears the relay dir on Daytona before each environment build (`rm -rf` at
+`workspace.ts:60-66`, with a comment giving exactly this rationale), so a cold build cannot
+replay a crashed turn's orphaned `.req.json`. The residual window is the warm-continued
+turn: a checked-out keep-alive session skips `prepareWorkspace`, and each turn starts a
+fresh relay loop with a fresh per-turn seen-set (`relay.ts:334`), so an orphan from a
+crashed turn inside one live environment can still be re-executed on the next turn. This is
+not new with the shim. The [../event-driven-tool-relay/](../event-driven-tool-relay/README.md)
+sibling owns relay mechanics, but its current plan explicitly does not change this property;
+the ownership question is recorded in
+[../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
 
 ## Daemon and ACP facts the transport choice depends on
 

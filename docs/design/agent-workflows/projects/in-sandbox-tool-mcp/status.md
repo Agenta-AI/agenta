@@ -18,6 +18,16 @@ workspace is the review surface; the owner will interview on it.
 - Recommendation written in [plan.md](plan.md): A2 (harness-spawned stdio shim) as the one
   transport, shared handler + relay-writer modules with a golden byte-contract test as the
   unification path, slices 1-4, and the live-QA matrix including the warm-reuse cells.
+- 2026-07-11: cross-consistency review round (requested by the owner alongside his own
+  review of the event-driven-tool-relay PR) folded in. Corrections: the relay dir is an
+  ephemeral sibling keyed by `basename(cwd)`, not derived from the durable cwd; the
+  orphaned-request risk narrowed to warm-continued turns (`workspace.ts:60-66` already
+  clears cold builds). Additions: the `waitForRelayResponse` seam contract and landing
+  order with the sibling, the bearer layering rule and ordering with
+  `mcp-client-tool-continuation`, the unowned Daytona client-tool bridge cross-reference,
+  the crash-after-write at-least-once note, and the `best_effort` clarification on the
+  network-off QA cell. Combined landing order:
+  [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
 
 ## Next
 
