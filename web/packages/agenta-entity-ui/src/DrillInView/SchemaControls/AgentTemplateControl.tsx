@@ -77,7 +77,6 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
-import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
@@ -86,14 +85,6 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     mcp: "This server is missing a required field (name, command, or URL).",
     skill: "This skill is missing its name.",
 }
-// Region header bar for the operational regions (Triggers, Mounts) — a visual copy of the panel's
-// sticky "Configuration" bar (PlaygroundVariantConfigHeader): 48px, tinted fill over the container
-// base, bottom hairline, 13px-semibold title. `-mx-4` breaks out of the config body's `px-4` so the
-// bar runs edge to edge exactly like the header above; non-sticky (mid-scroll bars must not stack).
-const regionBarClass =
-    "-mx-4 mt-4 flex h-[48px] items-center justify-between gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))] px-4 py-2"
-const regionTitleClass = "text-[13px] font-semibold text-[var(--ant-color-text)]"
-
 const DRAFT_TIP: Record<string, string> = {
     "model-harness": "Unsaved model or harness changes.",
     instructions: "Unsaved instruction changes.",
@@ -336,10 +327,6 @@ export function AgentTemplateControl({
         },
         [agentChangedKeys, commitSignal?.version],
     )
-    // Triggers bound to this agent (for the section count badge). The section body and the header
-    // add-dropdown derive scoping from the same hook.
-    const {count: triggerCount} = useAgentTriggers(revisionId)
-
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     //
@@ -956,35 +943,6 @@ export function AgentTemplateControl({
                     </ConfigAccordionSection>
                 ))
             )}
-
-            {/* Triggers + Mounts are operational REGIONS — peers of "Configuration": the same
-                full-bleed header bar as PlaygroundVariantConfigHeader (height, tint, border,
-                13px-semibold title; -mx-4 cancels the config body's px-4 so the bar spans edge to
-                edge). Always-visible bodies, no accordion chrome, never in the commit/revert flow. */}
-            <div className={regionBarClass}>
-                <span className={regionTitleClass}>Triggers</span>
-                <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                    {countSummary(triggerCount, "trigger")}
-                </span>
-            </div>
-            <div className="pt-3">
-                <TriggerManagementSection entityId={revisionId} disabled={disabled} />
-            </div>
-
-            <div className={regionBarClass}>
-                <span className={regionTitleClass}>Mounts</span>
-                <span className="text-xs text-[var(--ag-colorTextTertiary)]">Coming soon</span>
-            </div>
-            {/* STUB: agent-scoped (artifact-level) mounts don't exist yet (#5215) — placeholder for
-                the agent's durable workspace. A conversation's live files are in the session panel. */}
-            <div className="pt-3">
-                <Typography.Text type="secondary" className="text-xs">
-                    The agent&rsquo;s durable workspace — the memory and artifacts it accumulates
-                    across runs — will live here once agent-level mounts land. A
-                    conversation&rsquo;s live files are available in the session panel beside the
-                    chat.
-                </Typography.Text>
-            </div>
 
             {shownEditing
                 ? (() => {

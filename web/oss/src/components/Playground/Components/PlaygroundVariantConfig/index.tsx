@@ -11,6 +11,7 @@ import {
 } from "@agenta/entities/workflow"
 import {
     AgentConfigSkeleton,
+    AgentOperationsSections,
     PlaygroundConfigSection,
     LoadEvaluatorPresetModal,
     FieldsDetectionProvider,
@@ -223,70 +224,81 @@ const PlaygroundVariantConfig: React.FC<
 
     return (
         <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
-            <PlaygroundVariantConfigHeader
-                variantId={variantId}
-                embedded={embedded}
-                variantNameOverride={variantNameOverride}
-                revisionOverride={revisionOverride}
-                evaluatorLabel={evaluatorInfo?.label}
-                hasPresets={hasPresets}
-                onLoadPreset={() => setIsPresetModalOpen(true)}
-                extraActions={isAgentHeaderMode ? undefined : viewModeSelector}
-            />
-            {hasPendingHydration ? (
-                isAgentHeaderMode ? (
-                    <AgentConfigSkeleton />
+            {/* Section 1: Configuration. Its own wrapper so the sticky header is scoped to THIS
+                section — scrolling past it lets the next section's header (Triggers/Mounts, agent
+                mode) take over the pinned slot instead of Configuration presiding over the whole
+                panel. */}
+            <section className="flex w-full flex-col">
+                <PlaygroundVariantConfigHeader
+                    variantId={variantId}
+                    embedded={embedded}
+                    variantNameOverride={variantNameOverride}
+                    revisionOverride={revisionOverride}
+                    evaluatorLabel={evaluatorInfo?.label}
+                    hasPresets={hasPresets}
+                    onLoadPreset={() => setIsPresetModalOpen(true)}
+                    extraActions={isAgentHeaderMode ? undefined : viewModeSelector}
+                />
+                {hasPendingHydration ? (
+                    isAgentHeaderMode ? (
+                        <AgentConfigSkeleton />
+                    ) : (
+                        <div className="p-4 flex flex-col gap-3">
+                            <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                            <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                            <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                        </div>
+                    )
                 ) : (
-                    <div className="p-4 flex flex-col gap-3">
-                        <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
-                        <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                        <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                    </div>
-                )
-            ) : (
-                <>
-                    <FieldsDetectionProvider value={fieldsDetectionValue}>
-                        {/*
-                         * Scope the JSONPath typeahead to this node's
-                         * chain position. Surfaces `$.outputs.*` only
-                         * when the node has an upstream in the chain
-                         * DAG — evaluators fed by a variant, etc.
-                         */}
-                        <PlaygroundNodeTokenPathProvider entityId={variantId}>
-                            <PlaygroundConfigSection
+                    <>
+                        <FieldsDetectionProvider value={fieldsDetectionValue}>
+                            {/*
+                             * Scope the JSONPath typeahead to this node's
+                             * chain position. Surfaces `$.outputs.*` only
+                             * when the node has an upstream in the chain
+                             * DAG — evaluators fed by a variant, etc.
+                             */}
+                            <PlaygroundNodeTokenPathProvider entityId={variantId}>
+                                <PlaygroundConfigSection
+                                    revisionId={variantId}
+                                    onRefinePrompt={handleRefinePrompt}
+                                    viewMode={viewMode}
+                                    // Embedded (drawer) renders the variant config
+                                    // header non-sticky, so the section headers have
+                                    // nothing to clear — pin them at the scroll top.
+                                    stickyHeaderTop={embedded ? 0 : 48}
+                                    // Agent (known or early-signalled): hold the panel's real
+                                    // section-row shape while the schema loads, instead of the
+                                    // generic prompt-config pulse boxes.
+                                    loadingFallback={
+                                        isAgentHeaderMode ? <AgentConfigSkeleton /> : undefined
+                                    }
+                                />
+                            </PlaygroundNodeTokenPathProvider>
+                        </FieldsDetectionProvider>
+                        {refinePromptKey && (
+                            <RefinePromptModal
+                                open={refineModalOpen}
+                                onClose={handleRefineClose}
                                 revisionId={variantId}
-                                onRefinePrompt={handleRefinePrompt}
-                                viewMode={viewMode}
-                                // Embedded (drawer) renders the variant config
-                                // header non-sticky, so the section headers have
-                                // nothing to clear — pin them at the scroll top.
-                                stickyHeaderTop={embedded ? 0 : 48}
-                                // Agent (known or early-signalled): hold the panel's real
-                                // section-row shape while the schema loads, instead of the
-                                // generic prompt-config pulse boxes.
-                                loadingFallback={
-                                    isAgentHeaderMode ? <AgentConfigSkeleton /> : undefined
-                                }
+                                promptKey={refinePromptKey}
                             />
-                        </PlaygroundNodeTokenPathProvider>
-                    </FieldsDetectionProvider>
-                    {refinePromptKey && (
-                        <RefinePromptModal
-                            open={refineModalOpen}
-                            onClose={handleRefineClose}
-                            revisionId={variantId}
-                            promptKey={refinePromptKey}
-                        />
-                    )}
-                    {hasPresets && evaluatorInfo && (
-                        <LoadEvaluatorPresetModal
-                            open={isPresetModalOpen}
-                            onCancel={() => setIsPresetModalOpen(false)}
-                            presets={evaluatorInfo.presets}
-                            onLoadPreset={handlePresetSelect}
-                        />
-                    )}
-                </>
+                        )}
+                        {hasPresets && evaluatorInfo && (
+                            <LoadEvaluatorPresetModal
+                                open={isPresetModalOpen}
+                                onCancel={() => setIsPresetModalOpen(false)}
+                                presets={evaluatorInfo.presets}
+                                onLoadPreset={handlePresetSelect}
+                            />
+                        )}
+                    </>
+                )}
+            </section>
+            {/* Sections 2 + 3 (agent only): Triggers and Mounts — operational, never part of the
+                committable config, each with its own Configuration-style sticky header. */}
+            {isAgentHeaderMode && !hasPendingHydration && (
+                <AgentOperationsSections revisionId={variantId} sticky={!embedded} />
             )}
         </div>
     )
