@@ -18,6 +18,16 @@ describe("Daytona Secret lifecycle", () => {
     await expect(provisionDaytonaSecrets({ plan, lease: makeLease(), control, api })).rejects.toThrow("fault");
     expect(deleted).toEqual(["id-name-0"]); expect(JSON.stringify(control.mutate.mock.calls)).not.toContain("plaintext-0");
   });
+  it("recovers a deterministic Secret after crash-before-CAS conflict", async () => {
+    const partial = makeLease("provisioning"); partial.resources = partial.resources.slice(0, 1);
+    const control = fakeControl(partial);
+    const conflict = Object.assign(new Error("conflict"), { statusCode: 409 });
+    const api = { get: vi.fn(), create: vi.fn(async () => { throw conflict; }), list: vi.fn(async () => ({ items: [{ id: "recovered-id", name: "name-0", placeholder: "dtn_recovered", hosts: ["api.example.com"] }], nextCursor: null })), delete: vi.fn() };
+    const result = await provisionDaytonaSecrets({ plan: { ...plan, candidates: plan.candidates.slice(0, 1) }, lease: partial, control, api });
+    expect(result.attachments).toEqual({ KEY_0: "name-0" });
+    expect(control.mutate).toHaveBeenCalledWith("lease", expect.objectContaining({ resourceUpdates: [expect.objectContaining({ providerSecretId: "recovered-id" })] }));
+  });
+
   it("confirms sandbox absence before reverse provider-ID deletion", async () => {
     const inputLease = makeLease("cleanup_pending"); inputLease.sandboxId = "sandbox"; inputLease.resources = inputLease.resources.map((r) => ({ ...r, state: "created", providerSecretId: `id-${r.ordinal}` }));
     const control = fakeControl(inputLease); const events: string[] = [];
