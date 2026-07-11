@@ -8,6 +8,7 @@ from agenta.sdk.agents.connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
+    InvalidConnectionConfigurationError,
     MissingProviderError,
     ModelRef,
     ProviderMismatchError,
@@ -15,6 +16,10 @@ from agenta.sdk.agents.connections import (
 )
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
+
+
+def _credential_environment(resolved) -> dict[str, str]:
+    return {item.binding.name: item.value for item in resolved.credentials}
 
 
 def _model(
@@ -84,7 +89,7 @@ async def test_resolve_fetches_secrets_and_selects_one_key(fake_http, connection
     assert resolved.model == "gpt-5.5"
     assert resolved.deployment == "direct"
     assert resolved.credential_mode == "env"
-    assert resolved.env == {"OPENAI_API_KEY": "sk-prod"}
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-prod"}
     assert capture["method"] == "GET"
     assert capture["url"] == "https://api.x/api/secrets/"
     assert capture["headers"]["Authorization"] == "Access tok"
@@ -99,7 +104,7 @@ async def test_self_managed_short_circuits_without_api_base(fake_http):
         context=_context(),
     )
     assert resolved.credential_mode == "runtime_provided"
-    assert resolved.env == {}
+    assert _credential_environment(resolved) == {}
 
 
 async def test_default_connection_requires_unique_provider_match(fake_http, connection):
@@ -107,7 +112,7 @@ async def test_default_connection_requires_unique_provider_match(fake_http, conn
     resolved = await VaultConnectionResolver(connection).resolve(
         model=_model(slug=None), context=_context()
     )
-    assert resolved.env == {"OPENAI_API_KEY": "sk-default"}
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-default"}
 
 
 async def test_default_connection_ambiguous(fake_http, connection):
@@ -146,7 +151,7 @@ async def test_bare_catalog_model_infers_provider(fake_http, connection):
         model=ModelRef.coerce("gpt-4o-mini"), context=_context()
     )
     assert resolved.provider == "openai"
-    assert resolved.env == {"OPENAI_API_KEY": "sk-prod"}
+    assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-prod"}
 
 
 async def test_missing_provider_hint_is_harness_correct_for_claude(
@@ -182,7 +187,9 @@ async def test_bare_claude_alias_resolves_to_anthropic(fake_http, connection):
         )
         assert resolved.provider == "anthropic", alias
         assert resolved.model == alias, alias
-        assert resolved.env == {"ANTHROPIC_API_KEY": "sk-ant"}, alias
+        assert _credential_environment(resolved) == {"ANTHROPIC_API_KEY": "sk-ant"}, (
+            alias
+        )
 
 
 async def test_bare_claude_dated_id_resolves_to_anthropic(fake_http, connection):
@@ -304,13 +311,46 @@ async def test_custom_provider_snake_case_extras_normalize_for_bedrock(
     assert resolved.provider == "anthropic"
     assert resolved.model == "anthropic.claude-3-5-sonnet"
     assert resolved.deployment == "bedrock"
-    assert resolved.env == {
-        "AWS_REGION": "us-east-1",
+    assert _credential_environment(resolved) == {
         "AWS_ACCESS_KEY_ID": "AKIA",
         "AWS_SECRET_ACCESS_KEY": "secret",
         "AWS_SESSION_TOKEN": "token",
     }
+    assert resolved.environment == {"AWS_REGION": "us-east-1"}
+    assert {item.usage for item in resolved.credentials} == {"local_use"}
     assert resolved.endpoint.region == "us-east-1"
+
+
+async def test_bedrock_bearer_is_opaque_http_with_regional_endpoint(
+    fake_http, connection
+):
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "my-bedrock",
+                "bedrock",
+                extras={
+                    "aws_region_name": "eu-west-1",
+                    "aws_bearer_token_bedrock": "bearer-token",
+                },
+                models=["anthropic.claude-3-5-sonnet"],
+            )
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(
+            "my-bedrock", provider="anthropic", model="anthropic.claude-3-5-sonnet"
+        ),
+        context=RuntimeAuthContext(harness="claude"),
+    )
+    assert resolved.endpoint.base_url == (
+        "https://bedrock-runtime.eu-west-1.amazonaws.com"
+    )
+    assert _credential_environment(resolved) == {
+        "AWS_BEARER_TOKEN_BEDROCK": "bearer-token"
+    }
+    assert [item.usage for item in resolved.credentials] == ["opaque_http"]
 
 
 async def test_custom_provider_vertex_snake_case_extras(fake_http, connection):
@@ -334,11 +374,38 @@ async def test_custom_provider_vertex_snake_case_extras(fake_http, connection):
         context=RuntimeAuthContext(harness="claude"),
     )
     assert resolved.deployment == "vertex_ai"
-    assert resolved.env == {
-        "GOOGLE_CLOUD_PROJECT": "proj",
-        "GOOGLE_CLOUD_LOCATION": "us-central1",
+    assert _credential_environment(resolved) == {
         "GOOGLE_APPLICATION_CREDENTIALS": "/adc.json",
     }
+    assert resolved.environment == {
+        "GOOGLE_CLOUD_PROJECT": "proj",
+        "GOOGLE_CLOUD_LOCATION": "us-central1",
+    }
+    assert [item.usage for item in resolved.credentials] == ["local_use"]
+
+
+async def test_vertex_api_key_mode_is_rejected_as_out_of_scope(fake_http, connection):
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "vertex-key",
+                "vertex_ai",
+                extras={
+                    "vertex_ai_location": "us-central1",
+                    "GOOGLE_CLOUD_API_KEY": "vertex-key-value",
+                },
+                models=["gemini-model"],
+            )
+        ],
+    )
+    with pytest.raises(
+        InvalidConnectionConfigurationError, match="Vertex API-key authentication"
+    ):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("vertex-key", provider="gemini", model="gemini-model"),
+            context=RuntimeAuthContext(harness="pi_core"),
+        )
 
 
 async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connection):
@@ -360,7 +427,7 @@ async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connec
         context=RuntimeAuthContext(harness="claude"),
     )
     assert resolved.deployment == "custom"
-    assert resolved.env == {"ANTHROPIC_API_KEY": "sk-gw"}
+    assert _credential_environment(resolved) == {"ANTHROPIC_API_KEY": "sk-gw"}
     assert resolved.endpoint.base_url == "https://93.184.216.34/v1"
 
 
@@ -377,11 +444,11 @@ async def test_custom_provider_private_url_is_dropped_not_pinned(fake_http, conn
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("internal-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.endpoint is None
+    with pytest.raises(InvalidConnectionConfigurationError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("internal-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
 
 
 async def test_custom_provider_loopback_url_is_dropped_not_pinned(
@@ -399,11 +466,11 @@ async def test_custom_provider_loopback_url_is_dropped_not_pinned(
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("loopback-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.endpoint is None
+    with pytest.raises(InvalidConnectionConfigurationError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("loopback-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
 
 
 async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection):
@@ -425,12 +492,11 @@ async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection)
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("private-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    # Blocked with no env var required — secure by default.
-    assert resolved.endpoint is None
+    with pytest.raises(InvalidConnectionConfigurationError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("private-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
 
 
 async def test_full_custom_model_key_selects_and_strips_to_backend_model(

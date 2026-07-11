@@ -19,6 +19,9 @@ import json
 
 import pytest
 
+from agenta.sdk.redaction.context import redaction_context
+from agenta.sdk.redaction.redactor import Redactor
+
 from agenta.sdk.agents import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
@@ -52,13 +55,8 @@ KNOWN_REQUEST_KEYS = {
     "sessionId",
     "agentsMd",
     "model",
-    "provider",
-    "connection",
-    "deployment",
-    "endpoint",
-    "credentialMode",
+    "modelConnection",
     "messages",
-    "secrets",
     "context",
     "telemetry",
     "runContext",
@@ -122,6 +120,20 @@ def _pi_payload():
     config = PiAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="openai-codex/gpt-5.5",
+        resolved_connection=ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            deployment="direct",
+            credential_mode="env",
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-test",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint=Endpoint(base_url="https://api.openai.com/v1"),
+        ),
         builtin_tools=["read", "write"],
         custom_tools=[dict(_CUSTOM_TOOL), dict(_DIRECT_CALL_TOOL)],
         tool_callback=_CALLBACK,
@@ -135,7 +147,6 @@ def _pi_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
-        secrets={"OPENAI_API_KEY": "sk-test"},
         trace=TraceContext(
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
@@ -168,6 +179,23 @@ def _claude_payload():
     config = ClaudeAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="claude-sonnet-4-6",
+        resolved_connection=ResolvedConnection(
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            deployment="direct",
+            credential_mode="env",
+            credentials=[
+                {
+                    "binding": {
+                        "kind": "environment",
+                        "name": "ANTHROPIC_API_KEY",
+                    },
+                    "value": "sk-ant",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint=Endpoint(base_url="https://api.anthropic.com"),
+        ),
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         permission_default="deny",
@@ -183,7 +211,6 @@ def _claude_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
-        secrets={"ANTHROPIC_API_KEY": "sk-ant"},
         trace=None,
         run_context=RunContext(run=RunContextRun(kind="test")),
         session_id=None,
@@ -490,19 +517,21 @@ def test_request_to_wire_emits_only_known_keys():
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)
 
 
-def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
-    # A threaded resolved connection is the authoritative provider/model descriptor: the
-    # resolved `model` overrides the config-build `model`, `provider`/`deployment`/
-    # `credentialMode`/`endpoint.baseUrl` ride the wire, and the secret `key` NEVER does (it
-    # rides `secrets`; `env` is masked from the wire by `ResolvedConnection.to_wire`).
+def test_request_to_wire_carries_consumer_owned_model_connection():
     config = PiAgentTemplate(
-        model="openai/gpt-5.5",  # the config-build model
+        model="openai/gpt-5.5",
         resolved_connection=ResolvedConnection(
             provider="openai",
-            model="gpt-5.5-2026",  # the resolved EXACT model, wins over `model`
+            model="gpt-5.5-2026",
             deployment="custom",
             credential_mode="env",
-            env={"OPENAI_API_KEY": "sk-secret"},  # secret channel; never on the wire
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-secret",
+                    "usage": "opaque_http",
+                }
+            ],
             endpoint=Endpoint(base_url="https://gw.example/v1"),
         ),
     )
@@ -511,21 +540,31 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
-        secrets={"OPENAI_API_KEY": "sk-secret"},  # the secret rides here, by design
     )
     assert set(payload) <= KNOWN_REQUEST_KEYS
-    assert payload["provider"] == "openai"
-    assert payload["credentialMode"] == "env"
-    assert payload["deployment"] == "custom"
-    assert payload["endpoint"] == {"baseUrl": "https://gw.example/v1"}
-    # Exactly one `model` key, and it is the resolved exact model (last spread wins).
     assert payload["model"] == "gpt-5.5-2026"
-    # The secret only rides `secrets`; `env` is never serialized onto the wire.
-    assert payload["secrets"] == {"OPENAI_API_KEY": "sk-secret"}
-    assert "env" not in payload
-    assert (
-        "sk-secret" not in {k: v for k, v in payload.items() if k != "secrets"}.values()
-    )
+    assert payload["modelConnection"] == {
+        "provider": "openai",
+        "deployment": "custom",
+        "credentialMode": "env",
+        "credentials": [
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "sk-secret",
+                "usage": "opaque_http",
+            }
+        ],
+        "endpoint": {"baseUrl": "https://gw.example/v1"},
+    }
+    for removed in (
+        "secrets",
+        "provider",
+        "connection",
+        "deployment",
+        "endpoint",
+        "credentialMode",
+    ):
+        assert removed not in payload
 
 
 def test_request_to_wire_omits_resolved_connection_when_none():
@@ -538,11 +577,8 @@ def test_request_to_wire_omits_resolved_connection_when_none():
         config=config,
         messages=[Message(role="user", content="hi")],
     )
-    assert config.wire_resolved_connection() == {}
-    assert "provider" not in payload
-    assert "credentialMode" not in payload
-    assert "deployment" not in payload
-    assert "endpoint" not in payload
+    assert config.wire_model_connection() == {}
+    assert "modelConnection" not in payload
     assert payload["model"] == "gpt-5.5"
 
 
@@ -667,7 +703,7 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
                 "name": "github",
                 "transport": "stdio",
                 "command": "npx",
-                "env": {"GITHUB_TOKEN": "ghp"},
+                "environment": {"LOG_LEVEL": "info"},
                 "tools": ["create_issue"],
             }
         ],
@@ -694,7 +730,7 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
             "name": "github",
             "transport": "stdio",
             "command": "npx",
-            "env": {"GITHUB_TOKEN": "ghp"},
+            "environment": {"LOG_LEVEL": "info"},
             "tools": ["create_issue"],
         }
     ]
@@ -811,3 +847,23 @@ def test_permission_policy_absent_from_serialized_session_config():
     claude_payload = _claude_payload()
     assert "permissionPolicy" not in json.dumps(pi_payload)
     assert "permissionPolicy" not in json.dumps(claude_payload)
+
+
+def test_result_from_wire_redacts_seeded_credential_from_output_events_and_errors():
+    marker = "sk-live-marker-12345678"
+    redactor = Redactor().with_known_secrets([marker])
+    with redaction_context(redactor):
+        result = result_from_wire(
+            {
+                "ok": True,
+                "output": f"echo {marker}",
+                "messages": [{"role": "assistant", "content": marker}],
+                "events": [{"type": "message", "content": marker}],
+            }
+        )
+        assert marker not in result.output
+        assert marker not in repr(result.messages)
+        assert marker not in repr(result.events)
+        with pytest.raises(RuntimeError) as exc:
+            result_from_wire({"ok": False, "error": f"provider rejected {marker}"})
+        assert marker not in str(exc.value)
