@@ -13,6 +13,10 @@ export function FocusStatePlugin({onFocusChange}: FocusStatePluginProps) {
     const [editor] = useLexicalComposerContext()
 
     useEffect(() => {
+        // Seed from current DOM focus so an autoFocus that fired before this registered isn't missed.
+        const root = editor.getRootElement()
+        if (root && root.ownerDocument.activeElement === root) onFocusChange(true)
+
         return mergeRegister(
             editor.registerCommand(
                 FOCUS_COMMAND,

@@ -26,12 +26,8 @@ const TemplateChip = ({
 }) => (
     <div
         style={style}
-        // box-border so an explicit width (set by TemplateChipDock) measures border-box, matching
-        // the ghost's offsetWidth exactly. Border matches the selected composer's accent so the
-        // chip + composer read as one connected shape (the composer forces --ag-colorPrimary too).
-        // Background is the selected tint composited over the composer's own base so it stays OPAQUE
-        // (the raw --ag-strip-selected-bg is 6%-alpha in dark) — an opaque bottom is what lets the
-        // chip's overlap actually hide the composer's top border instead of showing it through.
+        // box-border matches the ghost's offsetWidth; the tint is composited over the composer base
+        // so the bg stays opaque (--ag-strip-selected-bg is 6%-alpha in dark) and the overlap hides its border.
         className={`box-border inline-flex w-fit items-center gap-2 whitespace-nowrap rounded-t-[9px] border-[1.5px] border-b-0 border-solid border-[var(--ag-colorPrimary)] bg-[var(--ag-colorBgContainer)] bg-[image:linear-gradient(var(--ag-strip-selected-bg),var(--ag-strip-selected-bg))] px-3 py-1.5 text-[12.5px] text-[var(--ag-colorTextSecondary)] ${className ?? ""}`}
     >
         <span
