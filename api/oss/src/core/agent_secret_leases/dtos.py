@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from oss.src.core.shared.dtos import Windowing
 from oss.src.core.agent_secret_leases.types import (
     BindingKind,
     ConsumerKind,
@@ -159,7 +158,9 @@ class AgentSecretLease(StrictModel):
 class ResourceUpdate(StrictModel):
     resource_id: UUID
     expected_version: int = Field(ge=1)
-    provider_secret_id: Optional[str] = Field(default=None, max_length=255)
+    provider_secret_id: Optional[str] = Field(
+        default=None, min_length=1, max_length=255
+    )
     state: ResourceState
 
 
@@ -177,6 +178,18 @@ class LeaseMutation(StrictModel):
     next_attempt_at: Optional[datetime] = None
     error_code: Optional[SafeErrorCode] = None
 
+    @model_validator(mode="after")
+    def validate_unique_resource_updates(self) -> "LeaseMutation":
+        resource_ids = [update.resource_id for update in self.resource_updates]
+        if len(resource_ids) != len(set(resource_ids)):
+            raise ValueError("resource updates must contain unique resource IDs")
+        return self
+
+
+class LeaseWindowing(StrictModel):
+    next: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    limit: Optional[int] = Field(default=100, ge=1, le=200)
+
 
 class LeaseQuery(StrictModel):
     provider: LeaseProvider = LeaseProvider.DAYTONA
@@ -184,12 +197,12 @@ class LeaseQuery(StrictModel):
     retry_before: Optional[datetime] = None
     owner: Optional[LeaseOwner] = None
     organization_id: Optional[UUID] = None
-    windowing: Windowing = Field(default_factory=lambda: Windowing(limit=100))
+    windowing: LeaseWindowing = Field(default_factory=LeaseWindowing)
 
 
 class LeasePage(StrictModel):
     leases: List[AgentSecretLease]
-    next_cursor: Optional[UUID] = None
+    next_cursor: Optional[str] = None
 
 
 class LeaseClaim(StrictModel):

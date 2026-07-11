@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, alias_generators
+from pydantic import BaseModel, ConfigDict, Field, alias_generators, model_validator
 
 from oss.src.core.agent_secret_leases.types import (
     BindingKind,
@@ -17,7 +17,7 @@ from oss.src.core.agent_secret_leases.types import (
     ResourceState,
     SafeErrorCode,
 )
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.agent_secret_leases.dtos import AgentSecretLease
 
 
 class APIModel(BaseModel):
@@ -66,7 +66,9 @@ class ClaimFenceRequest(APIModel):
 class ResourceUpdateRequest(APIModel):
     resource_id: UUID
     expected_version: int = Field(ge=1)
-    provider_secret_id: Optional[str] = Field(default=None, max_length=255)
+    provider_secret_id: Optional[str] = Field(
+        default=None, min_length=1, max_length=255
+    )
     state: ResourceState
 
 
@@ -82,13 +84,18 @@ class LeaseMutationRequest(APIModel):
     error_code: Optional[SafeErrorCode] = None
 
 
+class LeaseWindowing(APIModel):
+    next: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    limit: Optional[int] = Field(default=100, ge=1, le=200)
+
+
 class LeaseQueryRequest(APIModel):
     provider: LeaseProvider = LeaseProvider.DAYTONA
     states: List[LeaseState] = Field(default_factory=list)
     retry_before: Optional[datetime] = None
     owner: Optional[OwnerRequest] = None
     organization_id: Optional[UUID] = None
-    windowing: Windowing = Field(default_factory=lambda: Windowing(limit=100))
+    windowing: LeaseWindowing = Field(default_factory=LeaseWindowing)
 
 
 class LeaseClaimRequest(APIModel):
@@ -96,70 +103,104 @@ class LeaseClaimRequest(APIModel):
     ttl_seconds: int = Field(default=60, ge=5, le=900)
 
 
+class ConsumerResponse(APIModel):
+    kind: ConsumerKind
+    key: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_key(self) -> "ConsumerResponse":
+        if self.kind == ConsumerKind.MODEL and self.key is not None:
+            raise ValueError("model consumer cannot carry a key")
+        if self.kind == ConsumerKind.HTTP_MCP and self.key is None:
+            raise ValueError("http_mcp consumer requires a stable key")
+        return self
+
+
+class BindingResponse(APIModel):
+    kind: BindingKind
+    name: str
+
+
 class LeaseResourceResponse(APIModel):
     id: UUID
-    lease_id: UUID
-    organization_id: UUID
-    workspace_id: UUID
-    project_id: UUID
+    version: int
     ordinal: int
-    consumer_kind: ConsumerKind
-    consumer_key: Optional[str] = None
-    binding_kind: BindingKind
-    binding_name: str
+    consumer: ConsumerResponse
+    binding: BindingResponse
     usage: CredentialUsage
     allowed_host: str
     provider_secret_name: str
     provider_secret_id: Optional[str] = None
     state: ResourceState
-    version: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    deleted_at: Optional[datetime] = None
+
+
+class LeaseFenceResponse(APIModel):
+    id: UUID
+    generation: int
+    expires_at: datetime
 
 
 class AgentSecretLeaseResponse(APIModel):
     id: UUID
-    organization_id: UUID
-    workspace_id: UUID
-    project_id: UUID
-    created_by_id: UUID
-    provider: LeaseProvider
-    owner_kind: OwnerKind
-    owner_id: str
-    idempotency_key: str
-    plan_digest: str
+    version: int
+    state: LeaseState
+    owner: OwnerRequest
     credential_epoch_digest: str
     sandbox_id: Optional[str] = None
-    sandbox_fingerprint: Optional[str] = None
     sandbox_label: str
-    state: LeaseState
-    version: int
-    attempt_count: int
-    next_attempt_at: Optional[datetime] = None
-    last_error_code: Optional[SafeErrorCode] = None
-    last_error_at: Optional[datetime] = None
-    claim_id: Optional[UUID] = None
-    claim_owner: Optional[str] = None
-    claim_expires_at: Optional[datetime] = None
-    claim_generation: int
-    activated_at: Optional[datetime] = None
-    cleanup_requested_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    deleted_at: Optional[datetime] = None
+    claim: Optional[LeaseFenceResponse] = None
     resources: List[LeaseResourceResponse] = Field(default_factory=list)
 
-
-class LeaseResponse(APIModel):
-    count: int
-    lease: Optional[AgentSecretLeaseResponse] = None
+    @classmethod
+    def from_core(cls, lease: AgentSecretLease) -> "AgentSecretLeaseResponse":
+        claim = None
+        if lease.claim_id is not None:
+            if lease.claim_expires_at is None:
+                raise ValueError("claimed lease is missing claim expiry")
+            claim = {
+                "id": lease.claim_id,
+                "generation": lease.claim_generation,
+                "expires_at": lease.claim_expires_at,
+            }
+        return cls.model_validate(
+            {
+                "id": lease.id,
+                "version": lease.version,
+                "state": lease.state,
+                "owner": {"kind": lease.owner_kind, "id": lease.owner_id},
+                "credential_epoch_digest": lease.credential_epoch_digest,
+                "sandbox_id": lease.sandbox_id,
+                "sandbox_label": lease.sandbox_label,
+                "claim": claim,
+                "resources": [
+                    {
+                        "id": resource.id,
+                        "version": resource.version,
+                        "ordinal": resource.ordinal,
+                        "consumer": {
+                            "kind": resource.consumer_kind,
+                            "key": resource.consumer_key,
+                        },
+                        "binding": {
+                            "kind": resource.binding_kind,
+                            "name": resource.binding_name,
+                        },
+                        "usage": resource.usage,
+                        "allowed_host": resource.allowed_host,
+                        "provider_secret_name": resource.provider_secret_name,
+                        "provider_secret_id": resource.provider_secret_id,
+                        "state": resource.state,
+                    }
+                    for resource in lease.resources
+                ],
+            }
+        )
 
 
 class LeasesResponse(APIModel):
     count: int
     leases: List[AgentSecretLeaseResponse]
-    windowing: Optional[Windowing] = None
+    windowing: Optional[LeaseWindowing] = None
 
 
 class ClaimResponse(APIModel):

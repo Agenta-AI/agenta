@@ -7,12 +7,13 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, status
 
 from oss.src.apis.fastapi.agent_secret_leases.models import (
+    AgentSecretLeaseResponse,
     ClaimResponse,
     LeaseClaimRequest,
     LeaseMutationRequest,
     LeaseQueryRequest,
     LeaseReserveRequest,
-    LeaseResponse,
+    LeaseWindowing,
     LeasesResponse,
 )
 from oss.src.apis.fastapi.agent_secret_leases.utils import (
@@ -33,7 +34,6 @@ from oss.src.core.agent_secret_leases.types import (
     LeaseInvalid,
     LeaseNotFound,
 )
-from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.exceptions import intercept_exceptions
 
 
@@ -71,7 +71,7 @@ class AgentSecretLeasesRouter:
             self.reserve,
             methods=["POST"],
             operation_id="reserve_agent_secret_lease",
-            response_model=LeaseResponse,
+            response_model=AgentSecretLeaseResponse,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -95,7 +95,7 @@ class AgentSecretLeasesRouter:
             self.retrieve,
             methods=["GET"],
             operation_id="retrieve_agent_secret_lease",
-            response_model=LeaseResponse,
+            response_model=AgentSecretLeaseResponse,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -103,7 +103,7 @@ class AgentSecretLeasesRouter:
             self.mutate,
             methods=["PATCH"],
             operation_id="mutate_agent_secret_lease",
-            response_model=LeaseResponse,
+            response_model=AgentSecretLeaseResponse,
             status_code=status.HTTP_200_OK,
         )
 
@@ -124,28 +124,33 @@ class AgentSecretLeasesRouter:
     @handle_lease_errors
     async def reserve(
         self, request: Request, body: LeaseReserveRequest
-    ) -> LeaseResponse:
+    ) -> AgentSecretLeaseResponse:
         del request
         scope = await self._tenant_scope_with_access()
         lease = await self.leases_service.reserve(
             scope=scope,
             reservation=LeaseReserve.model_validate(body.model_dump()),
         )
-        return LeaseResponse(count=1, lease=lease.model_dump())
+        return AgentSecretLeaseResponse.from_core(lease)
 
     @intercept_exceptions()
     @handle_lease_errors
-    async def retrieve(self, request: Request, lease_id: UUID) -> LeaseResponse:
-        del request
-        scope = await self._tenant_scope_with_access()
+    async def retrieve(
+        self, request: Request, lease_id: UUID
+    ) -> AgentSecretLeaseResponse:
+        if janitor_requested(request):
+            require_janitor(request)
+            scope = None
+        else:
+            scope = await self._tenant_scope_with_access()
         lease = await self.leases_service.retrieve(lease_id=lease_id, scope=scope)
-        return LeaseResponse(count=1, lease=lease.model_dump())
+        return AgentSecretLeaseResponse.from_core(lease)
 
     @intercept_exceptions()
     @handle_lease_errors
     async def mutate(
         self, request: Request, lease_id: UUID, body: LeaseMutationRequest
-    ) -> LeaseResponse:
+    ) -> AgentSecretLeaseResponse:
         janitor = janitor_requested(request)
         if janitor:
             require_janitor(request)
@@ -158,7 +163,7 @@ class AgentSecretLeasesRouter:
             mutation=LeaseMutation.model_validate(body.model_dump()),
             janitor=janitor,
         )
-        return LeaseResponse(count=1, lease=lease.model_dump())
+        return AgentSecretLeaseResponse.from_core(lease)
 
     @intercept_exceptions()
     @handle_lease_errors
@@ -173,12 +178,14 @@ class AgentSecretLeasesRouter:
         page = await self.leases_service.query(
             scope=scope, query=query, janitor=janitor
         )
-        windowing: Optional[Windowing] = None
+        windowing: Optional[LeaseWindowing] = None
         if page.next_cursor is not None:
-            windowing = Windowing(next=page.next_cursor, limit=query.windowing.limit)
+            windowing = LeaseWindowing(
+                next=page.next_cursor, limit=query.windowing.limit
+            )
         return LeasesResponse(
             count=len(page.leases),
-            leases=[lease.model_dump() for lease in page.leases],
+            leases=[AgentSecretLeaseResponse.from_core(lease) for lease in page.leases],
             windowing=windowing,
         )
 
