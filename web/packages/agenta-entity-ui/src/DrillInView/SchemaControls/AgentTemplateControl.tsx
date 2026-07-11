@@ -23,6 +23,7 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
@@ -76,7 +77,7 @@ import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
-import {type ToolObj} from "./toolUtils"
+import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
 import {
     AddTriggerDropdown,
     TriggerManagementSection,
@@ -489,7 +490,100 @@ export function AgentTemplateControl({
             },
         [committed, baseMaps],
     )
-    const toolStatusFor = useMemo(() => statusForKind("tool"), [statusForKind])
+
+    // ── Connected-app tool resolution ─────────────────────────────────────────
+    // Mirrors the tool drawer's fail-safe (a canonical gateway tool whose catalog action 404s
+    // shows the raw-JSON warning) so the row is marked BEFORE the drawer is opened. The probe
+    // reuses the drawer's query family (low-priority fetch, 5-min cache), and the connection
+    // registry is already loaded by the provider — no extra render-critical requests.
+    const gatewayToolViews = useMemo(() => {
+        const views = new Map<number, ParsedGatewayTool>()
+        tools.forEach((item, index) => {
+            const gw = parseGatewayTool(item)
+            if (gw) views.set(index, gw)
+        })
+        return views
+    }, [tools])
+    const actionProbePairs = useMemo(
+        () =>
+            gatewayTools?.enabled
+                ? [...gatewayToolViews.values()]
+                      .filter((v) => v.encoding === "canonical")
+                      .map((v) => ({integrationKey: v.integration, actionKey: v.action}))
+                : [],
+        [gatewayToolViews, gatewayTools?.enabled],
+    )
+    const actionAvailability = useToolActionAvailability(actionProbePairs)
+    // Connection lookup by slug and id (tools persist the slug; index both to be safe).
+    // Null while loading or after a failed fetch — an empty list must not read as "all removed".
+    const connectionLookup = useMemo(() => {
+        if (!gatewayTools?.enabled || gatewayTools.connectionsLoading) return null
+        if (gatewayTools.connectionsErrored) return null
+        const lookup = new Map<string, (typeof gatewayTools.connections)[number]>()
+        for (const c of gatewayTools.connections) {
+            lookup.set(c.slug, c)
+            lookup.set(c.id, c)
+        }
+        return lookup
+    }, [gatewayTools])
+    const toolResolutionStatus = useCallback(
+        (index: number): ItemRowStatus | undefined => {
+            const gw = gatewayToolViews.get(index)
+            if (!gw) return undefined
+            if (
+                gw.encoding === "canonical" &&
+                actionAvailability[toolActionAvailabilityKey(gw.integration, gw.action)] ===
+                    "missing"
+            ) {
+                return {
+                    tone: "invalid",
+                    label: "Unresolved",
+                    tooltip:
+                        "Couldn't resolve this tool — the action may have been renamed or removed. Open it to inspect the raw definition.",
+                }
+            }
+            // Null while connections are still loading: never flash "Unresolved" on a slow load.
+            if (!connectionLookup) return undefined
+            const connection = connectionLookup.get(gw.connection)
+            if (!connection) {
+                return {
+                    tone: "invalid",
+                    label: "Unresolved",
+                    tooltip: `The "${gw.connection}" connection no longer exists in this project. Reconnect the app or remove the tool.`,
+                }
+            }
+            if (connection.flags?.is_valid === false) {
+                return {
+                    tone: "incomplete",
+                    label: "Reconnect",
+                    tooltip: `The ${connection.name || gw.connection} connection needs to be re-authenticated.`,
+                }
+            }
+            return undefined
+        },
+        [gatewayToolViews, actionAvailability, connectionLookup],
+    )
+    // Section rollup counts for the header indicator/tooltips.
+    const toolResolutionSummary = useMemo(() => {
+        let unresolved = 0
+        let reconnect = 0
+        for (const index of gatewayToolViews.keys()) {
+            const s = toolResolutionStatus(index)
+            if (s?.tone === "invalid") unresolved += 1
+            else if (s?.tone === "incomplete") reconnect += 1
+        }
+        return {unresolved, reconnect}
+    }, [gatewayToolViews, toolResolutionStatus])
+
+    // A blocking resolution problem outranks draft markers; structural invalid stays first.
+    const toolStatusFor = useMemo(() => {
+        const base = statusForKind("tool")
+        return (item: unknown, index: number): ItemRowStatus | undefined => {
+            const baseStatus = base(item, index)
+            if (baseStatus?.tone === "invalid") return baseStatus
+            return toolResolutionStatus(index) ?? baseStatus
+        }
+    }, [statusForKind, toolResolutionStatus])
     const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
     const skillStatusFor = useMemo(() => statusForKind("skill"), [statusForKind])
 
@@ -501,10 +595,13 @@ export function AgentTemplateControl({
             if (mh.modelUnsupported) return "The selected model isn't available on this harness."
             return null
         }
-        if (key === "tools")
-            return tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>))
-                ? "A tool is missing its name."
-                : null
+        if (key === "tools") {
+            if (tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>)))
+                return "A tool is missing its name."
+            if (toolResolutionSummary.unresolved > 0)
+                return "A connected-app tool couldn't be resolved — its action or connection may have been renamed or removed."
+            return null
+        }
         if (key === "mcp")
             return mcpServers.some((m) => ITEM_KINDS.mcp.draftInvalid(m as Record<string, unknown>))
                 ? "An MCP server is missing a required field."
@@ -519,6 +616,8 @@ export function AgentTemplateControl({
     const sectionIncompleteTip = (key: string): string | null => {
         if (key === "model-harness" && mh.needsProviderKey)
             return "Connect the model's provider key to run this agent."
+        if (key === "tools" && toolResolutionSummary.reconnect > 0)
+            return "A connected app needs to be re-authenticated."
         return null
     }
     const headerIndicator = (

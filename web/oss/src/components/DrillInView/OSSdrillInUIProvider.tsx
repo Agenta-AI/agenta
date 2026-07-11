@@ -720,7 +720,7 @@ function GatewayToolsEnabledProvider({
     workflowReference: WorkflowReferenceBridge
     deployment: {isCloud: boolean}
 }) {
-    const {connections, isLoading} = useToolConnectionsQuery()
+    const {connections, isLoading, error} = useToolConnectionsQuery()
     const setCatalogDrawerOpen = useSetAtom(toolCatalogDrawerOpenAtom)
 
     const gatewayTools = useMemo<GatewayToolsBridge>(
@@ -737,6 +737,7 @@ function GatewayToolsEnabledProvider({
                     flags: (connection.flags ?? undefined) as Record<string, unknown> | undefined,
                 })),
             connectionsLoading: isLoading,
+            connectionsErrored: !!error,
             onOpenCatalog: () => setCatalogDrawerOpen(true),
             useIntegrationInfo: (integrationKey: string) => {
                 const info = useGatewayToolsIntegrationInfo(integrationKey)
@@ -762,7 +763,7 @@ function GatewayToolsEnabledProvider({
                 }
             },
         }),
-        [connections, isLoading, setCatalogDrawerOpen],
+        [connections, isLoading, error, setCatalogDrawerOpen],
     )
 
     return (

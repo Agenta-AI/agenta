@@ -58,6 +58,8 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // later (`chromeRevealed`) so the bar doesn't push the transcript down mid-send.
     const onboarding = useOptionalOnboardingContext()
     const chromeHidden = !!onboarding && !onboarding.chromeRevealed
+    // Onboarding keeps the user with the founding conversation until its first run settles.
+    const addLocked = !!onboarding?.newSessionLocked
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const addSession = useSetAtom(addSessionAtomFamily(scope))
@@ -142,6 +144,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                         <MountFade className="h-full w-full">
                             <SessionRail
                                 activeId={activeId}
+                                addDisabled={addLocked}
                                 className="h-full w-full min-w-[240px]"
                             />
                         </MountFade>
@@ -174,6 +177,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                         activeId={activeId}
                                         onSelect={setActiveSession}
                                         onAdd={addSession}
+                                        addDisabled={addLocked}
                                         onClose={closeSession}
                                         onRename={(id, title) => renameSession({id, title})}
                                         showSessions={!chatMaximized}

@@ -33,7 +33,6 @@ import {
     ArrowRight,
     Code,
     Paperclip,
-    Terminal,
     TreeStructure,
     UploadSimple,
 } from "@phosphor-icons/react"
@@ -61,6 +60,7 @@ import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/st
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
+import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentIntentActions"
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -1968,7 +1968,7 @@ const AgentConversation = ({
                                 onboardingActive
                                     ? ideHandoffActive
                                         ? "Continue in your IDE from the steps above — or start over."
-                                        : "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
+                                        : STRIP_COPY.describeAgentPlaceholder
                                     : modelBlocked
                                       ? "Connect a model to start chatting…"
                                       : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
@@ -2016,26 +2016,23 @@ const AgentConversation = ({
                                         <Button onClick={handleStartOver} className="!shadow-none">
                                             Start over
                                         </Button>
+                                    ) : TEMPLATE_STRIP_MODE ? (
+                                        // Strip era: the SAME action cluster as the home hero composer
+                                        // (shared component), with the one-click copy + toast handoff.
+                                        <AgentIntentActions
+                                            onCreate={handleCreateAgent}
+                                            onCodingAgentCopy={handleCodingAgentCopy}
+                                            creating={!!onboarding?.committing}
+                                        />
                                     ) : (
                                         <div className="flex items-center gap-2">
-                                            {TEMPLATE_STRIP_MODE ? (
-                                                // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
-                                                <Button
-                                                    icon={<Terminal size={15} />}
-                                                    onClick={handleCodingAgentCopy}
-                                                    className="!shadow-none"
-                                                >
-                                                    {STRIP_COPY.useCodingAgent}
-                                                </Button>
-                                            ) : (
-                                                <Button
-                                                    icon={<Code size={14} />}
-                                                    onClick={streamIdeBubble}
-                                                    className="!shadow-none"
-                                                >
-                                                    Continue in IDE
-                                                </Button>
-                                            )}
+                                            <Button
+                                                icon={<Code size={14} />}
+                                                onClick={streamIdeBubble}
+                                                className="!shadow-none"
+                                            >
+                                                Continue in IDE
+                                            </Button>
                                             <Button
                                                 type="primary"
                                                 icon={<ArrowRight size={14} />}

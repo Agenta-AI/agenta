@@ -1,4 +1,13 @@
-export {toolActionDetailQueryFamily, useToolActionDetail} from "./useToolActionDetail"
+export {
+    isActionNotFoundError,
+    toolActionDetailQueryFamily,
+    useToolActionDetail,
+} from "./useToolActionDetail"
+export {
+    toolActionAvailabilityKey,
+    useToolActionAvailability,
+    type ToolActionAvailability,
+} from "./useToolActionAvailability"
 export {
     toolActionsSearchAtom,
     toolCatalogActionsInfiniteFamily,

@@ -69,9 +69,12 @@ const StripHome: React.FC = () => {
         [provenance.pick, posthog],
     )
 
-    const handleCreate = useCallback(() => {
-        onCreate(provenance.resolveTemplateName())
-    }, [onCreate, provenance.resolveTemplateName])
+    const handleCreate = useCallback(
+        (markdown?: string) => {
+            onCreate(provenance.resolveTemplateName(), markdown)
+        },
+        [onCreate, provenance.resolveTemplateName],
+    )
 
     const handleCodingAgentCopy = useCallback(async () => {
         const text = composerRef.current?.getMarkdown().trim() ?? ""
@@ -90,41 +93,53 @@ const StripHome: React.FC = () => {
 
     return (
         <PageLayout className="grow min-h-0">
-            <div className="mx-auto flex w-full max-w-[960px] flex-col pb-16 pt-8">
-                <div className="flex flex-col gap-3">
-                    <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
-                        {HERO.title}
-                    </Typography.Title>
-                    <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                        {HERO.subtitle}
-                    </Typography.Text>
-                </div>
+            {/* One centered 1040px column — hero, composer, templates, usage, and the table all
+                share the same left/right edges. PageLayout's p-4 supplies the outer 16px, the
+                px-6 here tops it up to ~40px sides; pt-14/pb-20 give the page air (≈72/96px). */}
+            <div className="mx-auto flex w-full max-w-[1040px] flex-col px-6 pb-20 pt-14">
+                {/* Hero + composer keep a readable 840px measure, centered in the column (a
+                    full-width text area reads worse, not better). The hero text is centered so
+                    the narrower block reads as a deliberate hero above the full-width sections. */}
+                <div className="mx-auto flex w-full max-w-[840px] flex-col">
+                    <div className="flex flex-col items-center gap-4 text-center">
+                        <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
+                            {HERO.title}
+                        </Typography.Title>
+                        <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                            {HERO.subtitle}
+                        </Typography.Text>
+                    </div>
 
-                {/* Chip docks flush above the composer (no gap; the chip has no bottom border). */}
-                <div className="mt-5 flex flex-col items-stretch">
-                    {provenance.chipNode}
-                    <StripComposer
-                        composerRef={composerRef}
-                        onCreate={handleCreate}
-                        onCodingAgentCopy={handleCodingAgentCopy}
-                        composerClassName={provenance.composerClassName}
-                        onTextChange={provenance.onComposerTextChange}
-                    />
+                    {/* Chip docks flush above the composer (no gap; the chip has no bottom border).
+                        It's absolutely positioned INTO the 44px hero gap (bottom-full), so the
+                        subtitle→composer distance is exactly mt-11 with or without a chip — the
+                        invisible reserved slot no longer inflates the gap. */}
+                    <div className="relative mt-11 flex flex-col items-stretch">
+                        <div className="absolute bottom-full left-0">{provenance.chipNode}</div>
+                        <StripComposer
+                            composerRef={composerRef}
+                            onCreate={handleCreate}
+                            onCodingAgentCopy={handleCodingAgentCopy}
+                            composerClassName={provenance.composerClassName}
+                            onTextChange={provenance.onComposerTextChange}
+                        />
+                    </div>
                 </div>
 
                 <TemplateStrip
-                    className="mt-[30px]"
+                    className="mt-20"
                     surface="home"
+                    layout="grid"
                     selectedTemplateKey={provenance.selectedTemplateKey}
                     onPick={handlePick}
                 />
 
                 {!firstRun ? (
                     <>
-                        <div className="mt-[30px]">
+                        <div className="mt-16">
                             <UsageSummary variant="strip" />
                         </div>
-                        <div className="mt-[30px]">
+                        <div className="mt-16">
                             <YourAgentsTable />
                         </div>
                     </>

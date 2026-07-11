@@ -42,7 +42,7 @@ const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
     incomplete: "var(--ag-colorWarning)",
 }
 
-function StatusTag({status}: {status: ItemRowStatus}) {
+export function StatusTag({status}: {status: ItemRowStatus}) {
     return (
         <Tooltip title={status.tooltip}>
             <Tag color={STATUS_TAG_COLOR[status.tone]} className="m-0 text-[11px]">

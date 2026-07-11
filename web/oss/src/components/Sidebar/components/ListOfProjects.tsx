@@ -1,7 +1,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
-import {CopyIcon, PencilSimple, Star, Trash} from "@phosphor-icons/react"
+import {CopyIcon, PencilSimple, Plus, Star, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {App, ButtonProps, Dropdown, DropdownProps, Form, Input, MenuProps, Modal, Tag} from "antd"
 import clsx from "clsx"
@@ -367,19 +367,8 @@ const ListOfProjects = ({
             }
         })
 
-        if (items.length) {
-            items.push({type: "divider", key: "projects-divider"})
-        }
-
-        items.push({
-            key: "project:new",
-            label: (
-                <div className="flex items-center gap-2 text-primary-500">
-                    <span className="font-medium">+ New project</span>
-                </div>
-            ),
-        })
-
+        // "New project" is rendered as a pinned footer (see `popupRender`), NOT as a trailing menu
+        // item — otherwise it scrolls out of reach once the project list overflows (AGE-3939).
         return {projectMenuItems: items, projectKeyMap: keyMap}
     }, [
         canDeleteProjects,
@@ -396,15 +385,14 @@ const ListOfProjects = ({
             ? [`project:${project.workspace_id}:${project.project_id}`]
             : undefined
 
+    const handleNewProject = useCallback(() => {
+        setProjectDropdownOpen(false)
+        createForm.resetFields()
+        setCreateModalOpen(true)
+    }, [createForm])
+
     const handleProjectMenuClick: MenuProps["onClick"] = ({key}) => {
         const keyString = key as string
-
-        if (keyString === "project:new") {
-            setProjectDropdownOpen(false)
-            createForm.resetFields()
-            setCreateModalOpen(true)
-            return
-        }
 
         if (keyString.startsWith("project-action:")) {
             const [, action, workspaceId, projectId] = keyString.split(":")
@@ -446,14 +434,32 @@ const ListOfProjects = ({
                                 zIndex: 2000,
                             },
                         }}
+                        open={projectDropdownOpen}
                         onOpenChange={setProjectDropdownOpen}
                         className={clsx({"flex items-center justify-center": collapsed})}
                         menu={{
                             items: projectMenuItems,
                             selectedKeys: selectedProjectKey,
                             onClick: handleProjectMenuClick,
-                            className: "max-h-80 overflow-y-auto",
+                            // Surface (bg/border/shadow) moves to the popupRender wrapper so the
+                            // scrollable list and the pinned "New project" footer share one card.
+                            className:
+                                "max-h-60 overflow-y-auto !border-0 !bg-transparent !shadow-none",
                         }}
+                        popupRender={(menuNode) => (
+                            <div className="flex min-w-[220px] flex-col overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-sm">
+                                {menuNode}
+                                {/* Filled band + icon so the action row reads as a footer, not the next list item. */}
+                                <button
+                                    type="button"
+                                    onClick={handleNewProject}
+                                    className="flex w-full shrink-0 cursor-pointer items-center gap-2 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-3 py-2.5 text-left font-medium text-[var(--ag-colorPrimary)] [font:inherit] hover:bg-[var(--ag-colorFillTertiary)]"
+                                >
+                                    <Plus size={14} weight="bold" />
+                                    New project
+                                </button>
+                            </div>
+                        )}
                     >
                         <div data-project-selector>
                             <SidebarSelectionButton
