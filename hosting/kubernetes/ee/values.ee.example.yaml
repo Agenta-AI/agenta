@@ -483,6 +483,15 @@ posthog:
 #   replicas: 1
 
 # ================================================================== #
+# === agentRunner — agent runner sidecar (AGENTA_RUNNER_*, SANDBOX_AGENT_*) ===
+# enableMcp controls AGENTA_AGENT_MCPS_ENABLED; on by default. See
+# values.schema.json for the full agentRunner shape.
+# ================================================================== #
+# agentRunner:
+#   enabled: true
+#   enableMcp: true
+
+# ================================================================== #
 # === ingress ===
 # Path routing: / → web, /api → api (prefix-stripped), /services → services
 # (prefix-stripped).  When running behind Traefik, attach the StripPrefix
