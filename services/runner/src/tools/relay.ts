@@ -1,5 +1,5 @@
 /**
- * Daytona tool relay.
+ * Daytona tool relay — the RUNNER side.
  *
  * Tool child processes do not receive private resolved specs, executable code, scoped env,
  * callback endpoints, or callback auth. They receive only public tool metadata plus this
@@ -14,6 +14,12 @@
  *           ──▶ write `<id>.res.json`
  *
  * The same loop supports local filesystem relays and Daytona sandbox filesystem relays.
+ *
+ * The relay is split across three modules: the bundle-safe wire protocol (suffixes,
+ * request/response shapes, serialization, shared timing) lives in `relay-protocol.ts`;
+ * the in-sandbox writer client lives in `relay-client.ts`; this module keeps the
+ * runner-side consumer/executor loop. The protocol pieces are re-exported below so
+ * existing importers keep compiling.
  */
 import {
   existsSync,
@@ -39,6 +45,15 @@ import type {
   ToolCallbackContext,
 } from "../protocol.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
+import {
+  RELAY_POLL_MS,
+  RELAY_REQ_SUFFIX,
+  RELAY_RES_SUFFIX,
+  sleep,
+  type ExecuteRelayRequest,
+  type RelayRequest,
+  type RelayResponse,
+} from "./relay-protocol.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 
 // Compatibility re-export: the type moved to `client-tool-relay.ts` (a pure type module);
@@ -48,14 +63,23 @@ export type {
   ClientToolRelayRequest,
 } from "./client-tool-relay.ts";
 
-export const RELAY_REQ_SUFFIX = ".req.json";
-export const RELAY_RES_SUFFIX = ".res.json";
-export const RELAY_POLL_MS = Number(
-  process.env.AGENTA_AGENT_TOOLS_RELAY_POLLING ?? 300,
-);
-export const RELAY_TIMEOUT_MS = Number(
-  process.env.AGENTA_AGENT_TOOLS_RELAY_TIMEOUT ?? 60000,
-);
+// Compatibility re-export: the wire protocol moved to `relay-protocol.ts` (bundle-safe,
+// shared with the in-sandbox writer); importers that still reach it through this module
+// keep working while they migrate.
+export {
+  RELAY_POLL_MS,
+  RELAY_REQ_SUFFIX,
+  RELAY_RES_SUFFIX,
+  RELAY_TIMEOUT_MS,
+  sanitizeRelayId,
+  sleep,
+} from "./relay-protocol.ts";
+export type {
+  ExecuteRelayRequest,
+  ExecuteRelayResponse,
+  RelayRequest,
+  RelayResponse,
+} from "./relay-protocol.ts";
 /**
  * Idle-backoff cap for the runner relay poll. The loop polls `host.list(relayDir)` every
  * `RELAY_POLL_MS` (300 ms) for the whole turn — on Daytona that `list` is a remote `ls` exec
@@ -79,21 +103,6 @@ export function relayPollDelayMs(idlePolls: number): number {
   return Math.min(RELAY_POLL_MS * factor, RELAY_POLL_MAX_MS);
 }
 
-export interface ExecuteRelayRequest {
-  kind?: "execute";
-  toolName: string;
-  toolCallId: string;
-  args: unknown;
-}
-export type RelayRequest = ExecuteRelayRequest;
-
-export interface ExecuteRelayResponse {
-  kind?: "execute";
-  ok: boolean;
-  text?: string;
-  error?: string;
-}
-export type RelayResponse = ExecuteRelayResponse;
 const PAUSED = Symbol("paused");
 
 /**
@@ -163,14 +172,6 @@ export function redactContextBoundArgs(
   }
   return redacted;
 }
-
-/** Make a tool-call id safe to use as a filename (and bounded). */
-export function sanitizeRelayId(id: string): string {
-  return id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120) || "tool";
-}
-
-export const sleep = (ms: number): Promise<void> =>
-  new Promise((r) => setTimeout(r, ms));
 
 export interface RelayHost {
   list: (dir: string) => Promise<string[]>;

@@ -16,30 +16,18 @@
  *    so the call is relayed through the runner via files (see tools/relay.ts) when `relayDir`
  *    is set; otherwise it POSTs directly.
  *
- * `relayToolCall` lives here (not in extensions/agenta.ts) so this module is the single
- * dispatch home with no import cycle back into a call site.
+ * `relayToolCall` now lives in tools/relay-client.ts (the bundle-safe in-sandbox writer)
+ * and is re-exported here so existing importers keep working.
  */
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
-
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { callAgentaTool } from "./callback.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
+import { relayToolCall } from "./relay-client.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
-import {
-  RELAY_POLL_MS,
-  RELAY_REQ_SUFFIX,
-  RELAY_RES_SUFFIX,
-  RELAY_TIMEOUT_MS,
-  sanitizeRelayId,
-  sleep,
-  type RelayResponse,
-} from "./relay.ts";
+
+// Compatibility re-export: the writer moved to `relay-client.ts`; importers that still
+// reach it through this module keep working while they migrate.
+export { relayToolCall } from "./relay-client.ts";
 
 /** Options for executing a resolved tool. `endpoint`/`authorization`/`relayDir` only matter for callbacks. */
 export interface RunResolvedToolOpts {
@@ -53,57 +41,6 @@ export interface RunResolvedToolOpts {
   relayDir?: string;
   /** Caller cancellation, combined with the per-tool timeout. */
   signal?: AbortSignal;
-}
-
-/**
- * Daytona tool call: the in-sandbox process can't reach Agenta, so write the request to a
- * file the runner watches and poll for the response it writes back (see tools/relay.ts).
- */
-export async function relayToolCall(
-  dir: string,
-  toolName: string,
-  toolCallId: string,
-  params: unknown,
-  timeoutMs?: number,
-  signal?: AbortSignal,
-): Promise<string> {
-  const id = sanitizeRelayId(toolCallId);
-  const reqPath = `${dir}/${id}${RELAY_REQ_SUFFIX}`;
-  const resPath = `${dir}/${id}${RELAY_RES_SUFFIX}`;
-  try {
-    mkdirSync(dir, { recursive: true });
-  } catch {
-    // The runner also creates it; a race here is harmless.
-  }
-  writeFileSync(
-    reqPath,
-    JSON.stringify({ toolName, toolCallId, args: params ?? {} }),
-    "utf-8",
-  );
-
-  const deadline =
-    Date.now() +
-    (timeoutMs && timeoutMs > 0 ? timeoutMs + 10_000 : RELAY_TIMEOUT_MS);
-  while (Date.now() < deadline) {
-    if (signal?.aborted) throw new Error("aborted");
-    if (existsSync(resPath)) {
-      const res = JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
-      try {
-        unlinkSync(reqPath);
-      } catch {
-        /* best-effort cleanup */
-      }
-      try {
-        unlinkSync(resPath);
-      } catch {
-        /* best-effort cleanup */
-      }
-      if (res.ok) return res.text ?? "";
-      throw new Error(res.error || `tool relay failed for ${toolName}`);
-    }
-    await sleep(RELAY_POLL_MS);
-  }
-  throw new Error(`tool relay timed out for ${toolName}`);
 }
 
 /**

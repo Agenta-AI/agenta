@@ -1,0 +1,56 @@
+/**
+ * Relay wire protocol: the file-name suffixes, request/response JSON shapes, request
+ * serialization, and the env-derived timing constants shared by every relay writer and
+ * the runner-side reader (tools/relay.ts).
+ *
+ * This module is the writer-shared relay protocol and MUST stay dependency-free (node
+ * builtins only, no imports from other src modules) so it stays bundle-safe: the Pi
+ * extension bundle and the future in-sandbox MCP shim (#5234) consume it from inside
+ * the sandbox, where server-side code must never be pulled in.
+ */
+
+export const RELAY_REQ_SUFFIX = ".req.json";
+export const RELAY_RES_SUFFIX = ".res.json";
+export const RELAY_POLL_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_POLLING ?? 300,
+);
+export const RELAY_TIMEOUT_MS = Number(
+  process.env.AGENTA_AGENT_TOOLS_RELAY_TIMEOUT ?? 60000,
+);
+
+export interface ExecuteRelayRequest {
+  kind?: "execute";
+  toolName: string;
+  toolCallId: string;
+  args: unknown;
+}
+export type RelayRequest = ExecuteRelayRequest;
+
+export interface ExecuteRelayResponse {
+  kind?: "execute";
+  ok: boolean;
+  text?: string;
+  error?: string;
+}
+export type RelayResponse = ExecuteRelayResponse;
+
+/** Make a tool-call id safe to use as a filename (and bounded). */
+export function sanitizeRelayId(id: string): string {
+  return id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120) || "tool";
+}
+
+/**
+ * Serialize one execute request to the exact bytes every relay writer produces. The key
+ * order (toolName, toolCallId, args) and the `args ?? {}` default are part of the
+ * cross-writer contract; the golden test in tests/unit/relay-client.test.ts pins them.
+ */
+export function serializeRelayRequest(req: ExecuteRelayRequest): string {
+  return JSON.stringify({
+    toolName: req.toolName,
+    toolCallId: req.toolCallId,
+    args: req.args ?? {},
+  });
+}
+
+export const sleep = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms));
