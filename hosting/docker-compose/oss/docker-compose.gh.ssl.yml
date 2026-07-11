@@ -56,6 +56,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/api
+            - AGENTA_RUNNER_CONTROL_TOKEN=${AGENTA_RUNNER_CONTROL_TOKEN:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
@@ -290,6 +291,8 @@ services:
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_CONTROL_TOKEN: ${AGENTA_RUNNER_CONTROL_TOKEN:-}
+            AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY: ${AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY:-}
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
