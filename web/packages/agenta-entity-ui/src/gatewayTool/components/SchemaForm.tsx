@@ -197,7 +197,23 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 {/* No Enter-advance in the stepper: in chat, Enter means "send" (the composer
                     says ↵ Send) — overloading it to page a form is a conflicting affordance. */}
                 {stepperOn ? (
-                    <div className="flex flex-col gap-2">
+                    <div
+                        className="flex flex-col gap-2"
+                        onKeyDown={(e) => {
+                            // ←/→ page questions — never while a caret or dropdown owns arrows.
+                            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+                            const t = e.target as HTMLElement
+                            if (
+                                t.tagName === "INPUT" ||
+                                t.tagName === "TEXTAREA" ||
+                                t.closest(".ant-select, .ant-picker")
+                            )
+                                return
+                            e.preventDefault()
+                            if (e.key === "ArrowLeft" && step > 0) setStep(step - 1)
+                            if (e.key === "ArrowRight" && !onReview) setStep(step + 1)
+                        }}
+                    >
                         <div className="flex items-start justify-between gap-3">
                             {/* Stepper promotes the active question to a header — field labels
                                 are hidden below (hideLabel), this IS the question. */}
@@ -670,7 +686,23 @@ function ChoiceCards({
                 // Digit hotkeys 1..9 select the matching card (badge affordance). Never while
                 // typing, never with modifiers (browser tab shortcuts).
                 if (disabled || e.ctrlKey || e.metaKey || e.altKey) return
-                const tag = (e.target as HTMLElement).tagName
+                const target = e.target as HTMLElement
+                const tag = target.tagName
+                // ↑/↓ move focus card-to-card (wrapping); Enter/Space/click select.
+                if ((e.key === "ArrowDown" || e.key === "ArrowUp") && tag !== "INPUT") {
+                    const cards = Array.from(
+                        e.currentTarget.querySelectorAll<HTMLElement>(
+                            '[role="radio"], [role="checkbox"]',
+                        ),
+                    )
+                    const current = target.closest<HTMLElement>('[role="radio"], [role="checkbox"]')
+                    const at = current ? cards.indexOf(current) : -1
+                    if (at < 0) return
+                    e.preventDefault()
+                    const delta = e.key === "ArrowDown" ? 1 : -1
+                    cards[(at + delta + cards.length) % cards.length]?.focus()
+                    return
+                }
                 if (tag === "INPUT" || tag === "TEXTAREA") return
                 const hit = resolveDigitSelection(e.key, options)
                 if (!hit) return
