@@ -394,7 +394,17 @@ export async function runWithKeepalive(
 
   const notifyParkedLive = async (env: SessionEnvironment): Promise<void> => {
     if (resolveKeepaliveProvider(request) !== "daytona") return;
-    await engine.onParkedLive?.(env);
+    // Best-effort: the session is already parked, so an activity-refresh failure must not turn
+    // a successful turn into a failed request.
+    try {
+      await engine.onParkedLive?.(env);
+    } catch (err) {
+      klog(
+        `parked-live activity refresh failed key=${key}: ${String(
+          err instanceof Error ? err.message : err,
+        ).slice(0, 200)}`,
+      );
+    }
   };
 
   // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi

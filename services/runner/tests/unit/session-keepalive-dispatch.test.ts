@@ -233,6 +233,22 @@ describe("runWithKeepalive: park + hit", () => {
     assert.equal(local.calls.parkedLive.length, 0);
   });
 
+  it("a failing live-park hook does not fail the parked turn", async () => {
+    const daytona = makeEngine({ onParkedLive: true });
+    daytona.engine.onParkedLive = async () => {
+      throw new Error("activity refresh boom");
+    };
+
+    const result = await runWithKeepalive(
+      { ...turn1("daytona-hook-throw"), sandbox: "daytona" },
+      undefined,
+      undefined,
+      makeCtx(daytona.engine),
+    );
+
+    assert.equal(result.ok, true, "the session is already parked; the hook is best-effort");
+  });
+
   it("does not call the live-park hook when Daytona park overflows", async () => {
     const { engine, calls } = makeEngine({ onParkedLive: true });
     const config: KeepaliveConfig = {

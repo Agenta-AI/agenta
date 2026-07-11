@@ -997,7 +997,18 @@ export async function acquireEnvironment(
           runCred
         ) {
           // The post-hydrate write later in acquire is authoritative. This clear only prevents
-          // repeated doomed reconnects if acquire fails before reaching that write.
+          // repeated doomed reconnects if acquire fails before reaching that write. Hydrate
+          // first: after a runner restart the in-memory store is behind the durable
+          // latest_turn_index, and an unhydrated guard token would be rejected as stale.
+          await (
+            deps.hydrateHarnessSessionFromDurable ??
+            hydrateHarnessSessionFromDurable
+          )(
+            sessionForMount,
+            plan.harness,
+            deps.sessionContinuityStore ?? sessionContinuityStore,
+            { authorization: runCred, log: logger },
+          );
           await (deps.clearSandboxPointer ?? clearSandboxPointer)(
             sessionForMount,
             nextTurnIndex(
@@ -1213,7 +1224,9 @@ export async function acquireEnvironment(
     environment.continuityTurnIndex = continuitySessionKey
       ? nextTurnIndex(continuitySessionKey, continuityStore)
       : undefined;
-    if (sessionForMount && runCred) {
+    // Daytona only: a local run must not overwrite a conversation's remote pointer (switching
+    // sandboxes mid-conversation would strand the parked Daytona instance).
+    if (plan.isDaytona && sessionForMount && runCred) {
       const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
       const pointerWriteOutcome = await (
         deps.writeSandboxPointer ?? writeSandboxPointer

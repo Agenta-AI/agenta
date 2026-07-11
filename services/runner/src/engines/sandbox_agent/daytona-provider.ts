@@ -211,12 +211,12 @@ export function daytonaWithLifecycle(
 
       const state = await waitForStableState(sandbox, sandboxId, "pause");
       if (RUNNING_STATES.has(state)) await sandbox.stop();
-      else if (
-        !STOPPED_STATES.has(state) &&
-        !FAILED_STATES.has(state)
-      ) {
+      // "destroyed" (including a refresh 404) is an idempotent success: nothing left to park.
+      // "error" and unknown states throw so the caller's delete fallback reclaims the sandbox
+      // instead of reporting it parked with a stale pointer.
+      else if (!STOPPED_STATES.has(state) && state !== "destroyed") {
         throw new Error(
-          `Cannot pause Daytona sandbox '${sandboxId}' from unknown state '${state}'.`,
+          `Cannot pause Daytona sandbox '${sandboxId}' from state '${state}'.`,
         );
       }
     },

@@ -63,13 +63,16 @@ export async function readStoredSandboxPointer(
 }
 
 /**
- * Write the live sandbox instance id forward (best-effort) so the next turn can reconnect it.
- * A local run records the literal "local"; a remote run records the provisioned instance id.
+ * Shared guarded pointer PUT. `write` and `clear` differ only in the sandbox_id they send and
+ * the returned-row value that counts as applied; the transport, guard token, and error handling
+ * must stay identical, so they live here once.
  */
-export async function writeSandboxPointer(
+async function putSandboxPointer(
   sessionId: string,
-  pointer: SandboxPointerWrite,
+  sandboxId: string | null,
+  turnIndex: number,
   deps: SandboxPointerDeps,
+  logPrefix: string,
 ): Promise<SandboxPointerWriteOutcome> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
@@ -81,25 +84,39 @@ export async function writeSandboxPointer(
         method: "PUT",
         headers: { "content-type": "application/json", authorization: deps.authorization },
         body: JSON.stringify({
-          sandbox_id: pointer.sandboxId,
-          sandbox_turn_index: pointer.turnIndex,
+          sandbox_id: sandboxId,
+          sandbox_turn_index: turnIndex,
         }),
       },
     );
     if (!res.ok) {
-      log(`write HTTP ${res.status} session=${sessionId} sandbox=${pointer.sandboxId}`);
+      log(`${logPrefix} HTTP ${res.status} session=${sessionId}`);
       return "failed";
     }
     const body = (await res.json()) as {
       session_state?: { sandbox_id?: string | null } | null;
     };
-    return body.session_state?.sandbox_id === pointer.sandboxId ? "applied" : "rejected";
+    const stored = body.session_state?.sandbox_id;
+    const applied = sandboxId === null ? stored == null : stored === sandboxId;
+    return applied ? "applied" : "rejected";
   } catch (err) {
     log(
-      `write failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+      `${logPrefix} failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
     return "failed";
   }
+}
+
+/**
+ * Write the live sandbox instance id forward (best-effort) so the next turn can reconnect it.
+ * Only Daytona runs record a pointer; a local run leaves the row untouched.
+ */
+export async function writeSandboxPointer(
+  sessionId: string,
+  pointer: SandboxPointerWrite,
+  deps: SandboxPointerDeps,
+): Promise<SandboxPointerWriteOutcome> {
+  return putSandboxPointer(sessionId, pointer.sandboxId, pointer.turnIndex, deps, "write");
 }
 
 /** Clear a terminal sandbox pointer under the same turn-index guard as pointer writes. */
@@ -108,33 +125,5 @@ export async function clearSandboxPointer(
   turnIndex: number,
   deps: SandboxPointerDeps,
 ): Promise<SandboxPointerWriteOutcome> {
-  const log = deps.log ?? defaultLog;
-  const doFetch = deps.fetchImpl ?? fetch;
-  const base = deps.apiBase ?? apiBase();
-  try {
-    const res = await doFetch(
-      `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,
-      {
-        method: "PUT",
-        headers: { "content-type": "application/json", authorization: deps.authorization },
-        body: JSON.stringify({
-          sandbox_id: null,
-          sandbox_turn_index: turnIndex,
-        }),
-      },
-    );
-    if (!res.ok) {
-      log(`clear HTTP ${res.status} session=${sessionId}`);
-      return "failed";
-    }
-    const body = (await res.json()) as {
-      session_state?: { sandbox_id?: string | null } | null;
-    };
-    return body.session_state?.sandbox_id == null ? "applied" : "rejected";
-  } catch (err) {
-    log(
-      `clear failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
-    );
-    return "failed";
-  }
+  return putSandboxPointer(sessionId, null, turnIndex, deps, "clear");
 }

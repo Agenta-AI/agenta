@@ -54,6 +54,16 @@ describe("Daytona provider pause", () => {
     await assert.doesNotReject(() => provider.pause("sandbox-1"));
   });
 
+  it("treats a destroyed sandbox as success but throws for the error state", async () => {
+    await assert.doesNotReject(() =>
+      buildProvider({ state: "destroyed" }).pause("sandbox-1"),
+    );
+    await assert.rejects(
+      () => buildProvider({ state: "error" }).pause("sandbox-1"),
+      /Cannot pause Daytona sandbox 'sandbox-1' from state 'error'/,
+    );
+  });
+
   it("propagates a transient lookup error", async () => {
     const provider = buildProvider({}, new Error("service unavailable"));
     await assert.rejects(() => provider.pause("sandbox-1"), /service unavailable/);

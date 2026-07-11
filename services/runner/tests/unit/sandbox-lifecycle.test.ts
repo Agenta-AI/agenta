@@ -270,6 +270,52 @@ describe("remote sandbox reconnect ladder", () => {
     assert.deepEqual(calls.cleared, [{ sessionId: "sess-1", turnIndex: 0 }]);
   });
 
+  it("hydrates the turn index before the guarded clear (post-restart token)", async () => {
+    const { calls, deps } = fakeSandbox("sbx-gone", {
+      reconnectTerminalState: "not-found",
+    });
+    // A restarted runner has an empty in-memory store; the durable row knows turn 5.
+    deps.hydrateHarnessSessionFromDurable = async (
+      sessionId,
+      _harness,
+      store,
+    ) => {
+      store.restoreLatestTurn(sessionId, 5);
+    };
+
+    const result = await runSandboxAgent(
+      daytonaRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.cleared,
+      [{ sessionId: "sess-1", turnIndex: 6 }],
+      "the clear must carry the hydrated index, not the cold store's 0",
+    );
+  });
+
+  it("does not write a pointer for a local run", async () => {
+    const { calls, deps } = fakeSandbox(undefined);
+
+    const result = await runSandboxAgent(
+      { ...daytonaRequest, sandbox: "local" },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.wrote,
+      [],
+      "a local run must not overwrite a conversation's remote pointer",
+    );
+  });
+
   it("writes the live sandbox id forward for the next turn", async () => {
     const { calls, deps } = fakeSandbox("sbx-99");
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);

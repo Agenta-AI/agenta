@@ -277,6 +277,7 @@ class TestSessionStatesBasics:
             },
         )
 
+        assert response.status_code == 200
         state = response.json()["session_state"]
         assert state["sandbox_id"] == "sbx-tokenless"
 

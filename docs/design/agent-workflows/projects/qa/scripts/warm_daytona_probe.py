@@ -89,7 +89,9 @@ def turn(
                     out["reply"] = (msg.get("content") or "")[:120]
         elif isinstance(outputs, dict):
             out["reply"] = (outputs.get("content") or "")[:120]
-        out["status_message"] = ((payload.get("status") or {}).get("message") or "")[:200]
+        out["status_message"] = ((payload.get("status") or {}).get("message") or "")[
+            :200
+        ]
     except Exception as exc:  # noqa: BLE001
         out["parse_error"] = str(exc)
         out["raw"] = resp.text[:300]
@@ -121,7 +123,9 @@ def main() -> None:
             result = turn(client, key, history, prompt, session_id)
             session_id = result.get("session_id") or session_id
             history.append({"role": "user", "content": prompt})
-            history.append({"role": "assistant", "content": result.get("reply") or word})
+            history.append(
+                {"role": "assistant", "content": result.get("reply") or word}
+            )
             label = "cold" if index == 0 and not args.session else "warm-candidate"
             print(json.dumps({"turn": index + 1, "label": label, **result}))
 

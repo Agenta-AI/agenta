@@ -330,8 +330,8 @@ needs them.
   deferred to the pool-refactor slice). The in-flight registry now tracks environments and
   destroyInFlightSandboxes(timeout, reason) runs the full idempotent destroy. Wrapper pause()
   now waits out transitional states with the shared bounded helper, stops a settled running
-  sandbox, succeeds on stopped/archived/destroyed/error/missing, throws on timeout (caller
-  falls back to delete). Gates: typecheck green, 854 pass + 2 baseline.
+  sandbox, succeeds on stopped/archived/destroyed/missing, throws on the error state and on
+  timeout (caller falls back to delete). Gates: typecheck green, 854 pass + 2 baseline.
 
 Slice 1 is COMPLETE (runtime behavior unchanged, park inert). Next: commit Slice 1 to the lane
 under BUT-LOCK, then Slice 2.
