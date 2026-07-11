@@ -24,12 +24,10 @@ function defaultLog(msg: string): void {
  */
 export interface StoredSandboxPointer {
   sandboxId: string;
-  fingerprint: string | undefined;
 }
 
 export interface SandboxPointerWrite {
   sandboxId: string;
-  fingerprint: string | undefined;
   turnIndex: number;
 }
 
@@ -51,19 +49,11 @@ export async function readStoredSandboxPointer(
     const body = (await res.json()) as {
       session_state?: {
         sandbox_id?: string | null;
-        sandbox_fingerprint?: string | null;
       } | null;
     };
     const id = body.session_state?.sandbox_id;
     if (typeof id !== "string" || id.length === 0) return undefined;
-    const fingerprint = body.session_state?.sandbox_fingerprint;
-    return {
-      sandboxId: id,
-      fingerprint:
-        typeof fingerprint === "string" && fingerprint.length > 0
-          ? fingerprint
-          : undefined,
-    };
+    return { sandboxId: id };
   } catch (err) {
     log(
       `read failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
@@ -92,7 +82,6 @@ export async function writeSandboxPointer(
         headers: { "content-type": "application/json", authorization: deps.authorization },
         body: JSON.stringify({
           sandbox_id: pointer.sandboxId,
-          sandbox_fingerprint: pointer.fingerprint ?? null,
           sandbox_turn_index: pointer.turnIndex,
         }),
       },
@@ -130,7 +119,6 @@ export async function clearSandboxPointer(
         headers: { "content-type": "application/json", authorization: deps.authorization },
         body: JSON.stringify({
           sandbox_id: null,
-          sandbox_fingerprint: null,
           sandbox_turn_index: turnIndex,
         }),
       },

@@ -96,10 +96,6 @@ class SessionStateUpsertRequest(BaseModel):
         default=None,
         description="Remote sandbox id to record alongside the continuity state.",
     )
-    sandbox_fingerprint: Optional[str] = Field(
-        default=None,
-        description="Fingerprint of the sandbox create specification.",
-    )
     sandbox_turn_index: Optional[int] = Field(
         default=None,
         description=(

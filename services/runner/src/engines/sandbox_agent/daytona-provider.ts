@@ -1,5 +1,4 @@
 import { Daytona, DaytonaNotFoundError, type Sandbox } from "@daytonaio/sdk";
-import { createHash } from "node:crypto";
 import { daytona, type DaytonaProviderOptions } from "sandbox-agent/daytona";
 
 type DaytonaClient = Pick<Daytona, "get">;
@@ -48,6 +47,68 @@ function stateOf(sandbox: Sandbox): string {
   return String(sandbox.state ?? "unknown").toLowerCase();
 }
 
+/**
+ * The egress policy a sandbox should be running under, in a form both the create spec and the
+ * live sandbox map onto so the two can be compared. `block` is block-all, `allow` is a
+ * comma-separated CIDR allow list, `open` is unrestricted.
+ */
+type NetworkPolicy =
+  | { mode: "block" }
+  | { mode: "allow"; list: string }
+  | { mode: "open" };
+
+/** Normalize a comma-separated CIDR list so order and spacing do not read as a difference. */
+function normalizeAllowList(raw: string): string {
+  return raw
+    .split(",")
+    .map((cidr) => cidr.trim())
+    .filter((cidr) => cidr.length > 0)
+    .sort()
+    .join(",");
+}
+
+/** Read the desired policy off the resolved create fields (`daytonaNetworkFields` writes these). */
+function policyFromCreate(create: unknown): NetworkPolicy {
+  const fields = (create ?? {}) as {
+    networkBlockAll?: unknown;
+    networkAllowList?: unknown;
+  };
+  if (fields.networkBlockAll === true) return { mode: "block" };
+  if (typeof fields.networkAllowList === "string" && fields.networkAllowList.length > 0) {
+    return { mode: "allow", list: normalizeAllowList(fields.networkAllowList) };
+  }
+  return { mode: "open" };
+}
+
+/** Read the policy a live sandbox is currently enforcing from the fields Daytona populates. */
+function policyFromSandbox(sandbox: Sandbox): NetworkPolicy {
+  if (sandbox.networkBlockAll === true) return { mode: "block" };
+  if (typeof sandbox.networkAllowList === "string" && sandbox.networkAllowList.length > 0) {
+    return { mode: "allow", list: normalizeAllowList(sandbox.networkAllowList) };
+  }
+  return { mode: "open" };
+}
+
+function policiesMatch(a: NetworkPolicy, b: NetworkPolicy): boolean {
+  if (a.mode !== b.mode) return false;
+  if (a.mode === "allow" && b.mode === "allow") return a.list === b.list;
+  return true;
+}
+
+/** Translate a desired policy into the `updateNetworkSettings` payload that produces it. */
+function updatePayloadFor(policy: NetworkPolicy): {
+  networkBlockAll?: boolean;
+  networkAllowList?: string;
+} {
+  if (policy.mode === "block") return { networkBlockAll: true };
+  if (policy.mode === "allow") {
+    // `networkBlockAll: false` clears a prior block; `networkAllowList` sets the ranges.
+    return { networkBlockAll: false, networkAllowList: policy.list };
+  }
+  // open: clear both the block and any stored allow list.
+  return { networkBlockAll: false };
+}
+
 async function waitForStableState(
   sandbox: Sandbox,
   sandboxId: string,
@@ -84,6 +145,42 @@ export function daytonaWithLifecycle(
 ) {
   const client = dependencies.client ?? new Daytona();
   const baseProvider = (dependencies.buildBaseProvider ?? daytona)(options);
+  // The egress policy this run wants. `create` is always a resolved object on our call path
+  // (buildSandboxProvider); the lazy-function form the vendored type allows is not used here, so
+  // a function create degrades to "open" and skips convergence rather than guessing.
+  const desiredPolicy = policyFromCreate(
+    typeof options.create === "function" ? undefined : options.create,
+  );
+
+  /**
+   * Converge a reconnected sandbox to the run's current network policy. Daytona's
+   * `updateNetworkSettings` applies the same runner-side iptables mechanism as create, so a parked
+   * sandbox picks up a policy change without a rebuild. Best-effort: a failed update leaves the
+   * prior policy and logs, rather than aborting the reconnect.
+   */
+  const syncNetworkPolicy = async (sandbox: Sandbox, sandboxId: string): Promise<void> => {
+    try {
+      await sandbox.refreshData();
+    } catch {
+      // A stale handle still carries the fields fetched by `get`; compare against those.
+    }
+    const live = policyFromSandbox(sandbox);
+    if (policiesMatch(live, desiredPolicy)) return;
+    try {
+      await sandbox.updateNetworkSettings(updatePayloadFor(desiredPolicy));
+      process.stderr.write(
+        `[daytona] network policy converged sandbox=${sandboxId} ` +
+          `from=${live.mode} to=${desiredPolicy.mode}\n`,
+      );
+    } catch (error) {
+      process.stderr.write(
+        `[daytona] network policy convergence failed sandbox=${sandboxId} ` +
+          `to=${desiredPolicy.mode}: ${String(
+            error instanceof Error ? error.message : error,
+          ).slice(0, 200)}\n`,
+      );
+    }
+  };
 
   return {
     ...baseProvider,
@@ -134,9 +231,13 @@ export function daytonaWithLifecycle(
         throw error;
       }
       const state = await waitForStableState(sandbox, sandboxId, "reconnect");
-      if (RUNNING_STATES.has(state)) return;
+      if (RUNNING_STATES.has(state)) {
+        await syncNetworkPolicy(sandbox, sandboxId);
+        return;
+      }
       if (STOPPED_STATES.has(state)) {
         await sandbox.start();
+        await syncNetworkPolicy(sandbox, sandboxId);
         return;
       }
       if (FAILED_STATES.has(state)) {
@@ -154,21 +255,4 @@ export function daytonaWithLifecycle(
       }
     },
   };
-}
-
-/** Hash only resolved create fields that determine whether a Daytona sandbox is reusable. */
-export function createSpecFingerprint(create: Record<string, unknown>): string {
-  const envVars = create.envVars;
-  const canonical = {
-    snapshot: create.snapshot ?? null,
-    image: create.image ?? null,
-    target: create.target ?? null,
-    envVarNames:
-      typeof envVars === "object" && envVars !== null
-        ? Object.keys(envVars).sort()
-        : [],
-    networkBlockAll: create.networkBlockAll ?? null,
-    networkAllowList: create.networkAllowList ?? null,
-  };
-  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }

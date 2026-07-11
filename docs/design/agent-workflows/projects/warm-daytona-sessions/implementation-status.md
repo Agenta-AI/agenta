@@ -37,8 +37,13 @@ folder. Read plan.md first, then open-questions.md.
   autoArchiveInterval and DAYTONA_AUTOARCHIVE); delete timer 30 min; overflow degrades to
   park-to-stopped (no queue, no reject); eviction is stop, never delete; typed teardown
   reasons; capacity admission permits taken before create/restart and released only on
-  confirmed stop/delete; compatibility fingerprint derived from the resolved create spec (not
-  the live pool's configFingerprint, which omits DAYTONA_SNAPSHOT/IMAGE/TARGET).
+  confirmed stop/delete; a stored sandbox pointer is trusted, so a resumed turn reconnects the
+  parked instance by id. Snapshot, image, and target drift is accepted as per-conversation
+  version pinning: an old parked sandbox keeps serving its conversation until an idle gap hits
+  the delete ladder. Network policy is converged at reconnect: the reconnect step reads the
+  live sandbox's networkBlockAll/networkAllowList and calls updateNetworkSettings only when
+  they differ from the run's plan. Environment-variable sync is per-turn delivery work,
+  deferred to the daytona-secret-delivery direction (#5223).
 
 ## HOW to build
 
@@ -81,8 +86,8 @@ pnpm run typecheck and pnpm test both green, then commit, then update this file.
 - Slice 1 (correctness base, everything disabled): provider wrapper pause/reconnect; the two
   package-patch cleanup fixes (failed pause keeps handle so delete fallback works; failed
   reconnect stops the half-started instance); reconnect state machine over Daytona transitional
-  states; teardown by typed reason; guarded+awaited pointer writes (compare-and-set); the
-  compatibility fingerprint from the resolved create spec. Park path stays inert (default
+  states that also converges network policy; teardown by typed reason; guarded+awaited pointer
+  writes (compare-and-set) with a trusted stored pointer. Park path stays inert (default
   teardown stays delete). Unit tests, no live Daytona.
 - Slice 2 (park-to-stopped): wire park path end to end, make stop the default teardown for
   clean resumable turns; timer defaults (stop 15 min, archive configured out entirely, delete
@@ -273,16 +278,27 @@ needs them.
   into Slice 1c: pause waits out transitional states bounded, then stops if running; timeout
   throws so the caller falls back to delete.
 
-## Slice 1b design decisions (pointer guard + fingerprint)
+## Slice 1b design decisions (pointer guard + trusted reconnect)
 
-- Fingerprint storage: NEW nullable String column session_states.sandbox_fingerprint via a
-  small migration in the core_oss chain. Rationale: same writer and lifecycle as sandbox_id;
-  storing it inside the continuity-owned data JSON would be clobbered by continuity's
-  read-modify-write full-replacement PUT at turn end.
+- Trusted pointer: a stored session_states.sandbox_id is authoritative. A resumed turn
+  reconnects that instance by id. There is no create-spec fingerprint and no delete-and-rebuild
+  compatibility check. Snapshot, image, and target drift is accepted as per-conversation
+  version pinning, like a rolling deploy: an old parked sandbox keeps serving its conversation
+  until an idle gap hits the delete ladder.
+- Network policy convergence: reconnect reads the live sandbox's networkBlockAll and
+  networkAllowList and calls Daytona's updateNetworkSettings only when they differ from the
+  run's plan. updateNetworkSettings applies the same runner-side iptables mechanism as create,
+  verified against a live sandbox to take effect on both a running and a restarted instance, so
+  a parked sandbox picks up a policy change without a rebuild. A failed convergence logs and
+  leaves the prior policy rather than aborting the reconnect.
+- Environment variables: per-turn delivery and value rotation are out of scope here and
+  deferred to the daytona-secret-delivery direction (#5223). Create-time env baking is
+  unchanged.
 - Guard: SessionStateUpsert gains optional sandbox_turn_index (guard token). When present and
-  sandbox_id is being set, the DAO updates sandbox_id+sandbox_fingerprint only when
+  sandbox_id is being set, the DAO updates sandbox_id only when
   coalesce((data->>'latest_turn_index')::int, -1) <= sandbox_turn_index (SQL CASE inside the
-  ON CONFLICT DO UPDATE). Token absent = exactly today's unconditional behavior.
+  ON CONFLICT DO UPDATE). Token absent = exactly today's unconditional behavior. The guard uses
+  only pre-existing columns.
 - KNOWN LIMITATION (documented on purpose): two concurrent turns of the same conversation both
   carry the same next turn index (continuity assigns latest+1 to both), so the CAS cannot
   order THAT race; it closes the older-write-lands-last window (a turn older than the last
@@ -291,24 +307,19 @@ needs them.
 - Runner detects a rejected write by comparing the returned row's sandbox_id with its own (no
   extra wire field needed).
 
-- Slice 1b DONE: sessions-API pointer guard + compatibility fingerprint.
-  API: migration oss000000011_add_session_state_sandbox_fingerprint.py (nullable String
-  column); SessionState/SessionStateUpsert DTOs + SessionStateUpsertRequest gain
-  sandbox_fingerprint and sandbox_turn_index; DAO set_session_state applies sandbox_id and
-  sandbox_fingerprint under a CASE CAS (coalesce((data->>'latest_turn_index')::int,-1) <=
-  token) when the token is present, unconditional otherwise; dbes.py + mappings.py updated;
-  acceptance tests extended (need a live stack; run in the QA phase).
+- Slice 1b DONE: sessions-API pointer guard + trusted reconnect.
+  API: SessionStateUpsert DTO + SessionStateUpsertRequest gain sandbox_turn_index; DAO
+  set_session_state applies sandbox_id under a CASE CAS
+  (coalesce((data->>'latest_turn_index')::int,-1) <= token) when the token is present,
+  unconditional otherwise; mappings.py degrades corrupt data JSON to None instead of raising;
+  acceptance tests cover the guard (apply at latest turn, stale reject, tokenless
+  unconditional, missing-row create).
   Runner: sandbox-reconnect.ts now readStoredSandboxPointer/writeSandboxPointer (awaited,
   outcome applied/rejected/failed, never throws); daytona-provider.ts gains deleteSandbox(id)
-  and createSpecFingerprint (sha256 over snapshot/image/target/sorted env NAMES/network
-  fields); provider.ts exports buildResolvedDaytonaCreate (mirrors the snapshot-suppresses-
-  image rule); engine computes the fingerprint per Daytona request, reconnects ONLY on
-  fingerprint equality (absent stored fingerprint = mismatch), best-effort deletes the old
-  sandbox on mismatch, and the pointer write moved AFTER continuity hydrate +
-  nextTurnIndex so the guard token is correct after a cold runner restart. Deps seams renamed
-  (readStoredSandboxPointer/writeSandboxPointer).
-  Gates: runner typecheck green, tests 851 pass + the 2 baseline failures; api unit
-  session_states 14/14; ruff clean (codex ran it).
+  and converges network policy inside reconnect via updateNetworkSettings; the engine trusts a
+  stored pointer and reconnects by id, and the pointer write moved AFTER continuity hydrate +
+  nextTurnIndex so the guard token is correct after a cold runner restart.
+  Gates: runner typecheck green, unit suite pass; ruff clean.
 
 - Slice 1c DONE: typed teardown reasons + pause transitional fix. New
   src/engines/sandbox_agent/teardown.ts (TeardownReason 7 values, teardownDisposition,
@@ -332,8 +343,7 @@ sandbox-reconnect.ts, sandbox_agent.ts (SHARED with fix/sessions-continuity-revi
 patches/sandbox-agent@0.4.2.patch, pnpm-lock.yaml, tests/unit/daytona-provider.test.ts (new),
 teardown.test.ts (new), sandbox-reconnect.test.ts, sandbox-lifecycle.test.ts (SHARED),
 vendored-pause-fallback.test.ts (SHARED new file).
-API: migrations/core_oss/versions/oss000000011_add_session_state_sandbox_fingerprint.py (new),
-core/sessions/states/dtos.py, dbs/postgres/sessions/states/dao.py, dbes.py, mappings.py
+API: core/sessions/states/dtos.py, dbs/postgres/sessions/states/dao.py, mappings.py
 (SHARED), apis/fastapi/sessions/models.py (SHARED),
 tests/pytest/acceptance/session_states/test_session_states_basics.py.
 Docs: docs/design/agent-workflows/projects/warm-daytona-sessions/implementation-status.md.
@@ -490,21 +500,15 @@ driver docs/design/agent-workflows/projects/qa/scripts/warm_daytona_probe.py via
   replaced the 5.2 s session create on the same instance.
 - One instance (13dc0390) served all three turns. Window expiry confirmed as a STOP (Daytona
   state stopped, never deleted). SIGTERM drain (docker restart) stopped the idle parked
-  sandbox (destroyAll count=1). Guarded pointer writes logged "applied"; the
-  fingerprint-matched reconnect used mode=reconnect. A history-mismatch second turn (probe
-  initially sent no conversation history) correctly evicted and rebuilt cold, and its
-  replaced sandbox was deleted by the compatibility teardown.
+  sandbox (destroyAll count=1). Guarded pointer writes logged "applied"; the trusted-pointer
+  reconnect used mode=reconnect. A history-mismatch second turn (probe initially sent no
+  conversation history) correctly rebuilt the harness session cold on the same instance.
 - Leaks: zero. Sandboxes counted before (0) and after; the two stopped leftovers were
   explicitly deleted; final count 0.
 
-OPERATIONAL FINDING (matters for every deployment): the dev API hot-reloads code but does
-NOT auto-run alembic migrations. With the code deployed and the column missing, EVERY
-session_states read and write errors and intercept_exceptions masks it as empty (count 0),
-which silently degrades sessions continuity AND makes every pointer write report
-"rejected". Fixed on the dev stack by running the core_oss chain inside the api container:
-  docker exec <api> python -c "from oss.databases.postgres.migrations.core_oss.utils import
-  run_alembic_migration; run_alembic_migration()"
-(alembic_version_oss now oss000000011). The PR body must call out the migration.
+SCHEMA NOTE: the turn-index guard uses only pre-existing session_states columns (sandbox_id
+and the data JSON's latest_turn_index), so this feature adds no migration. A stored sandbox
+pointer carries no extra fields.
 
 ## QA phase DONE
 
@@ -512,8 +516,7 @@ which silently degrades sessions continuity AND makes every pointer write report
   parked sandbox was deleted afterwards; final Daytona sandbox count 0.
 - Browser playground check (debug-local-deployment flow, subagent): login PASS, playground
   renders PASS, one LOCAL chat turn PASS (real reply, no Daytona touched), console/API logs
-  clean during the window. The only session_states/sandbox_fingerprint API errors predate
-  the migration fix (16:06-16:07Z) and never recurred. Stack as healthy as before.
+  clean during the window. Stack as healthy as before.
 
 ## Docs and config sync DONE (working tree)
 

@@ -11,11 +11,7 @@ import assert from "node:assert/strict";
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
-import {
-  createSpecFingerprint,
-  DaytonaReconnectTerminalError,
-} from "../../src/engines/sandbox_agent/daytona-provider.ts";
-import { buildResolvedDaytonaCreate } from "../../src/engines/sandbox_agent/provider.ts";
+import { DaytonaReconnectTerminalError } from "../../src/engines/sandbox_agent/daytona-provider.ts";
 import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
 
 interface FakeOpts {
@@ -40,7 +36,6 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     paused: 0,
     destroyed: 0,
     disposed: 0,
-    deleted: [] as string[],
     wrote: [] as Array<{ sandboxId: string; turnIndex: number }>,
     cleared: [] as Array<{ sessionId: string; turnIndex: number }>,
     logs: [] as string[],
@@ -97,9 +92,7 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     buildSandboxProvider: () =>
       ({
         provider: true,
-        deleteSandbox: async (id: string) => {
-          calls.deleted.push(id);
-        },
+        deleteSandbox: async () => {},
       }) as any,
     createPersist: () => ({}) as any,
     sessionContinuityStore: continuityStore,
@@ -161,14 +154,7 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     }),
     // Lifecycle seam under test:
     readStoredSandboxPointer: async () =>
-      sandboxId
-        ? {
-            sandboxId,
-            fingerprint: createSpecFingerprint(
-              buildResolvedDaytonaCreate({}, {}, undefined),
-            ),
-          }
-        : undefined,
+      sandboxId ? { sandboxId } : undefined,
     clearSandboxPointer: async (sessionId, turnIndex) => {
       calls.cleared.push({ sessionId, turnIndex });
       return "applied";
@@ -305,33 +291,16 @@ describe("remote sandbox reconnect ladder", () => {
     assert.deepEqual(calls.wrote, [{ sandboxId: "sbx-99", turnIndex: 6 }]);
   });
 
-  it("does not reconnect and deletes best-effort when the fingerprint is absent", async () => {
-    const { calls, deps } = fakeSandbox("sbx-legacy");
-    deps.readStoredSandboxPointer = async () => ({
-      sandboxId: "sbx-legacy",
-      fingerprint: undefined,
-    });
+  it("trusts a stored pointer and reconnects by id without a compatibility check", async () => {
+    const { calls, deps } = fakeSandbox("sbx-trusted");
 
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
 
-    assert.equal(calls.starts[0].sandboxId, undefined);
-    assert.deepEqual(calls.deleted, ["sbx-legacy"]);
+    assert.equal(calls.starts.length, 1, "no delete-and-rebuild, a single reconnect");
+    assert.equal(calls.starts[0].sandboxId, "sbx-trusted");
     assert.ok(
-      calls.logs.some((message) => message.includes("compatibility teardown")),
+      !calls.logs.some((message) => message.includes("compatibility teardown")),
     );
-  });
-
-  it("does not reconnect when the stored fingerprint differs", async () => {
-    const { calls, deps } = fakeSandbox("sbx-incompatible");
-    deps.readStoredSandboxPointer = async () => ({
-      sandboxId: "sbx-incompatible",
-      fingerprint: "different-fingerprint",
-    });
-
-    await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
-
-    assert.equal(calls.starts[0].sandboxId, undefined);
-    assert.deepEqual(calls.deleted, ["sbx-incompatible"]);
   });
 
   it("awaits a rejected pointer write and logs the outcome without failing", async () => {

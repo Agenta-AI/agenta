@@ -212,7 +212,6 @@ class TestSessionStatesBasics:
             json={
                 "data": {"latest_turn_index": 2},
                 "sandbox_id": "sbx-old",
-                "sandbox_fingerprint": "fingerprint-old",
             },
         )
 
@@ -222,7 +221,6 @@ class TestSessionStatesBasics:
             params={"session_id": session_id},
             json={
                 "sandbox_id": "sbx-new",
-                "sandbox_fingerprint": "fingerprint-new",
                 "sandbox_turn_index": 2,
             },
         )
@@ -230,7 +228,6 @@ class TestSessionStatesBasics:
         assert response.status_code == 200
         state = response.json()["session_state"]
         assert state["sandbox_id"] == "sbx-new"
-        assert state["sandbox_fingerprint"] == "fingerprint-new"
 
     def test_stale_guarded_pointer_write_returns_unchanged_row(self, authed_api):
         session_id = str(uuid.uuid4())
@@ -241,7 +238,6 @@ class TestSessionStatesBasics:
             json={
                 "data": {"latest_turn_index": 3},
                 "sandbox_id": "sbx-current",
-                "sandbox_fingerprint": "fingerprint-current",
             },
         )
 
@@ -251,7 +247,6 @@ class TestSessionStatesBasics:
             params={"session_id": session_id},
             json={
                 "sandbox_id": "sbx-stale",
-                "sandbox_fingerprint": "fingerprint-stale",
                 "sandbox_turn_index": 2,
             },
         )
@@ -259,7 +254,6 @@ class TestSessionStatesBasics:
         assert response.status_code == 200
         state = response.json()["session_state"]
         assert state["sandbox_id"] == "sbx-current"
-        assert state["sandbox_fingerprint"] == "fingerprint-current"
         assert state["data"]["latest_turn_index"] == 3
 
     def test_tokenless_pointer_write_remains_unconditional(self, authed_api):
@@ -271,7 +265,6 @@ class TestSessionStatesBasics:
             json={
                 "data": {"latest_turn_index": 4},
                 "sandbox_id": "sbx-old",
-                "sandbox_fingerprint": "fingerprint-old",
             },
         )
 
@@ -281,33 +274,11 @@ class TestSessionStatesBasics:
             params={"session_id": session_id},
             json={
                 "sandbox_id": "sbx-tokenless",
-                "sandbox_fingerprint": "fingerprint-tokenless",
             },
         )
 
         state = response.json()["session_state"]
         assert state["sandbox_id"] == "sbx-tokenless"
-        assert state["sandbox_fingerprint"] == "fingerprint-tokenless"
-
-    def test_sandbox_fingerprint_round_trips_with_sandbox_id(self, authed_api):
-        session_id = str(uuid.uuid4())
-        authed_api(
-            "PUT",
-            "/sessions/states/",
-            params={"session_id": session_id},
-            json={
-                "sandbox_id": "sbx-fingerprint",
-                "sandbox_fingerprint": "fingerprint-123",
-            },
-        )
-
-        response = authed_api(
-            "GET", "/sessions/states/", params={"session_id": session_id}
-        )
-
-        state = response.json()["session_state"]
-        assert state["sandbox_id"] == "sbx-fingerprint"
-        assert state["sandbox_fingerprint"] == "fingerprint-123"
 
     def test_guarded_pointer_write_creates_missing_row(self, authed_api):
         session_id = str(uuid.uuid4())
@@ -317,7 +288,6 @@ class TestSessionStatesBasics:
             params={"session_id": session_id},
             json={
                 "sandbox_id": "sbx-first",
-                "sandbox_fingerprint": "fingerprint-first",
                 "sandbox_turn_index": 7,
             },
         )
@@ -325,5 +295,4 @@ class TestSessionStatesBasics:
         assert response.status_code == 200
         state = response.json()["session_state"]
         assert state["sandbox_id"] == "sbx-first"
-        assert state["sandbox_fingerprint"] == "fingerprint-first"
         assert state.get("data") is None

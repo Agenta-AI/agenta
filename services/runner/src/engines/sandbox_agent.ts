@@ -119,14 +119,8 @@ import {
   teardownDisposition,
   type TeardownReason,
 } from "./sandbox_agent/teardown.ts";
-import {
-  buildResolvedDaytonaCreate,
-  buildSandboxProvider,
-} from "./sandbox_agent/provider.ts";
-import {
-  createSpecFingerprint,
-  DaytonaReconnectTerminalError,
-} from "./sandbox_agent/daytona-provider.ts";
+import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
+import { DaytonaReconnectTerminalError } from "./sandbox_agent/daytona-provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
@@ -961,15 +955,6 @@ export async function acquireEnvironment(
       plan.secrets,
       plan.sandboxPermission,
     );
-    const sandboxFingerprint = plan.isDaytona
-      ? createSpecFingerprint(
-          buildResolvedDaytonaCreate(
-            piExtEnv,
-            plan.secrets,
-            plan.sandboxPermission,
-          ),
-        )
-      : undefined;
     const startOptions = {
       sandbox: sandboxProvider,
       persist,
@@ -982,7 +967,9 @@ export async function acquireEnvironment(
         ? (deps.createCookieFetch ?? createCookieFetch)()
         : (deps.createAcpFetch ?? createAcpFetch)(),
     };
-    // Reconnect a parked remote sandbox by id; any failure falls through to a fresh create.
+    // A stored sandbox id is trusted: reconnect it by id and let reconnect converge its network
+    // policy to this run's plan. Any reconnect failure falls through to a fresh create. Snapshot
+    // and image drift are accepted as per-conversation version pinning, not grounds for a rebuild.
     const storedSandboxPointer =
       plan.isDaytona && sessionForMount && runCred
         ? await (deps.readStoredSandboxPointer ?? readStoredSandboxPointer)(
@@ -990,10 +977,7 @@ export async function acquireEnvironment(
             { authorization: runCred, log: logger },
           )
         : undefined;
-    if (
-      storedSandboxPointer &&
-      storedSandboxPointer.fingerprint === sandboxFingerprint
-    ) {
+    if (storedSandboxPointer) {
       const sandboxStartStartedAt = Date.now();
       try {
         environment.sandbox = await startSandboxAgent({
@@ -1026,24 +1010,6 @@ export async function acquireEnvironment(
       } finally {
         timingLog("sandbox_start", sandboxStartStartedAt, " mode=reconnect");
       }
-    }
-    if (
-      storedSandboxPointer &&
-      storedSandboxPointer.fingerprint !== sandboxFingerprint
-    ) {
-      logger(
-        `compatibility teardown sandbox=${storedSandboxPointer.sandboxId} session=${sessionForMount}`,
-      );
-      const lifecycleProvider = sandboxProvider as typeof sandboxProvider & {
-        deleteSandbox?: (sandboxId: string) => Promise<void>;
-      };
-      await lifecycleProvider
-        .deleteSandbox?.(storedSandboxPointer.sandboxId)
-        .catch((err) =>
-          logger(
-            `compatibility teardown failed sandbox=${storedSandboxPointer.sandboxId}: ${conciseError(err, plan.harness)}`,
-          ),
-        );
     }
     if (!environment.sandbox) {
       const sandboxStartStartedAt = Date.now();
@@ -1255,7 +1221,6 @@ export async function acquireEnvironment(
         sessionForMount,
         {
           sandboxId: liveSandboxId,
-          fingerprint: sandboxFingerprint,
           turnIndex: environment.continuityTurnIndex ?? 0,
         },
         { authorization: runCred, log: logger },

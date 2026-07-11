@@ -78,7 +78,6 @@ class SessionStatesDAO(SessionStatesDAOInterface):
             "session_id": session_id,
             "data": data_json,
             "sandbox_id": upsert.sandbox_id,
-            "sandbox_fingerprint": upsert.sandbox_fingerprint,
             "flags": SessionStateFlags().model_dump(mode="json"),
             "created_at": now,
             "updated_at": None,
@@ -113,15 +112,6 @@ class SessionStatesDAO(SessionStatesDAOInterface):
             )
         elif "sandbox_id" in upsert.model_fields_set:
             update_values["sandbox_id"] = stmt.excluded.sandbox_id
-        if "sandbox_fingerprint" in upsert.model_fields_set:
-            update_values["sandbox_fingerprint"] = (
-                case(
-                    (pointer_write_allowed, stmt.excluded.sandbox_fingerprint),
-                    else_=SessionStateDBE.sandbox_fingerprint,
-                )
-                if guarded_pointer_write
-                else stmt.excluded.sandbox_fingerprint
-            )
 
         stmt = stmt.on_conflict_do_update(
             constraint="uq_session_states_project_session_id",

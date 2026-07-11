@@ -32,15 +32,11 @@ describe("readStoredSandboxPointer", () => {
         okResponse({
           session_state: {
             sandbox_id: "sbx-42",
-            sandbox_fingerprint: "fingerprint-42",
           },
         })) as unknown as typeof fetch,
       log: SILENT,
     });
-    assert.deepEqual(pointer, {
-      sandboxId: "sbx-42",
-      fingerprint: "fingerprint-42",
-    });
+    assert.deepEqual(pointer, { sandboxId: "sbx-42" });
   });
 
   it("returns undefined when the row has no sandbox_id", async () => {
@@ -103,7 +99,6 @@ describe("clearSandboxPointer", () => {
 
     assert.deepEqual(body, {
       sandbox_id: null,
-      sandbox_fingerprint: null,
       sandbox_turn_index: 7,
     });
     assert.equal(outcome, "applied");
@@ -115,7 +110,6 @@ describe("writeSandboxPointer", () => {
     let body: Record<string, unknown> | undefined;
     const outcome = await writeSandboxPointer("sess-1", {
       sandboxId: "sbx-42",
-      fingerprint: "fingerprint-42",
       turnIndex: 3,
     }, {
       apiBase: "http://api:8000",
@@ -128,34 +122,14 @@ describe("writeSandboxPointer", () => {
     });
     assert.deepEqual(body, {
       sandbox_id: "sbx-42",
-      sandbox_fingerprint: "fingerprint-42",
       sandbox_turn_index: 3,
     });
     assert.equal(outcome, "applied");
   });
 
-  it("clears the fingerprint for a local pointer", async () => {
-    let body: Record<string, unknown> | undefined;
-    await writeSandboxPointer("sess-1", {
-      sandboxId: "local",
-      fingerprint: undefined,
-      turnIndex: 4,
-    }, {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey abc",
-      fetchImpl: (async (_url: string, init?: RequestInit) => {
-        body = JSON.parse(init!.body as string);
-        return okResponse({ session_state: { sandbox_id: "local" } });
-      }) as unknown as typeof fetch,
-      log: SILENT,
-    });
-    assert.equal(body?.sandbox_fingerprint, null);
-  });
-
   it("returns rejected when the response keeps another sandbox id", async () => {
     const outcome = await writeSandboxPointer("sess-1", {
       sandboxId: "sbx-stale",
-      fingerprint: "fingerprint-stale",
       turnIndex: 1,
     }, {
       apiBase: "http://api:8000",
@@ -169,7 +143,7 @@ describe("writeSandboxPointer", () => {
 
   it("never throws when the PUT fails", async () => {
     await assert.doesNotReject(() =>
-      writeSandboxPointer("sess-1", { sandboxId: "sbx-42", fingerprint: undefined, turnIndex: 0 }, {
+      writeSandboxPointer("sess-1", { sandboxId: "sbx-42", turnIndex: 0 }, {
         apiBase: "http://api:8000",
         authorization: "ApiKey abc",
         fetchImpl: (async () => errResponse(503)) as unknown as typeof fetch,
@@ -180,7 +154,7 @@ describe("writeSandboxPointer", () => {
 
   it("never throws when fetch throws", async () => {
     await assert.doesNotReject(() =>
-      writeSandboxPointer("sess-1", { sandboxId: "sbx-42", fingerprint: undefined, turnIndex: 0 }, {
+      writeSandboxPointer("sess-1", { sandboxId: "sbx-42", turnIndex: 0 }, {
         apiBase: "http://api:8000",
         authorization: "ApiKey abc",
         fetchImpl: (async () => {

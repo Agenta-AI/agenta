@@ -38,7 +38,6 @@ def dbe_to_dto(dbe: SessionStateDBE) -> SessionState:
         session_id=dbe.session_id,
         data=data,
         sandbox_id=dbe.sandbox_id,
-        sandbox_fingerprint=dbe.sandbox_fingerprint,
         flags=SessionStateFlags.model_validate(dbe.flags)
         if dbe.flags
         else SessionStateFlags(),

@@ -90,17 +90,6 @@ export function buildDaytonaCreate(
   };
 }
 
-/** Resolve the create-time fields used to decide whether an existing sandbox is compatible. */
-export function buildResolvedDaytonaCreate(
-  piExtEnv: Record<string, string>,
-  secrets: Record<string, string>,
-  sandboxPermission: SandboxPermission | undefined,
-): Record<string, unknown> {
-  const create = buildDaytonaCreate(piExtEnv, secrets, sandboxPermission);
-  const image = process.env.DAYTONA_IMAGE;
-  return image && !create.snapshot ? { ...create, image } : create;
-}
-
 /** Sandbox ids this runner can actually provision (the "expected one of" set). */
 export const KNOWN_SANDBOX_IDS = ["local", "daytona"] as const;
 
