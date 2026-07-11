@@ -258,7 +258,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             ) : (
                                 <div className="flex min-w-0 flex-col">
                                     <Typography.Text className="!text-[13px] !font-semibold">
-                                        {`${step + 1}. `}
+                                        <span className="text-colorPrimary">{`${step + 1}. `}</span>
                                         {fields[step].label}
                                         {fields[step].required && (
                                             <span className="text-red-500 ml-1">*</span>
