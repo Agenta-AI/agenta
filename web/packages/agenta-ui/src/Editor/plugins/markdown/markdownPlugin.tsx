@@ -52,7 +52,20 @@ const MATCHERS = [
     createLinkMatcherWithRegExp(EMAIL_REGEX, (text) => {
         return `mailto:${text}`
     }),
-]
+].map((matcher) => {
+    return (text: string) => {
+        const result = matcher(text)
+        return result
+            ? {
+                  ...result,
+                  attributes: {
+                      rel: "noopener noreferrer",
+                      target: "_blank",
+                  },
+              }
+            : null
+    }
+})
 
 const MARKDOWN_VIEW_TOGGLE_UPDATE_TAG = "agenta:markdown-view-toggle"
 
@@ -542,7 +555,7 @@ const MarkdownPlugin = ({
             <HorizontalRulePlugin />
             <TablePlugin />
             <TableCellResizerPlugin />
-            <LexicalLinkPlugin />
+            <LexicalLinkPlugin hasLinkAttributes={true} />
         </>
     )
 }
