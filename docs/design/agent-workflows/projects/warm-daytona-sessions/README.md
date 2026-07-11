@@ -39,14 +39,13 @@ A few words you will meet throughout, defined once:
 ## The recommendation, in one paragraph
 
 Build the whole ladder in slices, each shippable on its own. First the correctness base (the two
-missing Daytona provider functions plus the leak and race fixes two design-review rounds found,
-gated behind a default-off flag from the start), then park-to-stopped (stop the sandbox at turn
-end instead of deleting it; parked cost is disk storage only, about $0.0009/hour), then a refactor
-that makes the existing local keepalive pool provider-aware, then park-to-running (keep the
-sandbox running for a short window after each turn, default 60 seconds with a hard cap of 4
-concurrently running sandboxes enforced before creation, about $0.0028 per parked minute), and
-finally credit-controlled live verification before any flag flips on. The measurements behind
-this order: creating a Daytona sandbox takes about 1 second of a measured ~15-second turn; the
+missing Daytona provider functions plus the leak and race fixes), then park-to-stopped (stop the
+sandbox at turn end instead of deleting it; parked cost is disk storage only, about $0.0009/hour),
+then a refactor that makes the existing local keepalive pool provider-aware, then park-to-running
+(keep the sandbox running for two minutes after each turn, with a hard cap of 20 warm sandboxes,
+about $0.0028 per parked minute), and finally credit-controlled live verification before the
+defaults change. The finished feature has no feature flags; the off switch is configuration
+(setting the live window to zero). The measurements behind this order: creating a Daytona sandbox takes about 1 second of a measured ~15-second turn; the
 rest is our own per-turn setup, stage by stage in research.md, and only a sandbox that stays
 running skips it (a resumed turn is roughly 2 to 3 seconds, estimated). The archive state is
 dropped entirely (restoring from archive is slower than creating fresh). Today's always-correct

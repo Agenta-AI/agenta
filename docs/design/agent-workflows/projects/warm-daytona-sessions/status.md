@@ -30,32 +30,40 @@ the organization before and after). Its numbers are in research.md and reshaped 
 - **Park-to-running is in the main line, not deferred** (Mahmoud, 2026-07-11). The plan is one
   progressive sequence of slices ending with park-to-running. Rationale: the measurement shows
   only a running sandbox removes the per-turn pipeline, and the compute cost that justified
-  deferral is small and bounded ($0.0028 per parked minute; worst case about $0.67/hour at the
-  default cap of 4).
+  deferral is small and bounded ($0.0028 per parked minute, capped).
 - **Reuse the local keepalive pool logic, refactored provider-aware** (Mahmoud, 2026-07-11).
   Per-provider operator config plus an engine-owned lifecycle adapter; one `SessionPool` instance
   per provider; local semantics preserved. No second pooling mechanism.
-- **Billing knobs are configuration with conservative defaults, not deferral reasons**
-  (Mahmoud, 2026-07-11). `AGENTA_RUNNER_DAYTONA_SESSION_*`: keepalive off until verification,
-  idle window 60 seconds, cap 4.
-- **The Daytona running cap is enforced by admission before creation, not by the pool**
-  (review round 2, 2026-07-11). Permits are taken before create and before a reconnect's start,
-  released only on a confirmed stop or delete; eviction is awaited; Daytona never gets the local
-  "run unparked best-effort" behavior.
+- **No feature flags in the finished feature; the time-to-live is the off switch** (Mahmoud, PR
+  review 2026-07-11). `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` default 120000 (two minutes,
+  raised from the proposed 60 seconds); 0 disables keeping sandboxes running. No
+  `KEEPALIVE_ENABLED` variable. Defaults stay at today's behavior until the Slice 5 verification
+  passes; the final slice changes the defaults.
+- **The cap bounds warm (idle running) sandboxes, never active turns** (Mahmoud, PR review
+  2026-07-11; supersedes review round 2's admission-before-creation shape). Active turns always
+  run; at turn end a session with no free warm slot parks to stopped instead of staying live.
+  `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` default 20 (raised from 4; sized so ~20 parallel
+  conversations stay warm; worst case about $3.33/hour while fully loaded). Slots are counted
+  for parked, reattaching, and stopping entries; a reconnect's start takes a slot first;
+  eviction is awaited; a slot frees only on a confirmed stop or delete; Daytona never gets the
+  local "run unparked best-effort" behavior. Kept separate from the local pool's
+  `SESSION_POOL_MAX` (host memory vs billed compute).
 - **Teardown reasons are typed and travel from the pool into an engine-owned lifecycle function**
   (review round 2). Kill, failed, aborted turns, and mismatches delete; clean resumable turns and
   idle expiries stop; shutdown deletes an in-flight turn and stops an idle one; a failed stop
   escalates to delete; a failed stop plus failed delete keeps the capacity permit consumed until
   reconciliation.
-- **The park-to-stopped feature flag lands in Slice 1, not Slice 2** (review round 2). The run
-  paths already request `keepWarm`, so a real `pause` without the flag would activate parking
-  immediately.
-- **Archive is configured out of the demotion ladder** (measurement, 2026-07-11). The ladder is
-  stop, then delete, with `DAYTONA_AUTOARCHIVE` strictly greater than `DAYTONA_AUTODELETE`
-  (equality would race; interval 0 is unusable because `positiveMinutes()` treats it as unset).
-- **Stop timer proposed at 15 minutes, not 5** (measurement, 2026-07-11). About 4 cents per crash
+- **Slice 1 keeps the park path inert; Slice 2 switches the default teardown to stop** (review
+  round 2, reworked after the no-flags decision). The run paths already request `keepWarm`, so a
+  real `pause` must not land with parking active before its correctness work is verified.
+- **The auto-archive logic is removed entirely** (Mahmoud, PR review 2026-07-11; hardened from
+  "configured out"). The create call drops `autoArchiveInterval` and the `DAYTONA_AUTOARCHIVE`
+  override; Daytona's own 7-day archive default sits far past the 30-minute delete. The ladder
+  is stop, then delete.
+- **Stop timer 15 minutes, confirmed** (Mahmoud, PR review 2026-07-11). About 4 cents per crash
   orphan buys never stopping a sandbox under a live silent turn (the run-limits guard alone
-  allows 300 seconds). Awaiting confirmation (open-questions.md).
+  allows 300 seconds). Env-overridable via `DAYTONA_AUTOSTOP`. The timer resets on every turn,
+  so an active conversation never hits it.
 - **Pending approvals follow the `daytona-gate-delivery` (F-018) resume model.** Below
   park-to-running, a pending approval always takes the cold path (teardown, stored decision,
   reissue on the next turn), because a stopped sandbox kills the waiting process. Holding a gate

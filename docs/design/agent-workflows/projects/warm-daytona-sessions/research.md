@@ -171,8 +171,9 @@ Local (non-Daytona) sessions already get warm reuse from an in-memory pool (`ses
 It is a per-process map from a pool key to a live session, with a size cap and idle reaping. The
 facts that bear on extending it to Daytona:
 
-- The pool key is `<projectId>:<sessionId>`. Without a project scope there is no parking, which is
-  the safe default.
+- The pool key is `<projectId>:<sessionId>`. The project id comes from the service-stamped run
+  context, with the signed mount's owning project as the fallback. Without a project scope from
+  either source there is no parking, which is the safe default.
 - Two idle timers: a plain idle time-to-live (`AGENTA_RUNNER_SESSION_TTL_MS`, default 60s) and an
   approval-wait time-to-live (`AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS`, default 300s). A size cap
   (`AGENTA_RUNNER_SESSION_POOL_MAX`, default 8). An on/off flag
@@ -259,9 +260,9 @@ Three conclusions follow:
    provider level (and today's Daytona path re-uploads Pi assets and rematerializes workspace
    files on every start, so the prepared disk saves less than it could); park-to-running is the
    only level that skips the whole pipeline.
-3. **Parked-running compute is cheap in absolute terms.** $0.0028 per parked minute. A 60-second
-   keep-warm window after each turn costs at most about a third of a cent; a cap of 4 concurrently
-   running parked sandboxes has a worst-case burn of about $0.67/hour.
+3. **Parked-running compute is cheap in absolute terms.** $0.0028 per parked minute. A two-minute
+   keep-warm window after each turn costs at most about half a cent; a cap of 20 concurrently
+   warm sandboxes has a worst-case burn of about $3.33/hour while fully loaded.
 
 Park-to-stopped parks to Stopped: storage cost only, and the delete timer bounds even that.
 Park-to-running parks to Running for a short window: the parked cost is live compute, so its
