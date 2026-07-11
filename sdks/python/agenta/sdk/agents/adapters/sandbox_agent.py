@@ -64,7 +64,6 @@ class SandboxAgentSession(Session):
         config: HarnessAgentTemplate,
         *,
         harness: HarnessType,
-        secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
         session_id: Optional[str],
@@ -73,7 +72,6 @@ class SandboxAgentSession(Session):
         self._sandbox = sandbox
         self._config = config
         self._harness = harness
-        self._secrets = dict(secrets or {})
         self._trace = trace
         self._run_context = run_context
         self._session_id = session_id
@@ -89,7 +87,6 @@ class SandboxAgentSession(Session):
             sandbox=self._sandbox.sandbox_id,
             config=self._config,
             messages=messages,
-            secrets=self._secrets,
             trace=self._trace,
             run_context=self._run_context,
             session_id=self._session_id,
@@ -170,7 +167,6 @@ class SandboxAgentBackend(Backend):
             sandbox,
             config,
             harness=harness,
-            secrets=secrets,
             trace=trace,
             run_context=run_context,
             session_id=session_id,
