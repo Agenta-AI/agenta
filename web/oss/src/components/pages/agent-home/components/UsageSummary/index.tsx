@@ -41,7 +41,7 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
         // Strip-era restyle (TEMPLATE_STRIP_MODE): same behavior, redesigned one-liner.
         return (
             <section className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center gap-[14px] rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] px-[22px] py-[14px]">
+                <div className="flex flex-wrap items-center gap-4 rounded-xl border border-solid border-[var(--ag-strip-card-border)] bg-[var(--ag-strip-card-bg)] px-6 py-5">
                     <div className="flex items-center gap-2">
                         <ChartLineIcon size={17} className="text-[var(--ag-colorTextSecondary)]" />
                         <span className="text-[14.5px] font-semibold text-[var(--ag-colorText)]">
@@ -51,7 +51,7 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                             last 30 days
                         </span>
                     </div>
-                    <div className="ml-2 flex flex-wrap items-center gap-[22px]">
+                    <div className="ml-4 flex flex-wrap items-center gap-8">
                         {stats.map((stat) => (
                             <div
                                 key={stat.label}

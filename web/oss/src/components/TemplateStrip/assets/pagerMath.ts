@@ -29,7 +29,7 @@ export function computePagerState(
     const visible = Math.max(1, Math.min(Math.floor((clientWidth + CARD_GAP) / PER), cardCount))
     const lastFirst = Math.max(cardCount - visible + 1, 1)
     const first = atEnd ? lastFirst : Math.min(Math.round(scrollLeft / PER) + 1, lastFirst)
-    const counterLabel = `${first}-${Math.min(first + visible - 1, cardCount)} of ${cardCount}`
+    const counterLabel = `${first}–${Math.min(first + visible - 1, cardCount)} of ${cardCount}`
     return {atStart, atEnd, counterLabel, showPager: cardCount > visible}
 }
 

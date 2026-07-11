@@ -101,7 +101,7 @@ const StripHome: React.FC = () => {
                     full-width text area reads worse, not better). The hero text is centered so
                     the narrower block reads as a deliberate hero above the full-width sections. */}
                 <div className="mx-auto flex w-full max-w-[840px] flex-col">
-                    <div className="flex flex-col items-center gap-3 text-center">
+                    <div className="flex flex-col items-center gap-4 text-center">
                         <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
                             {HERO.title}
                         </Typography.Title>
@@ -110,9 +110,12 @@ const StripHome: React.FC = () => {
                         </Typography.Text>
                     </div>
 
-                    {/* Chip docks flush above the composer (no gap; the chip has no bottom border). */}
-                    <div className="mt-11 flex flex-col items-stretch">
-                        {provenance.chipNode}
+                    {/* Chip docks flush above the composer (no gap; the chip has no bottom border).
+                        It's absolutely positioned INTO the 44px hero gap (bottom-full), so the
+                        subtitle→composer distance is exactly mt-11 with or without a chip — the
+                        invisible reserved slot no longer inflates the gap. */}
+                    <div className="relative mt-11 flex flex-col items-stretch">
+                        <div className="absolute bottom-full left-0">{provenance.chipNode}</div>
                         <StripComposer
                             composerRef={composerRef}
                             onCreate={handleCreate}

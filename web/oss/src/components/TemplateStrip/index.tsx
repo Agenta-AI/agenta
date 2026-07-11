@@ -238,14 +238,13 @@ const TemplateStrip = ({
 
             {isGrid ? (
                 /* Card page: a full-width 3-up grid — every visible card is whole (no clipped
-                   fourth card), and the window always matches the "X–Y of N" counter. The cards
-                   keep their scroll-strip styling; only the fixed 238px width is overridden so
-                   each card fills its grid cell. */
-                <div className="mt-5 grid grid-cols-3 gap-[18px] [&>button]:!w-full">
+                   fourth card), and the window always matches the "X–Y of N" counter. */
+                <div className="mt-5 grid grid-cols-3 gap-[18px]">
                     {gridItems.map((template) => (
                         <StripCard
                             key={template.key}
                             template={template}
+                            fluid
                             selected={template.key === selectedTemplateKey}
                             onPick={onPick}
                         />

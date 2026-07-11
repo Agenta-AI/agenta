@@ -66,6 +66,9 @@ export interface RichChatInputProps {
     onStop?: () => void
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
+    /** Visual density: `compact` (default, chat) or `comfortable` (hero-scale surfaces) —
+     * pads the editor/footer without forking the component. */
+    size?: "compact" | "comfortable"
     /** Font-size class for the editor text + placeholder (default `text-xs`). */
     textSizeClassName?: string
     /** Hide just the Bold/Italic/Send/Newline shortcut hints (keep prefix + trailing). */
@@ -118,6 +121,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             streaming,
             onStop,
             minHeightClassName = "min-h-[72px]",
+            size = "compact",
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
             submitOnEnter = true,
@@ -173,6 +177,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         )
 
         const overLimit = typeof maxLength === "number" && count > maxLength
+        const comfortable = size === "comfortable"
 
         return (
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
@@ -205,14 +210,16 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             aria-label="Chat message"
                             aria-placeholder={placeholder}
                             className={clsx(
-                                "max-h-40 overflow-y-auto break-words px-3 py-2.5 leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                "max-h-40 overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                comfortable ? "px-5 py-4" : "px-3 py-2.5",
                                 textSizeClassName,
                                 minHeightClassName,
                             )}
                             placeholder={
                                 <div
                                     className={clsx(
-                                        "pointer-events-none absolute left-3 top-2.5 select-none text-[var(--ag-composer-placeholder)]",
+                                        "pointer-events-none absolute select-none text-[var(--ag-composer-placeholder)]",
+                                        comfortable ? "left-5 top-4" : "left-3 top-2.5",
                                         textSizeClassName,
                                     )}
                                 >
@@ -222,7 +229,12 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         />
                     </div>
 
-                    <div className="flex items-center gap-2 px-2 py-1.5">
+                    <div
+                        className={clsx(
+                            "flex items-center gap-2",
+                            comfortable ? "px-4 pb-3 pt-1.5" : "px-2 py-1.5",
+                        )}
+                    >
                         {prefix}
                         {hideShortcutHints ? null : (
                             <div className="flex flex-wrap items-center gap-2.5">

@@ -44,7 +44,8 @@ const StripComposer = ({
             onChange={onTextChange}
             placeholder={STRIP_COPY.describeAgentPlaceholder}
             hideSendButton
-            minHeightClassName="min-h-[112px]"
+            size="comfortable"
+            minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
             className={composerClassName}
             trailing={
