@@ -157,6 +157,8 @@ export interface SessionTagBarProps {
     activeId?: string
     onSelect: (id: string) => void
     onAdd: () => void
+    /** Disable the New session (+) button (e.g. onboarding, until the founding run settles). */
+    addDisabled?: boolean
     onClose: (id: string) => void
     onRename: (id: string, title: string) => void
     /** Right-aligned extras (e.g. the session-history menu). */
@@ -177,6 +179,7 @@ const SessionTagBar = ({
     activeId,
     onSelect,
     onAdd,
+    addDisabled = false,
     onClose,
     onRename,
     extra,
@@ -218,12 +221,19 @@ const SessionTagBar = ({
             {(showSessions || extra) && (
                 <div className="flex shrink-0 items-center gap-1">
                     {showSessions && (
-                        <Tooltip title="New session">
+                        <Tooltip
+                            title={
+                                addDisabled
+                                    ? "Available after your agent's first response"
+                                    : "New session"
+                            }
+                        >
                             <Button
                                 type="text"
                                 aria-label="New session"
                                 icon={<Plus size={14} />}
                                 onClick={onAdd}
+                                disabled={addDisabled}
                                 className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
                             />
                         </Tooltip>

@@ -22,6 +22,8 @@ export interface SidebarConfig {
     isDynamic?: boolean
     isLoading?: boolean
     isPlaceholder?: boolean
+    /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
+    inert?: boolean
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]
 }
@@ -39,7 +41,7 @@ export interface SidebarMenuProps {
 }
 
 export type SidebarSelection =
-    | {mode: "route"}
+    | {mode: "route"; selectedKeyOverride?: string}
     | {mode: "controlled"; selectedKey: string; onSelect: (key: string) => void}
 
 export interface SidebarSlotContext {

@@ -171,7 +171,12 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         }
 
         const match = findSelectedRoute(allItems, currentPath)
-        return {selectedKey: match.selectedKey, routeOpenKeys: match.openKeys}
+        // A scope may pin the selected key (e.g. onboarding shows Home selected while the route is
+        // the ephemeral playground). The override wins over the route match; open keys still follow it.
+        return {
+            selectedKey: selection.selectedKeyOverride ?? match.selectedKey,
+            routeOpenKeys: match.openKeys,
+        }
     }, [allItems, currentPath, selection])
 
     const selectedKeys = useMemo(() => (selectedKey ? [selectedKey] : []), [selectedKey])

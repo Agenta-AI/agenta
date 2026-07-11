@@ -12,11 +12,13 @@ import {
     ListChecksIcon,
     RobotIcon,
 } from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
 import {useCurrentAppLite} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
+import {deadEndNavDisabledAtom, homeNavInertAtom} from "@/oss/state/onboarding"
 
 import {
     AGENTS_SIDEBAR_KEY,
@@ -29,6 +31,7 @@ import {
     useSidebarDynamicChildren,
 } from "../../dynamic/useSidebarDynamicChildren"
 import {SidebarConfig} from "../../engine/types"
+import {HOME_SIDEBAR_KEY} from "../../scopes/constants"
 
 export interface MainSidebarItems {
     projectItems: SidebarConfig[]
@@ -40,6 +43,8 @@ export const useSidebarConfig = (): MainSidebarItems => {
     const {appId: routedAppId, routeLayer} = useAppState()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const dynamicChildren = useSidebarDynamicChildren()
+    const homeNavInert = useAtomValue(homeNavInertAtom)
+    const deadEndNavDisabled = useAtomValue(deadEndNavDisabledAtom)
     const hasProjectURL = Boolean(projectURL)
     const hasAppContext =
         routeLayer === "app" && Boolean(routedAppId || appURL || recentlyVisitedAppURL)
@@ -47,11 +52,14 @@ export const useSidebarConfig = (): MainSidebarItems => {
     const projectItems = useMemo<SidebarConfig[]>(
         () => [
             {
-                key: "app-management-link",
+                key: HOME_SIDEBAR_KEY,
                 title: "Home",
                 link: baseAppURL,
                 icon: <HouseIcon size={14} />,
                 disabled: !hasProjectURL,
+                // During onboarding Home is the current surface; clicking it would only bounce
+                // /apps → /playground, so make it a no-op (mainScope keeps it highlighted).
+                inert: homeNavInert,
             },
             {
                 key: "project-playground-link",
@@ -73,7 +81,9 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Agents",
                 link: `${projectURL}/agents`,
                 icon: <RobotIcon size={14} />,
-                disabled: !hasProjectURL,
+                // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
+                disabled: !hasProjectURL || deadEndNavDisabled,
+                tooltip: deadEndNavDisabled ? "Your agents will appear here" : undefined,
             },
             {
                 key: "evaluation-group",
@@ -101,14 +111,22 @@ export const useSidebarConfig = (): MainSidebarItems => {
                         title: "Evaluation runs",
                         link: `${projectURL}/evaluations`,
                         icon: <FlaskIcon size={14} />,
-                        disabled: !hasProjectURL,
+                        // Needs an app to evaluate — dead-end while onboarding.
+                        disabled: !hasProjectURL || deadEndNavDisabled,
+                        tooltip: deadEndNavDisabled
+                            ? "Available once you have an agent to evaluate"
+                            : undefined,
                     },
                     {
                         key: "project-annotation-queues-link",
                         title: "Annotation Queues",
                         link: `${projectURL}/annotations`,
                         icon: <ListChecksIcon size={14} />,
-                        disabled: !hasProjectURL,
+                        // Needs traces/eval data — dead-end while onboarding.
+                        disabled: !hasProjectURL || deadEndNavDisabled,
+                        tooltip: deadEndNavDisabled
+                            ? "Available once you have data to annotate"
+                            : undefined,
                     },
                 ],
             },
@@ -120,7 +138,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL,
             },
         ],
-        [baseAppURL, hasProjectURL, projectURL],
+        [baseAppURL, deadEndNavDisabled, hasProjectURL, homeNavInert, projectURL],
     )
 
     const appItems = useMemo<SidebarConfig[]>(() => {

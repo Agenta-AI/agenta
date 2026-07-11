@@ -133,6 +133,8 @@ const SessionRailRow = ({
 export interface SessionRailProps {
     /** The resolved active session id (source of truth for the chat), used for row highlight. */
     activeId?: string
+    /** Disable the New session (+) button (e.g. onboarding, until the founding run settles). */
+    addDisabled?: boolean
     className?: string
 }
 
@@ -142,7 +144,7 @@ export interface SessionRailProps {
  * the two stay consistent, and uses the space freed by maximizing to make every past session
  * directly reachable. Clicking a row reopens it as the active tab; rename inline, delete permanently.
  */
-const SessionRail = ({activeId, className}: SessionRailProps) => {
+const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProps) => {
     const scope = useChatScopeKey()
     const history = useAtomValue(sessionHistoryAtomFamily(scope))
     const openIds = useAtomValue(openSessionIdsAtomFamily(scope))
@@ -213,12 +215,17 @@ const SessionRail = ({activeId, className}: SessionRailProps) => {
         >
             <div className="flex h-[48px] shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-[var(--ag-surface-divider)] px-3">
                 <span className="text-xs font-medium text-colorTextSecondary">Sessions</span>
-                <Tooltip title="New session">
+                <Tooltip
+                    title={
+                        addDisabled ? "Available after your agent's first response" : "New session"
+                    }
+                >
                     <Button
                         type="text"
                         aria-label="New session"
                         icon={<Plus size={14} />}
                         onClick={() => addSession()}
+                        disabled={addDisabled}
                         className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
                     />
                 </Tooltip>
