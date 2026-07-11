@@ -77,11 +77,7 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
-import {
-    AddTriggerDropdown,
-    TriggerManagementSection,
-    useAgentTriggers,
-} from "./TriggerManagementSection"
+import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
@@ -967,12 +963,9 @@ export function AgentTemplateControl({
                 edge). Always-visible bodies, no accordion chrome, never in the commit/revert flow. */}
             <div className={regionBarClass}>
                 <span className={regionTitleClass}>Triggers</span>
-                <div className="flex items-center gap-1">
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {countSummary(triggerCount, "trigger")}
-                    </span>
-                    {!disabled ? <AddTriggerDropdown entityId={revisionId} /> : null}
-                </div>
+                <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                    {countSummary(triggerCount, "trigger")}
+                </span>
             </div>
             <div className="pt-3">
                 <TriggerManagementSection entityId={revisionId} disabled={disabled} />
