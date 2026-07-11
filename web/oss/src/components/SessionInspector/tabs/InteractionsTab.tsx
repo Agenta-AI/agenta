@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {queryInteractions} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Button, Card, Empty, Input, Skeleton, Space, Tag} from "antd"
@@ -7,7 +8,7 @@ import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {fetchInteractions, respondInteraction} from "../api"
+import {respondInteraction} from "../api"
 
 const InteractionsTab = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
@@ -18,8 +19,8 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
     const queryKey = ["session-inspector", "interactions", projectId, sessionId]
     const {data, isLoading, error} = useQuery({
         queryKey,
-        queryFn: () => fetchInteractions(sessionId, projectId),
-        enabled: Boolean(sessionId),
+        queryFn: () => queryInteractions({sessionId, projectId: projectId ?? ""}),
+        enabled: Boolean(sessionId && projectId),
         refetchOnWindowFocus: false,
     })
 
@@ -56,7 +57,7 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
     if (isLoading) return <Skeleton active />
     if (error) return <Alert type="error" message="Failed to load interactions" showIcon />
 
-    const interactions = data?.interactions ?? []
+    const interactions = data ?? []
 
     return (
         <Space direction="vertical" size="middle" className="w-full">
@@ -65,7 +66,7 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
             ) : (
                 interactions.map((interaction) => {
                     const id = interaction.id ?? ""
-                    const isPending = interaction.status?.code === "pending"
+                    const isPending = interaction.status === "pending"
                     const isApproval = interaction.kind === "user_approval"
 
                     return (
@@ -76,7 +77,7 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                 <Space size="small">
                                     <Tag>{interaction.kind}</Tag>
                                     <Tag color={isPending ? "orange" : "default"}>
-                                        {interaction.status?.code ?? "unknown"}
+                                        {interaction.status ?? "unknown"}
                                     </Tag>
                                 </Space>
                             }
@@ -112,9 +113,10 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                             type="primary"
                                             size="small"
                                             loading={busyId === id}
-                                            disabled={!isPending || !id}
+                                            disabled={!isPending || !id || !interaction.token}
                                             onClick={() =>
                                                 id &&
+                                                interaction.token &&
                                                 respond(id, approvalAnswer(interaction.token, true))
                                             }
                                         >
@@ -124,9 +126,10 @@ const InteractionsTab = ({sessionId}: {sessionId: string}) => {
                                             danger
                                             size="small"
                                             loading={busyId === id}
-                                            disabled={!isPending || !id}
+                                            disabled={!isPending || !id || !interaction.token}
                                             onClick={() =>
                                                 id &&
+                                                interaction.token &&
                                                 respond(
                                                     id,
                                                     approvalAnswer(interaction.token, false),

@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {deriveStreamNest} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Button, Descriptions, Popconfirm, Skeleton, Space, Tag} from "antd"
@@ -9,7 +10,6 @@ import {isSessionStreamingAtomFamily} from "@/oss/components/AgentChatSlice/stat
 import {projectIdAtom} from "@/oss/state/project"
 
 import {attachStream, detachStream, fetchStream, killStream} from "../api"
-import {deriveNest} from "../nest"
 import {
     closeSessionInspectorAtom,
     sessionInspectorWatcherIdAtom,
@@ -95,7 +95,7 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
     if (isLoading) return <Skeleton active />
     if (error) return <Alert type="error" message="Failed to load stream" showIcon />
 
-    const nest = deriveNest(data?.flags)
+    const nest = deriveStreamNest(data)
 
     return (
         <Space direction="vertical" size="middle" className="w-full">
@@ -103,6 +103,10 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
                 <NestBadge on={nest.isAlive} label="alive" />
                 <NestBadge on={nest.isRunning} label="running" />
                 <NestBadge on={nest.isAttached || localStreaming} label="attached" />
+            </Space>
+            <Space wrap size={4}>
+                {nest.resumable && <Tag color="blue">resumable</Tag>}
+                {nest.reattachable && <Tag color="gold">reattachable</Tag>}
             </Space>
 
             <Descriptions column={1} size="small" bordered>
