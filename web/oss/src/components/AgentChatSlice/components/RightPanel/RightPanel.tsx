@@ -1,3 +1,5 @@
+import {useRef} from "react"
+
 import {X} from "@phosphor-icons/react"
 import type {UIMessage} from "ai"
 import {Button, Segmented} from "antd"
@@ -17,17 +19,22 @@ import TurnView from "./TurnView"
  */
 const RightPanel = ({sessionId, messages}: {sessionId: string; messages: UIMessage[]}) => {
     const [target, setTarget] = useAtom(rightPanelAtom)
-    const open = target?.sessionId === sessionId
-    if (!open || !target) return null
+    const active = target?.sessionId === sessionId ? target : null
+    // Retain the last target so the close slide shows the panel's content while it collapses —
+    // the parent split unmounts this component once the animation finishes.
+    const lastTargetRef = useRef(active)
+    if (active) lastTargetRef.current = active
+    const shown = active ?? lastTargetRef.current
+    if (!shown) return null
 
-    const isTurn = target.mode === "turn"
+    const isTurn = shown.mode === "turn"
 
     return (
         <div className="ag-inspector-panel flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-[var(--ag-surface-divider)] px-2 py-2">
                 <Segmented
                     size="small"
-                    value={target.mode}
+                    value={shown.mode}
                     onChange={(value) => {
                         if (value === "session") setTarget({mode: "session", sessionId})
                     }}
@@ -49,10 +56,10 @@ const RightPanel = ({sessionId, messages}: {sessionId: string; messages: UIMessa
                     <TurnView
                         sessionId={sessionId}
                         messages={messages}
-                        assistantMessageId={target.assistantMessageId}
+                        assistantMessageId={shown.assistantMessageId}
                     />
                 ) : (
-                    <SessionView sessionId={sessionId} initialTab={target.tab} />
+                    <SessionView sessionId={sessionId} initialTab={shown.tab} />
                 )}
             </div>
         </div>
