@@ -1,9 +1,10 @@
 # Research: the current code, the fallback ladder, Daytona billing
 
 This file is the evidence behind `context.md`. Read `context.md` first for the story; read this
-when you want to see the code that proves it. It covers four things, in order: what happens in
+when you want to see the code that proves it. It covers five things, in order: what happens in
 the runner during one turn, the gap that defeats warm reuse, the local warm-reuse pool and why
-it is kept off Daytona, and how Daytona bills a stopped sandbox.
+it is kept off Daytona, how Daytona bills a stopped sandbox, and where the time actually goes in
+a measured turn.
 
 All line references are against the working tree at the time of writing (HEAD carries PR #5197
 plus commit `60990d396e`). Treat them as pointers, not exact addresses.
@@ -156,7 +157,7 @@ slowest:
    mount plus reload. Zero idle compute cost while parked. This is what the **park-to-stopped**
    proposal builds.
 3. **Cold rebuild.** Neither survived. The runner builds a fresh sandbox and replays the
-   transcript. Always available, always correct, about twenty seconds. This is today's floor and
+   transcript. Always available, always correct, about fifteen seconds measured. This is today's floor and
    stays the floor.
 
 The levels compose; they do not replace each other. Park-to-stopped gives memory across a
@@ -249,15 +250,14 @@ Three conclusions follow:
    unusable because our `positiveMinutes()` parser treats 0 as unset). Daytona documents
    auto-delete as firing after continuous stopped time with no archive step required; the
    archive-disabled path still gets one explicit live check in the verification slice.
-2. **Sandbox creation is not the 20-second problem.** A cold create to a usable exec is under 2
-   seconds at the Daytona API, so almost all of the roughly 20 seconds QA measured per turn sits
-   in our own per-turn pipeline: daemon startup inside the sandbox, asset upload, the geesefs
-   mounts, harness startup, and the session reload. This is arithmetic, not instrumentation; the
-   split across those steps is unmeasured, and the verification slice instruments it. Two
-   corollaries: park-to-stopped skips only the create at the provider level (and today's Daytona
-   path re-uploads Pi assets and rematerializes workspace files on every start, so the prepared
-   disk saves less than it could); park-to-running is the only level that skips the whole
-   pipeline.
+2. **Sandbox creation is not the slow-turn problem.** A cold create to a usable exec is under 2
+   seconds at the Daytona API, so almost all of the turn sits in our own per-turn pipeline:
+   daemon startup inside the sandbox, asset upload, the geesefs mounts, harness startup, and the
+   session reload. The full stage-by-stage split was measured on real E3 runs the same day; see
+   "Where the time goes" below. Two corollaries: park-to-stopped skips only the create at the
+   provider level (and today's Daytona path re-uploads Pi assets and rematerializes workspace
+   files on every start, so the prepared disk saves less than it could); park-to-running is the
+   only level that skips the whole pipeline.
 3. **Parked-running compute is cheap in absolute terms.** $0.0028 per parked minute. A 60-second
    keep-warm window after each turn costs at most about a third of a cent; a cap of 4 concurrently
    running parked sandboxes has a worst-case burn of about $0.67/hour.
@@ -277,6 +277,64 @@ measured prices this abandonment budget is now a number, not a question: about 1
 crash at a 5-minute stop timer, about 4 cents at the 15-minute value the plan proposes, plus a
 fraction of a cent of storage until the delete timer. That is acceptable without a separate
 sweeper; the timers are the sweeper.
+
+## Where the time goes in a real turn (measured 2026-07-11)
+
+The lifecycle numbers above isolate the sandbox; this section measures the whole turn. Three
+real E3 chat runs (Daytona, Pi harness) plus micro-measurements inside the runner container.
+The cold Daytona turn took about 15 seconds of client wall time (16.6, 14.9, and 15.5 seconds
+across the three runs; F-020's earlier QA runs saw about 20). The stage split:
+
+| Stage of a cold Daytona Pi turn | Measured |
+|---|---|
+| Request receipt to run plan | ~55 ms |
+| Sandbox create to usable | ~1,050 ms |
+| npm install of the Pi CLI into the sandbox | ~5,200 ms |
+| Extension upload (1.4 MB) | ~90 ms |
+| Durable geesefs mounts (cwd + pi-sessions) | ~700 ms |
+| Harness spawn to ready (`createSession`) | ~5,150 ms |
+| Model generation (not pipeline) | ~2,300 ms |
+| Teardown / park after the reply | ~800 ms |
+
+Three findings inside that table:
+
+- **The npm install is redundant.** The snapshot bakes `pi` 0.80.6 at `/usr/local/bin/pi`, so
+  the ~5.2-second install re-installs what is already there. It is silent in the logs (it logs
+  only on failure), which is why it hid this long. Skipping it via
+  `AGENTA_AGENT_SANDBOX_PI_INSTALLED=false` is already live on the dev sidecar as of 2026-07-11;
+  the E3 smoke turn dropped to 12.2 seconds.
+- **About 2,000 ms of the harness spawn is pi-acp version and update probes** running inside the
+  EU sandbox: two `pi --version` calls at ~750 ms each and one `npm view` at ~305 ms. Their
+  removal is planned in PR #5221. The remaining ~3,150 ms is estimated (not separately logged):
+  Pi process start, the ACP handshake, and workspace and probe round-trips.
+- **Net Daytona-specific pipeline: ~12.3 seconds.** About 7.2 seconds of it (install skip plus
+  probe removal) is removable by those two config and patch fixes alone, independent of this
+  plan's lifecycle work. What the lifecycle work then competes with is the ~5-second remainder.
+
+For contrast, measured the same day:
+
+- **Cold local Pi turn: ~4 to 6.5 seconds.** Services hop 100 to 220 ms, plan and assets 210 to
+  320 ms, local geesefs mount 540 to 590 ms, harness spawn 2,000 to 2,500 ms (of which ~1,600 ms
+  is the same pi-acp probes), model 600 to 3,000 ms. A warm keepalive hit skips everything but
+  the model.
+- **Cold local Claude turn: 6.4 seconds** (one measured run, haiku). Request to spawn 347 ms
+  (Pi's is 325 ms), spawn to first token 3.09 s (the current logs cannot split adapter from
+  model), generation 2.94 s. No Claude analogue of the pi probe waste was found. Claude on
+  Daytona is currently blocked before harness start (auth), so no Daytona Claude timing exists
+  yet.
+
+What this means for the two park levels, stated once here and reflected in `plan.md`:
+
+- **Park-to-stopped saves only the ~1-second provider create at today's HEAD**, because a
+  restarted sandbox still pays the install, the mounts, and the harness spawn. With the install
+  skip live, it saves about 1 second out of about 10. The real remaining cost a stopped restart
+  pays is the ~5.15-second harness respawn plus ~0.7 seconds of mounts.
+- **Park-to-running removes the whole pipeline.** A resumed turn is the model time plus small
+  overheads, roughly 2 to 3 seconds (estimated, to be confirmed in the verification slice).
+
+The measurement also surfaced the log lines the runner is missing to make this split repeatable
+without hand instrumentation: a duration line for the Pi install, a sandbox-created line, and
+duration lines for `prepareWorkspace`, `probeCapabilities`, and `createSession`.
 
 ## PR #5197 (durable session continuity)
 

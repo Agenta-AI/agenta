@@ -48,7 +48,7 @@ that need a reviewer's confirmation rather than an owner's decision.
   depending on the stop timer, plus a fraction of a cent of storage until the delete timer. No
   separate sweeper is needed; the timers are the sweeper. (Was: a billing-owner gate.)
 - **Should park-to-running ship at all**: yes, by direction (2026-07-11) and by measurement.
-  Sandbox creation is under 2 seconds, so park-to-stopped cannot fix the 20-second turn; only a
+  Sandbox creation is about 1 second of a ~15-second turn, so park-to-stopped cannot fix it; only a
   sandbox that stays running skips the per-turn pipeline. Park-to-running is now Slice 4 of the
   main line, not a deferred level.
 - **Archive**: dropped. Restoring from archive (33 to 66 seconds measured) is slower than a fresh

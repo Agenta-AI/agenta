@@ -13,18 +13,18 @@ native session reload, `ephemeral: false` with idle timers), but the code that t
 - On the next turn, the runner looks up the stored id, tries to reconnect, hits the missing
   reconnect function, and builds a fresh sandbox.
 
-Second, the measured lifecycle numbers (research.md, 2026-07-11) say the sandbox itself is not
-the 20-second problem. A cold create to a usable exec is 1.2 to 1.7 seconds; a start from
-stopped is 0.7 to 0.8 seconds. The roughly 20 seconds QA measured per turn is therefore almost
-entirely our own per-turn pipeline (daemon startup, asset upload, geesefs mounts, harness
-startup, session reload); the exact split is not instrumented yet and Slice 5 measures it.
-Stopping and restarting the sandbox keeps its disk but kills every process, so a restarted
-sandbox still pays most of that pipeline (today's code even re-uploads the Pi assets and
-rematerializes workspace files on the Daytona path, so the warm disk saves less than it could).
-Only a sandbox that stays running, with its daemon, mounts, and harness session alive, skips the
-pipeline. That is why this plan builds all the way to park-to-running instead of stopping at
-park-to-stopped, and why it drops the archive state entirely (restoring from archive is slower
-than creating fresh; see research.md).
+Second, the measurements (research.md, 2026-07-11) say the sandbox itself is not the slow-turn
+problem. A cold create to a usable exec is 1.2 to 1.7 seconds; a start from stopped is 0.7 to
+0.8 seconds. The measured cold Daytona turn is about 15 seconds of client wall time, of which
+about 12.3 seconds is our own per-turn pipeline; the full stage split is in research.md ("Where
+the time goes"). About 7.2 seconds of that pipeline (a redundant Pi install, whose skip is
+already live on the dev sidecar, and the pi-acp version probes, removal planned in PR #5221) is
+removable by config and patch fixes independent of this plan. Stopping and restarting the
+sandbox keeps its disk but kills every process, so a restarted sandbox still pays the harness
+respawn and the mounts. Only a sandbox that stays running, with its daemon, mounts, and harness
+session alive, skips the pipeline. That is why this plan builds all the way to park-to-running
+instead of stopping at park-to-stopped, and why it drops the archive state entirely (restoring
+from archive is slower than creating fresh; see research.md).
 
 The Daytona SDK already exposes what the provider is missing: `sandbox.stop()`, `sandbox.start()`
 (which also resumes an archived sandbox), `sandbox.delete()`, and a `state` field are all present
@@ -59,13 +59,13 @@ turning the live pool off must never disable stopped reuse on the cold path.
 Goal: at a clean turn end, stop the Daytona sandbox instead of deleting it; on the next turn,
 start the same instance and reload the harness session. The parked cost is disk storage only.
 
-The measured numbers bound its latency win at the provider level: the create it skips costs 1.2
-to 1.7 seconds and the restart it pays costs 0.7 to 0.8 seconds, so the sandbox-level saving is
-about one second. What the prepared disk saves beyond that is unknown today, and smaller than it
-looks: the current Daytona path re-uploads Pi assets and rematerializes workspace files on every
-start, so most of the pipeline repeats even on a reused disk. Park-to-stopped's real value is
-that it is the state a park-to-running eviction lands in, and that its correctness work is the
-base every higher level stands on. The pipeline split is measured, not guessed, in Slice 5.
+The measured stage split (research.md, "Where the time goes") bounds its latency win honestly:
+the create it skips costs about 1 second, and a restarted sandbox still pays the ~5.15-second
+harness respawn, ~0.7 seconds of mounts, and (until the skip is everywhere) the Pi install,
+because the current Daytona path re-uploads assets and rematerializes workspace files on every
+start. So park-to-stopped saves about 1 second out of a roughly 10-second pipeline once the
+install skip is live. Its real value is that it is the state a park-to-running eviction lands
+in, and that its correctness work is the base every higher level stands on.
 
 ### What is already built (at HEAD, untested)
 
@@ -192,9 +192,9 @@ Each of these is a real leak or race, not polish. They block enabling the featur
 ### Cost and fidelity
 
 - Parked cost: about $0.0009/hour (the reserved 8 GiB disk), bounded by the delete timer.
-- Resume cost: 0.7 to 0.8 seconds to restart the sandbox, plus daemon startup, remount, harness
-  startup, and the session reload. The pipeline share, and how much the prepared disk actually
-  saves, is measured in the verification slice.
+- Resume cost: 0.7 to 0.8 seconds to restart the sandbox, plus the measured ~5.15-second harness
+  respawn, ~0.7 seconds of mounts, and the session reload (research.md, "Where the time goes").
+  Net saving versus cold: about the 1-second create.
 - Fidelity: full for completed turns. The session reload restores the harness's own state from the
   durable transcript mounts. A stop kills process memory, so a turn parked mid-approval cannot be
   resumed byte-exact from stopped; it takes the cold approval path (see the approval section under
@@ -240,7 +240,8 @@ does not care which provider produced it.
 Goal: keep the Daytona sandbox running with its live session between turns for a short window, so
 a second turn is near-instant (no start, no remount, no daemon or harness startup, no reload).
 This is the only level that removes the pipeline rather than shaving the sandbox-create second
-off it.
+off it: a resumed turn is the model time plus small overheads, roughly 2 to 3 seconds against
+today's ~15-second cold turn (estimated from the measured stage split; confirmed in Slice 5).
 
 ### The work
 
@@ -344,10 +345,12 @@ park-to-running behind its own flag with capacity admission and the conservative
 then live verification, and only then flip the flags on. Park-to-stopped can graduate from
 verification independently of park-to-running.
 
-The measurement is what moved park-to-running from "deferred" into the main line: sandbox
-creation costs under 2 seconds, so park-to-stopped alone cannot fix the 20-second turn; the
-pipeline can only be skipped by a sandbox that stays running; and the compute cost that justified
-deferral is small and bounded (about a third of a cent per parked turn at the default window).
+The measurements are what moved park-to-running from "deferred" into the main line: sandbox
+creation costs about 1 second of a ~15-second turn, so park-to-stopped alone cannot fix it; the
+~12-second pipeline can only be skipped by a sandbox that stays running (about 7 seconds of it
+falls to config and patch fixes outside this plan, leaving a ~5-second floor that only
+park-to-running removes); and the compute cost that justified deferral is small and bounded
+(about a third of a cent per parked turn at the default window).
 The billing questions that previously gated it are now configuration defaults backed by measured
 prices. What remains genuinely open is listed in `open-questions.md` and is about correctness
 (the pointer-write guard, the shutdown split), not cost.
@@ -380,11 +383,12 @@ Each slice lands independently, with tests, and does not regress the one below i
   Pending approvals take the cold path until the gate plan's file-transport parked-gate variant
   lands (see the approval section).
 - **Slice 5 (live verification, then flip the flags).** Credit-controlled E3 passes, in two
-  independent gates. Park-to-stopped: instrument the turn (provider create or start, daemon
-  ready, assets, cwd and harness mounts, workspace preparation, session create or load, prompt
-  accepted, first model event), measure cold versus stopped-restart, confirm one instance serves
-  consecutive turns, confirm the stop and delete timers fire once with no archive state observed,
-  and confirm zero live sandboxes afterwards. Park-to-running additionally needs a concurrency
+  independent gates, compared against the 2026-07-11 stage-split baseline in research.md. First
+  add the duration log lines that baseline had to hand-instrument (the Pi install, sandbox
+  created, `prepareWorkspace`, `probeCapabilities`, `createSession`). Park-to-stopped: measure
+  cold versus stopped-restart, confirm one instance serves consecutive turns, confirm the stop
+  and delete timers fire once with no archive state observed, and confirm zero live sandboxes
+  afterwards. Park-to-running additionally needs a concurrency
   test: more than `MAX_RUNNING` distinct sessions at once, the cap holding (admission queues or
   rejects, never over-creates), a TTL expiry confirmed as a stop, a SIGTERM drain, and one forced
   stop failure escalating to delete. Chat first; tool and approval turns wait on F-018. Then flip

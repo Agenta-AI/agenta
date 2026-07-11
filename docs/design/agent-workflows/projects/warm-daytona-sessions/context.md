@@ -2,7 +2,7 @@
 
 ## What a user sees today
 
-When you chat with an agent that runs on Daytona, every message waits about twenty seconds
+When you chat with an agent that runs on Daytona, every message waits fifteen to twenty seconds
 before the agent starts to answer. QA measured this on a live run (the E3 scenario, a scripted
 chat used to test the agent runtime). The wait is the same on every turn. Your second message
 in a conversation waits just as long as your first, because the runner builds a brand-new
@@ -20,12 +20,14 @@ A few terms, since they recur below:
 
 The slow turn is the whole problem. This is QA finding F-020.
 
-One measured fact sharpens where the twenty seconds goes (research.md, 2026-07-11): creating the
-Daytona sandbox itself takes under 2 seconds. The rest of the wait is our own per-turn setup
-inside and around it: starting the daemon, uploading assets, mounting files, starting the
-harness, and reloading the conversation. That setup only disappears entirely when the sandbox,
-with its processes, stays running between turns. This is why the plan builds up to keeping
-sandboxes running for a short window, not just to stopping and restarting them.
+Measurement sharpened where the wait goes (research.md, 2026-07-11; the cold turn measured about
+15 seconds on that day's runs). Creating the Daytona sandbox itself takes about 1 second. The
+rest is our own per-turn setup inside and around it: installing the Pi CLI (redundantly; the
+skip is already live on the dev sidecar), starting the harness, mounting files, uploading
+assets, and reloading the conversation. Research.md has the stage-by-stage table. That setup
+only disappears entirely when the sandbox, with its processes, stays running between turns. This
+is why the plan builds up to keeping sandboxes running for a short window, not just to stopping
+and restarting them.
 
 The answer itself is still correct. A separate feature, durable session continuity (PR #5197),
 saves the conversation to storage and replays it into the fresh sandbox, so the agent remembers
@@ -120,6 +122,6 @@ Two older facts are worth carrying forward, because a later decision depends on 
 ## Who is affected
 
 Anyone running a multi-turn chat agent on Daytona through the deployed app. Today they wait
-about twenty seconds per turn. The build-kit default agent feels it most, because its "read the
+fifteen to twenty seconds per turn. The build-kit default agent feels it most, because its "read the
 skill first" instruction makes the model open with a tool call. That path is currently blocked
 by F-018 rather than by build latency, so it will not benefit until F-018 lands.

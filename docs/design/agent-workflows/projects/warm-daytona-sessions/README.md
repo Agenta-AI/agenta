@@ -2,11 +2,12 @@
 
 ## What this project is about
 
-When you chat with an agent that runs on Daytona, every message waits about twenty seconds before
-the agent starts to answer. That wait is a fresh cloud machine being built from scratch, once per
-turn, even though the previous turn already built one. This workspace plans how to reuse that
-machine between turns so the second message, and every message after it, starts fast. It is a
-design plan only. No code ships in this pull request.
+When you chat with an agent that runs on Daytona, every message waits about fifteen seconds before
+the agent starts to answer. That wait is the whole per-turn setup being redone from scratch, once
+per message: build a cloud machine, install and start the agent inside it, mount its files, reload
+the conversation, even though the previous turn already did all of that. This workspace plans how
+to reuse the running setup between turns so the second message, and every message after it, starts
+fast. It is a design plan only. No code ships in this pull request.
 
 A few words you will meet throughout, defined once:
 
@@ -43,11 +44,12 @@ end instead of deleting it; parked cost is disk storage only, about $0.0009/hour
 that makes the existing local keepalive pool provider-aware, then park-to-running (keep the
 sandbox running for a short window after each turn, default 60 seconds with a hard cap of 4
 concurrently running sandboxes enforced before creation, about $0.0028 per parked minute), and
-finally credit-controlled live verification before any flag flips on. The measurement behind this
-order: creating a Daytona sandbox takes under 2 seconds, so the roughly 20-second turn is our own
-per-turn setup, and only a sandbox that stays running skips it. The archive state is dropped
-entirely (restoring from archive is slower than creating fresh). Today's always-correct fallback
-(rebuild and replay the transcript) stays underneath everything.
+finally credit-controlled live verification before any flag flips on. The measurements behind
+this order: creating a Daytona sandbox takes about 1 second of a measured ~15-second turn; the
+rest is our own per-turn setup, stage by stage in research.md, and only a sandbox that stays
+running skips it (a resumed turn is roughly 2 to 3 seconds, estimated). The archive state is
+dropped entirely (restoring from archive is slower than creating fresh). Today's always-correct
+fallback (rebuild and replay the transcript) stays underneath everything.
 
 ## Related workspaces
 

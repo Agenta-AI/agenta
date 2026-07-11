@@ -15,11 +15,12 @@ the organization before and after). Its numbers are in research.md and reshaped 
   reload, `ephemeral: false` with idle timers), but the vendored Daytona provider
   (`sandbox-agent@0.4.2`) has no pause and no reconnect. So `pauseSandbox()` falls back to delete,
   reconnect cannot revive a stopped instance, and every turn still rebuilds.
-- The measurement added the second key finding: the sandbox is not the 20-second problem. Cold
+- The measurements added the second key finding: the sandbox is not the slow-turn problem. Cold
   create to usable is 1.2 to 1.7 seconds, start from stopped is 0.7 to 0.8 seconds. Almost all of
-  the 20 seconds is our per-turn pipeline (daemon, assets, mounts, harness, reload); the split is
-  instrumented in Slice 5. Archive is a dead state for us: restore (33 to 66 seconds) is slower
-  than a fresh create, and the disk it frees costs under a tenth of a cent per hour.
+  the measured ~15-second turn is our per-turn pipeline (~12.3 s; stage split in research.md,
+  dominated by a redundant Pi install and the harness spawn). Archive is a dead state for us:
+  restore (33 to 66 seconds) is slower than a fresh create, and the disk it frees costs under a
+  tenth of a cent per hour.
 - The core correctness fix is unchanged: the two provider functions the runner already calls,
   plus two teardown cleanup fixes in the vendored code, a compatibility check before reuse, and a
   guard on the pointer writes (the must-fix list in `plan.md`).
@@ -28,7 +29,7 @@ the organization before and after). Its numbers are in research.md and reshaped 
 
 - **Park-to-running is in the main line, not deferred** (Mahmoud, 2026-07-11). The plan is one
   progressive sequence of slices ending with park-to-running. Rationale: the measurement shows
-  only a running sandbox removes the 20-second pipeline, and the compute cost that justified
+  only a running sandbox removes the per-turn pipeline, and the compute cost that justified
   deferral is small and bounded ($0.0028 per parked minute; worst case about $0.67/hour at the
   default cap of 4).
 - **Reuse the local keepalive pool logic, refactored provider-aware** (Mahmoud, 2026-07-11).
@@ -73,9 +74,15 @@ about 2 s, start from stopped 0.7 to 0.8 s, archive 50 to 82 s, restore from arc
 Prices from Daytona's pricing page: $0.0504/vCPU-hour, $0.0162/GiB-hour RAM, $0.000108/GiB-hour
 disk. Our shape (2 vCPU, 4 GiB, 8 GiB disk): running about $0.17/hour, stopped about
 $0.0009/hour. Hygiene: sandbox count zero before, zero after; both created sandboxes deleted.
-Scope limit: the measurement isolates the sandbox lifecycle (a trivial exec as "usable"); it does
-not measure our daemon, mounts, harness, or reload, which is why Slice 5 instruments the full
-turn.
+
+A second measurement the same day filled the gap the first one left: the full turn. Three real E3
+chat runs plus micro-measurements inside the runner container produced the stage-by-stage split
+now in research.md ("Where the time goes"): ~15-second cold Daytona turn, ~12.3 seconds of it our
+pipeline, dominated by a redundant ~5.2-second Pi install (skip already live on the dev sidecar,
+E3 smoke down to 12.2 s) and a ~5.15-second harness spawn (of which ~2 seconds are pi-acp version
+probes, removal planned in PR #5221). Consequences recorded in plan.md: park-to-stopped saves
+about 1 second; park-to-running gets the turn to an estimated 2 to 3 seconds; Slice 5 first adds
+the missing duration log lines, then re-measures against this baseline.
 
 ## Design-review round 2 (2026-07-11, after the reshape)
 
