@@ -15,7 +15,9 @@ native session reload, `ephemeral: false` with idle timers), but the code that t
 
 Second, the measurements (research.md, 2026-07-11) say the sandbox itself is not the slow-turn
 problem. A cold create to a usable exec is 1.2 to 1.7 seconds; a start from stopped is 0.7 to
-0.8 seconds. The measured cold Daytona turn is about 15 seconds of client wall time, of which
+0.8 seconds (both provider operations alone, not what a user waits; "The three resume paths,
+compared" below prices the user-visible totals). The measured cold Daytona turn is about 15
+seconds of client wall time, of which
 about 12.3 seconds is our own per-turn pipeline; the full stage split is in research.md ("Where
 the time goes"). About 7.2 seconds of that pipeline (a redundant Pi install, whose skip is
 already live on the dev sidecar, and the pi-acp version probes, removal planned in PR #5221) is
@@ -53,6 +55,40 @@ compete: a park-to-running entry that outlives its window is evicted by stopping
 it to the park-to-stopped state, which degrades to the cold rebuild floor. The always-correct
 cold rebuild plus transcript replay stays underneath both. Two flags stay independent on purpose:
 turning the live pool off must never disable stopped reuse on the cold path.
+
+## The three resume paths, compared
+
+A second turn in a conversation starts from one of three states. This section prices each from
+the measured stage table (research.md, "Where the time goes") so the decision can be made from
+this document alone. One labelling rule: the fresh-create total is measured end to end; the
+other two totals are constructed from the stage measurements and are verified end to end in
+Slice 5.
+
+**Path 1: fresh create (today's behavior).** The old sandbox is gone. Every stage is paid:
+sandbox create (~1.05 s), the Pi install (~5.2 s where the skip is not live), extension upload,
+mounts (~0.7 s), harness spawn (~5.15 s), session reload, then the model. User-visible total:
+about 15 seconds measured at HEAD; about 10 with the install skip that is now live on the dev
+runner; about 8 once the pi-acp probe removal (PR #5221) lands.
+
+**Path 2: stop, then restart (park-to-stopped).** Stopping destroys every process in the
+sandbox: the harness, the geesefs mount processes, the daemon. Only the disk survives. So the
+restart pays, stage by stage: start-from-stopped (~0.7 to 0.8 s) in place of create (~1.05 s);
+the mounts again (~0.7 s, new processes); the harness respawn again (~5.15 s today, ~3.15 s
+after the probe fix); the session reload again. The install is not paid, but only because the
+binary survives on disk, and the live skip makes that saving moot on the fresh path too.
+User-visible total, constructed: nearly the same as a fresh create, roughly 1 second cheaper.
+Said plainly: the 0.7-second number is the provider operation, not what a user waits;
+park-to-stopped buys durability of the disk, not latency.
+
+**Path 3: kept running (park-to-running).** Everything survives: the processes, the mounts, the
+daemon, the open harness session. The turn pays the keepalive checkout overheads plus the model
+time. User-visible total: roughly 2 to 3 seconds, estimated.
+
+The decision this comparison forces: if the goal is latency, park-to-stopped is not the
+mechanism; park-to-running is. Park-to-stopped is still worth shipping first, but for exactly
+two reasons: it is the safety and lifecycle base park-to-running builds on (the reconnect
+machinery, the pointer guard, the compatibility fingerprint, and the state a live eviction lands
+in), and it saves its small create second. The slices below are ordered by that logic.
 
 ## Park-to-stopped: the correctness base
 

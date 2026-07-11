@@ -152,10 +152,11 @@ slowest:
    Fastest, highest fidelity: the live process tree, native memory, byte-exact approval resume.
    The cost is idle RAM locally, idle billed compute remotely. This is what the **park-to-running**
    proposal builds.
-2. **Stopped-restart.** The sandbox was stopped but its disk survived. The runner restarts it and
-   the harness runs its native session reload. Full fidelity, paid per turn as a restart plus
-   mount plus reload. Zero idle compute cost while parked. This is what the **park-to-stopped**
-   proposal builds.
+2. **Stopped-restart.** The sandbox was stopped but its disk survived. Stopping killed every
+   process, so the runner restarts the sandbox, remounts, respawns the harness, and reloads the
+   session. Full fidelity, but the user-visible cost is nearly a full cold turn (roughly 1 second
+   cheaper; plan.md's "The three resume paths, compared" prices it stage by stage). Zero idle
+   compute cost while parked. This is what the **park-to-stopped** proposal builds.
 3. **Cold rebuild.** Neither survived. The runner builds a fresh sandbox and replays the
    transcript. Always available, always correct, about fifteen seconds measured. This is today's floor and
    stays the floor.

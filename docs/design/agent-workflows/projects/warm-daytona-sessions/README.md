@@ -28,8 +28,9 @@ A few words you will meet throughout, defined once:
    not work yet, plus the measured Daytona lifecycle numbers and prices (2026-07-11) that reshaped
    the plan. Read this for the evidence behind context.md.
 3. **plan.md.** The proposal: one progressive sequence of slices from the correctness base through
-   park-to-stopped and a provider-aware pool refactor up to park-to-running. Start here if you
-   only want the decision.
+   park-to-stopped and a provider-aware pool refactor up to park-to-running. Its section "The
+   three resume paths, compared" prices fresh create, stop-then-restart, and kept-running from
+   the measured stages; start there if you only want the decision.
 4. **open-questions.md.** What still needs a human: three correctness decisions for a reviewer and
    two proposed defaults to confirm. The former cost questions are answered by the measurement.
 5. **status.md.** Where the project stands, what was decided and why, the measurement summary, and
