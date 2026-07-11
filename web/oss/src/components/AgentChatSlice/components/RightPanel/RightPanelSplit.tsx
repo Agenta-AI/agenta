@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {Splitter} from "antd"
 import {useAtom} from "jotai"
@@ -17,9 +17,11 @@ const clampWidth = (w: number, total: number) =>
         Math.min(w, RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, total - CHAT_MIN)),
     )
 
-// Open/close slide duration. The transition is enabled ONLY for this window around an `open`
-// flip — a persistent transition would rubber-band the divider while dragging. The class must be
-// a static string (Tailwind JIT can't see interpolated names), so the 220ms is duplicated there.
+// Open/close slide duration. The class must be a static string (Tailwind JIT can't see
+// interpolated names), so the 220ms is duplicated there. The transition lives on the panes
+// whenever the divider is NOT being dragged — putting it behind an effect-driven flag doesn't
+// work: effects run after the size change is committed, so the class would arrive after the
+// browser already painted the new width and nothing would animate.
 const SLIDE_MS = 220
 const SLIDE_CLASS = "[&_.ant-splitter-panel]:[transition:flex-basis_220ms_ease,width_220ms_ease]"
 
@@ -29,8 +31,9 @@ const SLIDE_CLASS = "[&_.ant-splitter-panel]:[transition:flex-basis_220ms_ease,w
  * remounts. Drag width is held in local state for smoothness and persisted only on drag-end (no
  * per-frame localStorage writes). The chat keeps a hard min so the panel can't squeeze it.
  *
- * Open/close is animated: the panels get a width transition for the flip window, and the panel
- * content stays mounted until the collapse finishes so it slides out instead of vanishing.
+ * Open/close slides: the panes carry a width transition (suspended during divider drags so
+ * resizing tracks the pointer 1:1), and on close the panel content stays mounted until the
+ * collapse finishes so it slides out instead of blanking.
  */
 const RightPanelSplit = ({
     open,
@@ -43,23 +46,21 @@ const RightPanelSplit = ({
 }) => {
     const [persisted, setPersisted] = useAtom(rightPanelWidthAtom)
     const [live, setLive] = useState(persisted)
+    const [dragging, setDragging] = useState(false)
 
-    // Transition window + delayed unmount around `open` flips (skips first render). `holdContent`
-    // only matters while closing — opening renders the content immediately via `open` itself.
-    const prevOpen = useRef(open)
-    const [animating, setAnimating] = useState(false)
-    const [holdContent, setHoldContent] = useState(false)
+    // Close-hold, derived DURING render (not in an effect) so the content is still there in the
+    // very commit that starts the collapse; a timer releases it after the slide.
+    const [prevOpen, setPrevOpen] = useState(open)
+    const [closing, setClosing] = useState(false)
+    if (prevOpen !== open) {
+        setPrevOpen(open)
+        if (!open) setClosing(true)
+    }
     useEffect(() => {
-        if (prevOpen.current === open) return
-        prevOpen.current = open
-        setAnimating(true)
-        if (!open) setHoldContent(true)
-        const timer = setTimeout(() => {
-            setAnimating(false)
-            setHoldContent(false)
-        }, SLIDE_MS + 40)
+        if (!closing) return
+        const timer = setTimeout(() => setClosing(false), SLIDE_MS + 40)
         return () => clearTimeout(timer)
-    }, [open])
+    }, [closing])
 
     // Re-sync to the stored width each time the panel opens.
     useEffect(() => {
@@ -68,11 +69,13 @@ const RightPanelSplit = ({
 
     return (
         <Splitter
-            className={`h-full min-h-0 w-full flex-1 ${animating ? SLIDE_CLASS : ""}`}
+            className={`h-full min-h-0 w-full flex-1 ${dragging ? "" : SLIDE_CLASS}`}
+            onResizeStart={() => setDragging(true)}
             onResize={(sizes) => {
                 if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1]))
             }}
             onResizeEnd={(sizes) => {
+                setDragging(false)
                 if (open) setPersisted(clampWidth(sizes[1], sizes[0] + sizes[1]))
             }}
         >
@@ -81,9 +84,9 @@ const RightPanelSplit = ({
                 size={open ? live : 0}
                 min={open ? `${RIGHT_PANEL_MIN}px` : 0}
                 max={`${RIGHT_PANEL_MAX}px`}
-                resizable={open && !animating}
+                resizable={open}
             >
-                {open || holdContent ? panel : null}
+                {open || closing ? panel : null}
             </Splitter.Panel>
         </Splitter>
     )
