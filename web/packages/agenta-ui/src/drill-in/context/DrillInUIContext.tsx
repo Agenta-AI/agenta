@@ -53,6 +53,8 @@ export interface GatewayToolsBridge {
     enabled: boolean
     connections: GatewayToolConnectionUI[]
     connectionsLoading: boolean
+    /** The connections fetch failed — an empty list then means "unknown", not "none". */
+    connectionsErrored?: boolean
     onOpenCatalog: () => void
     renderIntegrationInfo?: (integrationKey: string) => {name?: string; logo?: string} | null
     useIntegrationInfo?: (integrationKey: string) => {

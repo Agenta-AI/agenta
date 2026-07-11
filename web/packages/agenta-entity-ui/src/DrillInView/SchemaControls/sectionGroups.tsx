@@ -57,6 +57,7 @@ export function CollapsibleProviderGroup({
     onToggle,
     onAdd,
     addLabel,
+    statusTag,
     children,
 }: {
     logo?: string | null
@@ -69,6 +70,8 @@ export function CollapsibleProviderGroup({
     onAdd?: () => void
     /** Tooltip + aria-label for the add button. */
     addLabel?: string
+    /** Rollup status tag rendered after the name (e.g. the worst child-row status). */
+    statusTag?: ReactNode
     children: ReactNode
 }) {
     return (
@@ -99,6 +102,7 @@ export function CollapsibleProviderGroup({
                 )}
                 <ProviderLogo logo={logo} size={20} />
                 <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
+                {statusTag ? <span className="shrink-0">{statusTag}</span> : null}
                 <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
                     {countText}
                 </span>
