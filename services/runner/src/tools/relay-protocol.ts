@@ -40,6 +40,18 @@ export function sanitizeRelayId(id: string): string {
 }
 
 /**
+ * Temporary publication name for one relay file (atomic publication, plan decision 2).
+ * Both directions write the full contents to this name first and then rename it to
+ * `finalPath`. Temp names never match the `.req.json`/`.res.json` suffix filters, so no
+ * reader or watcher ever lists them, and a same-directory rename is atomic on POSIX, so
+ * a final-name file always holds complete bytes — a wake can never observe partial JSON.
+ */
+export function relayTempPath(finalPath: string): string {
+  const nonce = Math.random().toString(36).slice(2, 10);
+  return `${finalPath}.tmp.${nonce}`;
+}
+
+/**
  * Serialize one execute request to the exact bytes every relay writer produces. The key
  * order (toolName, toolCallId, args) and the `args ?? {}` default are part of the
  * cross-writer contract; the golden test in tests/unit/relay-client.test.ts pins them.

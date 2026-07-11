@@ -235,6 +235,35 @@ describe("buildPiExtensionEnv", () => {
     );
   });
 
+  describe("hop-1 response-watch kill switch forwarding", () => {
+    const FLAG = "AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED";
+    const previous = process.env[FLAG];
+    const relayRequest = {
+      customTools: [{ name: "safe_tool", kind: "callback" }],
+    } as AgentRunRequest;
+
+    afterEach(() => {
+      if (previous === undefined) delete process.env[FLAG];
+      else process.env[FLAG] = previous;
+    });
+
+    it("forwards the flag verbatim into the sandbox env when the operator set it", () => {
+      process.env[FLAG] = "false";
+      const env = buildPiExtensionEnv(relayRequest, false, {
+        relayDir: "/tmp/relay",
+      });
+      assert.equal(env[FLAG], "false");
+    });
+
+    it("omits the flag when the operator did not set it (writer defaults to true)", () => {
+      delete process.env[FLAG];
+      const env = buildPiExtensionEnv(relayRequest, false, {
+        relayDir: "/tmp/relay",
+      });
+      assert.equal(env[FLAG], undefined);
+    });
+  });
+
   it("never leaks the bearer into env when no auth file path is given", () => {
     const env = buildPiExtensionEnv(
       {

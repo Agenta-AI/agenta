@@ -26,6 +26,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   writeFileSync,
 } from "node:fs";
 
@@ -49,6 +50,7 @@ import {
   RELAY_POLL_MS,
   RELAY_REQ_SUFFIX,
   RELAY_RES_SUFFIX,
+  relayTempPath,
   sleep,
   type ExecuteRelayRequest,
   type RelayRequest,
@@ -177,6 +179,12 @@ export interface RelayHost {
   list: (dir: string) => Promise<string[]>;
   read: (path: string) => Promise<string>;
   write: (path: string, contents: string) => Promise<void>;
+  /**
+   * Atomically publish a fully written file under its final name (plan decision 2):
+   * the response is written to a `relayTempPath` name first and this rename makes it
+   * visible, so the in-sandbox writer can never read partial JSON.
+   */
+  rename: (from: string, to: string) => Promise<void>;
 }
 
 /** Relay host for child processes running on the same filesystem as the runner. */
@@ -190,6 +198,9 @@ export function localRelayHost(): RelayHost {
     write: async (path, contents) => {
       mkdirSync(path.slice(0, path.lastIndexOf("/")), { recursive: true });
       writeFileSync(path, contents, "utf-8");
+    },
+    rename: async (from, to) => {
+      renameSync(from, to);
     },
   };
 }
@@ -216,6 +227,13 @@ export function sandboxRelayHost(sandbox: any): RelayHost {
     },
     write: async (path, contents) => {
       await sandbox.writeFsFile({ path }, contents);
+    },
+    rename: async (from, to) => {
+      // Verified against the daemon source (v0.4.2 router.rs): /v1/fs/move is Rust
+      // std::fs::rename, i.e. rename(2), atomic for a same-directory move (plan open
+      // question 2 resolved). `overwrite: true` only guards a pathological duplicate
+      // response; the final name never pre-exists in normal operation.
+      await sandbox.moveFs({ from, to, overwrite: true });
     },
   };
 }
@@ -361,10 +379,12 @@ export function startToolRelay(
       };
     }
     try {
-      await host.write(
-        `${relayDir}/${id}${RELAY_RES_SUFFIX}`,
-        JSON.stringify(res),
-      );
+      // Atomic publication (plan decision 2): full bytes under a temp name, then a
+      // same-directory rename to the final name the in-sandbox writer waits on.
+      const finalResPath = `${relayDir}/${id}${RELAY_RES_SUFFIX}`;
+      const tmpResPath = relayTempPath(finalResPath);
+      await host.write(tmpResPath, JSON.stringify(res));
+      await host.rename(tmpResPath, finalResPath);
     } catch {
       // The extension will time out and surface a tool error; nothing else to do here.
     }
