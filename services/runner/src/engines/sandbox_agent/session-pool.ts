@@ -96,10 +96,7 @@ export function readKeepaliveConfig(
       approvalTtlMs: ttlMs,
       // This budgets billed compute (idle warm sandboxes), deliberately separate from the local
       // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
-      poolMax: positiveIntEnv(
-        DAYTONA_POOL_MAX_ENV,
-        DEFAULT_DAYTONA_POOL_MAX,
-      ),
+      poolMax: positiveIntEnv(DAYTONA_POOL_MAX_ENV, DEFAULT_DAYTONA_POOL_MAX),
     };
   }
   return {
@@ -148,7 +145,7 @@ function canonicalJson(value: unknown): string {
 /**
  * A canonical hash over the config-bearing request fields (the continuation-versus-cold
  * decision). Per-turn volatiles are excluded: `messages`, `turnId`, trace propagation
- * (`context`), the rotating telemetry headers, and secret VALUES (`secrets` — the credential
+ * (`context`), the rotating telemetry headers, and credential VALUES (`modelConnection.credentials` — the credential
  * epoch covers rotation, and values must never enter any hash used for logging). The
  * tool-callback ENDPOINT is included (routing config); its authorization is a credential and
  * lives in the credential epoch instead.
@@ -159,18 +156,35 @@ export function configFingerprint(request: AgentRunRequest): string {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
     model: request.model ?? null,
-    provider: request.provider ?? null,
-    connection: request.connection ?? null,
-    deployment: request.deployment ?? null,
-    endpoint: request.endpoint ?? null,
-    credentialMode: request.credentialMode ?? null,
+    modelConnection: request.modelConnection
+      ? {
+          provider: request.modelConnection.provider,
+          deployment: request.modelConnection.deployment,
+          endpoint: request.modelConnection.endpoint ?? null,
+          credentialMode: request.modelConnection.credentialMode,
+          environment: request.modelConnection.environment ?? null,
+          credentials: request.modelConnection.credentials.map(
+            (credential) => ({
+              binding: credential.binding,
+              usage: credential.usage,
+            }),
+          ),
+        }
+      : null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
     tools: request.tools ?? null,
     skills: request.skills ?? null,
     customTools: request.customTools ?? null,
-    mcpServers: request.mcpServers ?? null,
+    mcpServers:
+      request.mcpServers?.map((server) => ({
+        ...server,
+        credentials: server.credentials?.map((credential) => ({
+          binding: credential.binding,
+          usage: credential.usage,
+        })),
+      })) ?? null,
     toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
@@ -323,17 +337,13 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
   return true;
 }
 
-/**
- * The credential epoch bounds how long a parked session may reuse its baked credentials. It is
- * a PROCESS-LOCAL hash over the actual resolved secret VALUES plus the tool-callback auth (held
- * only in runner memory — never logged, persisted, or emitted), combined with the mount
- * credential expiry. A rotated same-slug secret changes the hash; an elapsed expiry invalidates
- * the epoch. Either way the dispatch evicts and cold-starts with fresh credentials.
- */
+/** Credential hashes split by lifecycle so approval resumes ignore only per-turn auth. */
 export interface CredentialEpoch {
-  /** sha256 over canonical(secrets) + tool-callback auth. In-memory only; never surfaced. */
-  secretsHash: string;
-  /** Mount credential expiry as epoch millis, or undefined when the sign response had none. */
+  /** Credentials baked into the sandbox/session environment. In-memory only. */
+  sandboxCredentialsHash: string;
+  /** Per-turn callback authorization, expected to be re-minted. In-memory only. */
+  transientCredentialsHash: string;
+  /** Mount credential expiry as epoch millis, or undefined when absent. */
   mountExpiresAtMs?: number;
 }
 
@@ -341,15 +351,41 @@ export function computeCredentialEpoch(
   request: AgentRunRequest,
   mountExpiresAt?: string,
 ): CredentialEpoch {
-  const material = canonicalJson({
-    secrets: request.secrets ?? {},
+  const sandboxMaterial = canonicalJson({
+    modelCredentials: (request.modelConnection?.credentials ?? []).map(
+      (credential) => ({
+        binding: credential.binding,
+        value: credential.value,
+        usage: credential.usage,
+      }),
+    ),
+    mcpCredentials: (request.mcpServers ?? []).flatMap((server) =>
+      (server.credentials ?? []).map((credential) => ({
+        server: server.name,
+        url: server.url ?? null,
+        binding: credential.binding,
+        value: credential.value,
+        usage: credential.usage,
+      })),
+    ),
+  });
+  const transientMaterial = canonicalJson({
     toolCallbackAuth: request.toolCallback?.authorization ?? null,
   });
   const parsed = mountExpiresAt ? Date.parse(mountExpiresAt) : NaN;
   return {
-    secretsHash: sha256(material),
+    sandboxCredentialsHash: sha256(sandboxMaterial),
+    transientCredentialsHash: sha256(transientMaterial),
     mountExpiresAtMs: Number.isFinite(parsed) ? parsed : undefined,
   };
+}
+
+/** True when credentials baked into a parked sandbox/session changed. */
+export function sandboxCredentialsRotated(
+  parked: CredentialEpoch,
+  incoming: CredentialEpoch,
+): boolean {
+  return parked.sandboxCredentialsHash !== incoming.sandboxCredentialsHash;
 }
 
 /**
@@ -381,7 +417,11 @@ export function credentialEpochMismatch(
   now = Date.now(),
 ): "credentials-expired" | "credentials-rotated" | undefined {
   if (mountCredentialsExpired(parked, now)) return "credentials-expired";
-  if (parked.secretsHash !== incoming.secretsHash) return "credentials-rotated";
+  if (
+    sandboxCredentialsRotated(parked, incoming) ||
+    parked.transientCredentialsHash !== incoming.transientCredentialsHash
+  )
+    return "credentials-rotated";
   return undefined;
 }
 
