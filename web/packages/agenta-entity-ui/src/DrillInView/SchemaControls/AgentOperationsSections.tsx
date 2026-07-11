@@ -1,13 +1,18 @@
 /**
  * AgentOperationsSections
  *
- * The agent playground's operational panel regions — Triggers and Mounts — rendered as SIBLING
+ * The agent playground's operational panel regions — Triggers and Storage — rendered as SIBLING
  * sections of the Configuration section, not inside it. Each region carries the same sticky
  * header bar as the panel's "Configuration" header (PlaygroundVariantConfigHeader), so the panel
  * reads as three vertically stacked sections and scrolling swaps the pinned header per region.
  * Operational state never enters the draftable/committable agent config — that's why these live
  * outside {@link AgentTemplateControl}.
+ *
+ * Naming: "Storage" + "drive" (App drive / Session drive), not "mounts" — a mount is the
+ * MECHANISM (geesefs/FUSE mount points); a drive is the thing users have a model for.
  */
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {ChatCircle, HardDrives} from "@phosphor-icons/react"
 import {Skeleton, Typography} from "antd"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
@@ -42,11 +47,12 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
             </section>
             <section className="flex w-full flex-col" aria-busy>
                 <div className={barClass(sticky)}>
-                    <span className={titleClass}>Mounts</span>
-                    <Skeleton.Button active size="small" style={{width: 90, height: 14}} />
+                    <span className={titleClass}>Storage</span>
+                    <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
                 </div>
-                <div className="px-4 py-3">
-                    <Skeleton active title={false} paragraph={{rows: 2, width: ["100%", "60%"]}} />
+                <div className="flex flex-col px-4">
+                    <SkeletonSectionRow title={86} value={90} divider />
+                    <SkeletonSectionRow title={110} value={110} />
                 </div>
             </section>
         </>
@@ -82,19 +88,39 @@ export function AgentOperationsSections({
 
             <section className="flex w-full flex-col">
                 <div className={barClass(sticky)}>
-                    <span className={titleClass}>Mounts</span>
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">Coming soon</span>
+                    <span className={titleClass}>Storage</span>
                 </div>
-                {/* STUB: agent-scoped (artifact-level) mounts don't exist yet (#5215) — placeholder
-                    for the agent's durable workspace. A conversation's live files are in the
-                    session panel beside the chat. */}
-                <div className="px-4 py-3">
-                    <Typography.Text type="secondary" className="text-xs">
-                        The agent&rsquo;s durable workspace — the memory and artifacts it
-                        accumulates across runs — will live here once agent-level mounts land. A
-                        conversation&rsquo;s live files are available in the session panel beside
-                        the chat.
-                    </Typography.Text>
+                <div className="flex flex-col px-4 pb-3">
+                    {/* App drive: the agent's durable folder (#5215, design PR — not built yet).
+                        Wire this section to POST /mounts/agents/query + the mount file browser
+                        once slice 1 lands. */}
+                    <ConfigAccordionSection
+                        icon={<HardDrives size={16} />}
+                        title="App drive"
+                        summary="Coming soon"
+                        defaultOpen={false}
+                        animateInitialOpen
+                    >
+                        <Typography.Text type="secondary" className="text-xs">
+                            One durable folder this agent keeps across every conversation — the
+                            skills, notes, and artifacts it accumulates. Agent-level storage is in
+                            design; its files will be browsable here once it lands.
+                        </Typography.Text>
+                    </ConfigAccordionSection>
+                    <ConfigAccordionSection
+                        icon={<ChatCircle size={16} />}
+                        title="Session drive"
+                        summary="Per conversation"
+                        defaultOpen={false}
+                        noDivider
+                        animateInitialOpen
+                    >
+                        <Typography.Text type="secondary" className="text-xs">
+                            Each conversation gets its own working folder while it runs — the files
+                            the agent reads and writes live there. Open a chat and browse them from
+                            the session panel beside the transcript.
+                        </Typography.Text>
+                    </ConfigAccordionSection>
                 </div>
             </section>
         </>
