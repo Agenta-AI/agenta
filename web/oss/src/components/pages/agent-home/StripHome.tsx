@@ -113,11 +113,12 @@ const StripHome: React.FC = () => {
                     {/* Chip docks flush above the composer (no gap; the chip has no bottom border).
                         It's absolutely positioned INTO the 44px hero gap (bottom-full), so the
                         subtitle→composer distance is exactly mt-11 with or without a chip — the
-                        invisible reserved slot no longer inflates the gap. The 1.5px nudge overlaps
+                        invisible reserved slot no longer inflates the gap. The 2px nudge overlaps
                         the composer's top border so the chip opens into it instead of sitting on a
-                        seam line. */}
+                        seam line; z-10 keeps the chip painting ABOVE the (relative) composer, whose
+                        border would otherwise draw over the overlap. */}
                     <div className="relative mt-11 flex flex-col items-stretch">
-                        <div className="absolute bottom-full left-0 translate-y-[1.5px]">
+                        <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
                             {provenance.chipNode}
                         </div>
                         <StripComposer
