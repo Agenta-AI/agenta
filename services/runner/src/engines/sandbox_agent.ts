@@ -33,6 +33,7 @@
 import { rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
+import { Redactor, seedFromEnv } from "../redaction.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
 
@@ -84,7 +85,10 @@ import {
   DAYTONA_PI_DIR,
 } from "./sandbox_agent/daytona.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
-import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
+import {
+  buildSessionMcpServers,
+  validateUserMcpServers,
+} from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
 import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
@@ -262,9 +266,9 @@ function applyClaudeConnectionEnv(
   // so it is never stripped, and it reaches the Daytona sandbox like `ANTHROPIC_BASE_URL`.
   env.ENABLE_TOOL_SEARCH = "false";
 
-  const deployment = request.deployment;
+  const deployment = request.modelConnection?.deployment;
   const selectedModel = request.model;
-  const baseUrl = request.endpoint?.baseUrl;
+  const baseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (baseUrl) {
     env.ANTHROPIC_BASE_URL = baseUrl;
     logger(`claude base_url: ${baseUrl}`);
@@ -272,7 +276,7 @@ function applyClaudeConnectionEnv(
 
   if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
-    const region = request.endpoint?.region;
+    const region = request.modelConnection?.endpoint?.region;
     if (region) {
       env.AWS_REGION = region;
       env.AWS_DEFAULT_REGION ??= region;
@@ -502,6 +506,7 @@ export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
 export interface SessionEnvironment {
   plan: RunPlan;
   logger: Log;
+  redactor: Redactor;
   deps: SandboxAgentDeps;
   sandbox: any;
   session: any;
@@ -608,7 +613,24 @@ export async function acquireEnvironment(
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
 ): Promise<AcquireEnvironmentResult> {
-  const logger = deps.log ?? log;
+  const redactor = seedFromEnv({
+    resolvedSecrets: [
+      ...(request.modelConnection?.credentials ?? []).map(
+        (credential) => credential.value,
+      ),
+      ...(request.mcpServers ?? []).flatMap((server) =>
+        (server.credentials ?? []).map((credential) => credential.value),
+      ),
+    ],
+    runCredential: runCredential(request),
+    extraValues: [
+      request.toolCallback?.authorization,
+      request.telemetry?.exporters?.otlp?.headers?.authorization,
+    ],
+  });
+  const rawLogger = deps.log ?? log;
+  const logger: Log = (message) =>
+    rawLogger(redactor.redactString(message, "log") ?? "[ag:redacted]");
   const acquireStartedAt = Date.now();
   const timingLog = (stage: string, startedAt: number, fields = ""): void => {
     const sandboxId = environment?.sandbox?.sandboxId ?? "-";
@@ -638,7 +660,10 @@ export async function acquireEnvironment(
         ownerReplicaId,
       );
     } catch (err) {
-      return { ok: false, error: conciseError(err, request.harness ?? "") };
+      return {
+        ok: false,
+        error: redactor.redactError(conciseError(err, request.harness ?? "")),
+      };
     }
   }
 
@@ -685,14 +710,14 @@ export async function acquireEnvironment(
   const plan = planResult.plan;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
-  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.secrets` are
+  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.modelEnvironment` are
   // present and an inherited key for another provider cannot leak. For runtime_provided/none/
-  // un-migrated runs the harness uses its own login, so the inherited keys stay.
+  // or a request without modelConnection, the harness login remains available.
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
   });
-  Object.assign(env, plan.secrets); // apply only the resolved provider keys
+  Object.assign(env, plan.modelEnvironment); // apply only the resolved provider keys
   const strictModel = applyClaudeConnectionEnv(
     env,
     request,
@@ -738,10 +763,11 @@ export async function acquireEnvironment(
   // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
   // line that answers "what model/provider/deployment/credential did this run actually use".
   logger(
-    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
-      `deployment=${request.deployment ?? "<none>"} ` +
-      `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
-      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
+    `resolved model=${request.model ?? "<none>"} provider=${request.modelConnection?.provider ?? "<none>"} ` +
+      `deployment=${request.modelConnection?.deployment ?? "<none>"} ` +
+      `credentialKeys=[${(request.modelConnection?.credentials ?? [])
+        .map((credential) => credential.binding.name)
+        .join(",")}]`,
   );
 
   // The shared client-tool relay reference (the deferred ref baked into the MCP server reads it;
@@ -764,6 +790,7 @@ export async function acquireEnvironment(
   const environment: SessionEnvironment = {
     plan,
     logger,
+    redactor,
     deps,
     sandbox: undefined,
     session: undefined,
@@ -940,6 +967,10 @@ export async function acquireEnvironment(
   };
 
   try {
+    // Validate user MCP routes and credential bindings before provider construction or sandbox
+    // reconnect/create. `buildSessionMcpServers` repeats this at final materialization as defense.
+    await validateUserMcpServers(request.mcpServers);
+
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
       deps.createPersist?.() ?? new InMemorySessionPersistDriver();
@@ -952,7 +983,7 @@ export async function acquireEnvironment(
       env,
       binaryPath,
       piExtEnv,
-      plan.secrets,
+      plan.modelEnvironment,
       plan.sandboxPermission,
     );
     const startOptions = {
@@ -1315,7 +1346,9 @@ export async function acquireEnvironment(
     timingLog("acquire_total", acquireStartedAt);
     return { ok: true, env: environment };
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
+    const error = redactor.redactError(
+      conciseError(err, plan.harness, request.modelConnection?.provider),
+    );
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
@@ -1466,18 +1499,27 @@ export async function runTurn(
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
-      emit: emit && runLimits.wrapEmit(emit),
+      emit:
+        emit &&
+        runLimits.wrapEmit((event) =>
+          emit(env.redactor.redactJson(event, "event")),
+        ),
     });
     otel = run;
 
-    run.start({
-      prompt: promptText,
-      sessionId,
-      messages: [
-        ...priorMessages(request),
-        { role: "user", content: promptText },
-      ],
-    });
+    run.start(
+      env.redactor.redactJson(
+        {
+          prompt: promptText,
+          sessionId,
+          messages: [
+            ...priorMessages(request),
+            { role: "user", content: promptText },
+          ],
+        },
+        "trace",
+      ),
+    );
 
     const pause = new PendingApprovalPauseController(() => {
       // The sibling settle runs UNCONDITIONALLY, park mode or not: latch-loser tool calls
@@ -1546,7 +1588,7 @@ export async function runTurn(
           ) {
             env.lastTurnToolCallIds.push(frame.toolCallId);
           }
-          run.handleUpdate(update);
+          run.handleUpdate(env.redactor.redactJson(update, "event"));
           // A sibling announced AFTER the pause won the latch can never execute; settle it
           // immediately so the client never holds an orphaned part (idempotent re-sweep).
           if (pause.active) {
@@ -1762,13 +1804,18 @@ export async function runTurn(
       // trace with the parked tool call so the completing `tool_call_update` closes it and the FE
       // approval part flips to output-available even if the adapter re-announces nothing. Then
       // answer the gate on the live session — the original prompt continues from here.
-      run.handleUpdate({
-        sessionUpdate: "tool_call",
-        toolCallId: opts.resume.toolCallId,
-        title: opts.resume.toolName,
-        kind: opts.resume.toolName,
-        rawInput: opts.resume.args,
-      });
+      run.handleUpdate(
+        env.redactor.redactJson(
+          {
+            sessionUpdate: "tool_call",
+            toolCallId: opts.resume.toolCallId,
+            title: opts.resume.toolName,
+            kind: opts.resume.toolName,
+            rawInput: opts.resume.args,
+          },
+          "event",
+        ),
+      );
       promptPromise = Promise.resolve(opts.resume.promptPromise);
       promptPromise.catch(() => {});
       // A parked Pi dialog gate resumes on a FRESH turn whose relay and grant ledger are new;
@@ -1808,6 +1855,13 @@ export async function runTurn(
     }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+    if (stopReason === "paused") {
+      await pause.waitForEventDrain();
+      run.settleOpenToolCalls(
+        (id) => pause.isPausedToolCall(id),
+        TOOL_NOT_EXECUTED_PAUSED,
+      );
+    }
     const result = raced === PAUSED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to the parked record so a
     // later resume can await the same continuation. (Set after the race so `promptPromise` exists.
@@ -1841,12 +1895,14 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
-      swallowedError = conciseError(
-        new Error(swallowedPiError),
-        plan.harness,
-        request.provider,
+      swallowedError = env.redactor.redactError(
+        conciseError(
+          new Error(swallowedPiError),
+          plan.harness,
+          request.modelConnection?.provider,
+        ),
       );
-      run.recordError(swallowedError, request.provider);
+      run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
@@ -1891,24 +1947,29 @@ export async function runTurn(
       invalidateContinuity(sessionId, plan.harness, deps);
     }
 
-    return {
-      ok: true,
-      output,
-      messages: output ? [{ role: "assistant", content: output }] : [],
-      events: emit ? [] : run.events(),
-      usage,
-      stopReason,
-      capabilities: {
-        ...env.capabilities,
-        streamingDeltas: !!emit && env.capabilities.streamingDeltas,
-      },
-      sessionId,
-      model: env.model ?? request.model,
-      traceId: run.traceId(),
-    } as AgentRunResult;
+    return env.redactor.redactJson(
+      {
+        ok: true,
+        output,
+        messages: output ? [{ role: "assistant", content: output }] : [],
+        events: emit ? [] : run.events(),
+        usage,
+        stopReason,
+        capabilities: {
+          ...env.capabilities,
+          streamingDeltas: !!emit && env.capabilities.streamingDeltas,
+        },
+        sessionId,
+        model: env.model ?? request.model,
+        traceId: run.traceId(),
+      } as AgentRunResult,
+      "result",
+    );
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
-    otel?.recordError(error, request.provider);
+    const error = env.redactor.redactError(
+      conciseError(err, plan.harness, request.modelConnection?.provider),
+    );
+    otel?.recordError(error, request.modelConnection?.provider);
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
