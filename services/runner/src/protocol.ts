@@ -234,23 +234,30 @@ export interface WireSkill {
   allowExecutableFiles?: boolean;
 }
 
+/** One secret HTTP header binding owned by an HTTP MCP consumer. */
+export interface McpCredential {
+  binding: { kind: "header"; name: string };
+  value: string;
+  usage: "opaque_http";
+}
+
 /**
- * A user-declared MCP server attached to the run. `stdio` launches `command`/`args` with
- * `env` (secret env already resolved server-side); `tools` is an optional allowlist (empty =
- * all). Remote (`http`) carries no auth on the wire by design.
+ * A user-declared MCP server attached to the run. Non-secret process environment, public HTTP
+ * headers, and secret HTTP header credentials remain separate by protocol role.
  */
 export interface McpServerConfig {
   name: string;
   transport?: "stdio" | "http";
   command?: string;
   args?: string[];
-  env?: Record<string, string>;
+  environment?: Record<string, string>;
   url?: string;
+  headers?: Record<string, string>;
+  credentials?: McpCredential[];
   tools?: string[];
   /**
    * Layer-3 permission for the whole server: `allow` / `ask` / `deny`. Absent =
-   * fall back to the global permission plan. An MCP server has no `readOnly` hint, so there
-   * is no derived default: an explicit author value or nothing.
+   * fall back to the global permission plan.
    */
   permission?: ToolPermission;
 }
@@ -384,6 +391,32 @@ export interface AgentUsage {
   cost: number;
 }
 
+export interface ModelCredentialBinding {
+  kind: "environment";
+  name: string;
+}
+
+export interface ModelCredential {
+  binding: ModelCredentialBinding;
+  value: string;
+  usage: "opaque_http" | "local_use";
+}
+
+/** Resolved route and credentials owned by the model consumer. */
+export interface ModelConnection {
+  provider: string;
+  deployment: string;
+  endpoint?: {
+    baseUrl?: string;
+    apiVersion?: string;
+    region?: string;
+    headers?: Record<string, string>;
+  };
+  credentialMode: "env" | "runtime_provided" | "none";
+  environment?: Record<string, string>;
+  credentials: ModelCredential[];
+}
+
 export interface AgentRunRequest {
   /**
    * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
@@ -395,8 +428,6 @@ export interface AgentRunRequest {
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
-  /** Provider API keys as env vars ({OPENAI_API_KEY,...}), resolved from the vault. */
-  secrets?: Record<string, string>;
   /** AGENTS.md text injected as the agent's instructions. */
   agentsMd?: string;
   /**
@@ -413,39 +444,8 @@ export interface AgentRunRequest {
   appendSystemPrompt?: string;
   /** Model id ("gpt-5.5") or "provider/id" ("openai-codex/gpt-5.5"). */
   model?: string;
-  /**
-   * Provider family for the run, e.g. "openai" | "anthropic" | <custom-slug>. Non-secret.
-   * Present only when the config carries a structured model ref. See the provider-model-auth
-   * design (Concern 1).
-   */
-  provider?: string;
-  /**
-   * Where the credential comes from, named portably (a slug, never a db id). Non-secret.
-   * Present only when the config carries a structured model ref. See the provider-model-auth
-   * design (Concern 1).
-   */
-  connection?: { mode: string; slug?: string };
-  /**
-   * Deployment surface for the provider: "direct" | "azure" | "bedrock" | "vertex" |
-   * "custom". From a resolved connection; see the provider-model-auth design (Concern 3).
-   */
-  deployment?: string;
-  /**
-   * Non-secret connection config (custom base URL, api version, region, public headers).
-   * Secret values never live here; they ride `secrets`. See the provider-model-auth design
-   * (Concern 3).
-   */
-  endpoint?: {
-    baseUrl?: string;
-    apiVersion?: string;
-    region?: string;
-    headers?: Record<string, string>;
-  };
-  /**
-   * How the credential is delivered: "env" | "runtime_provided" | "none". From a resolved
-   * connection; see the provider-model-auth design (Concern 3).
-   */
-  credentialMode?: string;
+  /** Resolved model routing and credential bindings, grouped under their consumer. */
+  modelConnection?: ModelConnection;
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
   /** Built-in tools to enable. */
