@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/colors.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/typography.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/effects.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/styles.css">
+<script src="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; background: #0A0A0B; }
+  @keyframes ag-pulse { 0% { transform: scale(1); opacity: 0.5; } 70% { transform: scale(1.7); opacity: 0; } 100% { opacity: 0; } }
+  @keyframes accordion-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.26); background-clip: content-box; }
+  [data-scroll="dark"]::-webkit-scrollbar { width: 10px; }
+  html, [data-scroll="dark"] { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+  .ag-menu { display: none; }
+  @media (max-width: 1100px) {
+    .ag-int { grid-template-columns: repeat(2, 1fr) !important; }
+    .ag-diagram { height: auto !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 14px !important; }
+    .ag-diagram-svg { display: none !important; }
+    .ag-node { position: static !important; transform: none !important; }
+  }
+  @media (max-width: 860px) {
+    .ag-wrap { padding: 0 !important; }
+    .ag-navlinks, .ag-navcta { display: none !important; }
+    .ag-menu { display: inline-flex !important; }
+    .ag-explorer { flex-direction: column !important; height: auto !important; }
+    .ag-explorer-list { width: 100% !important; flex: none !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; flex-direction: row !important; overflow-x: auto !important; }
+    .ag-explorer-list > div { min-width: 210px !important; }
+    .ag-harness { grid-template-columns: 1fr !important; }
+    .ag-harness > div:nth-child(2) { border-left: none !important; border-top: 1px solid rgba(255,255,255,0.09) !important; }
+    .ag-row { flex-direction: column !important; align-items: stretch !important; gap: 36px !important; }
+    .ag-row > div { flex: none !important; width: 100% !important; max-width: 100% !important; }
+    .ag-cta-row { flex-direction: column !important; align-items: flex-start !important; gap: 28px !important; }
+    .ag-cta-img { display: none !important; }
+    .ag-int { grid-template-columns: 1fr !important; }
+    .ag-foot-top { padding: 48px 24px 56px !important; flex-direction: column !important; gap: 36px !important; }
+    .ag-foot-cols { gap: 32px !important; }
+    .ag-h1 { font-size: 38px !important; line-height: 1.08 !important; }
+    .ag-video { height: 240px !important; }
+    .ag-secpad { padding-top: 64px !important; padding-bottom: 64px !important; }
+  }
+  @media (min-width: 861px) { .ag-mobile-menu { display: none !important; } }
+</style>
+</helmet>
+
+<div class="ag-wrap" style="width:100%;max-width:1440px;margin:0 auto;background:#0A0A0B;padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);">
+
+  <!-- ============ NAV (dark) ============ -->
+  <nav style="position:relative;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 24px;background:#100F11;border:1px solid rgba(255,255,255,0.07);box-sizing:border-box;">
+    <a href="Agenta%20Landing%20-%20Agents%20(Dark).dc.html" style="display:flex;align-items:center;"><img src="assets/logos/Agenta-logo-full-dark.svg" alt="Agenta" style="height:23px;display:block;"></a>
+    <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Product<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+      <a href="Agenta%20Pricing%20(Dark).dc.html" style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;">Pricing</a>
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Docs</span>
+      <a href="Agenta%20Blog%20(Dark).dc.html" style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;">Blog</a>
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Resources<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Community<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+    </div>
+    <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Book a demo</span>
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Get started</span>
+    </div>
+    <button class="ag-menu" onClick="{{ toggleMenu }}" style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);cursor:pointer;padding:0;">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 5h14M2 9h14M2 13h14" stroke="#F7F6F4" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </nav>
+
+  <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="ag-mobile-menu" style="display:flex;flex-direction:column;gap:2px;padding:12px 16px 16px;background:#100F11;border:1px solid rgba(255,255,255,0.07);border-top:none;margin-top:-1px;">
+      <sc-for list="{{ navItems }}" as="it" hint-placeholder-count="5">
+        <span style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;">{{ it }}</span>
+      </sc-for>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Book a demo</span>
+        <span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Get started</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ HERO ============ -->
+  <section data-screen-label="Hero" style="background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:64px 0 88px;text-align:center;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:32px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:28px;">
+        <sc-if value="{{ showAnnouncement }}" hint-placeholder-val="{{ true }}">
+          <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.8);">Now in beta — skills &amp; tools →</span>
+        </sc-if>
+        <h1 class="ag-h1" style="margin:0;font:var(--text-display-xl);color:#F7F6F4;max-width:920px;text-wrap:pretty;">{{ heroPre }}<span style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25), 0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--yellow-400);vertical-align:baseline;">{{ heroChip }}</span>{{ heroPost }}</h1>
+        <p style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:600px;text-wrap:pretty;">{{ heroSub }}</p>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <span style="display:inline-flex;align-items:center;height:44px;padding:0 20px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Start building</span>
+        <span style="display:inline-flex;align-items:center;height:44px;padding:0 20px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Read the docs</span>
+      </div>
+
+      <!-- hero video placeholder (dark) -->
+      <div class="ag-video" style="position:relative;width:min(1016px,100%);height:452px;margin-top:28px;border-radius:8px;background:linear-gradient(180deg,#1C1B1E,#141315);box-shadow:0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+        <img src="assets/logos/Agenta-symbol-dark.svg" alt="" style="position:absolute;left:-40px;bottom:-60px;width:340px;opacity:0.05;">
+        <div style="position:absolute;top:16px;left:16px;display:flex;gap:6px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.14);"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.14);"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.14);"></span>
+        </div>
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:18px;">
+          <div style="position:relative;width:76px;height:76px;">
+            <span style="position:absolute;inset:0;border-radius:50%;background:var(--yellow-400);animation:ag-pulse 2.6s ease-out infinite;"></span>
+            <span style="position:relative;display:flex;align-items:center;justify-content:center;width:76px;height:76px;border-radius:50%;background:var(--yellow-400);box-shadow:0 8px 30px rgba(242,242,92,0.25);">
+              <svg width="22" height="24" viewBox="0 0 22 24" fill="none"><path d="M2 2.5 19.5 12 2 21.5V2.5Z" fill="var(--ink-900)"/></svg>
+            </span>
+          </div>
+          <span style="font:var(--text-label);color:rgba(255,255,255,0.66);">Watch: build a support agent in 2 min</span>
+        </div>
+        <div style="position:absolute;bottom:16px;left:18px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.4);">2:04 · Product overview</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TEMPLATES — clickable use-case explorer ============ -->
+  <section data-screen-label="Templates" class="ag-secpad" style="background:#161518;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:56px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" badge="Build" title="Build agents using skills and tools" subtitle="Compose reusable skills and connected tools into agents — in a playground where PMs, experts, and devs work side by side." hint-size="677px,auto"></x-import>
+
+      <!-- interactive template explorer -->
+      <div class="ag-explorer" style="width:min(1016px,100%);height:520px;border-radius:12px;background:#121113;box-shadow:0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07);display:flex;overflow:hidden;text-align:left;">
+
+        <!-- left: clickable use cases -->
+        <div data-scroll="dark" class="ag-explorer-list" style="width:368px;flex:0 0 368px;background:rgba(255,255,255,0.02);border-right:1px solid rgba(255,255,255,0.07);padding:18px 16px;display:flex;flex-direction:column;gap:8px;overflow:auto;box-sizing:border-box;">
+          <span style="font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.36);padding:2px 6px 6px;">Use cases</span>
+          <sc-for list="{{ templates }}" as="item" hint-placeholder-count="5">
+            <div onClick="{{ item.onClick }}" style="{{ item.cardStyle }}">
+              <div style="display:flex;align-items:center;gap:11px;">
+                <span style="flex:0 0 auto;width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:{{ item.monoColor }};">{{ item.mono }}</span>
+                <span style="font:var(--text-label);color:#F7F6F4;">{{ item.title }}</span>
+              </div>
+              <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);padding-left:41px;">{{ item.triggerShort }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- right: selected template detail -->
+        <div data-scroll="dark" style="flex:1;min-width:0;padding:24px 28px;display:flex;flex-direction:column;gap:16px;overflow:auto;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <span style="font:300 24px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">{{ current.title }}</span>
+              <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.55);">{{ current.tagline }}</span>
+            </div>
+            <span style="flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 16px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Use template<svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M3 2.5 6.5 6 3 9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+
+          <!-- trigger + harness -->
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);">
+            <span style="font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.34);">Trigger</span>
+            <span style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:8px;background:rgba(242,242,92,0.1);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.25);font:var(--text-label);color:#F7F6F4;"><span style="width:7px;height:7px;border-radius:50%;background:var(--yellow-400);box-shadow:0 0 8px rgba(242,242,92,0.7);"></span>{{ current.trigger }}</span>
+            <span style="margin-left:auto;display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px 0 8px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);font:var(--text-label);color:rgba(255,255,255,0.82);"><span style="width:19px;height:19px;border-radius:5px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font:600 10px/1 var(--font-sans);color:rgba(255,255,255,0.88);">{{ current.harnessMono }}</span>{{ current.harness }}</span>
+          </div>
+
+          <!-- Skills: each skill is a collapsible SKILL.md -->
+          <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:6px;">
+            <div onClick="{{ toggleSkillsSec }}" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;" style-hover="background:rgba(255,255,255,0.04)">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="transform:{{ chevSkillsSec }};transition:transform 0.18s ease;flex:0 0 auto;"><path d="M4 2.5 8 6l-4 3.5" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span style="font:var(--text-label);color:#F7F6F4;">Skills</span>
+              <span style="font:var(--app-text-mono);font-size:11px;color:rgba(255,255,255,0.42);padding:2px 8px;border-radius:999px;background:rgba(255,255,255,0.06);">{{ skillsCount }}</span>
+            </div>
+            <sc-if value="{{ openSkillsSec }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:8px;padding:6px 0 2px;animation:accordion-in 0.2s ease both;">
+                <sc-for list="{{ skillItems }}" as="sk" hint-placeholder-count="3">
+                  <div style="border-radius:10px;background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);overflow:hidden;">
+                    <div onClick="{{ sk.onClick }}" style="display:flex;align-items:center;gap:11px;padding:11px 13px;cursor:pointer;" style-hover="background:rgba(255,255,255,0.02)">
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="transform:{{ sk.chev }};transition:transform 0.18s ease;flex:0 0 auto;"><path d="M4 2.5 8 6l-4 3.5" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <span style="flex:0 0 auto;width:24px;height:24px;border-radius:6px;background:rgba(217,119,87,0.16);display:flex;align-items:center;justify-content:center;"><span style="width:6px;height:6px;border-radius:50%;background:var(--terracotta-500);"></span></span>
+                      <span style="flex:0 0 auto;font:var(--app-text-mono);color:#F7F6F4;">{{ sk.name }}</span>
+                      <span style="min-width:0;font:var(--text-caption);color:rgba(255,255,255,0.45);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ sk.summary }}</span>
+                    </div>
+                    <sc-if value="{{ sk.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="padding:0 13px 13px 35px;animation:accordion-in 0.2s ease both;">
+                        <div style="border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);background:rgba(0,0,0,0.34);">
+                          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.06);">
+                            <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.14);"></span>
+                            <span style="font:var(--app-text-mono);font-size:11px;color:rgba(255,255,255,0.5);">{{ sk.file }}</span>
+                          </div>
+                          <pre style="margin:0;padding:13px 14px;font:var(--app-text-mono);color:rgba(255,255,255,0.7);white-space:pre-wrap;line-height:1.6;">{{ sk.code }}</pre>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- Agents.md -->
+          <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:6px;">
+            <div onClick="{{ toggleAgentsSec }}" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;" style-hover="background:rgba(255,255,255,0.04)">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="transform:{{ chevAgentsSec }};transition:transform 0.18s ease;flex:0 0 auto;"><path d="M4 2.5 8 6l-4 3.5" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span style="font:var(--text-label);color:#F7F6F4;">Agents.md</span>
+            </div>
+            <sc-if value="{{ openAgentsSec }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:6px 0 2px;animation:accordion-in 0.2s ease both;">
+                <div style="border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);background:rgba(0,0,0,0.34);">
+                  <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.06);">
+                    <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.14);"></span>
+                    <span style="font:var(--app-text-mono);font-size:11px;color:rgba(255,255,255,0.5);">AGENTS.md</span>
+                  </div>
+                  <pre style="margin:0;padding:13px 14px;font:var(--app-text-mono);color:rgba(255,255,255,0.7);white-space:pre-wrap;line-height:1.6;">{{ current.agents }}</pre>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- Tools: each tool is a collapsible schema -->
+          <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:6px;">
+            <div onClick="{{ toggleToolsSec }}" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer;" style-hover="background:rgba(255,255,255,0.04)">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="transform:{{ chevToolsSec }};transition:transform 0.18s ease;flex:0 0 auto;"><path d="M4 2.5 8 6l-4 3.5" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span style="font:var(--text-label);color:#F7F6F4;">Tools</span>
+              <span style="font:var(--app-text-mono);font-size:11px;color:rgba(255,255,255,0.42);padding:2px 8px;border-radius:999px;background:rgba(255,255,255,0.06);">{{ toolsCount }}</span>
+            </div>
+            <sc-if value="{{ openToolsSec }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:8px;padding:6px 0 2px;animation:accordion-in 0.2s ease both;">
+                <sc-for list="{{ toolItems }}" as="tl" hint-placeholder-count="3">
+                  <div style="border-radius:10px;background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);overflow:hidden;">
+                    <div onClick="{{ tl.onClick }}" style="display:flex;align-items:center;gap:11px;padding:11px 13px;cursor:pointer;" style-hover="background:rgba(255,255,255,0.02)">
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="transform:{{ tl.chev }};transition:transform 0.18s ease;flex:0 0 auto;"><path d="M4 2.5 8 6l-4 3.5" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <span style="flex:0 0 auto;width:24px;height:24px;border-radius:6px;background:rgba(255,255,255,0.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font:600 11px/1 var(--font-sans);color:rgba(255,255,255,0.85);">{{ tl.mono }}</span>
+                      <span style="flex:0 0 auto;font:var(--text-label);color:#F7F6F4;">{{ tl.name }}</span>
+                      <span style="min-width:0;font:var(--text-caption);color:rgba(255,255,255,0.45);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ tl.desc }}</span>
+                    </div>
+                    <sc-if value="{{ tl.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="padding:0 13px 13px 35px;display:flex;flex-direction:column;gap:10px;animation:accordion-in 0.2s ease both;">
+                        <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.6);">{{ tl.desc }}</span>
+                        <div style="border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);background:rgba(0,0,0,0.34);">
+                          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.06);">
+                            <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.14);"></span>
+                            <span style="font:var(--app-text-mono);font-size:11px;color:rgba(255,255,255,0.5);">{{ tl.file }}</span>
+                          </div>
+                          <pre style="margin:0;padding:13px 14px;font:var(--app-text-mono);color:rgba(255,255,255,0.7);white-space:pre-wrap;line-height:1.6;">{{ tl.code }}</pre>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HARNESS / MODEL ============ -->
+  <section data-screen-label="Harness" class="ag-secpad" style="background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:56px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" badge="Run anywhere" title="Switch harness or model, never rewrite" subtitle="Build once and run on the harness your team prefers, with any model — hosted or self-hosted." hint-size="677px,auto"></x-import>
+      <div class="ag-harness" style="display:grid;grid-template-columns:1fr 1fr;gap:0;width:min(1072px,100%);border:1px solid rgba(255,255,255,0.09);">
+        <div style="padding:36px 40px;display:flex;flex-direction:column;gap:20px;">
+          <span style="font:var(--text-caption);letter-spacing:0.03em;text-transform:uppercase;color:rgba(255,255,255,0.4);">Harnesses</span>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <sc-for list="{{ harnesses }}" as="item" hint-placeholder-count="4">
+              <div style="display:inline-flex;align-items:center;gap:10px;padding:9px 15px;border-radius:10px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.1);">
+                <span style="width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">{{ item.mono }}</span>
+                <span style="font:var(--text-label);color:#F7F6F4;">{{ item.name }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding:36px 40px;display:flex;flex-direction:column;gap:20px;border-left:1px solid rgba(255,255,255,0.09);">
+          <span style="font:var(--text-caption);letter-spacing:0.03em;text-transform:uppercase;color:rgba(255,255,255,0.4);">Models</span>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <sc-for list="{{ models }}" as="item" hint-placeholder-count="4">
+              <div style="display:inline-flex;align-items:center;gap:10px;padding:9px 15px;border-radius:10px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.1);">
+                <span style="width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">{{ item.mono }}</span>
+                <span style="font:var(--text-label);color:#F7F6F4;">{{ item.name }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RUN ON ANY ENVIRONMENT — dark hub diagram ============ -->
+  <section data-screen-label="Environments" class="ag-secpad" style="background:#0A090A;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:120px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:72px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" badge="Environments" title="Run in any environment" subtitle="Your laptop, an ephemeral sandbox, or your own cloud — agents run the same everywhere Agenta orchestrates." hint-size="677px,auto"></x-import>
+      <div class="ag-diagram" style="position:relative;width:min(1072px,100%);height:380px;">
+        <svg class="ag-diagram-svg" viewBox="0 0 1072 380" width="1072" height="380" style="position:absolute;inset:0;" fill="none">
+          <line x1="536" y1="190" x2="170" y2="74" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <line x1="536" y1="190" x2="902" y2="74" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <line x1="536" y1="190" x2="170" y2="306" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <line x1="536" y1="190" x2="902" y2="306" stroke="rgba(242,242,92,0.28)" stroke-width="1.5" stroke-dasharray="4 5"/>
+        </svg>
+        <div class="ag-node" style="position:absolute;left:536px;top:190px;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px;">
+          <div style="width:88px;height:88px;border-radius:20px;background:rgba(242,242,92,0.08);box-shadow:0 0 0 1px rgba(242,242,92,0.22),0 0 60px rgba(242,242,92,0.12);display:flex;align-items:center;justify-content:center;">
+            <img src="assets/logos/Agenta-symbol-dark-accent.svg" alt="Agenta" style="width:46px;">
+          </div>
+          <span style="font:var(--text-label);color:#fff;">Agenta</span>
+        </div>
+        <div class="ag-node" style="position:absolute;left:170px;top:74px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">L</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">Local machine</span><span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">Claude Code, CLI</span></span>
+        </div>
+        <div class="ag-node" style="position:absolute;left:902px;top:74px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">D</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">Daytona</span><span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">Dev environment</span></span>
+        </div>
+        <div class="ag-node" style="position:absolute;left:170px;top:306px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">E</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">E2B</span><span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">Ephemeral sandbox</span></span>
+        </div>
+        <div class="ag-node" style="position:absolute;left:902px;top:306px;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:11px;padding:12px 18px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.12);">
+          <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-sans);color:rgba(255,255,255,0.85);">☁</span>
+          <span style="display:flex;flex-direction:column;"><span style="font:var(--text-label);color:#fff;">Your own cloud</span><span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">Self-hosted</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COLLABORATE ============ -->
+  <section data-screen-label="Collaborate" class="ag-secpad" style="background:#161518;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;">
+    <div class="ag-row" style="display:flex;align-items:center;gap:80px;width:min(1072px,100%);margin:0 auto;">
+      <div style="flex:0 0 392px;display:flex;flex-direction:column;gap:24px;">
+        <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" align="left" badge="Collaborate" title="Build it with the whole team" subtitle="Share skills, tools, and agents in one registry. PMs and domain experts iterate alongside engineers — every change versioned." hint-size="392px,auto"></x-import>
+        <span style="display:inline-flex;align-items:center;width:fit-content;height:36px;padding:0 16px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Invite your team</span>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+        <sc-for list="{{ collabCards }}" as="item" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:16px;padding:20px 22px;border-radius:12px;background:rgba(255,255,255,0.035);box-shadow:0 0 0 1px rgba(255,255,255,0.08);">
+            <span style="flex:0 0 auto;width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font:400 20px/1 var(--font-bitmap,'PP Mondwest',monospace);color:var(--yellow-400);">{{ item.mono }}</span>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <span style="font:var(--text-title);color:#F7F6F4;">{{ item.title }}</span>
+              <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.58);">{{ item.desc }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INTEGRATIONS ============ -->
+  <section data-screen-label="Integrations" class="ag-secpad" style="background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:56px;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" badge="Integrations" title="Integrate with everything" subtitle="Dozens of built-in integrations push traces, feedback, and alerts to the tools your team already lives in." hint-size="677px,auto"></x-import>
+      <div class="ag-int" style="display:grid;grid-template-columns:repeat(4,1fr);width:min(1072px,100%);border:1px solid rgba(255,255,255,0.09);">
+        <sc-for list="{{ integrations }}" as="item" hint-placeholder-count="8">
+          <div style="display:flex;align-items:center;gap:14px;padding:24px 26px;box-shadow:0 0 0 0.5px rgba(255,255,255,0.09);">
+            <span style="width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,0.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font:600 15px/1 var(--font-sans);color:rgba(255,255,255,0.85);">{{ item.mono }}</span>
+            <span style="font:var(--text-label);color:#F7F6F4;">{{ item.name }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MONITOR ============ -->
+  <section data-screen-label="Monitor" class="ag-secpad" style="background:#161518;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;">
+    <div class="ag-row" style="display:flex;align-items:center;gap:80px;width:min(1072px,100%);margin:0 auto;">
+      <div class="ag-video" style="flex:1;position:relative;height:340px;border-radius:8px;background:linear-gradient(180deg,#1C1B1E,#141315);box-shadow:0 24px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+        <img src="assets/logos/Agenta-symbol-dark.svg" alt="" style="position:absolute;right:-30px;top:-40px;width:220px;opacity:0.05;">
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;">
+          <div style="position:relative;width:64px;height:64px;">
+            <span style="position:absolute;inset:0;border-radius:50%;background:var(--yellow-400);animation:ag-pulse 2.6s ease-out infinite;"></span>
+            <span style="position:relative;display:flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:50%;background:var(--yellow-400);box-shadow:0 8px 30px rgba(242,242,92,0.25);">
+              <svg width="18" height="20" viewBox="0 0 22 24" fill="none"><path d="M2 2.5 19.5 12 2 21.5V2.5Z" fill="var(--ink-900)"/></svg>
+            </span>
+          </div>
+          <span style="font:var(--text-label);color:rgba(255,255,255,0.66);">Watch: monitoring &amp; evals</span>
+        </div>
+        <div style="position:absolute;bottom:16px;left:18px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.4);">1:38 · Observability</div>
+      </div>
+      <div style="flex:0 0 392px;display:flex;flex-direction:column;gap:24px;">
+        <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" align="left" badge="Observability" title="Monitor usage, improve quality" subtitle="Trace every run, collect user feedback, and run evaluations on real production data — then close the loop." hint-size="392px,auto"></x-import>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="margin-top:2px;flex:0 0 auto;"><circle cx="9" cy="9" r="9" fill="var(--yellow-400)"/><path d="M5 9.2 7.6 11.8 13 6.4" stroke="var(--ink-900)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.62);">Capture feedback on every trace, from your team or your users</span>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="margin-top:2px;flex:0 0 auto;"><circle cx="9" cy="9" r="9" fill="var(--yellow-400)"/><path d="M5 9.2 7.6 11.8 13 6.4" stroke="var(--ink-900)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.62);">Evaluate on real production data, not vibes</span>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="margin-top:2px;flex:0 0 auto;"><circle cx="9" cy="9" r="9" fill="var(--yellow-400)"/><path d="M5 9.2 7.6 11.8 13 6.4" stroke="var(--ink-900)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.62);">Turn failures into test cases for continuous self-improvement</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section data-screen-label="CTA" style="background:{{ ctaBg }};border:{{ ctaBorder }};margin-top:-1px;padding:96px 24px;">
+    <div class="ag-cta-row" style="display:flex;align-items:center;justify-content:space-between;width:min(1072px,100%);margin:0 auto;gap:48px;">
+      <div style="display:flex;flex-direction:column;gap:24px;max-width:520px;">
+        <h2 style="margin:0;font:var(--text-display-lg);color:{{ ctaHead }};text-wrap:pretty;">Ship agents that actually work</h2>
+        <p style="margin:0;font:var(--text-body-md);color:{{ ctaSub }};">Build with skills and tools, run on any harness in any environment, and improve with real feedback — all open source.</p>
+        <div style="display:flex;gap:12px;">
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="{{ ctaBtn }}" size="lg" hint-size="auto,44px">Start building</x-import>
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="outline" size="lg" hint-size="auto,44px">Book a demo</x-import>
+        </div>
+      </div>
+      <img class="ag-cta-img" src="assets/logos/Agenta-symbol-light.svg" alt="" style="width:150px;opacity:{{ ctaSymbolOpacity }};">
+    </div>
+  </section>
+
+  <!-- ============ FOOTER (dark) ============ -->
+  <footer style="background:#100F11;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;box-sizing:border-box;">
+    <div class="ag-foot-top" style="display:flex;justify-content:space-between;gap:64px;padding:64px 172px 96px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:16px;max-width:268px;">
+        <img src="assets/logos/Agenta-logo-full-dark.svg" alt="Agenta" style="height:23px;width:fit-content;display:block;">
+        <span style="font:var(--text-label);line-height:1.25;color:rgba(255,255,255,0.6);white-space:pre-line;">Fast-tracking LLM apps
+to production</span>
+        <div style="display:flex;gap:4px;margin-top:8px;">
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-1.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-2.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-3.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-4.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+        </div>
+      </div>
+      <div class="ag-foot-cols" style="display:flex;gap:64px;flex-wrap:wrap;">
+        <sc-for list="{{ footerColumns }}" as="col" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:120px;">
+            <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">{{ col.heading }}</span>
+            <sc-for list="{{ col.links }}" as="link" hint-placeholder-count="4">
+              <span style="font:var(--text-label);color:rgba(255,255,255,0.62);cursor:pointer;">{{ link }}</span>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 32px;border-top:1px solid rgba(255,255,255,0.07);">
+      <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);">Copyright © 2026 Agentatech UG</span>
+      <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);">Privacy policy</span>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1440, &quot;height&quot;: 900 },
+  &quot;copyVariant&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;Direct&quot;, &quot;Bold&quot;, &quot;Technical&quot;], &quot;default&quot;: &quot;Direct&quot;, &quot;tsType&quot;: &quot;string&quot; },
+  &quot;showAnnouncement&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot; },
+  &quot;ctaVariant&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;Yellow&quot;, &quot;Dark&quot;], &quot;default&quot;: &quot;Yellow&quot;, &quot;tsType&quot;: &quot;string&quot; }
+}">
+class Component extends DCLogic {
+  state = { selected: 0, skill: 0, tool: -1, menuOpen: false, sec: { skills: true, agents: false, tools: false } };
+
+  renderVals() {
+    const variants = {
+      Direct: {
+        pre: 'Build agents and AI automations that ',
+        chip: 'work',
+        post: '.',
+        sub: 'Build using skills and tools, run on any harness, in any environment.',
+      },
+      Bold: {
+        pre: 'Ship agents that ',
+        chip: 'actually',
+        post: ' work.',
+        sub: 'From prompt to production — build with skills and tools, run anywhere, and improve with real feedback.',
+      },
+      Technical: {
+        pre: 'The open platform for ',
+        chip: 'agents',
+        post: ' & AI automation.',
+        sub: 'Build with skills and tools. Run on any harness or model, in any environment. Collaborate, integrate, evaluate.',
+      },
+    };
+    const v = variants[this.props.copyVariant] || variants.Direct;
+
+    const selected = this.state.selected ?? 0;
+    const sec = this.state.sec || { skills: true, agents: false, tools: false };
+    const TEMPLATES = [
+      {
+        title: 'Code review agent',
+        tagline: 'Reviews every pull request and leaves inline comments.',
+        mono: '</>',
+        triggerShort: 'On GitHub PR opened',
+        trigger: 'GitHub — pull request opened',
+        harness: 'Claude Code',
+        harnessMono: 'C',
+        agents: '# Code review agent\n\nReview the PR diff and be concise.\n- Summarize what changed and why\n- Flag bugs, security and perf issues\n- Suggest concrete, minimal fixes',
+        skills: [
+          { name: 'review-diff', summary: 'Summarize what a PR changes', steps: ['Read the unified diff', 'Group changes by file and intent', 'Write a 2–3 sentence summary'] },
+          { name: 'style-check', summary: 'Enforce conventions & lint rules', steps: ['Load the repo style guide', 'Compare against changed lines only', 'Comment on real violations'] },
+          { name: 'risk-scan', summary: 'Flag bugs, security & perf risks', steps: ['Scan for unsafe patterns', 'Check inputs and error handling', 'Rank findings by severity'] },
+        ],
+        tools: [
+          { id: 'github', name: 'GitHub', mono: 'G', desc: 'Read PRs and files, post review comments.', auth: 'oauth', actions: ['get_pull_request', 'list_files', 'create_review_comment'] },
+          { id: 'linear', name: 'Linear', mono: 'L', desc: 'Link PRs to issues and update status.', auth: 'api_key', actions: ['get_issue', 'update_issue'] },
+        ],
+      },
+      {
+        title: 'KPI dashboard agent',
+        tagline: 'Builds a weekly metrics dashboard and posts it to the team.',
+        mono: '▦',
+        triggerShort: 'Every Monday at 11:00',
+        trigger: 'Schedule — every Monday at 11:00',
+        harness: 'pi.dev',
+        harnessMono: 'π',
+        agents: '# KPI dashboard agent\n\nEvery Monday, gather last week\u2019s numbers.\n- PostHog: activation, retention\n- Stripe: MRR, churn\n- Publish to Notion, ping #metrics in Slack',
+        skills: [
+          { name: 'pull-metrics', summary: 'Gather product & revenue metrics', steps: ['Query PostHog for activation & retention', 'Query Stripe for MRR & churn', 'Normalize into a weekly snapshot'] },
+          { name: 'build-dashboard', summary: 'Compose the dashboard', steps: ['Pick a chart per metric', 'Add week-over-week deltas', 'Render to a shareable doc'] },
+          { name: 'publish', summary: 'Publish & notify the team', steps: ['Push the doc to Notion', 'Post a summary to #metrics', 'Attach the dashboard link'] },
+        ],
+        tools: [
+          { id: 'posthog', name: 'PostHog', mono: 'P', desc: 'Query product analytics events and funnels.', auth: 'api_key', actions: ['query_events', 'get_funnel', 'get_retention'] },
+          { id: 'stripe', name: 'Stripe', mono: 'S', desc: 'Read revenue, subscriptions and churn.', auth: 'api_key', actions: ['list_subscriptions', 'get_mrr'] },
+          { id: 'slack', name: 'Slack', mono: '#', desc: 'Post messages and dashboards to channels.', auth: 'oauth', actions: ['post_message', 'upload_file'] },
+        ],
+      },
+      {
+        title: 'Production bug agent',
+        tagline: 'Triages Sentry alerts and opens a fix PR with context.',
+        mono: '!',
+        triggerShort: 'On Sentry alert',
+        trigger: 'Sentry — new issue alert',
+        harness: 'Claude Code',
+        harnessMono: 'C',
+        agents: '# Production bug agent\n\nOn a new Sentry issue.\n- Read the stack trace & breadcrumbs\n- Search the codebase for the cause\n- Propose a minimal, tested fix',
+        skills: [
+          { name: 'reproduce', summary: 'Reproduce from the stack trace', steps: ['Parse the Sentry stack trace', 'Identify the failing call path', 'Write a minimal repro'] },
+          { name: 'root-cause', summary: 'Locate the root cause', steps: ['Search the codebase for the frame', 'Inspect recent changes', 'Confirm the faulty assumption'] },
+          { name: 'propose-fix', summary: 'Draft a minimal fix & PR', steps: ['Write the smallest safe change', 'Add a regression test', 'Open a PR with context'] },
+        ],
+        tools: [
+          { id: 'sentry', name: 'Sentry', mono: 'S', desc: 'Read issues, events and stack traces.', auth: 'oauth', actions: ['get_issue', 'list_events', 'resolve_issue'] },
+          { id: 'github', name: 'GitHub', mono: 'G', desc: 'Search code and open pull requests.', auth: 'oauth', actions: ['search_code', 'create_pull_request'] },
+        ],
+      },
+      {
+        title: 'Customer support agent',
+        tagline: 'Answers tickets from your docs and escalates the rest.',
+        mono: '?',
+        triggerShort: 'On Slack / Zendesk ticket',
+        trigger: 'Slack / Zendesk — new ticket',
+        harness: 'Codex',
+        harnessMono: 'O',
+        agents: '# Support agent\n\nAnswer strictly from the provided context.\n- Always cite the source doc\n- Escalate billing & security to a human',
+        skills: [
+          { name: 'classify', summary: 'Classify the incoming request', steps: ['Detect intent & urgency', 'Route billing / security to humans', 'Tag the ticket'] },
+          { name: 'answer', summary: 'Draft a grounded reply', steps: ['Search the knowledge base', 'Answer only from sources', 'Cite the doc used'] },
+        ],
+        tools: [
+          { id: 'zendesk', name: 'Zendesk', mono: 'Z', desc: 'Read and reply to support tickets.', auth: 'oauth', actions: ['get_ticket', 'reply_ticket', 'tag_ticket'] },
+          { id: 'postgres', name: 'Postgres', mono: '▢', desc: 'Look up orders and account data.', auth: 'connection_string', actions: ['query'] },
+        ],
+      },
+      {
+        title: 'Release notes agent',
+        tagline: 'Turns merged PRs into customer-ready release notes.',
+        mono: '\u00b6',
+        triggerShort: 'On GitHub release tagged',
+        trigger: 'GitHub — release tagged',
+        harness: 'Codex',
+        harnessMono: 'O',
+        agents: '# Release notes agent\n\nSummarize what shipped this release.\n- Group: Features, Fixes, Chores\n- Plain language, benefit-first\n- Link each item to its PR',
+        skills: [
+          { name: 'collect-prs', summary: 'Collect merged PRs since last tag', steps: ['List merged PRs', 'Filter by milestone', 'Extract titles & labels'] },
+          { name: 'write-notes', summary: 'Write user-facing notes', steps: ['Group by Features / Fixes / Chores', 'Rewrite in plain language', 'Link each item to its PR'] },
+        ],
+        tools: [
+          { id: 'github', name: 'GitHub', mono: 'G', desc: 'Read merged PRs and release tags.', auth: 'oauth', actions: ['list_pull_requests', 'get_release'] },
+          { id: 'notion', name: 'Notion', mono: 'N', desc: 'Publish the changelog page.', auth: 'oauth', actions: ['create_page', 'update_page'] },
+        ],
+      },
+    ];
+    const current = TEMPLATES[selected] || TEMPLATES[0];
+
+    const skillCode = (sk) => '---\nname: ' + sk.name + '\ndescription: ' + sk.summary + '\n---\n\n## Instructions\n\n' + sk.steps.map((s) => '- ' + s).join('\n');
+    const toolCode = (t) => JSON.stringify({ name: t.id, description: t.desc, auth: t.auth, actions: t.actions }, null, 2);
+
+    const tplBase = 'padding:13px 14px;border-radius:10px;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:background 0.12s;';
+    const tplItems = TEMPLATES.map((t, i) => ({
+      title: t.title,
+      triggerShort: t.triggerShort,
+      mono: t.mono,
+      onClick: () => this.setState({ selected: i, skill: 0, tool: -1 }),
+      cardStyle: tplBase + (i === selected
+        ? 'background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);'
+        : 'background:rgba(255,255,255,0.015);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.05);'),
+      monoColor: i === selected ? 'var(--yellow-400)' : 'rgba(255,255,255,0.85)',
+    }));
+
+    const skillOpen = this.state.skill ?? 0;
+    const skillItems = current.skills.map((sk, i) => ({
+      name: sk.name,
+      summary: sk.summary,
+      file: 'skills/' + sk.name + '/SKILL.md',
+      code: skillCode(sk),
+      open: skillOpen === i,
+      chev: skillOpen === i ? 'rotate(90deg)' : 'rotate(0deg)',
+      onClick: () => this.setState((s) => ({ skill: (s.skill ?? 0) === i ? -1 : i })),
+    }));
+
+    const toolOpen = this.state.tool ?? -1;
+    const toolItems = current.tools.map((t, i) => ({
+      name: t.name,
+      mono: t.mono,
+      desc: t.desc,
+      file: t.id + '.tool.json',
+      code: toolCode(t),
+      open: toolOpen === i,
+      chev: toolOpen === i ? 'rotate(90deg)' : 'rotate(0deg)',
+      onClick: () => this.setState((s) => ({ tool: (s.tool ?? -1) === i ? -1 : i })),
+    }));
+
+    const dark = (this.props.ctaVariant || 'Yellow') === 'Dark';
+    const cta = dark
+      ? { bg: '#0E0D0F', head: '#FFFFFF', sub: 'rgba(255,255,255,0.64)', btn: 'primary', border: '1px solid rgba(255,255,255,0.07)', symbol: 0.1 }
+      : { bg: 'var(--surface-cta)', head: 'var(--text-on-yellow)', sub: 'rgba(36,36,36,0.72)', btn: 'dark', border: '1px solid rgba(255,255,255,0.07)', symbol: 0.16 };
+
+    return {
+      navItems: ['Product', 'Pricing', 'Docs', 'Blog', 'Resources', 'Community'],
+      menuOpen: this.state.menuOpen,
+      toggleMenu: () => this.setState((s) => ({ menuOpen: !s.menuOpen })),
+      templates: tplItems,
+      current,
+      skillItems,
+      toolItems,
+      skillsCount: current.skills.length,
+      toolsCount: current.tools.length,
+      openSkillsSec: sec.skills,
+      openAgentsSec: sec.agents,
+      openToolsSec: sec.tools,
+      chevSkillsSec: sec.skills ? 'rotate(90deg)' : 'rotate(0deg)',
+      chevAgentsSec: sec.agents ? 'rotate(90deg)' : 'rotate(0deg)',
+      chevToolsSec: sec.tools ? 'rotate(90deg)' : 'rotate(0deg)',
+      toggleSkillsSec: () => this.setState((s) => ({ sec: { ...s.sec, skills: !s.sec.skills } })),
+      toggleAgentsSec: () => this.setState((s) => ({ sec: { ...s.sec, agents: !s.sec.agents } })),
+      toggleToolsSec: () => this.setState((s) => ({ sec: { ...s.sec, tools: !s.sec.tools } })),
+      heroPre: v.pre,
+      heroChip: v.chip,
+      heroPost: v.post,
+      heroSub: v.sub,
+      showAnnouncement: this.props.showAnnouncement ?? true,
+      ctaBg: cta.bg,
+      ctaHead: cta.head,
+      ctaSub: cta.sub,
+      ctaBtn: cta.btn,
+      ctaBorder: cta.border,
+      ctaSymbolOpacity: cta.symbol,
+      harnesses: [
+        { name: 'Claude Code', mono: 'C' },
+        { name: 'Codex', mono: 'O' },
+        { name: 'Pi', mono: 'π' },
+        { name: 'Your own', mono: '+' },
+      ],
+      models: [
+        { name: 'Claude', mono: 'C' },
+        { name: 'GPT', mono: 'G' },
+        { name: 'Llama', mono: 'L' },
+        { name: 'Self-hosted', mono: '⌂' },
+      ],
+      integrations: [
+        { name: 'Slack', mono: 'S' },
+        { name: 'PostHog', mono: 'P' },
+        { name: 'GitHub', mono: 'G' },
+        { name: 'Linear', mono: 'L' },
+        { name: 'Sentry', mono: 'S' },
+        { name: 'Datadog', mono: 'D' },
+        { name: 'Webhooks', mono: '{}' },
+        { name: 'REST API', mono: '/' },
+      ],
+      collabCards: [
+        { title: 'Skills', desc: 'Reusable capabilities your team shares and versions.', mono: 'S' },
+        { title: 'Tools', desc: 'Connect an API or function once, use it everywhere.', mono: 'T' },
+        { title: 'Agents', desc: 'Compose skills and tools into agents anyone can run.', mono: 'A' },
+      ],
+      footerColumns: [
+        { heading: 'Product', links: ['Prompt engineering', 'Evaluation', 'Human annotation', 'Observability', 'Deployment'] },
+        { heading: 'Resources', links: ['Documentation', 'Blog', 'Changelog', 'Roadmap'] },
+        { heading: 'Company', links: ['About', 'Careers', 'Contact'] },
+        { heading: 'Legal', links: ['Privacy policy', 'Terms', 'Imprint'] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

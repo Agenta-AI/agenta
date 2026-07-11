@@ -1,0 +1,460 @@
+/* ---------------------------------------------------------------------- *
+ * F3 - Permission simulator. Co-located with PermissionSimulator.tsx per
+ * the P3 boundary (styles.css is owned by another concurrent editor). Reuses
+ * the shared custom properties defined there (--color-*, --space-*, --font-*)
+ * so this figure stays visually consistent in both light and dark mode.
+ * ---------------------------------------------------------------------- */
+
+.perm-sim .figure-toolbar {
+  justify-content: space-between;
+}
+
+.perm-source-note {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.perm-sim-body {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 320px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .perm-sim-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.perm-panel {
+  padding: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+}
+
+.perm-knobs {
+  border-right: 1px solid var(--color-border);
+}
+
+.perm-tools {
+  border-right: 1px solid var(--color-border);
+}
+
+@media (max-width: 900px) {
+  .perm-knobs,
+  .perm-tools {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+.perm-panel h3 {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  margin: 0 0 var(--space-2);
+}
+
+.perm-panel .field-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.perm-panel .field-label:first-of-type {
+  margin-top: 0;
+}
+
+/* --- Knobs panel --- */
+
+.perm-toggle-row {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.perm-toggle {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.perm-toggle[data-active="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.perm-select {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.perm-rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.perm-rule-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 22px;
+  gap: 4px;
+  align-items: center;
+}
+
+.perm-rule-pattern {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 4px 6px;
+  min-width: 0;
+}
+
+.perm-rule-remove {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.perm-add-rule {
+  margin-top: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  border: 1px dashed var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.perm-kill-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.perm-kill-switch span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.perm-kill-note {
+  font-size: 0.78rem;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-top: 6px;
+}
+
+/* --- Tool palette --- */
+
+.perm-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.perm-tool-card {
+  text-align: left;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.perm-tool-card[data-selected="true"] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.perm-tool-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.perm-tool-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.perm-tool-card-badges {
+  margin-top: 4px;
+}
+
+.perm-badge-readonly {
+  color: var(--tier-service);
+  background: color-mix(in srgb, var(--tier-service) 18%, transparent);
+}
+
+.perm-badge-write {
+  color: var(--tier-runner);
+  background: color-mix(in srgb, var(--tier-runner) 18%, transparent);
+}
+
+.perm-badge-unknown {
+  color: var(--color-text-muted);
+}
+
+.perm-badge-kind {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+}
+
+.perm-tool-detail {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
+.perm-tool-notes {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin: 0 0 var(--space-2);
+}
+
+.perm-bash-command {
+  width: 100%;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+}
+
+.perm-call-button {
+  margin-top: var(--space-3);
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-bg-raised);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.perm-call-button:hover {
+  opacity: 0.9;
+}
+
+/* --- Outcome panel --- */
+
+.perm-verdict-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.perm-verdict-badge {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  padding: 3px 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.perm-verdict-badge[data-kind="allow"] {
+  background: color-mix(in srgb, var(--tier-service) 22%, transparent);
+  color: var(--tier-service);
+}
+
+.perm-verdict-badge[data-kind="deny"] {
+  background: color-mix(in srgb, var(--tier-runner) 22%, transparent);
+  color: var(--tier-runner);
+}
+
+.perm-verdict-badge[data-kind="pendingApproval"] {
+  background: color-mix(in srgb, var(--status-experimental) 25%, transparent);
+  color: var(--status-experimental);
+}
+
+.perm-verdict-tool {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.perm-plan-note {
+  font-size: 0.78rem;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: var(--space-2) 0 0;
+}
+
+.perm-ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.perm-ladder-step {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  opacity: 0.55;
+}
+
+.perm-ladder-step[data-active="true"] {
+  opacity: 1;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.perm-ladder-step-id {
+  display: block;
+  font-weight: 600;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+
+.perm-ladder-step-desc {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.perm-detail-line {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--color-text-muted);
+  margin: var(--space-2) 0 0;
+}
+
+.perm-gate-diagram {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.perm-gate-box {
+  flex: 1;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0.5;
+}
+
+.perm-gate-box[data-lit="true"] {
+  opacity: 1;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.perm-gate-arrow {
+  align-self: center;
+  color: var(--color-text-muted);
+}
+
+.perm-hitl-banner {
+  margin-top: var(--space-3);
+  border: 1.5px dashed var(--status-experimental);
+  border-radius: 8px;
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--status-experimental) 12%, transparent);
+}
+
+.perm-hitl-banner p {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+}
+
+.perm-hitl-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.perm-approve,
+.perm-deny {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  border: 1px solid var(--color-border-strong);
+}
+
+.perm-approve {
+  background: var(--tier-service);
+  border-color: var(--tier-service);
+  color: var(--color-bg-raised);
+}
+
+.perm-deny {
+  background: var(--tier-runner);
+  border-color: var(--tier-runner);
+  color: var(--color-bg-raised);
+}
+
+.perm-resume-note {
+  margin-top: var(--space-2);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  border-left: 3px solid var(--color-border-strong);
+  padding-left: 8px;
+}
+
+.perm-gate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+}
+
+.perm-gate-list li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.perm-gate-list strong {
+  display: block;
+}
+
+.perm-gate-applies {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}

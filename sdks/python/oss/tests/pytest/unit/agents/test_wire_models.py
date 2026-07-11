@@ -26,6 +26,7 @@ import jsonschema
 import pytest
 
 from agenta.sdk.agents.wire_models import (
+    WireMcpServer,
     WireRunRequest,
     WireRunResult,
     run_contract_schemas,
@@ -119,3 +120,28 @@ def test_minimal_result_validates():
     payload = {"ok": True}
     jsonschema.validate(payload, CATALOG_TYPES["run_result"])
     assert WireRunResult.model_validate(payload).ok is True
+
+
+def test_mcp_wire_schema_separates_environment_headers_and_credentials():
+    server = WireMcpServer.model_validate(
+        {
+            "name": "linear",
+            "transport": "http",
+            "url": "https://mcp.linear.app/sse",
+            "headers": {"X-Client": "agenta"},
+            "credentials": [
+                {
+                    "binding": {"kind": "header", "name": "Authorization"},
+                    "value": "secret-marker",
+                    "usage": "opaque_http",
+                }
+            ],
+        }
+    )
+    assert server.credentials and server.credentials[0].binding.name == "Authorization"
+    legacy = WireMcpServer.model_validate(
+        {"name": "legacy", "transport": "stdio", "env": {"TOKEN": "secret"}}
+    )
+    assert "env" not in legacy.model_dump(), (
+        "legacy mixed secret metadata is not in the schema"
+    )

@@ -1,0 +1,63 @@
+---
+// Site — the shared page layout for the marketing site.
+//
+// Wraps Base (html/head: fonts, tokens, global CSS, meta/OG + a `head` slot) and
+// renders the shared chrome around the page body: the NavBar, the page <slot/>,
+// an optional yellow CTA band, and the Footer — all inside the 1440-wide frame
+// that shows the page background as a 12px gutter (same as the landing).
+//
+// Pages render their own sections into the default slot. The CTA band and footer
+// come for free so every page shares them. Nav/footer content originates from
+// `Agenta landing page pivot/content/site.json` (inlined in NavBar/Footer).
+import Base from "./Base.astro";
+import NavBar from "../components/NavBar.astro";
+import CtaBand from "../components/CtaBand.astro";
+import Footer from "../components/Footer.astro";
+
+interface CtaProps {
+  title?: string;
+  body?: string;
+  primaryLabel?: string;
+  primaryHref?: string;
+  secondaryLabel?: string;
+  secondaryHref?: string;
+}
+
+interface Props {
+  title?: string;
+  description?: string;
+  // og:type and og:image, passed straight through to Base for the head meta.
+  // Blog posts set ogType="article" and an ogImage; everything else defaults.
+  ogType?: "website" | "article";
+  ogImage?: string;
+  // Show the shared yellow CTA band before the footer (default: true).
+  showCta?: boolean;
+  // Optional copy/destinations for the CTA band; omitted keys fall back to the
+  // landing defaults baked into CtaBand.astro.
+  cta?: CtaProps;
+}
+
+const {
+  title,
+  description,
+  ogType,
+  ogImage,
+  showCta = true,
+  cta = {},
+} = Astro.props;
+---
+
+<Base title={title} description={description} ogType={ogType} ogImage={ogImage}>
+  <slot name="head" slot="head" />
+
+  <!-- The page bg shows as a 12px frame around the 1440-wide section stack. -->
+  <div
+    class="ag-wrap"
+    style="width:100%;max-width:1440px;margin:0 auto;background:#0A0A0B;padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);"
+  >
+    <NavBar />
+    <slot />
+    {showCta && <CtaBand {...cta} />}
+    <Footer />
+  </div>
+</Base>

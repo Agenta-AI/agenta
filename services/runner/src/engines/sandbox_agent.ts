@@ -33,8 +33,10 @@
 import { rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
+import { Redactor, seedFromEnv } from "../redaction.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
+import { Daytona, DaytonaNotFoundError } from "@daytonaio/sdk";
 
 import {
   createSandboxAgentOtel,
@@ -42,7 +44,6 @@ import {
 } from "../tracing/otel.ts";
 import {
   localRelayHost,
-  redactContextBoundArgs,
   sandboxRelayHost,
   startToolRelay,
   type RelayExecutionGuard,
@@ -84,7 +85,10 @@ import {
   DAYTONA_PI_DIR,
 } from "./sandbox_agent/daytona.ts";
 import { conciseError } from "./sandbox_agent/errors.ts";
-import { buildSessionMcpServers } from "./sandbox_agent/mcp.ts";
+import {
+  buildSessionMcpServers,
+  validateUserMcpServers,
+} from "./sandbox_agent/mcp.ts";
 import { applyModel } from "./sandbox_agent/model.ts";
 import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
@@ -93,7 +97,12 @@ import {
   writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
-  decide,
+  uploadToolMcpAssets,
+  type ToolMcpAssets,
+} from "./sandbox_agent/tool-mcp-assets.ts";
+import { advertisedToolSpecs } from "../tools/public-spec.ts";
+import { buildRelayExecutionGuard } from "./sandbox_agent/relay-guard.ts";
+import {
   PendingApprovalLatch,
   permissionsFromRequest,
 } from "../permission-plan.ts";
@@ -121,6 +130,9 @@ import {
 } from "./sandbox_agent/teardown.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import { DaytonaReconnectTerminalError } from "./sandbox_agent/daytona-provider.ts";
+import { credentialEpochHmac, daytonaLeaseResources } from "./sandbox_agent/daytona-secret-plan.ts";
+import { HttpSecretLeaseControl } from "./sandbox_agent/secret-lease-control.ts";
+import { createDaytonaSecretLeaseRuntime, daytonaWithSecretLease, type SecretLeaseProviderRuntime } from "./sandbox_agent/daytona-secret-provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
@@ -249,8 +261,8 @@ function applyClaudeConnectionEnv(
   request: AgentRunRequest,
   acpAgent: string,
   logger: Log,
-): boolean {
-  if (acpAgent !== "claude") return false;
+): void {
+  if (acpAgent !== "claude") return;
 
   // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
   // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
@@ -262,9 +274,9 @@ function applyClaudeConnectionEnv(
   // so it is never stripped, and it reaches the Daytona sandbox like `ANTHROPIC_BASE_URL`.
   env.ENABLE_TOOL_SEARCH = "false";
 
-  const deployment = request.deployment;
+  const deployment = request.modelConnection?.deployment;
   const selectedModel = request.model;
-  const baseUrl = request.endpoint?.baseUrl;
+  const baseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (baseUrl) {
     env.ANTHROPIC_BASE_URL = baseUrl;
     logger(`claude base_url: ${baseUrl}`);
@@ -272,7 +284,7 @@ function applyClaudeConnectionEnv(
 
   if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
-    const region = request.endpoint?.region;
+    const region = request.modelConnection?.endpoint?.region;
     if (region) {
       env.AWS_REGION = region;
       env.AWS_DEFAULT_REGION ??= region;
@@ -290,9 +302,18 @@ function applyClaudeConnectionEnv(
     logger(
       `claude model=${selectedModel} deployment=${deployment ?? "<none>"}`,
     );
-    return true;
   }
-  return false;
+}
+
+/**
+ * Whether a requested-but-unsettable model fails the run (F-007). Strict by default on every
+ * harness path: a user who picks a model either runs that model or sees a loud error, never a
+ * silent (often pricier) fallback to the harness default. `AGENTA_AGENT_MODEL_STRICT=false` is
+ * the explicit opt-out that restores the legacy warn-and-fallback behavior. A run that requests
+ * no model is unaffected either way — it keeps the harness default.
+ */
+function modelResolutionStrict(): boolean {
+  return process.env.AGENTA_AGENT_MODEL_STRICT !== "false";
 }
 
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
@@ -306,6 +327,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
+  uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
   startToolRelay?: typeof startToolRelay;
@@ -418,7 +440,7 @@ const RUN_LIMIT_TRIPPED = Symbol("run-limit-tripped");
 interface CurrentTurn {
   run: ReturnType<typeof createSandboxAgentOtel>;
   pause: PendingApprovalPauseController;
-  toolRelay?: { stop: () => Promise<void> };
+  toolRelay?: { ready?: Promise<void>; stop: () => Promise<void> };
   /** Route a session/update for the active turn (suppress + handleUpdate + pause re-sweep). */
   handleUpdate: (update: unknown) => void;
   /** Route a permission reverse-RPC for the active turn (built by attachPermissionResponder). */
@@ -502,6 +524,7 @@ export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
 export interface SessionEnvironment {
   plan: RunPlan;
   logger: Log;
+  redactor: Redactor;
   deps: SandboxAgentDeps;
   sandbox: any;
   session: any;
@@ -608,7 +631,24 @@ export async function acquireEnvironment(
   signal?: AbortSignal,
   presignedMount?: MountCredentials | null,
 ): Promise<AcquireEnvironmentResult> {
-  const logger = deps.log ?? log;
+  const redactor = seedFromEnv({
+    resolvedSecrets: [
+      ...(request.modelConnection?.credentials ?? []).map(
+        (credential) => credential.value,
+      ),
+      ...(request.mcpServers ?? []).flatMap((server) =>
+        (server.credentials ?? []).map((credential) => credential.value),
+      ),
+    ],
+    runCredential: runCredential(request),
+    extraValues: [
+      request.toolCallback?.authorization,
+      request.telemetry?.exporters?.otlp?.headers?.authorization,
+    ],
+  });
+  const rawLogger = deps.log ?? log;
+  const logger: Log = (message) =>
+    rawLogger(redactor.redactString(message, "log") ?? "[ag:redacted]");
   const acquireStartedAt = Date.now();
   const timingLog = (stage: string, startedAt: number, fields = ""): void => {
     const sandboxId = environment?.sandbox?.sandboxId ?? "-";
@@ -638,7 +678,10 @@ export async function acquireEnvironment(
         ownerReplicaId,
       );
     } catch (err) {
-      return { ok: false, error: conciseError(err, request.harness ?? "") };
+      return {
+        ok: false,
+        error: redactor.redactError(conciseError(err, request.harness ?? "")),
+      };
     }
   }
 
@@ -685,20 +728,16 @@ export async function acquireEnvironment(
   const plan = planResult.plan;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
-  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.secrets` are
-  // present and an inherited key for another provider cannot leak. For runtime_provided/none/
-  // un-migrated runs the harness uses its own login, so the inherited keys stay.
+  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.modelEnvironment` are
+  // present and an inherited key for another provider cannot leak. For runtime_provided/none
+  // or a request without modelConnection, the harness login remains available.
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
   });
-  Object.assign(env, plan.secrets); // apply only the resolved provider keys
-  const strictModel = applyClaudeConnectionEnv(
-    env,
-    request,
-    plan.acpAgent,
-    logger,
-  );
+  Object.assign(env, plan.modelEnvironment); // apply only the resolved provider keys
+  applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
+  const strictModel = modelResolutionStrict();
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
@@ -738,10 +777,11 @@ export async function acquireEnvironment(
   // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
   // line that answers "what model/provider/deployment/credential did this run actually use".
   logger(
-    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
-      `deployment=${request.deployment ?? "<none>"} ` +
-      `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
-      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
+    `resolved model=${request.model ?? "<none>"} provider=${request.modelConnection?.provider ?? "<none>"} ` +
+      `deployment=${request.modelConnection?.deployment ?? "<none>"} ` +
+      `credentialKeys=[${(request.modelConnection?.credentials ?? [])
+        .map((credential) => credential.binding.name)
+        .join(",")}]`,
   );
 
   // The shared client-tool relay reference (the deferred ref baked into the MCP server reads it;
@@ -764,6 +804,7 @@ export async function acquireEnvironment(
   const environment: SessionEnvironment = {
     plan,
     logger,
+    redactor,
     deps,
     sandbox: undefined,
     session: undefined,
@@ -940,6 +981,10 @@ export async function acquireEnvironment(
   };
 
   try {
+    // Validate user MCP routes and credential bindings before provider construction or sandbox
+    // reconnect/create. `buildSessionMcpServers` repeats this at final materialization as defense.
+    await validateUserMcpServers(request.mcpServers);
+
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
       deps.createPersist?.() ?? new InMemorySessionPersistDriver();
@@ -947,14 +992,47 @@ export async function acquireEnvironment(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
-    const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
-      plan.sandboxId,
-      env,
-      binaryPath,
-      piExtEnv,
-      plan.secrets,
-      plan.sandboxPermission,
-    );
+    const providerFactory = deps.buildSandboxProvider ?? buildSandboxProvider;
+    let secretLeaseRuntime: SecretLeaseProviderRuntime | undefined;
+    let sandboxProvider;
+    if (plan.isDaytona && (plan.daytonaSecretPlan?.candidates.length ?? 0) > 0) {
+      const hmacKey = process.env.AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY;
+      const ownerId = sessionForMount || request.runContext?.trace?.trace_id;
+      if (!runCred || !hmacKey || !ownerId) {
+        throw new Error("Daytona opaque credentials require invoke authorization, a stable run/session owner, and AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY.");
+      }
+      const owner = { kind: sessionForMount ? "session" as const : "run" as const, id: ownerId };
+      const daytonaClient = new Daytona();
+      const control = new HttpSecretLeaseControl({ baseUrl: apiBase(), tenantAuthorization: runCred });
+      secretLeaseRuntime = createDaytonaSecretLeaseRuntime({
+        plan: plan.daytonaSecretPlan!,
+        reservation: {
+          owner,
+          idempotencyKey: `daytona-secret:${owner.kind}:${owner.id}`,
+          credentialEpochDigest: credentialEpochHmac(plan.daytonaSecretPlan!, hmacKey),
+          resources: daytonaLeaseResources(plan.daytonaSecretPlan!),
+        },
+        control,
+        api: daytonaClient.secret,
+        deleteSandbox: async (sandboxId) => {
+          try { await daytonaClient.delete(await daytonaClient.get(sandboxId)); }
+          catch (error) { if (!(error instanceof DaytonaNotFoundError)) throw error; }
+        },
+        confirmSandboxAbsent: async (sandboxId) => {
+          try { await daytonaClient.get(sandboxId); return false; }
+          catch (error) { if (error instanceof DaytonaNotFoundError) return true; throw error; }
+        },
+      });
+      // Prepare before reconnect/create so warm reconnect can recover provider placeholders without
+      // re-creating Secrets. The provider's prepare call is cached and side-effect free thereafter.
+      await secretLeaseRuntime.prepare();
+      sandboxProvider = daytonaWithSecretLease(
+        (attachments) => providerFactory(plan.sandboxId, env, binaryPath, piExtEnv, plan.modelEnvironment, plan.sandboxPermission, attachments),
+        secretLeaseRuntime,
+      );
+    } else {
+      sandboxProvider = providerFactory(plan.sandboxId, env, binaryPath, piExtEnv, plan.modelEnvironment, plan.sandboxPermission);
+    }
     const startOptions = {
       sandbox: sandboxProvider,
       persist,
@@ -1036,12 +1114,31 @@ export async function acquireEnvironment(
     if (environment.sandbox) inFlightSandboxes.add(environment);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
+    // For a non-Pi harness with executable tools, also push the in-sandbox stdio MCP shim
+    // assets (bundle + public-specs file): a non-Pi harness in the sandbox cannot reach the
+    // runner-loopback HTTP MCP channel, so the harness's ACP adapter spawns the uploaded shim
+    // as the internal stdio MCP server instead. Uploaded unconditionally for non-Pi (the
+    // capability probe runs later; a harness that turns out to lack MCP fails loud in
+    // `assertRequiredCapabilities` below). Pi delivers via its extension; local non-Pi uses
+    // the loopback HTTP channel — neither needs this. The upload helper THROWS when the shim
+    // cannot be delivered (fail loud — this path requires it).
+    let internalToolMcp: ToolMcpAssets | undefined;
     if (plan.isDaytona) {
       await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
         sandbox: environment.sandbox,
         plan,
         log: logger,
       });
+      if (!plan.isPi && plan.executableToolSpecs.length > 0) {
+        internalToolMcp = await (
+          deps.uploadToolMcpAssets ?? uploadToolMcpAssets
+        )(
+          environment.sandbox,
+          plan.toolMcpDir,
+          advertisedToolSpecs(plan.executableToolSpecs),
+          logger,
+        );
+      }
     }
 
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
@@ -1178,10 +1275,29 @@ export async function acquireEnvironment(
       harness: plan.harness,
       isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
-      userMcpServers: request.mcpServers,
+      userMcpServers: request.mcpServers?.map((server) => {
+        const replacements = secretLeaseRuntime?.currentMcpHeaderPlaceholders()[server.name];
+        if (!replacements) {
+          if (plan.isDaytona && (server.credentials?.length ?? 0) > 0) throw new Error(`Daytona Secret placeholders are missing for MCP server '${server.name}'.`);
+          return server;
+        }
+        return {
+          ...server,
+          credentials: server.credentials?.map((credential) => {
+            const placeholder = replacements[credential.binding.name];
+            if (!placeholder) throw new Error(`Daytona Secret placeholder is missing for MCP header '${credential.binding.name}'.`);
+            return { ...credential, value: placeholder };
+          }),
+        };
+      }),
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
+      // The uploaded in-sandbox stdio MCP shim assets, set only on Daytona + non-Pi +
+      // executable-tools; advertises the gateway tools the loopback channel cannot reach
+      // from inside the sandbox. No server to close for this entry (the harness owns the
+      // shim process), so `sessionMcp.close` semantics are unchanged.
+      internalToolMcp,
       log: logger,
     });
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
@@ -1315,7 +1431,9 @@ export async function acquireEnvironment(
     timingLog("acquire_total", acquireStartedAt);
     return { ok: true, env: environment };
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
+    const error = redactor.redactError(
+      conciseError(err, plan.harness, request.modelConnection?.provider),
+    );
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });
@@ -1466,18 +1584,27 @@ export async function runTurn(
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
-      emit: emit && runLimits.wrapEmit(emit),
+      emit:
+        emit &&
+        runLimits.wrapEmit((event) =>
+          emit(env.redactor.redactJson(event, "event")),
+        ),
     });
     otel = run;
 
-    run.start({
-      prompt: promptText,
-      sessionId,
-      messages: [
-        ...priorMessages(request),
-        { role: "user", content: promptText },
-      ],
-    });
+    run.start(
+      env.redactor.redactJson(
+        {
+          prompt: promptText,
+          sessionId,
+          messages: [
+            ...priorMessages(request),
+            { role: "user", content: promptText },
+          ],
+        },
+        "trace",
+      ),
+    );
 
     const pause = new PendingApprovalPauseController(() => {
       // The sibling settle runs UNCONDITIONALLY, park mode or not: latch-loser tool calls
@@ -1546,7 +1673,7 @@ export async function runTurn(
           ) {
             env.lastTurnToolCallIds.push(frame.toolCallId);
           }
-          run.handleUpdate(update);
+          run.handleUpdate(env.redactor.redactJson(update, "event"));
           // A sibling announced AFTER the pause won the latch can never execute; settle it
           // immediately so the client never holds an orphaned part (idempotent re-sweep).
           if (pause.active) {
@@ -1574,9 +1701,6 @@ export async function runTurn(
       extractClientToolOutputs(request),
     );
     const executionGrants = new ApprovedExecutionGrants();
-    // The guard's decide() must never consume this turn's stored decisions — the DIALOG is their
-    // consumer (it runs first). An empty store makes every `ask` route to the grant ledger.
-    const relayGuardDecisions = new ConversationDecisions(new Map());
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
@@ -1698,48 +1822,27 @@ export async function runTurn(
       log: logger,
     });
 
-    // Pi only: the dialog gate lives in the sandbox, so the relay re-checks every execute record
-    // runner-side (a forged record must not run an ask/deny tool). Claude keeps today's behavior:
-    // its harness gates fire before a call reaches the relay, and its relay was never re-checked.
-    const relayGuard: RelayExecutionGuard | undefined = plan.isPi
-      ? (spec, req) => {
-          const verdict = decide(
-            {
-              executor: "relay",
-              toolName: spec.name,
-              specPermission: spec.permission,
-              readOnlyHint: spec.readOnly,
-              args: req.args,
-            },
-            permissionPlan,
-            relayGuardDecisions,
-          );
-          if (verdict.kind === "allow") return { allow: true };
-          if (verdict.kind === "deny") {
-            return {
-              allow: false,
-              reason: `Tool '${spec.name}' is denied by the permission policy.`,
-            };
-          }
-          return executionGrants.consume(
-            spec.name,
-            redactContextBoundArgs(
-              req.args,
-              spec.callRef ? spec.contextBindings : undefined,
-            ),
-          )
-            ? { allow: true }
-            : {
-                allow: false,
-                reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
-              };
-        }
-      : undefined;
+    // EVERY harness gets the guard: the relay dir is sandbox-writable, so a forged
+    // `<id>.req.json` proves nothing about any dialog having run, and this runner-side
+    // re-check is the only enforcement of the hard deny boundary against forged files.
+    // `allow` passes and `deny` refuses identically everywhere; `ask` splits by harness —
+    // Pi consumes a dialog-recorded execution grant (fail-closed parity with the in-sandbox
+    // confirm), while a non-Pi MCP harness (Claude) passes `ask` because its own harness
+    // enforces the ask dialog (the rendered `mcp__agenta-tools__<tool>` ask rules + the ACP
+    // permission flow) before a call reaches the shim. See buildRelayExecutionGuard for the
+    // stated residual (a forged file can still trigger an ask-tool without a dialog there).
+    const relayGuard: RelayExecutionGuard = buildRelayExecutionGuard({
+      isPi: plan.isPi,
+      permissionPlan,
+      executionGrants,
+    });
 
     if (plan.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
-          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox)
+          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox, {
+              log: logger,
+            })
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.relayDir,
         plan.toolSpecs,
@@ -1747,7 +1850,14 @@ export async function runTurn(
         request.runContext,
         env.clientToolRelayRef.current,
         relayGuard,
+        { log: logger },
       );
+      // Ordering invariant: the relay's stale-file sweep must complete before the
+      // resume's respondPermission or the fresh prompt below can cause a legitimate
+      // request, so nothing legitimate can predate the sweep and be swallowed as
+      // stale. Optional-chained so a fake relay without `ready` is tolerated, and a
+      // sweep failure never kills the turn.
+      await turn.toolRelay?.ready?.catch?.(() => {});
     }
 
     // The prompt promise this turn races against the pause signal. A normal/continuation turn
@@ -1762,13 +1872,18 @@ export async function runTurn(
       // trace with the parked tool call so the completing `tool_call_update` closes it and the FE
       // approval part flips to output-available even if the adapter re-announces nothing. Then
       // answer the gate on the live session — the original prompt continues from here.
-      run.handleUpdate({
-        sessionUpdate: "tool_call",
-        toolCallId: opts.resume.toolCallId,
-        title: opts.resume.toolName,
-        kind: opts.resume.toolName,
-        rawInput: opts.resume.args,
-      });
+      run.handleUpdate(
+        env.redactor.redactJson(
+          {
+            sessionUpdate: "tool_call",
+            toolCallId: opts.resume.toolCallId,
+            title: opts.resume.toolName,
+            kind: opts.resume.toolName,
+            rawInput: opts.resume.args,
+          },
+          "event",
+        ),
+      );
       promptPromise = Promise.resolve(opts.resume.promptPromise);
       promptPromise.catch(() => {});
       // A parked Pi dialog gate resumes on a FRESH turn whose relay and grant ledger are new;
@@ -1808,6 +1923,16 @@ export async function runTurn(
     }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+    // Pause notification is immediate, but terminalization must wait for managed cancellation
+    // and already-queued ACP updates. Re-sweep after the drain so a sibling announced during
+    // cancellation receives exactly one deterministic terminal result before `done`.
+    if (stopReason === "paused") {
+      await pause.waitForEventDrain();
+      run.settleOpenToolCalls(
+        (id) => pause.isPausedToolCall(id),
+        TOOL_NOT_EXECUTED_PAUSED,
+      );
+    }
     const result = raced === PAUSED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to the parked record so a
     // later resume can await the same continuation. (Set after the race so `promptPromise` exists.
@@ -1841,12 +1966,14 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
-      swallowedError = conciseError(
-        new Error(swallowedPiError),
-        plan.harness,
-        request.provider,
+      swallowedError = env.redactor.redactError(
+        conciseError(
+          new Error(swallowedPiError),
+          plan.harness,
+          request.modelConnection?.provider,
+        ),
       );
-      run.recordError(swallowedError, request.provider);
+      run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
@@ -1891,24 +2018,29 @@ export async function runTurn(
       invalidateContinuity(sessionId, plan.harness, deps);
     }
 
-    return {
-      ok: true,
-      output,
-      messages: output ? [{ role: "assistant", content: output }] : [],
-      events: emit ? [] : run.events(),
-      usage,
-      stopReason,
-      capabilities: {
-        ...env.capabilities,
-        streamingDeltas: !!emit && env.capabilities.streamingDeltas,
-      },
-      sessionId,
-      model: env.model ?? request.model,
-      traceId: run.traceId(),
-    } as AgentRunResult;
+    return env.redactor.redactJson(
+      {
+        ok: true,
+        output,
+        messages: output ? [{ role: "assistant", content: output }] : [],
+        events: emit ? [] : run.events(),
+        usage,
+        stopReason,
+        capabilities: {
+          ...env.capabilities,
+          streamingDeltas: !!emit && env.capabilities.streamingDeltas,
+        },
+        sessionId,
+        model: env.model ?? request.model,
+        traceId: run.traceId(),
+      } as AgentRunResult,
+      "result",
+    );
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
-    otel?.recordError(error, request.provider);
+    const error = env.redactor.redactError(
+      conciseError(err, plan.harness, request.modelConnection?.provider),
+    );
+    otel?.recordError(error, request.modelConnection?.provider);
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);

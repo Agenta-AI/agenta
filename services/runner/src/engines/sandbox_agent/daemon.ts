@@ -122,7 +122,7 @@ export interface BuildDaemonEnvOptions {
   /**
    * Clear-then-apply (Security rule 5): on a MANAGED run (`credentialMode === "env"`) the
    * resolved `secrets` are the sole authority, so the daemon must NOT inherit the sidecar's own
-   * provider keys (the caller applies only `plan.secrets`). When true, no `KNOWN_PROVIDER_ENV_VARS`
+   * provider keys (the caller applies only `plan.modelEnvironment`). When true, no `KNOWN_PROVIDER_ENV_VARS`
    * are copied. When false (a `runtime_provided` / `none` run), the daemon keeps the inherited
    * provider/auth keys so the harness's own login still works.
    */
@@ -136,7 +136,7 @@ export interface BuildDaemonEnvOptions {
  *
  * Clear-then-apply (Security rule 5 in the provider-model-auth design): on a managed run
  * (`clearProviderEnv`) this copies NONE of `KNOWN_PROVIDER_ENV_VARS`, so the only provider env
- * the daemon ever sees is what the caller applies from `plan.secrets`. An inherited
+ * the daemon ever sees is what the caller applies from `plan.modelEnvironment`. An inherited
  * `ANTHROPIC_API_KEY` can therefore not leak into a resolved OpenAI run. For a `runtime_provided`
  * / `none` run the harness uses its own login, so the inherited keys are kept.
  */
@@ -167,7 +167,7 @@ export function buildDaemonEnv(
   for (const key of KNOWN_SANDBOX_ENV_VARS) env[key] = "";
 
   // Managed run: clear (inherit no provider keys); the caller applies only the resolved
-  // `plan.secrets`. Non-managed run: keep the sidecar's own keys so its login works.
+  // `plan.modelEnvironment`. Non-managed run: keep the sidecar's own keys so its login works.
   if (!clearProviderEnv) {
     for (const key of KNOWN_PROVIDER_ENV_VARS) {
       const value = process.env[key];

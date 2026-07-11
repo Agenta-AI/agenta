@@ -66,7 +66,6 @@ agenta-client = { path = "../../clients/python", editable = true }
 [tool.uv.build-backend]
 module-name = "agenta"
 module-root = ""
-source-exclude = ["agenta/tests/*"]
 
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]

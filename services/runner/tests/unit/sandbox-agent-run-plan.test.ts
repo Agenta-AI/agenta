@@ -12,6 +12,7 @@ import {
   buildRunPlan,
   shouldUploadOwnLogin,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
+import { RESERVED_MCP_SERVER_NAME_MESSAGE } from "../../src/engines/sandbox_agent/mcp.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
@@ -62,7 +63,19 @@ describe("buildRunPlan", () => {
         skills: [
           { name: "alpha", description: "Alpha skill.", body: "Do alpha." },
         ],
-        secrets: { OPENAI_API_KEY: "key" },
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "key",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       {
         createLocalCwd: () => "/tmp/local-cwd",
@@ -97,6 +110,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.appendSystemPrompt, "append");
     assert.equal(result.plan.hasSystemPrompt, true);
     assert.equal(result.plan.hasApiKey, true);
+    assert.deepEqual(result.plan.modelEnvironment, { OPENAI_API_KEY: "key" });
     assert.equal(result.plan.sourcePiAgentDir, "/tmp/pi-agent");
     assert.deepEqual(
       result.plan.executableToolSpecs.map((tool) => tool.name),
@@ -475,6 +489,29 @@ describe("buildRunPlan", () => {
     assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
   });
 
+  it("refuses a user MCP server that claims the reserved internal name 'agenta-tools'", () => {
+    // The internal gateway-tool channel is keyed by name and claude_settings.py renders
+    // permission rules against it; a user server with the name would collide/steal them.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "agenta-tools",
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
+  });
+
   it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {
     const result = buildRunPlan(
       {
@@ -566,13 +603,12 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
-  describe("remote-tools gate (F1: non-Pi harness x remote sandbox x tools)", () => {
-    it("refuses claude x daytona x tools (no delivery path exists)", () => {
-      // F1, audit finding: the internal tool-MCP is loopback-only (unreachable from inside the
-      // sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's bundled
-      // extension. Before this gate the run proceeded, silently dropped every tool, and returned
-      // ok:true. Refuse up front, before any cwd/sandbox is created.
-      let created = false;
+  describe("remote-tools gate (non-Pi harness x remote sandbox x tools)", () => {
+    it("allows claude x daytona x executable tools (delivered via the in-sandbox stdio MCP shim)", () => {
+      // The in-sandbox-tool-mcp slice 1: executable (gateway/callback) tools are deliverable
+      // on Claude+Daytona — the runner uploads the stdio MCP shim into `plan.toolMcpDir` and
+      // the calls ride the file relay. The plan must carry the shim dir (an ephemeral SIBLING
+      // of the relay dir, never inside it) and still start the relay loop.
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -580,33 +616,33 @@ describe("buildRunPlan", () => {
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "server_tool", kind: "callback" }],
         } as AgentRunRequest,
-        {
-          createDaytonaCwd: () => {
-            created = true;
-            return "/home/sandbox/agenta-fixed";
-          },
-        },
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
       );
 
-      assert.equal(result.ok, false);
-      if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
-      assert.match(
-        result.error,
-        /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//,
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(
+        result.plan.toolMcpDir,
+        "/home/sandbox/agenta/tool-mcp/agenta-fixed",
+      );
+      assert.notEqual(result.plan.toolMcpDir, result.plan.relayDir);
+      assert.ok(
+        !result.plan.toolMcpDir.startsWith(`${result.plan.relayDir}/`),
+        "the shim dir is never nested inside the relay dir (the relay loop sweeps it)",
       );
       assert.equal(
-        created,
-        false,
-        "fails before any cwd is created (up-front gate)",
+        result.plan.useToolRelay,
+        true,
+        "the relay loop still starts (it executes the shim's requests)",
       );
     });
 
     it("refuses claude x UNKNOWN remote provider x tools (fails closed, not open)", () => {
-      // The gate keys on `sandbox !== "local"`, not `sandbox === "daytona"`, so a new remote
-      // provider (the in-flight E2B one, or anything after it) is refused with the same loud
-      // error until it ships a proven tool-delivery path — instead of silently re-opening the
-      // F1 zero-tools drop one provider over.
+      // In-sandbox delivery is proven for Daytona only, so a new remote provider (the
+      // in-flight E2B one, or anything after it) is refused with the same loud error until
+      // delivery is proven there — instead of silently re-opening the F1 zero-tools drop one
+      // provider over.
+      let created = false;
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -614,12 +650,27 @@ describe("buildRunPlan", () => {
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "server_tool", kind: "callback" }],
         } as AgentRunRequest,
-        { createLocalCwd: () => "/tmp/local-cwd" },
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/tmp/local-cwd";
+          },
+        },
       );
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.match(result.error, /non-Pi harness on this remote sandbox provider/);
+      assert.match(result.error, /proven for Daytona only/);
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      );
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
     });
 
     it("allows claude x daytona x NO tools", () => {
@@ -679,19 +730,22 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
     });
 
-    it("refuses claude x daytona x client-only tools (they ride the MCP channel now)", () => {
-      // Client tools are delivered to Claude over the same internal loopback MCP channel as
-      // gateway tools (advertised in tools/list, paused in tools/call). On a remote sandbox that
-      // channel is unreachable, so a client tool is exactly as undeliverable as a gateway tool:
-      // the model would never see it. The old exemption (client tools "not routed through the
-      // channel") is gone; the gate now counts ALL custom tools.
+    it("refuses claude x daytona x client tools (no pause path through the shim yet)", () => {
+      // A client tool is browser-fulfilled across a turn boundary: on local Claude the
+      // loopback channel pauses the call, but the in-sandbox stdio shim cannot — the relay
+      // loop parks a client call and writes no response file, so the shim would hang until
+      // the relay timeout and read as a broken tool. Refuse loud (never silently drop),
+      // even when executable tools ride along.
       let created = false;
       const result = buildRunPlan(
         {
           harness: "claude",
           sandbox: "daytona",
           messages: [{ role: "user", content: "hello" }],
-          customTools: [{ name: "request_connection", kind: "client" }],
+          customTools: [
+            { name: "server_tool", kind: "callback" },
+            { name: "request_connection", kind: "client" },
+          ],
         } as AgentRunRequest,
         {
           createDaytonaCwd: () => {
@@ -703,7 +757,12 @@ describe("buildRunPlan", () => {
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.match(result.error, /Client tools are not supported/);
+      assert.match(result.error, /browser round-trip/);
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      );
       assert.equal(
         created,
         false,
@@ -723,6 +782,29 @@ describe("buildRunPlan", () => {
       );
 
       assert.equal(result.ok, true);
+    });
+
+    it("still refuses claude x daytona x executable tools under strict restricted network", () => {
+      // The Layer-2 strict-network gate is UNCHANGED by the shim: the shim only advertises;
+      // execution still happens on the RUNNER HOST via the relay, outside the sandbox egress
+      // boundary, so a strict restricted-network run with executable tools stays refused.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+          sandboxPermission: {
+            network: { mode: "off" },
+            enforcement: "strict",
+          },
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /bypass the sandbox network boundary/);
     });
   });
 
@@ -901,8 +983,19 @@ describe("buildRunPlan", () => {
         harness: "claude",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
-        secrets: { ANTHROPIC_API_KEY: "anthropic" },
-        credentialMode: "env",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.anthropic.com" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "anthropic",
+              usage: "opaque_http",
+            },
+          ],
+        },
         systemPrompt: "ignored for non-pi",
       },
       {
@@ -917,7 +1010,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.isDaytona, true);
     assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
     assert.equal(result.plan.usageOutPath, undefined);
-    assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");
+    assert.equal(result.plan.harnessApiKeyVar, "ANTHROPIC_API_KEY");
     assert.equal(result.plan.hasApiKey, true);
     // The resolved credentialMode is carried onto the plan (drives clear-then-apply + the
     // OAuth-upload gate).
@@ -1076,8 +1169,8 @@ describe("shouldUploadOwnLogin", () => {
     );
   });
 
-  it("falls back to the hasApiKey heuristic for an un-migrated caller (no credentialMode)", () => {
-    // No credentialMode on the wire: upload only when no api key was supplied (today's behavior).
+  it("falls back to the hasApiKey heuristic when no modelConnection was resolved", () => {
+    // A direct runner request without modelConnection may still use the harness login.
     assert.equal(
       shouldUploadOwnLogin({ credentialMode: undefined, hasApiKey: false }),
       true,
@@ -1086,5 +1179,119 @@ describe("shouldUploadOwnLogin", () => {
       shouldUploadOwnLogin({ credentialMode: undefined, hasApiKey: true }),
       false,
     );
+  });
+});
+
+describe("modelConnection validation", () => {
+  const base = {
+    harness: "pi_core",
+    messages: [{ role: "user", content: "hi" }],
+  } satisfies AgentRunRequest;
+
+  const connection = (overrides: Record<string, unknown> = {}) => ({
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value: "key",
+        usage: "opaque_http",
+      },
+    ],
+    ...overrides,
+  });
+
+  for (const [name, modelConnection, error] of [
+    [
+      "rejects an empty binding name",
+      connection({
+        credentials: [
+          {
+            binding: { kind: "environment", name: "" },
+            value: "key",
+            usage: "opaque_http",
+          },
+        ],
+      }),
+      "modelConnection credential binding and value must be non-empty",
+    ],
+    [
+      "rejects an empty credential value",
+      connection({
+        credentials: [
+          {
+            binding: { kind: "environment", name: "OPENAI_API_KEY" },
+            value: "",
+            usage: "opaque_http",
+          },
+        ],
+      }),
+      "modelConnection credential binding and value must be non-empty",
+    ],
+    [
+      "rejects opaque HTTP credentials without an endpoint",
+      connection({ endpoint: undefined }),
+      "opaque_http model credentials require an effective HTTPS endpoint",
+    ],
+    [
+      "rejects non-HTTPS opaque HTTP routes",
+      connection({ endpoint: { baseUrl: "http://api.openai.com/v1" } }),
+      "opaque_http model credentials require an effective HTTPS endpoint",
+    ],
+    [
+      "rejects credentials under runtime-provided mode",
+      connection({ credentialMode: "runtime_provided" }),
+      "modelConnection credentials require credentialMode env",
+    ],
+    [
+      "rejects env mode without credentials",
+      connection({ credentials: [] }),
+      "modelConnection credentialMode env requires credentials",
+    ],
+  ] as const) {
+    it(name, () => {
+      let created = false;
+      const result = buildRunPlan(
+        { ...base, modelConnection } as AgentRunRequest,
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/tmp/unused";
+          },
+        },
+      );
+      assert.deepEqual(result, { ok: false, error });
+      assert.equal(created, false);
+    });
+  }
+
+  it("materializes local_use credentials and non-secret config only after validation", () => {
+    const result = buildRunPlan({
+      ...base,
+      modelConnection: connection({
+        provider: "anthropic",
+        deployment: "bedrock",
+        endpoint: {
+          baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+          region: "us-east-1",
+        },
+        environment: { AWS_REGION: "us-east-1" },
+        credentials: [
+          {
+            binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+            value: "AKIA",
+            usage: "local_use",
+          },
+        ],
+      }),
+    } as AgentRunRequest);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.modelEnvironment, {
+      AWS_REGION: "us-east-1",
+      AWS_ACCESS_KEY_ID: "AKIA",
+    });
   });
 });

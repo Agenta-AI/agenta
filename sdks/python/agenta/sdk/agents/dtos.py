@@ -22,6 +22,8 @@ from pydantic import (
     model_validator,
 )
 
+from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
+
 from .connections import ModelRef, ResolvedConnection
 from .mcp import (
     MCPServerConfig,
@@ -117,6 +119,23 @@ class InvalidPermissionDefaultError(ValueError):
             f"invalid runner.permissions.default {value!r}; expected one of "
             f"{sorted(PERMISSION_MODES)}"
         )
+
+
+class AgentTemplateShapeError(ErrorStatus):
+    """A run request used a pre-migration flat agent-template key, or an unknown key in an
+    execution-selector object (``harness`` / ``sandbox`` / ``runner``).
+
+    Maps to HTTP 400 so a stale caller fails loud (naming the bad key and the expected shape)
+    instead of silently falling back to defaults. Silent fallback is what let a pre-migration
+    "E3 daytona" request run in the LOCAL sandbox and go green (finding F-016): the flat
+    ``harness`` / ``sandbox`` strings and flat ``model`` / ``agents_md`` were simply ignored.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-template-shape"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(code=self.code, type=self.type, message=message)
 
 
 # ---------------------------------------------------------------------------
@@ -632,6 +651,9 @@ class AgentTemplate(BaseModel):
         harness's ``permissions`` / ``extras`` collapse onto the flat ``harness_permissions`` /
         ``harness_extras`` here.
         """
+        # Fail loud on a pre-migration flat template or unknown selector keys BEFORE parsing, so a
+        # stale caller gets a named 400 instead of silently running defaults (finding F-016).
+        _validate_agent_template_shape(params)
         base = defaults or cls()
         instructions, model, tools = _parse_agent_fields(params, base)
         harness, sandbox, permission_default = _parse_run_selection(params, base)
@@ -672,17 +694,12 @@ class HarnessAgentTemplate(BaseModel):
     harness: ClassVar[HarnessType]
 
     agents_md: Optional[str] = None
-    # ``model`` stays the back-compat plain string the adapter hands to the harness.
-    # ``model_ref`` carries the structured ref when one is supplied; it is populated only from
-    # structured input (a dict / a ``ModelRef``), so a plain-string ``model`` leaves it
-    # ``None`` and the wire is unchanged. See :meth:`wire_model_ref`.
+    # ``model`` stays the plain string handed to the harness. ``model_ref`` carries author
+    # intent for resolution; only the resolved connection crosses the runner boundary.
     model: Optional[str] = None
     model_ref: Optional[ModelRef] = None
-    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``
-    # (threaded down from ``SessionConfig``). It is the authoritative source of the non-secret
-    # provider/model descriptor on the wire when present; unset leaves the wire unchanged (the
-    # golden contract). Its ``env`` is the secret channel and never reaches the wire here (it
-    # rides ``secrets``). See :meth:`wire_resolved_connection`.
+    # ``resolved_connection`` carries the route and typed credential bindings produced by the
+    # resolver. It serializes as one consumer-owned ``modelConnection`` object.
     resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
@@ -773,48 +790,14 @@ class HarnessAgentTemplate(BaseModel):
         no harness knowledge."""
         return {}
 
-    def wire_model_ref(self) -> Dict[str, Any]:
-        """The non-secret provider/connection fields for the ``/run`` payload.
-
-        Empty when ``model_ref`` is unset, so a string-only config's payload is byte-identical
-        to before (the golden wire contract). When a structured ref is present this emits only
-        the fields known at config-build time: ``provider`` (when set) and ``connection`` (when
-        it carries non-default info). ``deployment`` / ``endpoint`` / ``credentialMode`` come
-        from a :class:`ResolvedConnection`, which Slice 1 does not yet thread, so they are not
-        emitted here. The plain ``model`` string still rides the wire separately for back-compat.
-        """
-        if self.model_ref is None:
-            return {}
-        out: Dict[str, Any] = {}
-        if self.model_ref.provider:
-            out["provider"] = self.model_ref.provider
-        connection = self.model_ref.connection
-        # Two modes only: the project default is ``agenta`` with no slug and carries no info
-        # beyond the model, so it is omitted (byte-identical wire). Emit the connection only when
-        # it is ``self_managed`` or names a slug.
-        is_default = connection.mode == "agenta" and connection.slug is None
-        if not is_default:
-            wire_connection: Dict[str, Any] = {"mode": connection.mode}
-            if connection.slug is not None:
-                wire_connection["slug"] = connection.slug
-            out["connection"] = wire_connection
-        return out
-
-    def wire_resolved_connection(self) -> Dict[str, Any]:
-        """The non-secret resolved-connection descriptor for the ``/run`` payload.
-
-        Empty when ``resolved_connection`` is unset, so a config without a resolved connection
-        is byte-identical to before (the golden wire contract). When a resolved connection is
-        present this is the AUTHORITATIVE source of the provider/model descriptor: it emits
-        ``provider``, ``model`` (the resolved exact model), ``deployment``, ``credentialMode``,
-        and ``endpoint`` (via :meth:`ResolvedConnection.to_wire`, which NEVER emits ``env``). It
-        is spread AFTER the base ``model`` and after :meth:`wire_model_ref` in
-        ``request_to_wire``, so the resolved ``provider``/``model`` win over the config-build
-        values while ``connection`` (the author's ``{mode, slug}`` intent) is preserved. The
-        secret ``env`` rides the existing ``secrets`` wire field, never here."""
+    def wire_model_connection(self) -> Dict[str, Any]:
+        """The resolved model route and credentials, grouped under their consumer."""
         if self.resolved_connection is None:
             return {}
-        return self.resolved_connection.to_wire()
+        return {
+            "model": self.resolved_connection.model,
+            "modelConnection": self.resolved_connection.to_wire(),
+        }
 
 
 class PiAgentTemplate(HarnessAgentTemplate):
@@ -947,8 +930,8 @@ class AgentaAgentTemplate(PiAgentTemplate):
 class SessionConfig(BaseModel):
     """Everything one run needs except where it runs.
 
-    ``agent`` is the agent definition. ``secrets`` are provider keys injected as harness
-    env, never written to the agent filesystem. The ``builtin_tools`` / ``custom_tools`` /
+    ``agent`` is the agent definition. Model routing and credentials are carried by
+    ``resolved_connection``. The ``builtin_tools`` / ``custom_tools`` /
     ``tool_callback`` triple is the resolved tool delivery (Agenta produces it server-side;
     empty for a bare standalone run). The agent config's ``sandbox`` field is a
     backend/environment concern: the caller reads it to pick a backend BEFORE the session is
@@ -957,10 +940,7 @@ class SessionConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     agent: AgentTemplate
-    secrets: Dict[str, str] = Field(default_factory=dict, repr=False)
-    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
-    # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
-    # transition: Slice 1 still ships the credential through ``secrets`` on the wire.
+    # ``resolved_connection`` is the single source of model routing and credentials.
     resolved_connection: Optional[ResolvedConnection] = None
     permission_default: PermissionMode = "allow_reads"
     trace: Optional[TraceContext] = None
@@ -1067,6 +1047,80 @@ def _section(params: Dict[str, Any], key: str) -> Dict[str, Any]:
     """One execution section (``harness`` / ``runner`` / ``sandbox``) of the template, or ``{}``."""
     value = _template(params).get(key)
     return value if isinstance(value, dict) else {}
+
+
+def _has_agent_template(params: Dict[str, Any]) -> bool:
+    """True when the request carries an agent template (wrapped at ``agent``, or a bare template
+    with definition fields), as opposed to the ``prompt`` chat fallback.
+
+    Mirrors the ``has_template`` branch in :func:`_parse_agent_fields` so shape validation and
+    field parsing agree on which requests own an agent template."""
+    return isinstance(params.get("agent"), dict) or any(
+        key in params for key in ("instructions", "llm", "tools", "mcps", "skills")
+    )
+
+
+# The pre-migration flat definition keys and where they moved in the nested template. A caller
+# still sending these silently lost its instructions/model before this guard (finding F-016).
+_LEGACY_FLAT_TEMPLATE_KEYS: Dict[str, str] = {
+    "model": 'llm.model (e.g. "llm": {"model": "gpt-5.5"})',
+    "agents_md": 'instructions.agents_md (e.g. "instructions": {"agents_md": "..."})',
+}
+
+# The execution selectors and the exact keys each accepts. This set is the compat boundary: it is
+# CLOSED (unknown key -> loud error) precisely because it is a small, coordinated, schema-driven
+# enum surface (see ``build_agent_v0_default`` and the FE ``useModelHarness`` sections). The
+# element itself and the portable definition fields (instructions/llm/tools/mcps/skills) stay OPEN
+# for forward-compat; only these three objects are locked down.
+_SELECTOR_ALLOWED_KEYS: Dict[str, frozenset] = {
+    "harness": frozenset({"kind", "permissions", "extras"}),
+    "sandbox": frozenset({"kind", "permissions"}),
+    "runner": frozenset({"kind", "permissions"}),
+}
+
+
+def _validate_agent_template_shape(params: Dict[str, Any]) -> None:
+    """Reject a pre-migration flat agent template, and unknown keys in the execution selectors.
+
+    Fails loud (HTTP 400, naming the bad key and the expected shape) instead of the old silent
+    fallback to defaults that made finding F-016's false-green E3 possible. Scope is deliberately
+    narrow: ONLY the agent-template element and its three selector objects are checked. The prompt
+    chat fallback and the open definition fields are left untouched, so forward-compat additions to
+    the portable template are never rejected here."""
+    if not _has_agent_template(params):
+        return
+    element = _template(params)
+    if not isinstance(element, dict):
+        return
+
+    for legacy_key, moved_to in _LEGACY_FLAT_TEMPLATE_KEYS.items():
+        if legacy_key in element:
+            raise AgentTemplateShapeError(
+                f"agent template carries the pre-migration flat key {legacy_key!r}; "
+                f"put it under {moved_to}"
+            )
+
+    for section, allowed in _SELECTOR_ALLOWED_KEYS.items():
+        value = element.get(section)
+        if value is None:
+            continue
+        if not isinstance(value, dict):
+            if section in ("harness", "sandbox"):
+                raise AgentTemplateShapeError(
+                    f"agent template carries the pre-migration flat {section!r} "
+                    f"({type(value).__name__} {value!r}); use nested {section}.kind "
+                    f'(e.g. "{section}": {{"kind": "..."}})'
+                )
+            raise AgentTemplateShapeError(
+                f"agent template {section!r} must be an object with keys "
+                f"{sorted(allowed)} (got {type(value).__name__} {value!r})"
+            )
+        unknown = sorted(set(value) - allowed)
+        if unknown:
+            raise AgentTemplateShapeError(
+                f"agent template {section!r} has unknown key(s) {unknown}; "
+                f"allowed: {sorted(allowed)}"
+            )
 
 
 def _parse_mcp_servers_raw(

@@ -2,7 +2,7 @@
 
 Owns stream/trim/force; composition (template, tool/MCP/connection resolvers, backend
 selector) is injectable via `AgentComposition`, defaulting to env-driven SDK behavior. The
-default composition also owns capability gating, degradation policy, and MCP gating:
+default composition also owns fail-closed capability/connection gating and MCP gating:
 these are protocol-level safety behaviors, not service-specific, so a bare `agent_v0` (no
 composition override) gets them for free instead of a permissive fallback.
 """
@@ -21,8 +21,6 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_provider,
 )
 from agenta.sdk.agents.connections import (
-    ConnectionResolutionError,
-    MissingProviderError,
     ModelRef,
     ResolvedConnection,
     RuntimeAuthContext,
@@ -50,6 +48,7 @@ from agenta.sdk.agents.tracing import (
 from agenta.sdk.agents.dtos import RunContext, RunContextRun
 
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
+from agenta.sdk.redaction.context import get_active_redactor
 from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
     WorkflowServiceRequest,
@@ -165,50 +164,14 @@ async def _default_resolve_session_connection(
     *,
     resolve_connection: ResolveConnectionFn = _default_resolve_connection,
 ) -> ResolvedConnection:
-    """Resolve one least-privilege connection for the run, with graceful degradation.
+    """Resolve and capability-check one least-privilege connection for the run.
 
-    Provider + mode are rejected BEFORE the vault resolve (known from the config), the resolved
-    deployment is rejected AFTER (only known once the vault picks the secret).
-
-    An EXPLICIT named ``agenta`` connection (``slug`` set) fails loud on a resolution failure: the
-    user named a connection, so a missing/ambiguous one is a real error they must fix.
-
-    A project-default connection (``agenta`` with no slug) or a ``self_managed`` connection is
-    TOLERANT of a resolution failure: most projects have no configured connection for the default
-    model and rely on the harness's own login / a self-managed sidecar, so a failed resolve
-    (including a network/HTTP error) degrades to an empty ``runtime_provided`` plan and the run
-    still works. A capability reject is NEVER tolerated — it is a misconfiguration the user must
-    fix, not a missing credential.
+    Resolution failures are fail-closed. A caller that wants harness-owned authentication must
+    select ``self_managed`` explicitly; a vault outage, missing key, invalid route, or ambiguous
+    connection must never become an implicit runtime-provided fallback.
     """
     _check_harness_pre_resolve(model_ref, context.harness)
-
-    connection = model_ref.connection
-    is_named = connection.mode == "agenta" and bool(
-        connection.slug and connection.slug.strip()
-    )
-    if is_named:
-        resolved = await resolve_connection(model=model_ref, context=context)
-        _check_harness_post_resolve(resolved, context.harness)
-        return resolved
-    try:
-        resolved = await resolve_connection(model=model_ref, context=context)
-    except MissingProviderError:
-        # A bare model id with no provider is an underspecified config, not a missing
-        # credential, so it fails loud even on a default connection.
-        raise
-    except ConnectionResolutionError:
-        log.warning(
-            "agent: no connection resolved for provider %r (mode=%s); "
-            "running with no injected credential (harness login / self-managed)",
-            model_ref.provider,
-            connection.mode,
-        )
-        return ResolvedConnection(
-            provider=model_ref.provider or "",
-            model=model_ref.model,
-            credential_mode="runtime_provided",
-            env={},
-        )
+    resolved = await resolve_connection(model=model_ref, context=context)
     _check_harness_post_resolve(resolved, context.harness)
     return resolved
 
@@ -277,7 +240,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
 
         model_ref = _agent_model_ref(agent_template)
         resolved_connection: Optional[ResolvedConnection] = None
-        secrets: Dict[str, str] = {}
         if model_ref is not None:
             ctx = RuntimeAuthContext(
                 harness=agent_template.harness, backend=agent_template.sandbox
@@ -290,7 +252,24 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 )
             )
             resolved_connection = await resolve_session_connection(model_ref, ctx)
-            secrets = resolved_connection.env
+
+        # Seed immediately after trusted resolution and before transport, trace, event, error, or
+        # result sinks can observe an echoed credential. The ambient redactor is task-local.
+        get_active_redactor().with_known_secrets(
+            [
+                *(
+                    credential.value
+                    for credential in (
+                        resolved_connection.credentials if resolved_connection else []
+                    )
+                ),
+                *(
+                    credential.value
+                    for server in resolved_mcp
+                    for credential in server.credentials
+                ),
+            ]
+        )
 
         # run_kind rides the wire on `request.meta`: a wire-supplied run_kind must not
         # be silently dropped, so it layers onto whatever run_context composition supplies.
@@ -303,7 +282,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
 
         session_config = SessionConfig(
             agent=agent_template,
-            secrets=secrets,
             resolved_connection=resolved_connection,
             permission_default=agent_template.permission_default,
             trace=comp.trace_context(),
@@ -345,7 +323,9 @@ async def agent_event_stream(
         async for event in run:
             if event.type == "done":
                 event_stop_reason = (event.data or {}).get("stopReason")
-            yield {"type": event.type, "data": event.data}
+            yield get_active_redactor().redact_json(
+                {"type": event.type, "data": event.data}, sink="agent_event"
+            )
         # The terminal result's stop_reason is authoritative: the runner's `done` event carries
         # no stopReason for a HITL pause (the engine settles paused-vs-ended after the event
         # stream closes, onto the terminal result only). When it disagrees with the streamed
@@ -382,7 +362,11 @@ async def agent_batch(
     try:
         run = await harness.stream(session_config, msgs)
         async for event in run:
-            events.append({"type": event.type, "data": event.data})
+            events.append(
+                get_active_redactor().redact_json(
+                    {"type": event.type, "data": event.data}, sink="agent_event"
+                )
+            )
         result = run.result()
     finally:
         await harness.cleanup()

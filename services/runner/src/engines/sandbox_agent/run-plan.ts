@@ -17,6 +17,10 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
 } from "../../tools/mcp-bridge.ts";
 import {
+  INTERNAL_TOOL_MCP_SERVER_NAME,
+  RESERVED_MCP_SERVER_NAME_MESSAGE,
+} from "./mcp.ts";
+import {
   PI_BUILTIN_TOOL_IDENTITY,
   permissionsFromRequest,
   piBuiltinIdentity,
@@ -28,6 +32,7 @@ import {
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
 import { buildTurnText } from "./transcript.ts";
+import { buildDaytonaSecretPlan, type DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -49,24 +54,37 @@ export const FILESYSTEM_UNSUPPORTED_MESSAGE =
   "remove sandbox_permission.filesystem.";
 
 /**
- * A non-Pi harness (MCP-only tool delivery) on a remote sandbox cannot receive gateway/custom
- * tools at all today (F1, audit finding): the internal tool-MCP channel is a runner-loopback
- * (`127.0.0.1`) HTTP server, unreachable from inside a remote sandbox, so
- * `buildSessionMcpServers` skips it there; the fallback path (the file relay) has a
- * sandbox-side writer ONLY inside Pi's bundled extension (`extensions/agenta.ts`
- * `registerTools`), which no other harness loads. Before this gate, the run proceeded anyway,
- * `mcp.ts` logged a false "delivered via the file relay", and the harness silently received
- * zero tools with `ok:true` (the silent-tool-drop bug). Refuse loud instead, mirroring the
- * other not-implemented gates above. The gate keys on "not local" rather than "is daytona" so
- * a NEW remote provider (e.g. the in-flight E2B one) fails closed with this error until tool
- * delivery is proven there, instead of silently re-opening F1 one provider over.
+ * A non-Pi harness (MCP-only tool delivery) on a NON-DAYTONA remote sandbox cannot receive
+ * gateway/custom tools: the internal tool-MCP channel is either a runner-loopback HTTP server
+ * (unreachable from inside a remote sandbox) or the in-sandbox stdio MCP shim, and the shim's
+ * upload + spawn path is proven for Daytona only. The gate keys on "remote but not daytona"
+ * so a NEW remote provider (e.g. the in-flight E2B one) fails closed with this error until
+ * tool delivery is proven there, instead of silently re-opening the F1 zero-tools drop one
+ * provider over (before this gate existed, the run proceeded, silently dropped every tool,
+ * and returned ok:true).
  */
 export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
-  "Tools are not supported for a non-Pi harness on a remote sandbox: the internal " +
-  "tool-MCP channel is loopback-only (unreachable from inside the sandbox), and there is no " +
-  "in-sandbox relay client for this harness (only Pi's bundled extension writes the file " +
-  "relay). Run on the local sandbox, use the Pi harness, or remove the tools. Tracked in " +
-  "docs/design/agent-workflows/projects/remote-tools-delivery/.";
+  "Tools are not supported for a non-Pi harness on this remote sandbox provider: in-sandbox " +
+  "tool delivery (the stdio MCP shim feeding the file relay) is proven for Daytona only, so " +
+  "other remote providers fail closed until it is proven there. Run on daytona or the local " +
+  "sandbox, use the Pi harness, or remove the tools. Tracked in " +
+  "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
+
+/**
+ * A `client` (browser-fulfilled) tool on a non-Pi harness on a remote sandbox has no pause
+ * path: on local Claude the internal loopback MCP channel pauses a client `tools/call` by
+ * aborting the in-flight HTTP request, but through the in-sandbox stdio shim the relay loop
+ * parks the call and writes no response file, so the shim would hang until the relay timeout
+ * and teach the model the tool is broken. Executable (gateway/callback) tools work on
+ * Claude+Daytona via the shim; client tools stay refused loud (never silently dropped —
+ * F-032) until the Daytona client-tool bridge exists.
+ */
+export const REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE =
+  "Client tools are not supported for a non-Pi harness on a remote sandbox: a client tool " +
+  "needs the browser round-trip, which the in-sandbox tool MCP channel cannot pause yet " +
+  "(executable gateway/callback tools work). Remove the client tools, run on the local " +
+  "sandbox, or use the Pi harness. Tracked in " +
+  "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
 
 export interface RunPlan {
   harness: string;
@@ -77,24 +95,35 @@ export interface RunPlan {
   prompt: string;
   turnText: string;
   agentsMd?: string;
-  secrets: Record<string, string>;
+  /** Direct environment only; Daytona opaque_http values are excluded. */
+  modelEnvironment: Record<string, string>;
+  /** In-memory only; populated for Daytona and consumed before provider creation. */
+  daytonaSecretPlan?: DaytonaSecretPlan;
   /**
-   * Back-compat inputs to the OAuth-upload decision (see `shouldUploadOwnLogin`). `legacyHarnessApiKeyVar`
-   * does not choose the provider; it only feeds the fallback `hasApiKey` heuristic for an un-migrated caller that sends no
-   * `credentialMode`.
+   * Harness key name used only to decide whether the harness has an API key after the typed
+   * connection is materialized. It never selects a provider.
    */
-  legacyHarnessApiKeyVar: string;
+  harnessApiKeyVar: string;
   hasApiKey: boolean;
   /**
    * How the credential is delivered: "env" (managed, resolved key) | "runtime_provided" (the
    * harness owns its login) | "none". From the resolved connection (provider-model-auth design,
-   * Concern 3). `undefined` when an un-migrated caller sends no credentialMode; the run then
-   * falls back to the `hasApiKey` heuristic. Drives clear-then-apply env (Security rule 5) and
+   * Concern 3). `undefined` only when a direct runner request has no resolved modelConnection;
+   * that request may still use the harness login. Drives clear-then-apply env (Security rule 5) and
    * the OAuth-upload gate (rule 6).
    */
   credentialMode?: string;
   cwd: string;
   relayDir: string;
+  /**
+   * Where the in-sandbox stdio MCP shim assets (bundle + public-specs file) are uploaded on
+   * the Daytona non-Pi executable-tools path (`uploadToolMcpAssets`). An ephemeral in-VM
+   * SIBLING of the relay dir, keyed the same way: NOT inside the relay dir (the relay loop
+   * sweeps and watches that dir, and the shim files would read as relay traffic) and NOT on
+   * the durable geesefs cwd (a flaky mount would surface as ENOTCONN on the harness's spawn
+   * of the shim).
+   */
+  toolMcpDir: string;
   usageOutPath?: string;
   toolSpecs: ResolvedToolSpec[];
   executableToolSpecs: ResolvedToolSpec[];
@@ -127,7 +156,8 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  { ok: true; plan: RunPlan } | { ok: false; error: string };
+  | { ok: true; plan: RunPlan }
+  | { ok: false; error: string };
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
@@ -235,6 +265,99 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
+export function materializeModelEnvironment(
+  request: AgentRunRequest,
+):
+  | { ok: true; environment: Record<string, string>; credentialMode?: string }
+  | { ok: false; error: string } {
+  const connection = request.modelConnection;
+  if (!connection) return { ok: true, environment: {} };
+  if (!connection.provider?.trim() || !connection.deployment?.trim()) {
+    return {
+      ok: false,
+      error: "modelConnection requires provider and deployment",
+    };
+  }
+
+  const environment: Record<string, string> = {};
+  for (const [name, value] of Object.entries(connection.environment ?? {})) {
+    if (!name.trim() || typeof value !== "string" || !value) {
+      return {
+        ok: false,
+        error:
+          "modelConnection environment requires non-empty names and values",
+      };
+    }
+    environment[name] = value;
+  }
+
+  const credentials = Array.isArray(connection.credentials)
+    ? connection.credentials
+    : [];
+  if (connection.credentialMode === "env" && credentials.length === 0) {
+    return {
+      ok: false,
+      error: "modelConnection credentialMode env requires credentials",
+    };
+  }
+  if (connection.credentialMode !== "env" && credentials.length > 0) {
+    return {
+      ok: false,
+      error: "modelConnection credentials require credentialMode env",
+    };
+  }
+
+  for (const credential of credentials) {
+    const name = credential?.binding?.name;
+    if (
+      credential?.binding?.kind !== "environment" ||
+      !name?.trim() ||
+      !credential.value
+    ) {
+      return {
+        ok: false,
+        error: "modelConnection credential binding and value must be non-empty",
+      };
+    }
+    if (
+      credential.usage !== "opaque_http" &&
+      credential.usage !== "local_use"
+    ) {
+      return {
+        ok: false,
+        error: "modelConnection credential usage is invalid",
+      };
+    }
+    try {
+      const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
+      if (endpoint.protocol !== "https:" || !endpoint.hostname) {
+        throw new Error("invalid endpoint");
+      }
+    } catch {
+      return {
+        ok: false,
+        error:
+          credential.usage === "opaque_http"
+            ? "opaque_http model credentials require an effective HTTPS endpoint"
+            : "local_use model credentials require an effective HTTPS endpoint",
+      };
+    }
+    if (Object.hasOwn(environment, name)) {
+      return {
+        ok: false,
+        error: `duplicate modelConnection environment binding '${name}'`,
+      };
+    }
+    environment[name] = credential.value;
+  }
+
+  return {
+    ok: true,
+    environment,
+    credentialMode: connection.credentialMode,
+  };
+}
+
 export function buildRunPlan(
   request: AgentRunRequest,
   {
@@ -280,8 +403,19 @@ export function buildRunPlan(
   // ships one, and "unknown" must not silently behave like "reachable loopback".
   const isRemoteSandbox = sandboxId !== "local";
 
-  const secrets = request.secrets ?? {};
-  const legacyHarnessApiKeyVar =
+  const materializedModel = materializeModelEnvironment(request);
+  if (!materializedModel.ok) return materializedModel;
+  let modelEnvironment = materializedModel.environment;
+  let daytonaSecretPlan: DaytonaSecretPlan | undefined;
+  if (isDaytona) {
+    try {
+      daytonaSecretPlan = buildDaytonaSecretPlan({ modelConnection: request.modelConnection, mcpServers: request.mcpServers });
+      modelEnvironment = daytonaSecretPlan.environment;
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Invalid Daytona secret plan" };
+    }
+  }
+  const harnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
@@ -315,11 +449,11 @@ export function buildRunPlan(
   }
 
   // Code tools were removed (F-010 security): the sidecar no longer executes author-supplied
-  // snippets. The dispatch sites still throw per-call as a backstop, but a per-call throw
-  // becomes a tool RESULT the model launders into an `ok:true` reply ("Code tools are not
-  // supported by the sidecar."), so a removed capability reads as a SUCCESS at the response
-  // envelope (F-016). Fail loud up-front instead: refuse any run that carries a `code` tool,
-  // the way stdio MCP is gated. Keep the wire shape; the delivery is not supported.
+  // snippets. `runCodeTool` throws per-call, but a per-call throw becomes a tool RESULT the
+  // model launders into an `ok:true` reply ("Code tools are not supported by the sidecar."),
+  // so a removed capability reads as a SUCCESS at the response envelope (F-016). Fail loud
+  // up-front instead: refuse any run that carries a `code` tool, the way stdio MCP is gated.
+  // Keep the wire shape; the delivery is not supported.
   if (hasCodeTool(toolSpecs)) {
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
@@ -342,18 +476,38 @@ export function buildRunPlan(
     return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
   }
 
-  // F1 (audit finding, silent-tool-drop): a non-Pi harness on a remote sandbox has NO working
-  // delivery path for ANY custom tool. The internal tool-MCP is loopback-only (unreachable from
-  // inside the sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's
-  // bundled extension. Before this gate the run proceeded, silently dropped every tool, and
-  // still returned `ok:true`. Refuse up front, the way the other not-implemented gates above do,
-  // and fail CLOSED for any non-local provider (see `isRemoteSandbox`) so a new remote provider
-  // cannot silently re-open F1. The gate counts ALL tools (`toolSpecs`), `client` kind included:
-  // client tools now ride the same internal MCP channel on local Claude (advertised + paused in
-  // `tools/call`), so on a remote sandbox they are exactly as undeliverable as gateway tools —
-  // the model would never see or be able to call them.
+  // The internal gateway-tool channel's name is reserved on every transport: the Python
+  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
+  // that name would collide with the internal channel and inherit/steal its rendered rules.
+  // Refuse at declaration time; `buildSessionMcpServers` repeats the check at session
+  // materialization as defense in depth.
+  if (
+    (request.mcpServers ?? []).some(
+      (server) => server.name === INTERNAL_TOOL_MCP_SERVER_NAME,
+    )
+  ) {
+    return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
+  }
+
+  // Non-Pi + remote + tools: executable (gateway/callback) tools are DELIVERABLE on Daytona
+  // via the in-sandbox stdio MCP shim (uploaded per run, advertised as the internal typeless
+  // stdio entry, calls relayed to the runner through the file relay). Two refusals remain,
+  // both loud (F1 / F-032, never a silent tool drop):
+  //  (a) a remote provider that is not Daytona fails CLOSED — the shim's upload + spawn path
+  //      is proven for Daytona only, and a new provider must not silently re-open the F1
+  //      zero-tools drop one provider over;
+  //  (b) any `client` (browser-fulfilled) tool — the relay loop parks a client call and
+  //      writes no response file, so through the shim it would hang until the relay timeout
+  //      and read as a broken tool. Executable tools pass; the client-tool bridge is its own
+  //      project (docs/design/agent-workflows/projects/in-sandbox-tool-mcp/).
+  // Both fire BEFORE any cwd is created, like the other up-front gates.
   if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
-    return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
+    if (!isDaytona) {
+      return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
+    }
+    if (toolSpecs.some((spec) => spec.kind === "client")) {
+      return { ok: false, error: REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE };
+    }
   }
 
   // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
@@ -389,6 +543,13 @@ export function buildRunPlan(
     ? "/home/sandbox/agenta/relay"
     : join(tmpdir(), "agenta", "relay");
   const relayDir = join(relayBase, basename(cwd));
+  // The in-sandbox stdio MCP shim assets live in an ephemeral SIBLING of the relay dir, keyed
+  // the same way (stable across turns of one conversation). Never inside the relay dir — the
+  // relay loop sweeps/watches it — and never on the geesefs mount (see `toolMcpDir` docs).
+  const toolMcpBase = isDaytona
+    ? "/home/sandbox/agenta/tool-mcp"
+    : join(tmpdir(), "agenta", "tool-mcp");
+  const toolMcpDir = join(toolMcpBase, basename(cwd));
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
   // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
@@ -416,6 +577,14 @@ export function buildRunPlan(
     `relay dir '${relayDir}' must be a distinct ephemeral dir, not the durable cwd`,
   );
   assert(
+    !!toolMcpDir &&
+      toolMcpDir !== cwd &&
+      toolMcpDir !== relayDir &&
+      !toolMcpDir.startsWith(`${relayDir}/`),
+    `tool MCP dir '${toolMcpDir}' must be an ephemeral sibling of the relay dir — never the ` +
+      `durable cwd, the relay dir, or nested inside it (the relay loop sweeps that dir)`,
+  );
+  assert(
     isPi === (acpAgent === "pi"),
     `isPi (${isPi}) disagrees with acpAgent '${acpAgent}'`,
   );
@@ -431,12 +600,14 @@ export function buildRunPlan(
       prompt,
       turnText: buildTurnText(request, log),
       agentsMd: request.agentsMd?.trim() || undefined,
-      secrets,
-      legacyHarnessApiKeyVar,
-      hasApiKey: !!secrets[legacyHarnessApiKeyVar],
-      credentialMode: request.credentialMode,
+      modelEnvironment,
+      daytonaSecretPlan,
+      harnessApiKeyVar,
+      hasApiKey: !!modelEnvironment[harnessApiKeyVar],
+      credentialMode: materializedModel.credentialMode,
       cwd,
       relayDir,
+      toolMcpDir,
       // Usage capture is ephemeral runner output, not durable session data — keep it off the
       // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
       usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
@@ -471,13 +642,12 @@ export function buildRunPlan(
  *    the credential).
  *  - `credentialMode === "runtime_provided"`: upload (the harness authenticates with its login).
  *  - `credentialMode === "none"`: do not upload (no credential asserted).
- *  - no `credentialMode` on the wire (un-migrated caller): fall back to today's heuristic —
- *    upload only when no api key was supplied (`!hasApiKey`).
+ *  - no resolved `modelConnection`: use the harness login when no key is materialized.
  */
 export function shouldUploadOwnLogin(
   plan: Pick<RunPlan, "credentialMode" | "hasApiKey">,
 ): boolean {
   if (plan.credentialMode === "runtime_provided") return true;
   if (plan.credentialMode) return false; // "env" / "none": a resolved decision, never upload
-  return !plan.hasApiKey; // back-compat: un-migrated caller, no credentialMode
+  return !plan.hasApiKey; // direct request with no resolved modelConnection
 }

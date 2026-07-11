@@ -1,0 +1,16 @@
+{
+  "slug": "ilyes-rezgui",
+  "name": "Ilyes Rezgui",
+  "role": "AI Researcher",
+  "avatar": "/authors/ilyes-rezgui.webp",
+  "socials": [
+    {
+      "platform": "linkedin",
+      "url": "https://www.linkedin.com/in/ilyes-rezgui/"
+    },
+    {
+      "platform": "github",
+      "url": "https://github.com/ilyesrezgui"
+    }
+  ]
+}

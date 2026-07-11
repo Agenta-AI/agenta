@@ -1,0 +1,191 @@
+@import "./tokens.css";
+
+/* ── base reset (from the design's inline <style>) ──────────── */
+html,
+body {
+  margin: 0;
+  background: #0a0a0b;
+}
+* {
+  box-sizing: border-box;
+}
+a {
+  color: inherit;
+}
+
+/* ── keyframes (ported verbatim) ────────────────────────────── */
+@keyframes ag-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  70% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes accordion-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── scrollbars (ported verbatim) ───────────────────────────── */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+  background-clip: content-box;
+}
+[data-scroll="dark"]::-webkit-scrollbar {
+  width: 10px;
+}
+html,
+[data-scroll="dark"] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* ── interactive affordances (the .dc.html used DC hover hooks) ─ */
+.ds-btn:hover {
+  filter: brightness(0.97);
+}
+.ag-navlink:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.ag-foot-link:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
+.ag-menu {
+  display: none;
+}
+.ag-mobile-menu {
+  display: none;
+}
+.ag-mobile-menu.is-open {
+  display: flex;
+}
+
+/* ============================================================================
+   Responsive — ported VERBATIM from the design's <style> block.
+   handoff/RESPONSIVE.md standardizes on these CSS media queries.
+============================================================================ */
+@media (max-width: 1100px) {
+  .ag-int {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .ag-diagram {
+    height: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+  .ag-diagram-svg {
+    display: none !important;
+  }
+  .ag-node {
+    position: static !important;
+    transform: none !important;
+  }
+}
+@media (max-width: 860px) {
+  .ag-wrap {
+    padding: 0 !important;
+  }
+  .ag-navlinks,
+  .ag-navcta {
+    display: none !important;
+  }
+  .ag-menu {
+    display: inline-flex !important;
+  }
+  .ag-explorer {
+    flex-direction: column !important;
+    height: auto !important;
+  }
+  .ag-explorer-list {
+    width: 100% !important;
+    flex: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+  }
+  .ag-explorer-list > div {
+    min-width: 210px !important;
+  }
+  .ag-harness {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-harness > div:nth-child(2) {
+    border-left: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.09) !important;
+  }
+  .ag-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 36px !important;
+  }
+  .ag-row > div {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .ag-cta-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 28px !important;
+  }
+  .ag-cta-img {
+    display: none !important;
+  }
+  .ag-int {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-foot-top {
+    padding: 48px 24px 56px !important;
+    flex-direction: column !important;
+    gap: 36px !important;
+  }
+  .ag-foot-cols {
+    gap: 32px !important;
+  }
+  .ag-h1 {
+    font-size: 38px !important;
+    line-height: 1.08 !important;
+  }
+  .ag-video {
+    height: 240px !important;
+  }
+  .ag-secpad {
+    padding-top: 64px !important;
+    padding-bottom: 64px !important;
+  }
+}
+@media (min-width: 861px) {
+  .ag-mobile-menu {
+    display: none !important;
+  }
+}

@@ -1,0 +1,128 @@
+---
+// SiteNav — ported from the dark landing nav.
+// CTA destinations match the live agenta.ai site exactly (see plan.md parity table).
+const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
+const GET_STARTED = "https://cloud.agenta.ai/";
+
+// Dropdown placeholders (Product / Resources / Community) and not-yet-built
+// internal pages link to "#"; external links are the real destinations.
+const links = [
+  { label: "Product", href: "#", dropdown: true },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Docs", href: "https://docs.agenta.ai/", external: true },
+  { label: "Blog", href: "/blog" },
+  { label: "Resources", href: "#", dropdown: true },
+  { label: "Community", href: "#", dropdown: true },
+];
+
+const chevron = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
+const linkStyle =
+  "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;";
+---
+
+<nav
+  style="position:relative;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 24px;background:#100F11;border:1px solid rgba(255,255,255,0.07);box-sizing:border-box;"
+>
+  <a href="/" style="display:flex;align-items:center;">
+    <img
+      src="/logos/Agenta-logo-full-dark.svg"
+      alt="Agenta"
+      style="height:23px;display:block;"
+    />
+  </a>
+
+  <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
+    {
+      links.map((l) => (
+        <a
+          class="ag-navlink"
+          href={l.href}
+          target={l.external ? "_blank" : undefined}
+          rel={l.external ? "noopener" : undefined}
+          style={linkStyle}
+        >
+          {l.label}
+          {l.dropdown && <Fragment set:html={chevron} />}
+        </a>
+      ))
+    }
+  </div>
+
+  <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
+    <a
+      href={BOOK_DEMO}
+      target="_blank"
+      rel="noopener"
+      style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Book a demo</a
+    >
+    <a
+      href={GET_STARTED}
+      target="_blank"
+      rel="noopener"
+      style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Get started</a
+    >
+  </div>
+
+  <button
+    class="ag-menu"
+    id="ag-menu-toggle"
+    aria-label="Open menu"
+    aria-expanded="false"
+    style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);cursor:pointer;padding:0;"
+  >
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
+      ><path
+        d="M2 5h14M2 9h14M2 13h14"
+        stroke="#F7F6F4"
+        stroke-width="1.6"
+        stroke-linecap="round"></path></svg
+    >
+  </button>
+</nav>
+
+<div
+  class="ag-mobile-menu"
+  id="ag-mobile-menu"
+  style="flex-direction:column;gap:2px;padding:12px 16px 16px;background:#100F11;border:1px solid rgba(255,255,255,0.07);border-top:none;margin-top:-1px;"
+>
+  {
+    links.map((l) => (
+      <a
+        href={l.href}
+        target={l.external ? "_blank" : undefined}
+        rel={l.external ? "noopener" : undefined}
+        style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
+      >
+        {l.label}
+      </a>
+    ))
+  }
+  <div style="display:flex;gap:10px;margin-top:10px;">
+    <a
+      href={BOOK_DEMO}
+      target="_blank"
+      rel="noopener"
+      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Book a demo</a
+    >
+    <a
+      href={GET_STARTED}
+      target="_blank"
+      rel="noopener"
+      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
+      >Get started</a
+    >
+  </div>
+</div>
+
+<script>
+  // Lightweight hamburger toggle (no framework). Replaces the DC menuOpen state.
+  const toggle = document.getElementById("ag-menu-toggle");
+  const menu = document.getElementById("ag-mobile-menu");
+  toggle?.addEventListener("click", () => {
+    const open = menu?.classList.toggle("is-open");
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+</script>

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/colors.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/typography.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/effects.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/styles.css">
+<script src="_ds/agenta-brand-e4caef1d-4f02-4558-abd2-6342c89dde68/_ds_bundle.js"></script>
+<style>
+  html, body { margin: 0; background: #0A0A0B; }
+  @keyframes accordion-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.26); background-clip: content-box; }
+  html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+</style>
+</helmet>
+
+<div style="{{ pageStyle }}">
+
+  <!-- ============ NAV (dark) ============ -->
+  <nav style="{{ navStyle }}">
+    <a href="Agenta%20Landing%20-%20Agents%20(Dark).dc.html" style="display:flex;align-items:center;"><img src="assets/logos/Agenta-logo-full-dark.svg" alt="Agenta" style="height:23px;display:block;"></a>
+    <div style="{{ navCenterStyle }}">
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Product<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;background:rgba(255,255,255,0.06);font:var(--text-label);color:#fff;cursor:pointer;">Pricing</span>
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Docs</span>
+      <a href="Agenta%20Blog%20(Dark).dc.html" style="display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;">Blog</a>
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Resources<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+      <span style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;">Community<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="{{ demoBtnStyle }}">Book a demo</span>
+      <span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;">Get started</span>
+      <span onClick="{{ toggleMenu }}" style="{{ hamburgerStyle }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="rgba(255,255,255,0.85)" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+    </div>
+  </nav>
+
+  <!-- mobile menu -->
+  <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;padding:10px 20px 18px;background:#100F11;border:1px solid rgba(255,255,255,0.07);border-top:none;margin-top:-1px;box-sizing:border-box;">
+      <sc-for list="{{ navLinks }}" as="l" hint-placeholder-count="5">
+        <span style="padding:11px 4px;font:var(--text-label);color:rgba(255,255,255,0.78);border-top:1px solid rgba(255,255,255,0.06);cursor:pointer;">{{ l }}</span>
+      </sc-for>
+      <span style="margin-top:14px;display:inline-flex;align-items:center;justify-content:center;height:40px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;">Book a demo</span>
+    </div>
+  </sc-if>
+
+  <!-- ============ HERO + BILLING TOGGLE ============ -->
+  <section data-screen-label="Pricing hero" style="{{ heroStyle }}">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:28px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:22px;">
+        <span style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.7);">Pricing</span>
+        <h1 style="margin:0;font:var(--text-display-lg);color:#F7F6F4;max-width:760px;text-wrap:pretty;">Simple pricing that scales with your <span style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25), 0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--yellow-400);">team</span></h1>
+        <p style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;">Start free and self-host forever, or scale on the cloud with prompt management, evaluation, and observability built in.</p>
+      </div>
+
+      <!-- billing toggle -->
+      <div style="display:flex;align-items:center;gap:10px;padding:5px;border-radius:12px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);">
+        <span onClick="{{ setMonthly }}" style="{{ monthlyTabStyle }}">Monthly</span>
+        <span onClick="{{ setAnnual }}" style="{{ annualTabStyle }}">Annual<span style="margin-left:7px;font:var(--text-caption);color:var(--yellow-400);">−20%</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PLAN CARDS ============ -->
+  <section data-screen-label="Plan cards" style="{{ cardsSectionStyle }}">
+    <div style="{{ cardsGridStyle }}">
+      <sc-for list="{{ plans }}" as="p" hint-placeholder-count="4">
+        <div style="{{ p.cardStyle }}">
+          <sc-if value="{{ p.popular }}" hint-placeholder-val="{{ true }}">
+            <span style="position:absolute;top:18px;right:18px;display:inline-flex;align-items:center;height:22px;padding:0 11px;border-radius:999px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);font:var(--text-caption);letter-spacing:0.03em;color:var(--ink-900);">Most popular</span>
+          </sc-if>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font:300 22px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">{{ p.name }}</span>
+            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.55);min-height:38px;text-wrap:pretty;">{{ p.tagline }}</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:7px;min-height:52px;">
+            <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">{{ p.price }}</span>
+            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);">{{ p.unit }}</span>
+          </div>
+          <span style="{{ p.ctaStyle }}">{{ p.cta }}</span>
+          <div style="height:1px;background:rgba(255,255,255,0.08);margin:4px 0;"></div>
+          <span style="font:var(--text-caption);letter-spacing:0.04em;color:rgba(255,255,255,0.45);">{{ p.includesLabel }}</span>
+          <div style="display:flex;flex-direction:column;gap:11px;">
+            <sc-for list="{{ p.features }}" as="f" hint-placeholder-count="5">
+              <div style="display:flex;align-items:flex-start;gap:10px;">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none" style="margin-top:1px;flex:0 0 auto;"><circle cx="9" cy="9" r="9" fill="var(--yellow-400)"/><path d="M5 9.2 7.6 11.8 13 6.4" stroke="var(--ink-900)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.72);">{{ f }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- ============ COMPARISON TABLE ============ -->
+  <section data-screen-label="Comparison" style="{{ compSectionStyle }}">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:56px;width:100%;box-sizing:border-box;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" badge="Compare" title="Compare every plan" subtitle="All the limits and capabilities, side by side. Self-host the open-source core for free, forever." hint-size="677px,auto"></x-import>
+
+      <div style="{{ tableOuterStyle }}">
+        <div style="{{ tableInnerStyle }}">
+          <!-- header row -->
+          <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;align-items:end;padding:0 24px 18px;border-bottom:1px solid rgba(255,255,255,0.12);">
+            <span style="font:var(--text-label);color:rgba(255,255,255,0.5);">Features</span>
+            <sc-for list="{{ colHeads }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">{{ c.name }}</span>
+                <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">{{ c.price }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+            <div>
+              <div style="padding:22px 24px 10px;">
+                <span style="font:var(--text-caption);letter-spacing:0.08em;text-transform:uppercase;color:var(--yellow-400);">{{ g.title }}</span>
+              </div>
+              <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;align-items:center;padding:14px 24px;border-top:1px solid rgba(255,255,255,0.07);">
+                  <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">{{ r.label }}</span>
+                  <sc-for list="{{ r.cells }}" as="cell" hint-placeholder-count="4">
+                    <span style="display:flex;align-items:center;">{{ cell.node }}</span>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section data-screen-label="FAQ" style="{{ faqSectionStyle }}">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:48px;width:100%;box-sizing:border-box;">
+      <x-import component-from-global-scope="AgentaDesignSystem_e4caef.SectionTitle" dark="dark" badge="FAQ" title="Frequently asked questions" subtitle="Everything about plans, limits, and self-hosting. Still curious? Talk to the team." hint-size="677px,auto"></x-import>
+      <div style="{{ faqColStyle }}">
+        <sc-for list="{{ faqs }}" as="q" hint-placeholder-count="5">
+          <div onClick="{{ q.onClick }}" style="border-top:1px solid rgba(255,255,255,0.1);padding:24px 0;cursor:pointer;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
+              <span style="font:300 20px/1.3 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">{{ q.question }}</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex:0 0 auto;margin-top:2px;transition:transform 0.16s ease;transform:{{ q.iconRot }};"><path d="M12 5v14M5 12h14" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <sc-if value="{{ q.open }}" hint-placeholder-val="{{ true }}">
+              <p style="margin:12px 0 0;max-width:680px;font:var(--text-body-md);color:rgba(255,255,255,0.6);animation:accordion-in 0.2s ease both;">{{ q.answer }}</p>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section data-screen-label="CTA" style="{{ ctaSectionStyle }}">
+    <div style="{{ ctaInnerStyle }}">
+      <div style="display:flex;flex-direction:column;gap:22px;max-width:540px;">
+        <h2 style="margin:0;font:var(--text-display-lg);color:var(--text-on-yellow);text-wrap:pretty;">Start free, scale when you're ready</h2>
+        <p style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);">Open-source and self-hostable forever. Sign up in seconds, no credit card required.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="dark" size="lg" hint-size="auto,44px">Get started</x-import>
+          <x-import component-from-global-scope="AgentaDesignSystem_e4caef.Button" variant="outline" size="lg" hint-size="auto,44px">Book a demo</x-import>
+        </div>
+      </div>
+      <img src="assets/logos/Agenta-symbol-light.svg" alt="" style="{{ ctaSymbolStyle }}">
+    </div>
+  </section>
+
+  <!-- ============ FOOTER (dark) ============ -->
+  <footer style="background:#100F11;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;box-sizing:border-box;">
+    <div style="{{ footerTopStyle }}">
+      <div style="display:flex;flex-direction:column;gap:16px;max-width:268px;">
+        <img src="assets/logos/Agenta-logo-full-dark.svg" alt="Agenta" style="height:23px;width:fit-content;display:block;">
+        <span style="font:var(--text-label);line-height:1.25;color:rgba(255,255,255,0.6);white-space:pre-line;">Fast-tracking LLM apps
+to production</span>
+        <div style="display:flex;gap:4px;margin-top:8px;">
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-1.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-2.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-3.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+          <span style="width:32px;height:32px;background:rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;"><img src="assets/icons/social-4.svg" alt="" style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"></span>
+        </div>
+      </div>
+      <div style="{{ footerLinksWrapStyle }}">
+        <sc-for list="{{ footerColumns }}" as="col" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:120px;">
+            <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">{{ col.heading }}</span>
+            <sc-for list="{{ col.links }}" as="link" hint-placeholder-count="4">
+              <span style="font:var(--text-label);color:rgba(255,255,255,0.62);cursor:pointer;">{{ link }}</span>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid rgba(255,255,255,0.07);">
+      <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);">Copyright © 2026 Agentatech UG</span>
+      <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);">Privacy policy</span>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1440, &quot;height&quot;: 900 }
+}">
+class Component extends DCLogic {
+  state = {
+    annual: false,
+    faq: 0,
+    menuOpen: false,
+    vw: (typeof window !== 'undefined' ? window.innerWidth : 1440),
+  };
+
+  componentDidMount() {
+    this._onResize = () => {
+      const w = window.innerWidth;
+      if (w !== this.state.vw) this.setState({ vw: w, menuOpen: w >= 920 ? false : this.state.menuOpen });
+    };
+    window.addEventListener('resize', this._onResize);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._onResize);
+  }
+
+  renderVals() {
+    const annual = this.state.annual;
+    const vw = this.state.vw;
+
+    // breakpoints
+    const fluid = vw < 1440;       // below fixed canvas width → go fluid
+    const compact = vw < 920;      // collapse nav to hamburger, scroll table
+    const stacked = vw < 760;      // stack CTA, smaller hero
+    const mobile = vw < 680;       // 1-col cards
+
+    const cardCols = vw >= 1000 ? 'repeat(4,1fr)' : vw >= 680 ? 'repeat(2,1fr)' : '1fr';
+    const pad = mobile ? 16 : 24;
+
+    // ---- page container ----
+    const pageStyle = fluid
+      ? 'width:100%;margin:0 auto;background:#0A0A0B;box-sizing:border-box;font-family:var(--font-sans);overflow-x:hidden;'
+      : 'width:1440px;margin:0 auto;background:#0A0A0B;padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);';
+
+    // ---- nav ----
+    const navStyle = 'display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 ' + (mobile ? 20 : 32) + 'px;background:#100F11;border:1px solid rgba(255,255,255,0.07);box-sizing:border-box;';
+    const navCenterStyle = compact ? 'display:none;' : 'display:flex;align-items:center;gap:2px;';
+    const demoBtnBase = 'align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;';
+    const demoBtnStyle = (compact ? 'display:none;' : 'display:inline-flex;') + demoBtnBase;
+    const hamburgerStyle = (compact ? 'display:inline-flex;' : 'display:none;') + 'align-items:center;justify-content:center;width:34px;height:30px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);cursor:pointer;';
+
+    // ---- hero ----
+    const heroStyle = 'background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;text-align:center;padding:' + (stacked ? '52px 20px 40px' : '80px 24px 56px') + ';';
+
+    // ---- plan cards ----
+    const cardsSectionStyle = 'background:#0A090A;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:' + (mobile ? '40px 0 64px' : '56px 0 96px') + ';';
+    const cardsGridStyle = fluid
+      ? 'display:grid;gap:16px;margin:0 auto;align-items:stretch;grid-template-columns:' + cardCols + ';width:100%;max-width:1336px;padding:0 ' + pad + 'px;box-sizing:border-box;'
+      : 'display:grid;gap:16px;margin:0 auto;align-items:stretch;grid-template-columns:repeat(4,1fr);width:1336px;';
+
+    // ---- comparison table ----
+    const compSectionStyle = 'background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:' + (stacked ? '72px 0' : '112px 0') + ';';
+    const tableOuterStyle = compact
+      ? 'width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 ' + pad + 'px;box-sizing:border-box;'
+      : 'width:100%;display:flex;justify-content:center;';
+    const tableInnerStyle = compact
+      ? 'min-width:780px;'
+      : (fluid ? 'width:100%;max-width:1336px;margin:0 auto;padding:0 24px;box-sizing:border-box;' : 'width:1336px;margin:0 auto;');
+
+    // ---- faq ----
+    const faqSectionStyle = 'background:#161518;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:' + (stacked ? '72px 0' : '112px 0') + ';';
+    const faqColStyle = fluid ? 'width:100%;max-width:768px;padding:0 ' + pad + 'px;box-sizing:border-box;' : 'width:768px;';
+
+    // ---- cta ----
+    const ctaSectionStyle = 'background:var(--surface-cta);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:' + (stacked ? '64px 0' : '96px 0') + ';';
+    const ctaInnerStyle = stacked
+      ? 'display:flex;flex-direction:column;align-items:flex-start;gap:28px;width:100%;margin:0 auto;padding:0 ' + pad + 'px;box-sizing:border-box;'
+      : (fluid ? 'display:flex;align-items:center;justify-content:space-between;gap:48px;width:100%;max-width:1072px;margin:0 auto;padding:0 24px;box-sizing:border-box;'
+               : 'display:flex;align-items:center;justify-content:space-between;gap:48px;width:1072px;margin:0 auto;');
+    const ctaSymbolStyle = (vw < 900 ? 'display:none;' : 'display:block;') + 'width:150px;opacity:0.16;';
+
+    // ---- footer ----
+    const footerTopStyle = compact
+      ? 'display:flex;flex-direction:column;gap:40px;padding:48px 24px 56px;box-sizing:border-box;'
+      : (fluid ? 'display:flex;justify-content:space-between;gap:48px;padding:64px 48px 80px;flex-wrap:wrap;box-sizing:border-box;'
+               : 'display:flex;justify-content:space-between;gap:64px;padding:64px 172px 96px;flex-wrap:wrap;box-sizing:border-box;');
+    const footerLinksWrapStyle = 'display:flex;gap:' + (mobile ? 32 : 64) + 'px;flex-wrap:wrap;';
+
+    // ---- existing tokens ----
+    const tabBase = 'display:inline-flex;align-items:center;height:34px;padding:0 18px;border-radius:9px;font:var(--text-label);cursor:pointer;transition:all 0.14s;';
+    const tabOn = tabBase + 'background:rgba(255,255,255,0.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#F7F6F4;';
+    const tabOff = tabBase + 'color:rgba(255,255,255,0.55);';
+
+    const cardCardBase = 'position:relative;display:flex;flex-direction:column;gap:16px;padding:28px 26px;border-radius:14px;box-sizing:border-box;';
+    const cardPlain = cardCardBase + 'background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);';
+    const cardPop = cardCardBase + 'background:rgba(242,242,92,0.05);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.3),0 0 60px rgba(242,242,92,0.08);';
+
+    const ctaBtnBase = 'display:inline-flex;align-items:center;justify-content:center;height:40px;border-radius:8px;font:var(--text-label);cursor:pointer;';
+    const ctaYellow = ctaBtnBase + 'background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);';
+    const ctaOutline = ctaBtnBase + 'background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);color:#fff;';
+
+    const plans = [
+      {
+        name: 'Hobby', popular: false,
+        tagline: 'For individuals exploring and self-hosting.',
+        price: '$0', unit: 'forever',
+        cta: 'Start for free', ctaStyle: ctaOutline, cardStyle: cardPlain,
+        includesLabel: 'Includes',
+        features: ['2 team members', '5k traces / month', 'Prompt playground & versioning', '20 evaluations / month', 'Community support'],
+      },
+      {
+        name: 'Pro', popular: false,
+        tagline: 'For small teams shipping to production.',
+        price: annual ? '$39' : '$49', unit: annual ? '/mo, billed yearly' : '/month',
+        cta: 'Start free trial', ctaStyle: ctaOutline, cardStyle: cardPlain,
+        includesLabel: 'Everything in Hobby, plus',
+        features: ['Up to 10 members', '100k traces / month', 'Unlimited evaluations', '90-day data retention', 'Email support'],
+      },
+      {
+        name: 'Business', popular: true,
+        tagline: 'For scaling teams that need control.',
+        price: annual ? '$319' : '$399', unit: annual ? '/mo, billed yearly' : '/month',
+        cta: 'Start free trial', ctaStyle: ctaYellow, cardStyle: cardPop,
+        includesLabel: 'Everything in Pro, plus',
+        features: ['Up to 25 members', '1M traces / month', 'Role-based access control', '1-year retention', 'Priority support'],
+      },
+      {
+        name: 'Enterprise', popular: false,
+        tagline: 'For organizations with security needs.',
+        price: 'Custom', unit: '',
+        cta: 'Book a demo', ctaStyle: ctaOutline, cardStyle: cardPlain,
+        includesLabel: 'Everything in Business, plus',
+        features: ['Unlimited members', 'Custom trace volume', 'SSO / MFA, SOC 2, audit logs', 'Self-host or dedicated cloud', 'SLA & dedicated support'],
+      },
+    ];
+
+    const colHeads = [
+      { name: 'Hobby', price: 'Free' },
+      { name: 'Pro', price: annual ? '$39/mo' : '$49/mo' },
+      { name: 'Business', price: annual ? '$319/mo' : '$399/mo' },
+      { name: 'Enterprise', price: 'Custom' },
+    ];
+
+    const check = () => React.createElement('svg', { width: 17, height: 17, viewBox: '0 0 18 18', fill: 'none' },
+      React.createElement('circle', { cx: 9, cy: 9, r: 9, fill: 'var(--yellow-400)' }),
+      React.createElement('path', { d: 'M5 9.2 7.6 11.8 13 6.4', stroke: 'var(--ink-900)', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+    const dash = () => React.createElement('span', { style: { width: 14, height: 1.5, background: 'rgba(255,255,255,0.2)', borderRadius: 2 } });
+    const txt = (s) => React.createElement('span', { style: { font: 'var(--text-body-sm)', color: 'rgba(255,255,255,0.78)' } }, s);
+    const cellsFrom = (arr) => arr.map((v) => ({ node: v === true ? check() : v === false ? dash() : txt(v) }));
+
+    const groups = [
+      { title: 'Usage', rows: [
+        { label: 'Team members', cells: cellsFrom(['2', '10', '25', 'Unlimited']) },
+        { label: 'Traces per month', cells: cellsFrom(['5k', '100k', '1M', 'Custom']) },
+        { label: 'Data retention', cells: cellsFrom(['7 days', '90 days', '1 year', 'Custom']) },
+        { label: 'Deployment environments', cells: cellsFrom(['1', '3', 'Unlimited', 'Unlimited']) },
+      ]},
+      { title: 'Build & collaborate', rows: [
+        { label: 'Prompt management & versioning', cells: cellsFrom([true, true, true, true]) },
+        { label: 'Playground & side-by-side compare', cells: cellsFrom([true, true, true, true]) },
+        { label: 'Skills, tools & agents registry', cells: cellsFrom([true, true, true, true]) },
+        { label: 'Role-based access control', cells: cellsFrom([false, false, true, true]) },
+      ]},
+      { title: 'Evaluate & observe', rows: [
+        { label: 'Evaluations per month', cells: cellsFrom(['20', 'Unlimited', 'Unlimited', 'Unlimited']) },
+        { label: 'LLM-as-a-judge & custom evaluators', cells: cellsFrom([false, true, true, true]) },
+        { label: 'Observability & tracing', cells: cellsFrom([true, true, true, true]) },
+        { label: 'Human annotation queues', cells: cellsFrom([false, false, true, true]) },
+      ]},
+      { title: 'Security & support', rows: [
+        { label: 'SSO / MFA', cells: cellsFrom([false, false, false, true]) },
+        { label: 'SOC 2 & audit logs', cells: cellsFrom([false, false, false, true]) },
+        { label: 'Self-hosting', cells: cellsFrom(['Open source', false, false, true]) },
+        { label: 'Support', cells: cellsFrom(['Community', 'Email', 'Priority', 'Dedicated + SLA']) },
+      ]},
+    ];
+
+    const FAQ = [
+      { question: 'Is Agenta really open source?', answer: 'Yes. The core platform is open source under a permissive license and you can self-host the full stack for free, forever. The cloud plans add managed hosting, higher limits, and team features on top.' },
+      { question: 'What counts as a trace?', answer: 'A trace is one end-to-end run of your LLM app or agent — every step, prompt, tool call, and response captured for observability. Plans are metered on traces per month, with pay-as-you-go for overages.' },
+      { question: 'Can I switch plans or cancel anytime?', answer: 'Yes. Upgrade, downgrade, or cancel from your workspace settings at any time. Annual plans are billed yearly at a 20% discount; monthly plans renew month to month.' },
+      { question: 'Do you offer discounts for startups or academia?', answer: 'We do. Early-stage startups, students, and researchers can apply for discounted or free access — reach out to the team and tell us about your project.' },
+      { question: 'What happens when I hit my usage limit?', answer: 'Nothing breaks. You can enable pay-as-you-go for extra traces and seats, or upgrade to the next plan. We notify you before you reach your limit so there are no surprises.' },
+      { question: 'How does Enterprise self-hosting work?', answer: 'Enterprise customers can deploy Agenta in their own cloud or on-prem with SSO/MFA, SOC 2, audit logs, and a dedicated SLA. Our team supports the rollout and ongoing operations.' },
+    ];
+
+    const openFaq = this.state.faq;
+    const faqs = FAQ.map((f, i) => ({
+      question: f.question, answer: f.answer,
+      open: openFaq === i,
+      iconRot: openFaq === i ? 'rotate(45deg)' : 'rotate(0deg)',
+      onClick: () => this.setState((s) => ({ faq: s.faq === i ? -1 : i })),
+    }));
+
+    return {
+      setMonthly: () => this.setState({ annual: false }),
+      setAnnual: () => this.setState({ annual: true }),
+      toggleMenu: () => this.setState((s) => ({ menuOpen: !s.menuOpen })),
+      menuOpen: this.state.menuOpen,
+      navLinks: ['Product', 'Pricing', 'Docs', 'Blog', 'Resources', 'Community'],
+      monthlyTabStyle: annual ? tabOff : tabOn,
+      annualTabStyle: annual ? tabOn : tabOff,
+      pageStyle, navStyle, navCenterStyle, demoBtnStyle, hamburgerStyle,
+      heroStyle, cardsSectionStyle, cardsGridStyle,
+      compSectionStyle, tableOuterStyle, tableInnerStyle,
+      faqSectionStyle, faqColStyle,
+      ctaSectionStyle, ctaInnerStyle, ctaSymbolStyle,
+      footerTopStyle, footerLinksWrapStyle,
+      plans, colHeads, groups, faqs,
+      footerColumns: [
+        { heading: 'Product', links: ['Prompt engineering', 'Evaluation', 'Human annotation', 'Observability', 'Deployment'] },
+        { heading: 'Resources', links: ['Documentation', 'Blog', 'Changelog', 'Roadmap'] },
+        { heading: 'Company', links: ['About', 'Careers', 'Contact'] },
+        { heading: 'Legal', links: ['Privacy policy', 'Terms', 'Imprint'] },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

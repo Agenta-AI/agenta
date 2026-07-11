@@ -1,0 +1,210 @@
+{
+  "$schema": "agent-workflows explorer permission model",
+  "sourceOfTruth": "services/runner/src/permission-plan.ts (verified line-by-line; docs are narrative summaries of this code)",
+  "policyDefaults": ["allow", "ask", "deny", "allow_reads"],
+  "defaultPolicy": "allow_reads",
+  "malformedFallback": "ask",
+  "malformedFallbackNotes": "Two distinct malformed cases both fall back to {default:\"ask\", rules:[]}, never toward running a tool: (1) request.permissions is present but is not a plain object (e.g. a string or array); (2) request.permissions.default is present but is not one of the four valid modes. If request.permissions is absent entirely, that is NOT malformed -- it uses the normal default policy allow_reads.",
+  "killSwitch": {
+    "envVar": "SANDBOX_AGENT_DENY_PERMISSIONS",
+    "activatesOn": "true",
+    "effect": "permissionsFromRequest short-circuits to {default: \"deny\", rules: []} before the wire permissions block is even read.",
+    "scopeNuance": "This is an operator kill-switch on the PLAN, not on the per-gate ladder. effectivePermission() still checks gate.specPermission and gate.serverPermission BEFORE consulting plan.default. So a tool with an explicit authored permission of \"allow\" still runs even with the kill-switch on (see testVectors TV13/TV14). Docs describe this informally as forcing deny \"everywhere\"; the code is narrower. This is a documented ambiguity resolved in favor of the code per project convention (ground-truth wins)."
+  },
+  "precedence": [
+    {
+      "step": 1,
+      "id": "specPermission",
+      "description": "The resolved tool spec's own explicit permission (allow/ask/deny), if the author set one. Always wins, in both directions: an explicit allow runs even under a deny policy; an explicit ask/deny binds even under an allow policy."
+    },
+    {
+      "step": 2,
+      "id": "serverPermission",
+      "description": "If the tool belongs to a user-declared MCP server, that server's own explicit permission, when the tool itself carries none."
+    },
+    {
+      "step": 3,
+      "id": "ruleMatch",
+      "description": "An authored builtin rule (runner.permissions.rules) whose pattern matches the gate's tool name, optionally with a Claude-settings-style prefix on the first string argument (e.g. \"Bash(rm:*)\"). If multiple rules match, the highest-severity verdict wins: deny > ask > allow. A prefix rule whose args cannot be inspected (no string argument found) never matches; it falls through to the default rather than guessing."
+    },
+    {
+      "step": 4,
+      "id": "policyDefault",
+      "description": "The run's policy mode (permissions.default). Under allow_reads, the tool's read-only hint decides: true -> allow, anything else (false or absent) -> ask. Under allow/ask/deny, the mode applies directly regardless of the read-only hint."
+    }
+  ],
+  "verdictLadder": [
+    { "permission": "deny", "verdict": "deny", "description": "Refuse the call. No event beyond the ordinary tool_call/tool_result-as-error." },
+    { "permission": "allow", "verdict": "allow", "description": "Run the call in place. No extra event." },
+    {
+      "permission": "ask",
+      "verdict": "consult stored decisions",
+      "description": "Look for a decision already recorded in this conversation, keyed by the stable anchor approvedCallKey(toolName, canonicalizedArgs). Found and it is \"allow\" or \"deny\": apply it and consume it (a stored decision is used exactly once). Not found: pendingApproval -- pause the turn (wire stopReason: \"paused\"), emit exactly one interaction_request(user_approval) event, and wait for a human on the next turn."
+    }
+  ],
+  "gates": [
+    {
+      "id": "settings-file",
+      "label": "Claude .claude/settings.json (static, pre-answered)",
+      "appliesTo": ["claude"],
+      "description": "Rendered once before the session starts by the SDK's claude_settings.py. Every backend-resolved executable tool gets a per-tool allow/deny rule addressed as mcp__agenta-tools__<name>. A tool whose effective permission is allow gets an allow rule (Claude runs it with no gate); deny gets a deny rule; ask or unset gets no rule, so Claude's own gate still fires. This is Gate 1; without it an explicit allow would still pause, because Claude's gate fires before the ACP responder or the relay ever sees the call."
+    },
+    {
+      "id": "acp-responder",
+      "label": "ACP Approval Responder (dynamic)",
+      "appliesTo": ["claude"],
+      "description": "Answers a permission gate Claude raises itself over session.onPermissionRequest, for any call the settings.json layer left undecided (ask/unset). Calls the same decide() as the relay. This is Gate 2."
+    },
+    {
+      "id": "relay",
+      "label": "Tool Relay enforcement",
+      "appliesTo": ["pi_core", "pi_agenta"],
+      "description": "Enforces decide() directly for every tool Pi's relay executes: gateway/code/reference/platform callback tools, and (via the pi-builtin-gating extension hook) Pi's own native builtins. Pi has no separate harness-side settings gate, so the relay is the single enforcement point for everything Pi runs. Claude's gateway/code calls also funnel through the same dispatch function, but RelayPermissions.enforce is false for Claude because Gate 1 and Gate 2 already decided before the call reaches the relay."
+    },
+    {
+      "id": "client-tool-ladder",
+      "label": "Client-tool ladder (onClientTool)",
+      "appliesTo": ["pi_core", "pi_agenta", "claude"],
+      "description": "A carve-out, not the policy-and-rules ladder above. There is no local \"allow\" outcome for a client tool: an explicit deny, or a deny policy default with no explicit permission, blocks the call; every other case pauses as pendingApproval, forwarded to the browser to fulfill on a later turn (the tool's only job is to reach the browser, so it never resolves locally). An explicit permission always wins in both directions; when it resolves to \"ask\", a stored deny decision recorded earlier in the conversation can still deny it, the same as the policy ladder. A stored browser output (from a prior turn) fulfills the call directly without asking again; the client-tool output store is a FIFO list per key, separate from the allow/deny decision store, so a client output whose literal value is the string \"allow\"/\"deny\" can never be misread as a permission decision."
+    }
+  ],
+  "toolExamples": [
+    { "name": "read", "kind": "builtin", "readOnlyHint": true, "harness": "pi", "notes": "Pi builtin; ruleName \"Read\" in the Claude-settings-style rule vocabulary." },
+    { "name": "grep", "kind": "builtin", "readOnlyHint": true, "harness": "pi", "notes": "Pi builtin; ruleName \"Grep\"." },
+    { "name": "ls", "kind": "builtin", "readOnlyHint": true, "harness": "pi", "notes": "Pi builtin; ruleName \"Ls\"." },
+    { "name": "find", "kind": "builtin", "readOnlyHint": true, "harness": "pi", "notes": "Pi builtin; ruleName \"Find\"." },
+    { "name": "bash", "kind": "builtin", "readOnlyHint": false, "harness": "pi", "notes": "Pi builtin; ruleName \"Bash\". Not read-only, so allow_reads asks by default. Rule args are canonicalized to just {command} for stable resume matching." },
+    { "name": "edit", "kind": "builtin", "readOnlyHint": false, "harness": "pi", "notes": "Pi builtin; ruleName \"Edit\"." },
+    { "name": "write", "kind": "builtin", "readOnlyHint": false, "harness": "pi", "notes": "Pi builtin; ruleName \"Write\"." },
+    { "name": "github__create_issue", "kind": "gateway", "readOnlyHint": false, "harness": "pi or claude", "notes": "Resolved to a callback spec with call_ref tools.composio.github.create_issue.<connection>. No read-only hint set by the author normally means it asks under allow_reads unless the tool config sets an explicit permission." },
+    { "name": "query_spans", "kind": "platform", "readOnlyHint": true, "harness": "pi or claude", "notes": "Platform op with read_only: true in the catalog; auto-allows under allow_reads." },
+    { "name": "commit_revision", "kind": "platform", "readOnlyHint": false, "harness": "pi or claude", "notes": "Mutating platform op (\"update yourself\"); asks under allow_reads unless explicitly allowed." },
+    { "name": "fx", "kind": "code", "readOnlyHint": null, "harness": "pi or claude", "notes": "Inline code tool; no catalog-derived read-only hint, so an unset hint under allow_reads asks (absent counts as a write)." },
+    { "name": "request_connection", "kind": "client", "readOnlyHint": null, "harness": "pi or claude", "notes": "Client tool; decided by the client-tool ladder, not the policy/rule ladder. There is no local allow: an explicit deny (or a deny policy default with no explicit permission) blocks the call, and every other case always pauses as pendingApproval, forwarded to the browser to fulfill." },
+    { "name": "github (user MCP server tool)", "kind": "mcp", "readOnlyHint": "server-declared", "harness": "claude only", "notes": "User-declared MCP servers reach Claude only (gated by AGENTA_AGENT_ENABLE_MCP, off by default) and are dropped for Pi even when the flag is on. The owning server's explicit permission (serverPermission) is consulted before the rule/default ladder." }
+  ],
+  "testVectors": [
+    {
+      "id": "TV1",
+      "tool": "bash",
+      "gate": { "toolName": "Bash", "readOnlyHint": false },
+      "config": { "permissions": { "default": "allow_reads" } },
+      "expectedVerdict": "pendingApproval",
+      "decidedBy": "policyDefault(allow_reads): not read-only -> ask -> no stored decision"
+    },
+    {
+      "id": "TV2",
+      "tool": "read",
+      "gate": { "toolName": "Read", "readOnlyHint": true },
+      "config": { "permissions": { "default": "allow_reads" } },
+      "expectedVerdict": "allow",
+      "decidedBy": "policyDefault(allow_reads): read-only -> allow"
+    },
+    {
+      "id": "TV3",
+      "tool": "bash",
+      "gate": { "toolName": "Bash", "readOnlyHint": false, "args": { "command": "rm -rf /tmp/x" } },
+      "config": { "permissions": { "default": "allow_reads", "rules": [{ "pattern": "Bash(rm:*)", "permission": "ask" }] } },
+      "expectedVerdict": "pendingApproval",
+      "decidedBy": "ruleMatch: Bash(rm:*) -> ask -> no stored decision"
+    },
+    {
+      "id": "TV4",
+      "tool": "bash",
+      "gate": { "toolName": "Bash", "readOnlyHint": false, "args": { "command": "rm -rf /tmp/x" } },
+      "config": { "permissions": { "default": "allow", "rules": [{ "pattern": "Bash(rm:*)", "permission": "deny" }] } },
+      "expectedVerdict": "deny",
+      "decidedBy": "ruleMatch: Bash(rm:*) -> deny (overrides the allow policy default)"
+    },
+    {
+      "id": "TV5",
+      "tool": "github__create_issue",
+      "gate": { "toolName": "github__create_issue", "specPermission": "deny" },
+      "config": { "permissions": { "default": "allow" } },
+      "expectedVerdict": "deny",
+      "decidedBy": "specPermission=deny (explicit tool permission always wins, step 1)"
+    },
+    {
+      "id": "TV6",
+      "tool": "query_spans",
+      "gate": { "toolName": "query_spans", "specPermission": "allow" },
+      "config": { "permissions": { "default": "deny" } },
+      "expectedVerdict": "allow",
+      "decidedBy": "specPermission=allow overrides the deny policy default (explicit tool permission wins in both directions)"
+    },
+    {
+      "id": "TV7",
+      "tool": "github (user MCP server tool)",
+      "gate": { "toolName": "github_list_issues", "serverPermission": "ask" },
+      "config": { "permissions": { "default": "allow" } },
+      "expectedVerdict": "pendingApproval",
+      "decidedBy": "serverPermission=ask (step 2, checked before rule/default; owning MCP server's explicit permission) -> no stored decision"
+    },
+    {
+      "id": "TV8",
+      "tool": "bash",
+      "gate": { "toolName": "Bash", "readOnlyHint": false },
+      "config": { "permissions": { "default": "allow" } },
+      "expectedVerdict": "allow",
+      "decidedBy": "policyDefault(allow): mode applies directly, read-only hint ignored"
+    },
+    {
+      "id": "TV9",
+      "tool": "read",
+      "gate": { "toolName": "Read", "readOnlyHint": true },
+      "config": { "permissions": { "default": "deny" } },
+      "expectedVerdict": "deny",
+      "decidedBy": "policyDefault(deny): mode applies directly even to a read-only tool"
+    },
+    {
+      "id": "TV10",
+      "tool": "any",
+      "gate": { "toolName": "read", "readOnlyHint": true },
+      "config": { "permissions": "not-an-object" },
+      "expectedVerdict": "pendingApproval",
+      "decidedBy": "malformedFallback: permissions is present but not a record -> {default:\"ask\"} -> no stored decision"
+    },
+    {
+      "id": "TV11",
+      "tool": "any",
+      "gate": { "toolName": "read", "readOnlyHint": true },
+      "config": { "permissions": { "default": "maybe" } },
+      "expectedVerdict": "pendingApproval",
+      "decidedBy": "malformedFallback: default is not one of allow/ask/deny/allow_reads -> {default:\"ask\"} -> no stored decision"
+    },
+    {
+      "id": "TV12",
+      "tool": "bash",
+      "gate": { "toolName": "Bash", "readOnlyHint": false, "args": { "command": "ls -la" } },
+      "config": { "permissions": { "default": "allow_reads" }, "storedDecision": "allow (from a prior turn's approval, keyed by approvedCallKey(\"Bash\", {command:\"ls -la\"}))" },
+      "expectedVerdict": "allow",
+      "decidedBy": "storedDecision=allow, consumed once (ask permission resolved from a replayed approval)"
+    },
+    {
+      "id": "TV13",
+      "tool": "query_spans",
+      "gate": { "toolName": "query_spans", "readOnlyHint": true },
+      "config": { "env": { "SANDBOX_AGENT_DENY_PERMISSIONS": "true" }, "permissions": { "default": "allow_reads" } },
+      "expectedVerdict": "deny",
+      "decidedBy": "killSwitch: plan forced to {default:\"deny\", rules:[]} before the request's permissions block is read; no explicit spec/server permission on this gate, so the forced default applies"
+    },
+    {
+      "id": "TV14",
+      "tool": "query_spans",
+      "gate": { "toolName": "query_spans", "readOnlyHint": true, "specPermission": "allow" },
+      "config": { "env": { "SANDBOX_AGENT_DENY_PERMISSIONS": "true" }, "permissions": { "default": "allow_reads" } },
+      "expectedVerdict": "allow",
+      "decidedBy": "specPermission=allow still wins even with the kill-switch active, because effectivePermission checks step 1 before consulting the (kill-switch-forced) plan default -- see killSwitch.scopeNuance"
+    }
+  ],
+  "citations": [
+    { "docPath": "documentation/tools.md", "section": "Approval and rendering" },
+    { "docPath": "interfaces/in-service/permission-responder.md" },
+    { "docPath": "interfaces/in-service/sandbox-permission.md" },
+    { "docPath": "documentation/agent-configuration.md", "section": "Layer 3: the SDK runtime config" },
+    { "docPath": "documentation/adapters/claude-code.md", "section": "Permissions" },
+    { "codePath": "services/runner/src/permission-plan.ts" },
+    { "codePath": "services/runner/src/tools/relay.ts" },
+    { "codePath": "services/runner/src/responder.ts" }
+  ]
+}

@@ -22,7 +22,7 @@
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.58.1",
     "@anthropic-ai/sdk": "0.111.0",
-    "@daytonaio/sdk": "^0.187.0",
+    "@daytonaio/sdk": "0.196.0",
     "@earendil-works/pi-coding-agent": "0.80.6",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/core": "1.28.0",

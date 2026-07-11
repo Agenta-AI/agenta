@@ -1,0 +1,28 @@
+/* Agenta Design System — spacing & layout */
+
+:root {
+  /* base-4 spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+
+  /* layout */
+  --site-gutter: 12px;        /* page bg shows as a 12px frame around sections */
+  --site-width: 1416px;       /* section panel width at 1440 design width      */
+  --content-width: 1072px;    /* inner content column                          */
+  --prose-width: 677px;       /* centered title-section width                  */
+  --nav-height: 68px;
+  --section-pad-y: 112px;     /* white sections */
+  --section-pad-y-dark: 128px;/* dark sections  */
+
+  /* app layout */
+  --app-sidebar-width: 220px;
+  --app-item-height: 32px;
+}

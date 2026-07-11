@@ -1,0 +1,16 @@
+{
+  // Cloudflare Workers Static Assets config for the marketing site.
+  // The site is pure static (Astro `output: 'static'`); these settings let a
+  // Worker serve the prebuilt ./dist as plain assets. We do NOT deploy now —
+  // deploy happens later via Cloudflare Workers Builds (git push -> build ->
+  // deploy with per-PR previews). Pages is in maintenance mode; use Workers.
+  "name": "agenta-website",
+  "compatibility_date": "2026-06-26",
+  "assets": {
+    "directory": "./dist",
+    // Serve /about for both /about and /about/ ; canonicalize to no trailing slash.
+    "html_handling": "drop-trailing-slash",
+    // Unknown paths render the generated 404 page.
+    "not_found_handling": "404-page"
+  }
+}

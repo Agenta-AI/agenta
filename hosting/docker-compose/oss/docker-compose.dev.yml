@@ -120,6 +120,7 @@ services:
             - ${ENV_FILE:-./.env.oss.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            AGENTA_RUNNER_CONTROL_TOKEN: ${AGENTA_RUNNER_CONTROL_TOKEN:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -381,6 +382,8 @@ services:
         # its own port plus optional runner-scoped provider credentials.
         environment:
             AGENTA_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_CONTROL_TOKEN: ${AGENTA_RUNNER_CONTROL_TOKEN:-}
+            AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY: ${AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY:-}
             # Bind on all interfaces: the co-located Python `services` container reaches the
             # sidecar over the compose network at `runner:8765`, so the trust-model
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.

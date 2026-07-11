@@ -53,6 +53,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/api
+            - AGENTA_RUNNER_CONTROL_TOKEN=${AGENTA_RUNNER_CONTROL_TOKEN:-}
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
             - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
@@ -286,6 +287,8 @@ services:
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
+            AGENTA_RUNNER_CONTROL_TOKEN: ${AGENTA_RUNNER_CONTROL_TOKEN:-}
+            AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY: ${AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY:-}
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}

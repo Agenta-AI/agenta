@@ -14,6 +14,8 @@ WEB_MODE_SOURCE="default"
 WITH_NGINX=false  # Default to traefik
 AGENTA_WEB_URL=  # Use env var if available, otherwise default
 ENV_FILE=""  # Default to no env file
+RUNNER_SECRETS_ENV_FILE=""  # Compose interpolation only; never injected via service env_file
+RUNNER_SECRETS_ENV_FILE_SOURCE="default"
 BUILD=false  # Default to no forced build
 NO_CACHE=false  # Default to using cache
 PULL_ENABLED=  # Stage-dependent default applied after parsing: gh→true, dev→false
@@ -50,6 +52,7 @@ show_usage() {
     echo "Environment:"
     echo "  -e, --env <path>        Use explicit env file (otherwise stage default)"
     echo "  --env-file <path>       Alias for --env"
+    echo "  --runner-secrets-env-file <path>  API/runner secret interpolation file"
     echo ""
     echo "Database:"
     echo "  --nuke                  Remove related volumes on shutdown"
@@ -212,6 +215,14 @@ while [[ "$#" -gt 0 ]]; do
             ENV_FILE="$2"
             shift
             ;;
+        --runner-secrets-env-file)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --runner-secrets-env-file."
+            fi
+            RUNNER_SECRETS_ENV_FILE="$2"
+            RUNNER_SECRETS_ENV_FILE_SOURCE="explicit"
+            shift
+            ;;
         --build)
             BUILD=true
             ;;
@@ -334,11 +345,36 @@ Refusing to start: Docker Compose would silently fall back to its built-in defau
 Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
 fi
 
+# Never place runner control material in the shared service env file: every service
+# consumes that file. The dedicated interpolation-only file below preserves least privilege.
+if grep -Eq "^[[:space:]]*(export[[:space:]]+)?AGENTA_RUNNER_(CONTROL_TOKEN|SECRET_EPOCH_HMAC_KEY)=" "$ENV_FILE_PATH"; then
+    error_exit "Runner control secrets found in shared env file: $ENV_FILE_PATH
+Move them to ./hosting/docker-compose/.env.runner-secrets or pass --runner-secrets-env-file."
+fi
+
 # Export the ENV_FILE to the environment
 export ENV_FILE="$ENV_FILE"
 
 # Always append --env-file flag to COMPOSE_CMD
 COMPOSE_CMD+=" --env-file $ENV_FILE_PATH"
+# Runner control secrets are a Compose interpolation source only. Unlike ENV_FILE_PATH,
+# this file is never named by a service-level env_file entry, so only explicit API/runner
+# environment mappings receive its values.
+if [[ -z "$RUNNER_SECRETS_ENV_FILE" ]]; then
+    RUNNER_SECRETS_ENV_FILE="./hosting/docker-compose/.env.runner-secrets"
+fi
+if [[ "$RUNNER_SECRETS_ENV_FILE" = /* || "$RUNNER_SECRETS_ENV_FILE" == ./* || "$RUNNER_SECRETS_ENV_FILE" == ../* || "$RUNNER_SECRETS_ENV_FILE" == */* ]]; then
+    RUNNER_SECRETS_ENV_FILE_PATH="$RUNNER_SECRETS_ENV_FILE"
+else
+    RUNNER_SECRETS_ENV_FILE_PATH="./hosting/docker-compose/$RUNNER_SECRETS_ENV_FILE"
+fi
+if [[ -f "$RUNNER_SECRETS_ENV_FILE_PATH" ]]; then
+    COMPOSE_CMD+=" --env-file $RUNNER_SECRETS_ENV_FILE_PATH"
+elif [[ -n "${AGENTA_RUNNER_CONTROL_TOKEN:-}" || -n "${AGENTA_RUNNER_SECRET_EPOCH_HMAC_KEY:-}" ]]; then
+    : # Explicit process environment remains a supported secure source.
+elif [[ "$RUNNER_SECRETS_ENV_FILE_SOURCE" == "explicit" ]]; then
+    error_exit "Runner secrets env file not found: $RUNNER_SECRETS_ENV_FILE_PATH"
+fi
 
 if [[ "$WEB_MODE" == "docker" ]]; then
     COMPOSE_CMD+=" --profile with-web"

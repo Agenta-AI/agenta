@@ -1,0 +1,53 @@
+/* Agenta Design System — webfonts
+   GT Alpina (display serif) + PP Mondwest (bitmap accent) ship as local binaries.
+   Inter (web body), Geist + Geist Mono (product UI) load from Google Fonts. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap');
+
+@font-face {
+  font-family: 'GT Alpina';
+  src: url('../assets/fonts/GT-Alpina-Standard-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'GT Alpina';
+  src: url('../assets/fonts/GT-Alpina-Standard-Light-Italic.otf') format('opentype');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'GT Alpina';
+  src: url('../assets/fonts/GT-Alpina-Standard-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'GT Alpina';
+  src: url('../assets/fonts/GT-Alpina-Standard-Regular-Italic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'GT Alpina';
+  src: url('../assets/fonts/GT-Alpina-Standard-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PP Mondwest';
+  src: url('../assets/fonts/PPMondwest-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

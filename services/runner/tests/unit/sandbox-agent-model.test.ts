@@ -8,7 +8,9 @@ import assert from "node:assert/strict";
 
 import {
   allowedFromError,
+  allowedModels,
   applyModel,
+  ModelNotSettableError,
   pickModel,
 } from "../../src/engines/sandbox_agent/model.ts";
 
@@ -36,6 +38,25 @@ describe("allowedFromError", () => {
   });
 });
 
+describe("allowedModels", () => {
+  it("reads the pi-acp choice `value` (not `id`), so the allowed set is not silently empty", async () => {
+    // pi-acp builds each choice as `{ value: model.modelId, ... }`; reading `id` returned [].
+    const session = {
+      getConfigOptions: async () => [
+        {
+          id: "model",
+          category: "model",
+          options: [
+            { value: "openai-codex/gpt-5.5", name: "GPT-5.5" },
+            { value: "anthropic/sonnet", name: "Sonnet" },
+          ],
+        },
+      ],
+    };
+    assert.deepEqual(await allowedModels(session), ["openai-codex/gpt-5.5", "anthropic/sonnet"]);
+  });
+});
+
 describe("applyModel", () => {
   it("uses the requested model when the harness accepts it", async () => {
     const calls: string[] = [];
@@ -45,7 +66,17 @@ describe("applyModel", () => {
     assert.deepEqual(calls, ["anthropic/sonnet"]);
   });
 
-  it("retries with an allowed suffix match from the harness error", async () => {
+  it("keeps the harness default when no model is requested (default strict)", async () => {
+    let called = false;
+    const session = { setModel: async () => void (called = true) };
+
+    assert.equal(await applyModel(session, undefined), undefined);
+    assert.equal(called, false);
+  });
+
+  it("selects a Pi model by resolving a bare id to the harness's own id (strict default)", async () => {
+    // Pi exposes "openai-codex/gpt-5.5"; a caller passes a bare "gpt-5.5". Strict-by-default must
+    // still resolve via the suffix match, not fail — this is the Pi selection pass-through.
     const calls: string[] = [];
     const session = {
       setModel: async (id: string) => {
@@ -60,7 +91,29 @@ describe("applyModel", () => {
     assert.deepEqual(calls, ["gpt-5.5", "openai-codex/gpt-5.5"]);
   });
 
-  it("falls back to harness default when no match exists", async () => {
+  it("fails loudly (strict default) when the requested model cannot be resolved", async () => {
+    const session = {
+      setModel: async () => {
+        throw new Error("Unsupported value. Allowed values: anthropic/sonnet");
+      },
+    };
+
+    await assert.rejects(
+      () => applyModel(session, "gpt-bogus-xyz"),
+      (err: unknown) => {
+        assert.ok(err instanceof ModelNotSettableError);
+        // The message names the requested id and the valid options source.
+        assert.match(err.message, /gpt-bogus-xyz/);
+        assert.match(err.message, /Valid models for this harness/);
+        assert.match(err.message, /anthropic\/sonnet/);
+        assert.equal(err.requested, "gpt-bogus-xyz");
+        assert.deepEqual(err.allowed, ["anthropic/sonnet"]);
+        return true;
+      },
+    );
+  });
+
+  it("falls back to the harness default only under the explicit opt-out (strict: false)", async () => {
     const logs: string[] = [];
     const session = {
       setModel: async () => {
@@ -68,7 +121,10 @@ describe("applyModel", () => {
       },
     };
 
-    assert.equal(await applyModel(session, "gpt-5.5", (m) => logs.push(m)), undefined);
+    assert.equal(
+      await applyModel(session, "gpt-5.5", (m) => logs.push(m), { strict: false }),
+      undefined,
+    );
     assert.match(logs[0], /using harness default/);
   });
 });
