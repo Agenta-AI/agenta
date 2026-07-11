@@ -53,3 +53,30 @@ def test_claim_retry_owner_and_global_uniqueness_indexes_exist():
     )
     sql = str(CreateIndex(binding).compile(dialect=postgresql.dialect()))
     assert "coalesce" in sql.lower() and "unique" in sql.lower()
+    for name in (
+        "ix_agent_secret_leases_provider_retry",
+        "ix_agent_secret_leases_org_retry",
+    ):
+        retry = next(
+            index
+            for index in AgentSecretLeaseDBE.__table__.indexes
+            if index.name == name
+        )
+        retry_sql = str(CreateIndex(retry).compile(dialect=postgresql.dialect()))
+        assert "coalesce(next_attempt_at, created_at)" in retry_sql.lower()
+
+
+def test_database_enforces_bounded_errors_and_resource_consistency():
+    constraint_names = {
+        constraint.name
+        for table in (
+            AgentSecretLeaseDBE.__table__,
+            AgentSecretLeaseResourceDBE.__table__,
+        )
+        for constraint in table.constraints
+    }
+    assert {
+        "ck_agent_secret_leases_safe_error_code",
+        "ck_agent_secret_lease_resources_consumer_key",
+        "ck_agent_secret_lease_resources_created_id",
+    } <= constraint_names

@@ -1,7 +1,13 @@
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from oss.src.apis.fastapi.agent_secret_leases.models import LeaseReserveRequest
+from oss.src.apis.fastapi.agent_secret_leases.models import (
+    AgentSecretLeaseResponse,
+    LeaseReserveRequest,
+)
 from oss.src.core.agent_secret_leases.dtos import LeaseReserve
 from oss.src.core.agent_secret_leases.types import LeaseInvalid, normalize_exact_host
 
@@ -84,3 +90,10 @@ def test_idna_host_requires_canonical_input():
     assert normalize_exact_host("xn--bcher-kva.example") == "xn--bcher-kva.example"
     with pytest.raises(LeaseInvalid):
         normalize_exact_host("https://api.example.com/path")
+
+
+def test_canonical_runner_wire_fixture_round_trips_exactly():
+    fixture = Path(__file__).parent / "fixtures" / "secret_lease_wire.json"
+    payload = json.loads(fixture.read_text())
+    parsed = AgentSecretLeaseResponse.model_validate(payload)
+    assert parsed.model_dump(mode="json", by_alias=True, exclude_none=True) == payload

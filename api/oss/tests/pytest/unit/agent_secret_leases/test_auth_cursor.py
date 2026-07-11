@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -92,19 +93,30 @@ class FakeEngine:
 async def test_missing_cursor_anchor_fails_instead_of_restarting_first_page():
     dao = AgentSecretLeasesDAO(engine=FakeEngine())
     query = LeaseQuery.model_validate(
-        {"windowing": {"next": str(uuid4()), "limit": 10}}
+        {"windowing": {"next": "not-a-cursor", "limit": 10}}
     )
     with pytest.raises(LeaseInvalid, match="invalid_cursor"):
         await dao.query(scope=None, query=query)
 
 
+def test_cursor_captures_immutable_sort_tuple_without_anchor_lookup():
+    lease_id = uuid4()
+    sort_time = datetime(2026, 7, 12, 1, 2, 3, 456789, tzinfo=timezone.utc)
+    cursor = AgentSecretLeasesDAO._encode_cursor(sort_time, lease_id)
+    decoded_time, decoded_id = AgentSecretLeasesDAO._decode_cursor(cursor)
+    assert decoded_time == sort_time
+    assert decoded_id == lease_id
+    with pytest.raises(LeaseInvalid, match="invalid_cursor"):
+        AgentSecretLeasesDAO._decode_cursor(cursor + "tampered")
+
+
 def test_query_response_uses_shared_windowing_next_shape():
-    cursor = uuid4()
+    cursor = AgentSecretLeasesDAO._encode_cursor(datetime.now(timezone.utc), uuid4())
     response = LeasesResponse(
         count=0, leases=[], windowing={"next": cursor, "limit": 100}
     )
     wire = response.model_dump(mode="json", by_alias=True, exclude_none=True)
-    assert wire["windowing"]["next"] == str(cursor)
+    assert wire["windowing"]["next"] == cursor
     assert wire["windowing"]["limit"] == 100
 
 
@@ -129,6 +141,42 @@ def test_auth_middleware_workload_bypass_is_limited_to_janitor_routes(monkeypatc
         }
     )
     assert auth._verify_runner_control_request(janitor) is True
+    lease_id = uuid4()
+    for method, path in (
+        ("GET", f"/agent-secret-leases/{lease_id}"),
+        ("PATCH", f"/agent-secret-leases/{lease_id}"),
+        ("POST", f"/agent-secret-leases/{lease_id}/claim"),
+    ):
+        allowed = Request(
+            {
+                "type": "http",
+                "method": method,
+                "path": path,
+                "headers": [(b"x-agenta-runner-control-token", b"correct-token")],
+                "query_string": b"",
+                "server": ("test", 80),
+                "scheme": "http",
+            }
+        )
+        assert auth._verify_runner_control_request(allowed) is True
+    for method, path in (
+        ("POST", "/agent-secret-leases/"),
+        ("PATCH", "/agent-secret-leases/not-a-uuid"),
+        ("PATCH", f"/agent-secret-leases/{lease_id}/extra"),
+        ("POST", f"/agent-secret-leases/{lease_id}/extra/claim"),
+    ):
+        denied = Request(
+            {
+                "type": "http",
+                "method": method,
+                "path": path,
+                "headers": [(b"x-agenta-runner-control-token", b"correct-token")],
+                "query_string": b"",
+                "server": ("test", 80),
+                "scheme": "http",
+            }
+        )
+        assert auth._verify_runner_control_request(denied) is False
     invalid = Request(
         {
             "type": "http",
