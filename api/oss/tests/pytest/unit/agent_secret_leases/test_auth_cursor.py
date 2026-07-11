@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -89,6 +89,61 @@ class FakeEngine:
         return EmptyResult()
 
 
+class LeaseResult:
+    def __init__(self, leases):
+        self.leases = leases
+
+    def scalars(self):
+        return self
+
+    def unique(self):
+        return self
+
+    def all(self):
+        return self.leases
+
+
+class QueryEngine:
+    def __init__(self, lease):
+        self.lease = lease
+        self.statements = []
+
+    @asynccontextmanager
+    async def session(self):
+        yield self
+
+    async def execute(self, stmt):
+        self.statements.append(stmt)
+        return LeaseResult([self.lease])
+
+
+def lease_dbe(*, created_at, next_attempt_at):
+    from oss.src.dbs.postgres.agent_secret_leases.dbes import AgentSecretLeaseDBE
+
+    lease_id = uuid4()
+    return AgentSecretLeaseDBE(
+        id=lease_id,
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        created_by_id=uuid4(),
+        provider="daytona",
+        owner_kind="session",
+        owner_id="session-1",
+        idempotency_key=f"idempotency-{lease_id}",
+        plan_digest="sha256:" + "a" * 64,
+        credential_epoch_digest="hmac-sha256:" + "b" * 64,
+        sandbox_label=f"agenta.lease_id={lease_id}",
+        state="cleanup_pending",
+        version=2,
+        attempt_count=1,
+        next_attempt_at=next_attempt_at,
+        claim_generation=0,
+        created_at=created_at,
+        resources=[],
+    )
+
+
 @pytest.mark.asyncio
 async def test_missing_cursor_anchor_fails_instead_of_restarting_first_page():
     dao = AgentSecretLeasesDAO(engine=FakeEngine())
@@ -108,6 +163,35 @@ def test_cursor_captures_immutable_sort_tuple_without_anchor_lookup():
     assert decoded_id == lease_id
     with pytest.raises(LeaseInvalid, match="invalid_cursor"):
         AgentSecretLeasesDAO._decode_cursor(cursor + "tampered")
+
+
+@pytest.mark.asyncio
+async def test_record_retry_schedule_cannot_move_cursor_order():
+    created_at = datetime(2026, 7, 12, 1, 2, 3, tzinfo=timezone.utc)
+    lease = lease_dbe(
+        created_at=created_at,
+        next_attempt_at=created_at + timedelta(minutes=1),
+    )
+    engine = QueryEngine(lease)
+    dao = AgentSecretLeasesDAO(engine=engine)
+    query = LeaseQuery.model_validate({"windowing": {"limit": 1}})
+
+    first = await dao.query(scope=None, query=query)
+    lease.next_attempt_at = created_at + timedelta(days=30)
+    lease.attempt_count += 1
+    second = await dao.query(scope=None, query=query)
+
+    assert first.next_cursor == second.next_cursor
+    assert AgentSecretLeasesDAO._decode_cursor(first.next_cursor) == (
+        created_at,
+        lease.id,
+    )
+    compiled = str(
+        engine.statements[-1].compile(compile_kwargs={"literal_binds": True})
+    )
+    order_by = compiled.split("ORDER BY", maxsplit=1)[1]
+    assert "created_at" in order_by
+    assert "next_attempt_at" not in order_by
 
 
 def test_query_response_uses_shared_windowing_next_shape():
