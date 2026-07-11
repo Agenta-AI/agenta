@@ -60,6 +60,7 @@ _ALLOWED_SOURCE_STATES = {
 _REQUEST_CLEANUP_ERROR_CODES = {
     SafeErrorCode.PROVISION_FAILED,
     SafeErrorCode.SANDBOX_CREATE_FAILED,
+    SafeErrorCode.PROVIDER_UNAVAILABLE,
 }
 
 
@@ -198,7 +199,7 @@ class AgentSecretLeasesService:
         self,
         *,
         lease_id: UUID,
-        scope: TenantScope,
+        scope: Optional[TenantScope],
     ) -> AgentSecretLease:
         lease = await self.leases_dao.fetch(lease_id=lease_id, scope=scope)
         if lease is None:
