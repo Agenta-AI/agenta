@@ -1,15 +1,17 @@
 import type { DaytonaSecretApi } from "./daytona-secrets.ts";
 import { cleanupDaytonaLease } from "./daytona-secrets.ts";
-import type { SecretLeaseControl } from "./secret-lease-control.ts";
+import { SecretLeaseControlError, type SecretLeaseControl } from "./secret-lease-control.ts";
 
 export async function runDaytonaSecretJanitorPage(input: {
   control: SecretLeaseControl; api: DaytonaSecretApi; workerId: string; cursor?: string; claimTtlSeconds?: number;
   deleteSandbox: (id: string) => Promise<void>; confirmSandboxAbsent: (id: string) => Promise<boolean>;
 }): Promise<string | undefined> {
-  const page = await input.control.query({ provider: "daytona", states: ["reserved", "provisioning", "cleanup_pending", "cleaning"], windowing: { next: input.cursor, limit: 100 } });
+  const page = await input.control.query({ provider: "daytona", states: ["cleanup_pending", "cleaning"], windowing: { next: input.cursor, limit: 100 } });
   const failures: unknown[] = [];
   for (const candidate of page.leases) {
-    const claimed = await input.control.claim(candidate.id, { claimOwner: input.workerId, ttlSeconds: input.claimTtlSeconds ?? 60 });
+    let claimed;
+    try { claimed = await input.control.claim(candidate.id, { claimOwner: input.workerId, ttlSeconds: input.claimTtlSeconds ?? 60 }); }
+    catch (error) { if (error instanceof SecretLeaseControlError && error.code === "conflict") continue; throw error; }
     if (!claimed) continue;
     const lease = { ...candidate, claim: { id: claimed.claimId, generation: claimed.claimGeneration, expiresAt: claimed.claimExpiresAt } };
     try { await cleanupDaytonaLease({ lease, control: input.control, api: input.api, deleteSandbox: input.deleteSandbox, confirmSandboxAbsent: input.confirmSandboxAbsent }); }

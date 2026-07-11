@@ -1287,7 +1287,10 @@ export async function acquireEnvironment(
       toolSpecs: plan.toolSpecs,
       userMcpServers: request.mcpServers?.map((server) => {
         const replacements = secretLeaseRuntime?.currentMcpHeaderPlaceholders()[server.name];
-        if (!replacements) return server;
+        if (!replacements) {
+          if (plan.isDaytona && (server.credentials?.length ?? 0) > 0) throw new Error(`Daytona Secret placeholders are missing for MCP server '${server.name}'.`);
+          return server;
+        }
         return {
           ...server,
           credentials: server.credentials?.map((credential) => {
