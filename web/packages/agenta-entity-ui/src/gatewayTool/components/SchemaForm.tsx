@@ -82,6 +82,21 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         const [step, setStep] = useState(0)
         const stepperOn = !!stepper && fields.length > 1
         const onReview = stepperOn && step >= fields.length
+        const stepRefs = useRef<(HTMLDivElement | null)[]>([])
+        const reviewRef = useRef<HTMLDivElement | null>(null)
+        const prevStepRef = useRef(step)
+        // On step CHANGE (never mount — the composer may own focus), focus the answer surface
+        // so digits/arrows/typing land with zero Tab presses.
+        useEffect(() => {
+            if (!stepperOn || prevStepRef.current === step) return
+            prevStepRef.current = step
+            requestAnimationFrame(() => {
+                const root = onReview ? reviewRef.current : stepRefs.current[step]
+                root?.querySelector<HTMLElement>(
+                    '[tabindex="0"], input:not([type="hidden"]), textarea',
+                )?.focus()
+            })
+        }, [step, stepperOn, onReview])
         Form.useWatch([], form) // review rows re-render as answers change
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
 
@@ -287,12 +302,27 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             </div>
                         </div>
                         {fields.map((field, i) => (
-                            <div key={field.name} className={step === i ? undefined : "hidden"}>
-                                <SchemaFormField field={field} hideLabel />
+                            <div
+                                key={field.name}
+                                ref={(el) => {
+                                    stepRefs.current[i] = el
+                                }}
+                                className={step === i ? undefined : "hidden"}
+                            >
+                                <SchemaFormField
+                                    field={field}
+                                    hideLabel
+                                    onAnswered={() =>
+                                        window.setTimeout(
+                                            () => setStep((s) => Math.min(s + 1, fields.length)),
+                                            180,
+                                        )
+                                    }
+                                />
                             </div>
                         ))}
                         {onReview && (
-                            <div className="flex flex-col gap-1">
+                            <div ref={reviewRef} className="flex flex-col gap-1">
                                 {fields.map((field, i) => {
                                     const value = form.getFieldValue(field.name.split("."))
                                     const empty =
@@ -630,6 +660,7 @@ function ChoiceCards({
     multiple,
     disabled,
     id,
+    onPicked,
 }: {
     value?: string | string[]
     onChange?: (v: string | string[] | undefined) => void
@@ -638,6 +669,8 @@ function ChoiceCards({
     disabled?: boolean
     /** Injected by Form.Item so the field label associates with the group. */
     id?: string
+    /** Fires after a single-select pick — the stepper auto-advances on it. */
+    onPicked?: () => void
 }) {
     const otherInputRef = useRef<InputRef>(null)
     // Multi: pending chip text (commits on Enter/blur). Single: mirror of the committed custom
@@ -657,9 +690,16 @@ function ChoiceCards({
     }, [multiple, customSingle])
 
     const isChecked = (v: string) => selected.includes(v)
+    // Roving tabindex: ONE Tab stop per group (the selected card, else the first) — Tab crosses
+    // the group in one press; arrows walk the cards inside it.
+    const roverIndex = Math.max(
+        0,
+        options.findIndex((o) => isChecked(o.value)),
+    )
     const pick = (v: string) => {
         if (disabled) return
         onChange?.(toggleCardSelection(selected, v, !!multiple))
+        if (!multiple) onPicked?.()
     }
     const commitDraft = () => {
         const commit = commitCustomValue(selected, otherText, true)
@@ -716,7 +756,7 @@ function ChoiceCards({
                     key={o.value}
                     role={multiple ? "checkbox" : "radio"}
                     aria-checked={isChecked(o.value)}
-                    tabIndex={disabled ? -1 : 0}
+                    tabIndex={disabled ? -1 : i === roverIndex ? 0 : -1}
                     onClick={() => pick(o.value)}
                     onKeyDown={(e) => {
                         // Space selects (checkbox convention). Enter also selects in single mode
@@ -818,11 +858,14 @@ function SchemaFormField({
     field,
     depth = 0,
     hideLabel,
+    onAnswered,
 }: {
     field: FormFieldDescriptor
     depth?: number
     /** Stepper mode renders the question as a header above the control — no field label. */
     hideLabel?: boolean
+    /** Stepper mode: a completed single-select answer auto-advances to the next question. */
+    onAnswered?: () => void
 }) {
     const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
     const label = hideLabel ? undefined : <FieldLabel field={field} />
@@ -949,7 +992,7 @@ function SchemaFormField({
                     initialValue={field.default}
                 >
                     {wantsChoiceCards(field) ? (
-                        <ChoiceCards options={enumOptionsOf(field)} />
+                        <ChoiceCards options={enumOptionsOf(field)} onPicked={onAnswered} />
                     ) : field.allowCustomEnum ? (
                         <EnumWithOther
                             options={enumOptionsOf(field)}
