@@ -68,6 +68,12 @@ def upgrade() -> None:
             name="ck_agent_secret_leases_counters",
         ),
         sa.CheckConstraint(
+            "(claim_id IS NULL AND claim_owner IS NULL AND claim_expires_at IS NULL) "
+            "OR (claim_id IS NOT NULL AND claim_owner IS NOT NULL "
+            "AND claim_expires_at IS NOT NULL AND claim_generation > 0)",
+            name="ck_agent_secret_leases_claim_consistency",
+        ),
+        sa.CheckConstraint(
             "last_error_code IS NULL OR last_error_code IN "
             "('provision_failed','sandbox_create_failed','provider_unavailable',"
             "'provider_conflict','persistence_failed','sandbox_delete_failed',"
@@ -98,12 +104,12 @@ def upgrade() -> None:
     op.execute(
         "CREATE INDEX ix_agent_secret_leases_provider_retry "
         "ON agent_secret_leases "
-        "(provider, state, COALESCE(next_attempt_at, created_at), id)"
+        "(provider, state, created_at, id)"
     )
     op.execute(
         "CREATE INDEX ix_agent_secret_leases_org_retry "
         "ON agent_secret_leases "
-        "(organization_id, state, COALESCE(next_attempt_at, created_at), id)"
+        "(organization_id, state, created_at, id)"
     )
     op.create_index(
         "ix_agent_secret_leases_owner",

@@ -7,7 +7,7 @@ from typing import Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid_utils
-from sqlalchemy import func, or_, select, tuple_, update as sa_update
+from sqlalchemy import or_, select, tuple_, update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -297,9 +297,6 @@ class AgentSecretLeasesDAO(AgentSecretLeasesDAOInterface):
         self, *, scope: Optional[TenantScope], query: LeaseQuery
     ) -> LeasePage:
         async with self.engine.session() as session:
-            sort_time = func.coalesce(
-                AgentSecretLeaseDBE.next_attempt_at, AgentSecretLeaseDBE.created_at
-            )
             stmt = (
                 select(AgentSecretLeaseDBE)
                 .options(selectinload(AgentSecretLeaseDBE.resources))
@@ -329,19 +326,19 @@ class AgentSecretLeasesDAO(AgentSecretLeasesDAOInterface):
             if query.windowing.next:
                 anchor_time, anchor_id = self._decode_cursor(query.windowing.next)
                 stmt = stmt.where(
-                    tuple_(sort_time, AgentSecretLeaseDBE.id)
+                    tuple_(AgentSecretLeaseDBE.created_at, AgentSecretLeaseDBE.id)
                     > tuple_(anchor_time, anchor_id)
                 )
             limit = min(max(query.windowing.limit or 100, 1), 200)
-            stmt = stmt.order_by(sort_time.asc(), AgentSecretLeaseDBE.id.asc()).limit(
-                limit
-            )
+            stmt = stmt.order_by(
+                AgentSecretLeaseDBE.created_at.asc(), AgentSecretLeaseDBE.id.asc()
+            ).limit(limit)
             leases = (await session.execute(stmt)).scalars().unique().all()
             return LeasePage(
                 leases=[lease_dbe_to_dto(lease) for lease in leases],
                 next_cursor=(
                     self._encode_cursor(
-                        leases[-1].next_attempt_at or leases[-1].created_at,
+                        leases[-1].created_at,
                         leases[-1].id,
                     )
                     if len(leases) == limit
