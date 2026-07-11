@@ -32,6 +32,7 @@ debug drawer is `web/oss/src/components/SessionInspector/`.
 | Liveness badge | Tab-dot effective status = local run-state, else backend liveness (`running`/`alive`); ONE shared project-wide `is_alive` query for all dots | `AgentChatSlice/state/liveness.ts`, `components/SessionTagBar.tsx` |
 | Request priority | Low-priority Fern client for secondary reads (records hydration, liveness) | `agenta-sdk/src/resources.ts`, `session/api/{client,api}.ts` |
 | Debug inspector | Streams/Records/States/Mounts/Interactions tabs on the real endpoints | `SessionInspector/` |
+| Mount file browser (read-only) | Navigable folder/file tree + text preview in the inspector Mounts tab; whole-tree fetched once, `deriveMountRows` folds it to a one-level view client-side (7 unit tests) | `session/core/mountBrowser.ts`, `session/api` (`queryMountFiles`/`readMountFile`), `SessionInspector/tabs/MountsTab.tsx` |
 
 ## Blocked / waiting on others — wire when the dependency lands
 
@@ -62,6 +63,7 @@ debug drawer is `web/oss/src/components/SessionInspector/`.
 | SWR revalidate on focus/interval | On-open revalidation shipped; focus/interval is a bonus for long-lived tabs | `FOLLOWUP(sessions,swr)` |
 | Same-length content reconciliation | Revalidation adopts only when server is strictly LONGER (count-based). A same-length server-side edit/regenerate won't reconcile — content-diffing across live-vs-replay id-spaces is unreliable | `FOLLOWUP(sessions,swr)` |
 | id-only cache slim | Drop the `:messages` store (keep the index), derive labels from records — needs a first-user-message preview stamped on the index at send. Trades instant-open for a fetch-per-open | — |
+| Read-write mounts | The browser is read-only; the backend also has write/upload/delete/create-folder + archive/unarchive. Add file management + a user-facing mount surface once JP's artifact-level mounts direction lands | — |
 | Env-gate the debug `SessionInspector` | It's a debug drawer; the user-facing liveness/history/files surfaces are separate | — |
 | Steer / cancel / attach in chat | These control-plane calls only edit Redis locks on the product path (no runner cooperation, no live-turn re-watch) → surfacing them would be no-op stubs. Deliberately NOT wired. Revisit when the runner cooperates | `FOLLOWUP(sessions,lifecycle)` |
 
@@ -71,6 +73,12 @@ debug drawer is `web/oss/src/components/SessionInspector/`.
   volume, so session tables can lag the DBEs (records envelope, `session_interactions` status/tags/
   meta, `session_states` flags/tags/meta all drifted once). Migrations themselves are correct — a
   fresh `--nuke` is clean. Re-verify against a real row; tsc goes false-green (zod strips unknowns).
+- **Mount file ops need the object store configured.** `get_mount_files` (and write/upload) 503
+  with "Mount storage backend is not configured" unless `AGENTA_STORE_ACCESS_KEY` /
+  `AGENTA_STORE_SECRET_KEY` are set (endpoint defaults to `http://seaweedfs:8333`). Mount *rows*
+  (create/query) work without it; only file contents need it. The browser renders a "couldn't load
+  — store may not be configured" notice in that case (it distinguishes fetch-failed `null` from an
+  empty `[]` mount).
 - **The zod boundary is the drift check.** `session/core/schema.ts` `.transform()`s the record
   envelope back to consumer names. Fern's compile-time types under-declare `extra="allow"` fields
   (and lag renames like `status` object→string), so always validate through the package functions.
