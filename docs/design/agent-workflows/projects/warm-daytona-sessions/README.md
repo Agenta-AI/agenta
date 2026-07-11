@@ -21,34 +21,43 @@ A few words you will meet throughout, defined once:
 ## Read the files in this order
 
 1. **context.md.** What a user sees today, what recent work already tried, why it still fails, and
-   the finding that shaped the whole plan: the code to keep a sandbox warm was already written, but
-   the piece of it that talks to Daytona is missing two functions it needs.
+   the finding that shaped the first draft: the code to keep a sandbox warm was already written,
+   but the piece of it that talks to Daytona is missing two functions it needs.
 2. **research.md.** The current code, function by function, with the exact reasons warm reuse does
-   not work yet. Read this for the evidence behind context.md. It also covers the local warm-reuse
-   pool and how Daytona bills a stopped sandbox.
-3. **plan.md.** The proposal. Two levels of reuse, the work each needs, the gaps to close first, and
-   a recommendation. Start here if you only want the decision.
-4. **open-questions.md.** The decisions that still need a human: a reviewer for the correctness ones,
-   a billing owner for the cost ones.
-5. **status.md.** Where the project stands, what was decided and why, and what the design review
-   changed.
+   not work yet, plus the measured Daytona lifecycle numbers and prices (2026-07-11) that reshaped
+   the plan. Read this for the evidence behind context.md.
+3. **plan.md.** The proposal: one progressive sequence of slices from the correctness base through
+   park-to-stopped and a provider-aware pool refactor up to park-to-running. Start here if you
+   only want the decision.
+4. **open-questions.md.** What still needs a human: three correctness decisions for a reviewer and
+   two proposed defaults to confirm. The former cost questions are answered by the measurement.
+5. **status.md.** Where the project stands, what was decided and why, the measurement summary, and
+   what the two design-review rounds changed.
 
 ## The recommendation, in one paragraph
 
-Ship the cheaper level first. Park-to-stopped stops the sandbox at the end of a turn and restarts
-the same one on the next turn; its parked cost is disk storage only. Put it behind a flag that is
-off by default, close the handful of correctness gaps the design review found, and turn it on after
-one careful live test. Keep today's always-correct fallback (rebuild the sandbox and replay the
-transcript) underneath it. Defer the more expensive level, park-to-running, which keeps the sandbox
-running between turns, until a billing owner sets its cost limits.
+Build the whole ladder in slices, each shippable on its own. First the correctness base (the two
+missing Daytona provider functions plus the leak and race fixes two design-review rounds found,
+gated behind a default-off flag from the start), then park-to-stopped (stop the sandbox at turn
+end instead of deleting it; parked cost is disk storage only, about $0.0009/hour), then a refactor
+that makes the existing local keepalive pool provider-aware, then park-to-running (keep the
+sandbox running for a short window after each turn, default 60 seconds with a hard cap of 4
+concurrently running sandboxes enforced before creation, about $0.0028 per parked minute), and
+finally credit-controlled live verification before any flag flips on. The measurement behind this
+order: creating a Daytona sandbox takes under 2 seconds, so the roughly 20-second turn is our own
+per-turn setup, and only a sandbox that stays running skips it. The archive state is dropped
+entirely (restoring from archive is slower than creating fresh). Today's always-correct fallback
+(rebuild and replay the transcript) stays underneath everything.
 
 ## Related workspaces
 
 - `docs/design/agent-workflows/projects/session-keepalive/`: the local, in-memory pool that already
-  gives non-Daytona sessions warm reuse. Its deferred Daytona slice is this project's park-to-running
-  level.
+  gives non-Daytona sessions warm reuse. This project refactors that pool to be provider-aware;
+  its once-deferred Daytona slice is this project's park-to-running level.
 - `docs/design/agent-workflows/projects/harness-session-resume/`: how a restarted sandbox reloads the
   past conversation. This is the fallback both levels rely on.
+- `docs/design/agent-workflows/projects/daytona-gate-delivery/`: the F-018 fix (approval gates on
+  Daytona), in implementation. This plan follows its pending-approval resume model.
 - `docs/design/agent-workflows/projects/qa/findings.md`: the QA findings referenced here. F-020 (this
   slow-turn problem), F-018 (a separate Daytona bug that hangs tool calls), and F-017 (a mount bug
   already fixed).

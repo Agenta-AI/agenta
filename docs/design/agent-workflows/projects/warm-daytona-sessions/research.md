@@ -196,37 +196,87 @@ The credential epoch and the two fingerprints carry over unchanged. A parked ses
 outlives its mount credential, or whose resolved secrets rotate, is evicted to cold. On Daytona
 the mount-credential expiry is the tighter bound, so that check matters more there than locally.
 
-## Daytona lifecycle and billing
+## Daytona lifecycle and billing: measured numbers (2026-07-11)
 
-A Daytona sandbox moves through four states. The billing is as the provider comments and
-Daytona's public docs describe. A stopped sandbox frees CPU and RAM but still bills for its disk.
-An archived sandbox moves its files to object storage and resumes via a plain `start()` (there is
-no separate restore call), just more slowly, and it must be stopped before it can be archived.
-One more rule matters: Daytona's idle clock for the stop timer resets on external API calls, not
-on processes running inside the sandbox. So a long, silent, in-sandbox operation can be
-auto-stopped mid-turn.
+A Daytona sandbox moves through four states: running, stopped, archived, deleted. A stopped
+sandbox keeps its disk but loses all process memory; Daytona's docs are explicit that stopping a
+container sandbox kills its processes and clears memory, and there is no CRIU-style memory freeze
+for the container class (only Daytona's separate VM sandbox class has pause/resume with memory,
+and we do not use it). An archived sandbox has its filesystem moved to object storage and resumes
+via a plain `start()`, just more slowly; it must be stopped before it can be archived. One more
+rule matters: Daytona's idle clock for the stop timer resets on external API calls, not on
+processes running inside the sandbox. So a long, silent, in-sandbox operation can be auto-stopped
+mid-turn.
 
-| State | How reached | Disk | Billing | Resume cost |
-|---|---|---|---|---|
-| Running | create, or start a stopped one | live | full compute | none, already up |
-| Stopped | `pauseSandbox()`, or the 5-minute idle stop | retained | storage only, no compute | fast start (about 1s) + remount + session reload |
-| Archived | the 15-minute idle archive | moved to cold storage | cheaper cold storage | slower restore + remount + reload |
-| Deleted | the 30-minute idle delete, or `destroySandbox()` | gone | none | full rebuild + mount + replay |
+On 2026-07-11 we measured the lifecycle directly against the Daytona API (SDK 0.187.0, snapshot
+`agenta-sandbox-pi`, target `eu`, two repetitions; every sandbox created was deleted, with zero
+sandboxes in the organization before and after). "Usable" means a trivial `echo` exec succeeds
+through the Daytona API; the measurement deliberately does not start our daemon, upload assets,
+mount storage, or load a harness, so it isolates the sandbox lifecycle from our pipeline. The
+sandbox provisions 2 vCPU, 4 GiB RAM, 8 GiB disk.
 
-Park-to-stopped parks to Stopped: storage cost only, and the archive-then-delete timers bound
-even that. Park-to-running parks to Running for a short window: the parked cost is live compute,
-so its time-to-live is a direct cost knob and its pool cap bounds the concurrent spend.
+| Transition | Rep 1 | Rep 2 |
+|---|---|---|
+| Cold create to usable | 1.7 s | 1.2 s |
+| Stop (running to stopped) | 2.0 s | 1.8 s |
+| Start from stopped to usable | 0.8 s | 0.7 s |
+| Archive (stopped to archived) | 82.3 s | 50.3 s |
+| Start from archived to usable | 33.2 s | 65.7 s |
+| Delete | 0.1 s | 0.2 s |
+
+Prices, from Daytona's public pricing page (Linux sandboxes, checked 2026-07-11): $0.0504 per
+vCPU-hour, $0.0162 per GiB of RAM per hour, $0.000108 per GiB of disk per hour (first 5 GiB
+free). Daytona's billing docs confirm a stopped sandbox bills for its reserved disk only, and an
+archived sandbox bills for no active resources (object storage; the per-GiB price is not
+published). For our 2 vCPU / 4 GiB / 8 GiB sandbox that gives:
+
+| State | Billing | Cost for our sandbox | Resume to usable (sandbox only) |
+|---|---|---|---|
+| Running | compute + RAM + disk | about $0.17/hour, or $0.0028/minute | zero, already up |
+| Stopped | reserved disk only | about $0.0009/hour (about 2 cents/day) | 0.7 to 0.8 s |
+| Archived | object storage | below stopped; exact price unpublished | 33 to 66 s |
+| Deleted | nothing | zero | 1.2 to 1.7 s (fresh create) |
+
+Three conclusions follow:
+
+1. **Archive is worthless for us.** Restoring from archive (33 to 66 s) is slower than deleting
+   and creating fresh from the snapshot (1.2 to 1.7 s), and the disk it frees costs under a tenth
+   of a cent per hour. Our sandboxes keep almost nothing on their own disk (24 KiB written above
+   the snapshot layers in the measurement; the durable data lives in the mounted cloud storage),
+   so archive's one advantage, freeing disk quota, buys us nothing. The demotion ladder should be
+   stop then delete, with the archive step configured out: `DAYTONA_AUTOARCHIVE` strictly greater
+   than `DAYTONA_AUTODELETE` (equal values would race, and "archive interval 0 means maximum" is
+   unusable because our `positiveMinutes()` parser treats 0 as unset). Daytona documents
+   auto-delete as firing after continuous stopped time with no archive step required; the
+   archive-disabled path still gets one explicit live check in the verification slice.
+2. **Sandbox creation is not the 20-second problem.** A cold create to a usable exec is under 2
+   seconds at the Daytona API, so almost all of the roughly 20 seconds QA measured per turn sits
+   in our own per-turn pipeline: daemon startup inside the sandbox, asset upload, the geesefs
+   mounts, harness startup, and the session reload. This is arithmetic, not instrumentation; the
+   split across those steps is unmeasured, and the verification slice instruments it. Two
+   corollaries: park-to-stopped skips only the create at the provider level (and today's Daytona
+   path re-uploads Pi assets and rematerializes workspace files on every start, so the prepared
+   disk saves less than it could); park-to-running is the only level that skips the whole
+   pipeline.
+3. **Parked-running compute is cheap in absolute terms.** $0.0028 per parked minute. A 60-second
+   keep-warm window after each turn costs at most about a third of a cent; a cap of 4 concurrently
+   running parked sandboxes has a worst-case burn of about $0.67/hour.
+
+Park-to-stopped parks to Stopped: storage cost only, and the delete timer bounds even that.
+Park-to-running parks to Running for a short window: the parked cost is live compute, so its
+time-to-live is a direct cost knob and its running cap bounds the concurrent spend.
 
 ### Cleaning up abandoned sandboxes
 
 `ephemeral: true` used to auto-delete a sandbox the moment it stopped. That is why it existed: a
 crashed runner could not leave a sandbox billing for long. `ephemeral: false` removes that reflex.
-The new backstop is the stop-then-archive-then-delete timer cascade (5, 15, 30 minutes), plus the
-process-group kill for local trees from the patch above. So a hard-killed runner now leaves a
-running Daytona sandbox billing compute until the stop timer fires (up to 5 idle minutes of
-compute), then billing storage until the delete timer fires. That is a larger abandonment budget
-than `ephemeral: true` gave. Whether 5 minutes of orphaned compute is acceptable is a decision
-for `plan.md` and a billing owner.
+The new backstop is the stop-then-delete timer cascade, plus the process-group kill for local
+trees from the patch above. So a hard-killed runner now leaves a running Daytona sandbox billing
+compute until the stop timer fires, then billing storage until the delete timer fires. With the
+measured prices this abandonment budget is now a number, not a question: about 1.4 cents per
+crash at a 5-minute stop timer, about 4 cents at the 15-minute value the plan proposes, plus a
+fraction of a cent of storage until the delete timer. That is acceptable without a separate
+sweeper; the timers are the sweeper.
 
 ## PR #5197 (durable session continuity)
 
@@ -263,3 +313,7 @@ The consequence for this project: a tool-using Daytona turn fails, and a failed 
 (`shouldPark` returns false on a failed result). So warm reuse helps chat first. It also means
 neither reuse level can be fully validated on tool turns until F-018 lands. The build-kit default
 agent, whose first turn is a tool call, gets no benefit until then.
+
+F-018 has its own implementation workspace, `../daytona-gate-delivery/`. Its gate and resume
+model (a file-based gate, a stored decision the model's reissued call resolves against, and a
+two-lifetime timeout) is the contract this plan's pending-approval section in `plan.md` follows.

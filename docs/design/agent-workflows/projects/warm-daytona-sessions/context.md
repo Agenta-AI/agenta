@@ -20,6 +20,13 @@ A few terms, since they recur below:
 
 The slow turn is the whole problem. This is QA finding F-020.
 
+One measured fact sharpens where the twenty seconds goes (research.md, 2026-07-11): creating the
+Daytona sandbox itself takes under 2 seconds. The rest of the wait is our own per-turn setup
+inside and around it: starting the daemon, uploading assets, mounting files, starting the
+harness, and reloading the conversation. That setup only disappears entirely when the sandbox,
+with its processes, stays running between turns. This is why the plan builds up to keeping
+sandboxes running for a short window, not just to stopping and restarting them.
+
 The answer itself is still correct. A separate feature, durable session continuity (PR #5197),
 saves the conversation to storage and replays it into the fresh sandbox, so the agent remembers
 what was said. The only cost is speed. Correctness is fine; every turn just pays the full build
@@ -85,23 +92,30 @@ Two older facts are worth carrying forward, because a later decision depends on 
 
 ## Goals
 
-- Make a second Daytona turn in the same conversation skip the full rebuild.
-- Keep the parked cost honest and bounded. Storage only for the default level; a clear cost
-  limit for any level that keeps a sandbox running.
+- Make a second Daytona turn in the same conversation near-instant while the conversation is
+  active (the sandbox stays running for a short window), and cheap to resume after the window
+  closes (restart the stopped sandbox instead of rebuilding).
+- Keep the parked cost honest and bounded, as configuration with measured, conservative defaults:
+  storage only for a stopped sandbox, a short window and a hard cap on concurrently running
+  parked sandboxes.
 - Never leak a running sandbox. Cleanup of abandoned sandboxes has to be at least as safe as the
   `ephemeral: true` behavior it replaces.
+- Reuse the existing local keepalive pool logic (`session-pool.ts`), refactored to be
+  provider-aware, instead of building a second pooling mechanism.
 - Keep durable continuity (PR #5197) as the always-correct fallback.
 
 ## Non-goals
 
-- Fixing the Daytona tool-call hang (F-018, a separate bug). Warm reuse helps chat first. Tool
-  turns fail on Daytona until F-018 lands, and a failed turn does not park.
+- Fixing the Daytona tool-call hang (F-018, a separate bug with its own implementation workspace,
+  `daytona-gate-delivery`). Warm reuse helps chat first. Tool turns fail on Daytona until F-018
+  lands, and a failed turn does not park.
 - Routing across multiple runner replicas. The runner is single-replica; a miss just falls back
   to a cold build.
 - Changing the wire contract, the SDK, or the frontend. This is a runner-only change.
-- Running live Daytona sandboxes during this design pass, which would spend credits.
-  Verification here is by code read and unit or contract tests. Live testing is called out as a
-  later step, not done here.
+- Running the full app path against live Daytona during this design pass. One credit-controlled
+  lifecycle measurement was run directly against the Daytona API on 2026-07-11 (two sandboxes,
+  created and deleted, numbers in research.md); end-to-end verification through the app is the
+  plan's final slice, not done here.
 
 ## Who is affected
 
