@@ -20,21 +20,31 @@ import {useSessionDrive} from "./useSessionDrive"
 
 const {Text} = Typography
 
-/** Rail visibility — a global UI preference (survives session switches and reloads). */
-export const contextRailOpenAtom = atomWithStorage<boolean>("agenta:agent-chat:context-rail", true)
+/** Rail visibility — a global UI preference (survives session switches and reloads).
+ * Starts CLOSED; opening it once is the opt-in. */
+export const contextRailOpenAtom = atomWithStorage<boolean>("agenta:agent-chat:context-rail", false)
 
 const SectionLabel = ({children}: {children: React.ReactNode}) => (
     <div className="px-3 pb-1 pt-3 text-xs font-medium text-colorTextSecondary">{children}</div>
 )
 
+// Same slide the right panel uses (RightPanelSplit) so the two right-edge elements move alike.
+const SLIDE_CLASS = "[transition:width_220ms_ease]"
+const RAIL_WIDTH = 300
+const STRIP_WIDTH = 36
+
 export function ContextRail({
     sessionId,
     busy,
+    hidden = false,
     onOpenFiles,
 }: {
     sessionId: string
     /** The conversation is currently running a turn (drives the Progress line). */
     busy?: boolean
+    /** Slide the rail away entirely (build mode / the Turn-Session panel owns the right edge).
+     * The component stays MOUNTED so the width change animates instead of popping. */
+    hidden?: boolean
     /** Open the Files window (the right panel's Files tab). */
     onOpenFiles: () => void
 }) {
@@ -43,23 +53,59 @@ export function ContextRail({
     const drive = useSessionDrive(isSessionFresh(sessionId) ? "" : sessionId)
     const openQuickLook = useSetAtom(driveQuickLookAtom)
 
-    if (!open) {
-        return (
-            <div className="flex shrink-0 flex-col items-center border-0 border-l border-solid border-[var(--ag-surface-divider)] px-0.5 pt-2">
-                <Tooltip title="Show context rail" placement="left">
-                    <Button
-                        type="text"
-                        icon={<Sidebar size={15} />}
-                        onClick={() => setOpen(true)}
-                        aria-label="Show context rail"
-                    />
-                </Tooltip>
-            </div>
-        )
-    }
+    const width = hidden ? 0 : open ? RAIL_WIDTH : STRIP_WIDTH
 
     return (
-        <aside className="flex w-[300px] shrink-0 flex-col overflow-y-auto border-0 border-l border-solid border-[var(--ag-surface-divider)]">
+        <div
+            className={`shrink-0 overflow-hidden ${SLIDE_CLASS}`}
+            style={{width}}
+            aria-hidden={hidden}
+        >
+            {!open ? (
+                <div
+                    className="flex h-full flex-col items-center border-0 border-l border-solid border-[var(--ag-surface-divider)] px-0.5 pt-2"
+                    style={{width: STRIP_WIDTH}}
+                >
+                    <Tooltip title="Show context rail" placement="left">
+                        <Button
+                            type="text"
+                            icon={<Sidebar size={15} />}
+                            onClick={() => setOpen(true)}
+                            aria-label="Show context rail"
+                        />
+                    </Tooltip>
+                </div>
+            ) : (
+                <ExpandedRail
+                    drive={drive}
+                    busy={busy}
+                    onOpenFiles={onOpenFiles}
+                    onCollapse={() => setOpen(false)}
+                    onQuickLook={(path) => openQuickLook({path})}
+                />
+            )}
+        </div>
+    )
+}
+
+const ExpandedRail = ({
+    drive,
+    busy,
+    onOpenFiles,
+    onCollapse,
+    onQuickLook,
+}: {
+    drive: ReturnType<typeof useSessionDrive>
+    busy?: boolean
+    onOpenFiles: () => void
+    onCollapse: () => void
+    onQuickLook: (path: string) => void
+}) => {
+    return (
+        <aside
+            className="flex h-full flex-col overflow-y-auto border-0 border-l border-solid border-[var(--ag-surface-divider)]"
+            style={{width: RAIL_WIDTH}}
+        >
             {/* Files — pinned at the top. */}
             <div className="flex items-center gap-1.5 px-3 pt-3">
                 <span className="text-xs font-medium">Files</span>
@@ -81,7 +127,7 @@ export function ContextRail({
                         <Button
                             type="text"
                             icon={<Sidebar size={13} />}
-                            onClick={() => setOpen(false)}
+                            onClick={onCollapse}
                             aria-label="Hide context rail"
                         />
                     </Tooltip>
@@ -98,7 +144,7 @@ export function ContextRail({
                             <button
                                 key={file.path}
                                 type="button"
-                                onClick={() => openQuickLook({path: file.path})}
+                                onClick={() => onQuickLook(file.path)}
                                 className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary"
                             >
                                 <span className="shrink-0">{driveFileIcon(file.path)}</span>

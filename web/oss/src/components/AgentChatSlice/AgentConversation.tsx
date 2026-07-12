@@ -2209,18 +2209,18 @@ const AgentConversation = ({
                                 </Suspense>
                             </Reveal>
                         </div>
-                        {/* Chat-mode context rail (spec E1): docked right of the transcript, Files pinned
-                    on top. Only when the chat owns the full width (not build mode) and the
-                    Turn/Session panel isn't already occupying the right edge. */}
-                        {!buildMode && !rightPanelOpen ? (
-                            <ContextRail
-                                sessionId={sessionId}
-                                busy={busy}
-                                onOpenFiles={() =>
-                                    setRightPanel({mode: "session", sessionId, tab: "mounts"})
-                                }
-                            />
-                        ) : null}
+                        {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
+                            pinned on top. Always mounted so hide/show SLIDES (width transition) —
+                            hidden in build mode and while the Turn/Session panel owns the right
+                            edge. */}
+                        <ContextRail
+                            sessionId={sessionId}
+                            busy={busy}
+                            hidden={buildMode || rightPanelOpen}
+                            onOpenFiles={() =>
+                                setRightPanel({mode: "session", sessionId, tab: "mounts"})
+                            }
+                        />
                     </div>
                 </RightPanelSplit>
                 {TEMPLATE_STRIP_MODE ? (
