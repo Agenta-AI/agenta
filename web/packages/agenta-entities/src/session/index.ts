@@ -71,3 +71,17 @@ export {
     mountFilesQueryKey,
     mountFileContentQueryKey,
 } from "./state/mounts"
+export {
+    detectFileActivity,
+    mountPathMatchesToolPath,
+    type FileActivity,
+    type FileActivityOp,
+} from "./core/fileActivity"
+export {
+    sessionFileActivityAtomFamily,
+    latestSessionFileActivityAtomFamily,
+    recordFileActivityAtom,
+    clearSessionFileActivityAtom,
+    type SessionFileActivityEntry,
+    type FileActivityEffect,
+} from "./state/fileActivity"

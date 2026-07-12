@@ -76,6 +76,7 @@ import {filesToParts} from "./assets/files"
 import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
+import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
 import {ComposerSkeleton, TranscriptSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
@@ -559,6 +560,10 @@ const AgentConversation = ({
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
+    // throttle-revalidate the drives) as the turn streams, not just at onFinish.
+    useFileActivityDetector({sessionId, messages})
 
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
     // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
