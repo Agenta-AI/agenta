@@ -8,20 +8,27 @@
  */
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {SchemaForm, type SchemaFormHandle, type StepInfo} from "@agenta/entity-ui/gatewayTool"
+import {
+    SchemaForm,
+    type SchemaFormHandle,
+    type StepInfo,
+    formatReviewValue,
+} from "@agenta/entity-ui/gatewayTool"
 import {
     type ElicitationResult,
     buildAcceptResult,
     buildCancelResult,
     buildDeclineResult,
     buildDegradationErrorText,
+    buildFormFieldsFromSchema,
     deriveElicitationPartState,
     parseElicitationPayload,
     partitionElicitationDraft,
     serializeElicitationContent,
 } from "@agenta/shared/utils"
+import {HeightCollapse} from "@agenta/ui"
 import {ShortcutHint} from "@agenta/ui/rich-chat-input"
-import {CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
+import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
 import {Button, Form, Typography} from "antd"
 import dayjs from "dayjs"
 
@@ -54,6 +61,60 @@ const Chip = ({
         </Text>
     </div>
 )
+
+/** Settled accept state — collapsible chip that reveals the submitted answers on click. */
+const SubmittedAnswers = ({
+    schema,
+    content,
+    message,
+}: {
+    schema: Record<string, unknown>
+    content: Record<string, unknown>
+    message: string
+}) => {
+    const [open, setOpen] = useState(false)
+    const fields = useMemo(
+        () => buildFormFieldsFromSchema(schema, "", {formats: true, openEnums: true}),
+        [schema],
+    )
+    const answered = fields.filter((f) => content[f.name] !== undefined && content[f.name] !== "")
+    return (
+        <div className="flex min-w-0 flex-col py-1">
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                aria-expanded={open}
+                className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
+            >
+                <CaretRight
+                    size={11}
+                    weight="bold"
+                    className={`shrink-0 text-colorTextTertiary transition-transform ${open ? "rotate-90" : ""}`}
+                />
+                <CheckCircle size={13} weight="fill" className="shrink-0 text-colorSuccess" />
+                <Text type="secondary" className="!text-xs truncate">
+                    {message}
+                </Text>
+            </button>
+            {answered.length > 0 ? (
+                <HeightCollapse open={open}>
+                    <div className="mt-1 flex min-w-0 flex-col gap-1 pl-[21px]">
+                        {answered.map((f) => (
+                            <div key={f.name} className="flex items-baseline justify-between gap-3">
+                                <Text type="secondary" className="!text-[11px] shrink-0">
+                                    {f.label}
+                                </Text>
+                                <Text className="!text-xs max-w-[70%] truncate text-right">
+                                    {formatReviewValue(f, content[f.name])}
+                                </Text>
+                            </div>
+                        ))}
+                    </div>
+                </HeightCollapse>
+            ) : null}
+        </div>
+    )
+}
 
 const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHandlerProps) => {
     const [form] = Form.useForm()
@@ -139,8 +200,19 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 "string"
                 ? ((meta.output as {humanFriendlyMessage: string}).humanFriendlyMessage as string)
                 : undefined
-        if (partState === "submitted")
-            return (
+        if (partState === "submitted") {
+            const content =
+                meta.output && typeof meta.output === "object"
+                    ? ((meta.output as {content?: Record<string, unknown>}).content ?? {})
+                    : {}
+            const message = envelopeMessage ?? "Provided the requested input."
+            return parsed.ok && Object.keys(content).length > 0 ? (
+                <SubmittedAnswers
+                    schema={parsed.payload.requestedSchema as unknown as Record<string, unknown>}
+                    content={content}
+                    message={message}
+                />
+            ) : (
                 <Chip
                     icon={
                         <CheckCircle
@@ -150,9 +222,10 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                         />
                     }
                 >
-                    {envelopeMessage ?? "Provided the requested input."}
+                    {message}
                 </Chip>
             )
+        }
         if (partState === "declined")
             return (
                 <Chip
