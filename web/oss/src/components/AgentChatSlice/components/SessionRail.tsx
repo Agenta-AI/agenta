@@ -22,7 +22,6 @@ import {
     timeAgo,
 } from "../state/sessions"
 
-import InspectSessionButton from "./Inspector/InspectSessionButton"
 import SessionTabLabel from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
 
@@ -110,7 +109,6 @@ const SessionRailRow = ({
                                 open
                             </span>
                         )}
-                        {active && <InspectSessionButton sessionId={session.id} />}
                         <Tooltip title="Delete session">
                             <Button
                                 type="text"

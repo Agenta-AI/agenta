@@ -88,7 +88,11 @@ import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
 import {Inspector} from "./components/Inspector/Inspector"
-import {inspectorTargetAtom, openInspectorTurnAtom} from "./components/Inspector/state"
+import {
+    closeInspectorAtom,
+    inspectorTargetAtom,
+    openInspectorTurnAtom,
+} from "./components/Inspector/state"
 import QueuedMessages from "./components/QueuedMessages"
 import RevealCollapse from "./components/RevealCollapse"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
@@ -345,18 +349,19 @@ const AgentConversation = ({
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const inspectorTarget = useAtomValue(inspectorTargetAtom)
     const openInspectorTurn = useSetAtom(openInspectorTurnAtom)
-    const setInspectorTarget = useSetAtom(inspectorTargetAtom)
+    const closeInspector = useSetAtom(closeInspectorAtom)
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    const inspectorOpen = inspectorTarget?.sessionId === sessionId
+    // The Inspector is a BUILD-mode tool (both scopes) — mode-gated, not env-gated. Chat mode has
+    // no inspector (the context rail owns the right dock there).
+    const inspectorOpen = buildMode && inspectorTarget?.sessionId === sessionId
     const turnInspectorOpen = inspectorOpen && inspectorTarget?.scope === "turn"
     // The assistant turn the panel is inspecting (turn scope only). Turn ids are 1-based indices
     // (records group by `done`); the inspected assistant message is the Nth assistant message.
     const inspectedTurn = turnInspectorOpen ? (inspectorTarget?.targetTurn ?? null) : null
-    // Leaving Build for Chat drops TURN scope (Inspect turn is a build-mode tool) but keeps the
-    // panel on Session scope, which is valid in chat too.
+    // Leaving Build for Chat closes the Inspector entirely.
     useEffect(() => {
-        if (!buildMode && turnInspectorOpen) setInspectorTarget({sessionId, scope: "session"})
-    }, [buildMode, turnInspectorOpen, setInspectorTarget, sessionId])
+        if (!buildMode && inspectorTarget?.sessionId === sessionId) closeInspector()
+    }, [buildMode, inspectorTarget?.sessionId, sessionId, closeInspector])
 
     // Map an assistant message to its 1-based turn number (records/turns align 1:1 with the
     // assistant messages — one per `done`).
