@@ -10,13 +10,8 @@ import {
     type MutableRefObject,
 } from "react"
 
-import {revalidateSessionMountsAtom} from "@agenta/entities/session"
+import {revalidateSessionMountsAtom, revalidateSessionRecordsAtom} from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
-
-import {ContextRail} from "@/oss/components/Drives/ContextRail"
-import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
-import {FilesDrawer, filesDrawerOpenAtom} from "@/oss/components/Drives/FilesDrawer"
-import {DriveQuickLook} from "@/oss/components/Drives/quickLook"
 import {
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
@@ -50,6 +45,10 @@ import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 
+import {ContextRail} from "@/oss/components/Drives/ContextRail"
+import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
+import {FilesDrawer, filesDrawerOpenAtom} from "@/oss/components/Drives/FilesDrawer"
+import {DriveQuickLook} from "@/oss/components/Drives/quickLook"
 import {
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
@@ -81,7 +80,6 @@ import {filesToParts} from "./assets/files"
 import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
-import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
 import {ComposerSkeleton, TranscriptSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
@@ -89,16 +87,17 @@ import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
+import {Inspector} from "./components/Inspector/Inspector"
+import {inspectorTargetAtom, openInspectorTurnAtom} from "./components/Inspector/state"
 import QueuedMessages from "./components/QueuedMessages"
 import RevealCollapse from "./components/RevealCollapse"
-import RightPanel from "./components/RightPanel/RightPanel"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
+import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
 import {expandedKeysForMessages, pruneExpandedAtom} from "./state/expandState"
 import {agentFirstRunSeedAtom} from "./state/firstRunSeed"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
-import {rightPanelAtom} from "./state/rightPanel"
 import {useChatScopeKey} from "./state/scope"
 import {
     attachmentsBySession,
@@ -344,20 +343,33 @@ const AgentConversation = ({
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
-    const [rightPanel, setRightPanel] = useAtom(rightPanelAtom)
+    const inspectorTarget = useAtomValue(inspectorTargetAtom)
+    const openInspectorTurn = useSetAtom(openInspectorTurnAtom)
+    const setInspectorTarget = useSetAtom(inspectorTargetAtom)
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    const rightPanelOpen = rightPanel?.sessionId === sessionId
-    const turnInspectorOpen = rightPanelOpen && rightPanel?.mode === "turn"
-    // The assistant turn the panel is inspecting (turn mode only), else null.
-    const inspectedTurnId =
-        rightPanel?.mode === "turn" && rightPanel.sessionId === sessionId
-            ? rightPanel.assistantMessageId
-            : null
-    // Leaving Build for Chat dismisses the TURN view — it's a Build-mode tool that would otherwise
-    // linger (and keep tinting a turn). The session view stays: it's valid in chat mode too.
+    const inspectorOpen = inspectorTarget?.sessionId === sessionId
+    const turnInspectorOpen = inspectorOpen && inspectorTarget?.scope === "turn"
+    // The assistant turn the panel is inspecting (turn scope only). Turn ids are 1-based indices
+    // (records group by `done`); the inspected assistant message is the Nth assistant message.
+    const inspectedTurn = turnInspectorOpen ? (inspectorTarget?.targetTurn ?? null) : null
+    // Leaving Build for Chat drops TURN scope (Inspect turn is a build-mode tool) but keeps the
+    // panel on Session scope, which is valid in chat too.
     useEffect(() => {
-        if (!buildMode && turnInspectorOpen) setRightPanel(null)
-    }, [buildMode, turnInspectorOpen, setRightPanel])
+        if (!buildMode && turnInspectorOpen) setInspectorTarget({sessionId, scope: "session"})
+    }, [buildMode, turnInspectorOpen, setInspectorTarget, sessionId])
+
+    // Map an assistant message to its 1-based turn number (records/turns align 1:1 with the
+    // assistant messages — one per `done`).
+    const turnOfAssistant = (assistantMessageId: string): number => {
+        let n = 0
+        for (const m of messages) {
+            if (m.role === "assistant") {
+                n += 1
+                if (m.id === assistantMessageId) return n
+            }
+        }
+        return n || 1
+    }
 
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
     // pending attachments survive alongside the composer draft. Rejections stay transient.
@@ -527,6 +539,7 @@ const AgentConversation = ({
     )
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
+    const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
 
     const {
         messages,
@@ -556,6 +569,7 @@ const AgentConversation = ({
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
+            revalidateSessionRecords(sessionId)
         },
         onError: (err) => {
             // Render the error in-chat (the `error` alert below); swallow it here so an
@@ -1716,10 +1730,13 @@ const AgentConversation = ({
         // While the inspector is open, an assistant turn tints when it's the target and is
         // click-to-refocus otherwise (click any other turn to re-point the inspector at it).
         const isAssistantTurn = message.role === "assistant"
-        const isInspected = isAssistantTurn && message.id === inspectedTurnId
+        const isInspected =
+            isAssistantTurn &&
+            inspectedTurn != null &&
+            turnOfAssistant(message.id) === inspectedTurn
         const onInspect =
             turnInspectorOpen && isAssistantTurn
-                ? () => setRightPanel({mode: "turn", sessionId, assistantMessageId: message.id})
+                ? () => openInspectorTurn({sessionId, turn: turnOfAssistant(message.id)})
                 : undefined
         const showInspect = buildMode && isAssistantTurn
         const showWorking =
@@ -1779,16 +1796,15 @@ const AgentConversation = ({
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setRightPanel({
-                                        mode: "turn",
+                                    openInspectorTurn({
                                         sessionId,
-                                        assistantMessageId: message.id,
+                                        turn: turnOfAssistant(message.id),
                                     })
                                 }
                                 className="flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorPrimary"
                             >
                                 <TreeStructure size={12} />
-                                Inspect turn
+                                {isInspected ? "Inspecting turn" : "Inspect turn"}
                             </button>
                         )}
                         {showWorking && <WorkingDots />}
@@ -1825,10 +1841,7 @@ const AgentConversation = ({
                 {filesWindowHost}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
-                <RightPanelSplit
-                    open={rightPanelOpen}
-                    panel={<RightPanel sessionId={sessionId} messages={messages} />}
-                >
+                <RightPanelSplit open={inspectorOpen} panel={<Inspector sessionId={sessionId} />}>
                     <div className="flex h-full min-h-0 w-full min-w-0">
                         <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3">
                             {isDragging && (
@@ -2220,7 +2233,7 @@ const AgentConversation = ({
                         <ContextRail
                             sessionId={sessionId}
                             busy={busy}
-                            hidden={buildMode || rightPanelOpen}
+                            hidden={buildMode || inspectorOpen}
                             onOpenFiles={() => setFilesWindowOpen(true)}
                         />
                     </div>

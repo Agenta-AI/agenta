@@ -6,7 +6,6 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 // Direct file import — the barrel would statically pull the inspector drawer into this chunk.
-import SessionInspectorButton from "@/oss/components/SessionInspector/SessionInspectorButton"
 
 import {useChatScopeKey} from "../state/scope"
 import {
@@ -23,6 +22,7 @@ import {
     timeAgo,
 } from "../state/sessions"
 
+import InspectSessionButton from "./Inspector/InspectSessionButton"
 import SessionTabLabel from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
 
@@ -110,7 +110,7 @@ const SessionRailRow = ({
                                 open
                             </span>
                         )}
-                        {active && <SessionInspectorButton sessionId={session.id} />}
+                        {active && <InspectSessionButton sessionId={session.id} />}
                         <Tooltip title="Delete session">
                             <Button
                                 type="text"

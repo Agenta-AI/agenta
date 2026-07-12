@@ -63,6 +63,11 @@ export {
 } from "./core/liveness"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {
+    sessionRecordsQueryFamily,
+    revalidateSessionRecordsAtom,
+    sessionRecordsQueryKey,
+} from "./state/records"
+export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,
     mountFileContentQueryFamily,

@@ -6,10 +6,10 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
-// Direct file import — the barrel would statically pull the inspector drawer into this chunk.
-import SessionInspectorButton from "@/oss/components/SessionInspector/SessionInspectorButton"
 
+// Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
+import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
@@ -180,7 +180,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                         extra={
                                             chatMaximized ? undefined : (
                                                 <>
-                                                    <SessionInspectorButton
+                                                    <InspectSessionButton
                                                         sessionId={activeId ?? null}
                                                     />
                                                     <SessionHistoryMenu />
