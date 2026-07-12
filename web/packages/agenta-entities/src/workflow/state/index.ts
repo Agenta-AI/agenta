@@ -18,6 +18,9 @@ export {
     harnessCapabilitiesAtomFamily,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
+    type ModelCatalogEntry,
+    type ModelPricing,
+    type ModelRatings,
 } from "./inspectMeta"
 
 // ============================================================================

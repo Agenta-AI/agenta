@@ -20,9 +20,13 @@
  * list) and provider-model-auth/design.md (Concern 1: ModelRef; Concern 3b: per-harness gating).
  */
 
-import type {HarnessCapabilities, HarnessCapabilitiesMap} from "@agenta/entities/workflow"
+import type {
+    HarnessCapabilities,
+    HarnessCapabilitiesMap,
+    ModelCatalogEntry,
+} from "@agenta/entities/workflow"
 
-export type {HarnessCapabilities, HarnessCapabilitiesMap}
+export type {HarnessCapabilities, HarnessCapabilitiesMap, ModelCatalogEntry}
 
 /**
  * A connection mode: where the credential comes from. Two modes only — `agenta` (a vault
@@ -243,18 +247,61 @@ function titleizeProvider(provider: string): string {
 }
 
 /**
- * Build the grouped model options for the harness from `capabilities[harness].models`
- * (provider -> ids/aliases). Each option's `value` is the model id/alias and its group label is
- * the provider — so selecting an option yields both the model and the provider it belongs to.
- * Pricing rides along from `metadata` when present. Returns `[]` when the harness publishes no
- * models (the caller then falls back to the schema's full catalog).
+ * The picker option metadata a catalog entry contributes: pricing (as `{input, output}`, the shape
+ * `SelectLLMProviderBase`'s cost tooltip reads) plus the curated `description`/`name`/`ratings` for
+ * the tooltip. Undefined when the entry carries nothing worth a tooltip.
+ */
+function catalogOptionMetadata(entry: ModelCatalogEntry): Record<string, unknown> | undefined {
+    const meta: Record<string, unknown> = {}
+    if (entry.pricing) {
+        if (entry.pricing.input_per_mtok != null) meta.input = entry.pricing.input_per_mtok
+        if (entry.pricing.output_per_mtok != null) meta.output = entry.pricing.output_per_mtok
+    }
+    if (entry.description) meta.description = entry.description
+    if (entry.name) meta.name = entry.name
+    if (entry.ratings) meta.ratings = entry.ratings
+    return Object.keys(meta).length ? meta : undefined
+}
+
+/**
+ * Build the grouped model options for the harness. Prefers the curated `model_catalog` when the
+ * backend publishes it (clean labels + description/pricing tooltip), grouping by `entry.provider`
+ * and mapping each entry to `{label: entry.label ?? entry.name ?? entry.id, value: entry.id}`. Falls
+ * back to the ids-only `models` map (provider -> ids/aliases) on an older backend, where pricing can
+ * still ride along from the passed-in `metadata`. Each option's `value` is the model id/alias and
+ * its group label is the provider — so selecting an option yields both the model and its provider.
+ * Returns `[]` when the harness publishes neither (the caller then falls back to the schema catalog).
  */
 export function buildModelOptionGroups(
     capabilities: HarnessCapabilitiesMap | null | undefined,
     harness: string | null | undefined,
     metadata?: ModelMetadataMap | null,
 ): ModelOptionGroup[] {
-    const models = capsFor(capabilities, harness)?.models
+    const caps = capsFor(capabilities, harness)
+
+    const catalog = caps?.model_catalog
+    if (catalog && catalog.length) {
+        // Group by provider, preserving first-seen provider order.
+        const order: string[] = []
+        const byProvider = new Map<string, ModelOptionGroup>()
+        for (const entry of catalog) {
+            if (!entry?.id) continue
+            let group = byProvider.get(entry.provider)
+            if (!group) {
+                group = {label: titleizeProvider(entry.provider), options: []}
+                byProvider.set(entry.provider, group)
+                order.push(entry.provider)
+            }
+            group.options.push({
+                label: entry.label ?? entry.name ?? entry.id,
+                value: entry.id,
+                metadata: catalogOptionMetadata(entry),
+            })
+        }
+        return order.map((p) => byProvider.get(p)!).filter((g) => g.options.length > 0)
+    }
+
+    const models = caps?.models
     if (!models) return []
     return Object.entries(models)
         .filter(([, ids]) => Array.isArray(ids) && ids.length > 0)
@@ -279,7 +326,12 @@ export function providerForModel(
     modelId: string | null | undefined,
 ): string | null {
     if (!modelId) return null
-    const models = capsFor(capabilities, harness)?.models
+    const caps = capsFor(capabilities, harness)
+    // Prefer the catalog (the source the picker builds from when present); fall back to the ids-only
+    // map so a legacy stored id still resolves during the migration.
+    const hit = caps?.model_catalog?.find((e) => e.id === modelId)
+    if (hit) return hit.provider
+    const models = caps?.models
     if (!models) return null
     for (const [provider, ids] of Object.entries(models)) {
         if (Array.isArray(ids) && ids.includes(modelId)) return provider
@@ -298,9 +350,21 @@ export function harnessAllowsModel(
     modelId: string | null | undefined,
 ): boolean {
     if (!modelId) return true
-    const models = capsFor(capabilities, harness)?.models
-    if (!models || Object.keys(models).length === 0) return true
-    return Object.values(models).some((ids) => Array.isArray(ids) && ids.includes(modelId))
+    const caps = capsFor(capabilities, harness)
+    const catalog = caps?.model_catalog
+    const models = caps?.models
+    const hasCatalog = Boolean(catalog && catalog.length)
+    const hasModels = Boolean(models && Object.keys(models).length > 0)
+    // A harness with no published models at all is permissive (don't over-clear the schema-catalog
+    // fallback path).
+    if (!hasCatalog && !hasModels) return true
+    if (hasCatalog && catalog!.some((e) => e.id === modelId)) return true
+    if (
+        hasModels &&
+        Object.values(models!).some((ids) => Array.isArray(ids) && ids.includes(modelId))
+    )
+        return true
+    return false
 }
 
 // ---------------------------------------------------------------------------

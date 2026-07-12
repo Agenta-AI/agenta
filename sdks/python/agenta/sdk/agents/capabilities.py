@@ -93,10 +93,12 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "sonnet",
     "opus",
     "haiku",
+    "fable",
     "default[1m]",
     "sonnet[1m]",
     "opus[1m]",
     "haiku[1m]",
+    "fable[1m]",
 ]
 
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
@@ -117,6 +119,23 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
     "together_ai": "TOGETHERAI_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
 }
+
+
+def _model_catalog(harness: str) -> List[Dict[str, object]]:
+    """The curated catalog entries for a harness, as plain dicts (published ADDITIVELY alongside
+    ``models``).
+
+    Defensive: a missing or malformed data file returns an empty catalog rather than taking down
+    the whole capability table. Readers fall back to the ``models`` map when the catalog is empty.
+    The catalog decorates the accepted set; it never gates selection (design: model-catalog-schema).
+    """
+    # Defensive: a bad data file must not break /inspect. pragma: no cover.
+    try:
+        from agenta.sdk.agents.model_catalog import model_catalog_entries
+
+        return model_catalog_entries(harness)
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def _pi_models() -> Dict[str, List[str]]:
@@ -163,6 +182,12 @@ class HarnessConnectionCapabilities(BaseModel):
     connection_modes: List[str] = Field(default_factory=lambda: list(_ALL_MODES))
     model_selection: str = "provider/id"
     models: Dict[str, List[str]] = Field(default_factory=dict)
+    # The curated per-model catalog (label / description / pricing / ratings), one flat list keyed
+    # by the same ids as ``models``. Published ADDITIVELY next to ``models`` during the migration
+    # (design: model-catalog-schema); the frontend prefers it when present and falls back to
+    # ``models``. Loosely typed as dicts here so this module stays decoupled from the entry schema
+    # in ``model_catalog.py`` and the ``/inspect`` payload stays plain JSON.
+    model_catalog: List[Dict[str, object]] = Field(default_factory=list)
 
 
 HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
@@ -172,6 +197,7 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
         models=_pi_models(),
+        model_catalog=_model_catalog("pi_core"),
     ),
     "pi_agenta": HarnessConnectionCapabilities(
         providers=list(PI_VAULT_PROVIDERS) + list(PI_SUBSCRIPTION_PROVIDERS),
@@ -179,6 +205,7 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
         models=_pi_models(),
+        model_catalog=_model_catalog("pi_agenta"),
     ),
     "claude": HarnessConnectionCapabilities(
         providers=["anthropic"],
@@ -186,6 +213,7 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         connection_modes=list(_ALL_MODES),
         model_selection="alias",
         models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
+        model_catalog=_model_catalog("claude"),
     ),
 }
 
