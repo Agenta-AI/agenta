@@ -13,7 +13,8 @@ Not part of the `web/` pnpm workspace. It has its OWN `pnpm-lock.yaml`, builds i
 image, and pins Node 24 / pnpm 10.30 / ESM (`"type": "module"`). It runs through `tsx` (no
 app compile step); the only build is `pnpm run build:extension` (esbuild-bundles the Pi
 extension into `dist/`). Keep it standalone so the sidecar image stays decoupled from the web
-dependency graph.
+dependency graph. `pnpm run build:extension` bundles both the Pi extension and the in-sandbox
+tool MCP shim into `dist/`.
 
 ## Commands
 

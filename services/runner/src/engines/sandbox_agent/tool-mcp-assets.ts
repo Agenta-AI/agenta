@@ -28,6 +28,16 @@ import { PKG_ROOT } from "./daemon.ts";
 
 type Log = (message: string) => void;
 
+const bundleContentsByPath = new Map<string, string>();
+
+function toolMcpBundleContents(path: string): string {
+  const cached = bundleContentsByPath.get(path);
+  if (cached !== undefined) return cached;
+  const contents = readFileSync(path, "utf-8");
+  bundleContentsByPath.set(path, contents);
+  return contents;
+}
+
 /**
  * The bundled shim path. Built by `pnpm run build:extension` alongside the Pi extension.
  * Resolved lazily (a function, not a module-level const) so `SANDBOX_AGENT_RELAY_MCP_BUNDLE`
@@ -77,11 +87,11 @@ export async function uploadToolMcpAssets(
   const specsPath = `${destDir}/tool-mcp-specs.json`;
   try {
     await sandbox.mkdirFs({ path: destDir });
-    await sandbox.writeFsFile(
-      { path: bundlePath },
-      readFileSync(bundle, "utf-8"),
-    );
-    await sandbox.writeFsFile({ path: specsPath }, JSON.stringify(specs));
+    const bundleContents = toolMcpBundleContents(bundle);
+    await Promise.all([
+      sandbox.writeFsFile({ path: bundlePath }, bundleContents),
+      sandbox.writeFsFile({ path: specsPath }, JSON.stringify(specs)),
+    ]);
     return { bundlePath, specsPath };
   } catch (err) {
     log(`tool MCP shim upload failed: ${(err as Error).message}`);

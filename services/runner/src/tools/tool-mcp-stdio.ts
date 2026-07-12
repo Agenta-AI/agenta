@@ -148,6 +148,9 @@ export function loadShimConfig(
 }
 
 /**
+ * Delivery is at least once: after pickup, the runner still executes if this writer dies, and
+ * a writer retry publishes a new request because the relay does not deduplicate retries.
+ *
  * Handle one MCP JSON-RPC message. Returns the response object, or `undefined` for a
  * notification (no `id`). Mirrors `tools/tool-mcp-http.ts` `handle` (initialize / tools-list /
  * tools-call shapes), but `tools/call` writes a relay request file (`relayToolCall`) rather
@@ -159,6 +162,14 @@ export async function handleToolMcpMessage(
   relayDir: string,
 ): Promise<unknown | undefined> {
   const { id, method, params } = message ?? {};
+
+  if (typeof method !== "string") {
+    return {
+      jsonrpc: "2.0",
+      id: id ?? null,
+      error: { code: -32600, message: "invalid request" },
+    };
+  }
 
   // Notifications (no id, e.g. notifications/initialized) need no response.
   if (id === undefined || id === null) return undefined;
@@ -173,6 +184,10 @@ export async function handleToolMcpMessage(
         serverInfo: { name: "agenta-tools", version: "0.1.0" },
       },
     };
+  }
+
+  if (method === "ping") {
+    return { jsonrpc: "2.0", id, result: {} };
   }
 
   if (method === "tools/list") {
@@ -271,6 +286,13 @@ export async function runToolMcpStdio(
       message = JSON.parse(trimmed);
     } catch (err) {
       log(`parse error: ${(err as Error).message}`);
+      output.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32700, message: "parse error" },
+        })}\n`,
+      );
       continue;
     }
     const pending = handleToolMcpMessage(message, specs, relayDir).then(

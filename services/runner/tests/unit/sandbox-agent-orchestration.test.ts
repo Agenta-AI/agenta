@@ -720,6 +720,55 @@ describe("runSandboxAgent orchestration", () => {
     );
   });
 
+  it("wires Pi ask grants into the captured relay guard while non-Pi ask passes", async () => {
+    const request = {
+      messages: [{ role: "user", content: "use the tool" }],
+      permissions: { default: "ask" },
+      customTools: [
+        { name: "server_tool", kind: "callback", permission: "ask" },
+      ],
+    } as AgentRunRequest;
+    const relayRequest = {
+      toolName: "server_tool",
+      toolCallId: "forged-call",
+      args: {},
+    };
+
+    const pi = fakeHarness();
+    const piResult = await runSandboxAgent(
+      { ...request, harness: "pi_core" },
+      undefined,
+      undefined,
+      pi.deps,
+    );
+    assert.equal(piResult.ok, true);
+    const piGuard = pi.calls.toolRelayArgs?.[6] as Function;
+    assert.deepEqual(
+      piGuard(request.customTools?.[0], relayRequest),
+      {
+        allow: false,
+        reason:
+          "Tool 'server_tool' was not approved via the permission dialog.",
+      },
+      "Pi ask without a grant fails closed",
+    );
+
+    const claude = fakeHarness();
+    const claudeResult = await runSandboxAgent(
+      { ...request, harness: "claude" },
+      undefined,
+      undefined,
+      claude.deps,
+    );
+    assert.equal(claudeResult.ok, true);
+    const claudeGuard = claude.calls.toolRelayArgs?.[6] as Function;
+    assert.deepEqual(
+      claudeGuard(request.customTools?.[0], relayRequest),
+      { allow: true },
+      "non-Pi ask remains gated by the harness and passes the relay guard",
+    );
+  });
+
   it("delivers a non-Pi run's gateway tools over the internal HTTP MCP channel", async () => {
     // Claude takes tools only over MCP. The INTERNAL gateway-tool channel (distinct from the
     // disabled USER stdio MCP path) is restored over a loopback HTTP MCP server the runner

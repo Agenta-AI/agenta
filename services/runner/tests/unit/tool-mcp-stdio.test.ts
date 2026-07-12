@@ -186,6 +186,28 @@ describe("tool-mcp-stdio handler", () => {
     assert.equal(res, undefined);
   });
 
+  it("ping -> an empty successful result", async () => {
+    const res: any = await handleToolMcpMessage(
+      { jsonrpc: "2.0", id: 7, method: "ping" },
+      specs,
+      tempDir("agenta-tool-mcp-"),
+    );
+    assert.deepEqual(res, { jsonrpc: "2.0", id: 7, result: {} });
+  });
+
+  it("a structurally invalid message -> -32600", async () => {
+    const res: any = await handleToolMcpMessage(
+      { jsonrpc: "2.0", id: 8, params: {} },
+      specs,
+      tempDir("agenta-tool-mcp-"),
+    );
+    assert.deepEqual(res, {
+      jsonrpc: "2.0",
+      id: 8,
+      error: { code: -32600, message: "invalid request" },
+    });
+  });
+
   it("tools/list advertises only public fields and honors the snake-case input_schema", async () => {
     const res: any = await handleToolMcpMessage(
       { jsonrpc: "2.0", id: 2, method: "tools/list" },
@@ -453,7 +475,7 @@ describe("stdio loop", () => {
       `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`,
     );
     input.write("\n"); // blank line: ignored
-    input.write("{not json}\n"); // parse error: logged to stderr, nothing on stdout
+    input.write("{not json}\n"); // parse error: logged and answered with id:null
     input.write(
       `${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`,
     );
@@ -476,14 +498,15 @@ describe("stdio loop", () => {
       );
       return JSON.parse(chunk);
     });
-    // 3 responses (initialize, tools/list, unknown-tool error); the notification, the blank
-    // line, and the parse error produced nothing on stdout.
+    // 4 responses (initialize, parse error, tools/list, unknown-tool error); the notification
+    // and blank line produce nothing on stdout.
     assert.deepEqual(
       responses.map((r) => r.id),
-      [1, 2, 3],
+      [1, null, 2, 3],
     );
     for (const response of responses) assert.equal(response.jsonrpc, "2.0");
-    assert.equal(responses[2].error.code, -32602);
+    assert.equal(responses[1].error.code, -32700);
+    assert.equal(responses[3].error.code, -32602);
   });
 
   it("keeps reading while a tools/call is in flight (interleaved responses stay valid)", async () => {

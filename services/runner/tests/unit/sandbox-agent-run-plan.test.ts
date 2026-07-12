@@ -757,6 +757,30 @@ describe("buildRunPlan", () => {
       );
     });
 
+    it("refuses claude x daytona x client-only tools directly", () => {
+      let created = false;
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => {
+            created = true;
+            return "/home/sandbox/agenta-fixed";
+          },
+        },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /Client tools are not supported/);
+      assert.match(result.error, /browser round-trip/);
+      assert.equal(created, false, "fails before any cwd is created");
+    });
+
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
       const result = buildRunPlan(
         {

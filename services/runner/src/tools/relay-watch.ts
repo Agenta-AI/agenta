@@ -74,8 +74,8 @@ export function resolveRemoteWatchWindowMs(
   const raw = process.env.AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_WINDOW_MS;
   if (raw === undefined || raw === "")
     return RELAY_REMOTE_WATCH_WINDOW_DEFAULT_MS;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed)) {
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) {
     log(
       `[relay] unparseable AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_WINDOW_MS '${raw}'; using default ${RELAY_REMOTE_WATCH_WINDOW_DEFAULT_MS}`,
     );
@@ -277,6 +277,7 @@ export function daytonaRelayActivitySource(
   // entirely (no wake, no counter reset, no in-flight mutation).
   let armGeneration = 0;
   let liveGeneration = 0; // 0 = no live window
+  let missedGeneration = 0; // active window already charged for a safety-poll miss
   let outerBoundTimer: ReturnType<typeof setTimeout> | undefined;
   let deferredArmTimer: ReturnType<typeof setTimeout> | undefined;
   let waiter:
@@ -406,6 +407,7 @@ export function daytonaRelayActivitySource(
         outerBoundTimer = undefined;
         if (closed || gen !== liveGeneration) return;
         liveGeneration = 0;
+        if (missedGeneration === gen) missedGeneration = 0;
         countFailure("window outer bound expired (exec never settled)");
       },
       jitteredWindow + graceMs + outerBoundMarginMs,
@@ -415,6 +417,8 @@ export function daytonaRelayActivitySource(
         if (gen !== liveGeneration) return; // abandoned by the outer bound: dead gen
         liveGeneration = 0;
         clearOuterBound();
+        const generationHadMiss = missedGeneration === gen;
+        if (generationHadMiss) missedGeneration = 0;
         if (closed) return; // abandoned window (see close()); its wake is meaningless now
         // Completion classification (fix 2 of the slice-3 review). A nullish result
         // is a broken daemon path, not a wake: an insta-resolving runProcess that
@@ -430,7 +434,9 @@ export function daytonaRelayActivitySource(
           return;
         }
         if (result.exitCode === 0) {
-          consecutiveFailures = 0;
+          // A safety poll already charged this generation as a miss. Its ordinary zero exit
+          // must not erase that failure from the consecutive demotion counter.
+          if (!generationHadMiss) consecutiveFailures = 0;
         } else {
           // Nonzero, null (signal-killed / OOM), or MISSING exit is still a wake (the
           // list pass is harmless) but counts as a failure so a script that keeps
@@ -460,6 +466,7 @@ export function daytonaRelayActivitySource(
     noteMiss: () => {
       if (closed || demoted) return;
       // The safety poll found a request while a window claimed healthy: the watch lied.
+      if (liveGeneration !== 0) missedGeneration = liveGeneration;
       countFailure("safety poll found a request the watch missed");
     },
     wait: ({ timeoutMs, signal }) => {
