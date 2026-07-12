@@ -767,7 +767,15 @@ describe("runSandboxAgent orchestration", () => {
       /^http:\/\/127\.0\.0\.1:\d+\/mcp$/,
       "loopback url",
     );
-    assert.deepEqual(mcpServers[0].headers, [], "no credential on the channel");
+    // WP1 (#5201): the loopback HTTP endpoint carries a per-session bearer guard so another local
+    // process cannot reach it. It is a locally minted access token, not a provider credential.
+    assert.equal(mcpServers[0].headers.length, 1, "the loopback guard header");
+    assert.equal(mcpServers[0].headers[0].name, "Authorization");
+    assert.match(
+      mcpServers[0].headers[0].value,
+      /^Bearer .+/,
+      "per-session loopback guard token",
+    );
     // The internal server is opened then released, so its port does not leak past the run.
     assert.equal(calls.sandboxDestroyed, 1, "sandbox disposed in finally");
   });
