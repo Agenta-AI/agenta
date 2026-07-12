@@ -162,6 +162,12 @@ import {
   signAgentMountCredentials,
 } from "./sandbox_agent/agent-mount.ts";
 import {
+  AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
+  claudeMountSystemPromptMeta,
+  combineAppendSystemPrompt,
+  type ClaudeSystemPromptMeta,
+} from "./sandbox_agent/agent-mount-guidance.ts";
+import {
   hydrateHarnessSessionFromDurable,
   syncHarnessSessionDurable,
 } from "./sandbox_agent/session-continuity-durable.ts";
@@ -750,6 +756,22 @@ export async function acquireEnvironment(
   if (!planResult.ok) return { ok: false, error: planResult.error };
   const plan = planResult.plan;
   const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
+
+  // Best-effort discovery fix: when this run has a durable agent mount, steer the harness to
+  // it via the SYSTEM PROMPT (never the author's CLAUDE.md/AGENTS.md) so a natural "remember
+  // this" prompt lands in `agent-files/` instead of the harness's own throwaway session
+  // memory. No mount, no segment. See `agent-mount-guidance.ts` for the per-harness wiring.
+  if (agentMountDir && plan.isPi) {
+    plan.appendSystemPrompt = combineAppendSystemPrompt(
+      plan.appendSystemPrompt,
+      AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
+    );
+    plan.hasSystemPrompt = true;
+  }
+  const claudeSystemPromptMeta: ClaudeSystemPromptMeta | undefined =
+    agentMountDir && plan.acpAgent === "claude"
+      ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
+      : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
   // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.modelEnvironment` are
@@ -1430,6 +1452,18 @@ export async function acquireEnvironment(
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
 
+    // Shared session-init payload for both the createSession and continuity-resume paths below.
+    // Built as a plain variable (not an inline object literal at the call site) so the extra
+    // `_meta` key survives the daemon SDK's narrow `Omit<NewSessionRequest, "_meta">` types —
+    // the daemon's own runtime forwards `_meta` unconditionally (`normalizeSessionInit` /
+    // `buildLoadSessionParams` in the vendored `sandbox-agent` patch), only the published types
+    // are stricter than the wire protocol they describe.
+    const sessionInit = {
+      cwd: plan.cwd,
+      mcpServers: sessionMcp.servers,
+      ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
+    };
+
     // If this harness authored the conversation's most recent turn (staleness-guarded) and we
     // still remember its native `agentSessionId`, seed the fresh persist driver with a synthetic
     // record and resume-by-id so the patched `resumeSession` reaches `session/load` instead of
@@ -1493,7 +1527,7 @@ export async function acquireEnvironment(
         agentSessionId: priorAgentSessionId,
         lastConnectionId: "",
         createdAt: Date.now(),
-        sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+        sessionInit,
       });
       const createSessionStartedAt = Date.now();
       try {
@@ -1522,7 +1556,7 @@ export async function acquireEnvironment(
           ...(localSessionId ? { id: localSessionId } : {}),
           agent: plan.acpAgent,
           cwd: plan.cwd,
-          sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+          sessionInit,
         });
       } finally {
         timingLog("create_session", createSessionStartedAt, " mode=create");
