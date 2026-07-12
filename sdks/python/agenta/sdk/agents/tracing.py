@@ -53,7 +53,8 @@ def trace_context() -> Optional[TraceContext]:
         headers = inject({})
 
         traceparent = headers.get("traceparent")
-        if not traceparent:
+        authorization = headers.get("Authorization")
+        if not traceparent and not authorization:
             return None
 
         endpoint = None
@@ -68,7 +69,7 @@ def trace_context() -> Optional[TraceContext]:
             traceparent=traceparent,
             baggage=headers.get("baggage"),
             endpoint=endpoint,
-            authorization=headers.get("Authorization"),
+            authorization=authorization,
             capture_content=_CAPTURE_CONTENT,
         )
     except Exception:  # pylint: disable=broad-except
