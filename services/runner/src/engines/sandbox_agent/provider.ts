@@ -1,4 +1,5 @@
 import { local } from "sandbox-agent/local";
+import type { SandboxAgentSpawnLogMode } from "sandbox-agent";
 
 import type { SandboxPermission } from "../../protocol.ts";
 import { daytonaEnvVars } from "./daytona.ts";
@@ -8,8 +9,8 @@ import { daytonaWithLifecycle } from "./daytona-provider.ts";
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
  * at the sandbox boundary: `networkBlockAll` blocks all outbound, `networkAllowList` is a
  * COMMA-SEPARATED CIDR string (not an array). `mode: "on"` (or no policy) leaves both unset
- * so the sandbox stays default-open. The create object is cast `as any` at the call site, so
- * these pass through even though the daytona wrapper's create type does not surface them.
+ * so the sandbox stays default-open. The lifecycle wrapper accepts these provider fields and
+ * passes them to Daytona creation unchanged.
  *
  * `mode: "allowlist"` with an EMPTY list maps to `networkBlockAll` (block-all), not default-open:
  * "allow these zero ranges" is faithfully read as "allow nothing", and it keeps this mapping
@@ -38,7 +39,10 @@ export function daytonaNetworkFields(
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
 export const DEFAULT_DAYTONA_AUTODELETE_MINUTES = 30;
 
-function positiveMinutes(rawValue: string | undefined, fallback: number): number {
+function positiveMinutes(
+  rawValue: string | undefined,
+  fallback: number,
+): number {
   const parsed = Number(rawValue);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
   return Math.floor(parsed);
@@ -118,7 +122,7 @@ export function buildSandboxProvider(
     const image = process.env.DAYTONA_IMAGE;
     return daytonaWithLifecycle({
       ...(image ? { image } : {}),
-      create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
+      create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission),
     });
   }
 
@@ -136,6 +140,10 @@ export function buildSandboxProvider(
   }
 
   // local: spawn `sandbox-agent server` on this host with the daemon env merged in.
-  const logMode = (process.env.SANDBOX_AGENT_LOG_LEVEL ?? "silent") as any;
+  const configuredLogMode = process.env.SANDBOX_AGENT_LOG_LEVEL;
+  const logMode: SandboxAgentSpawnLogMode =
+    configuredLogMode === "inherit" || configuredLogMode === "pipe"
+      ? configuredLogMode
+      : "silent";
   return local({ env, binaryPath, log: logMode });
 }

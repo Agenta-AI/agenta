@@ -25,6 +25,7 @@ import { join } from "node:path";
 
 import type { AdvertisedToolSpec } from "../../tools/public-spec.ts";
 import { PKG_ROOT } from "./daemon.ts";
+import type { SandboxFilePort } from "./sandbox-ports.ts";
 
 type Log = (message: string) => void;
 
@@ -73,7 +74,7 @@ export interface ToolMcpAssets {
  * the specs are the public advertisement shape).
  */
 export async function uploadToolMcpAssets(
-  sandbox: any,
+  sandbox: SandboxFilePort,
   destDir: string,
   specs: AdvertisedToolSpec[],
   log: Log = () => {},

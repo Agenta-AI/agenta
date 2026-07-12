@@ -17,6 +17,7 @@ import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import type { RunPlan } from "./run-plan.ts";
+import type { SandboxFilePort } from "./sandbox-ports.ts";
 
 type Log = (message: string) => void;
 
@@ -156,7 +157,7 @@ export function writeSystemPromptLocal(
 
 /** Upload the system/append-system prompts into a Daytona sandbox's Pi agent dir. */
 export async function uploadSystemPromptToSandbox(
-  sandbox: any,
+  sandbox: SandboxFilePort,
   agentDir: string,
   systemPrompt: string | undefined,
   appendSystemPrompt: string | undefined,
@@ -183,7 +184,7 @@ export async function uploadSystemPromptToSandbox(
 
 /** Upload the extension bundle into a Daytona sandbox's Pi extensions dir. Best-effort. */
 export async function uploadPiExtensionToSandbox(
-  sandbox: any,
+  sandbox: SandboxFilePort,
   agentDir: string,
   log: Log = () => {},
 ): Promise<void> {
@@ -298,7 +299,7 @@ export function prepareLocalPiAssets({
 
 /** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */
 export async function uploadSkillsToSandbox(
-  sandbox: any,
+  sandbox: SandboxFilePort,
   agentDir: string,
   skillDirs: MaterializedSkill[],
   log: Log = () => {},
@@ -318,7 +319,7 @@ export async function uploadSkillsToSandbox(
 
 /** Recursively upload a host directory tree into a sandbox path via the FS API. */
 export async function uploadDirToSandbox(
-  sandbox: any,
+  sandbox: SandboxFilePort,
   srcDir: string,
   destDir: string,
 ): Promise<void> {

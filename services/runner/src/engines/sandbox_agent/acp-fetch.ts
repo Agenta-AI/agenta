@@ -58,7 +58,12 @@ export function createAcpDispatcher(): Agent {
  * `fetch` so the `dispatcher` option is honored regardless of how the global dispatcher is set.
  * The `sandbox-agent` SDK accepts a custom `fetch`; we hand it this one on every path.
  */
-export function createAcpFetch(dispatcher: Agent = createAcpDispatcher()): typeof fetch {
-  return ((input: any, init?: any) =>
-    undiciFetch(input, { ...init, dispatcher })) as unknown as typeof fetch;
+export function createAcpFetch(
+  dispatcher: Agent = createAcpDispatcher(),
+): typeof fetch {
+  return ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+    undiciFetch(
+      input as unknown as Parameters<typeof undiciFetch>[0],
+      { ...init, dispatcher } as unknown as Parameters<typeof undiciFetch>[1],
+    )) as unknown as typeof fetch;
 }

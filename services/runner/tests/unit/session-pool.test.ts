@@ -20,10 +20,10 @@ import {
   priorConversation,
   readKeepaliveConfig,
   resolvesToLocalProvider,
-  SessionPool,
   tailIsFreshUserMessage,
   type CredentialEpoch,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+} from "../../src/engines/sandbox_agent/session-identity.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 
 describe("resolvesToLocalProvider (local/remote gate)", () => {
   it("is true when the request explicitly asks for local", () => {
@@ -601,11 +601,9 @@ describe("SessionPool", () => {
         stoppingEnv.state.reasons.push(reason);
       },
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", stoppingEnv).input, 10_000);
 
     const replacement = parkInput("b");
@@ -620,17 +618,19 @@ describe("SessionPool", () => {
 
     releaseTeardown?.();
     assert.equal(await parked, true);
-    assert.equal(teardownCompleted, true, "teardown completes before park resolves");
+    assert.equal(
+      teardownCompleted,
+      true,
+      "teardown completes before park resolves",
+    );
     assert.equal(pool.get("a"), undefined);
     assert.equal(pool.get("b")?.state, "idle");
   });
 
   it("strict capacity returns false at cap when no idle entry exists", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     const busy = parkInput("busy");
     await pool.park(busy.input, 10_000);
     pool.checkoutIdle("busy");
@@ -643,16 +643,10 @@ describe("SessionPool", () => {
   });
 
   it("strict approval checkout stays seated while it is busy", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
-    await pool.park(
-      parkInput("approval").input,
-      10_000,
-      "awaiting_approval",
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
+    await pool.park(parkInput("approval").input, 10_000, "awaiting_approval");
 
     const live = pool.checkoutApproval("approval");
 
@@ -672,11 +666,9 @@ describe("SessionPool", () => {
           releaseTeardown = resolve;
         }),
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", environment).input, 10_000);
     const stopping = pool.get("a")!;
     const replacement = pool.park(parkInput("b").input, 10_000);
@@ -686,14 +678,22 @@ describe("SessionPool", () => {
     assert.equal(pool.checkoutIdle("a"), undefined);
     assert.equal(pool.checkoutApproval("a"), undefined);
     assert.equal(
-      await pool.repark(stopping, {
-        configFingerprint: "new",
-        historyFingerprint: "new",
-        credentialEpoch: epoch,
-      }, 10_000),
+      await pool.repark(
+        stopping,
+        {
+          configFingerprint: "new",
+          historyFingerprint: "new",
+          credentialEpoch: epoch,
+        },
+        10_000,
+      ),
       false,
     );
-    assert.equal(pool.get("a"), stopping, "repark does not clobber the seated stop");
+    assert.equal(
+      pool.get("a"),
+      stopping,
+      "repark does not clobber the seated stop",
+    );
 
     releaseTeardown?.();
     assert.equal(await replacement, true);

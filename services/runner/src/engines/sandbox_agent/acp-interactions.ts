@@ -1,3 +1,5 @@
+import type { PermissionReply } from "sandbox-agent";
+
 import type { AgentEvent, ToolPermission } from "../../protocol.ts";
 import {
   decisionToReply,
@@ -18,10 +20,33 @@ import { redactContextBoundArgs } from "../../tools/relay.ts";
 
 /** The parkable gate types a paused turn can record (the Claude ACP and Pi ACP gates). */
 export type ParkedApprovalGateType =
-  "claude-acp-permission" | "pi-acp-permission";
+  | "claude-acp-permission"
+  | "pi-acp-permission";
 
 /** The permission metadata the runner recovers per tool for a Pi gate (the identity-only
  *  envelope carries no policy). Keyed by resolved tool name. */
+interface ToolCallLike extends Record<string, unknown> {
+  toolCallId?: unknown;
+  rawInput?: unknown;
+  input?: unknown;
+  name?: unknown;
+  title?: unknown;
+  kind?: unknown;
+}
+
+interface PermissionRequestLike extends Record<string, unknown> {
+  id?: unknown;
+  toolCall?: ToolCallLike;
+  availableReplies?: unknown;
+  options?: unknown;
+}
+
+function permissionRequest(value: unknown): PermissionRequestLike {
+  return value && typeof value === "object"
+    ? (value as PermissionRequestLike)
+    : {};
+}
+
 export interface PiToolSpecMeta {
   permission?: ToolPermission;
   readOnly?: boolean;
@@ -31,7 +56,10 @@ export interface PiToolSpecMeta {
 }
 
 export interface AttachPermissionResponderInput {
-  session: any;
+  session: {
+    onPermissionRequest(listener: (request: unknown) => void): unknown;
+    respondPermission(id: string, reply: PermissionReply): Promise<void> | void;
+  };
   run: { emitEvent: (event: AgentEvent) => void; events?: () => AgentEvent[] };
   responder: Responder;
   latch: PendingApprovalLatch;
@@ -101,8 +129,8 @@ export function attachPermissionResponder({
   onPiGateAllowed,
   piToolSpecsByName,
 }: AttachPermissionResponderInput): void {
-  session.onPermissionRequest((req: any) => {
-    void handleRequest(req).catch((err) => {
+  session.onPermissionRequest((value: unknown) => {
+    void handleRequest(permissionRequest(value)).catch((err) => {
       log?.(`[HITL] permission handling failed: ${errorMessage(err)}`);
       onPause?.();
     });
@@ -115,7 +143,10 @@ export function attachPermissionResponder({
   // is the Pi gate's id/args normalization in `handlePiGate`, which must happen in place so
   // every downstream read sees the envelope's real identity — with `rawInput` set to the
   // gate's REDACTED args, never the model's values for context-bound paths.)
-  const stampResolvedName = (toolCall: any, gate: GateDescriptor): any => {
+  const stampResolvedName = (
+    toolCall: ToolCallLike | undefined,
+    gate: GateDescriptor,
+  ): ToolCallLike | undefined => {
     if (!toolCall || typeof toolCall !== "object" || !gate.toolName)
       return toolCall;
     return { ...toolCall, resolvedName: gate.toolName };
@@ -130,7 +161,7 @@ export function attachPermissionResponder({
   // `onPause` (session teardown resolves the RPC as cancelled, not rejected) and the next
   // turn's stored decision answers the re-raised gate.
   const pauseUserApproval = (
-    req: any,
+    req: PermissionRequestLike,
     id: string,
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
@@ -167,7 +198,7 @@ export function attachPermissionResponder({
   };
 
   const pauseClientTool = (
-    req: any,
+    req: PermissionRequestLike,
     id: string,
     gate: GateDescriptor,
     spec: ToolSpecLike,
@@ -207,7 +238,7 @@ export function attachPermissionResponder({
     try {
       await session.respondPermission(
         id,
-        decisionToReply(decision, availableReplies) as any,
+        permissionReply(decisionToReply(decision, availableReplies)),
       );
     } catch (err) {
       log?.(
@@ -227,7 +258,7 @@ export function attachPermissionResponder({
     try {
       await session.respondPermission(
         id,
-        clientToolReply(verdict, availableReplies) as any,
+        permissionReply(clientToolReply(verdict, availableReplies)),
       );
     } catch (err) {
       log?.(
@@ -255,7 +286,7 @@ export function attachPermissionResponder({
     try {
       await session.respondPermission(
         id,
-        decisionToReply("deny", availableReplies) as any,
+        permissionReply(decisionToReply("deny", availableReplies)),
       );
     } catch (err) {
       log?.(`[HITL] reject failed id=${id}: ${errorMessage(err)}`);
@@ -272,7 +303,7 @@ export function attachPermissionResponder({
    * like a relay-gate card without showing model values the execution will overwrite.
    */
   const handlePiGate = async (
-    req: any,
+    req: PermissionRequestLike,
     id: string,
     availableReplies: string[],
     envelope: PiGateEnvelope,
@@ -325,7 +356,7 @@ export function attachPermissionResponder({
     await replyPermission(id, verdict.kind, availableReplies);
   };
 
-  async function handleRequest(req: any): Promise<void> {
+  async function handleRequest(req: PermissionRequestLike): Promise<void> {
     const id = stringValue(req?.id) ?? "";
     const availableReplies = stringArray(req?.availableReplies);
 
@@ -470,7 +501,7 @@ function recordedToolName(
 }
 
 function buildGateDescriptor(
-  toolCall: any,
+  toolCall: ToolCallLike | undefined,
   run: { events?: () => AgentEvent[] },
   serverPermissions: ReadonlyMap<string, ToolPermission>,
 ): GateDescriptor {
@@ -516,7 +547,9 @@ type ToolSpecLike = {
   render?: unknown;
 };
 
-function resolvedSpecOf(toolCall: any): ToolSpecLike | undefined {
+function resolvedSpecOf(
+  toolCall: ToolCallLike | undefined,
+): ToolSpecLike | undefined {
   const spec =
     toolCall?.spec ??
     toolCall?.toolSpec ??
@@ -550,6 +583,13 @@ function stringArray(value: unknown): string[] {
 
 function interactionEventId(id: string, toolCallId: unknown): string {
   return id || stringValue(toolCallId) || "";
+}
+
+function permissionReply(value: string): PermissionReply {
+  if (value === "once" || value === "always" || value === "reject") {
+    return value;
+  }
+  throw new Error(`unsupported ACP permission reply: ${value}`);
 }
 
 function clientToolReply(

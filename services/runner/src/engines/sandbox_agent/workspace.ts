@@ -3,6 +3,11 @@ import { dirname, join } from "node:path";
 
 import type { RunPlan } from "./run-plan.ts";
 import { uploadDirToSandbox } from "./pi-assets.ts";
+import type {
+  SandboxFilePort,
+  SandboxProcessPort,
+  SandboxWorkspacePort,
+} from "./sandbox-ports.ts";
 
 type Log = (message: string) => void;
 
@@ -10,8 +15,24 @@ export interface Workspace {
   cleanup: () => Promise<void>;
 }
 
+type RemoteWorkspacePort = SandboxFilePort &
+  Partial<Pick<SandboxProcessPort, "runProcess">>;
+
+function assertRemoteWorkspacePort(
+  sandbox: SandboxWorkspacePort,
+): asserts sandbox is RemoteWorkspacePort {
+  if (
+    typeof sandbox.mkdirFs !== "function" ||
+    typeof sandbox.writeFsFile !== "function"
+  ) {
+    throw new Error(
+      "Daytona workspace requires sandbox filesystem capabilities",
+    );
+  }
+}
+
 export interface PrepareWorkspaceInput {
-  sandbox: any;
+  sandbox: SandboxWorkspacePort;
   plan: Pick<
     RunPlan,
     | "isDaytona"
@@ -54,6 +75,7 @@ export async function prepareWorkspace({
     plan.acpAgent === "claude" ? "CLAUDE.md" : "AGENTS.md";
 
   if (plan.isDaytona) {
+    assertRemoteWorkspacePort(sandbox);
     await sandbox.mkdirFs({ path: plan.cwd }).catch((err: Error) => {
       log(`workspace mkdir skipped: ${err.message}`);
     });

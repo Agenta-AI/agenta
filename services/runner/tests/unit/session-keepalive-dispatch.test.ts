@@ -23,10 +23,8 @@ import {
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
-import {
-  SessionPool,
-  type KeepaliveConfig,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+import type { KeepaliveConfig } from "../../src/engines/sandbox_agent/session-identity.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 
@@ -246,7 +244,11 @@ describe("runWithKeepalive: park + hit", () => {
       makeCtx(daytona.engine),
     );
 
-    assert.equal(result.ok, true, "the session is already parked; the hook is best-effort");
+    assert.equal(
+      result.ok,
+      true,
+      "the session is already parked; the hook is best-effort",
+    );
   });
 
   it("does not call the live-park hook when Daytona park overflows", async () => {
@@ -257,11 +259,9 @@ describe("runWithKeepalive: park + hit", () => {
       approvalTtlMs: 60_000,
       poolMax: 1,
     };
-    const pool = new SessionPool<SessionEnvironment>(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool<SessionEnvironment>({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     const context = { engine, pool, config };
     await runWithKeepalive(
       { ...turn1("occupied"), sandbox: "daytona" },
@@ -608,9 +608,19 @@ describe("runWithKeepalive: never-park rules", () => {
   });
 
   it("dispatches only to an enabled provider pool", () => {
-    const disabled = { enabled: false, ttlMs: 0, approvalTtlMs: 0, poolMax: 20 };
+    const disabled = {
+      enabled: false,
+      ttlMs: 0,
+      approvalTtlMs: 0,
+      poolMax: 20,
+    };
     const enabled = { ...disabled, enabled: true, ttlMs: 120_000 };
-    const local = { enabled: true, ttlMs: 60_000, approvalTtlMs: 300_000, poolMax: 8 };
+    const local = {
+      enabled: true,
+      ttlMs: 60_000,
+      approvalTtlMs: 300_000,
+      poolMax: 8,
+    };
     assert.equal(
       resolveKeepaliveDispatch(
         { sandbox: "daytona" },
@@ -626,7 +636,10 @@ describe("runWithKeepalive: never-park rules", () => {
       "daytona",
     );
     assert.equal(
-      resolveKeepaliveDispatch({ sandbox: "local" }, { local, daytona: enabled }),
+      resolveKeepaliveDispatch(
+        { sandbox: "local" },
+        { local, daytona: enabled },
+      ),
       "local",
     );
     assert.equal(
