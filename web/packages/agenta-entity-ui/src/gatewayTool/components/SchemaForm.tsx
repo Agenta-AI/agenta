@@ -914,7 +914,7 @@ function CronField({value, onChange}: {value?: string; onChange?: (cron: string)
 }
 
 /** Compact review-row value: option labels, joined chips, Yes/No, formatted dates. */
-function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
+export function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
     if (value === undefined || value === null || value === "") return "\u2014"
     if (field.format === "cron" && typeof value === "string") {
         try {
