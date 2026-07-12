@@ -70,10 +70,16 @@ export function useSessionDrive(sessionId: string): SessionDriveData {
             )
         const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
 
-        const isLoading = mountsQuery.isPending || Boolean(mount && filesQuery.isPending)
+        // Disabled queries (no session) stay isPending forever — an empty id means "no drive",
+        // not "loading".
+        const isLoading =
+            Boolean(sessionId) && (mountsQuery.isPending || Boolean(mount && filesQuery.isPending))
         const errored =
-            (!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
-            (Boolean(mount) && !filesQuery.isPending && (listing === null || filesQuery.isError))
+            Boolean(sessionId) &&
+            ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
+                (Boolean(mount) &&
+                    !filesQuery.isPending &&
+                    (listing === null || filesQuery.isError)))
 
         const summary = isLoading
             ? "…"
@@ -97,6 +103,7 @@ export function useSessionDrive(sessionId: string): SessionDriveData {
             errored,
         }
     }, [
+        sessionId,
         mount,
         filesQuery.data,
         filesQuery.isPending,
