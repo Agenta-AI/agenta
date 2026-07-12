@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {PencilSimple, Plus, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
@@ -135,12 +135,15 @@ const SessionTag = ({
             onUpdate={() => {
                 // Track a newly-added active tab into view AS it grows (width enters from ~0px), so
                 // the reveal starts on the first frame instead of lagging until the spring settles.
-                if (active && !presentAtMount) {
-                    tabRef.current?.scrollIntoView({
-                        block: "nearest",
-                        inline: "nearest",
-                        behavior: "instant",
-                    })
+                if (!(active && !presentAtMount)) return
+                const tab = tabRef.current
+                const strip = tab?.parentElement
+                if (!tab || !strip) return
+                // Only nudge when the growing tab pokes past a visible edge (skip the per-frame call once revealed).
+                const t = tab.getBoundingClientRect()
+                const s = strip.getBoundingClientRect()
+                if (t.right > s.right || t.left < s.left) {
+                    tab.scrollIntoView({block: "nearest", inline: "nearest", behavior: "instant"})
                 }
             }}
             className="shrink-0 overflow-hidden"
@@ -263,33 +266,38 @@ const SessionTagBar = ({
         seededRef.current = true
         sessions.forEach((s) => presentAtMountRef.current.add(s.id))
     }
+    // React 19 registers onWheel as passive, so preventDefault would be a no-op. Attach a native
+    // non-passive listener that maps vertical wheel delta to horizontal scroll.
+    const wheelCleanupRef = useRef<(() => void) | null>(null)
+    const scrollStripRef = useCallback((el: HTMLDivElement | null) => {
+        wheelCleanupRef.current?.()
+        wheelCleanupRef.current = null
+        if (!el) return
+        const onWheel = (e: WheelEvent) => {
+            if (el.scrollWidth <= el.clientWidth) return
+            const axis = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+            if (axis === 0) return
+            // Wheels report deltaMode=LINE (tiny integers) and the strip has scroll-smooth —
+            // together they crawl. Normalize to px, scroll instantly.
+            const delta =
+                e.deltaMode === 1 ? axis * 16 : e.deltaMode === 2 ? axis * el.clientWidth : axis
+            e.preventDefault()
+            const prev = el.style.scrollBehavior
+            el.style.scrollBehavior = "auto"
+            el.scrollLeft += delta
+            el.style.scrollBehavior = prev
+        }
+        el.addEventListener("wheel", onWheel, {passive: false})
+        wheelCleanupRef.current = () => el.removeEventListener("wheel", onWheel)
+    }, [])
     return (
         <MotionConfig reducedMotion="user">
             <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
                 {showSessions ? (
                     <div
+                        ref={scrollStripRef}
                         className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                         style={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
-                        onWheel={(e) => {
-                            const el = e.currentTarget
-                            if (el.scrollWidth <= el.clientWidth) return
-                            const axis =
-                                Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX
-                            if (axis === 0) return
-                            // Wheels report deltaMode=LINE (tiny integers) and the strip has
-                            // scroll-smooth — together they crawl. Normalize to px, scroll instantly.
-                            const delta =
-                                e.deltaMode === 1
-                                    ? axis * 16
-                                    : e.deltaMode === 2
-                                      ? axis * el.clientWidth
-                                      : axis
-                            e.preventDefault()
-                            const prev = el.style.scrollBehavior
-                            el.style.scrollBehavior = "auto"
-                            el.scrollLeft += delta
-                            el.style.scrollBehavior = prev
-                        }}
                     >
                         <AnimatePresence initial={false}>
                             {sessions.map((session, index) => (
