@@ -15,6 +15,7 @@ import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 import {Button, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import {projectIdAtom} from "@/oss/state/project"
@@ -25,6 +26,7 @@ import {humanSize} from "./driveTree"
 export type DriveFileKind =
     | "markdown"
     | "text"
+    | "code"
     | "json"
     | "csv"
     | "image"
@@ -33,9 +35,50 @@ export type DriveFileKind =
     | "video"
     | "other"
 
+// Extension → Shiki language id for the code body (the lexical CodeBlock normalizes further;
+// unknown ids degrade to plaintext, never a broken viewer).
+const CODE_LANGS: Record<string, string> = {
+    py: "python",
+    ts: "typescript",
+    tsx: "tsx",
+    js: "javascript",
+    jsx: "jsx",
+    mjs: "javascript",
+    sh: "shellscript",
+    bash: "shellscript",
+    zsh: "shellscript",
+    go: "go",
+    rs: "rust",
+    java: "java",
+    rb: "ruby",
+    php: "php",
+    c: "c",
+    h: "c",
+    cpp: "cpp",
+    cc: "cpp",
+    hpp: "cpp",
+    cs: "csharp",
+    kt: "kotlin",
+    swift: "swift",
+    sql: "sql",
+    html: "html",
+    css: "css",
+    scss: "scss",
+    xml: "xml",
+    toml: "toml",
+    ini: "ini",
+}
+
+export const driveCodeLanguage = (path: string): string => {
+    if (/\.(json)$/i.test(path)) return "json"
+    if (/\.(yaml|yml)$/i.test(path)) return "yaml"
+    const ext = path.split(".").pop()?.toLowerCase() ?? ""
+    return CODE_LANGS[ext] ?? "plaintext"
+}
+
 const EXT_KINDS: [RegExp, DriveFileKind][] = [
     [/\.(md|markdown)$/i, "markdown"],
-    [/\.(txt|log|py|ts|tsx|js|jsx|sh|toml|ini|env|xml|html|css)$/i, "text"],
+    [/\.(txt|log|env)$/i, "text"],
     [/\.(json|yaml|yml)$/i, "json"],
     [/\.csv$/i, "csv"],
     [/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i, "image"],
@@ -44,11 +87,21 @@ const EXT_KINDS: [RegExp, DriveFileKind][] = [
     [/\.(mp4|mov|webm|mkv)$/i, "video"],
 ]
 
+const CODE_EXT = new RegExp(`\\.(${Object.keys(CODE_LANGS).join("|")})$`, "i")
+
 /** Extension-based kind resolution; first hit wins, no match → "other" (DownloadCard). */
 export function resolveDriveFileKind(path: string): DriveFileKind {
     for (const [test, kind] of EXT_KINDS) if (test.test(path)) return kind
+    if (CODE_EXT.test(path)) return "code"
     return "other"
 }
+
+// Lexical + lazy-Shiki code block (theme-paired highlighting). Loaded only when a code body
+// actually opens — @lexical/code-shiki is an ~8.7 MB chunk that must stay out of first load.
+const LazyCodeBlock = dynamic(() => import("@/oss/components/DynamicCodeBlock/CodeBlock"), {
+    ssr: false,
+    loading: () => <Skeleton active paragraph={{rows: 6}} />,
+})
 
 // Inline-render caps (bytes). Over-cap is a graceful card, never a frozen tab.
 const TEXT_CAP = 1.5 * 1024 * 1024
@@ -154,15 +207,6 @@ const TextBody = ({
     const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
     const content = contentQuery.data
 
-    const pretty = useMemo(() => {
-        if (kind !== "json" || typeof content !== "string" || !/\.json$/i.test(path)) return null
-        try {
-            return JSON.stringify(JSON.parse(content), null, 2)
-        } catch {
-            return null
-        }
-    }, [kind, content, path])
-
     if (contentQuery.isPending)
         return (
             <Inset>
@@ -180,8 +224,41 @@ const TextBody = ({
     return (
         <Inset>
             <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
-                {pretty ?? content}
+                {content}
             </pre>
+        </Inset>
+    )
+}
+
+/** Syntax-highlighted body for code (and structured-data) files — the same lexical/Shiki block
+ * the playground drawers use, read-only, horizontal scroll (code must not soft-wrap). */
+const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const content = contentQuery.data
+
+    const value = useMemo(() => {
+        if (typeof content !== "string") return null
+        if (!/\.json$/i.test(path)) return content
+        try {
+            return JSON.stringify(JSON.parse(content), null, 2)
+        } catch {
+            return content
+        }
+    }, [content, path])
+
+    if (contentQuery.isPending)
+        return (
+            <Inset>
+                <Skeleton active paragraph={{rows: 6}} />
+            </Inset>
+        )
+    if (value == null)
+        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+    return (
+        <Inset flush>
+            <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
+                <LazyCodeBlock language={driveCodeLanguage(path)} value={value} />
+            </div>
         </Inset>
     )
 }
@@ -336,7 +413,7 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 
 // ---- Dispatch --------------------------------------------------------------------------------
 
-const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "json"])
+const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json"])
 const MEDIA_KINDS = new Set<DriveFileKind>(["image", "pdf", "audio", "video"])
 
 /**
@@ -376,8 +453,10 @@ export function DriveFileBody({
     switch (kind) {
         case "markdown":
         case "text":
-        case "json":
             return <TextBody mount={mount} path={path} kind={kind} />
+        case "code":
+        case "json":
+            return <CodeBody mount={mount} path={path} />
         case "csv":
             return <CsvBody mount={mount} path={path} />
         case "image":

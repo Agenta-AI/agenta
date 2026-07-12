@@ -18,6 +18,7 @@ import {
     ChatCircle,
     DownloadSimple,
     File,
+    FileCode,
     FilePdf,
     FileText,
     FolderSimple,
@@ -66,6 +67,8 @@ export const driveFileIcon = (path: string, size = 14) => {
             return <FileText size={size} className="text-[#4fd1b5]" />
         case "json":
             return <BracketsCurly size={size} className="text-colorWarning" />
+        case "code":
+            return <FileCode size={size} className="text-colorInfo" />
         case "csv":
             return <Table size={size} className="text-colorInfo" />
         case "image":
