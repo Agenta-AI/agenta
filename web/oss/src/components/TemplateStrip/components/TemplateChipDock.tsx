@@ -14,14 +14,7 @@ interface TemplateChipDockProps {
 // No-bounce spring so the rise settles without overshoot (the chip seams onto the composer edge).
 const ENTRANCE = {type: "spring", visualDuration: 0.3, bounce: 0} as const
 
-/**
- * Docks the provenance chip above the composer. AnimatePresence fades + rises the chip as it
- * mounts/unmounts; the chip's own `layout` morphs its width when the template switches. During
- * the exit the caller keeps passing the last template, so it fades out with its real content.
- *
- * `MotionConfig reducedMotion="user"` respects the OS setting: transform + layout animations
- * (the rise and the width morph) collapse to instant, leaving only the opacity crossfades.
- */
+/** Docks the chip and fades/rises it on mount/unmount (TemplateChip owns the width morph). */
 const TemplateChipDock = ({template, visible, onClear}: TemplateChipDockProps) => (
     <MotionConfig reducedMotion="user">
         <AnimatePresence>

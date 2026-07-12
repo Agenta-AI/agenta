@@ -111,8 +111,7 @@ const SessionTag = ({
         mountedRef.current = true
     }, [active])
     return (
-        // Wrapper collapses its own width AND its right-gap margin in step with the fade, so a tab
-        // added or closed slides its neighbours as one continuous motion — nothing snaps on unmount.
+        // Wrapper collapses its width + gap margin on enter/exit so neighbours close up with no snap.
         <motion.div
             ref={tabRef}
             variants={TAG_VARIANTS}

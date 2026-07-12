@@ -38,10 +38,7 @@ interface SessionRailRowProps {
     onRename: (title: string) => void
 }
 
-/** One history row: status dot + label (double-click to rename) + created-at stamp, with an inspect
- * action on the active row and a hover-revealed delete. The outer `motion.div` collapses its own
- * height AND its bottom-gap margin in step with its fade, so adding/removing a row closes the gap
- * as one continuous motion — nothing snaps on unmount. */
+/** History row: status dot, label (double-click to rename), timestamp; collapses its height + gap margin on enter/exit so nothing snaps. */
 const SessionRailRow = ({
     session,
     label,
@@ -197,32 +194,33 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                     aria-label="Sessions"
                     className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2"
                 >
-                    {history.length === 0 ? (
+                    {history.length === 0 && (
                         <Empty
                             image={Empty.PRESENTED_IMAGE_SIMPLE}
                             description={<span className="text-xs">No sessions yet</span>}
                             className="!my-6"
                         />
-                    ) : filtered.length === 0 ? (
+                    )}
+                    {history.length > 0 && filtered.length === 0 && (
                         <div className="px-2 py-6 text-center text-xs text-colorTextTertiary">
                             No matching sessions
                         </div>
-                    ) : (
-                        <AnimatePresence initial={false}>
-                            {filtered.map(({session, label}) => (
-                                <SessionRailRow
-                                    key={session.id}
-                                    session={session}
-                                    label={label}
-                                    active={session.id === currentActiveId}
-                                    open={openIds.has(session.id)}
-                                    onSelect={() => openSession(session.id)}
-                                    onDelete={() => deleteSession(session.id)}
-                                    onRename={(title) => renameSession({id: session.id, title})}
-                                />
-                            ))}
-                        </AnimatePresence>
                     )}
+                    {/* Always mounted so the last row (delete/filter-to-empty) still plays its exit. */}
+                    <AnimatePresence initial={false}>
+                        {filtered.map(({session, label}) => (
+                            <SessionRailRow
+                                key={session.id}
+                                session={session}
+                                label={label}
+                                active={session.id === currentActiveId}
+                                open={openIds.has(session.id)}
+                                onSelect={() => openSession(session.id)}
+                                onDelete={() => deleteSession(session.id)}
+                                onRename={(title) => renameSession({id: session.id, title})}
+                            />
+                        ))}
+                    </AnimatePresence>
                 </div>
             </div>
         </MotionConfig>
