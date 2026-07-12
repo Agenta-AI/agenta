@@ -2,7 +2,7 @@
   "schema_version": "1",
   "_curation": {
     "harness": "claude",
-    "note": "Hand-curated. `id` is the bare Claude Code alias (model_selection = alias). Facts seeded from the pinned @earendil-works/pi-ai `anthropic` block; label/description/ratings written by a human from the current lineup. Covers exactly the accepted alias set (capabilities.py CLAUDE_MODEL_ALIASES). The current Anthropic frontier is Fable 5, above Opus, so descriptions and ratings place Opus one tier below it. Fable itself is not a Claude Code alias today (no `fable` in the accepted set); it ships in the catalog via the Pi `anthropic` block. Adding a `fable` alias here is deferred to the skill's live-probe reconcile (sync-model-catalog job 2). Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
+    "note": "Hand-curated. `id` is the bare Claude Code alias (model_selection = alias). Facts seeded from the pinned @earendil-works/pi-ai `anthropic` block; label/description/ratings written by a human from the current lineup. Covers exactly the accepted alias set (capabilities.py CLAUDE_MODEL_ALIASES). The current Anthropic frontier is Fable 5, above Opus, so descriptions and ratings place Opus one tier below it. `fable`/`fable[1m]` are included in the accepted alias set (the harness accepts them, confirmed in live use). Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
     "sources": "@earendil-works/pi-ai@0.80.6 anthropic block; Anthropic model + pricing pages"
   },
   "models": [
@@ -137,6 +137,42 @@
       "label": "Haiku (1M context)",
       "description": "The fastest, cheapest tier with the 1M-token context window.",
       "ratings": {"cost": 5, "intelligence": 2, "speed": 5}
+    },
+    {
+      "id": "fable",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Fable 5",
+      "pricing": {
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "cache_read_per_mtok": 1.0,
+        "cache_write_per_mtok": 12.5,
+        "currency": "USD"
+      },
+      "context_window": 1000000,
+      "modalities": ["text", "image"],
+      "label": "Fable",
+      "description": "The current Anthropic frontier: the strongest reasoning tier, above Opus.",
+      "ratings": {"cost": 2, "intelligence": 5, "speed": 3}
+    },
+    {
+      "id": "fable[1m]",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Fable 5",
+      "pricing": {
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "cache_read_per_mtok": 1.0,
+        "cache_write_per_mtok": 12.5,
+        "currency": "USD"
+      },
+      "context_window": 1000000,
+      "modalities": ["text", "image"],
+      "label": "Fable (1M context)",
+      "description": "The current Anthropic frontier: the strongest reasoning tier, above Opus, with the 1M-token context window.",
+      "ratings": {"cost": 2, "intelligence": 5, "speed": 3}
     }
   ]
 }

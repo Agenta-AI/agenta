@@ -93,10 +93,12 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "sonnet",
     "opus",
     "haiku",
+    "fable",
     "default[1m]",
     "sonnet[1m]",
     "opus[1m]",
     "haiku[1m]",
+    "fable[1m]",
 ]
 
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
