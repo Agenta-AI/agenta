@@ -177,9 +177,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         setSelected("skill")
     }
 
-    // Paste a whole SKILL.md anywhere in the drawer (while not typing in a field) to fill the
-    // fields — the remote-friendly path when you can't drop a file. Refs keep the once-registered
-    // listener reading the latest draft.
+    // Drawer-wide SKILL.md paste: refs keep the once-registered listener reading the latest draft.
     const skillRef = useRef(skill)
     skillRef.current = skill
     const onChangeRef = useRef(onChange)
