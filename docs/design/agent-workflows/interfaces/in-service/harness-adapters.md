@@ -60,8 +60,11 @@ The wire shapes, side by side:
   its own slice.
 - **Claude `agenta-tools` server-name coupling.** The per-resolved-tool settings.json rules use
   the fixed name `mcp__agenta-tools__<tool>` (`INTERNAL_TOOL_MCP_SERVER` in
-  `adapters/claude_settings.py`). It MUST match the runner's internal tool-MCP server name
-  (`services/agent/src/tools/mcp-bridge.ts`, `relay-mcp-stdio.ts`, `tool-mcp-http.ts`,
-  `engines/sandbox_agent/mcp.ts`, `sdks/python/agenta/sdk/agents/adapters/claude_settings.py`).
-  Renaming the server on one side without the other silently
-  re-pauses `allow` tools on Claude (the bug F-046 fixed).
+  `adapters/claude_settings.py`). It MUST match the runner's internal tool-MCP server name on
+  BOTH transports (`INTERNAL_TOOL_MCP_SERVER_NAME` in
+  `services/runner/src/engines/sandbox_agent/mcp.ts`; the local loopback channel in
+  `services/runner/src/tools/{mcp-bridge,tool-mcp-http}.ts` and the Daytona in-sandbox stdio
+  shim in `tool-mcp-stdio.ts`). Renaming the server on one side without the other silently
+  re-pauses `allow` tools on Claude (the bug F-046 fixed). Because the rules render against
+  this name, it is reserved: the runner refuses a user-declared MCP server named
+  `agenta-tools` at declaration time and again at session materialization.

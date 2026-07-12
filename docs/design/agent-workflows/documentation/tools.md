@@ -191,16 +191,26 @@ natively. Today that splits cleanly into two paths.
   list for Pi, so neither the synthetic `agenta-tools` server nor any user MCP server is
   attached.
 - **Claude and other ACP harnesses take MCP.** They cannot accept a native tool, so the runner
-  exposes the same resolved specs as a small synthetic MCP server named `agenta-tools`
-  (`services/agent/src/tools/mcp-bridge.ts` launches `services/agent/src/tools/mcp-server.ts`).
-  This bridge is given only public metadata (names, descriptions, schemas) and a relay
-  directory. It never receives the `call_ref`, the code, the scoped secrets, or the callback
-  auth. When the model calls a tool, the bridge relays the request back to the runner, and the
-  runner runs the private spec from memory. This `agenta-tools` server is a tool DELIVERY
-  vehicle, not a user MCP server: it carries gateway and code tools AND `client` tools (which it
-  pauses in `tools/call` rather than executing — see "Client tools" below), and it exists only on
-  the local Claude path (it is skipped on a remote sandbox, where its loopback URL is
-  unreachable).
+  exposes the same resolved specs as a small synthetic MCP server named `agenta-tools`. The
+  channel is given only public metadata (names, descriptions, schemas) and a relay directory.
+  It never receives the `call_ref`, the code, the scoped secrets, or the callback auth. When
+  the model calls a tool, the channel relays the request back to the runner, and the runner
+  runs the private spec from memory. This `agenta-tools` server is a tool DELIVERY vehicle,
+  not a user MCP server, and its name is reserved: a user-declared MCP server named
+  `agenta-tools` is refused up front (the Claude adapter renders permission rules against that
+  name). The channel has two transports, picked by where the harness runs. On the local
+  sandbox it is a loopback HTTP MCP server the runner serves
+  (`services/runner/src/tools/mcp-bridge.ts` `buildToolMcpServers` + `tool-mcp-http.ts`); it
+  carries gateway and code tools AND `client` tools (which it pauses in `tools/call` rather
+  than executing — see "Client tools" below). On Daytona the harness runs inside the sandbox,
+  where the loopback URL is unreachable, so the runner uploads an in-sandbox stdio MCP shim
+  (`services/runner/src/tools/tool-mcp-stdio.ts`, bundled by `build:extension`) plus a
+  public-specs JSON file into an ephemeral in-VM dir and advertises them as a stdio entry the
+  harness spawns; the shim's `tools/call` writes relay request files that the runner-side
+  relay loop executes server-side. The shim carries executable (gateway/callback) tools only;
+  client tools on a non-Pi remote run are refused up front, and a non-Daytona remote provider
+  fails closed (see "Client tools" below). The full transport and env contract lives in the
+  [runner-to-MCP interface page](../interfaces/cross-service/runner-to-mcp-server.md).
 
 Both paths funnel execution through one function, `runResolvedTool` in
 `services/agent/src/tools/dispatch.ts`. It is the single place that branches on `kind`, so how
@@ -243,13 +253,50 @@ never leave the service — the same safety property gateway tools have. The wor
 relays a `callback` spec exactly as it does a gateway tool (direct or via the Daytona file relay).
 
 There is one transport wrinkle. On Daytona the in-sandbox process cannot reach Agenta over the
-network. So the call is relayed through files instead: the in-sandbox tool writes a request
-file to a relay directory, the runner (which can reach Agenta) reads it, performs the same
-`/tools/call` POST, and writes the answer back (`relayToolCall` in `dispatch.ts`,
-`startToolRelay` in `tools/relay.ts`). Same callback, same envelope, different delivery. The
-non-Pi internal MCP channel (a loopback HTTP MCP server the runner serves) uses this same relay
-even on local runs, because the harness calling it is kept blind to the private spec — only
-public metadata crosses the channel, and execution relays back to the runner.
+network. So the call is relayed through files instead: the in-sandbox tool publishes a request
+file into a relay directory, the runner (which can reach Agenta) picks it up, performs the same
+`/tools/call` POST, and publishes the answer back. The writer is `relayToolCall` in
+`tools/relay-client.ts` (re-exported by `dispatch.ts`); the wire protocol (file suffixes,
+request and response shapes, byte-pinned request serialization) is `tools/relay-protocol.ts`;
+the runner-side loop is `startToolRelay` in `tools/relay.ts`. The two writer modules import
+node builtins only, so the Pi extension bundle and the in-sandbox stdio MCP shim
+(`tools/tool-mcp-stdio.ts`) consume them from inside the sandbox. Same callback, same envelope, different delivery. The
+non-Pi internal MCP channel uses this same relay on both of its transports — the loopback HTTP
+server on local runs and the in-sandbox stdio shim on Daytona — because the harness calling it
+is kept blind to the private spec: only public metadata crosses the channel, and execution
+relays back to the runner.
+
+The relay files carry three guarantees. Publication is atomic in both directions: each side
+writes the full bytes to a temp name (`<final>.tmp.<nonce>`) and renames it to the final name
+in the same directory, so a reader never sees partial JSON (on Daytona the daemon's `moveFs`
+is `rename(2)` underneath). The runner deletes each request file right after reading it, so a
+request executes at most once per publication; a request lost to a runner crash surfaces as a
+writer timeout and a tool error, never a redelivery. And each turn's relay loop treats its
+first directory listing as a snapshot: request files that predate the turn are deleted, never
+executed, so a crashed earlier turn cannot leak a stale call into a warm-continued one.
+
+Pickup is event-driven, with polling kept as the fallback. The writer arms one coalescing
+`fs.watch` on the relay dir before its first response check, so the runner's answer wakes it
+instantly; the 300 ms poll survives as the racing safety timer. The runner's loop wakes the
+same way: locally from an in-process `fs.watch` (unflagged; it only shortens the poll sleeps),
+and on Daytona, behind a flag, from one bounded watch exec per window inside the sandbox.
+While the Daytona watch is healthy the runner suspends its remote `ls` polling and keeps a
+30 s safety poll; failures demote the turn to classic polling with jittered backoff and one
+log line. Three env vars control the wakes:
+
+- `AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED`: the in-sandbox response watch (hop 1).
+  Default true; only the exact strings `false` and `0` disable it. Forwarded into the sandbox
+  env only when the operator set it.
+- `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED`: the Daytona watch exec (hop 2). Default
+  false; only the exact strings `true` and `1` enable it.
+- `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_WINDOW_MS`: one watch exec window. Default 25000,
+  clamped to [5000, 120000], with downward-only jitter of up to 20 percent. Keep it below the
+  30 s safety poll: a window of 30 s or more still works but degrades pickup latency and can
+  demote a healthy watch.
+
+The existing relay vars (`AGENTA_AGENT_TOOLS_RELAY_POLLING`, `_POLLING_MAX`,
+`_IDLE_GROW_AFTER`, `_TIMEOUT`) keep their names and meanings; they now describe the fallback
+poll mode and the safety timers.
 
 ### Platform tools: the runner calls an existing Agenta endpoint directly
 
@@ -315,12 +362,16 @@ The pause itself is shared by both delivery paths through one seam
 - **Claude** calls the tool over the internal `agenta-tools` MCP server, and the runner pauses it
   inside the `tools/call` handler: it emits NO JSON-RPC result and aborts that in-flight request,
   so Claude cannot settle the call before the turn ends `paused`. The browser result resumes it
-  next turn (the MCP handler returns the stored output if the model re-calls). This is
-  local-only: on a remote sandbox the loopback MCP channel is unreachable, so a non-Pi run
-  carrying ANY custom tool — client kind included — is rejected up front
-  (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`), never delivered silently. (The ACP permission gate in
-  `acp-interactions.ts` keeps its own `kind: "client"` pause branch as a live fallback for a
-  harness that raises a permission gate carrying a resolved client spec.)
+  next turn (the MCP handler returns the stored output if the model re-calls). This pause is
+  local-only: the Daytona stdio shim has no pause path (the relay loop parks a client call and
+  writes no response file, so the shim would hang until the relay timeout and teach the model
+  the tool is broken), so a non-Pi remote run carrying a client tool is refused up front
+  (`REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE`), never delivered silently. Executable tools DO
+  deliver on Claude+Daytona through the shim; a remote provider that is not Daytona still
+  refuses ANY custom tool (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) until in-sandbox delivery is
+  proven there. (The ACP permission gate in `acp-interactions.ts` keeps its own
+  `kind: "client"` pause branch as a live fallback for a harness that raises a permission gate
+  carrying a resolved client spec.)
 
 A client tool's `render` hint can be `{ kind: "connect" }` (e.g. `request_connection`), the typed
 member of `RenderHint` that asks the frontend to draw the connect widget.
@@ -392,6 +443,18 @@ Two gates consult this same decision:
   separate harness-side settings gate, so the relay is the enforcement point for everything Pi
   runs, including its native builtins, and it gives Pi the same human-in-the-loop behavior
   Claude gets.
+
+Separately from the dialog gates, the relay re-checks every execute record with a runner-side
+execution guard (`buildRelayExecutionGuard` in
+`services/runner/src/engines/sandbox_agent/relay-guard.ts`), on EVERY harness: the relay dir is
+sandbox-writable, so a forged request file proves nothing about any dialog having run.
+`allow` passes and `deny` refuses identically everywhere. `ask` splits by harness: on Pi the
+guard consumes a dialog-recorded execution grant, so a forged or replayed record for an `ask`
+tool fails closed; on an MCP harness (Claude) the guard passes `ask`, because the harness's own
+dialog gates the call before it reaches the shim and the runner holds no grant for it. The
+stated residual: on the MCP path a forged relay file can still trigger an ask-tool without a
+dialog; reflecting the harness approval into the grant ledger is a documented follow-up. The
+hard deny boundary holds on every harness.
 
 Client tools are a carve-out from that same ladder. They are decided by the responder's
 `onClientTool` (consulted at the ACP gate on Claude, and by the relay on Pi), not by the
@@ -576,13 +639,17 @@ never drift from the files that exist. The canonical playbook format lives in th
 | Runtime dispatch (branch on `kind`) | `services/agent/src/tools/dispatch.ts` |
 | Callback transport | `services/agent/src/tools/callback.ts` |
 | Code execution | `services/agent/src/tools/code.ts` |
-| Daytona/non-Pi relay | `services/agent/src/tools/relay.ts` |
+| Daytona/non-Pi relay (runner-side loop) | `services/runner/src/tools/relay.ts` |
+| In-sandbox relay writer + wire protocol | `services/runner/src/tools/relay-client.ts`, `relay-protocol.ts` |
+| Relay wake sources (local `fs.watch`, Daytona watch exec) | `services/runner/src/tools/relay-watch.ts` |
 | Pi native delivery | `services/agent/src/extensions/agenta.ts` |
-| `agenta-tools` server for non-Pi harnesses | `services/agent/src/tools/mcp-bridge.ts`, `services/agent/src/tools/mcp-server.ts` |
+| `agenta-tools` channel for non-Pi harnesses (local loopback HTTP) | `services/runner/src/tools/mcp-bridge.ts`, `services/runner/src/tools/tool-mcp-http.ts` |
+| `agenta-tools` channel on Daytona (in-sandbox stdio shim: entrypoint, env contract, upload) | `services/runner/src/tools/tool-mcp-stdio.ts`, `services/runner/src/tools/tool-mcp-env.ts`, `services/runner/src/engines/sandbox_agent/tool-mcp-assets.ts` |
 | Capability probe | `services/agent/src/engines/sandbox_agent/capabilities.ts` |
 | Permission decision (shared by both gates) | `services/runner/src/permission-plan.ts` |
 | ACP responder (`ApprovalResponder`) | `services/runner/src/responder.ts` |
 | Tool relay enforcement | `services/runner/src/tools/relay.ts` |
+| Relay execution guard (every harness) | `services/runner/src/engines/sandbox_agent/relay-guard.ts` |
 
 ## Status and known gaps
 
@@ -590,7 +657,8 @@ never drift from the files that exist. The canonical playbook format lives in th
   `AGENTA_AGENT_MCPS_ENABLED` is truthy, and even on, the runner drops user MCP for Pi. Pi and
   Agenta are the default harnesses, so `mcp_servers` is a silent no-op for most runs. It would
   reach Claude only. Do not confuse this with the `agenta-tools` server, which is an internal
-  tool-delivery vehicle for Claude, not a user MCP server.
+  tool-delivery vehicle for Claude, not a user MCP server; the name is reserved, and a
+  user-declared server claiming it is refused.
 - A tool's `permission` is honored on both harnesses now, including Pi's own builtins. Claude
   checks its rendered settings file first, then the ACP responder. Pi has no separate
   harness-side settings gate, so the relay decides everything Pi runs: gateway and code tools
@@ -600,7 +668,14 @@ never drift from the files that exist. The canonical playbook format lives in th
 - The `render` hint is plumbed end to end on the runner side, but full frontend projection of
   every render kind is still in progress.
 - Gateway calls on Daytona depend on the file relay, because the sandbox cannot reach Agenta
-  directly. The relay is also used by the non-Pi internal MCP channel on local runs.
+  directly. The relay also carries the non-Pi internal MCP channel on both transports: behind
+  the loopback HTTP server on local runs, and behind the in-sandbox stdio shim on Daytona.
+- **Non-Pi tools on a remote sandbox are Daytona-only, executable-only.** Executable
+  (gateway/callback) tools deliver on Claude+Daytona via the in-sandbox stdio shim. A client
+  tool on a non-Pi remote run refuses loud (`REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE`; the
+  shim has no pause path), and a remote provider that is not Daytona refuses ANY custom tool
+  (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) until in-sandbox delivery is proven there. Tracked in
+  [projects/in-sandbox-tool-mcp](../projects/in-sandbox-tool-mcp/).
 - **Code tools are standard-library-only.** The image ships `python3` and `node`, but the
   child env has no package install and no module path to the runner's dependencies, so a tool
   cannot import third-party packages.
