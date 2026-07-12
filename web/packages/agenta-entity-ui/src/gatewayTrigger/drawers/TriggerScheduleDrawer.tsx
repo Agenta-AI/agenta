@@ -666,10 +666,15 @@ function ScheduleForm({
                 savedId = result.id ?? null
                 message.success("Schedule created")
             }
-            // Master-detail keeps the drawer open on the saved schedule; the single-form
-            // (settings) drawer closes.
-            if (onSaved && savedId) onSaved(savedId)
-            else onClose()
+            // A newly created schedule dismisses the drawer (it now shows in the triggers list);
+            // an edit keeps the master-detail open on the saved schedule (settings closes).
+            if (!isEdit) {
+                onClose()
+            } else if (onSaved && savedId) {
+                onSaved(savedId)
+            } else {
+                onClose()
+            }
         } catch (error) {
             message.error(triggerApiErrorMessage(error, "Failed to save schedule"))
         }
