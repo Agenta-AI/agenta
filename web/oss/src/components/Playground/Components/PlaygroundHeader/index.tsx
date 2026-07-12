@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {
+    activateEvaluatorEnrichmentAtom,
     deriveWorkflowTypeFromRevision,
     getWorkflowTypeColor,
     parseWorkflowKeyFromUri,
@@ -58,7 +59,11 @@ import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modal
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {currentWorkflowAtom, currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {
+    currentWorkflowAtom,
+    currentWorkflowContextAtom,
+    playgroundEarlyAgentStateAtom,
+} from "@/oss/state/workflow"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 import AgentRevisionSelector from "../AgentRevisionSelector"
@@ -225,13 +230,33 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // Agent workflows hide the evaluation-flow actions (Compare / Test set /
     // Evaluator / New Evaluation) — those flows aren't wired for agents yet.
     const rootEntityId = useMemo(() => nodes.find((n) => n.depth === 0)?.entityId ?? null, [nodes])
-    const isAgentWorkflow = useAtomValue(
+    const nodeIsAgent = useAtomValue(
         useMemo(
             () => (rootEntityId ? isAgentModeAtomFamily(rootEntityId) : atom(false)),
             [rootEntityId],
         ),
     )
-    const showEvalActions = !isAgentWorkflow
+    // Loading state of the root revision entity. Critical for the gate below: `nodeIsAgent`
+    // reads `workflowType`, which falls back to "completion" until the revision's flags load —
+    // so a mid-load agent looks identical to a prompt app. We must not treat "not yet known" as
+    // "confirmed prompt".
+    const rootEntityQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(rootEntityId ?? ""), [rootEntityId]),
+    )
+    // Early app-id signal resolves agent-ness before the heavy node graph loads, so
+    // the layout commits to the right chrome up front instead of defaulting to the
+    // non-agent stack and unmounting it on reload.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const isAgentWorkflow = nodeIsAgent || earlyAgentState === "agent"
+    // Neutral until CONFIRMED prompt: show the eval chrome only when a definitive signal says
+    // non-agent — the early app-id query resolved to non-agent, OR the root revision has fully
+    // SETTLED (not pending) and isn't an agent. The `!isPending` guard is what prevents the
+    // agent-reload flash: without it, `hasRootNode && !nodeIsAgent` is true during the flags-load
+    // window (node graph resolved, is_agent not yet loaded) and the eval stack pops in then vanishes.
+    const showEvalActions =
+        !isAgentWorkflow &&
+        (earlyAgentState === "non-agent" ||
+            (hasRootNode && !nodeIsAgent && !rootEntityQuery.isPending))
 
     // Build/Chat mode: "chat" maximizes the chat pane (config hidden, session rail shown); "build"
     // is the 2-panel edit view. The boolean maximize atom is the single source of truth (also read
@@ -450,10 +475,21 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // labels, and workflow metadata ("N versions · date") for the picker rows.
     // splitTypeTag renders the type tag in the row's suffix slot (vertically
     // centered) instead of trailing the name.
+    //
+    // `lazy`: the adapter + the `evaluatorWorkflowMetaMapAtom` read above sit
+    // behind the shared enrichment gate, so they resolve no per-evaluator
+    // revisions until the user reaches for this "Add evaluators" picker
+    // (`handleActivateEvaluatorPicker`, on pointer-enter/focus). Keeps a plain
+    // playground load from firing the batched revision fan-out.
     const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel, {
         showWorkflowMeta: true,
         splitTypeTag: true,
+        lazy: true,
     })
+    const activateEvaluatorEnrichment = useSetAtom(activateEvaluatorEnrichmentAtom)
+    const handleActivateEvaluatorPicker = useCallback(() => {
+        activateEvaluatorEnrichment()
+    }, [activateEvaluatorEnrichment])
 
     // Controlled state for EvaluatorTemplateDropdown
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
@@ -724,7 +760,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     {showEvalActions && (
                         <>
                             <Divider orientation="vertical" className="!mx-0 h-5" />
-                            <span className="relative inline-flex">
+                            <span
+                                className="relative inline-flex"
+                                onPointerEnter={handleActivateEvaluatorPicker}
+                                onFocus={handleActivateEvaluatorPicker}
+                            >
                                 <Tooltip title="Add evaluators to automatically score outputs in the playground.">
                                     <span>
                                         <EntityPicker<WorkflowRevisionSelectionResult>

@@ -12,14 +12,14 @@
  * - Works with any entity controller pattern
  */
 
-import {memo, useMemo} from "react"
+import {lazy, memo, Suspense, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {AgentTemplateControl} from "./AgentTemplateControl"
+import AgentConfigSkeleton from "./agentTemplate/AgentConfigSkeleton"
 import {BooleanToggleControl} from "./BooleanToggleControl"
 import {CodeEditorControl} from "./CodeEditorControl"
 import {EnumSelectControl} from "./EnumSelectControl"
@@ -32,6 +32,18 @@ import {ObjectSchemaControl} from "./ObjectSchemaControl"
 import {PromptSchemaControl, isPromptSchema, isPromptValue} from "./PromptSchemaControl"
 import {hasGroupedChoices, resolveAnyOfSchema, shouldRenderObjectInline} from "./schemaUtils"
 import {TextInputControl} from "./TextInputControl"
+
+// The agent config composite (sections + item drawers + markdown editor) is the heaviest
+// control in the registry and only renders for agent-template schemas — code-split it so
+// non-agent config panels never load it and agent panels load it behind its skeleton.
+const AgentTemplateControl = lazy(() =>
+    import("./AgentTemplateControl").then((m) => ({default: m.AgentTemplateControl})),
+)
+
+/** Warm the agent-template chunk during idle time (e.g. as soon as the playground knows the
+ * app is an agent), so its download + execution doesn't coincide with the revision/schema
+ * resolving — that combination is a main-thread burst right as the panel paints. */
+export const preloadAgentTemplateControl = () => import("./AgentTemplateControl")
 
 export interface SchemaPropertyRendererProps {
     /** The schema property defining the field */
@@ -430,17 +442,21 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
         case "agent-template":
             // Render the whole agent config (instructions, model, tools, runtime) as one
             // composite control that reuses the model selector, tool picker, and enums.
+            // The Suspense fallback is the SAME skeleton the schema-loading gate shows,
+            // so the two gates read as one continuous frame while the chunk loads.
             return (
-                <AgentTemplateControl
-                    schema={resolvedSchema}
-                    label={displayLabel}
-                    value={value as Record<string, unknown> | null}
-                    onChange={(v) => onChange(v)}
-                    description={tooltipDesc}
-                    withTooltip={withTooltip}
-                    disabled={disabled}
-                    className={className}
-                />
+                <Suspense fallback={<AgentConfigSkeleton />}>
+                    <AgentTemplateControl
+                        schema={resolvedSchema}
+                        label={displayLabel}
+                        value={value as Record<string, unknown> | null}
+                        onChange={(v) => onChange(v)}
+                        description={tooltipDesc}
+                        withTooltip={withTooltip}
+                        disabled={disabled}
+                        className={className}
+                    />
+                </Suspense>
             )
 
         case "prompt":

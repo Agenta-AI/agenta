@@ -953,12 +953,41 @@ def test_request_input_matches_golden_request_fixture():
     assert payload_keys == set(tool["input_schema"]["properties"])
     assert isinstance(golden["message"], str) and golden["message"]
 
+    def _assert_one_of(one_of, name):
+        # Context-ful options: [{const, title?, description?}] — consts must be strings.
+        assert isinstance(one_of, list) and one_of, name
+        for option in one_of:
+            assert isinstance(option["const"], str), name
+
     requested = golden["requestedSchema"]
     assert requested["type"] == "object"
     for name, prop in requested["properties"].items():
+        if prop["type"] == "array":
+            # Multi-select: the ONE admitted array shape — string items, optional enum/oneOf.
+            items = prop["items"]
+            assert items["type"] == "string", name
+            assert "properties" not in items and "items" not in items, name
+            if "oneOf" in items:
+                _assert_one_of(items["oneOf"], name)
+            if "default" in prop:
+                assert isinstance(prop["default"], list), name
+                assert all(isinstance(v, str) for v in prop["default"]), name
+            continue
         assert prop["type"] in _ELICITATION_PRIMITIVES, name
         assert "properties" not in prop and "items" not in prop, name
+        if "oneOf" in prop:
+            _assert_one_of(prop["oneOf"], name)
+        if "default" in prop:
+            assert isinstance(prop["default"], (str, int, float, bool)), name
     assert set(requested.get("required", [])) <= set(requested["properties"])
+    # The golden must exercise the dialect's optional shapes: a prefilled field (#5190),
+    # a multi-select array, context-ful oneOf options (choice cards), and a cron field.
+    assert any("default" in prop for prop in requested["properties"].values())
+    assert any(prop["type"] == "array" for prop in requested["properties"].values())
+    assert any("oneOf" in prop for prop in requested["properties"].values())
+    assert any(
+        prop.get("format") == "cron" for prop in requested["properties"].values()
+    )
 
 
 def test_request_input_matches_golden_response_fixture():

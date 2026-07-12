@@ -398,6 +398,10 @@ services:
             DAYTONA_TARGET: ${DAYTONA_TARGET:-}
             DAYTONA_SNAPSHOT: ${DAYTONA_SNAPSHOT:-agenta-sandbox-pi}
             DAYTONA_IMAGE: ${DAYTONA_IMAGE:-}
+            DAYTONA_AUTOSTOP: ${DAYTONA_AUTOSTOP:-}
+            AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS: ${AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS:-}
+            AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
+            DAYTONA_AUTODELETE: ${DAYTONA_AUTODELETE:-}
             AGENTA_AGENT_SANDBOX_PI_INSTALLED: ${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-false}
         # === STORAGE ============================================== #
         volumes:
@@ -568,14 +572,27 @@ services:
         # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
         # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
         # public URL the runner discovers via the ngrok agent API (:4040/api/tunnels). Local
-        # sandboxes never tunnel — keep this profile off by default.
+        # sandboxes never tunnel. Shares `with-tunnel` with composio (on by default, off with
+        # --no-tunnel); with no NGROK_AUTHTOKEN it exits 0 and the remote mount is skipped,
+        # which the runner treats as non-fatal.
         profiles:
-            - remote
+            - with-tunnel
         # === IMAGE ================================================ #
         image: ngrok/ngrok:latest
         # === EXECUTION ============================================ #
-        # Tunnel the SeaweedFS S3 port. NGROK_AUTHTOKEN must be set in the env file.
-        command: ["http", "seaweedfs:8333", "--log", "stdout"]
+        # Tunnel the SeaweedFS S3 port. Without a token ngrok would exit non-zero and, under
+        # `restart: on-failure`, loop; exit 0 instead so an unconfigured deploy stays quiet.
+        # The agent API defaults to 127.0.0.1:4040 (unreachable from the runner container), so
+        # bind it on all interfaces: that API is how the runner discovers the public URL.
+        entrypoint: ["/bin/sh", "-c"]
+        command:
+            - |
+              if [ -z "$${NGROK_AUTHTOKEN}" ]; then
+                echo "ngrok: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
+                exit 0
+              fi
+              printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
+              exec /bin/ngrok http seaweedfs:8333 --log stdout --config /tmp/ngrok.yml
         # === CONFIGURATION ======================================== #
         environment:
             NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
@@ -586,7 +603,8 @@ services:
         # ports:
         #     - "4040:4040"
         # === LIFECYCLE ============================================ #
-        restart: always
+        # Not `always`: that would restart the intentional exit-0 above into a loop.
+        restart: on-failure
         depends_on:
             seaweedfs:
                 condition: service_healthy

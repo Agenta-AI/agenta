@@ -4,9 +4,9 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, Copy, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
@@ -30,20 +30,54 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         removeVariantFromSelection(variantId)
     }, [removeVariantFromSelection, variantId])
 
-    const handleDiscardDraft: NonNullable<MenuProps["onClick"]> = (e) => {
-        e?.domEvent?.stopPropagation()
-        if (!variantId) return
-        try {
-            workflowMolecule.set.discard(variantId)
-            message.success("Draft changes discarded")
-        } catch (err) {
-            message.error("Failed to discard draft changes")
-            console.error(err)
-        }
-    }
+    const handleDiscardDraft = useCallback<NonNullable<MenuProps["onClick"]>>(
+        (e) => {
+            e?.domEvent?.stopPropagation()
+            if (!variantId) return
+            try {
+                workflowMolecule.set.discard(variantId)
+                message.success("Draft changes discarded")
+            } catch (err) {
+                message.error("Failed to discard draft changes")
+                console.error(err)
+            }
+        },
+        [variantId],
+    )
+
+    const handleCopyRawConfig = useCallback<NonNullable<MenuProps["onClick"]>>(
+        (e) => {
+            e?.domEvent?.stopPropagation()
+            if (!variantId) return
+            // Read lazily so the menu doesn't re-render on every config edit.
+            const config = getDefaultStore().get(
+                workflowMolecule.selectors.configuration(variantId),
+            )
+            if (!config) {
+                message.error("No raw configuration available to copy")
+                return
+            }
+            navigator.clipboard
+                .writeText(JSON.stringify(config, null, 2))
+                .then(() => message.success("Raw configuration copied to clipboard"))
+                .catch((err) => {
+                    message.error("Failed to copy raw configuration")
+                    console.error(err)
+                })
+        },
+        [variantId],
+    )
 
     const items: MenuProps["items"] = useMemo(
         () => [
+            {
+                key: "copy-raw-config",
+                label: "Copy raw config",
+                icon: <Copy size={14} />,
+                onClick: handleCopyRawConfig,
+                disabled: !variantId,
+            },
+            {type: "divider" as const},
             {
                 key: "revert",
                 label: "Revert Changes",
@@ -77,7 +111,15 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                   ]
                 : []),
         ],
-        [handleClosePanel, closePanelDisabled, variantId, handleDiscardDraft, isDirty, isAgent],
+        [
+            handleClosePanel,
+            closePanelDisabled,
+            variantId,
+            handleDiscardDraft,
+            handleCopyRawConfig,
+            isDirty,
+            isAgent,
+        ],
     )
 
     return (

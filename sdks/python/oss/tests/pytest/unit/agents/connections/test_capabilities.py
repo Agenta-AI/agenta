@@ -11,6 +11,8 @@ from __future__ import annotations
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
+    PI_SUBSCRIPTION_MODELS,
+    PI_SUBSCRIPTION_PROVIDERS,
     PI_VAULT_PROVIDERS,
     harness_allows_deployment,
     harness_allows_mode,
@@ -35,10 +37,28 @@ def test_pi_and_agenta_reach_the_vault_providers_not_arbitrary_ones():
         assert harness_allows_provider(harness, "anything-custom") is False
 
 
-def test_unknown_harness_is_permissive():
-    assert harness_allows_provider("some-future-harness", "openai") is True
-    assert harness_allows_mode("some-future-harness", "agenta") is True
-    assert harness_allows_deployment("some-future-harness", "bedrock") is True
+def test_pi_and_agenta_reach_the_openai_codex_subscription_provider():
+    """The ChatGPT/Codex subscription provider is reachable (OAuth login, no vault key).
+
+    Without this, an ``openai-codex`` model fails the agent-layer pre-resolve provider check
+    even though the runner drives the subscription fine. ``self_managed`` is the subscription
+    path; the provider must be allowed for that mode to ever reach the runner.
+    """
+    for harness in ("pi_core", "pi_agenta"):
+        for provider in PI_SUBSCRIPTION_PROVIDERS:
+            assert harness_allows_provider(harness, provider) is True
+        assert harness_allows_provider(harness, "openai-codex") is True
+        # case-insensitive, like the vault providers
+        assert harness_allows_provider(harness, "OpenAI-Codex") is True
+        # the subscription is a Pi reach only; Claude stays anthropic-only
+        assert harness_allows_provider("claude", "openai-codex") is False
+
+
+def test_unknown_harness_is_closed():
+    # An unmapped harness gets no capability: fail closed, not permissive.
+    assert harness_allows_provider("some-future-harness", "openai") is False
+    assert harness_allows_mode("some-future-harness", "agenta") is False
+    assert harness_allows_deployment("some-future-harness", "bedrock") is False
 
 
 def test_two_modes_supported_on_all_known_harnesses():
@@ -68,7 +88,9 @@ def test_capabilities_document_shape():
     assert set(doc) == {"pi_core", "pi_agenta", "claude"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
-    assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS)
+    assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS) + list(
+        PI_SUBSCRIPTION_PROVIDERS
+    )
     assert doc["pi_core"]["connection_modes"] == ["agenta", "self_managed"]
     assert doc["pi_core"]["deployments"] == ["direct"]
     assert doc["claude"]["deployments"] == [
@@ -88,17 +110,32 @@ def test_every_harness_publishes_a_models_map():
 
 
 def test_pi_models_are_a_subset_of_the_shared_catalog():
-    # Each Pi harness publishes, per vault provider, exactly that provider's catalog ids.
+    # Each Pi harness publishes, per vault provider, exactly that provider's catalog ids, plus the
+    # subscription/OAuth providers' explicit ids (which the shared catalog does not list).
     for harness in ("pi_core", "pi_agenta"):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
-        # Only the vault-mapped providers are published (no arbitrary catalog providers).
-        assert set(models) <= set(PI_VAULT_PROVIDERS)
-        assert set(models) == set(PI_VAULT_PROVIDERS)
-        for provider, ids in models.items():
+        # The published providers are the vault-mapped ones plus the subscription providers.
+        assert set(models) == set(PI_VAULT_PROVIDERS) | set(PI_SUBSCRIPTION_PROVIDERS)
+        for provider in PI_VAULT_PROVIDERS:
             # The published ids are exactly the shared catalog's ids for that provider
             # (verbatim — most are provider-prefixed like ``anthropic/...``, but some
             # providers, e.g. openai, list bare ids like ``gpt-5.5``).
-            assert ids == list(supported_llm_models[provider])
+            assert models[provider] == list(supported_llm_models[provider])
+        for provider, ids in PI_SUBSCRIPTION_MODELS.items():
+            # The subscription providers carry their explicit ids and are NOT in the shared
+            # catalog (they authenticate via OAuth, not a vault provider_key).
+            assert models[provider] == list(ids)
+            assert provider not in supported_llm_models
+
+
+def test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers():
+    expected = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
+
+    for harness in ("pi_core", "pi_agenta"):
+        models = HARNESS_CONNECTION_CAPABILITIES[harness].models
+        for provider in ("openai", "openai-codex"):
+            assert models[provider][:3] == expected
+            assert "gpt-5.6" not in models[provider]
 
 
 def test_claude_models_are_the_alias_set_under_anthropic():

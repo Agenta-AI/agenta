@@ -332,7 +332,7 @@ describe("classifyAgentChanges", () => {
         const remote = {agent: {mcps: [{name: "github"}]}}
         const local = {agent: {mcps: [{name: "github"}, {name: "linear"}]}}
         const mcps = classifyAgentChanges(local, remote).find((s) => s.id === "mcps")
-        expect(mcps?.title).toBe("MCP servers")
+        expect(mcps?.title).toBe("MCPs")
         expect(mcps?.items?.[0]).toMatchObject({kind: "added", label: "linear"})
     })
 
@@ -397,6 +397,12 @@ describe("parseGatewayToolName", () => {
     it("humanizes a gateway function name", () => {
         expect(parseGatewayToolName("tools__composio__gmail__ADD_LABEL_TO_EMAIL__b81")).toEqual({
             label: "Add label to email",
+            source: "Gmail",
+        })
+    })
+    it("humanizes the generic {source}__ACTION short form", () => {
+        expect(parseGatewayToolName("gmail__FETCH_EMAILS")).toEqual({
+            label: "Fetch emails",
             source: "Gmail",
         })
     })

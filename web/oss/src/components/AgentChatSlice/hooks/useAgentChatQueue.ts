@@ -17,10 +17,21 @@ interface UseAgentChatQueueArgs {
      * auto-resume, so the aborted turn's tool parts still reading as mid-HITL must NOT hold a new
      * send — a stopped-and-settled conversation is releasable. */
     stopped: boolean
+    /** The tail's "resume imminent" shape is an orphan: it was RESTORED from storage (page
+     * reload / pane remount killed the run mid-approval-resume) and no interaction in this
+     * mount can fire the auto-resume. Holding for it would freeze the queue forever with no
+     * dock and no stop (AGE-3937), so it voids the hold exactly like a user stop. */
+    resumeOrphaned?: boolean
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
+    /** Persist held messages under this key across pane remounts (route re-entry, tab
+     * close/reopen) — a restored queue releases normally once the conversation settles. */
+    sessionId?: string
 }
+
+// In-memory, page-session lifetime — same as the composer drafts it accompanies.
+const queuedBySession = new Map<string, QueuedMessage[]>()
 
 /**
  * Holds user messages typed while a turn is in flight and releases them ONE AT A TIME once the
@@ -37,14 +48,27 @@ export const useAgentChatQueue = ({
     status,
     messages,
     stopped,
+    resumeOrphaned = false,
     sendQueued,
+    sessionId,
 }: UseAgentChatQueueArgs) => {
-    const [queued, setQueued] = useState<QueuedMessage[]>([])
+    const [queued, setQueued] = useState<QueuedMessage[]>(
+        () => (sessionId && queuedBySession.get(sessionId)) || [],
+    )
+
+    // Mirror every queue change into the per-session store so a remount restores it.
+    useEffect(() => {
+        if (!sessionId) return
+        if (queued.length > 0) queuedBySession.set(sessionId, queued)
+        else queuedBySession.delete(sessionId)
+    }, [queued, sessionId])
 
     // Settled = the stream is over (done or failed). A stop lands here (abort → "ready").
     const settled = status === "ready" || status === "error"
-    // Releasable now: the normal gate, OR a stopped-and-settled turn (the stop voided its gate).
-    const canReleaseNow = canReleaseQueuedMessage(status, messages) || (stopped && settled)
+    // Releasable now: the normal gate, OR a settled turn whose hold was voided — by a user stop,
+    // or by an orphaned restored resume shape that nothing in this mount can ever fire.
+    const canReleaseNow =
+        canReleaseQueuedMessage(status, messages) || ((stopped || resumeOrphaned) && settled)
 
     // A stop voids the gate for release (above), so it must void it for reporting too — else the
     // aborted turn's lingering `approval-requested` part still reads as "awaiting" while `submit`

@@ -10,9 +10,12 @@ separate ``RunSelection``).
 
 from __future__ import annotations
 
+import pytest
+
 from agenta.sdk.agents import (
     AgentTemplate,
     BuiltinToolConfig,
+    InvalidPermissionDefaultError,
 )
 
 _DEFAULTS = AgentTemplate(instructions="default-md", model="default-model", tools=["d"])
@@ -260,11 +263,10 @@ def test_run_selection_reads_all_permission_modes_case_insensitive():
         assert config.permission_default == mode
 
 
-def test_run_selection_unknown_permission_falls_back_to_allow_reads():
-    config = AgentTemplate.from_params(
-        {"runner": {"permissions": {"default": "surprise"}}}
-    )
-    assert config.permission_default == "allow_reads"
+def test_run_selection_unknown_permission_raises():
+    # An unrecognized permission mode is rejected, never silently widened to a default.
+    with pytest.raises(InvalidPermissionDefaultError):
+        AgentTemplate.from_params({"runner": {"permissions": {"default": "surprise"}}})
 
 
 def test_run_selection_ignores_legacy_runner_interactions():

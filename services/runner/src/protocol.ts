@@ -133,9 +133,6 @@ export interface ResolvedToolSpec {
     args_into?: string;
   };
   kind?: "callback" | "code" | "client";
-  runtime?: "python" | "node";
-  code?: string;
-  env?: Record<string, string>;
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
   readOnly?: boolean;
@@ -183,6 +180,17 @@ export interface RunContextReference {
 export interface RunContext {
   run?: {
     kind?: string;
+  };
+  /**
+   * The run's owning project id, stamped by the service from its own request state (the OTel
+   * baggage), never from the request body. The id textually arrives on the caller's baggage
+   * header; it is trustworthy because the service's auth middleware denies any request whose
+   * credential is not authorized for that project id, so a forged id cannot cross tenants
+   * (that auth check backstops this field — do not weaken it). The runner prefers `project.id`
+   * over the mount-derived project scope when keying its parked-session pool (`poolKeyFor`).
+   */
+  project?: {
+    id?: string;
   };
   workflow?: {
     artifact?: RunContextReference;
@@ -310,7 +318,11 @@ export type RenderHint =
   // stamps it so the frontend renders the OAuth/API-key connect dialog when the tool pauses. No
   // payload — the widget is fully described by the paused call's tool name + input. `wire.py` does
   // not pin RenderHint (render rides as an opaque dict), so this member is TS-only.
-  | { kind: "connect" };
+  | { kind: "connect" }
+  // `elicitation` requests the built-in schema-driven form (interaction kinds M1): the `request_input`
+  // client tool stamps it so the frontend renders a form from the paused call's `requestedSchema`. Like
+  // `connect`, it carries no payload here and is TS-only (the render rides through as an opaque dict).
+  | { kind: "elicitation" };
 
 export type AgentEvent =
   | { type: "message"; text: string }

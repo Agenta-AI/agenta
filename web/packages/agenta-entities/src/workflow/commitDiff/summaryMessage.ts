@@ -49,7 +49,7 @@ export function buildCommitSummaryMessage(sections: ChangeSection[]): string {
                 break
             }
             case "mcps":
-                phrases.push("updated the MCP servers")
+                phrases.push("updated the MCPs")
                 break
             case "skills":
                 phrases.push("updated the skills")

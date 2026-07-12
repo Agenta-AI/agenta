@@ -6,6 +6,7 @@ export type { FetchToolConnectionRequest } from "./FetchToolConnectionRequest.js
 export type { FetchToolIntegrationRequest } from "./FetchToolIntegrationRequest.js";
 export type { FetchToolProviderRequest } from "./FetchToolProviderRequest.js";
 export type { ListToolActionsRequest } from "./ListToolActionsRequest.js";
+export type { ListToolCategoriesRequest } from "./ListToolCategoriesRequest.js";
 export type { ListToolIntegrationsRequest } from "./ListToolIntegrationsRequest.js";
 export type { ListToolProvidersRequest } from "./ListToolProvidersRequest.js";
 export type { QueryToolConnectionsRequest } from "./QueryToolConnectionsRequest.js";

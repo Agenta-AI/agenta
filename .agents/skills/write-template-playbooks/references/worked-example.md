@@ -2,9 +2,9 @@
 
 Copy from this. It is the seed playbook, already corrected against the runtime: `test_run`
 explores uncommitted tools through its delta, the trigger test is the Lightning "Test event"
-button (Play "Run" for schedules), and no field is prefilled because `request_input` has no
-default. Notice how each section is short, names exact tools, and ends the instructions on the
-terminal side effect.
+button (Play "Run" for schedules), and proposals ride each field's `default` so the form is
+one-click acceptable. Notice how each section is short, names exact tools, and ends the
+instructions on the terminal side effect.
 
 The fenced block below is the file that ships as `references/agent-templates/changelog-writer.md`.
 
@@ -17,17 +17,16 @@ changelog-writer. Also matches free-text asks about release notes, changelogs, o
 shipped" summaries from a repo.
 
 ## Required context (ask via one request_input form)
-- Repository: which GitHub or GitLab repo to read merged PRs from. No default; the agent
-  cannot proceed without it. Description: "Recommended: <guess>" when a prior read
-  surfaced one.
+- Repository: which GitHub or GitLab repo to read merged PRs from; the agent cannot proceed
+  without it. Set the field default to the guess a prior read surfaced; no default otherwise.
 - Where release notes are published: the docs page, a Notion database, or a Linear
-  document. Offer these as an enum. First option: "Figure it out from what's connected."
+  document. Offer these as an enum with default "Figure it out from what's connected."
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - How the team releases: merge to main, GitHub releases, or release branches. The agent can
-  discover this by reading the repo. Enum first option: "Use your best judgment (I'll read
-  the repo)." Note in the description: handing this over is faster than the agent researching
-  it.
+  discover this by reading the repo. Enum with default "Use your best judgment (I'll read
+  the repo)"; the built-in Other… covers anything else. Note in the description: handing
+  this over is faster than the agent researching it.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub read tools (list merged PRs, get a PR).
@@ -81,8 +80,9 @@ authorize).
 - **Required vs researchable is explicit.** The repo and publish target are required (the agent
   cannot proceed without them). The release process is researchable, so its enum leads with
   "Use your best judgment."
-- **No prefilled defaults.** The repo guess lives in the field description, not a default field.
-  The recommended enum choice is listed first.
+- **Proposals ride the `default` field.** The repo guess becomes the field `default` when a
+  prior read surfaces one; the recommended enum choice is set as the `default`, and the
+  built-in Other… covers off-list answers.
 - **The priors table proposes a setup** per release process, so the agent does not interrogate
   the user about the trigger and tools.
 - **The instructions template ends on the publish tool** and names each tool in order. It does

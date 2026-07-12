@@ -1,8 +1,8 @@
 import { local } from "sandbox-agent/local";
-import { daytona } from "sandbox-agent/daytona";
 
 import type { SandboxPermission } from "../../protocol.ts";
 import { daytonaEnvVars } from "./daytona.ts";
+import { daytonaWithLifecycle } from "./daytona-provider.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -31,37 +31,31 @@ export function daytonaNetworkFields(
 }
 
 /**
- * Default Daytona auto-stop backstop (minutes of idle before the runner stops the sandbox).
- *
- * 15 minutes is the Daytona SDK's own documented default and sits comfortably beyond a normal
- * run (an actively prompting sandbox is BUSY, not idle, so this measures leaked-and-idle time,
- * not total run time). Override with `DAYTONA_AUTOSTOP` if runs idle
- * longer (e.g. long paused HITL turns).
+ * Idle-minute thresholds for Daytona lifecycle transitions. Each is measured from last activity
+ * and refreshed on every turn. Stop must exceed the 300-second maximum silent stretch of a live
+ * turn. A stopped sandbox keeps its disk; a deleted one is gone and must be recreated.
  */
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
+export const DEFAULT_DAYTONA_AUTODELETE_MINUTES = 30;
 
-/**
- * The auto-stop backstop, in minutes, that self-reaps a LEAKED Daytona sandbox.
- *
- * THE LEAK: the per-run teardown (`finally` in `sandbox_agent.ts`) deletes the sandbox on every
- * normal / error / client-disconnect path, but a process KILL (docker stop / SIGTERM / SIGKILL
- * / OOM mid-run) skips the `finally`, so the sandbox leaks. The Daytona create object pairs
- * `ephemeral: true` (auto-DELETE on stop) with a non-zero auto-stop interval here: the upstream
- * sandbox-agent wrapper hardcodes `autoStopInterval: 0` (auto-stop OFF) BUT spreads our create
- * object AFTER it, so this value wins. With auto-stop > 0 an idle leaked sandbox stops on its
- * own, which then fires the ephemeral auto-delete — so it self-reaps instead of burning credit.
- *
- * Returns a positive integer minute count, clamped to >= 1 (0 would re-disable auto-stop and
- * reintroduce the leak). Invalid / non-positive env values fall back to the default.
- */
+function positiveMinutes(rawValue: string | undefined, fallback: number): number {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.floor(parsed);
+}
+
+/** Idle minutes before a warm (stopped) sandbox is reached. Override `DAYTONA_AUTOSTOP`. */
 export function daytonaAutoStopMinutes(
   rawValue: string | undefined = process.env.DAYTONA_AUTOSTOP,
 ): number {
-  const parsed = Number(rawValue);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return DEFAULT_DAYTONA_AUTOSTOP_MINUTES;
-  }
-  return Math.floor(parsed);
+  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
+}
+
+/** Idle minutes before a stopped sandbox is deleted. Override `DAYTONA_AUTODELETE`. */
+export function daytonaAutoDeleteMinutes(
+  rawValue: string | undefined = process.env.DAYTONA_AUTODELETE,
+): number {
+  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTODELETE_MINUTES);
 }
 
 /**
@@ -87,14 +81,12 @@ export function buildDaytonaCreate(
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
     envVars: daytonaEnvVars(piExtEnv, secrets),
-    // Server-side leak backstop: `ephemeral` only auto-DELETES a sandbox when it STOPS, and the
-    // sandbox-agent wrapper hardcodes `autoStopInterval: 0` (auto-stop OFF) — the two cancel out,
-    // so a sandbox the runner leaks (a process KILL skips the per-run teardown `finally`) never
-    // self-reaps and burns credit forever. Setting a non-zero auto-stop here (our create object
-    // is spread AFTER the wrapper's hardcode, so this wins) makes an idle leaked sandbox stop on
-    // its own, which then triggers the ephemeral auto-delete.
+    // `ephemeral: false` lets stop park the sandbox. Leave autoArchiveInterval unset so Daytona's
+    // seven-day default sits beyond our 30-minute delete. The ladder is stop, then delete.
+    // These intervals override the wrapper's hardcoded zeroes. A leaked sandbox self-reaps.
     autoStopInterval: daytonaAutoStopMinutes(),
-    ephemeral: true,
+    autoDeleteInterval: daytonaAutoDeleteMinutes(),
+    ephemeral: false,
   };
 }
 
@@ -124,7 +116,7 @@ export function buildSandboxProvider(
 ) {
   if (sandboxId === "daytona") {
     const image = process.env.DAYTONA_IMAGE;
-    return daytona({
+    return daytonaWithLifecycle({
       ...(image ? { image } : {}),
       create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
     });

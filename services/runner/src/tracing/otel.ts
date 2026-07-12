@@ -55,8 +55,12 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
 
-export const TOOL_NOT_EXECUTED_PAUSED =
-  "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still required.";
+/** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
+ *  responder keys off this to keep the deferral out of the client-output store, and the web widget
+ *  keys off it to render the sibling as deferred rather than failed. */
+export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED";
+
+export const TOOL_NOT_EXECUTED_PAUSED = `${DEFERRED_NOT_EXECUTED_PREFIX}: paused for another approval; retry the same call if still required.`;
 
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
@@ -757,9 +761,9 @@ export function isBannerLine(line: string): boolean {
     t === "---" ||
     /^pi v\d+\.\d+\.\d+\b/.test(t) ||
     // section heading, raw ("## Context") or rendered ("Context"); same for "Skills"
-    /^(?:#{1,6}\s*)?(?:Context|Skills)\s*$/.test(t) ||
+    /^(?:#{1,6}\s*)?(?:Context|Skills|Extensions)\s*$/.test(t) ||
     // an AGENTS.md / *.md path item, list-prefixed ("- /…/AGENTS.md") or bare ("/…/AGENTS.md")
-    /^(?:-\s+)?\/\S*\.md\s*$/.test(t) ||
+    /^(?:-\s+)?\/\S*\.(?:md|js)\s*$/.test(t) ||
     // upgrade notice: "New version available: vX (installed vY). Run: `npm i -g …`"
     /^New version available:/.test(t) ||
     /^Run:\s*`?npm\s+i\b/.test(t)

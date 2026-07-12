@@ -310,16 +310,34 @@ const AppWithVariants = memo(
                                 appTheme={appTheme}
                                 appName={currentApp?.name ?? currentApp?.slug ?? ""}
                             />
-                            {isAppRoute && !getProjectValues().projectId ? null : isAppRoute ? (
+                            {/* ONE stable tree for both app and non-app routes: the layout flags
+                                (committed at routeChangeComplete, AFTER the destination page has
+                                rendered) may flip a beat after a client-side nav — as CLASSNAME
+                                changes only. The previous per-flag branches reparented {children},
+                                so that late flip unmounted and remounted the ENTIRE page (the
+                                warm re-entry "flash"). Never fork the element tree on these flags. */}
+                            {isAppRoute && !getProjectValues().projectId ? null : (
                                 <>
-                                    <CustomWorkflowBanner />
+                                    {isAppRoute ? <CustomWorkflowBanner /> : null}
                                     <Content
-                                        className={clsx("flex gap-4 flex-col w-full", {
-                                            "pb-0 mb-8": !isFullHeight,
-                                            "flex flex-col min-h-0 grow": isFullHeight,
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground || isAnnotations,
-                                        })}
+                                        key="layout-content"
+                                        className={clsx(
+                                            "flex gap-4",
+                                            isAppRoute && "flex-col w-full",
+                                            {
+                                                // Non-full-height pages keep the 30px bottom
+                                                // breathing room (h-calc only off app routes);
+                                                // full-height pages (playground/evaluator) must
+                                                // fill the content area.
+                                                "pb-0 mb-8": !isFullHeight,
+                                                "h-[calc(100%-30px)]": !isFullHeight && !isAppRoute,
+                                                "flex flex-col min-h-0 grow": isFullHeight,
+                                                "h-full": isFullHeight && !isAppRoute,
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isPlayground ||
+                                                    (isAppRoute ? isAnnotations : isEvaluator),
+                                            },
+                                        )}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -330,54 +348,20 @@ const AppWithVariants = memo(
                                                             : theme.defaultAlgorithm,
                                                 }}
                                             >
-                                                {isFullHeight ? (
-                                                    <div
-                                                        className={clsx(
-                                                            "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden",
-                                                        )}
-                                                    >
-                                                        {children}
-                                                    </div>
-                                                ) : (
-                                                    children
-                                                )}
+                                                <div
+                                                    className={clsx("w-full", {
+                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden":
+                                                            isFullHeight,
+                                                        "flex flex-col":
+                                                            !isFullHeight && !isAppRoute,
+                                                    })}
+                                                >
+                                                    {children}
+                                                </div>
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
                                 </>
-                            ) : (
-                                <Content
-                                    className={clsx("flex gap-4", {
-                                        // Non-full-height pages keep the 30px bottom breathing
-                                        // room; full-height pages (playground/evaluator) must
-                                        // fill the content area — the -30px left a dead band
-                                        // below the splitter.
-                                        "h-[calc(100%-30px)] pb-0 mb-8": !isFullHeight,
-                                        "h-full flex flex-col min-h-0 grow": isFullHeight,
-                                        "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isPlayground || isEvaluator,
-                                    })}
-                                >
-                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                        <ConfigProvider
-                                            theme={{
-                                                algorithm:
-                                                    appTheme === "dark"
-                                                        ? theme.darkAlgorithm
-                                                        : theme.defaultAlgorithm,
-                                            }}
-                                        >
-                                            <div
-                                                className={clsx("w-full flex flex-col", {
-                                                    "min-h-0 gap-6 h-[calc(100dvh-75px)] overflow-hidden":
-                                                        isFullHeight,
-                                                })}
-                                            >
-                                                {children}
-                                            </div>
-                                        </ConfigProvider>
-                                    </ErrorBoundary>
-                                </Content>
                             )}
                         </div>
                     </Layout>

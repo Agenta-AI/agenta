@@ -1,12 +1,12 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
-import {parseGatewayToolName, type ParsedToolName} from "@agenta/entities/workflow/commitDiff"
 import {HeightCollapse} from "@agenta/ui"
 import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
 import {Button, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {partToolName, resolveToolDisplay} from "../assets/toolDisplay"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import {resolveApprovalRenderer} from "./approvals/registry"
@@ -25,14 +25,6 @@ interface ApprovalRef {
 
 const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
 
-/** Friendly name for a tool part — mirrors ToolActivity: `dynamic-tool` carries `toolName`, typed
- * parts encode it as `tool-<name>`. */
-const partToolName = (part: ToolUIPart): string => {
-    const type = part.type as string
-    if (type === "dynamic-tool") return (part as {toolName?: string}).toolName || "tool"
-    return type.replace(/^tool-/, "")
-}
-
 /**
  * Approvals the run is currently blocked on. HITL only ever pauses the LAST assistant turn (see
  * `isHitlPending`), so we read pending tool gates off that turn — a turn can request several at
@@ -50,28 +42,6 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
         }
     }
     return out
-}
-
-/** A source label we can state factually from the tool name — not a guessed risk level. */
-const sourceLabel = (name: string): string | null => {
-    if (name.startsWith("mcp__")) return "MCP tool"
-    return null
-}
-
-/** Chat-mode display name: raw "scary" names stay Build-only; here we humanize gateway/MCP/plain
- * names (`mcp__linear__create_issue` → "Create issue" from Linear · MCP). Raw name stays reachable
- * via the tooltip and the payload expander. */
-const friendlyToolName = (name: string): ParsedToolName => {
-    if (name.startsWith("mcp__")) {
-        const parts = name.split("__").filter(Boolean)
-        const tool = parts[parts.length - 1]
-        const server = parts.length >= 3 ? parts[1] : undefined
-        return {
-            label: parseGatewayToolName(tool).label,
-            source: server ? `${parseGatewayToolName(server).label} · MCP` : "MCP",
-        }
-    }
-    return parseGatewayToolName(name)
 }
 
 const formatInput = (input: unknown): string => {
@@ -176,8 +146,11 @@ const ApprovalDock = ({
     const renderer =
         current && entityId && chatMode ? resolveApprovalRenderer(current.toolName) : null
 
-    const source = current ? sourceLabel(current.toolName) : null
-    const friendly: ParsedToolName = current ? friendlyToolName(current.toolName) : {label: ""}
+    // Chat-mode display name: raw "scary" names stay Build-only; the shared resolver humanizes
+    // gateway/MCP/plain names. Raw name stays reachable via the tooltip and the payload expander.
+    const friendly = current ? resolveToolDisplay(current.toolName) : null
+    // A source badge we can state factually from the tool name — not a guessed risk level.
+    const source = friendly?.kind === "mcp" ? "MCP tool" : null
 
     const respond = (approved: boolean) => {
         if (responding || !current) return
@@ -257,9 +230,9 @@ const ApprovalDock = ({
                                 >
                                     The agent wants to use{" "}
                                     <span className="font-medium text-colorText">
-                                        {friendly.label}
+                                        {friendly?.label}
                                     </span>
-                                    {friendly.source ? ` from ${friendly.source}` : ""} before it
+                                    {friendly?.source ? ` from ${friendly.source}` : ""} before it
                                     can keep going.
                                 </Text>
                             ) : (

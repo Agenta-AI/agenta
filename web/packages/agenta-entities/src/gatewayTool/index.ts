@@ -92,6 +92,7 @@ export type {ConnectionDrawerState, ExecutionDrawerState} from "./state"
 
 export {
     buildToolSlug,
+    toolActionAvailabilityKey,
     toolActionDetailQueryFamily,
     toolActionsSearchAtom,
     toolCatalogActionsInfiniteFamily,
@@ -103,6 +104,7 @@ export {
     toolIntegrationDetailQueryFamily,
     toolIntegrationsCategoryAtom,
     toolIntegrationsSearchAtom,
+    useToolActionAvailability,
     useToolActionDetail,
     useToolCatalogActions,
     useToolCatalogCategories,

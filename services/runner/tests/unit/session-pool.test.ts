@@ -19,22 +19,60 @@ import {
   poolKeyFor,
   priorConversation,
   readKeepaliveConfig,
+  resolvesToLocalProvider,
   SessionPool,
   tailIsFreshUserMessage,
   type CredentialEpoch,
 } from "../../src/engines/sandbox_agent/session-pool.ts";
 
+describe("resolvesToLocalProvider (local/remote gate)", () => {
+  it("is true when the request explicitly asks for local", () => {
+    assert.equal(resolvesToLocalProvider("local", {}), true);
+  });
+
+  it("is false when the request explicitly asks for daytona", () => {
+    assert.equal(resolvesToLocalProvider("daytona", {}), false);
+  });
+
+  it("falls back to SANDBOX_AGENT_PROVIDER when the request omits sandbox", () => {
+    assert.equal(
+      resolvesToLocalProvider(undefined, { SANDBOX_AGENT_PROVIDER: "daytona" }),
+      false,
+    );
+    assert.equal(
+      resolvesToLocalProvider(undefined, { SANDBOX_AGENT_PROVIDER: "local" }),
+      true,
+    );
+  });
+
+  it("defaults to local when neither the request nor env specify a provider", () => {
+    assert.equal(resolvesToLocalProvider(undefined, {}), true);
+  });
+
+  it("the request value wins over the env fallback", () => {
+    assert.equal(
+      resolvesToLocalProvider("local", { SANDBOX_AGENT_PROVIDER: "daytona" }),
+      true,
+    );
+    assert.equal(
+      resolvesToLocalProvider("daytona", { SANDBOX_AGENT_PROVIDER: "local" }),
+      false,
+    );
+  });
+});
+
 // A fake environment: only `destroy` matters to the pool; we count destroys. Idempotent like
 // the real engine `destroy()` closure (the pool's contract): a second call is a no-op.
 function fakeEnv() {
-  const state = { destroyed: 0 };
+  const state = { destroyed: 0, reasons: [] as string[] };
   let done = false;
   return {
     state,
-    destroy: async () => {
+    teardown: async (reason: string) => {
       if (done) return;
       done = true;
       state.destroyed += 1;
+      state.reasons.push(reason);
     },
   };
 }
@@ -49,7 +87,7 @@ function parkInput(key: string, env = fakeEnv()) {
       configFingerprint: "cfg",
       historyFingerprint: "hist",
       credentialEpoch: epoch,
-      destroy: env.destroy,
+      teardown: env.teardown,
     },
     env,
   };
@@ -112,6 +150,8 @@ describe("readKeepaliveConfig", () => {
     "AGENTA_RUNNER_SESSION_TTL_MS",
     "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS",
     "AGENTA_RUNNER_SESSION_POOL_MAX",
+    "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS",
+    "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM",
   ];
   const saved: Record<string, string | undefined> = {};
   beforeEach(() => {
@@ -128,7 +168,7 @@ describe("readKeepaliveConfig", () => {
   });
 
   it("defaults: off, 60s idle, 5m approval, cap 8", () => {
-    assert.deepEqual(readKeepaliveConfig(), {
+    assert.deepEqual(readKeepaliveConfig("local"), {
       enabled: false,
       ttlMs: 60_000,
       approvalTtlMs: 300_000,
@@ -140,19 +180,46 @@ describe("readKeepaliveConfig", () => {
     process.env.AGENTA_RUNNER_SESSION_KEEPALIVE = "true";
     process.env.AGENTA_RUNNER_SESSION_TTL_MS = "5000";
     process.env.AGENTA_RUNNER_SESSION_POOL_MAX = "3";
-    const cfg = readKeepaliveConfig();
+    const cfg = readKeepaliveConfig("local");
     assert.equal(cfg.enabled, true);
     assert.equal(cfg.ttlMs, 5000);
     assert.equal(cfg.poolMax, 3);
 
     process.env.AGENTA_RUNNER_SESSION_KEEPALIVE = "off";
-    assert.equal(readKeepaliveConfig().enabled, false);
+    assert.equal(readKeepaliveConfig("local").enabled, false);
     process.env.AGENTA_RUNNER_SESSION_TTL_MS = "-1";
     assert.equal(
-      readKeepaliveConfig().ttlMs,
+      readKeepaliveConfig("local").ttlMs,
       60_000,
       "invalid falls back to default",
     );
+  });
+
+  it("ships Daytona enabled at the two-minute default; TTL zero is the off switch", () => {
+    assert.deepEqual(readKeepaliveConfig("daytona"), {
+      enabled: true,
+      ttlMs: 120_000,
+      approvalTtlMs: 120_000,
+      poolMax: 20,
+    });
+    // 0 must disable, not fall back to the default: it is the documented off switch and
+    // there is no separate enabled flag on purpose.
+    process.env.AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS = "0";
+    assert.deepEqual(readKeepaliveConfig("daytona"), {
+      enabled: false,
+      ttlMs: 0,
+      approvalTtlMs: 0,
+      poolMax: 20,
+    });
+    process.env.AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS = "45000";
+    assert.deepEqual(readKeepaliveConfig("daytona"), {
+      enabled: true,
+      ttlMs: 45_000,
+      approvalTtlMs: 45_000,
+      poolMax: 20,
+    });
+    process.env.AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM = "7";
+    assert.equal(readKeepaliveConfig("daytona").poolMax, 7);
   });
 });
 
@@ -422,12 +489,52 @@ describe("credential epoch", () => {
 });
 
 describe("poolKeyFor", () => {
-  it("is <projectId>:<sessionId> when both present", () => {
-    assert.equal(poolKeyFor({ sessionId: "s1" }, "proj-1"), "proj-1:s1");
+  it("prefers the run-context project scope over the mount scope", () => {
+    // Both sources present: the service-stamped run-context id wins, and the source is reported.
+    assert.deepEqual(
+      poolKeyFor(
+        { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
+        "mount-proj",
+      ),
+      { key: "rc-proj:s1", source: "run-context" },
+    );
   });
-  it("is null without a session id or a mount project id (never park)", () => {
+  it("uses the run-context project scope even when there is no mount scope", () => {
+    assert.deepEqual(
+      poolKeyFor(
+        { sessionId: "s1", runContext: { project: { id: "rc-proj" } } },
+        undefined,
+      ),
+      { key: "rc-proj:s1", source: "run-context" },
+    );
+  });
+  it("falls back to the mount scope when the run context has no project", () => {
+    assert.deepEqual(poolKeyFor({ sessionId: "s1" }, "mount-proj"), {
+      key: "mount-proj:s1",
+      source: "mount",
+    });
+    // An empty/whitespace run-context id does not count as a scope: fall back to the mount.
+    assert.deepEqual(
+      poolKeyFor(
+        { sessionId: "s1", runContext: { project: { id: "  " } } },
+        "mount-proj",
+      ),
+      { key: "mount-proj:s1", source: "mount" },
+    );
+  });
+  it("is null when neither source yields a project scope (never park)", () => {
     assert.equal(poolKeyFor({ sessionId: "s1" }, undefined), null);
-    assert.equal(poolKeyFor({}, "proj-1"), null);
+    assert.equal(
+      poolKeyFor({ sessionId: "s1", runContext: { project: {} } }, undefined),
+      null,
+    );
+  });
+  it("is null without a session id even when a project scope exists (never park)", () => {
+    assert.equal(poolKeyFor({}, "mount-proj"), null);
+    assert.equal(
+      poolKeyFor({ runContext: { project: { id: "rc-proj" } } }, undefined),
+      null,
+    );
   });
 });
 
@@ -455,6 +562,7 @@ describe("SessionPool", () => {
       pool.park(input, 1000);
       await vi.advanceTimersByTimeAsync(1001);
       assert.equal(env.state.destroyed, 1, "expired session is destroyed");
+      assert.deepEqual(env.state.reasons, ["idle-expiry"]);
       assert.equal(pool.size(), 0);
     } finally {
       vi.useRealTimers();
@@ -474,8 +582,148 @@ describe("SessionPool", () => {
     assert.equal(await pool.park(c.input, 10_000), true);
     await Promise.resolve();
     assert.equal(b.env.state.destroyed, 1, "the idle entry was evicted");
+    assert.deepEqual(b.env.state.reasons, ["capacity-eviction"]);
     assert.equal(a.env.state.destroyed, 0, "the busy entry is never evicted");
     assert.deepEqual(pool.keys().sort(), ["a", "c"]);
+  });
+
+  it("strict capacity keeps a stopping seat and awaits teardown before inserting", async () => {
+    let releaseTeardown: (() => void) | undefined;
+    let teardownCompleted = false;
+    const stoppingEnv = {
+      state: { destroyed: 0, reasons: [] as string[] },
+      teardown: async (reason: string) => {
+        await new Promise<void>((resolve) => {
+          releaseTeardown = resolve;
+        });
+        teardownCompleted = true;
+        stoppingEnv.state.destroyed += 1;
+        stoppingEnv.state.reasons.push(reason);
+      },
+    };
+    const pool = new SessionPool(
+      { poolMax: 1 },
+      () => {},
+      { strictCapacity: true },
+    );
+    await pool.park(parkInput("a", stoppingEnv).input, 10_000);
+
+    const replacement = parkInput("b");
+    const parked = pool.park(replacement.input, 10_000);
+    await Promise.resolve();
+
+    assert.equal(pool.size(), 1, "the stopping entry still consumes its seat");
+    assert.equal(pool.get("a")?.state, "destroyed");
+    assert.equal(pool.get("b"), undefined);
+    assert.equal(pool.checkoutIdle("a"), undefined);
+    assert.equal(pool.checkoutApproval("a"), undefined);
+
+    releaseTeardown?.();
+    assert.equal(await parked, true);
+    assert.equal(teardownCompleted, true, "teardown completes before park resolves");
+    assert.equal(pool.get("a"), undefined);
+    assert.equal(pool.get("b")?.state, "idle");
+  });
+
+  it("strict capacity returns false at cap when no idle entry exists", async () => {
+    const pool = new SessionPool(
+      { poolMax: 1 },
+      () => {},
+      { strictCapacity: true },
+    );
+    const busy = parkInput("busy");
+    await pool.park(busy.input, 10_000);
+    pool.checkoutIdle("busy");
+    const overflow = parkInput("overflow");
+
+    assert.equal(await pool.park(overflow.input, 10_000), false);
+    assert.equal(pool.get("busy")?.state, "busy");
+    assert.equal(busy.env.state.destroyed, 0);
+    assert.equal(overflow.env.state.destroyed, 0);
+  });
+
+  it("strict approval checkout stays seated while it is busy", async () => {
+    const pool = new SessionPool(
+      { poolMax: 1 },
+      () => {},
+      { strictCapacity: true },
+    );
+    await pool.park(
+      parkInput("approval").input,
+      10_000,
+      "awaiting_approval",
+    );
+
+    const live = pool.checkoutApproval("approval");
+
+    assert.ok(live);
+    assert.equal(live.state, "busy");
+    assert.equal(pool.get("approval"), live);
+    assert.equal(pool.size(), 1);
+    assert.equal(pool.checkoutApproval("approval"), undefined);
+  });
+
+  it("a strict stopping entry cannot be checked out or reparked over", async () => {
+    let releaseTeardown: (() => void) | undefined;
+    const environment = {
+      state: { destroyed: 0, reasons: [] as string[] },
+      teardown: async (_reason: string) =>
+        new Promise<void>((resolve) => {
+          releaseTeardown = resolve;
+        }),
+    };
+    const pool = new SessionPool(
+      { poolMax: 1 },
+      () => {},
+      { strictCapacity: true },
+    );
+    await pool.park(parkInput("a", environment).input, 10_000);
+    const stopping = pool.get("a")!;
+    const replacement = pool.park(parkInput("b").input, 10_000);
+    await Promise.resolve();
+
+    assert.equal(stopping.state, "destroyed");
+    assert.equal(pool.checkoutIdle("a"), undefined);
+    assert.equal(pool.checkoutApproval("a"), undefined);
+    assert.equal(
+      await pool.repark(stopping, {
+        configFingerprint: "new",
+        historyFingerprint: "new",
+        credentialEpoch: epoch,
+      }, 10_000),
+      false,
+    );
+    assert.equal(pool.get("a"), stopping, "repark does not clobber the seated stop");
+
+    releaseTeardown?.();
+    assert.equal(await replacement, true);
+  });
+
+  it("non-strict capacity still frees the seat before teardown completes", async () => {
+    let releaseTeardown: (() => void) | undefined;
+    let teardownCompleted = false;
+    const environment = {
+      state: { destroyed: 0, reasons: [] as string[] },
+      teardown: async (reason: string) => {
+        await new Promise<void>((resolve) => {
+          releaseTeardown = resolve;
+        });
+        teardownCompleted = true;
+        environment.state.destroyed += 1;
+        environment.state.reasons.push(reason);
+      },
+    };
+    const pool = new SessionPool({ poolMax: 1 }, () => {});
+    await pool.park(parkInput("a", environment).input, 10_000);
+
+    assert.equal(await pool.park(parkInput("b").input, 10_000), true);
+    assert.equal(teardownCompleted, false);
+    assert.equal(pool.get("a"), undefined);
+    assert.equal(pool.get("b")?.state, "idle");
+
+    releaseTeardown?.();
+    await Promise.resolve();
+    assert.equal(teardownCompleted, true);
   });
 
   it("checkoutApproval REMOVES the session from the map (a racing request misses)", () => {
@@ -497,12 +745,12 @@ describe("SessionPool", () => {
     assert.equal(pool.checkoutApproval("k1"), undefined);
   });
 
-  it("repark re-inserts a checked-out approval session into an EMPTY slot", () => {
+  it("repark re-inserts a checked-out approval session into an EMPTY slot", async () => {
     const pool = new SessionPool(cfg, () => {});
     const { input, env } = parkInput("k1");
     pool.park(input, 10_000, "awaiting_approval");
     const live = pool.checkoutApproval("k1")!;
-    const ok = pool.repark(
+    const ok = await pool.repark(
       live,
       {
         configFingerprint: "cfg2",
@@ -529,7 +777,7 @@ describe("SessionPool", () => {
     // A racing request parked a NEWER session under the same key while the resume ran.
     const b = parkInput("k1");
     pool.park(b.input, 10_000);
-    const ok = pool.repark(
+    const ok = await pool.repark(
       live,
       {
         configFingerprint: "cfg2",
@@ -556,7 +804,7 @@ describe("SessionPool", () => {
     // A /kill drain destroys everything, including the checked-out-but-mapped busy session.
     await pool.destroyAll();
     assert.equal(env.state.destroyed, 1);
-    const ok = pool.repark(
+    const ok = await pool.repark(
       live,
       {
         configFingerprint: "cfg2",
@@ -636,7 +884,7 @@ describe("SessionPool", () => {
     pool.park(a.input, 10_000);
     const live = pool.checkoutIdle("k1")!;
     assert.equal(
-      pool.repark(
+      await pool.repark(
         live,
         {
           configFingerprint: "c2",
@@ -652,9 +900,9 @@ describe("SessionPool", () => {
 
     // Supersede: a new entry takes the slot; the old `live` must not be reparked.
     const live2 = pool.checkoutIdle("k1")!;
-    await pool.evict("k1", "supersede");
+    await pool.evict("k1", "supersede", "failed-turn");
     assert.equal(
-      pool.repark(
+      await pool.repark(
         live2,
         {
           configFingerprint: "c",
@@ -672,17 +920,25 @@ describe("SessionPool", () => {
     const pool = new SessionPool(cfg, () => {});
     const a = parkInput("k1");
     pool.park(a.input, 10_000);
-    assert.equal(await pool.evict("k1", "test"), true);
+    assert.equal(await pool.evict("k1", "test", "failed-turn"), true);
     // Awaited: the destroy has already completed by the time evict resolves.
     assert.equal(a.env.state.destroyed, 1);
     // Second evict/destroy is a no-op.
-    assert.equal(await pool.evict("k1", "test"), false);
+    assert.equal(await pool.evict("k1", "test", "failed-turn"), false);
     await pool.destroy("k1");
     assert.equal(
       a.env.state.destroyed,
       1,
       "the environment is destroyed exactly once",
     );
+  });
+
+  it("evict keeps its log label separate from the teardown reason", async () => {
+    const pool = new SessionPool(cfg, () => {});
+    const session = parkInput("k1");
+    await pool.park(session.input, 10_000);
+    await pool.evict("k1", "continuation-failed", "failed-turn");
+    assert.deepEqual(session.env.state.reasons, ["failed-turn"]);
   });
 
   it("evictIfCurrent never clobbers a racing turn's freshly parked session (B supersedes busy A)", async () => {
@@ -695,13 +951,14 @@ describe("SessionPool", () => {
     const liveA = pool.checkoutIdle("k1")!; // A's continuation begins (busy)
 
     // B arrives, supersedes the busy A, and parks its own session under k1.
-    await pool.evict("k1", "supersede-busy");
+    await pool.evict("k1", "supersede-busy", "failed-turn");
     assert.equal(a.env.state.destroyed, 1, "A was superseded and destroyed");
     const b = parkInput("k1");
     pool.park(b.input, 10_000);
 
     // A's continuation now fails; its cleanup is identity-checked.
-    await pool.evictIfCurrent(liveA, "continuation-failed");
+    await pool.evictIfCurrent(liveA, "continuation-failed", "failed-turn");
+    assert.deepEqual(a.env.state.reasons, ["failed-turn"]);
 
     assert.equal(pool.size(), 1, "B's parked session is still in the pool");
     assert.equal(
@@ -724,14 +981,15 @@ describe("SessionPool", () => {
     const pool = new SessionPool({ poolMax: 4 }, () => {});
     // A's destroy is gated: it does not resolve until we release it, standing in for a slow unmount.
     let releaseADestroy: (() => void) | undefined;
-    const aState = { destroyed: 0 };
+    const aState = { destroyed: 0, reasons: [] as string[] };
     const aEnv = {
       state: aState,
-      destroy: async () => {
+      teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseADestroy = resolve;
         });
         aState.destroyed += 1;
+        aState.reasons.push(reason);
       },
     };
     const a = parkInput("k1", aEnv);
@@ -780,8 +1038,38 @@ describe("SessionPool", () => {
       return p.env;
     });
     assert.equal(pool.size(), 3);
-    await pool.destroyAll();
+    await pool.destroyAll(5000, "shutdown-idle", "shutdown-in-flight");
     assert.equal(pool.size(), 0);
-    for (const env of envs) assert.equal(env.state.destroyed, 1);
+    for (const env of envs) {
+      assert.equal(env.state.destroyed, 1);
+      assert.deepEqual(env.state.reasons, ["shutdown-idle"]);
+    }
+  });
+
+  it("destroyAll gives busy sessions the in-flight shutdown reason", async () => {
+    const pool = new SessionPool({ poolMax: 3 }, () => {});
+    const idle = parkInput("idle");
+    const busy = parkInput("busy");
+    const approval = parkInput("approval");
+    await pool.park(idle.input, 10_000);
+    await pool.park(busy.input, 10_000);
+    await pool.park(approval.input, 10_000, "awaiting_approval");
+    pool.checkoutIdle("busy");
+    await pool.destroyAll(5000, "shutdown-idle", "shutdown-in-flight");
+    assert.deepEqual(idle.env.state.reasons, ["shutdown-idle"]);
+    assert.deepEqual(busy.env.state.reasons, ["shutdown-in-flight"]);
+    assert.deepEqual(approval.env.state.reasons, ["shutdown-in-flight"]);
+  });
+
+  it("destroyAll passes kill to every state for a kill drain", async () => {
+    const pool = new SessionPool({ poolMax: 2 }, () => {});
+    const idle = parkInput("idle");
+    const busy = parkInput("busy");
+    await pool.park(idle.input, 10_000);
+    await pool.park(busy.input, 10_000);
+    pool.checkoutIdle("busy");
+    await pool.destroyAll(5000, "kill", "kill");
+    assert.deepEqual(idle.env.state.reasons, ["kill"]);
+    assert.deepEqual(busy.env.state.reasons, ["kill"]);
   });
 });

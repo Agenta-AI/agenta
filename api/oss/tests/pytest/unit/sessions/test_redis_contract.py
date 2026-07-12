@@ -47,6 +47,7 @@ _FIXTURE_PATH = (
 )
 
 _SESSION_EXAMPLE = "sess-123"
+_PROJECT_EXAMPLE = "proj-abc"
 _WATCHER_EXAMPLE = "watcher-abc"
 
 
@@ -93,24 +94,36 @@ def test_heartbeat_write_threshold(fixture):
 
 
 def test_alive_key(fixture):
-    assert alive_key(_SESSION_EXAMPLE) == fixture["keys"]["alive_example"]
+    assert (
+        alive_key(_PROJECT_EXAMPLE, _SESSION_EXAMPLE)
+        == fixture["keys"]["alive_example"]
+    )
 
 
 def test_running_key(fixture):
-    assert running_key(_SESSION_EXAMPLE) == fixture["keys"]["running_example"]
+    assert (
+        running_key(_PROJECT_EXAMPLE, _SESSION_EXAMPLE)
+        == fixture["keys"]["running_example"]
+    )
 
 
 def test_attached_key(fixture):
-    assert attached_key(_SESSION_EXAMPLE) == fixture["keys"]["attached_example"]
+    assert (
+        attached_key(_PROJECT_EXAMPLE, _SESSION_EXAMPLE)
+        == fixture["keys"]["attached_example"]
+    )
 
 
 def test_owner_key(fixture):
-    assert owner_key(_SESSION_EXAMPLE) == fixture["keys"]["owner_example"]
+    assert (
+        owner_key(_PROJECT_EXAMPLE, _SESSION_EXAMPLE)
+        == fixture["keys"]["owner_example"]
+    )
 
 
 def test_displaced_channel(fixture):
     assert (
-        displaced_channel(_SESSION_EXAMPLE)
+        displaced_channel(_PROJECT_EXAMPLE, _SESSION_EXAMPLE)
         == fixture["keys"]["displaced_channel_example"]
     )
 

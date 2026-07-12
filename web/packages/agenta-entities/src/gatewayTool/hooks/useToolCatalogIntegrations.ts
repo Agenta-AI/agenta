@@ -47,6 +47,9 @@ export const toolCatalogIntegrationsInfiniteAtom =
                     category: category || undefined,
                     limit: CHUNK_SIZE,
                     cursor: (pageParam as string) || undefined,
+                    // Secondary (tool catalog / connected-tool names); yield to the render-critical
+                    // playground queries. Low priority is a no-op once the drawer is open (no contention).
+                    lowPriority: true,
                 }),
             initialPageParam: "",
             getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,

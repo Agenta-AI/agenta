@@ -8,11 +8,9 @@
  *
  * This module covers the LOCAL sandbox: the daemon runs on this host, so the cwd is a host
  * directory and geesefs mounts on-host — the signed credentials never enter agent-reachable
- * space. The remote (Daytona/E2B) path mounts INSIDE the sandbox and is layered on top of
- * this in M9.
+ * space. The remote (Daytona/E2B) path mounts INSIDE the sandbox and is layered on top of this.
  *
- * Mirrors the PoC recipe in `poc-persistent-sessions/sessions/demo/sidecar/sandbox-provider.js`
- * (`geesefsScript`), but with scoped STS credentials instead of the bucket-wide master key.
+ * Uses scoped STS credentials instead of a bucket-wide master key.
  */
 
 import { execFile, spawn } from "node:child_process";
@@ -33,9 +31,10 @@ export interface MountCredentials {
   expiresAt?: string;
   /**
    * The mount's owning project id, surfaced from the sign response's `mount` object. It is the
-   * only project scope the runner can trust for this request (the /run wire carries no project
-   * id today), so session keep-alive keys its pool on `<projectId>:<sessionId>`. Absent when the
-   * response omitted the mount object; keep-alive then refuses to park (no safe key source).
+   * FALLBACK project scope for session keep-alive: the pool prefers the service-stamped
+   * `runContext.project.id` and falls back to this mount scope when the run carries no stamped
+   * project (see `poolKeyFor`). Absent when the response omitted the mount object; keep-alive
+   * then parks only if the run context supplied a scope, and refuses to park when neither does.
    */
   projectId?: string;
 }
@@ -53,18 +52,22 @@ function defaultLog(msg: string): void {
 }
 
 /**
- * Bind-and-sign the session's durable cwd mount. The API upserts the one `cwd` mount for the
- * session (get-or-create) and returns credentials scoped to its prefix. Returns null when the
- * store is not configured (503) or the call fails — the caller then runs on an ephemeral cwd,
- * never aborting the turn for a missing mount.
+ * Bind-and-sign one of the session's durable mounts. The API upserts the named mount for the
+ * session (get-or-create) and returns credentials scoped to its own prefix. `name` defaults to
+ * `"cwd"` (the original single-mount case, byte-identical call shape); any other name signs an
+ * ADDITIONAL session-scoped mount with its own `mount_id` and prefix — same shape, same sign
+ * endpoint, just a different name (per-harness transcript mounts use this). Returns null when
+ * the store is not configured (503) or the call fails — the caller then runs without this mount,
+ * never aborting the turn for a missing one.
  */
 export async function signSessionMountCredentials(
   sessionId: string,
   deps: SignMountDeps,
+  name: string = "cwd",
 ): Promise<MountCredentials | null> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
-  const url = `${deps.apiBase}/sessions/mounts/sign?session_id=${encodeURIComponent(sessionId)}`;
+  const url = `${deps.apiBase}/sessions/mounts/sign?session_id=${encodeURIComponent(sessionId)}&name=${encodeURIComponent(name)}`;
   try {
     const res = await doFetch(url, {
       method: "POST",
@@ -74,9 +77,9 @@ export async function signSessionMountCredentials(
       },
     });
     if (!res.ok) {
-      // 503 = storage not configured (mounts disabled). Any non-2xx → run without a mount.
+      // 503 = storage not configured (mounts disabled). Any non-2xx → run without this mount.
       log(
-        `sign HTTP ${res.status} session=${sessionId} — running without a durable cwd`,
+        `sign HTTP ${res.status} session=${sessionId} name=${name} — running without this mount`,
       );
       return null;
     }
@@ -122,20 +125,92 @@ export async function signSessionMountCredentials(
   }
 }
 
+// --- per-harness session-scoped transcript mounts --- //
+//
+// Beyond cwd, each harness keeps its own on-disk session/transcript directory that
+// `session/load` reads back. That directory must survive sandbox teardown the same way cwd
+// does: same shape (sign -> geesefs-mount), its own `mount_id`/prefix per (session, harness,
+// dir). Credentials are explicitly EXCLUDED — the runner re-injects managed creds per run
+// (`daemon.ts`), so persisting auth to the durable store is a real risk, not a convenience.
+//
+// Direct-mount is the default: the harness writes straight through geesefs at the mounted
+// path, accepting append-heavy-JSONL write amplification. Copy-around-lifecycle (stage
+// locally, sync in/out at turn boundaries) is a documented fallback ONLY if direct-mount shows
+// ENOTCONN/perf problems in practice — not implemented here; the seam is
+// `HarnessSessionMount.path`, which any future copy-around step would stage into instead of
+// mounting live.
+
+/** One harness's durable session/transcript directory to mount, relative to `$HOME`. */
+export interface HarnessSessionMount {
+  /** Mount name passed to `POST /sessions/mounts/sign?name=...`; unique per (session, harness, dir). */
+  name: string;
+  /** Absolute in-sandbox/on-host path this mount binds to (home-relative, credentials excluded). */
+  path: string;
+}
+
+/**
+ * The session-scoped directories a harness needs durable, EXCLUDING credential/auth files.
+ * `homeDir` is the resolved `$HOME` for the sandbox (differs local vs Daytona); each entry's
+ * `path` is `${homeDir}/<harness transcript dir>`. Returns `[]` for a harness with nothing to
+ * mount (unknown/unlisted harness) — callers then mount only cwd, unchanged from today.
+ *
+ * Claude: `~/.claude/projects` (session transcripts) — explicitly NOT `~/.claude` whole (that
+ * would sweep in `.credentials.json` / the OAuth cache). Pi: `~/.pi/agent/sessions`, or
+ * `$PI_CODING_AGENT_DIR/sessions` when that env overrides Pi's home-relative default.
+ */
+export function harnessSessionMounts(
+  acpAgent: string,
+  homeDir: string,
+  piAgentDir?: string,
+): HarnessSessionMount[] {
+  if (acpAgent === "claude") {
+    return [{ name: "claude-projects", path: `${homeDir}/.claude/projects` }];
+  }
+  if (acpAgent === "pi") {
+    const base = piAgentDir?.trim() || `${homeDir}/.pi/agent`;
+    return [{ name: "pi-sessions", path: `${base}/sessions` }];
+  }
+  return [];
+}
+
 /** geesefs endpoint flag: an empty endpoint means real AWS S3 (geesefs default). */
 function endpointArgs(endpoint?: string): string[] {
   return endpoint ? ["--endpoint", endpoint] : [];
 }
 
+/** True if a remote sandbox can reach the store directly (public S3); false for in-network stores that need the tunnel. */
+export function storeReachableFromSandbox(endpoint?: string): boolean {
+  if (!endpoint) return true;
+  let host: string;
+  try {
+    host = new URL(endpoint).hostname;
+  } catch {
+    return false;
+  }
+  if (host === "localhost" || host.endsWith(".local")) return false;
+  if (!host.includes(".")) return false; // compose service name
+  if (
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    /^169\.254\./.test(host)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * The geesefs argv for mounting `bucket:prefix` at `cwd`. Endpoint is overridable so the remote
- * path can substitute the public tunnel URL for the in-network one. `--fsync-on-close` matches
- * the PoC: durability over latency, so a turn's writes land before teardown.
+ * path can substitute the public tunnel URL for the in-network one. `--fsync-on-close` favors
+ * durability over latency, so a turn's writes land before teardown.
  */
 function geesefsArgs(
   creds: MountCredentials,
   cwd: string,
   endpoint?: string,
+  foreground = true,
 ): string[] {
   return [
     ...endpointArgs(endpoint ?? creds.endpoint),
@@ -143,11 +218,9 @@ function geesefsArgs(
     creds.region,
     "--no-detect",
     "--fsync-on-close",
-    // -f keeps geesefs in the FOREGROUND as a tracked child of the runner. Without it geesefs
-    // double-forks into a detached daemon that is reparented to init and dies under write-heavy
-    // load (a `git clone`'s pack write/rename drops the FUSE channel -> ENOTCONN). Foreground
-    // survives the same workload; the runner owns the process and tears it down on teardown.
-    "-f",
+    // -f keeps geesefs foreground as a tracked child locally (a detached daemon dies under
+    // write-heavy load -> ENOTCONN); remote it must detach, else the blocking RPC times out.
+    ...(foreground ? ["-f"] : []),
     "-o",
     "allow_other",
     `${creds.bucket}:${creds.prefix}`,
@@ -210,7 +283,7 @@ export interface MountStorageDeps {
  * Idempotent: a no-op when `cwd` is already a mountpoint. The scoped credentials ride the
  * child env (AWS_*), never the argv, so they do not leak to the process table. Returns true
  * when the mount is live, false when it could not be established — the caller proceeds on the
- * plain (ephemeral) cwd rather than aborting, mirroring the PoC's best-effort behavior.
+ * plain (ephemeral) cwd rather than aborting (best-effort).
  */
 export async function mountStorage(
   cwd: string,
@@ -359,7 +432,7 @@ export interface TunnelDeps {
 /**
  * Resolve the public tunnel URL for the in-network store endpoint. A remote sandbox cannot
  * reach `seaweedfs:8333` on the compose network, so geesefs there must hit a public URL; the
- * `ngrok` service (M9 compose profile `remote`) tunnels the store, and its agent API lists the
+ * `ngrok` service (compose profile `remote`) tunnels the store, and its agent API lists the
  * active tunnels. Returns null when no tunnel is up (then the remote mount is skipped, not fatal).
  */
 export async function discoverTunnelEndpoint(
@@ -403,23 +476,90 @@ export interface SandboxExec {
     cwd?: string;
     env?: Record<string, string>;
     timeoutMs?: number;
-  }) => Promise<{ exitCode?: number; stderr?: unknown } | undefined>;
+  }) => Promise<
+    { exitCode?: number; stderr?: unknown; result?: unknown } | undefined
+  >;
 }
 
 export interface MountStorageRemoteDeps {
-  /** Public endpoint geesefs uses from inside the sandbox (the tunnel URL). */
-  endpoint: string;
+  /** Tunnel URL for an in-network store; omit for a public store (geesefs uses `creds.endpoint`). */
+  endpoint?: string;
   mountTimeoutMs?: number;
+  /**
+   * Liveness poll budget (attempts x ~5.5s: a 5s exec cap + a 500ms delay). Default 12, about a
+   * minute worst case. Lowered by tests.
+   */
+  aliveAttempts?: number;
   log?: (msg: string) => void;
 }
 
 /**
- * geesefs-mount the durable prefix at `cwd` INSIDE a remote sandbox (Daytona/E2B).
+ * Poll a remote mountpoint until it serves I/O, mirroring the local `isMounted` loop.
  *
- * geesefs runs in the sandbox, so the store endpoint is the public tunnel URL (not the
- * in-network one). The scoped credentials cross into the sandbox via the process env — they
- * are short-lived and prefix-scoped, the one place creds reach agent-adjacent space, by design.
- * Best-effort: a non-zero exit returns false and the run proceeds on the plain cwd.
+ * Each attempt's exec is capped at 5s, not 10s: on a dead-but-registered mount the `ls` hangs
+ * for the FULL per-attempt timeout, so the old 30-attempt/10s budget was a ~5 minute worst
+ * case before the caller ever gave up. 12 attempts at ~5.5s each (exec + poll delay) bounds it
+ * to about a minute. Some sandbox providers throw on an exec timeout instead of returning a
+ * non-zero exit, so a throw counts as one failed attempt rather than aborting the whole poll —
+ * but two throws in a row break out early, since that means the sandbox itself is unreachable,
+ * not just slow.
+ */
+async function remoteMountAlive(
+  sandbox: SandboxExec,
+  cwd: string,
+  attempts: number,
+): Promise<boolean> {
+  let consecutiveThrows = 0;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await sandbox.runProcess({
+        command: "sh",
+        args: ["-c", `mountpoint -q ${cwd} && ls ${cwd} >/dev/null 2>&1`],
+        timeoutMs: 5_000,
+      });
+      consecutiveThrows = 0;
+      if (res?.exitCode === 0) return true;
+    } catch {
+      consecutiveThrows += 1;
+      if (consecutiveThrows >= 2) break;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
+/**
+ * Best-effort unmount inside the remote sandbox after a mount attempt that never came alive (or
+ * blew up before we could tell). geesefs may have registered the FUSE mount without ever serving
+ * I/O; leaving it in place shadows the cwd, so every later file operation hangs until the run
+ * limit kills the turn. Errors are swallowed and logged, never thrown — the caller is already on
+ * its way to returning false and must not fail harder because cleanup itself failed.
+ */
+async function unmountRemoteDeadMount(
+  sandbox: SandboxExec,
+  cwd: string,
+  log: (m: string) => void,
+): Promise<void> {
+  try {
+    await sandbox.runProcess({
+      command: "sh",
+      args: [
+        "-c",
+        `fusermount -u ${cwd} 2>/dev/null || umount -l ${cwd} 2>/dev/null || true`,
+      ],
+      timeoutMs: 10_000,
+    });
+  } catch (err) {
+    log(
+      `remote dead-mount cleanup failed ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
+    );
+  }
+}
+
+/**
+ * geesefs-mount the durable prefix at `cwd` INSIDE a remote sandbox (Daytona/E2B). geesefs must
+ * detach (no `-f`) because `runProcess` blocks until the command exits. Best-effort: a failed
+ * mount returns false and the run proceeds on the plain cwd.
  */
 export async function mountStorageRemote(
   sandbox: SandboxExec,
@@ -429,15 +569,23 @@ export async function mountStorageRemote(
 ): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   try {
-    // Idempotent + ensure the dir exists, mirroring the PoC's geesefs script preamble.
+    // A reattached running sandbox may still hold a FUSE mount with expired credentials. Detach
+    // it before remounting; on a fresh sandbox this is one fast best-effort no-op.
+    await unmountRemoteDeadMount(sandbox, cwd, log);
+    // Ensure the directory exists before mounting.
     await sandbox.runProcess({
       command: "sh",
       args: ["-c", `mkdir -p ${cwd}`],
       timeoutMs: 30_000,
     });
+    // Background geesefs with its logs to a file so the RPC returns immediately.
+    const args = geesefsArgs(creds, cwd, deps.endpoint, false);
+    const logFile = "/tmp/geesefs-mount.log";
+    const geefsCmd = `geesefs --log-file ${logFile} ${args.join(" ")} >>${logFile} 2>&1 &`;
+    log(`remote geesefs argv: ${args.join(" ")}`);
     const res = await sandbox.runProcess({
-      command: "geesefs",
-      args: geesefsArgs(creds, cwd, deps.endpoint),
+      command: "sh",
+      args: ["-c", geefsCmd],
       env: credEnv(creds),
       timeoutMs: deps.mountTimeoutMs ?? 60_000,
     });
@@ -447,12 +595,84 @@ export async function mountStorageRemote(
       );
       return false;
     }
-    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd}`);
+    // The daemon backgrounds before the FUSE channel serves I/O, so wait for it.
+    if (!(await remoteMountAlive(sandbox, cwd, deps.aliveAttempts ?? 12))) {
+      const tail = await sandbox.runProcess({
+        command: "sh",
+        args: ["-c", "tail -5 /tmp/geesefs-mount.log 2>/dev/null"],
+        timeoutMs: 10_000,
+      });
+      log(
+        `remote mount not alive ${creds.bucket}:${creds.prefix} -> ${cwd}` +
+          `; geesefs: ${String(tail?.result ?? tail?.stderr ?? "").slice(-400)}`,
+      );
+      // geesefs may have registered the FUSE node without ever serving I/O. Left in place it
+      // shadows cwd for every later file op, so detach it before giving up on this mount.
+      await unmountRemoteDeadMount(sandbox, cwd, log);
+      return false;
+    }
+    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
     return true;
   } catch (err) {
     log(
       `remote mount failed: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
+    // Same reasoning as the not-alive branch above: whatever failed, a FUSE node may already be
+    // registered at cwd, so clear it before returning false rather than leaving a dead mount.
+    await unmountRemoteDeadMount(sandbox, cwd, log);
     return false;
+  }
+}
+
+export interface MountHarnessSessionDirsDeps {
+  apiBase: string;
+  authorization: string;
+  fetchImpl?: typeof fetch;
+  log?: (msg: string) => void;
+  signSessionMountCredentials?: typeof signSessionMountCredentials;
+  mountStorageRemote?: typeof mountStorageRemote;
+}
+
+/**
+ * Sign and mount every durable session-scoped dir a harness needs, INSIDE a remote sandbox.
+ * Local runs call none of this: `~/.claude` there is the runner container's own disk (see
+ * module doc), so this function is Daytona/remote-only by construction (it always mounts
+ * INSIDE the given sandbox, mirroring `mountStorageRemote`). Each dir is its own sign call +
+ * its own geesefs mount, same shape as the cwd mount, additive and best-effort: a failed sign
+ * or mount for one dir is logged and skipped, never aborts the turn or blocks the other dirs.
+ */
+export async function mountHarnessSessionDirs(
+  sandbox: SandboxExec,
+  sessionId: string,
+  dirs: HarnessSessionMount[],
+  // Tunnel URL for an in-network store; undefined for a public store (uses `creds.endpoint`).
+  tunnelEndpoint: string | undefined,
+  deps: MountHarnessSessionDirsDeps,
+): Promise<void> {
+  if (dirs.length === 0) return;
+  const log = deps.log ?? defaultLog;
+  const signMount =
+    deps.signSessionMountCredentials ?? signSessionMountCredentials;
+  const mountRemote = deps.mountStorageRemote ?? mountStorageRemote;
+
+  for (const dir of dirs) {
+    const creds = await signMount(
+      sessionId,
+      {
+        apiBase: deps.apiBase,
+        authorization: deps.authorization,
+        fetchImpl: deps.fetchImpl,
+        log,
+      },
+      dir.name,
+    );
+    if (!creds) {
+      log(`harness session mount '${dir.name}' not signed — skipping ${dir.path}`);
+      continue;
+    }
+    await mountRemote(sandbox, dir.path, creds, {
+      endpoint: tunnelEndpoint,
+      log,
+    });
   }
 }

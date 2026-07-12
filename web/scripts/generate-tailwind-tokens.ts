@@ -227,7 +227,10 @@ function buildShim() {
 // FEATURE FAMILIES — palette-driven (ref/env/cmp/type/surface/composer/status/
 // drawer/app-variant), mapped to their existing --ag var names.
 // ---------------------------------------------------------------------------
-type FVal = {light?: string; dark?: string}
+interface FVal {
+    light?: string
+    dark?: string
+}
 const s = (v: ColorValue) => asCss(v)
 const pairOf = (p: Pair): FVal => ({light: s(p.light), dark: s(p.dark)})
 const camelToKebab = (k: string) => k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())
@@ -298,6 +301,9 @@ const FEATURES: [string, FVal][] = [
     ),
     ["strip-input-border", pairOf(pf.templateStrip.inputBorder)],
     ["strip-selected-bg", pairOf(pf.templateStrip.selectedBg)],
+    ["strip-card-bg", pairOf(pf.templateStrip.cardBg)],
+    ["strip-card-border", pairOf(pf.templateStrip.cardBorder)],
+    ["strip-card-border-hover", pairOf(pf.templateStrip.cardBorderHover)],
     ["strip-card-hover-shadow", pairOf(pf.templateStrip.cardHoverShadow)],
     ["sidebar-bg", {light: "var(--ag-surface-raised)", dark: "var(--ag-surface-raised)"}],
 ]

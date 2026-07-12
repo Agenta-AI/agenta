@@ -1,9 +1,5 @@
 import {memo} from "react"
 
-import {bgColors} from "@agenta/ui"
-import {DownOutlined} from "@ant-design/icons"
-import {Flask, Plus} from "@phosphor-icons/react"
-import {Button, Space, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -12,49 +8,16 @@ import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/as
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
-const PlaygroundLoadingShell = () => {
-    return (
-        <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
-            <div
-                className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
-            >
-                <Typography className="text-[16px] leading-[18px] font-[600]">
-                    Playground
-                </Typography>
-                <div className="flex items-center gap-2">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<Flask size={14} />}
-                        className="self-start"
-                        disabled
-                    >
-                        New Evaluation
-                    </Button>
-                    <Space.Compact size="small">
-                        <Button
-                            className="flex items-center gap-1"
-                            icon={<Plus size={14} />}
-                            disabled
-                        >
-                            Compare
-                        </Button>
-                        <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
-                    </Space.Compact>
-                </div>
-            </div>
-        </div>
-    )
-}
+import PlaygroundLoadingShell from "./PlaygroundLoadingShell"
 
 const Playground = dynamic(() => import("../Playground/Playground"), {
     ssr: false,
     loading: PlaygroundLoadingShell,
 })
 
-// Same Playground component + chunk, but the onboarding-branded loader as the chunk-download fallback,
-// so the ephemeral onboarding flow shows one continuous "setting up" screen (matching OnboardingEntry +
-// the mint state) instead of the generic Playground header shell. Webpack dedupes the shared chunk.
+// Same Playground component + chunk, but the onboarding loader (agent-forced shell + chat skeleton) as
+// the chunk-download fallback, so the ephemeral onboarding flow shows one continuous screen (matching
+// OnboardingEntry + the mint state) that morphs straight into the live panel. Webpack dedupes the chunk.
 const OnboardingPlayground = dynamic(() => import("../Playground/Playground"), {
     ssr: false,
     loading: OnboardingLoader,

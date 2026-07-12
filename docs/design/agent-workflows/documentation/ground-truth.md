@@ -52,7 +52,7 @@ this page and the referenced code as the source of truth.
   relay.
 - Gateway/code tool delivery to non-Pi harnesses (Claude) exists through the internal MCP
   channel, served over a loopback HTTP MCP endpoint the runner stands up (no runner-host child
-  process). User-declared MCP resolution is feature-gated (`AGENTA_AGENT_ENABLE_MCP`, off by
+  process). User-declared MCP resolution is feature-gated (`AGENTA_AGENT_MCPS_ENABLED`, off by
   default).
 - `client` tools (browser-fulfilled, e.g. `request_connection`) are delivered to Claude too on
   the local path: advertised over the same internal MCP channel and PAUSED in the `tools/call`

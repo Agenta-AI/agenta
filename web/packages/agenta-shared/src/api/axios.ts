@@ -27,11 +27,23 @@
 
 import axiosApi, {
     type AxiosInstance,
+    type AxiosRequestConfig,
     type AxiosResponse,
     type InternalAxiosRequestConfig,
 } from "axios"
 
 import {getAgentaApiUrl} from "./env"
+
+/**
+ * Per-request config that demotes a request to low network priority when we're only revalidating
+ * data we already have from a persisted cache. The browser can't set a priority on an XHR (axios's
+ * default adapter — Chrome shows it as "High"), so we route these through axios's fetch adapter,
+ * which forwards `fetchOptions.priority: "low"` as the Fetch Priority hint. Interceptors (auth) still
+ * run. When `cached` is false the request is on the critical path, so we leave it at the XHR default.
+ */
+export function lowPriorityWhenCached(cached: boolean | undefined): AxiosRequestConfig {
+    return cached ? ({adapter: "fetch", fetchOptions: {priority: "low"}} as AxiosRequestConfig) : {}
+}
 
 /**
  * Create a new axios instance with Agenta API defaults.

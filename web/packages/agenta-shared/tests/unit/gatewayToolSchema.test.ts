@@ -106,3 +106,86 @@ describe("buildFormFieldsFromSchema — formats flag", () => {
         expect(byName.rows.itemChildren?.[0]?.format).toBe("date")
     })
 })
+
+describe("buildFormFieldsFromSchema — openEnums flag", () => {
+    // CRITICAL regression: gateway-tool execution forms call without opts — enums stay strict, so
+    // no `allowCustomEnum` key may appear with the flag off.
+    it("flag off (default): no allowCustomEnum key anywhere", () => {
+        const off = buildFormFieldsFromSchema(schemaWithFormats())
+        expect(off.some((f) => "allowCustomEnum" in f)).toBe(false)
+        expect(off).toEqual(buildFormFieldsFromSchema(schemaWithFormats(), "", {openEnums: false}))
+    })
+
+    it("flag on: enum fields get allowCustomEnum; non-enum fields do not", () => {
+        const fields = buildFormFieldsFromSchema(schemaWithFormats(), "", {openEnums: true})
+        const byName = Object.fromEntries(fields.map((f) => [f.name, f]))
+        expect(byName.level.allowCustomEnum).toBe(true)
+        expect("allowCustomEnum" in byName.note).toBe(false)
+        expect("allowCustomEnum" in byName.count).toBe(false)
+    })
+
+    it("flag on: string-items arrays become multi-select; object-items arrays do not", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                actions: {
+                    type: "array",
+                    items: {type: "string", enum: ["send", "list"]},
+                    default: ["send"],
+                },
+                repos: {type: "array", items: {type: "string"}},
+                rows: {type: "array", items: {type: "object", properties: {a: {type: "string"}}}},
+            },
+        }
+        const byName = Object.fromEntries(
+            buildFormFieldsFromSchema(schema, "", {openEnums: true}).map((f) => [f.name, f]),
+        )
+        expect(byName.actions.multiple).toBe(true)
+        expect(byName.actions.allowCustomEnum).toBe(true)
+        expect(byName.actions.enumValues).toEqual(["send", "list"])
+        expect(byName.actions.default).toEqual(["send"])
+        expect(byName.repos.multiple).toBe(true)
+        expect(byName.repos.enumValues).toBeUndefined()
+        expect("multiple" in byName.rows).toBe(false)
+
+        // Flag off (gateway forms): arrays keep the Form.List shape — no multiple key anywhere.
+        const off = buildFormFieldsFromSchema(schema)
+        expect(off.some((f) => "multiple" in f)).toBe(false)
+    })
+
+    it("flag on: oneOf options surface as enumOptions (single + multi), enum derived from consts", () => {
+        const schema = {
+            type: "object",
+            properties: {
+                process: {
+                    type: "string",
+                    oneOf: [
+                        {const: "merge_main", title: "Merge to main", description: "Daily check"},
+                        {const: "gh_releases", title: "GitHub releases"},
+                    ],
+                },
+                channels: {
+                    type: "array",
+                    items: {type: "string", oneOf: [{const: "slack", title: "Slack"}]},
+                },
+            },
+        }
+        const byName = Object.fromEntries(
+            buildFormFieldsFromSchema(schema, "", {openEnums: true}).map((f) => [f.name, f]),
+        )
+        expect(byName.process.type).toBe("enum")
+        expect(byName.process.enumValues).toEqual(["merge_main", "gh_releases"])
+        expect(byName.process.enumOptions).toEqual([
+            {value: "merge_main", label: "Merge to main", description: "Daily check"},
+            {value: "gh_releases", label: "GitHub releases"},
+        ])
+        expect(byName.channels.multiple).toBe(true)
+        expect(byName.channels.enumValues).toEqual(["slack"])
+        expect(byName.channels.enumOptions).toEqual([{value: "slack", label: "Slack"}])
+
+        // Flag off (gateway forms): oneOf is ignored — no enumOptions key, no enum promotion.
+        const off = buildFormFieldsFromSchema(schema)
+        expect(off.some((f) => "enumOptions" in f)).toBe(false)
+        expect(off.find((f) => f.name === "process")?.type).toBe("string")
+    })
+})

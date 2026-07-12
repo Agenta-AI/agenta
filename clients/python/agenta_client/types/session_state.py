@@ -5,6 +5,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .session_state_data import SessionStateData
 from .session_state_flags import SessionStateFlags
 
 
@@ -26,9 +27,9 @@ class SessionState(UniversalBaseModel):
     Bare session correlator (not an FK).
     """
     
-    data: typing.Optional[typing.Dict[str, typing.Any]] = pydantic.Field(default=None)
+    data: typing.Optional[SessionStateData] = pydantic.Field(default=None)
     """
-    Opaque SDK session state stored as JSON.
+    Durable continuity state (resume ids + staleness guard).
     """
     
     sandbox_id: typing.Optional[str] = pydantic.Field(default=None)

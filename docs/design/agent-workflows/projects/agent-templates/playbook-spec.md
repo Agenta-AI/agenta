@@ -20,15 +20,16 @@ free-text asks that match no card.
 
 ## Required context (ask via one compact request_input form)
 - <field>: <why the agent cannot proceed without it>. [required]
-  Put the recommended value in the field description, not a default (there is no default
-  field): "press Enter to accept: <proposed value>".
+  When the agent can propose a value, set it as the field's `default` — the form prefills
+  and the user can accept everything in one click. No default when there is no basis for one.
 Only fields the agent genuinely cannot proceed without. Keep to one to four. Secrets never
 go here; they go to request_connection.
 
-## Researchable context (ask, but the first enum option is "figure it out")
-- <field>: the agent can discover this. Offer an enum whose FIRST option is
-  "Use your best judgment" or "Figure it out from what's connected." Note the trade-off in
-  the description: handing it over is faster than the agent researching it.
+## Researchable context (ask, defaulting to "figure it out")
+- <field>: the agent can discover this. Offer an enum including a "Use your best judgment"
+  or "Figure it out from what's connected" option and set it as the `default`; the built-in
+  Other… option covers custom values. Note the trade-off in the description: handing it over
+  is faster than the agent researching it.
 
 ## Explore first (read before proposing)
 - Which read tools to discover_tools and wire.
@@ -77,25 +78,27 @@ needs the user.
   cannot extract what is relevant. Keep it a coherent, moderately detailed unit with a working
   instructions template.
 
-## The request_input reality (no defaults)
+## The request_input dialect (defaults, multi-select, choice cards)
 
-The elicitation form has no `default` field (`ElicitationFieldSchema` declares `default?: never`,
-`web/packages/agenta-shared/src/utils/elicitation.ts:56`; see [research.md](research.md) Section
-4). A `default` in the schema is silently dropped and the field renders empty. So a playbook
-must not tell the agent to prefill. Instead:
+Resolved: [open-questions.md](open-questions.md) #2 shipped as issue #5190 (PR #5177). The
+elicitation form supports real defaults and two richer field shapes
+(`web/packages/agenta-shared/src/utils/elicitation.ts`; design record:
+`docs/design/agent-chat-interaction-kinds/decisions.md`):
 
-- **Put the proposed value in the field description or title.** For example: "press Enter to
-  accept: owner/repo-guess." The user sees the recommendation and can accept or edit it.
-- **Use enum options for researchable context, with "Figure it out" as the FIRST listed
-  option.** The first option reads as the recommended path. There is no way to mark it selected,
-  so listing it first is how a playbook signals the default choice.
-- **Field types are string, number, integer, boolean only.** No arrays, no nested objects, no
-  multi-select. Formats: date, date-time, email, uri, multiline.
+- **`default` prefills the field** (string/number/boolean; array of strings on a multi-select),
+  so a form whose proposals are right is accepted in one click. The default must match the
+  declared type. An empty default (`""`/`[]`) means "no proposal" and is stripped.
+  **Date/date-time fields ignore defaults** — do not set them there.
+- **Researchable context: set the "Figure it out" enum option as the `default`.** Enum options
+  are suggestions, not a hard constraint — every enum renders a built-in "Other…" free-text
+  escape hatch, so keep option lists short and likely.
+- **Multi-pick questions** use `{type: "array", items: {type: "string", enum: [...]}}` — the
+  one admitted array shape; the answer is an array of strings.
+- **Context-ful options** use `oneOf: [{const, title, description}]` (single fields and array
+  items); options with descriptions render as selectable choice cards.
+- **Field leaves are string, number, integer, boolean** (plus the string-array multi-select).
+  No nested objects. Formats: date, date-time, email, uri, multiline, cron.
 - **Secrets are refused.** Credentials go through `request_connection`, never `request_input`.
-
-Whether to add a real `default` field to the elicitation protocol is
-[open-questions.md](open-questions.md) #2. Until it is decided, every playbook uses the
-enum-plus-description workaround.
 
 ## The index.md match table
 

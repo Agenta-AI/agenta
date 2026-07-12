@@ -1,15 +1,22 @@
 import {useMemo} from "react"
 
 import {Divider} from "antd"
+import {useAtomValue} from "jotai"
 
 import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
+import {homeNavHighlightedAtom} from "@/oss/state/onboarding"
 
 import ListOfOrgs from "../components/ListOfOrgs"
-import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
+import type {
+    SidebarScope,
+    SidebarSection,
+    SidebarSelection,
+    SidebarSlotContext,
+} from "../engine/types"
 import {useSidebarConfig} from "../hooks/useSidebarConfig"
 
 import {useSidebarBottomSection} from "./bottomSection"
-import {MAIN_SIDEBAR_SCOPE_ID} from "./constants"
+import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID} from "./constants"
 
 const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
     <>
@@ -25,8 +32,17 @@ const MainSidebarFooter = ({collapsed}: SidebarSlotContext) =>
         </div>
     )
 
-const ROUTE_SELECTION = {mode: "route"} as const
-const useMainSidebarSelection = () => ROUTE_SELECTION
+// During onboarding the route is the ephemeral playground, but Home IS the surface — pin it selected.
+const useMainSidebarSelection = (): SidebarSelection => {
+    const highlightHome = useAtomValue(homeNavHighlightedAtom)
+    return useMemo(
+        () =>
+            highlightHome
+                ? {mode: "route", selectedKeyOverride: HOME_SIDEBAR_KEY}
+                : {mode: "route"},
+        [highlightHome],
+    )
+}
 
 const useMainSidebarSections = (): SidebarSection[] => {
     const {projectItems} = useSidebarConfig()

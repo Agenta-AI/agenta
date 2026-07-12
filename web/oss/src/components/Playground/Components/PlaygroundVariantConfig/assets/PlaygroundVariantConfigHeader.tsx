@@ -11,13 +11,14 @@ import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
+import {MoreOutlined} from "@ant-design/icons"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
-import {currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -27,7 +28,12 @@ import {PlaygroundVariantConfigHeaderProps} from "./types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
-    {ssr: false},
+    {
+        ssr: false,
+        // Reserve the kebab's 32px footprint while the chunk loads so it doesn't pop in and
+        // shift Commit/Deploy leftward on the (skeletonized) agent config header.
+        loading: () => <Button type="text" icon={<MoreOutlined size={14} />} disabled />,
+    },
 )
 
 const PlaygroundVariantConfigHeader = ({
@@ -64,8 +70,14 @@ const PlaygroundVariantConfigHeader = ({
               (entityData as {flags?: {is_evaluator?: boolean} | null} | null)?.flags?.is_evaluator,
           )
 
-    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human)
-    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter()
+    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human).
+    // The evaluator adapter is only USED when this is an evaluator entity (see
+    // `browseAdapter` below); on an app playground it's built but unused, so keep
+    // its evaluator-enrichment fan-out dormant (`lazy`) there. For evaluator
+    // entities it's needed, so activate eagerly.
+    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter(undefined, {
+        lazy: !isEvaluatorEntity,
+    })
     const appOnlyAdapter = useMemo(
         () =>
             createWorkflowRevisionAdapter({
@@ -92,6 +104,16 @@ const PlaygroundVariantConfigHeader = ({
     // Agent workflows dropped the top-level "Agent" section header, so the config bar carries the
     // only "this is an agent" signal — a small badge next to the variant details.
     const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
+    // `isAgentModeAtomFamily` is false until the revision's is_agent flag loads, so on load this bar
+    // would flash the heavy prompt header (SelectVariant + variant details) for an agent. Use the
+    // agent-style "Configuration" header when it's an agent, the early app-id signal says agent, OR
+    // agent-ness is still unknown (variant not settled); the prompt header waits for a confirmed prompt.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const isAgentEffective = isAgent || earlyAgentState === "agent"
+    const variantQueryPending = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(variantId || ""), [variantId]),
+    ).isPending
+    const showAgentHeader = isAgentEffective || variantQueryPending
 
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments
@@ -169,16 +191,18 @@ const PlaygroundVariantConfigHeader = ({
                 // Give it a subtly tinted surface (vs the plain content): an opaque container base
                 // (background-color) with the translucent fill layered on top (background-image), so
                 // this sticky header stays opaque and scrolled content can't bleed through it.
-                isAgent && !embedded
+                showAgentHeader && !embedded
                     ? "bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]"
                     : "bg-[var(--ag-c-FFFFFF)]"
             } ${className ?? ""}`}
             {...divProps}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
-                {isAgent && !embedded ? (
+                {showAgentHeader && !embedded ? (
                     // Agent playground: the revision selector moved up to the page header (next to the
                     // agent name), so this bar reads as the config panel's "Configuration" header.
+                    // Also the neutral header while agent-ness is unknown, so the prompt chrome below
+                    // never flashes on load for an agent.
                     <span className="text-[13px] font-semibold text-[var(--ant-color-text)]">
                         Configuration
                     </span>
@@ -278,7 +302,7 @@ const PlaygroundVariantConfigHeader = ({
                             // surfaces keep the icon-only deploy.
                             <DeployVariantButton
                                 revisionId={variantId}
-                                {...(isAgent
+                                {...(isAgentEffective
                                     ? ({label: "Deploy", type: "default", size: "small"} as const)
                                     : {})}
                             />

@@ -1,3 +1,4 @@
+import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
@@ -38,8 +39,7 @@ export const HERO = {
     title: "What do you want to build?",
     subtitle:
         "Describe an agent in plain language — we'll create and name it, then open the playground.",
-    placeholder:
-        "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything.",
+    placeholder: STRIP_COPY.describeAgentPlaceholder,
 } as const
 
 export const COMPOSER = {

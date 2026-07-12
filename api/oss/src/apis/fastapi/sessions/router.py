@@ -72,6 +72,7 @@ from oss.src.apis.fastapi.sessions.models import (
     # streams
     SessionDetachRequestModel,
     SessionHeartbeatRequestModel,
+    SessionHeartbeatResponseModel,
     SessionStreamCommandRequestModel,
     SessionStreamCommandResponseModel,
     SessionStreamQueryRequestModel,
@@ -301,7 +302,7 @@ class SessionStreamsRouter:
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        # A kill orphans every still-pending gate for the session — no one will answer them.
+        # kill orphans every pending gate — no one will answer them.
         await self._interactions_service.cancel_session_pending(
             project_id=UUID(str(project_id)),
             session_id=session_id,
@@ -340,9 +341,7 @@ class SessionStreamsRouter:
         self,
         request: Request,
         payload: SessionHeartbeatRequestModel,
-    ) -> SessionStreamResponseModel:
-        # The runner authenticates AS the invoke caller; project scope comes from the
-        # credential, never the body.
+    ) -> SessionHeartbeatResponseModel:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -354,7 +353,7 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        stream = await self._service.heartbeat(
+        result = await self._service.heartbeat(
             project_id=project_id,
             request=SessionHeartbeatRequest(
                 session_id=payload.session_id,
@@ -363,7 +362,10 @@ class SessionStreamsRouter:
                 is_running=payload.is_running,
             ),
         )
-        return SessionStreamResponseModel(stream=stream)
+        return SessionHeartbeatResponseModel(
+            stream=result.stream,
+            replica_id=result.replica_id,
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -562,8 +564,6 @@ class RecordsRouter:
         request: Request,
         body: SessionRecordIngestRequest,
     ) -> dict:
-        # The runner authenticates AS the invoke caller; project scope comes from the
-        # credential, never the body.
         project_id = request.state.project_id
         if not await check_action_access(
             user_uid=request.state.user_id,
@@ -648,8 +648,6 @@ class InteractionsRouter:
         request: Request,
         body: SessionInteractionCreateRequest,
     ) -> SessionInteractionResponse:
-        # The runner authenticates AS the invoke caller; project scope comes from the
-        # credential, never the body. Creating an interaction is part of running a turn.
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
@@ -825,8 +823,8 @@ class InteractionsRouter:
 
         answer = body.answer or {}
 
-        # CAS must flip first: the downstream enqueue fires only for the responder that wins
-        # the row, so two concurrent responds enqueue exactly once, not both.
+        # CAS flips first: only the responder that wins the row enqueues, so
+        # concurrent responds fire exactly once.
         try:
             interaction = await self.interactions_service.transition_interaction(
                 transition=SessionInteractionTransition(
@@ -842,10 +840,8 @@ class InteractionsRouter:
                 detail="Interaction is no longer pending",
             )
 
-        # Respond is enqueued onto the interactions worker (detached, off the API request
-        # thread): worker-interactions re-authorizes the stored refs at fire time and hands
-        # the run to the runner without awaiting completion. Fall back to the inline blocking
-        # invoke only when no worker is wired (keeps the route usable in minimal/test compositions).
+        # Enqueue onto the interactions worker when wired; otherwise fall back to an
+        # inline blocking invoke (keeps the route usable in minimal/test compositions).
         if self.respond_task is not None:
             await self.respond_task.kiq(
                 project_id=str(project_id),
@@ -920,10 +916,6 @@ class SessionMountsRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
-        # File ops mirror the main /mounts surface (shared utils); addressed by mount_id,
-        # which the session list view above hands the client.
-        # Bind-and-sign the session's durable cwd mount, then mint scoped, short-lived
-        # credentials for it — the runner's entry point for injecting the geesefs mount.
         self.router.add_api_route(
             "/mounts/sign",
             self.sign_session_mount_credentials,
@@ -1026,11 +1018,17 @@ class SessionMountsRouter:
         request: Request,
         *,
         session_id: str = Query(...),
+        name: str = Query(
+            default="cwd",
+            description=(
+                "Which session-scoped mount to sign, e.g. 'cwd' (default) or a "
+                "per-harness transcript dir mount (e.g. 'claude-projects', "
+                "'pi-sessions'). Each name is its own mount row / durable prefix."
+            ),
+        ),
     ) -> MountCredentialsResponse:
         _validate_session_id_http(session_id)
 
-        # RUN_SESSIONS: the runner authenticates as the invoke caller and binds the cwd
-        # mount before injecting it. The master key never leaves the API.
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -1038,10 +1036,11 @@ class SessionMountsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        mount = await self.mounts_service.get_or_create_session_cwd(
+        mount = await self.mounts_service.get_or_create_session_mount(
             project_id=UUID(request.state.project_id),
             user_id=UUID(str(request.state.user_id)),
             session_id=session_id,
+            name=name,
         )
 
         credentials = await sign_mount_credentials(

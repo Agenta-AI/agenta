@@ -7,6 +7,7 @@ import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
+import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import {
   buildRunPlan,
   shouldUploadOwnLogin,
@@ -471,7 +472,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /MCP servers are not supported by the sidecar/);
+    assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
   });
 
   it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {
@@ -487,7 +488,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /MCP servers are not supported by the sidecar/);
+    assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
   });
 
   it("errors LOUD on a Pi run carrying a user STDIO MCP server (F-032, Pi-specific)", () => {
@@ -735,6 +736,10 @@ describe("buildRunPlan", () => {
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "compute it" }],
+        // A real code-tool wire payload still carries the SDK's executor fields
+        // (runtime/code). The runner no longer declares them on ResolvedToolSpec and ignores
+        // them; the double cast represents that extra-property wire reality. The refusal keys
+        // on `kind: "code"` alone, so it is unaffected.
         customTools: [
           {
             name: "secret_math",
@@ -743,7 +748,7 @@ describe("buildRunPlan", () => {
             code: "def main(x=0):\n    return x * 7 + 1\n",
           },
         ],
-      } as AgentRunRequest,
+      } as unknown as AgentRunRequest,
       {
         createLocalCwd: () => {
           created = true;

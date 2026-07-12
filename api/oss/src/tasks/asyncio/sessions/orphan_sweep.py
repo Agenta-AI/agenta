@@ -18,7 +18,11 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamFlags,
 )
 from oss.src.dbs.redis.shared.engine import LockEngine
-from oss.src.dbs.redis.sessions.locks import force_cancel_alive, clear_running
+from oss.src.dbs.redis.sessions.locks import (
+    force_cancel_alive,
+    clear_running,
+    force_clear_owner,
+)
 
 from sqlalchemy import select
 
@@ -62,8 +66,17 @@ async def run_orphan_sweep(engine: TransactionsEngine, lock_engine: LockEngine) 
 
         # Bring the Redis locks the SEND gate reads in sync with the rows just written.
         for row in orphans:
-            await force_cancel_alive(lock_engine, session_id=row.session_id)
-            await clear_running(lock_engine, session_id=row.session_id)
+            project_id = str(row.project_id)
+            await force_cancel_alive(
+                lock_engine, project_id=project_id, session_id=row.session_id
+            )
+            await clear_running(
+                lock_engine, project_id=project_id, session_id=row.session_id
+            )
+            # A swept session is dead; free its affinity like kill does.
+            await force_clear_owner(
+                lock_engine, project_id=project_id, session_id=row.session_id
+            )
 
         log.info("orphan_sweep: marked %d orphans ended", len(orphans))
 

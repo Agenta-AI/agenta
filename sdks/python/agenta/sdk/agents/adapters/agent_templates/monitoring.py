@@ -25,14 +25,14 @@ incident-responder. Also matches free-text asks about incident response, alert t
 "who do I page for this."
 
 ## Required context (ask via one request_input form)
-- Sentry project or org to watch: no default; the agent cannot proceed without it.
-  Description: "Recommended: <guess>" when a prior read surfaced one.
+- Sentry project or org to watch: the agent cannot proceed without it. Set the
+  field default to the guess a prior read surfaced; leave no default otherwise.
 - Where to send alerts: the Slack channel to post to, and/or the PagerDuty escalation policy
   to page. No default; the agent cannot know who is on call or where the team looks for
   alerts without being told.
 
-## Researchable context (ask, but the first option is "figure it out")
-- Paging threshold: which severities actually page vs. just get logged. Enum first option:
+## Researchable context (ask, defaulting to "figure it out")
+- Paging threshold: which severities actually page vs. just get logged. Enum with default
   "Use your best judgment (page on fatal/error, log the rest)." Note in the description:
   handing this over is faster than the agent inferring it from issue history.
 
@@ -92,14 +92,14 @@ Card key error-triage. Also matches free-text asks about error noise reduction o
 file a ticket for this error."
 
 ## Required context (ask via one request_input form)
-- Sentry project or org to watch: no default; the agent cannot proceed without it.
-  Description: "Recommended: <guess>" when a prior read surfaced one.
+- Sentry project or org to watch: the agent cannot proceed without it. Set the
+  field default to the guess a prior read surfaced; leave no default otherwise.
 - Where new tickets go: a Linear team or a Jira project. No default; the agent cannot guess
   the filing destination.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - What counts as noise vs. a real error: known third-party or expected exceptions to ignore,
-  and the frequency that promotes an error to "file it." Enum first option: "Use your best
+  and the frequency that promotes an error to "file it." Enum with default "Use your best
   judgment (ignore known-noisy exceptions, file anything crossing a frequency threshold)."
 
 ## Explore first (read before proposing)
@@ -152,14 +152,14 @@ The ask is "post a daily uptime and error-rate summary to Slack" or similar. Car
 uptime-reporter. Also matches free-text asks about a daily status digest or an SLA rollup.
 
 ## Required context (ask via one request_input form)
-- Sentry project or org to summarize: no default; the agent cannot proceed without it.
-  Description: "Recommended: <guess>" when a prior read surfaced one.
+- Sentry project or org to summarize: the agent cannot proceed without it. Set the
+  field default to the guess a prior read surfaced; leave no default otherwise.
 - Slack channel to post the daily summary to: no default; the agent cannot guess where the
   team wants it.
 
-## Researchable context (ask, but the first option is "figure it out")
-- Whether to include an uptime percentage from Datadog or New Relic, if connected. Enum first
-  option: "Use your best judgment (include it if connected, otherwise report error rate
+## Researchable context (ask, defaulting to "figure it out")
+- Whether to include an uptime percentage from Datadog or New Relic, if connected. Enum with
+  default "Use your best judgment (include it if connected, otherwise report error rate
   only)." Note in the description: this is a CHECK integration, so treat it as optional.
 
 ## Explore first (read before proposing)
@@ -215,14 +215,14 @@ key oncall-briefer. Also matches free-text asks about an on-call handoff briefin
 incident standup.
 
 ## Required context (ask via one request_input form)
-- Sentry project or org to watch: no default; the agent cannot proceed without it.
-  Description: "Recommended: <guess>" when a prior read surfaced one.
+- Sentry project or org to watch: the agent cannot proceed without it. Set the
+  field default to the guess a prior read surfaced; leave no default otherwise.
 - Where to post the briefing: a Slack channel or DM, and, if PagerDuty is connected, which
   escalation policy to read on-call from. No default; the agent cannot guess either.
 
-## Researchable context (ask, but the first option is "figure it out")
+## Researchable context (ask, defaulting to "figure it out")
 - How far back "open" reaches: all unresolved Sentry issues, or only ones touched in the last
-  24 hours. Enum first option: "Use your best judgment (all unresolved issues, plus any open
+  24 hours. Enum with default "Use your best judgment (all unresolved issues, plus any open
   PagerDuty incidents if connected)."
 
 ## Explore first (read before proposing)

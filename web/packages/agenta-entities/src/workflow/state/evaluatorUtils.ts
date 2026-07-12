@@ -116,6 +116,37 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
     return refs.filter((ref) => !ref.deleted_at) as Workflow[]
 })
 
+// ============================================================================
+// LAZY ENRICHMENT GATE
+// ============================================================================
+
+/**
+ * The aggregate evaluator atoms below — `fullPagePlaygroundEvaluatorsAtom`,
+ * `nonHumanEvaluatorsAtom`, `evaluatorKeyMapAtom`, `evaluatorWorkflowMetaMapAtom`,
+ * `evaluatorFeedbackSchemasAtom` — each resolve EVERY evaluator's LATEST REVISION,
+ * which fans out one batched `POST /workflows/revisions/query` over the whole
+ * project. That enrichment is only needed to populate evaluator pickers /
+ * switchers, so the fan-out stays DORMANT until a consumer that genuinely needs
+ * it activates the gate (one-way, per session). Until then each atom returns a
+ * cheap, stable empty value and mounts no revision query.
+ *
+ * Activate imperatively via `activateEvaluatorEnrichmentAtom` (e.g. from a
+ * picker/switcher open handler), or eagerly via the `useEnsureEvaluatorEnrichment`
+ * hook for consumers that must have the data on mount.
+ */
+export const evaluatorEnrichmentActivatedAtom = atom(false)
+
+export const activateEvaluatorEnrichmentAtom = atom(null, (get, set) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) {
+        set(evaluatorEnrichmentActivatedAtom, true)
+    }
+})
+
+// Stable empty references returned while the gate is dormant (so subscribers
+// don't churn on every read).
+const EMPTY_EVALUATOR_LIST: Workflow[] = []
+const EMPTY_EVALUATOR_KEY_MAP = new Map<string, string>()
+
 /**
  * Non-archived LLM-based evaluators.
  *
@@ -156,6 +187,7 @@ export const llmEvaluatorsAtom = atom<Workflow[]>((get) => {
  * `nonArchivedEvaluatorsAtom`), so callers can use it as a drop-in filter.
  */
 export const fullPagePlaygroundEvaluatorsAtom = atom<Workflow[]>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_LIST
     const evaluators = get(nonArchivedEvaluatorsAtom)
     return evaluators.filter((evaluator) => {
         if (!evaluator.id) return false
@@ -186,6 +218,7 @@ export const fullPagePlaygroundEvaluatorsAtom = atom<Workflow[]>((get) => {
  * does, so a human evaluator never briefly leaks into the list.
  */
 export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_LIST
     const evaluators = get(nonArchivedEvaluatorsAtom)
     return evaluators.filter((evaluator) => {
         if (!evaluator.id) return false
@@ -284,6 +317,7 @@ export function onEvaluatorMutation(listener: () => void): () => void {
  * extracts `data.uri`, and parses the evaluator key.
  */
 export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_KEY_MAP
     const evaluators = get(nonArchivedEvaluatorsAtom)
     const map = new Map<string, string>()
 
@@ -330,7 +364,10 @@ export interface EvaluatorWorkflowMeta {
  * Reads the same batched + cached latest-revision queries as `evaluatorKeyMapAtom`,
  * so subscribing to this atom adds no extra requests.
  */
+const EMPTY_EVALUATOR_META_MAP = new Map<string, EvaluatorWorkflowMeta>()
+
 export const evaluatorWorkflowMetaMapAtom = atom<Map<string, EvaluatorWorkflowMeta>>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_META_MAP
     const evaluators = get(nonArchivedEvaluatorsAtom)
     const map = new Map<string, EvaluatorWorkflowMeta>()
 
@@ -382,7 +419,10 @@ export interface EvaluatorFeedbackSchema {
 /**
  * Derived atom: every non-archived evaluator paired with its output-metric properties.
  */
+const EMPTY_EVALUATOR_FEEDBACK: EvaluatorFeedbackSchema[] = []
+
 export const evaluatorFeedbackSchemasAtom = atom<EvaluatorFeedbackSchema[]>((get) => {
+    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_FEEDBACK
     const evaluators = get(nonArchivedEvaluatorsAtom)
     const result: EvaluatorFeedbackSchema[] = []
 

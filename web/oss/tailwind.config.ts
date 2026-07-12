@@ -105,6 +105,7 @@ const themeAwareColors = {
     colorPrimaryText: v("colorPrimaryText"),
     colorSuccess: v("colorSuccess"),
     colorWarning: v("colorWarning"),
+    colorWarningBorder: v("colorWarningBorder"),
     colorWarningText: v("colorWarningText"),
     colorErrorText: v("colorErrorText"),
     colorError: v("colorError"),

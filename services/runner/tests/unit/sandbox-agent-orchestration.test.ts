@@ -15,6 +15,7 @@ import {
 } from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
+import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -782,7 +783,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.deepEqual(result, {
       ok: false,
-      error: "MCP servers are not supported by the sidecar.",
+      error: USER_MCP_UNSUPPORTED_MESSAGE,
     });
   });
 
