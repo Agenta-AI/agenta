@@ -24,8 +24,12 @@ const clampWidth = (w: number, total: number) =>
 // work: effects run after the size change is committed, so the class would arrive after the
 // browser already painted the new width and nothing would animate.
 const SLIDE_MS = 240
+// Orchestration rule (same as globals.css .playground-splitter-animated): only the DRIVEN pane
+// (the panel, last) transitions its basis; the chat pane auto-flexes so it tracks the container
+// and the animating sibling exactly per frame — a transitioned basis on the fill pane lags
+// antd's per-frame ResizeObserver recomputes whenever the container itself is animating.
 const SLIDE_CLASS =
-    "[&_.ant-splitter-panel]:[transition:flex-basis_240ms_cubic-bezier(0.4,0,0.2,1),width_240ms_cubic-bezier(0.4,0,0.2,1)]"
+    "[&>.ant-splitter-panel:last-child]:[transition:flex-basis_240ms_cubic-bezier(0.4,0,0.2,1),width_240ms_cubic-bezier(0.4,0,0.2,1)] [&>.ant-splitter-panel:first-child]:!flex-auto [&>.ant-splitter-panel:first-child]:!transition-none"
 
 /**
  * Nested resizable split: [chat | right panel]. The Splitter (and thus the chat column) stays

@@ -404,6 +404,18 @@ body {
         transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    /* Orchestration rule: only the DRIVEN pane (first — config / session rail) animates its
+       basis; the fill pane must auto-flex so it tracks the container and the animating sibling
+       EXACTLY per frame. antd re-derives every pane's inline flex-basis from a ResizeObserver,
+       so a transitioned basis on the fill pane lags 240ms behind each recompute whenever the
+       CONTAINER itself is animating — in the nested agent splitters (MainLayout pane hosts the
+       chat panel's rail splitter) that read as the conversation holding its old width and only
+       growing after the left side settled. */
+    .playground-splitter-animated > .ant-splitter-panel:last-child {
+        flex: 1 1 auto !important;
+        transition: none !important;
+    }
+
     .playground-splitter > .ant-splitter-bar {
         transition:
             opacity 200ms ease,
