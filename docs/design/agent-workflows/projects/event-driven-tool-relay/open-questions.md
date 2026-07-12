@@ -1,47 +1,53 @@
 # Open questions
 
-Updated 2026-07-11 after the Codex, CodeRabbit, and owner review round on PR #5232.
-Questions the reviews answered moved to the bottom.
+Updated 2026-07-12 after the implementation pass on lane `feat-event-driven-tool-relay`.
+Answered questions moved to the bottom; original numbering kept (other docs cite it).
 
 ## Open
 
-1. **Daytona held-exec limits (rollout gate).** The design holds one bounded (25 s,
-   jittered) `runProcess` request per active turn. In-repo evidence says long-held
-   requests through the preview proxy work (ACP approval pauses hold for minutes to
-   hours), but Daytona's published limits document organization request rates, not
-   concurrent execs per sandbox. This is now framed as a rollout gate: the batch-load QA
-   pass (test plan) must confirm it before the `REMOTE_WATCH_ENABLED` default flips.
-   Who confirms with Daytona, and does the answer move the 25 s window default?
-2. **Daytona atomic rename.** Atomic publication (plan.md decision 2) needs a
-   same-directory `rename(2)` on the response write. The daemon SDK exposes `moveFs`
-   (`post_v1_fs_move`), but its atomicity is undocumented. Verify during slice 1; if it
-   is not atomic, `RelayHost` grows a rename capability implemented as a shell `mv`
-   exec. Reader-side JSON retry is the rejected fallback (plan.md decision 2 says why).
-3. **Sibling docs still name the old seam and flags.** Slice 0 ownership is settled:
-   this project extracts `tools/relay-client.ts` and `tools/relay-protocol.ts`, and
-   #5234 consumes them (its workspace is being corrected to match). Two references
-   remain stale until their owners update them, and this workspace cannot edit them:
-   [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md)
-   assigns the extraction to "#5234 slice 1" (landing order group 1) and lists the old
-   env names `AGENTA_AGENT_TOOLS_RELAY_WATCH`/`_WATCH_WINDOW_MS` in its env-names
-   contract; the renamed per-hop flags are
-   `AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED`,
-   `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED`, and
-   `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_WINDOW_MS`.
-4. **Orphaned-request residue across warm-continued turns.** A crashed turn inside one
-   live environment can leave a `.req.json` that the next warm-continued turn's fresh
-   relay loop re-executes (cold builds are covered by the `rm -rf` in
-   `workspace.ts:60-66`; warm continuations skip `prepareWorkspace`). The sibling
-   project flagged this to this project as the owner of relay mechanics
-   (orchestration.md, "Pending changes for PR #5232"). Owner call: pull a fix into this
-   scope (for example, an initial-list handshake that quarantines request files
-   predating the turn) or assign it elsewhere explicitly.
-5. **Permanent timing log.** Keep the `stage=relay_pickup` per-call latency log after
-   QA, or remove it once the numbers are recorded?
-6. **Custom snapshots without node.** The watch exec needs node in the sandbox image.
-   The default snapshot has it (Pi runs on node). Is degrade-to-poll acceptable for
-   custom snapshots without node, or should the script have a shell-only variant
-   (`inotifywait` is not guaranteed either, so a portable shell variant may not exist)?
+- **1. Daytona held-exec limits (rollout gate).** The design holds one bounded (25 s,
+  jittered) `runProcess` request per active turn. In-repo evidence says long-held
+  requests through the preview proxy work (ACP approval pauses hold for minutes to
+  hours), but Daytona's published limits document organization request rates, not
+  concurrent execs per sandbox. This is now framed as a rollout gate: the batch-load QA
+  pass (test plan) must confirm it before the `REMOTE_WATCH_ENABLED` default flips.
+  Who confirms with Daytona, and does the answer move the 25 s window default?
+- **3. Sibling docs still name the old seam and flags.** Slice 0 ownership is settled:
+  this project extracts `tools/relay-client.ts` and `tools/relay-protocol.ts`, and
+  #5234 consumes them (its workspace is being corrected to match). Two references
+  remain stale until their owners update them, and this workspace cannot edit them:
+  [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md)
+  assigns the extraction to "#5234 slice 1" (landing order group 1) and lists the old
+  env names `AGENTA_AGENT_TOOLS_RELAY_WATCH`/`_WATCH_WINDOW_MS` in its env-names
+  contract; the renamed per-hop flags are
+  `AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED`,
+  `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED`, and
+  `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_WINDOW_MS`.
+- **5. Permanent timing log.** The log is shipped: one
+  `[relay] stage=relay_pickup id=... pickup_ms=... wake=...` line per executed request
+  (mtime-based, approximate across clocks on Daytona, one extra stat call per executed
+  request). The removal decision is still open: keep it after QA, or remove it once the
+  numbers are recorded?
+- **6. Custom snapshots without node.** The watch exec needs node in the sandbox image.
+  The default snapshot has it (Pi runs on node). Is degrade-to-poll acceptable for
+  custom snapshots without node, or should the script have a shell-only variant
+  (`inotifywait` is not guaranteed either, so a portable shell variant may not exist)?
+
+## Answered during implementation
+
+- **Daytona atomic rename (was question 2).** Resolved early, during slice 1: the
+  daemon v0.4.2 source (`router.rs`) implements `/v1/fs/move` as Rust
+  `std::fs::rename`, which is `rename(2)` and atomic for a same-directory move.
+  `RelayHost.rename` calls `moveFs` (with `overwrite: true` only as a guard against a
+  pathological duplicate response); the shell-`mv` fallback was never needed. Reader-side
+  JSON retry stays rejected (plan.md decision 2 says why).
+- **Orphaned-request residue across warm-continued turns (was question 4).** Ownership
+  accepted; fixed in this project. The first successful list of each turn's relay loop
+  is a snapshot: pre-existing request files are marked seen and best-effort deleted,
+  never executed, so a turn only executes requests created after it started. Combined
+  with delete-on-pickup (the runner removes each request file right after reading it),
+  a request executes at most once per publication; a crashed turn's request surfaces as
+  a writer timeout, never a re-execution.
 
 ## Answered by the review round
 
@@ -61,6 +67,7 @@ Questions the reviews answered moved to the bottom.
   consolidated QA step in orchestration.md: run both relay writers (the Pi extension
   and the shim) through the watch path in one matrix pass, and flip the default only
   after it, plus the capacity gates above.
-- **The 25 s window.** A plausible starting value, not a measured one; it gets about
-  20 percent jitter, validation, and clamping (plan.md decision 7), and QA revisits the
-  number.
+- **The 25 s window.** A plausible starting value, not a measured one; it gets
+  downward-only jitter of up to 20 percent (a deliberate deviation from the reviewed
+  plus-or-minus 20 percent, recorded in status.md), validation, and clamping (plan.md
+  decision 7), and QA revisits the number.
