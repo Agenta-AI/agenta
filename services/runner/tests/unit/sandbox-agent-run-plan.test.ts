@@ -12,6 +12,7 @@ import {
   buildRunPlan,
   shouldUploadOwnLogin,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
+import { RESERVED_MCP_SERVER_NAME_MESSAGE } from "../../src/engines/sandbox_agent/mcp.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
@@ -473,6 +474,29 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
+  });
+
+  it("refuses a user MCP server that claims the reserved internal name 'agenta-tools'", () => {
+    // The internal gateway-tool channel is keyed by name and claude_settings.py renders
+    // permission rules against it; a user server with the name would collide/steal them.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "agenta-tools",
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
   });
 
   it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {

@@ -17,6 +17,10 @@ import {
   USER_MCP_UNSUPPORTED_MESSAGE,
 } from "../../tools/mcp-bridge.ts";
 import {
+  INTERNAL_TOOL_MCP_SERVER_NAME,
+  RESERVED_MCP_SERVER_NAME_MESSAGE,
+} from "./mcp.ts";
+import {
   PI_BUILTIN_TOOL_IDENTITY,
   permissionsFromRequest,
   piBuiltinIdentity,
@@ -362,6 +366,19 @@ export function buildRunPlan(
   // tools are gated — keep the wire shape, but the delivery is not supported.
   if (hasStdioMcpServer(request.mcpServers)) {
     return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
+  }
+
+  // The internal gateway-tool channel's name is reserved on every transport: the Python
+  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
+  // that name would collide with the internal channel and inherit/steal its rendered rules.
+  // Refuse at declaration time; `buildSessionMcpServers` repeats the check at session
+  // materialization as defense in depth.
+  if (
+    (request.mcpServers ?? []).some(
+      (server) => server.name === INTERNAL_TOOL_MCP_SERVER_NAME,
+    )
+  ) {
+    return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
   }
 
   // Non-Pi + remote + tools: executable (gateway/callback) tools are DELIVERABLE on Daytona
