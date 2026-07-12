@@ -43,6 +43,11 @@ function isNotFound(error: unknown): boolean {
   );
 }
 
+function isStateChangeInProgress(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes("sandbox state change in progress");
+}
+
 function stateOf(sandbox: Sandbox): string {
   return String(sandbox.state ?? "unknown").toLowerCase();
 }
@@ -113,8 +118,8 @@ async function waitForStableState(
   sandbox: Sandbox,
   sandboxId: string,
   operation: "pause" | "reconnect",
+  deadline = Date.now() + RECONNECT_DEADLINE_MILLISECONDS,
 ): Promise<string> {
-  const deadline = Date.now() + RECONNECT_DEADLINE_MILLISECONDS;
   let state = stateOf(sandbox);
   while (TRANSITIONAL_STATES.has(state)) {
     if (Date.now() >= deadline) {
@@ -230,20 +235,47 @@ export function daytonaWithLifecycle(
         }
         throw error;
       }
-      const state = await waitForStableState(sandbox, sandboxId, "reconnect");
-      if (RUNNING_STATES.has(state)) {
-        await syncNetworkPolicy(sandbox, sandboxId);
-        return;
-      }
-      if (STOPPED_STATES.has(state)) {
-        await sandbox.start();
-        await syncNetworkPolicy(sandbox, sandboxId);
-        return;
-      }
-      if (FAILED_STATES.has(state)) {
+      const deadline = Date.now() + RECONNECT_DEADLINE_MILLISECONDS;
+      while (Date.now() < deadline) {
+        const state = await waitForStableState(
+          sandbox,
+          sandboxId,
+          "reconnect",
+          deadline,
+        );
+        if (RUNNING_STATES.has(state)) {
+          await syncNetworkPolicy(sandbox, sandboxId);
+          return;
+        }
+        if (STOPPED_STATES.has(state)) {
+          try {
+            await sandbox.start();
+          } catch (error) {
+            if (!isStateChangeInProgress(error)) throw error;
+            await wait(RECONNECT_POLL_INTERVAL_MILLISECONDS);
+            try {
+              await sandbox.refreshData();
+            } catch (refreshError) {
+              if (isNotFound(refreshError)) {
+                throw new DaytonaReconnectTerminalError(sandboxId, "not-found");
+              }
+              throw refreshError;
+            }
+            continue;
+          }
+          await syncNetworkPolicy(sandbox, sandboxId);
+          return;
+        }
+        if (FAILED_STATES.has(state)) {
+          throw new DaytonaReconnectTerminalError(sandboxId, state);
+        }
         throw new DaytonaReconnectTerminalError(sandboxId, state);
       }
-      throw new DaytonaReconnectTerminalError(sandboxId, state);
+      throw new Error(
+        "Timed out waiting to reconnect Daytona sandbox '" +
+          sandboxId +
+          "' after a state transition conflict.",
+      );
     },
     async deleteSandbox(sandboxId: string): Promise<void> {
       try {

@@ -140,6 +140,31 @@ describe("Daytona provider reconnect", () => {
     assert.equal(starts, 1);
   });
 
+  it("retries when Daytona starts changing state between refresh and start", async () => {
+    vi.useFakeTimers();
+    let starts = 0;
+    const sandbox = {
+      state: "stopped",
+      async refreshData() {
+        this.state = "stopped";
+      },
+      async start() {
+        starts += 1;
+        if (starts === 1) {
+          this.state = "stopping";
+          throw new Error("Sandbox state change in progress");
+        }
+        this.state = "started";
+      },
+    };
+    const reconnect = buildProvider(sandbox).reconnect("sandbox-1");
+
+    await vi.advanceTimersByTimeAsync(500);
+    await reconnect;
+
+    assert.equal(starts, 2);
+  });
+
   it("throws the terminal type for missing, failed, and unknown states", async () => {
     const cases = [
       { state: "not-found", provider: buildProvider({}, { statusCode: 404 }) },
