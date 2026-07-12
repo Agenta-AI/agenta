@@ -250,11 +250,13 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       specsPath: "/home/sandbox/agenta/tool-mcp/agenta-abc/tool-mcp-specs.json",
     };
     try {
+      // Deliberately auth-free: this pin is about WHICH servers are delivered on the
+      // three-layer Daytona shape; user-MCP auth delivery has its own tests and its wire
+      // shape is owned by another seam.
       const userHttp: McpServerConfig = {
         name: "linear",
         transport: "http",
         url: "https://mcp.linear.app/sse",
-        credentials: [credential("Authorization", "Bearer x")],
       };
       const { servers } = await build({
         isPi: false,
@@ -295,7 +297,10 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       );
       const serialized = JSON.stringify(internal);
       assert.ok(!serialized.includes("composio.search"), "no private callRef");
-      assert.ok(!serialized.includes("Bearer"), "no credential");
+      assert.ok(
+        !serialized.includes("mcp.linear.app"),
+        "no user MCP url leaks into the internal entry",
+      );
       assert.ok(!serialized.includes("127.0.0.1"), "no loopback URL");
 
       // The user stdio path is still refused on the same Daytona + internalToolMcp shape.
