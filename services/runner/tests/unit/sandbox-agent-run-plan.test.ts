@@ -12,6 +12,7 @@ import {
   buildRunPlan,
   shouldUploadOwnLogin,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
+import { RESERVED_MCP_SERVER_NAME_MESSAGE } from "../../src/engines/sandbox_agent/mcp.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
@@ -475,6 +476,29 @@ describe("buildRunPlan", () => {
     assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
   });
 
+  it("refuses a user MCP server that claims the reserved internal name 'agenta-tools'", () => {
+    // The internal gateway-tool channel is keyed by name and claude_settings.py renders
+    // permission rules against it; a user server with the name would collide/steal them.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "agenta-tools",
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
+  });
+
   it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {
     const result = buildRunPlan(
       {
@@ -566,13 +590,12 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
-  describe("remote-tools gate (F1: non-Pi harness x remote sandbox x tools)", () => {
-    it("refuses claude x daytona x tools (no delivery path exists)", () => {
-      // F1, audit finding: the internal tool-MCP is loopback-only (unreachable from inside the
-      // sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's bundled
-      // extension. Before this gate the run proceeded, silently dropped every tool, and returned
-      // ok:true. Refuse up front, before any cwd/sandbox is created.
-      let created = false;
+  describe("remote-tools gate (non-Pi harness x remote sandbox x tools)", () => {
+    it("allows claude x daytona x executable tools (delivered via the in-sandbox stdio MCP shim)", () => {
+      // The in-sandbox-tool-mcp slice 1: executable (gateway/callback) tools are deliverable
+      // on Claude+Daytona — the runner uploads the stdio MCP shim into `plan.toolMcpDir` and
+      // the calls ride the file relay. The plan must carry the shim dir (an ephemeral SIBLING
+      // of the relay dir, never inside it) and still start the relay loop.
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -580,33 +603,33 @@ describe("buildRunPlan", () => {
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "server_tool", kind: "callback" }],
         } as AgentRunRequest,
-        {
-          createDaytonaCwd: () => {
-            created = true;
-            return "/home/sandbox/agenta-fixed";
-          },
-        },
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
       );
 
-      assert.equal(result.ok, false);
-      if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
-      assert.match(
-        result.error,
-        /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//,
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(
+        result.plan.toolMcpDir,
+        "/home/sandbox/agenta/tool-mcp/agenta-fixed",
+      );
+      assert.notEqual(result.plan.toolMcpDir, result.plan.relayDir);
+      assert.ok(
+        !result.plan.toolMcpDir.startsWith(`${result.plan.relayDir}/`),
+        "the shim dir is never nested inside the relay dir (the relay loop sweeps it)",
       );
       assert.equal(
-        created,
-        false,
-        "fails before any cwd is created (up-front gate)",
+        result.plan.useToolRelay,
+        true,
+        "the relay loop still starts (it executes the shim's requests)",
       );
     });
 
     it("refuses claude x UNKNOWN remote provider x tools (fails closed, not open)", () => {
-      // The gate keys on `sandbox !== "local"`, not `sandbox === "daytona"`, so a new remote
-      // provider (the in-flight E2B one, or anything after it) is refused with the same loud
-      // error until it ships a proven tool-delivery path — instead of silently re-opening the
-      // F1 zero-tools drop one provider over.
+      // In-sandbox delivery is proven for Daytona only, so a new remote provider (the
+      // in-flight E2B one, or anything after it) is refused with the same loud error until
+      // delivery is proven there — instead of silently re-opening the F1 zero-tools drop one
+      // provider over.
+      let created = false;
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -614,12 +637,27 @@ describe("buildRunPlan", () => {
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "server_tool", kind: "callback" }],
         } as AgentRunRequest,
-        { createLocalCwd: () => "/tmp/local-cwd" },
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/tmp/local-cwd";
+          },
+        },
       );
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.match(result.error, /non-Pi harness on this remote sandbox provider/);
+      assert.match(result.error, /proven for Daytona only/);
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      );
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
     });
 
     it("allows claude x daytona x NO tools", () => {
@@ -679,19 +717,22 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
     });
 
-    it("refuses claude x daytona x client-only tools (they ride the MCP channel now)", () => {
-      // Client tools are delivered to Claude over the same internal loopback MCP channel as
-      // gateway tools (advertised in tools/list, paused in tools/call). On a remote sandbox that
-      // channel is unreachable, so a client tool is exactly as undeliverable as a gateway tool:
-      // the model would never see it. The old exemption (client tools "not routed through the
-      // channel") is gone; the gate now counts ALL custom tools.
+    it("refuses claude x daytona x client tools (no pause path through the shim yet)", () => {
+      // A client tool is browser-fulfilled across a turn boundary: on local Claude the
+      // loopback channel pauses the call, but the in-sandbox stdio shim cannot — the relay
+      // loop parks a client call and writes no response file, so the shim would hang until
+      // the relay timeout and read as a broken tool. Refuse loud (never silently drop),
+      // even when executable tools ride along.
       let created = false;
       const result = buildRunPlan(
         {
           harness: "claude",
           sandbox: "daytona",
           messages: [{ role: "user", content: "hello" }],
-          customTools: [{ name: "request_connection", kind: "client" }],
+          customTools: [
+            { name: "server_tool", kind: "callback" },
+            { name: "request_connection", kind: "client" },
+          ],
         } as AgentRunRequest,
         {
           createDaytonaCwd: () => {
@@ -703,7 +744,12 @@ describe("buildRunPlan", () => {
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.match(result.error, /Client tools are not supported/);
+      assert.match(result.error, /browser round-trip/);
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      );
       assert.equal(
         created,
         false,
@@ -723,6 +769,29 @@ describe("buildRunPlan", () => {
       );
 
       assert.equal(result.ok, true);
+    });
+
+    it("still refuses claude x daytona x executable tools under strict restricted network", () => {
+      // The Layer-2 strict-network gate is UNCHANGED by the shim: the shim only advertises;
+      // execution still happens on the RUNNER HOST via the relay, outside the sandbox egress
+      // boundary, so a strict restricted-network run with executable tools stays refused.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+          sandboxPermission: {
+            network: { mode: "off" },
+            enforcement: "strict",
+          },
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /bypass the sandbox network boundary/);
     });
   });
 

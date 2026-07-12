@@ -744,9 +744,11 @@ describe("runSandboxAgent orchestration", () => {
       true,
       "the run succeeds; gateway tools reach Claude",
     );
-    // The relay carries execution only; Claude's own ACP gates decide before a call reaches it,
-    // so a Claude run never gets the Pi execution guard.
-    assert.equal(calls.toolRelayArgs?.[6], undefined);
+    // The relay dir is sandbox-writable on every harness, so a Claude run gets the execution
+    // guard too — its non-Pi shape enforces the hard deny boundary against forged records
+    // while `ask` stays with Claude's own harness dialog (see buildRelayExecutionGuard; the
+    // non-Pi semantics are pinned in tool-relay-guard.test.ts).
+    assert.equal(typeof calls.toolRelayArgs?.[6], "function");
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
     assert.equal(
@@ -765,7 +767,15 @@ describe("runSandboxAgent orchestration", () => {
       /^http:\/\/127\.0\.0\.1:\d+\/mcp$/,
       "loopback url",
     );
-    assert.deepEqual(mcpServers[0].headers, [], "no credential on the channel");
+    // WP1 (#5201): the loopback HTTP endpoint carries a per-session bearer guard so another local
+    // process cannot reach it. It is a locally minted access token, not a provider credential.
+    assert.equal(mcpServers[0].headers.length, 1, "the loopback guard header");
+    assert.equal(mcpServers[0].headers[0].name, "Authorization");
+    assert.match(
+      mcpServers[0].headers[0].value,
+      /^Bearer .+/,
+      "per-session loopback guard token",
+    );
     // The internal server is opened then released, so its port does not leak past the run.
     assert.equal(calls.sandboxDestroyed, 1, "sandbox disposed in finally");
   });

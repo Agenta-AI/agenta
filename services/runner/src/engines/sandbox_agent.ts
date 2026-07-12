@@ -42,7 +42,6 @@ import {
 } from "../tracing/otel.ts";
 import {
   localRelayHost,
-  redactContextBoundArgs,
   sandboxRelayHost,
   startToolRelay,
   type RelayExecutionGuard,
@@ -93,7 +92,12 @@ import {
   writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
-  decide,
+  uploadToolMcpAssets,
+  type ToolMcpAssets,
+} from "./sandbox_agent/tool-mcp-assets.ts";
+import { advertisedToolSpecs } from "../tools/public-spec.ts";
+import { buildRelayExecutionGuard } from "./sandbox_agent/relay-guard.ts";
+import {
   PendingApprovalLatch,
   permissionsFromRequest,
 } from "../permission-plan.ts";
@@ -306,6 +310,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
+  uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
   startToolRelay?: typeof startToolRelay;
@@ -729,6 +734,16 @@ export async function acquireEnvironment(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
       `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
   );
+  if (!plan.isPi && plan.isDaytona) {
+    const omittedClientTools = plan.toolSpecs
+      .filter((spec) => spec.kind === "client")
+      .map((spec) => spec.name);
+    if (omittedClientTools.length > 0) {
+      logger(
+        `omitting client tools from Daytona stdio MCP shim: ${omittedClientTools.join(", ")}`,
+      );
+    }
+  }
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
@@ -1036,12 +1051,31 @@ export async function acquireEnvironment(
     if (environment.sandbox) inFlightSandboxes.add(environment);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
+    // For a non-Pi harness with executable tools, also push the in-sandbox stdio MCP shim
+    // assets (bundle + public-specs file): a non-Pi harness in the sandbox cannot reach the
+    // runner-loopback HTTP MCP channel, so the harness's ACP adapter spawns the uploaded shim
+    // as the internal stdio MCP server instead. Uploaded unconditionally for non-Pi (the
+    // capability probe runs later; a harness that turns out to lack MCP fails loud in
+    // `assertRequiredCapabilities` below). Pi delivers via its extension; local non-Pi uses
+    // the loopback HTTP channel — neither needs this. The upload helper THROWS when the shim
+    // cannot be delivered (fail loud — this path requires it).
+    let internalToolMcp: ToolMcpAssets | undefined;
     if (plan.isDaytona) {
       await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
         sandbox: environment.sandbox,
         plan,
         log: logger,
       });
+      if (!plan.isPi && plan.executableToolSpecs.length > 0) {
+        internalToolMcp = await (
+          deps.uploadToolMcpAssets ?? uploadToolMcpAssets
+        )(
+          environment.sandbox,
+          plan.toolMcpDir,
+          advertisedToolSpecs(plan.executableToolSpecs),
+          logger,
+        );
+      }
     }
 
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
@@ -1182,6 +1216,11 @@ export async function acquireEnvironment(
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
+      // The uploaded in-sandbox stdio MCP shim assets, set only on Daytona + non-Pi +
+      // executable-tools; advertises the gateway tools the loopback channel cannot reach
+      // from inside the sandbox. No server to close for this entry (the harness owns the
+      // shim process), so `sessionMcp.close` semantics are unchanged.
+      internalToolMcp,
       log: logger,
     });
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
@@ -1574,9 +1613,6 @@ export async function runTurn(
       extractClientToolOutputs(request),
     );
     const executionGrants = new ApprovedExecutionGrants();
-    // The guard's decide() must never consume this turn's stored decisions — the DIALOG is their
-    // consumer (it runs first). An empty store makes every `ask` route to the grant ledger.
-    const relayGuardDecisions = new ConversationDecisions(new Map());
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
@@ -1698,43 +1734,20 @@ export async function runTurn(
       log: logger,
     });
 
-    // Pi only: the dialog gate lives in the sandbox, so the relay re-checks every execute record
-    // runner-side (a forged record must not run an ask/deny tool). Claude keeps today's behavior:
-    // its harness gates fire before a call reaches the relay, and its relay was never re-checked.
-    const relayGuard: RelayExecutionGuard | undefined = plan.isPi
-      ? (spec, req) => {
-          const verdict = decide(
-            {
-              executor: "relay",
-              toolName: spec.name,
-              specPermission: spec.permission,
-              readOnlyHint: spec.readOnly,
-              args: req.args,
-            },
-            permissionPlan,
-            relayGuardDecisions,
-          );
-          if (verdict.kind === "allow") return { allow: true };
-          if (verdict.kind === "deny") {
-            return {
-              allow: false,
-              reason: `Tool '${spec.name}' is denied by the permission policy.`,
-            };
-          }
-          return executionGrants.consume(
-            spec.name,
-            redactContextBoundArgs(
-              req.args,
-              spec.callRef ? spec.contextBindings : undefined,
-            ),
-          )
-            ? { allow: true }
-            : {
-                allow: false,
-                reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
-              };
-        }
-      : undefined;
+    // EVERY harness gets the guard: the relay dir is sandbox-writable, so a forged
+    // `<id>.req.json` proves nothing about any dialog having run, and this runner-side
+    // re-check is the only enforcement of the hard deny boundary against forged files.
+    // `allow` passes and `deny` refuses identically everywhere; `ask` splits by harness —
+    // Pi consumes a dialog-recorded execution grant (fail-closed parity with the in-sandbox
+    // confirm), while a non-Pi MCP harness (Claude) passes `ask` because its own harness
+    // enforces the ask dialog (the rendered `mcp__agenta-tools__<tool>` ask rules + the ACP
+    // permission flow) before a call reaches the shim. See buildRelayExecutionGuard for the
+    // stated residual (a forged file can still trigger an ask-tool without a dialog there).
+    const relayGuard: RelayExecutionGuard = buildRelayExecutionGuard({
+      isPi: plan.isPi,
+      permissionPlan,
+      executionGrants,
+    });
 
     if (plan.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
