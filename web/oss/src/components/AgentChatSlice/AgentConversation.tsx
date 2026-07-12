@@ -15,7 +15,7 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
-import {FilesWindowModal, filesWindowOpenAtom} from "@/oss/components/Drives/FilesWindowModal"
+import {FilesDrawer, filesDrawerOpenAtom} from "@/oss/components/Drives/FilesDrawer"
 import {DriveQuickLook} from "@/oss/components/Drives/quickLook"
 import {
     invalidateAgentCommittedRevisionCache,
@@ -573,8 +573,8 @@ const AgentConversation = ({
     // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
     // THIS conversation's drive and render the centered surfaces (no drawer, no route change).
     const quickLookHost = <DriveQuickLook sessionId={sessionId} />
-    const filesWindowHost = <FilesWindowModal sessionId={sessionId} />
-    const setFilesWindowOpen = useSetAtom(filesWindowOpenAtom)
+    const filesWindowHost = <FilesDrawer sessionId={sessionId} />
+    const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtom)
 
     // Build→Chat sequencing for the context rail: the mode switch eases the config pane out
     // (~240ms + hold, MainLayout `animateSplit`); the rail waits that ease out before sliding

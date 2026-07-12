@@ -40,7 +40,14 @@ const FileTile = ({file, onOpen}: {file: DriveRecentFile; onOpen: () => void}) =
     )
 }
 
-export default function FilesWindow({sessionId}: {sessionId: string}) {
+export default function FilesWindow({
+    sessionId,
+    embedded = false,
+}: {
+    sessionId: string
+    /** Rendered inside a titled shell (the Files drawer) — hide the inner "Files" label. */
+    embedded?: boolean
+}) {
     const drive = useSessionDrive(sessionId)
     const openQuickLook = useSetAtom(driveQuickLookAtom)
 
@@ -64,8 +71,12 @@ export default function FilesWindow({sessionId}: {sessionId: string}) {
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center gap-2 px-3 py-2">
-                <FolderSimple size={15} className="text-colorTextSecondary" />
-                <span className="text-xs font-medium">Files</span>
+                {!embedded ? (
+                    <>
+                        <FolderSimple size={15} className="text-colorTextSecondary" />
+                        <span className="text-xs font-medium">Files</span>
+                    </>
+                ) : null}
                 <div className="ml-auto flex items-center gap-2">
                     {view === "grid" ? (
                         <>
