@@ -21,7 +21,8 @@ export const DAYTONA_PI_DIR =
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
 export const DAYTONA_PI_INSTALL =
   process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED !== "false";
-export const DAYTONA_PI_VERSION = process.env.AGENTA_AGENT_SANDBOX_PI_VERSION ?? "0.80.6";
+export const DAYTONA_PI_VERSION =
+  process.env.AGENTA_AGENT_SANDBOX_PI_VERSION ?? "0.80.6";
 
 /**
  * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
@@ -45,9 +46,11 @@ export function daytonaEnvVars(
   return env;
 }
 
-
 /** Install the `pi` CLI into a Daytona sandbox (the sandbox-agent image lacks it). Best-effort. */
-export async function installPiInSandbox(sandbox: any, log: Log = () => {}): Promise<void> {
+export async function installPiInSandbox(
+  sandbox: any,
+  log: Log = () => {},
+): Promise<void> {
   try {
     await sandbox.mkdirFs({ path: DAYTONA_PI_INSTALL_DIR });
     const res = await sandbox.runProcess({
@@ -62,7 +65,9 @@ export async function installPiInSandbox(sandbox: any, log: Log = () => {}): Pro
       timeoutMs: 180_000,
     });
     if (res?.exitCode !== 0) {
-      log(`pi install in sandbox exit=${res?.exitCode}: ${String(res?.stderr).slice(-400)}`);
+      log(
+        `pi install in sandbox exit=${res?.exitCode}: ${String(res?.stderr).slice(-400)}`,
+      );
     }
   } catch (err) {
     log(`pi install in sandbox skipped: ${(err as Error).message}`);
@@ -74,13 +79,21 @@ export async function installPiInSandbox(sandbox: any, log: Log = () => {}): Pro
  * the dev's ChatGPT/Codex OAuth. Best-effort: with no local login the remote run falls
  * back to any provider key in the sandbox env.
  */
-export async function uploadPiAuthToSandbox(sandbox: any, log: Log = () => {}): Promise<void> {
-  const localDir = process.env.PI_CODING_AGENT_DIR || join(process.env.HOME ?? "", ".pi/agent");
+export async function uploadPiAuthToSandbox(
+  sandbox: any,
+  log: Log = () => {},
+): Promise<void> {
+  const localDir =
+    process.env.PI_CODING_AGENT_DIR ||
+    join(process.env.HOME ?? "", ".pi/agent");
   const authPath = join(localDir, "auth.json");
   if (!existsSync(authPath)) return;
   try {
     await sandbox.mkdirFs({ path: DAYTONA_PI_DIR });
-    await sandbox.writeFsFile({ path: `${DAYTONA_PI_DIR}/auth.json` }, readFileSync(authPath, "utf-8"));
+    await sandbox.writeFsFile(
+      { path: `${DAYTONA_PI_DIR}/auth.json` },
+      readFileSync(authPath, "utf-8"),
+    );
     const settingsPath = join(localDir, "settings.json");
     if (existsSync(settingsPath)) {
       await sandbox.writeFsFile(
@@ -137,7 +150,11 @@ export async function prepareDaytonaPiAssets({
       log,
     );
   }
+  const piInstallStartedAt = Date.now();
   if (DAYTONA_PI_INSTALL) await installPiInSandbox(sandbox, log);
+  log(
+    `[timing] stage=pi_install ms=${Math.round(Date.now() - piInstallStartedAt)} sandbox=${sandbox?.sandboxId ?? "-"} session=- skipped=${!DAYTONA_PI_INSTALL}`,
+  );
 }
 
 /**
@@ -149,13 +166,17 @@ export async function prepareDaytonaPiAssets({
  * It layers on {@link createAcpFetch} (the long-timeout ACP dispatcher) so a paused HITL turn
  * over Daytona is not reaped by undici's default `headersTimeout` either.
  */
-export function createCookieFetch(inner: typeof fetch = createAcpFetch()): typeof fetch {
+export function createCookieFetch(
+  inner: typeof fetch = createAcpFetch(),
+): typeof fetch {
   const jar = new Map<string, Map<string, string>>(); // host -> (name -> "name=value")
   return async (input: any, init?: any) => {
     const url = new URL(typeof input === "string" ? input : input.url);
     const host = url.host;
     const cookies = jar.get(host);
-    const headers = new Headers(init?.headers ?? (typeof input !== "string" ? input.headers : undefined));
+    const headers = new Headers(
+      init?.headers ?? (typeof input !== "string" ? input.headers : undefined),
+    );
     if (cookies && cookies.size > 0) {
       const existing = headers.get("cookie");
       const merged = [...cookies.values()];
@@ -166,7 +187,9 @@ export function createCookieFetch(inner: typeof fetch = createAcpFetch()): typeo
     const setCookies =
       typeof (response.headers as any).getSetCookie === "function"
         ? (response.headers as any).getSetCookie()
-        : (response.headers.get("set-cookie") ? [response.headers.get("set-cookie")] : []);
+        : response.headers.get("set-cookie")
+          ? [response.headers.get("set-cookie")]
+          : [];
     if (setCookies.length) {
       const store = jar.get(host) ?? new Map<string, string>();
       for (const sc of setCookies) {

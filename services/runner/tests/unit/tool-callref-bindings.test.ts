@@ -62,6 +62,16 @@ async function relayOnce(input: {
   const dir = mkdtempSync(join(tmpdir(), "agenta-callref-relay-"));
   try {
     const id = "call-1";
+    const relay = startToolRelay(
+      localRelayHost(),
+      dir,
+      [input.spec],
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      input.runContext,
+    );
+    // Written AFTER startToolRelay: the stale-file sweep (whose listing is taken
+    // synchronously inside startToolRelay for this synchronous-list host) clears any
+    // request already present as pre-turn residue instead of executing it.
     writeFileSync(
       join(dir, `${id}.req.json`),
       JSON.stringify({
@@ -69,13 +79,6 @@ async function relayOnce(input: {
         toolCallId: id,
         args: input.args,
       }),
-    );
-    const relay = startToolRelay(
-      localRelayHost(),
-      dir,
-      [input.spec],
-      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
-      input.runContext,
     );
     const resPath = join(dir, `${id}.res.json`);
     const deadline = Date.now() + 5000;

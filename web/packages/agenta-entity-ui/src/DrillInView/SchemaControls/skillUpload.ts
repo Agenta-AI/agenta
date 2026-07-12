@@ -147,6 +147,21 @@ async function readDataTransfer(dt: DataTransfer): Promise<RawFile[]> {
     return filesToRaw(dt.files)
 }
 
+/**
+ * Merge a pasted SKILL.md into an existing skill draft: frontmatter → name/description,
+ * the remainder → body. Unlike a full upload it never touches `files` (paste is a merge).
+ */
+export function mergePastedSkill(
+    skill: Record<string, unknown>,
+    md: string,
+): Record<string, unknown> {
+    const {name, description, body} = parseSkillMarkdown(md)
+    const next: Record<string, unknown> = {...skill, body}
+    if (name) next.name = name
+    if (description) next.description = description
+    return next
+}
+
 /** Top-level: a selected FileList → a parsed skill. */
 export async function parseSkillFromFileList(list: FileList | File[]): Promise<ParsedSkill> {
     return buildSkillFromFiles(expandArchives(await filesToRaw(list)))

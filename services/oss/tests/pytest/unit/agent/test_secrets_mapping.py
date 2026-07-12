@@ -15,7 +15,7 @@ def test_standard_providers_map_to_expected_env_vars():
     assert _PROVIDER_ENV_VARS["anthropic"] == "ANTHROPIC_API_KEY"
     assert _PROVIDER_ENV_VARS["gemini"] == "GEMINI_API_KEY"
     assert _PROVIDER_ENV_VARS["groq"] == "GROQ_API_KEY"
-    assert _PROVIDER_ENV_VARS["together_ai"] == "TOGETHERAI_API_KEY"
+    assert _PROVIDER_ENV_VARS["together_ai"] == "TOGETHER_API_KEY"
     assert _PROVIDER_ENV_VARS["openrouter"] == "OPENROUTER_API_KEY"
 
 
