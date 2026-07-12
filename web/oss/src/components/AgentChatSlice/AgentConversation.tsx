@@ -15,6 +15,7 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
+import {FilesWindowModal, filesWindowOpenAtom} from "@/oss/components/Drives/FilesWindowModal"
 import {DriveQuickLook} from "@/oss/components/Drives/quickLook"
 import {
     invalidateAgentCommittedRevisionCache,
@@ -569,9 +570,11 @@ const AgentConversation = ({
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
 
-    // Quick Look host: in-thread file cards and Files-tab tiles request a path via the atom;
-    // this resolves it against THIS conversation's drive and renders the centered preview.
+    // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
+    // THIS conversation's drive and render the centered surfaces (no drawer, no route change).
     const quickLookHost = <DriveQuickLook sessionId={sessionId} />
+    const filesWindowHost = <FilesWindowModal sessionId={sessionId} />
+    const setFilesWindowOpen = useSetAtom(filesWindowOpenAtom)
 
     // Build→Chat sequencing for the context rail: the mode switch eases the config pane out
     // (~240ms + hold, MainLayout `animateSplit`); the rail waits that ease out before sliding
@@ -1836,6 +1839,7 @@ const AgentConversation = ({
                 {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                 {modalContextHolder}
                 {quickLookHost}
+                {filesWindowHost}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
                 <RightPanelSplit
@@ -2234,9 +2238,7 @@ const AgentConversation = ({
                             sessionId={sessionId}
                             busy={busy}
                             hidden={buildMode || rightPanelOpen || railHeldByModeSwitch}
-                            onOpenFiles={() =>
-                                setRightPanel({mode: "session", sessionId, tab: "mounts"})
-                            }
+                            onOpenFiles={() => setFilesWindowOpen(true)}
                         />
                     </div>
                 </RightPanelSplit>
