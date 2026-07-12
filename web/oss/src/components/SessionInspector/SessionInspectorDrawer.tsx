@@ -12,6 +12,7 @@ import {projectIdAtom} from "@/oss/state/project"
 import {dumpSessionTab, type SessionInspectorTab} from "./dump"
 import {
     closeSessionInspectorAtom,
+    sessionInspectorArtifactIdAtom,
     sessionInspectorOpenAtom,
     sessionInspectorSessionIdAtom,
 } from "./store"
@@ -35,6 +36,7 @@ const QUERY_KEY_BY_TAB: Record<SessionInspectorTab, string> = {
 const SessionInspectorDrawer = () => {
     const open = useAtomValue(sessionInspectorOpenAtom)
     const sessionId = useAtomValue(sessionInspectorSessionIdAtom)
+    const artifactId = useAtomValue(sessionInspectorArtifactIdAtom)
     const projectId = useAtomValue(projectIdAtom)
     const close = useSetAtom(closeSessionInspectorAtom)
     const queryClient = useQueryClient()
@@ -42,9 +44,14 @@ const SessionInspectorDrawer = () => {
     const [dumping, setDumping] = useState(false)
 
     const onRefresh = () =>
-        queryClient.invalidateQueries({
-            queryKey: ["session-inspector", QUERY_KEY_BY_TAB[activeTab], projectId, sessionId],
-        })
+        Promise.all([
+            queryClient.invalidateQueries({
+                queryKey: ["session-inspector", QUERY_KEY_BY_TAB[activeTab], projectId, sessionId],
+            }),
+            queryClient.invalidateQueries({
+                queryKey: ["session-inspector", "agent-mount", projectId, artifactId],
+            }),
+        ])
 
     const onDump = async () => {
         if (!sessionId) return
@@ -119,7 +126,7 @@ const SessionInspectorDrawer = () => {
                         {
                             key: "mounts",
                             label: "Mounts",
-                            children: <MountsTab sessionId={sessionId} />,
+                            children: <MountsTab sessionId={sessionId} artifactId={artifactId} />,
                         },
                         {
                             key: "interactions",

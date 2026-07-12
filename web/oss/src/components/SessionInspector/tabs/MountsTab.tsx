@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {
+    fetchAgentMount,
     fetchMountFileBlob,
     fetchMountFiles,
     fetchMountFileText,
@@ -279,45 +280,85 @@ const MountFilesPanel = ({mountId, projectId}: {mountId: string; projectId?: str
     )
 }
 
-const MountsTab = ({sessionId}: {sessionId: string}) => {
+const MountsTab = ({sessionId, artifactId}: {sessionId: string; artifactId?: string | null}) => {
     const projectId = useAtomValue(projectIdAtom)
 
-    const queryKey = ["session-inspector", "mounts", projectId, sessionId]
-    const {data, isLoading, error} = useQuery({
-        queryKey,
+    const mountsQuery = useQuery({
+        queryKey: ["session-inspector", "mounts", projectId, sessionId],
         queryFn: () => fetchMounts(sessionId, projectId),
         enabled: Boolean(sessionId),
         refetchOnWindowFocus: false,
     })
 
-    if (isLoading) return <Skeleton active />
-    if (error) return <Alert type="error" message="Failed to load mounts" showIcon />
+    const agentMountQuery = useQuery({
+        queryKey: ["session-inspector", "agent-mount", projectId, artifactId],
+        queryFn: () => fetchAgentMount(artifactId!, projectId),
+        enabled: Boolean(artifactId),
+        refetchOnWindowFocus: false,
+    })
 
-    const mounts = data?.mounts ?? []
-    if (!mounts.length) return <Empty description="No mounts bound to this session" />
+    const mounts = mountsQuery.data?.mounts ?? []
 
     // File ops need a concrete mount id; a mount row without one can't be browsed.
     const mountsWithId = mounts.filter((mount): mount is typeof mount & {id: string} =>
         Boolean(mount.id),
     )
 
+    // Loading/error scope only the session-mounts section; agent files load independently below.
     return (
-        <Collapse
-            size="small"
-            items={mountsWithId.map((mount) => ({
-                key: mount.id,
-                label: (
-                    <div className="flex flex-col">
-                        <span>{mount.name ?? mount.slug ?? mount.id}</span>
-                        <Text type="secondary" className="text-xs font-mono">
-                            {mount.id}
-                        </Text>
-                    </div>
-                ),
-                // Antd lazily mounts panel children on first expand, so this is when the listing query fires.
-                children: <MountFilesPanel mountId={mount.id} projectId={projectId} />,
-            }))}
-        />
+        <div className="flex flex-col gap-4">
+            {mountsQuery.isLoading ? (
+                <Skeleton active />
+            ) : mountsQuery.error ? (
+                <Alert type="error" message="Failed to load mounts" showIcon />
+            ) : mountsWithId.length ? (
+                <Collapse
+                    size="small"
+                    items={mountsWithId.map((mount) => ({
+                        key: mount.id,
+                        label: (
+                            <div className="flex flex-col">
+                                <span>{mount.name ?? mount.slug ?? mount.id}</span>
+                                <Text type="secondary" className="text-xs font-mono">
+                                    {mount.id}
+                                </Text>
+                            </div>
+                        ),
+                        // Antd lazily mounts panel children on first expand, so this is when the listing query fires.
+                        children: <MountFilesPanel mountId={mount.id} projectId={projectId} />,
+                    }))}
+                />
+            ) : (
+                <Empty description="No mounts bound to this session" />
+            )}
+            {artifactId ? (
+                <div className="flex flex-col gap-2">
+                    {agentMountQuery.isLoading ? (
+                        <Skeleton active />
+                    ) : agentMountQuery.error ? (
+                        <Alert type="error" message="Failed to load agent files" showIcon />
+                    ) : agentMountQuery.data?.id ? (
+                        <Collapse
+                            size="small"
+                            items={[
+                                {
+                                    key: agentMountQuery.data.id,
+                                    label: "Agent files",
+                                    children: (
+                                        <MountFilesPanel
+                                            mountId={agentMountQuery.data.id}
+                                            projectId={projectId}
+                                        />
+                                    ),
+                                },
+                            ]}
+                        />
+                    ) : (
+                        <Text type="secondary">No agent files yet.</Text>
+                    )}
+                </div>
+            ) : null}
+        </div>
     )
 }
 
