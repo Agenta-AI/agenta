@@ -30,7 +30,7 @@
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
-import { rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
 import { Redactor, seedFromEnv } from "../redaction.ts";
@@ -152,6 +152,15 @@ import {
   storeReachableFromSandbox,
   type MountCredentials,
 } from "./sandbox_agent/mount.ts";
+import {
+  AGENT_MOUNT_ENV_VAR,
+  agentMountPath,
+  linkAgentFiles,
+  linkAgentFilesRemote,
+  seedAgentReadme,
+  seedAgentReadmeRemote,
+  signAgentMountCredentials,
+} from "./sandbox_agent/agent-mount.ts";
 import {
   hydrateHarnessSessionFromDurable,
   syncHarnessSessionDurable,
@@ -334,6 +343,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   localRelayHost?: typeof localRelayHost;
   sandboxRelayHost?: typeof sandboxRelayHost;
   signSessionMountCredentials?: typeof signSessionMountCredentials;
+  signAgentMountCredentials?: typeof signAgentMountCredentials;
   mountStorage?: typeof mountStorage;
   mountStorageRemote?: typeof mountStorageRemote;
   unmountStorage?: typeof unmountStorage;
@@ -539,6 +549,7 @@ export interface SessionEnvironment {
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;
   mountCreds: MountCredentials | null;
+  agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
    * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
@@ -551,6 +562,7 @@ export interface SessionEnvironment {
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
   sessionDestroyRequested: boolean;
   mountedCwd: string | undefined;
+  agentMountedPath?: string;
   durableCwdSafeToDelete: boolean;
   workspace: { cleanup: () => Promise<void> } | undefined;
   runtimeRemount: Promise<boolean> | undefined;
@@ -703,6 +715,17 @@ export async function acquireEnvironment(
           })
         : null;
 
+  const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
+  const signAgentMount =
+    deps.signAgentMountCredentials ?? signAgentMountCredentials;
+  const agentMountCreds: MountCredentials | null =
+    artifactId && runCred
+      ? await signAgentMount(artifactId, {
+          apiBase: apiBase(),
+          authorization: runCred,
+          log: logger,
+        })
+      : null;
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
   // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
@@ -726,6 +749,7 @@ export async function acquireEnvironment(
   });
   if (!planResult.ok) return { ok: false, error: planResult.error };
   const plan = planResult.plan;
+  const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
   // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.modelEnvironment` are
@@ -763,6 +787,11 @@ export async function acquireEnvironment(
         skills: plan.skillDirs.map((s) => s.name),
       })
     : {};
+  if (agentMountDir) {
+    // Daytona fixes daemon env at sandbox-create, before the best-effort remote mount. Exposing
+    // the signed mount's stable path is safe; discovery files are seeded only after mount success.
+    piExtEnv[AGENT_MOUNT_ENV_VAR] = agentMountDir;
+  }
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
@@ -818,12 +847,14 @@ export async function acquireEnvironment(
     runAgentDir,
     otlpAuthFilePath,
     mountCreds,
+    agentMountCreds,
     mountProjectId: mountCreds?.projectId,
     loadedFromContinuity: false,
     resumable: false,
     continuityTurnIndex: undefined,
     sessionDestroyRequested: false,
     mountedCwd: undefined,
+    agentMountedPath: undefined,
     durableCwdSafeToDelete: true,
     // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
     workspace: plan.isDaytona
@@ -893,6 +924,23 @@ export async function acquireEnvironment(
         environment.deps.unmountStorage ?? unmountStorage
       )(environment.mountedCwd, { log }).catch(() => false);
     }
+    if (!parked && !plan.isDaytona && environment.agentMountedPath) {
+      const agentMountSafeToDelete = await (
+        environment.deps.unmountStorage ?? unmountStorage
+      )(
+        environment.agentMountedPath,
+        { log },
+      ).catch(() => false);
+      if (agentMountSafeToDelete) {
+        try {
+          rmSync(environment.agentMountedPath, { recursive: true, force: true });
+        } catch (err) {
+          logger(
+            `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
+          );
+        }
+      }
+    }
     if (!environment.durableCwdSafeToDelete) {
       logger(
         `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
@@ -930,6 +978,33 @@ export async function acquireEnvironment(
       return true;
     }
     return false;
+  };
+  const mountLocalAgentCwd = async (): Promise<boolean> => {
+    if (!environment.agentMountCreds || plan.isDaytona) return false;
+    const mountPath = agentMountPath(plan.cwd);
+    if (environment.agentMountedPath === mountPath) return true;
+    try {
+      mkdirSync(mountPath, { recursive: true });
+      if (
+        !(await (deps.mountStorage ?? mountStorage)(
+          mountPath,
+          environment.agentMountCreds,
+          { log: logger },
+        ))
+      ) {
+        return false;
+      }
+      environment.agentMountedPath = mountPath;
+      await seedAgentReadme(mountPath, { log: logger });
+      await linkAgentFiles(plan.cwd, mountPath, { log: logger });
+      env[AGENT_MOUNT_ENV_VAR] = mountPath;
+      return true;
+    } catch (err) {
+      logger(
+        `local agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
+      );
+      return false;
+    }
   };
   let localDurableCwdEnotconnRemounts = 0;
   const reSignAndRemountLocalCwd = async (): Promise<boolean> => {
@@ -981,6 +1056,16 @@ export async function acquireEnvironment(
   };
 
   try {
+    // Local mounts must be active before the provider starts the daemon so its inherited env
+    // includes AGENTA_AGENT_MOUNT_DIR. Daytona needs the live sandbox handle and mounts below,
+    // before createSession starts the harness.
+    if (environment.mountCreds && !plan.isDaytona) {
+      await mountLocalDurableCwd("initial");
+    }
+    if (environment.agentMountCreds && !plan.isDaytona) {
+      await mountLocalAgentCwd();
+    }
+
     // Validate user MCP routes and credential bindings before provider construction or sandbox
     // reconnect/create. `buildSessionMcpServers` repeats this at final materialization as defense.
     await validateUserMcpServers(request.mcpServers);
@@ -1144,9 +1229,6 @@ export async function acquireEnvironment(
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
-    if (environment.mountCreds && !plan.isDaytona) {
-      await mountLocalDurableCwd("initial");
-    }
     if (environment.mountCreds && plan.isDaytona) {
       const mountsStartedAt = Date.now();
       try {
@@ -1202,6 +1284,51 @@ export async function acquireEnvironment(
         }
       } finally {
         timingLog("mounts", mountsStartedAt);
+      }
+    }
+    if (
+      environment.agentMountCreds &&
+      agentMountDir &&
+      plan.isDaytona &&
+      !environment.agentMountedPath
+    ) {
+      const agentMountStartedAt = Date.now();
+      try {
+        const storeEndpoint = environment.agentMountCreds.endpoint;
+        const endpoint = storeReachableFromSandbox(storeEndpoint)
+          ? undefined
+          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              log: logger,
+            })) ?? undefined);
+        const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
+        const mountPath = agentMountDir;
+        if (
+          canMount &&
+          (await (deps.mountStorageRemote ?? mountStorageRemote)(
+            environment.sandbox,
+            mountPath,
+            environment.agentMountCreds,
+            { endpoint, log: logger },
+          ))
+        ) {
+          environment.agentMountedPath = mountPath;
+          await seedAgentReadmeRemote(environment.sandbox, mountPath, {
+            log: logger,
+          });
+          await linkAgentFilesRemote(
+            environment.sandbox,
+            plan.cwd,
+            mountPath,
+            { log: logger },
+          );
+          logger(`remote agent mount active for artifact=${artifactId}`);
+        }
+      } catch (err) {
+        logger(
+          `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
+        );
+      } finally {
+        timingLog("agent_mount", agentMountStartedAt);
       }
     }
 
