@@ -215,7 +215,7 @@ export function MarkdownEditor({
             disabled={disabled}
             className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-c-97A4B0,#97a4b0)] transition-colors hover:text-[var(--ag-c-586673,#586673)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-            {markdownView ? "Rich text" : "Markdown"}
+            {markdownView ? "Rich text" : "Source"}
         </button>
     ) : null
 
