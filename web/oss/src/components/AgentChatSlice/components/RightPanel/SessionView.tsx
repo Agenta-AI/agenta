@@ -2,22 +2,25 @@ import {useState} from "react"
 
 import {Button} from "antd"
 
+import FilesWindow from "@/oss/components/Drives/FilesWindow"
 import InteractionsTab from "@/oss/components/SessionInspector/tabs/InteractionsTab"
-import MountsTab from "@/oss/components/SessionInspector/tabs/MountsTab"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 
 import type {SessionPanelTab} from "../../state/rightPanel"
 
+// Chat mode is jargon-free: the tab says "Files", never mount/cwd/session-drive (the tab VALUE
+// stays "mounts" — it's the persisted RightPanelTarget key).
 const TABS: {value: SessionPanelTab; label: string}[] = [
-    {value: "mounts", label: "Mounts"},
+    {value: "mounts", label: "Files"},
     {value: "state", label: "State"},
     {value: "interactions", label: "Interactions"},
 ]
 
 /**
  * The "session" view of the right panel: session-scoped content that coexists with the chat.
- * Mounts (the durable workspace) is the primary tab; State + Interactions reuse the same durable
- * endpoints. Records is intentionally omitted (it's the transcript the chat already renders).
+ * Files (the conversation's drive — grid/list + Quick Look) is the primary tab; State +
+ * Interactions reuse the same durable endpoints. Records is intentionally omitted (it's the
+ * transcript the chat already renders).
  */
 const SessionView = ({
     sessionId,
@@ -49,11 +52,17 @@ const SessionView = ({
                     )
                 })}
             </div>
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3">
-                {tab === "mounts" ? <MountsTab sessionId={sessionId} /> : null}
-                {tab === "state" ? <StatesTab sessionId={sessionId} /> : null}
-                {tab === "interactions" ? <InteractionsTab sessionId={sessionId} /> : null}
-            </div>
+            {tab === "mounts" ? (
+                // FilesWindow owns its scroll/padding (grid + footer, or the two-pane explorer).
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    <FilesWindow sessionId={sessionId} />
+                </div>
+            ) : (
+                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3">
+                    {tab === "state" ? <StatesTab sessionId={sessionId} /> : null}
+                    {tab === "interactions" ? <InteractionsTab sessionId={sessionId} /> : null}
+                </div>
+            )}
         </div>
     )
 }

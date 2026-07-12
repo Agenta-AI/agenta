@@ -12,6 +12,8 @@ import {
 
 import {revalidateSessionMountsAtom} from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
+
+import {DriveQuickLook} from "@/oss/components/Drives/quickLook"
 import {
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
@@ -564,6 +566,10 @@ const AgentConversation = ({
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
+
+    // Quick Look host: in-thread file cards and Files-tab tiles request a path via the atom;
+    // this resolves it against THIS conversation's drive and renders the centered preview.
+    const quickLookHost = <DriveQuickLook sessionId={sessionId} />
 
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
     // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
@@ -1807,6 +1813,7 @@ const AgentConversation = ({
         >
             {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
             {modalContextHolder}
+            {quickLookHost}
             {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
             <RightPanelSplit

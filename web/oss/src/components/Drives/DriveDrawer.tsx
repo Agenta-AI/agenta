@@ -2,10 +2,10 @@
  * DriveDrawer — the two-pane drive inspector (build-spec direction 1a, view B).
  *
  * Right drawer on the existing shell (`EnhancedDrawer`), but an INSPECTOR, not a form: no
- * Form/JSON toggle, no Create/Cancel. Left pane = search + file tree (folders first, alpha);
- * right pane = breadcrumb + meta + per-file Download + content viewer (markdown for
- * `.md/.markdown`, raw mono otherwise). Phase 1 is read-only; `scope="app"` is the same drawer
- * for the app drive (phase 2 — everything but header accents/subtitle/footer is shared).
+ * Form/JSON toggle, no Create/Cancel. The browsing body is the exported {@link DriveExplorer}
+ * (search + file tree / breadcrumb + meta + Download + content viewer) — the chat Files
+ * window's list view renders the SAME explorer ("build once, skin twice"). Phase 1 is
+ * read-only; `scope="app"` is the same drawer for the app drive (phase 2).
  */
 import {useEffect, useMemo, useState} from "react"
 
@@ -41,7 +41,7 @@ import {
     relativeTime,
     type DriveTreeNode,
 } from "./driveTree"
-import {useSessionDrive} from "./useSessionDrive"
+import {useSessionDrive, type SessionDriveData} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -54,13 +54,13 @@ const SCOPE_META = {
 
 export type DriveScope = keyof typeof SCOPE_META
 
-const fileIcon = (path: string, size = 14) => {
+export const driveFileIcon = (path: string, size = 14) => {
     if (isMarkdownPath(path)) return <FileText size={size} className="text-[#4fd1b5]" />
     if (/\.json$/i.test(path)) return <BracketsCurly size={size} className="text-colorWarning" />
     return <File size={size} className="text-colorTextTertiary" />
 }
 
-const fileTypeLabel = (path: string): string => {
+export const fileTypeLabel = (path: string): string => {
     if (isMarkdownPath(path)) return "Markdown"
     const ext = path.split(".").pop()
     return ext && ext !== path ? ext.toUpperCase() : "File"
@@ -106,7 +106,7 @@ const TreeRow = ({
                         <FolderSimple size={14} className="shrink-0 text-colorWarning" />
                     </>
                 ) : (
-                    <span className="shrink-0 pl-[14px]">{fileIcon(node.path)}</span>
+                    <span className="shrink-0 pl-[14px]">{driveFileIcon(node.path)}</span>
                 )}
                 <span className="min-w-0 truncate font-mono">{node.name}</span>
                 {!node.isFolder && node.size != null ? (
@@ -132,9 +132,49 @@ const TreeRow = ({
     )
 }
 
-/** Right pane: breadcrumb + name/meta + Download + content viewer. Exported for reuse by the
- * chat Quick Look (same renderer, different shell). */
-export const DriveFilePreview = ({
+/** The inset content viewer: markdown for `.md/.markdown`, raw mono (pre-wrap) otherwise.
+ * Shared by the drawer preview and the chat Quick Look — one renderer everywhere. */
+export const DriveFileContentViewer = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const content = contentQuery.data
+    return (
+        <div className="min-h-0 flex-1 overflow-y-auto rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3">
+            {contentQuery.isPending ? (
+                <Skeleton active paragraph={{rows: 6}} />
+            ) : typeof content !== "string" ? (
+                <Text type="secondary" className="!text-xs">
+                    Couldn&rsquo;t load this file&rsquo;s content.
+                </Text>
+            ) : isMarkdownPath(path) ? (
+                <Markdown content={content} className="!text-xs" />
+            ) : (
+                <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
+                    {content}
+                </pre>
+            )}
+        </div>
+    )
+}
+
+/** Download button for one file — enabled once its content is cached/loadable. */
+export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const content = contentQuery.data
+    const name = path.split("/").pop() ?? path
+    return (
+        <Button
+            size="small"
+            icon={<DownloadSimple size={13} />}
+            disabled={typeof content !== "string"}
+            onClick={() => typeof content === "string" && downloadTextFile(name, content)}
+        >
+            Download
+        </Button>
+    )
+}
+
+/** Right pane: breadcrumb + name/meta + Download + content viewer. */
+const DriveFilePreview = ({
     mount,
     path,
     rootLabel,
@@ -149,10 +189,8 @@ export const DriveFilePreview = ({
     size?: number
     onNavigateRoot?: () => void
 }) => {
-    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
     const name = path.split("/").pop() ?? path
     const folders = path.split("/").slice(0, -1)
-    const content = contentQuery.data
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
@@ -182,31 +220,154 @@ export const DriveFilePreview = ({
                         {touchedAt ? <> · modified {relativeTime(touchedAt)}</> : null}
                     </div>
                 </div>
-                <Button
-                    size="small"
-                    icon={<DownloadSimple size={13} />}
-                    disabled={typeof content !== "string"}
-                    onClick={() => typeof content === "string" && downloadTextFile(name, content)}
-                >
-                    Download
-                </Button>
+                <DriveFileDownloadButton mount={mount} path={path} />
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3">
-                {contentQuery.isPending ? (
-                    <Skeleton active paragraph={{rows: 6}} />
-                ) : typeof content !== "string" ? (
-                    <Text type="secondary" className="!text-xs">
-                        Couldn&rsquo;t load this file&rsquo;s content.
-                    </Text>
-                ) : isMarkdownPath(path) ? (
-                    <Markdown content={content} className="!text-xs" />
-                ) : (
-                    <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
-                        {content}
-                    </pre>
-                )}
+            <DriveFileContentViewer mount={mount} path={path} />
+        </div>
+    )
+}
+
+/**
+ * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
+ * selection state; initialize with `initialPath` (callers remount per open, so mount-time init
+ * is the reset).
+ */
+export function DriveExplorer({
+    drive,
+    scope = "session",
+    initialPath,
+}: {
+    drive: SessionDriveData
+    scope?: DriveScope
+    initialPath?: string | null
+}) {
+    const rootLabel = drive.mount?.slug ?? "cwd"
+    const [search, setSearch] = useState("")
+    const [selectedPath, setSelectedPath] = useState<string | null>(() => initialPath ?? null)
+    const [expanded, setExpanded] = useState<Set<string>>(
+        () => new Set(initialPath ? ancestorPaths(initialPath) : []),
+    )
+
+    // Auto-select the most-recently-touched file once the listing lands (spec behavior); never
+    // steals an existing selection.
+    useEffect(() => {
+        if (drive.isLoading || selectedPath || !drive.recents.length) return
+        const target = drive.recents[0].path
+        setSelectedPath(target)
+        setExpanded(new Set(ancestorPaths(target)))
+    }, [drive.isLoading, drive.recents, selectedPath])
+
+    const tree = useMemo(() => buildDriveTree(drive.files), [drive.files])
+    const shownTree = useMemo(() => filterDriveTree(tree, search), [tree, search])
+    // While searching, show every surviving branch expanded so matches are visible.
+    const shownExpanded = useMemo(
+        () => (search.trim() ? new Set(collectFolderPaths(shownTree)) : expanded),
+        [search, shownTree, expanded],
+    )
+    const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
+
+    if (drive.errored) {
+        return (
+            <div className="w-full p-4">
+                <Alert
+                    type="warning"
+                    showIcon
+                    message="Couldn't load this drive"
+                    description={
+                        <span className="text-xs">
+                            The file store may not be configured on this deployment.
+                        </span>
+                    }
+                />
             </div>
+        )
+    }
+    if (drive.isLoading) {
+        return (
+            <div className="flex min-h-0 w-full flex-1">
+                <div className="w-[240px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary p-3">
+                    <Skeleton.Input active size="small" block />
+                    <div className="mt-3">
+                        <Skeleton active paragraph={{rows: 4}} title={false} />
+                    </div>
+                </div>
+                <div className="flex-1 p-4">
+                    <Skeleton active paragraph={{rows: 8}} />
+                </div>
+            </div>
+        )
+    }
+    if (drive.fileCount === 0) {
+        return (
+            <div className="flex min-h-0 w-full flex-1">
+                <div className="w-[240px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary p-3">
+                    <Input size="small" disabled placeholder="Search" />
+                </div>
+                <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
+                    <Tray size={28} className="text-colorTextQuaternary" />
+                    <div className="text-xs font-medium">This drive is empty</div>
+                    <div className="text-[11px] text-colorTextTertiary">
+                        {scope === "session"
+                            ? "Created on the conversation's first run."
+                            : "Files the agent keeps across conversations land here."}
+                    </div>
+                </div>
+            </div>
+        )
+    }
+    return (
+        <div className="flex min-h-0 w-full flex-1">
+            <div className="flex w-[240px] shrink-0 flex-col gap-2 overflow-y-auto border-0 border-r border-solid border-colorBorderSecondary p-3">
+                <Input
+                    size="small"
+                    allowClear
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search files"
+                    prefix={<MagnifyingGlass size={12} className="text-colorTextQuaternary" />}
+                />
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    {shownTree.length === 0 ? (
+                        <Text type="secondary" className="px-1 !text-[11px]">
+                            No files match.
+                        </Text>
+                    ) : (
+                        shownTree.map((node) => (
+                            <TreeRow
+                                key={node.path}
+                                node={node}
+                                depth={0}
+                                expanded={shownExpanded}
+                                selectedPath={selectedPath}
+                                onToggle={(path) =>
+                                    setExpanded((prev) => {
+                                        const next = new Set(prev)
+                                        if (next.has(path)) next.delete(path)
+                                        else next.add(path)
+                                        return next
+                                    })
+                                }
+                                onSelect={setSelectedPath}
+                            />
+                        ))
+                    )}
+                </div>
+            </div>
+            {selectedPath ? (
+                <DriveFilePreview
+                    mount={drive.mount}
+                    path={selectedPath}
+                    rootLabel={rootLabel}
+                    touchedAt={selected?.touchedAt}
+                    size={selected?.size ?? undefined}
+                    onNavigateRoot={() => setSelectedPath(drive.recents[0]?.path ?? null)}
+                />
+            ) : (
+                <div className="flex flex-1 items-center justify-center text-xs text-colorTextTertiary">
+                    Select a file to preview it.
+                </div>
+            )}
         </div>
     )
 }
@@ -231,33 +392,6 @@ export function DriveDrawer({
     const drive = useSessionDrive(sessionId)
     const meta = SCOPE_META[scope]
     const ScopeIcon = meta.icon
-    const rootLabel = drive.mount?.slug ?? "cwd"
-
-    const [search, setSearch] = useState("")
-    const [selectedPath, setSelectedPath] = useState<string | null>(null)
-    const [expanded, setExpanded] = useState<Set<string>>(new Set())
-
-    // On open: reset search, select the requested file, else the most-recently-touched one,
-    // and expand the selection's ancestors.
-    useEffect(() => {
-        if (!open) return
-        setSearch("")
-        const target = initialPath ?? drive.recents[0]?.path ?? null
-        setSelectedPath(target)
-        setExpanded(new Set(target ? ancestorPaths(target) : []))
-        // Intentionally NOT keyed on drive.recents: re-running on listing refreshes would yank
-        // the user's selection mid-browse. Open/initialPath are the only (re)entry points.
-    }, [open, initialPath])
-
-    const tree = useMemo(() => buildDriveTree(drive.files), [drive.files])
-    const shownTree = useMemo(() => filterDriveTree(tree, search), [tree, search])
-    // While searching, show every surviving branch expanded so matches are visible.
-    const shownExpanded = useMemo(
-        () => (search.trim() ? new Set(collectFolderPaths(shownTree)) : expanded),
-        [search, shownTree, expanded],
-    )
-
-    const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
 
     return (
         <EnhancedDrawer
@@ -311,102 +445,8 @@ export function DriveDrawer({
             }
             styles={{body: {padding: 0, display: "flex", minHeight: 0}}}
         >
-            {drive.errored ? (
-                <div className="p-4">
-                    <Alert
-                        type="warning"
-                        showIcon
-                        message="Couldn't load this drive"
-                        description={
-                            <span className="text-xs">
-                                The file store may not be configured on this deployment.
-                            </span>
-                        }
-                    />
-                </div>
-            ) : drive.isLoading ? (
-                <div className="flex min-h-0 w-full flex-1">
-                    <div className="w-[240px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary p-3">
-                        <Skeleton.Input active size="small" block />
-                        <div className="mt-3">
-                            <Skeleton active paragraph={{rows: 4}} title={false} />
-                        </div>
-                    </div>
-                    <div className="flex-1 p-4">
-                        <Skeleton active paragraph={{rows: 8}} />
-                    </div>
-                </div>
-            ) : drive.fileCount === 0 ? (
-                <div className="flex min-h-0 w-full flex-1">
-                    <div className="w-[240px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary p-3">
-                        <Input size="small" disabled placeholder="Search" />
-                    </div>
-                    <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
-                        <Tray size={28} className="text-colorTextQuaternary" />
-                        <div className="text-xs font-medium">This drive is empty</div>
-                        <div className="text-[11px] text-colorTextTertiary">
-                            {scope === "session"
-                                ? "Created on the conversation's first run."
-                                : "Files the agent keeps across conversations land here."}
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="flex min-h-0 w-full flex-1">
-                    <div className="flex w-[240px] shrink-0 flex-col gap-2 overflow-y-auto border-0 border-r border-solid border-colorBorderSecondary p-3">
-                        <Input
-                            size="small"
-                            allowClear
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search files"
-                            prefix={
-                                <MagnifyingGlass size={12} className="text-colorTextQuaternary" />
-                            }
-                        />
-                        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                            {shownTree.length === 0 ? (
-                                <Text type="secondary" className="px-1 !text-[11px]">
-                                    No files match.
-                                </Text>
-                            ) : (
-                                shownTree.map((node) => (
-                                    <TreeRow
-                                        key={node.path}
-                                        node={node}
-                                        depth={0}
-                                        expanded={shownExpanded}
-                                        selectedPath={selectedPath}
-                                        onToggle={(path) =>
-                                            setExpanded((prev) => {
-                                                const next = new Set(prev)
-                                                if (next.has(path)) next.delete(path)
-                                                else next.add(path)
-                                                return next
-                                            })
-                                        }
-                                        onSelect={setSelectedPath}
-                                    />
-                                ))
-                            )}
-                        </div>
-                    </div>
-                    {selectedPath ? (
-                        <DriveFilePreview
-                            mount={drive.mount}
-                            path={selectedPath}
-                            rootLabel={rootLabel}
-                            touchedAt={selected?.touchedAt}
-                            size={selected?.size ?? undefined}
-                            onNavigateRoot={() => setSelectedPath(drive.recents[0]?.path ?? null)}
-                        />
-                    ) : (
-                        <div className="flex flex-1 items-center justify-center text-xs text-colorTextTertiary">
-                            Select a file to preview it.
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* destroyOnClose remounts the explorer per open — mount-time init IS the reset. */}
+            <DriveExplorer drive={drive} scope={scope} initialPath={initialPath} />
         </EnhancedDrawer>
     )
 }
