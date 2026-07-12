@@ -1739,7 +1739,9 @@ export async function runTurn(
     if (plan.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
-          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox)
+          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox, {
+              log: logger,
+            })
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.relayDir,
         plan.toolSpecs,

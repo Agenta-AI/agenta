@@ -27,6 +27,7 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 
@@ -56,6 +57,13 @@ import {
   type RelayRequest,
   type RelayResponse,
 } from "./relay-protocol.ts";
+import {
+  RELAY_SAFETY_POLL_MS,
+  daytonaRelayActivitySource,
+  localRelayActivitySource,
+  remoteWatchEnabled,
+  type RelayActivitySource,
+} from "./relay-watch.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 
 // Compatibility re-export: the type moved to `client-tool-relay.ts` (a pure type module);
@@ -185,6 +193,21 @@ export interface RelayHost {
    * visible, so the in-sandbox writer can never read partial JSON.
    */
   rename: (from: string, to: string) => Promise<void>;
+  /**
+   * Delete one relay file. Used for delete-on-pickup: the runner removes a request
+   * file as soon as it has read it, so a watch that wakes on ANY `*.req.json` present
+   * (the Daytona watch exec) does not insta-complete and rearm for the whole
+   * execution. Call sites guard with their own try/catch (pickup removal is
+   * best-effort); implementations may throw.
+   */
+  remove: (path: string) => Promise<void>;
+  /**
+   * Optional hop 2 wake source for the relay dir (plan decision 3). Undefined means
+   * the loop is byte-for-byte today's poll loop. A source that suspends polling
+   * (Daytona watch exec) replaces the remote poll with the 30 s safety poll while
+   * healthy; one that does not (local fs.watch) only shortens the poll sleep.
+   */
+  createActivitySource?: (dir: string) => RelayActivitySource | undefined;
 }
 
 /** Relay host for child processes running on the same filesystem as the runner. */
@@ -202,11 +225,20 @@ export function localRelayHost(): RelayHost {
     rename: async (from, to) => {
       renameSync(from, to);
     },
+    remove: async (path) => {
+      unlinkSync(path);
+    },
+    // Unflagged (plan decision 7, last paragraph): the local watch's failure mode is
+    // "fall back to the poll" and the poll cadence is unchanged either way.
+    createActivitySource: (dir) => localRelayActivitySource(dir),
   };
 }
 
 /** Relay host for child processes running inside a Daytona sandbox. */
-export function sandboxRelayHost(sandbox: any): RelayHost {
+export function sandboxRelayHost(
+  sandbox: any,
+  opts?: { log?: (msg: string) => void },
+): RelayHost {
   return {
     list: async (dir) => {
       const ls = await sandbox.runProcess({
@@ -235,6 +267,16 @@ export function sandboxRelayHost(sandbox: any): RelayHost {
       // response; the final name never pre-exists in normal operation.
       await sandbox.moveFs({ from, to, overwrite: true });
     },
+    remove: async (path) => {
+      await sandbox.deleteFsEntry({ path });
+    },
+    // Flagged (plan decision 7): the remote watch changes what the runner asks the
+    // daemon to do, so it ships behind AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED
+    // (default false). Off means today's poll loop, byte for byte.
+    createActivitySource: (dir) =>
+      remoteWatchEnabled()
+        ? daytonaRelayActivitySource(sandbox, dir, { log: opts?.log })
+        : undefined,
   };
 }
 
@@ -358,7 +400,21 @@ export function startToolRelay(
     const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
     let res: RelayResponse;
     try {
-      const raw = await host.read(`${relayDir}/${reqName}`);
+      const reqPath = `${relayDir}/${reqName}`;
+      const raw = await host.read(reqPath);
+      // Delete-on-pickup: remove the request file BEFORE executing. The Daytona watch
+      // exec wakes on ANY *.req.json present, so a request left on disk for the whole
+      // execution would make every window insta-complete and rearm at network speed
+      // (~66 daemon req/s measured). The `seen` set still dedups the list race. This
+      // deliberately ends crash-redelivery-by-re-listing — a request is executed at
+      // most once per publication, consistent with the orphan-residue decision (a
+      // restarted turn must not re-execute stale requests; the writer times out and
+      // surfaces a tool error instead).
+      try {
+        await host.remove(reqPath);
+      } catch {
+        // Best-effort: a failed removal only costs extra wakes, never correctness.
+      }
       const req = JSON.parse(raw) as RelayRequest;
       const spec = specsByName.get(req.toolName);
       if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
@@ -390,26 +446,61 @@ export function startToolRelay(
     }
   };
 
+  // Hop 2 wake source (plan decision 3). Undefined (no capability, or the remote watch
+  // flag is off, or fs.watch failed) leaves the loop below byte-for-byte today's poll.
+  const source = host.createActivitySource?.(relayDir);
+
   const loop = (async () => {
     // Idle-poll backoff: a quiet turn (e.g. waiting on a browser-fulfilled client-tool pause)
     // grows the delay up to RELAY_POLL_MAX_MS instead of polling at 300 ms forever; any new
     // request resets it. This cuts the remote `ls` rate on Daytona without delaying a real call.
     let idlePolls = 0;
-    while (active) {
-      let sawNew = false;
-      try {
-        const names = await host.list(relayDir);
-        for (const name of names) {
-          if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
-          seen.add(name);
-          sawNew = true;
-          inflight.push(handle(name));
+    let lastWaitOutcome: "activity" | "timeout" | "closed" | undefined;
+    try {
+      while (active) {
+        let sawNew = false;
+        try {
+          const names = await host.list(relayDir);
+          for (const name of names) {
+            if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
+            seen.add(name);
+            sawNew = true;
+            inflight.push(handle(name));
+          }
+        } catch {
+          // Transient (dir not created yet, or a poll raced sandbox teardown): retry.
         }
-      } catch {
-        // Transient (dir not created yet, or a poll raced sandbox teardown): retry.
+        // A safety-poll ("timeout") wake that FOUND work while the suspended watch
+        // claimed healthy is a watch miss (plan decision 4): it feeds demotion.
+        if (
+          sawNew &&
+          source?.suspendsPolling &&
+          source.isHealthy() &&
+          lastWaitOutcome === "timeout"
+        ) {
+          source.noteMiss?.();
+        }
+        idlePolls = sawNew ? 0 : idlePolls + 1;
+        if (source && source.isHealthy() && source.suspendsPolling) {
+          // Healthy remote watch: the watch exec's completion is the wake; the remote
+          // poll is suspended and only the 30 s safety poll remains (plan decision 6).
+          lastWaitOutcome = await source.wait({
+            timeoutMs: RELAY_SAFETY_POLL_MS,
+          });
+        } else if (source && source.isHealthy()) {
+          // Local watch: shortens the sleep only; the poll cadence is unchanged.
+          lastWaitOutcome = await source.wait({
+            timeoutMs: relayPollDelayMs(idlePolls),
+          });
+        } else {
+          // Classic loop, byte for byte (no source, demoted, or closed).
+          await sleep(relayPollDelayMs(idlePolls));
+          lastWaitOutcome = undefined;
+        }
       }
-      idlePolls = sawNew ? 0 : idlePolls + 1;
-      await sleep(relayPollDelayMs(idlePolls));
+    } finally {
+      // No timer or watcher may outlive the loop, however it exits.
+      source?.close();
     }
     await Promise.allSettled(inflight);
   })();
@@ -417,6 +508,9 @@ export function startToolRelay(
   return {
     stop: async () => {
       active = false;
+      // Close before awaiting the loop so a held 30 s safety-poll wait resolves
+      // ("closed") immediately instead of pinning stop() on its timer.
+      source?.close();
       await loop.catch(() => {});
     },
   };

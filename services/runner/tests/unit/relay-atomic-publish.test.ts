@@ -83,13 +83,23 @@ describe("startToolRelay response publication (write temp, then rename)", () => 
   it("writes the full response to a non-.res.json path and renames it to <id>.res.json", async () => {
     const relayDir = "/relay";
     const reqName = `call-1${RELAY_REQ_SUFFIX}`;
-    const ops: Array<{ op: "write" | "rename"; path: string; extra: string }> =
-      [];
+    const ops: Array<{
+      op: "read" | "remove" | "write" | "rename";
+      path: string;
+      extra: string;
+    }> = [];
     let listed = false;
     const host: RelayHost = {
       list: async () => (listed ? [] : ((listed = true), [reqName])),
-      read: async () =>
-        JSON.stringify({ toolName: "nope", toolCallId: "call-1", args: {} }),
+      read: async (path) => {
+        ops.push({ op: "read", path, extra: "" });
+        return JSON.stringify({
+          toolName: "nope",
+          toolCallId: "call-1",
+          args: {},
+        });
+      },
+      remove: async (path) => void ops.push({ op: "remove", path, extra: "" }),
       write: async (path, contents) =>
         void ops.push({ op: "write", path, extra: contents }),
       rename: async (from, to) =>
@@ -105,10 +115,18 @@ describe("startToolRelay response publication (write temp, then rename)", () => 
     }
     await relay.stop();
 
-    assert.equal(ops.length, 2, "exactly one write and one rename");
-    const [write, rename] = ops;
-    assert.equal(write.op, "write", "the temp write comes first");
-    assert.equal(rename.op, "rename", "the rename publishes second");
+    // Full pickup-to-publication order: read the request, remove it (delete-on-pickup,
+    // so the watch exec cannot insta-wake on it for the whole execution), write the
+    // response under a temp name, then rename it to the final name.
+    assert.deepEqual(
+      ops.map((o) => o.op),
+      ["read", "remove", "write", "rename"],
+      "read -> remove(req) -> write(tmp) -> rename(final)",
+    );
+    const reqPath = `${relayDir}/${reqName}`;
+    assert.equal(ops[0].path, reqPath, "reads the request file");
+    assert.equal(ops[1].path, reqPath, "removes exactly the request file");
+    const [, , write, rename] = ops;
     const finalResPath = `${relayDir}/call-1${RELAY_RES_SUFFIX}`;
     assert.ok(
       write.path.startsWith(`${finalResPath}.tmp.`),
@@ -154,5 +172,37 @@ describe("RelayHost rename implementations", () => {
     assert.deepEqual(calls, [
       { from: "/relay/x.tmp.abc", to: "/relay/x", overwrite: true },
     ]);
+  });
+});
+
+describe("RelayHost remove implementations (delete-on-pickup)", () => {
+  it("localRelayHost.remove unlinks the file on the local filesystem", async () => {
+    const dir = tempDir();
+    try {
+      const path = join(dir, `x${RELAY_REQ_SUFFIX}`);
+      writeFileSync(path, "{}", "utf-8");
+      await localRelayHost().remove(path);
+      assert.deepEqual(readdirSync(dir), []);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("localRelayHost.remove throws on a missing file (call sites guard)", async () => {
+    const dir = tempDir();
+    try {
+      await assert.rejects(localRelayHost().remove(join(dir, "missing.json")));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("sandboxRelayHost.remove calls the daemon's deleteFsEntry", async () => {
+    const calls: unknown[] = [];
+    const sandbox = {
+      deleteFsEntry: async (arg: unknown) => void calls.push(arg),
+    };
+    await sandboxRelayHost(sandbox).remove("/relay/x.req.json");
+    assert.deepEqual(calls, [{ path: "/relay/x.req.json" }]);
   });
 });
