@@ -123,10 +123,41 @@ pre-rendered `harnessFiles`, and prior-turn session files. Sibling directories (
 scratch, transcript mounts) and the daemon env are effectively invisible — neither Pi nor
 Claude lists the parent directory or dumps `env` unprompted.
 
-Unverified, slice-2 verification task: whether the pinned geesefs version supports
-creating symlinks (the session cwd is a geesefs mount, and the planned `agent-files`
-symlink lives inside it). The sessionless ephemeral cwd is a plain local directory where
-symlinks work unconditionally.
+Verified (slice-2 live QA, 2026-07-12): the pinned geesefs version accepts symlink
+creation inside a live mount, but does not persist the symlink across unmount and remount.
+The link degrades to a 0-byte regular file, and silently, because the `symlink` call itself
+succeeds. `linkAgentFiles` is therefore self-healing: each run it keeps a correct-target
+symlink and replaces a degraded or wrong-target node, so the agent gets a working link for
+that run's session. The env var and README carry the durable discovery signal. The
+sessionless ephemeral cwd is a plain local directory where symlinks persist unconditionally.
+
+## Run-type coverage (slice-1 verification, done 2026-07-11)
+
+The runner's mount-sign callback authenticates as the invoke caller: the SDK re-emits the
+caller's credential as the OTLP `authorization` header (`sdks/python/agenta/sdk/agents/tracing.py:71`),
+the runner reads it back (`services/runner/src/engines/sandbox_agent.ts:172-178`) and signs
+with it. The credential is a Secret JWT carrying only user/project
+(`api/oss/src/middlewares/auth.py:916-945`); RUN_SESSIONS resolves from that user's RBAC
+role at callback time — EDITOR and above (`api/oss/src/core/access/permissions/types.py:218`).
+
+Per run type:
+
+- **Playground**: artifact id verified present; RUN_SESSIONS iff the user is editor+.
+- **Trigger**: references forwarded from the subscription entity; a dispatch with no
+  workflow/application ref aborts with 400 before invoke
+  (`api/oss/src/tasks/asyncio/triggers/dispatcher.py:224-266`), so runs that reach the
+  runner carry the artifact id. Acting user = `subscription.created_by_id`; a
+  viewer-created trigger fails the sign with 403 → best-effort, run proceeds mountless.
+- **Evaluation**: refs come from the evaluation step (`runtime/adapters.py:504-607`);
+  present when the step targets a workflow/application/evaluator artifact (the normal
+  case). Acting user = the evaluation run's user.
+- **Direct API**: whatever the caller/interaction supplies as references
+  (`sessions/router.py:854-869`); the session endpoints are RUN_SESSIONS-gated anyway.
+- **Local standalone SDK**: no runner path today (`adapters/local.py:34-53` is
+  NotImplemented); out of scope.
+
+Consequence for open question 6: nothing to fix in reference population; degradation is
+graceful (missing id or 403 = no agent mount, run unaffected).
 
 ## Concurrency fact to carry into the design
 

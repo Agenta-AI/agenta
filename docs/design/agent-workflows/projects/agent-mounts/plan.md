@@ -48,8 +48,8 @@ more keys are possible later without any change to this design.
 Two new endpoints on the mounts domain, both thin wrappers over existing service parts:
 
 ```
-POST /mounts/agents/sign?artifact_id=<uuid>&name=default     permission: RUN_SESSIONS
-POST /mounts/agents/query   {"artifact_id": "<uuid>"}        permission: VIEW_SESSIONS
+POST /mounts/agents/sign?artifact_id=<uuid>&name=default              permission: RUN_SESSIONS
+POST /mounts/agents/query   {"artifact_id": "<uuid>", "name": "default"}  permission: VIEW_SESSIONS
 ```
 
 - `sign` mints the slug, upserts (`get_or_create_agent_mount`, the exact analogue of
@@ -59,7 +59,11 @@ POST /mounts/agents/query   {"artifact_id": "<uuid>"}        permission: VIEW_SE
 - `query` mints the slug and fetches by `(project_id, slug)`; returns the mount row or an
   empty list. **It does not create.** A read path that upserts would materialize mount rows
   for every agent anyone ever looks at; the frontend shows "no files yet" instead. Needs
-  one new DAO helper, `fetch_mount_by_slug` (the unique index already exists).
+  one new DAO helper, `fetch_mount_by_slug` (the unique index already exists). Review
+  round 2026-07-11 added two read-path rules: the query body carries an optional `name`
+  (default `"default"`) so sign and query stay capability-symmetric (a mount signed under
+  another key must be reachable), and an archived mount reads as absent (matching the
+  sibling `POST /mounts/query` default; the next sign resurrects it).
 - `artifact_id` must parse as a UUID (422 otherwise; see D1), but there is no existence
   check beyond that, matching the session endpoints (session ids are not validated
   either; they may be external). Project scoping comes from auth: the mount lands in the
@@ -109,11 +113,15 @@ lands.
      mounts are up. Listing the working directory is the one discovery action every
      harness performs, and the link shows up there. This does not reintroduce the
      rejected dir-inside-cwd option: that rejection was about nesting a FUSE mount inside
-     a FUSE mount; a symlink is a pointer, not a mount. Caveat: the session cwd is itself
-     geesefs, so creating the link needs geesefs symlink support on the pinned version —
-     a slice-2 verification task. Failure to create it is logged and non-fatal (env var
-     and README still stand); the ephemeral sessionless cwd is a plain local dir where
-     symlinks trivially work.
+     a FUSE mount; a symlink is a pointer, not a mount. Verified (slice-2 live QA,
+     2026-07-12): geesefs accepts symlink creation while the mount is live, but does not
+     persist a symlink across unmount and remount. The link degrades to a 0-byte regular
+     file, and silently, since the `symlink` call itself never errors. So `linkAgentFiles`
+     is self-healing: each run it keeps a correct-target symlink and replaces a degraded or
+     wrong-target node, so the agent gets a working link for that run's session. The env var
+     and README are the durable discovery mechanisms; the symlink is a per-run convenience
+     rebuilt at mount. The ephemeral sessionless cwd is a plain local dir where symlinks
+     persist normally.
   3. A **seeded `README.md` in the agent mount**, written by the runner after mount only
      when absent: files here persist across all sessions and runs of this agent; the
      working directory persists only for the current session (or not at all, sessionless).
@@ -143,7 +151,10 @@ lands.
 Minimal slice: the SessionInspector's Mounts tab gains an "Agent files" panel. It calls
 `POST /mounts/agents/query` with the artifact id from the inspector's context and, when a
 mount comes back, renders `MountFilesPanel` with that mount id. `MountFilesPanel` is
-today a module-private const inside `MountsTab.tsx`, so the slice exports or extracts it;
+today a module-private const inside `MountsTab.tsx` (drift note 2026-07-11: the file
+moved to `web/oss/src/components/SessionInspector/tabs/MountsTab.tsx` on the applied
+`feat/mount-file-viewer` lane, #5204; the implementation lane stacks on it), so the
+slice exports or extracts it;
 beyond that one move, no new file-browsing code (the panel, `deriveRows`, and the
 `fetchMountFiles*` API functions are already mount-id-generic; research.md §frontend).
 Empty result renders "no files yet". Where exactly the artifact id is available in the
@@ -155,7 +166,7 @@ moves to the agent page instead.
 | # | Lane | Content | Tests |
 |---|---|---|---|
 | 1 | api | `mint_agent_slug` (with UUID canonicalization), `get_or_create_agent_mount`, `fetch_mount_by_slug`, the two endpoints; verify runContext + `RUN_SESSIONS` coverage per run type (playground, trigger, evaluation, API) | pytest: slug format + parse-back, non-UUID rejected 422, upsert idempotence (same row id twice), query returns row/empty and never creates, reserved-slug guard still rejects forged `__ag__agent__` slugs, permission checks |
-| 2 | runner | sign call with artifact id from runContext, `<cwd>-agent` mount local+remote, `AGENTA_AGENT_MOUNT_DIR`, `agent-files` symlink in cwd (verify geesefs symlink support first), seeded README (write-if-absent), teardown, keepalive + warm-resume idempotency | vitest: plan wiring (artifact id present/absent), path derivation, env var set only when mounted, symlink created best-effort and skipped when present, README seeded only when absent, unmount on final destroy, no re-mount on warm resume; wire-contract goldens untouched (asserts no protocol change) |
+| 2 | runner | sign call with artifact id from runContext, `<cwd>-agent` mount local+remote, `AGENTA_AGENT_MOUNT_DIR`, self-healing `agent-files` symlink in cwd (geesefs drops symlinks across remount, so it is rebuilt each run), seeded README (write-if-absent), teardown, keepalive + warm-resume idempotency | vitest: plan wiring (artifact id present/absent), path derivation, env var set only when mounted, symlink kept when correct and replaced when degraded or wrong-target, README seeded only when absent, unmount on final destroy, no re-mount on warm resume; wire-contract goldens untouched (asserts no protocol change) |
 | 3 | web | Agent files panel per D4 (includes exporting `MountFilesPanel`) | vitest for the lookup hook; manual e2e in QA |
 | 4 | docs | keep-docs-in-sync sweep: `documentation/` mounts page, runner-selfhosting-explainer, env reference | docs build |
 
