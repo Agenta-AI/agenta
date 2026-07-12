@@ -80,11 +80,17 @@ class TriggersDAO(TriggersDAOInterface):
 
                 await session.refresh(subscription_dbe)
         except IntegrityError as e:
-            error_str = str(e.orig) if e.orig else str(e)
-            if "ix_trigger_subscriptions_trigger_id" in error_str:
-                # A live subscription already occupies this provider trigger (same
-                # connection + event); the partial-unique index forbids a second
-                # active row.
+            # A live subscription already occupies this provider trigger; the partial-unique
+            # index forbids a second active row. Classify by the driver's constraint-name
+            # metadata, falling back to the message so a duplicate never slips through to a 500.
+            index_name = "ix_trigger_subscriptions_trigger_id"
+            orig = getattr(e, "orig", None)
+            constraint = getattr(
+                getattr(orig, "__cause__", None), "constraint_name", None
+            )
+            if constraint == index_name or index_name in (
+                str(orig) if orig else str(e)
+            ):
                 raise EntityCreationConflict(
                     entity="Trigger subscription",
                     message="A subscription for this connection and event already exists.",
