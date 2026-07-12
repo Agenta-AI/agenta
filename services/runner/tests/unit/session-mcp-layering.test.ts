@@ -168,7 +168,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     assert.deepEqual(servers, []);
   });
 
-  it("the internal channel advertisement carries no credential (server-side invariant)", async () => {
+  it("the internal channel advertises only a loopback guard, never a provider credential", async () => {
     const { servers } = await build({
       isPi: false,
       isDaytona: false,
@@ -179,11 +179,15 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     });
     const internal = servers.find((s) => s.name === "agenta-tools");
     assert.ok(internal);
-    assert.deepEqual(
-      (internal as { headers: unknown }).headers,
-      [],
-      "no auth header on the internal channel",
-    );
+    // WP1 (#5201): the loopback HTTP endpoint now carries a per-session bearer so another local
+    // process cannot list or call tools through it. That token is a locally minted access guard,
+    // NOT a provider/control-plane credential — the private callRef still never reaches the
+    // advertisement (asserted below), which is the invariant that actually matters here.
+    const headers = (internal as { headers: Array<{ name: string; value: string }> })
+      .headers;
+    assert.equal(headers.length, 1, "exactly the loopback guard header");
+    assert.equal(headers[0].name, "Authorization");
+    assert.match(headers[0].value, /^Bearer .+/, "a non-empty loopback guard token");
     assert.ok(
       !JSON.stringify(internal).includes("composio.search"),
       "the private callRef never reaches the advertisement",

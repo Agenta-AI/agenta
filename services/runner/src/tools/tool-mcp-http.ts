@@ -28,7 +28,7 @@
  * tolerates. No session id, no streaming — the simplest conformant server. Pin against the MCP SDK
  * version bundled with the installed Claude harness if the framing ever drifts.
  */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -46,7 +46,7 @@ import { assertRequiredArguments, specInputSchema } from "./spec-schema.ts";
 type Log = (message: string) => void;
 
 const DEFAULT_PROTOCOL = "2025-06-18";
-/** Loopback only: never reachable off-host, carries no credentials. */
+/** Loopback only: never reachable off-host. Access also requires a per-server bearer token. */
 const HOST = "127.0.0.1";
 /** Bound the request body so a malformed/oversized POST cannot exhaust runner memory. */
 const MAX_BODY_BYTES = 1_000_000;
@@ -76,6 +76,8 @@ export interface InternalToolMcpServerOptions {
 export interface InternalToolMcpServer {
   /** The loopback URL to advertise to the harness as a `type: "http"` MCP server. */
   url: string;
+  /** Per-server credential to advertise only as the endpoint's Authorization header. */
+  authorizationToken: string;
   /** Stop the server and release the port. Idempotent; safe in the engine `finally`. */
   close: () => Promise<void>;
 }
@@ -261,6 +263,25 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+/** Authenticate a bearer token without leaking comparison timing for equal-length values. */
+function hasValidAuthorization(
+  authorization: string | undefined,
+  expectedToken: string,
+): boolean {
+  if (!authorization) return false;
+  const [scheme, presentedToken, ...extra] = authorization.split(" ");
+  if (
+    scheme?.toLowerCase() !== "bearer" ||
+    !presentedToken ||
+    extra.length > 0
+  ) {
+    return false;
+  }
+  const presented = Buffer.from(presentedToken);
+  const expected = Buffer.from(expectedToken);
+  return presented.length === expected.length && timingSafeEqual(presented, expected);
+}
+
 /**
  * Start the internal gateway-tool MCP server on loopback. Returns the URL to advertise and a
  * `close()`. The caller decides whether to start it; this function does not filter — it serves
@@ -274,6 +295,7 @@ export function startInternalToolMcpServer(
   options: InternalToolMcpServerOptions = {},
 ): Promise<InternalToolMcpServer> {
   const { clientToolRelay, signal, log = () => {} } = options;
+  const authorizationToken = randomBytes(32).toString("base64url");
   const specByName = new Map(specs.map((s) => [s.name, s]));
   // Track in-flight responses so the engine abort signal can destroy them deterministically (a
   // paused client tool destroys its OWN response below; the signal is the backstop for any other
@@ -297,6 +319,19 @@ export function startInternalToolMcpServer(
       return;
     }
 
+    // Gate the POST path before reading or parsing attacker-controlled input.
+    if (!hasValidAuthorization(req.headers.authorization, authorizationToken)) {
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32001, message: "unauthorized" },
+        }),
+      );
+      return;
+    }
+
     readBody(req)
       .then(async (raw) => {
         let parsed: any;
@@ -316,6 +351,27 @@ export function startInternalToolMcpServer(
         // A batch is an array; handle each and answer with an array of the responses that have
         // an id (notifications produce none).
         if (Array.isArray(parsed)) {
+          // A client tool crosses a turn boundary and cannot safely participate in concurrent
+          // batch execution. Preflight the whole batch so no sibling item executes first.
+          const containsClientToolCall = parsed.some((message) => {
+            if (message?.method !== "tools/call") return false;
+            const spec = specByName.get(message?.params?.name);
+            return spec && (spec.kind ?? "callback") === "client";
+          });
+          if (containsClientToolCall) {
+            res.writeHead(400, { "content-type": "application/json" });
+            res.end(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: null,
+                error: {
+                  code: -32600,
+                  message: "client tools/call is not supported in a batch",
+                },
+              }),
+            );
+            return;
+          }
           const responses = await Promise.all(
             parsed.map((m) =>
               handle(m, specByName, specs, relayDir, clientToolRelay, log),
@@ -407,6 +463,7 @@ export function startInternalToolMcpServer(
       log(`internal tool MCP server on ${url} serving ${specs.length} tool(s)`);
       resolve({
         url,
+        authorizationToken,
         close: () =>
           new Promise<void>((done) => {
             signal?.removeEventListener("abort", onAbort);

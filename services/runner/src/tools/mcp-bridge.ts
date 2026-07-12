@@ -4,8 +4,8 @@
  * Harnesses that accept tools over MCP only (Claude Code) cannot receive Agenta gateway/callback
  * tools the way Pi does (Pi loads them through the bundled extension). So the runner advertises
  * the run's resolved tools to the harness as an internal MCP server. Each tool call relays back
- * to the runner, where the private spec / callback auth are applied server-side — the sandbox and
- * harness never see a credential.
+ * to the runner, where the private spec / callback auth are applied server-side. The harness sees
+ * only a per-server bearer token that prevents other local processes from using this endpoint.
  *
  * Transport: an internal loopback HTTP MCP endpoint the runner serves (`tool-mcp-http.ts`). This
  * REPLACES the pre-#4831 stdio bridge, which spawned a child process on the runner host outside
@@ -82,8 +82,9 @@ export interface BuildToolMcpServersOptions {
  * (no pause path), so an all-`client` list with no relay stays a no-op as before.
  *
  * The returned `close()` MUST be called when the run ends (the engine does this in its `finally`)
- * to release the bound port. The channel carries no secret: the HTTP entry has empty `headers`,
- * the server holds only public specs + the relay dir, and it is bound to loopback.
+ * to release the bound port. The HTTP entry carries a per-server bearer token so another local
+ * process cannot list or call tools through the loopback endpoint. Private tool credentials stay
+ * in runner memory.
  */
 export async function buildToolMcpServers(
   specs: ResolvedToolSpec[],
@@ -112,9 +113,14 @@ export async function buildToolMcpServers(
         // The harness keys MCP servers by name; "agenta-tools" matches the pre-#4831 name.
         name: "agenta-tools",
         url: server.url,
-        // No credential on the wire: the channel is unauthenticated on loopback and carries
-        // only public metadata. Every credentialed action happens server-side via the relay.
-        headers: [],
+        // Scope the credential to the HTTP endpoint it authenticates. Each server instance owns
+        // a distinct token, which protects the loopback endpoint from other local processes.
+        headers: [
+          {
+            name: "Authorization",
+            value: `Bearer ${server.authorizationToken}`,
+          },
+        ],
       },
     ],
     close: server.close,
