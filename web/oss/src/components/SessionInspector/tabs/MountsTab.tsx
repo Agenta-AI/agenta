@@ -303,61 +303,80 @@ const MountsTab = ({sessionId, artifactId}: {sessionId: string; artifactId?: str
     const mountsWithId = mounts.filter((mount): mount is typeof mount & {id: string} =>
         Boolean(mount.id),
     )
+    const agentMountId = agentMountQuery.data?.id
 
-    // Loading/error scope only the session-mounts section; agent files load independently below.
+    // The session mount lives inside the agent's durable folder (the runner symlinks it in as
+    // `agent-files/`), so render it nested under the agent-files panel rather than as a sibling
+    // section. Presentation only: each mount keeps its own id and its own file-listing query;
+    // this only changes how the two are grouped on screen.
+    const sessionMountsSection = mountsQuery.isLoading ? (
+        <Skeleton active />
+    ) : mountsQuery.error ? (
+        <Alert type="error" message="Failed to load mounts" showIcon />
+    ) : mountsWithId.length ? (
+        <Collapse
+            size="small"
+            items={mountsWithId.map((mount) => ({
+                key: mount.id,
+                label: (
+                    <div className="flex flex-col">
+                        <span>{mount.name ?? mount.slug ?? mount.id}</span>
+                        <Text type="secondary" className="text-xs font-mono">
+                            {mount.id}
+                        </Text>
+                    </div>
+                ),
+                // Antd lazily mounts panel children on first expand, so this is when the listing query fires.
+                children: <MountFilesPanel mountId={mount.id} projectId={projectId} />,
+            }))}
+        />
+    ) : (
+        <Empty description="No mounts bound to this session" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+    )
+
     return (
         <div className="flex flex-col gap-4">
-            {mountsQuery.isLoading ? (
-                <Skeleton active />
-            ) : mountsQuery.error ? (
-                <Alert type="error" message="Failed to load mounts" showIcon />
-            ) : mountsWithId.length ? (
-                <Collapse
-                    size="small"
-                    items={mountsWithId.map((mount) => ({
-                        key: mount.id,
-                        label: (
-                            <div className="flex flex-col">
-                                <span>{mount.name ?? mount.slug ?? mount.id}</span>
-                                <Text type="secondary" className="text-xs font-mono">
-                                    {mount.id}
-                                </Text>
-                            </div>
-                        ),
-                        // Antd lazily mounts panel children on first expand, so this is when the listing query fires.
-                        children: <MountFilesPanel mountId={mount.id} projectId={projectId} />,
-                    }))}
-                />
-            ) : (
-                <Empty description="No mounts bound to this session" />
-            )}
             {artifactId ? (
-                <div className="flex flex-col gap-2">
-                    {agentMountQuery.isLoading ? (
-                        <Skeleton active />
-                    ) : agentMountQuery.error ? (
-                        <Alert type="error" message="Failed to load agent files" showIcon />
-                    ) : agentMountQuery.data?.id ? (
-                        <Collapse
-                            size="small"
-                            items={[
-                                {
-                                    key: agentMountQuery.data.id,
-                                    label: "Agent files",
-                                    children: (
+                agentMountQuery.isLoading ? (
+                    <Skeleton active />
+                ) : agentMountQuery.error ? (
+                    <Alert type="error" message="Failed to load agent files" showIcon />
+                ) : agentMountId ? (
+                    <Collapse
+                        size="small"
+                        items={[
+                            {
+                                key: agentMountId,
+                                label: "Agent files",
+                                children: (
+                                    <div className="flex flex-col gap-3">
                                         <MountFilesPanel
-                                            mountId={agentMountQuery.data.id}
+                                            mountId={agentMountId}
                                             projectId={projectId}
                                         />
-                                    ),
-                                },
-                            ]}
-                        />
-                    ) : (
+                                        <div className="flex flex-col gap-2 border-0 border-l-2 border-solid border-colorBorderSecondary pl-3">
+                                            <Text
+                                                type="secondary"
+                                                className="text-xs font-medium uppercase tracking-wide"
+                                            >
+                                                Session (this conversation)
+                                            </Text>
+                                            {sessionMountsSection}
+                                        </div>
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
+                ) : (
+                    <div className="flex flex-col gap-3">
                         <Text type="secondary">No agent files yet.</Text>
-                    )}
-                </div>
-            ) : null}
+                        {sessionMountsSection}
+                    </div>
+                )
+            ) : (
+                sessionMountsSection
+            )}
         </div>
     )
 }
