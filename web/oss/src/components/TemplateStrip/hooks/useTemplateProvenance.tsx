@@ -33,6 +33,9 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
     selectedTemplateKey: string | null
     pick: (template: AgentTemplate) => void
     clear: () => void
+    /** Drop the chip without touching composer text — for callers (e.g. a revision swap) that must
+     * reset provenance while preserving the user's in-progress draft. */
+    clearProvenance: () => void
     /** Wire to the composer's text-change signal (e.g. `RichChatInput`'s `onChange`) so a fully
      * emptied composer drops the chip too — a template pick must not survive its own erasure. */
     onComposerTextChange: (text: string) => void
@@ -122,6 +125,7 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         selectedTemplateKey: selectedTemplate?.key ?? null,
         pick,
         clear,
+        clearProvenance,
         onComposerTextChange,
         resolveTemplateName,
         chipNode,

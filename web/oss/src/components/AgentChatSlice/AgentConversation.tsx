@@ -619,10 +619,11 @@ const AgentConversation = ({
     })
     // Provenance is scoped to ONE agent revision. `AgentConversation` survives an `entityId`
     // change in place (see the self-commit `switchEntity` above and a revision swap) — without
-    // this, a template picked against the old entity would leak its name into the new one.
+    // this, a template picked against the old entity would leak its name into the new one. Drop
+    // only the chip, not the composer text: a commit must not wipe the user's in-progress draft (#5246).
     useEffect(() => {
-        stripProvenance.clear()
-    }, [entityId, stripProvenance.clear])
+        stripProvenance.clearProvenance()
+    }, [entityId, stripProvenance.clearProvenance])
     // S6 gate: fresh agent only (`version` v0/v1 = creation, same seed-vs-history convention used
     // elsewhere); unknown while loading counts as not-fresh so the strip never flashes in.
     const revisionQuery = useAtomValue(workflowMolecule.selectors.query(entityId))
