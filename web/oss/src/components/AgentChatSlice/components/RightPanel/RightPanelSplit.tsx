@@ -18,12 +18,14 @@ const clampWidth = (w: number, total: number) =>
     )
 
 // Open/close slide duration. The class must be a static string (Tailwind JIT can't see
-// interpolated names), so the 220ms is duplicated there. The transition lives on the panes
+// interpolated names), so the 240ms is duplicated there
+// (curve = the playground pane ease, globals.css .playground-splitter-animated). The transition lives on the panes
 // whenever the divider is NOT being dragged — putting it behind an effect-driven flag doesn't
 // work: effects run after the size change is committed, so the class would arrive after the
 // browser already painted the new width and nothing would animate.
-const SLIDE_MS = 220
-const SLIDE_CLASS = "[&_.ant-splitter-panel]:[transition:flex-basis_220ms_ease,width_220ms_ease]"
+const SLIDE_MS = 240
+const SLIDE_CLASS =
+    "[&_.ant-splitter-panel]:[transition:flex-basis_240ms_cubic-bezier(0.4,0,0.2,1),width_240ms_cubic-bezier(0.4,0,0.2,1)]"
 
 /**
  * Nested resizable split: [chat | right panel]. The Splitter (and thus the chat column) stays

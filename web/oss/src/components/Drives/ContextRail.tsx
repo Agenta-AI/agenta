@@ -28,8 +28,10 @@ const SectionLabel = ({children}: {children: React.ReactNode}) => (
     <div className="px-3 pb-1 pt-3 text-xs font-medium text-colorTextSecondary">{children}</div>
 )
 
-// Same slide the right panel uses (RightPanelSplit) so the two right-edge elements move alike.
-const SLIDE_CLASS = "[transition:width_220ms_ease]"
+// The playground's canonical pane ease (globals.css `.playground-splitter-animated`) — the
+// rail, the right panel, and the config pane must all move on ONE curve or the transcript
+// visibly wobbles between them.
+const SLIDE_CLASS = "[transition:width_240ms_cubic-bezier(0.4,0,0.2,1)]"
 const RAIL_WIDTH = 300
 const STRIP_WIDTH = 36
 
