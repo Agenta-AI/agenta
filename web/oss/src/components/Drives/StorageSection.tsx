@@ -7,8 +7,9 @@
  * abstracts the raw cwd/session UUIDs away. Rows open the DriveDrawer, preselected on the
  * clicked file. Lives in the app layer because it reads the chat slice's session state.
  */
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {CaretRight, ChatCircle, HardDrives} from "@phosphor-icons/react"
 import {Typography} from "antd"
@@ -21,9 +22,10 @@ import {
     sessionsListAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
 
+import {useAgentDrive} from "./agentDrive"
 import {DriveDrawer} from "./DriveDrawer"
 import {humanSize, relativeTime} from "./driveTree"
-import {useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
+import {useSessionDrive, type DriveRecentFile, type SessionDriveData} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -90,7 +92,7 @@ const SessionDriveBody = ({
     )
 }
 
-export default function StorageSection() {
+export default function StorageSection({revisionId}: {revisionId?: string | null}) {
     const scope = useChatScopeKey()
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
@@ -102,43 +104,120 @@ export default function StorageSection() {
     // id disables them) until its first run instead of asking the backend for guaranteed-empties.
     const sessionId = resolvedId && !isSessionFresh(resolvedId) ? resolvedId : ""
 
-    const [drawer, setDrawer] = useState<{open: boolean; initialPath: string | null}>({
-        open: false,
-        initialPath: null,
-    })
+    const [drawer, setDrawer] = useState<{
+        open: boolean
+        scope: "session" | "app"
+        initialPath: string | null
+    }>({open: false, scope: "session", initialPath: null})
+
+    // The app drive is keyed by the workflow ARTIFACT (the agent's stable identity, #5247);
+    // the slug doubles as the drawer's mono subtitle (never the raw session UUID here).
+    const revision = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.resolvedData(revisionId ?? ""), [revisionId]),
+    )
+    const artifactId = (revision?.workflow_id as string | undefined) ?? ""
+    const agentSlug =
+        ((revision as {slug?: string} | null)?.slug as string | undefined) || artifactId
+    const agentDrive = useAgentDrive(artifactId)
+    const sessionDrive = useSessionDrive(sessionId)
+
+    const openDrawer = (scope: "session" | "app") => (initialPath: string | null) =>
+        setDrawer({open: true, scope, initialPath})
 
     return (
         <div className="flex flex-col">
-            {/* App drive — phase-1 gated: same row shape, "Coming soon" pill, no drawer. */}
-            <ConfigAccordionSection
-                icon={<HardDrives size={16} style={{color: "#7fb0ff"}} />}
-                title="App drive"
-                summary="Coming soon"
-                defaultOpen={false}
-                animateInitialOpen
-            >
-                <Text type="secondary" className="!text-xs">
-                    One durable folder this agent keeps across every conversation — the skills,
-                    notes, and artifacts it accumulates. Agent-level storage is in design; its files
-                    will be browsable here once it lands.
-                </Text>
-            </ConfigAccordionSection>
-
-            <SessionDriveRow
-                sessionId={sessionId}
-                onOpenDrawer={(p) => setDrawer({open: true, initialPath: p})}
-            />
-
-            {sessionId ? (
-                <DriveDrawer
-                    open={drawer.open}
-                    onClose={() => setDrawer((prev) => ({...prev, open: false}))}
-                    sessionId={sessionId}
-                    scope="session"
-                    initialPath={drawer.initialPath}
+            {/* App drive — gated with "Coming soon" until the agent-mount query (#5247) returns a
+                mount (backend deployed AND the agent has run once); then it lights up on its own. */}
+            {agentDrive.exists ? (
+                <DriveRow
+                    icon={<HardDrives size={16} style={{color: "#7fb0ff"}} />}
+                    title="App drive"
+                    drive={agentDrive}
+                    description="One durable folder this agent keeps across every conversation — available to every run."
+                    onOpenDrawer={openDrawer("app")}
                 />
-            ) : null}
+            ) : (
+                <ConfigAccordionSection
+                    icon={<HardDrives size={16} style={{color: "#7fb0ff"}} />}
+                    title="App drive"
+                    summary="Coming soon"
+                    defaultOpen={false}
+                    animateInitialOpen
+                >
+                    <Text type="secondary" className="!text-xs">
+                        One durable folder this agent keeps across every conversation — the skills,
+                        notes, and artifacts it accumulates. It appears here after the agent&rsquo;s
+                        first run on a release with agent storage.
+                    </Text>
+                </ConfigAccordionSection>
+            )}
+
+            <SessionDriveRow sessionId={sessionId} onOpenDrawer={openDrawer("session")} />
+
+            <DriveDrawer
+                open={drawer.open}
+                onClose={() => setDrawer((prev) => ({...prev, open: false}))}
+                drive={drawer.scope === "app" ? agentDrive : sessionDrive}
+                subtitleId={drawer.scope === "app" ? agentSlug : sessionId}
+                scope={drawer.scope}
+                initialPath={drawer.initialPath}
+            />
         </div>
+    )
+}
+
+/** A live drive row (app scope): summary + description + top-3 recents + View all files. */
+const DriveRow = ({
+    icon,
+    title,
+    drive,
+    description,
+    onOpenDrawer,
+}: {
+    icon: React.ReactNode
+    title: string
+    drive: SessionDriveData
+    description: string
+    onOpenDrawer: (initialPath: string | null) => void
+}) => {
+    const [open, setOpen] = useState(false)
+    return (
+        <ConfigAccordionSection
+            icon={icon}
+            title={title}
+            summary={drive.summary}
+            open={open}
+            onOpenChange={setOpen}
+        >
+            {open ? (
+                <div className="flex flex-col gap-2">
+                    <Text type="secondary" className="!text-xs">
+                        {description}
+                    </Text>
+                    {drive.fileCount > 0 ? (
+                        <div className="flex flex-col">
+                            {drive.recents.slice(0, 3).map((file) => (
+                                <RecentFileRow
+                                    key={file.path}
+                                    file={file}
+                                    onOpen={() => onOpenDrawer(file.path)}
+                                />
+                            ))}
+                            {drive.fileCount > 3 ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onOpenDrawer(null)}
+                                    className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline"
+                                >
+                                    View all files
+                                    <CaretRight size={11} />
+                                </button>
+                            ) : null}
+                        </div>
+                    ) : null}
+                </div>
+            ) : null}
+        </ConfigAccordionSection>
     )
 }
 

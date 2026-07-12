@@ -48,7 +48,7 @@ import {
     type DriveTreeNode,
 } from "./driveTree"
 import {DriveFileBody, resolveDriveFileKind} from "./renderers"
-import {useSessionDrive, type SessionDriveData} from "./useSessionDrive"
+import {type SessionDriveData} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -389,7 +389,11 @@ export function DriveExplorer({
 export interface DriveDrawerProps {
     open: boolean
     onClose: () => void
-    sessionId: string
+    /** The drive to inspect — session (useSessionDrive) or app (useAgentDrive); same shape. */
+    drive: SessionDriveData
+    /** Mono subtitle identity: the session UUID (session) or the agent slug (app) — the ONLY
+     * place a raw id may appear. */
+    subtitleId: string
     scope?: DriveScope
     /** Preselect this file on open (a recents row click); omit → most-recently-touched. */
     initialPath?: string | null
@@ -398,12 +402,12 @@ export interface DriveDrawerProps {
 export function DriveDrawer({
     open,
     onClose,
-    sessionId,
+    drive,
+    subtitleId,
     scope = "session",
     initialPath,
 }: DriveDrawerProps) {
     const {projectURL} = useURL()
-    const drive = useSessionDrive(sessionId)
     const meta = SCOPE_META[scope]
     const ScopeIcon = meta.icon
 
@@ -430,7 +434,7 @@ export function DriveDrawer({
                         <div className="truncate text-xs font-normal text-colorTextTertiary">
                             {drive.fileCount} file{drive.fileCount === 1 ? "" : "s"} ·{" "}
                             {humanSize(drive.totalSize) || "0 B"} ·{" "}
-                            <span className="font-mono">{sessionId}</span>
+                            <span className="font-mono">{subtitleId}</span>
                         </div>
                     </div>
                 </div>
@@ -445,16 +449,20 @@ export function DriveDrawer({
             footer={
                 <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-colorTextTertiary">
-                        Read-only · editing &amp; uploads coming soon
+                        {scope === "session"
+                            ? "Read-only · editing & uploads coming soon"
+                            : "Shared by every conversation · read-only"}
                     </span>
-                    <a
-                        href={`${projectURL}/observability`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[var(--ag-colorInfo)]"
-                    >
-                        Open in Observability ↗
-                    </a>
+                    {scope === "session" ? (
+                        <a
+                            href={`${projectURL}/observability`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[var(--ag-colorInfo)]"
+                        >
+                            Open in Observability ↗
+                        </a>
+                    ) : null}
                 </div>
             }
             styles={{body: {padding: 0, display: "flex", minHeight: 0}}}

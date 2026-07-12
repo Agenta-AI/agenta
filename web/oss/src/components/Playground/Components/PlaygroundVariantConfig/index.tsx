@@ -311,7 +311,7 @@ const PlaygroundVariantConfig: React.FC<
                     <AgentOperationsSections
                         revisionId={variantId}
                         sticky={!embedded}
-                        storage={<StorageSection />}
+                        storage={<StorageSection revisionId={variantId} />}
                     />
                 ))}
         </div>
