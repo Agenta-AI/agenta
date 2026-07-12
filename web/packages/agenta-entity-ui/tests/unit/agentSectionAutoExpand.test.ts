@@ -25,4 +25,7 @@ describe("computeSectionCrossings", () => {
             {key: "skills", open: false},
         ])
     })
+    it("closes a key present in prev but absent from next", () => {
+        expect(computeSectionCrossings({tools: 2}, {})).toEqual([{key: "tools", open: false}])
+    })
 })

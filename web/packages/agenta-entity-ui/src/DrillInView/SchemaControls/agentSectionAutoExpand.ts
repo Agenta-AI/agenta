@@ -12,7 +12,8 @@ export function computeSectionCrossings(
     next: SectionCounts,
 ): SectionCrossing[] {
     const crossings: SectionCrossing[] = []
-    for (const key of Object.keys(next)) {
+    // Union of keys so a key that vanishes from `next` still yields its >0→0 close.
+    for (const key of new Set([...Object.keys(prev), ...Object.keys(next)])) {
         const before = prev[key] ?? 0
         const now = next[key] ?? 0
         if (before === 0 && now > 0) crossings.push({key, open: true})
