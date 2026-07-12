@@ -576,23 +576,6 @@ const AgentConversation = ({
     const filesWindowHost = <FilesDrawer sessionId={sessionId} />
     const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtom)
 
-    // Build→Chat sequencing for the context rail: the mode switch eases the config pane out
-    // (~240ms + hold, MainLayout `animateSplit`); the rail waits that ease out before sliding
-    // in, so the transcript has ONE moving edge at a time instead of being squeezed from both.
-    const [railHeldByModeSwitch, setRailHeldByModeSwitch] = useState(false)
-    const prevBuildModeRef = useRef(buildMode)
-    useEffect(() => {
-        if (prevBuildModeRef.current === buildMode) return
-        prevBuildModeRef.current = buildMode
-        if (buildMode) {
-            setRailHeldByModeSwitch(false)
-            return
-        }
-        setRailHeldByModeSwitch(true)
-        const timer = setTimeout(() => setRailHeldByModeSwitch(false), 300)
-        return () => clearTimeout(timer)
-    }, [buildMode])
-
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
     // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
     // messages (a session this browser never ran, or after a storage clear), hydrate once from the
@@ -2237,7 +2220,7 @@ const AgentConversation = ({
                         <ContextRail
                             sessionId={sessionId}
                             busy={busy}
-                            hidden={buildMode || rightPanelOpen || railHeldByModeSwitch}
+                            hidden={buildMode || rightPanelOpen}
                             onOpenFiles={() => setFilesWindowOpen(true)}
                         />
                     </div>

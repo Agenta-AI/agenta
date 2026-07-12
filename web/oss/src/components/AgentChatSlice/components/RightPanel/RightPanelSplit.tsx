@@ -50,11 +50,13 @@ const RightPanelSplit = ({
     const [live, setLive] = useState(persisted)
     const [dragging, setDragging] = useState(false)
 
-    // Close-hold, derived DURING render (not in an effect) so the content is still there in the
-    // very commit that starts the collapse; a timer releases it after the slide.
+    // Flip detection DURING render (not in an effect) so the transition class and the content
+    // hold land in the very commit that changes the size — an effect would arrive a paint late.
     const [prevOpen, setPrevOpen] = useState(open)
     const [closing, setClosing] = useState(false)
-    if (prevOpen !== open) {
+    const [holdAnimate, setHoldAnimate] = useState(false)
+    const justToggled = prevOpen !== open
+    if (justToggled) {
         setPrevOpen(open)
         if (!open) setClosing(true)
     }
@@ -63,6 +65,16 @@ const RightPanelSplit = ({
         const timer = setTimeout(() => setClosing(false), SLIDE_MS + 40)
         return () => clearTimeout(timer)
     }, [closing])
+    // Animate ONLY around a flip (MainLayout's animateSplit pattern): antd recomputes every
+    // panel's inline flex-basis from a ResizeObserver, so a PERMANENT transition makes the chat
+    // panel lag 240ms behind each tick while the outer playground pane eases or the window
+    // resizes — the transcript rubber-bands against its own container.
+    useEffect(() => {
+        setHoldAnimate(true)
+        const timer = setTimeout(() => setHoldAnimate(false), SLIDE_MS + 40)
+        return () => clearTimeout(timer)
+    }, [open])
+    const animate = (justToggled || holdAnimate) && !dragging
 
     // Re-sync to the stored width each time the panel opens.
     useEffect(() => {
@@ -71,7 +83,7 @@ const RightPanelSplit = ({
 
     return (
         <Splitter
-            className={`h-full min-h-0 w-full flex-1 ${dragging ? "" : SLIDE_CLASS}`}
+            className={`h-full min-h-0 w-full flex-1 ${animate ? SLIDE_CLASS : ""}`}
             onResizeStart={() => setDragging(true)}
             onResize={(sizes) => {
                 if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1]))
