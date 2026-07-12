@@ -7,7 +7,6 @@
 import {useMemo} from "react"
 
 import {revalidateSessionRecordsAtom, sessionRecordsQueryFamily} from "@agenta/entities/session"
-import {CopyButton} from "@agenta/ui/components/presentational"
 import {ArrowClockwise, BracketsCurly, DownloadSimple, X} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Segmented, Tooltip} from "antd"
@@ -15,59 +14,16 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {downloadText} from "@/oss/lib/helpers/fileManipulations"
 
-import {ContextLens} from "./lenses/ContextLens"
-import {RuntimeLens} from "./lenses/RuntimeLens"
-import {TimelineLens} from "./lenses/TimelineLens"
+import {LensBody} from "./LensBody"
+import {LensRail} from "./LensRail"
 import {
     closeInspectorAtom,
     inspectorLensAtom,
     inspectorRawOpenAtom,
     inspectorTargetAtom,
-    type InspectorLens,
     type InspectorScope,
 } from "./state"
 import {buildTimeline} from "./timeline"
-
-const LENS_LABEL: Record<InspectorLens, string> = {
-    timeline: "Timeline",
-    context: "Context",
-    runtime: "Runtime",
-}
-
-/** Raw JSON of the current lens/scope source (build-spec §4.4). Phase 1 serialises the records
- * (Timeline/Context source); Runtime raw is its own tabs' data, shown as the record stream too. */
-const RawView = ({
-    sessionId,
-    scope,
-    targetTurn,
-}: {
-    sessionId: string
-    scope: InspectorScope
-    targetTurn?: number | null
-}) => {
-    const query = useAtomValue(sessionRecordsQueryFamily(sessionId))
-    const json = useMemo(() => {
-        const records = query.data ?? []
-        if (scope !== "turn" || targetTurn == null) return JSON.stringify(records, null, 2)
-        const {turns} = buildTimeline(records)
-        const ids = new Set(turns.find((t) => t.turn === targetTurn)?.events.map((e) => e.id) ?? [])
-        return JSON.stringify(
-            records.filter((r) => ids.has(r.id)),
-            null,
-            2,
-        )
-    }, [query.data, scope, targetTurn])
-    return (
-        <div className="relative min-h-0 flex-1 overflow-auto p-3">
-            <div className="absolute right-4 top-4 z-[1]">
-                <CopyButton text={json} />
-            </div>
-            <pre className="m-0 rounded border border-solid border-[#24262b] bg-[#0f1012] p-3 font-mono text-[11px] leading-snug text-colorTextSecondary">
-                {json}
-            </pre>
-        </div>
-    )
-}
 
 export function Inspector({sessionId}: {sessionId: string}) {
     const target = useAtomValue(inspectorTargetAtom)
@@ -183,35 +139,14 @@ export function Inspector({sessionId}: {sessionId: string}) {
                 </div>
             </div>
 
-            {/* Lens rail (build-spec §2): three tabs, always. */}
-            <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-[#2a2c30] px-2 py-1.5">
-                {(["timeline", "context", "runtime"] as InspectorLens[]).map((l) => (
-                    <Button
-                        key={l}
-                        type="text"
-                        size="small"
-                        onClick={() => setLens(l)}
-                        className={`!h-7 !rounded-md !px-2.5 !text-xs ${
-                            lens === l
-                                ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[#212327]"
-                        }`}
-                    >
-                        {LENS_LABEL[l]}
-                    </Button>
-                ))}
-            </div>
-
-            {/* Active lens, or the Raw overlay of it. */}
-            {rawOpen ? (
-                <RawView sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
-            ) : lens === "timeline" ? (
-                <TimelineLens sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
-            ) : lens === "context" ? (
-                <ContextLens sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
-            ) : (
-                <RuntimeLens sessionId={sessionId} scope={scope} />
-            )}
+            <LensRail lens={lens} onChange={setLens} />
+            <LensBody
+                sessionId={sessionId}
+                scope={scope}
+                targetTurn={targetTurn}
+                lens={lens}
+                rawOpen={rawOpen}
+            />
         </div>
     )
 }
