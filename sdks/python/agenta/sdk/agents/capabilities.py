@@ -116,7 +116,11 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
     "mistralai": "MISTRAL_API_KEY",
     "minimax": "MINIMAX_API_KEY",
     "groq": "GROQ_API_KEY",
-    "together_ai": "TOGETHERAI_API_KEY",
+    # The vault kind is ``together_ai`` (underscore), but the Pi harness reads ``TOGETHER_API_KEY``
+    # (see ``@earendil-works/pi-ai`` ``env-api-keys.js``). This differs from litellm's
+    # ``TOGETHERAI_API_KEY`` (the classic app-runner path); this table feeds the Pi harness, so it
+    # must use Pi's name or the key never reaches the harness.
+    "together_ai": "TOGETHER_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
 }
 
