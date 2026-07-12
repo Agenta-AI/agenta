@@ -363,7 +363,7 @@ export {agentChannelModeAtom, type AgentChannelMode} from "./channelMode"
 // Transport negotiation: try stream, fall back to batch on 406, error gracefully otherwise.
 export {createNegotiatingFetch, type NegotiatingFetch} from "./agentNegotiation"
 // Agent-lane HITL resume predicate (approve AND deny both resume the conversation).
-export {agentShouldResumeAfterApproval} from "./agentApprovalResume"
+export {agentShouldResumeAfterApproval, isPendingClientToolInteraction} from "./agentApprovalResume"
 // Render-hint map: sibling `data-render` parts → toolCallId lookup (interaction kinds).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 // Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).

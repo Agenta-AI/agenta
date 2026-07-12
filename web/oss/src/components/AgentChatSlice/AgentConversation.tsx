@@ -32,6 +32,7 @@ import {
     ArrowDown,
     ArrowRight,
     Code,
+    Hourglass,
     Paperclip,
     TreeStructure,
     UploadSimple,
@@ -81,6 +82,7 @@ import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
+import InteractionDock, {getPendingConnectInteraction} from "./components/InteractionDock"
 import QueuedMessages from "./components/QueuedMessages"
 import RevealCollapse from "./components/RevealCollapse"
 import TurnInspector from "./components/TurnInspector/TurnInspector"
@@ -315,6 +317,20 @@ const WorkingDots = () => (
         <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-duration:1.2s]" />
         <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.2s] [animation-duration:1.2s]" />
         <span className="inline-block h-[5px] w-[5px] animate-pulse rounded-full bg-colorTextTertiary [animation-delay:0.4s] [animation-duration:1.2s]" />
+    </span>
+)
+
+/** The WorkingDots slot while the run is PARKED on the user (approval / connect / elicitation).
+ * The stream reads "ready" there, so without this the turn looks finished while the queue silently
+ * holds new sends. Deliberately static: motion says "the agent is working" — here it's your move. */
+const WaitingForInput = () => (
+    <span
+        role="status"
+        aria-label="Agent is waiting for your input"
+        className="flex items-center gap-1.5 px-1 py-0.5 text-xs text-colorTextTertiary"
+    >
+        <Hourglass size={12} />
+        Waiting for your input
     </span>
 )
 
@@ -885,6 +901,13 @@ const AgentConversation = ({
     // opens the paused turn's own trace drawer.
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
+    // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
+    // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
+    const pendingInteraction = useMemo(
+        () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
+        [messages, busy, stopped],
+    )
     const openPausedTurnTrace = useMemo(() => {
         const last = messages[messages.length - 1]
         const traceId = last ? getMessageTraceId(last) : undefined
@@ -1616,6 +1639,9 @@ const AgentConversation = ({
         const showInspect = buildMode && isAssistantTurn
         const showWorking =
             isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
+        // Paused on the user (never concurrently with showWorking — hitlPending implies not busy):
+        // the "waiting" chip keeps the turn from reading as finished while the queue holds sends.
+        const showWaiting = isLast && isAssistantTurn && !busy && hitlPending
         return (
             <MessageRow
                 key={message.id}
@@ -1665,7 +1691,7 @@ const AgentConversation = ({
                     unmount — no settle-time layout shift. An EMPTY streaming assistant turn
                     already renders its own loading bubble (AgentMessage), so the dots skip it —
                     exactly one indicator while busy. */}
-                {(showWorking || showInspect) && (
+                {(showWorking || showInspect || showWaiting) && (
                     <div className="flex items-center gap-2 self-start">
                         {showInspect && (
                             <button
@@ -1680,6 +1706,7 @@ const AgentConversation = ({
                             </button>
                         )}
                         {showWorking && <WorkingDots />}
+                        {showWaiting && <WaitingForInput />}
                     </div>
                 )}
             </MessageRow>
@@ -1890,6 +1917,7 @@ const AgentConversation = ({
                             queued={queued}
                             onRemove={removeQueued}
                             onClear={clearQueue}
+                            held={hitlPending}
                         />
                     </div>
                 </RevealCollapse>
@@ -1936,6 +1964,14 @@ const AgentConversation = ({
                         onViewTrace={openPausedTurnTrace}
                         entityId={entityId}
                     />
+                    {/* Parked client-tool interactions (connect): same placement contract as the
+                        approval dock — the paused gate can't scroll out of reach, and "Not now"
+                        is the escape hatch that resumes the run without connecting. */}
+                    <InteractionDock
+                        className={CHAT_COLUMN}
+                        pending={pendingInteraction}
+                        onOutput={handleClientToolOutput}
+                    />
                     {/* Owner call: a template pick must not shift the composer, so no chip renders here
                         (unlike the home surface) — the strip card's own selected state is the
                         "which template" indicator; the composer text is the only other feedback. */}
@@ -1972,7 +2008,9 @@ const AgentConversation = ({
                                         : STRIP_COPY.describeAgentPlaceholder
                                     : modelBlocked
                                       ? "Connect a model to start chatting…"
-                                      : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                                      : hitlPending
+                                        ? "The agent is waiting for your response — new messages will be queued"
+                                        : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                             }
                             initialMarkdown={initialDraft}
                             onChange={handleComposerChange}
