@@ -4,7 +4,9 @@ import {Plus, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
+import {SESSION_SPRING, TAG_VARIANTS} from "../assets/sessionMotion"
 import {
     type AgentChatSession,
     type SessionRunStatus,
@@ -109,46 +111,56 @@ const SessionTag = ({
         mountedRef.current = true
     }, [active])
     return (
-        <div
+        // Wrapper collapses its width + gap margin on enter/exit so neighbours close up with no snap.
+        <motion.div
             ref={tabRef}
-            role="tab"
-            aria-selected={active}
-            tabIndex={0}
-            onClick={onSelect}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onSelect()
-                }
-            }}
-            className={clsx(
-                "group flex h-7 max-w-[180px] min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
-                // White pill on the recessed chat canvas (raised); the active tab keeps the primary
-                // text + a 2px accent underline so it's unmistakable against its neighbours.
-                active
-                    ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
-                    : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
-            )}
+            variants={TAG_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={SESSION_SPRING}
+            className="shrink-0 overflow-hidden"
         >
-            <SessionStatusDot sessionId={session.id} active={active} />
-            <SessionTabLabel
-                label={label}
-                onRename={onRename}
-                className="block min-w-0 flex-1 truncate"
-            />
-            {closable && (
-                <Button
-                    type="text"
-                    aria-label="Close session"
-                    icon={<X size={12} />}
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onClose()
-                    }}
-                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            <div
+                role="tab"
+                aria-selected={active}
+                tabIndex={0}
+                onClick={onSelect}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        onSelect()
+                    }
+                }}
+                className={clsx(
+                    "group flex h-7 max-w-[180px] min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                    // White pill on the recessed chat canvas (raised); the active tab keeps the
+                    // primary text + a 2px accent underline so it's unmistakable against neighbours.
+                    active
+                        ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
+                        : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
+                )}
+            >
+                <SessionStatusDot sessionId={session.id} active={active} />
+                <SessionTabLabel
+                    label={label}
+                    onRename={onRename}
+                    className="block min-w-0 flex-1 truncate"
                 />
-            )}
-        </div>
+                {closable && (
+                    <Button
+                        type="text"
+                        aria-label="Close session"
+                        icon={<X size={12} />}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onClose()
+                        }}
+                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                    />
+                )}
+            </div>
+        </motion.div>
     )
 }
 
@@ -195,56 +207,60 @@ const SessionTagBar = ({
         sessions.forEach((s) => presentAtMountRef.current.add(s.id))
     }
     return (
-        <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
-            {showSessions ? (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {sessions.map((session, index) => (
-                        <SessionTag
-                            key={session.id}
-                            session={session}
-                            index={index}
-                            active={session.id === activeId}
-                            closable={closable}
-                            presentAtMount={presentAtMountRef.current.has(session.id)}
-                            onSelect={() => onSelect(session.id)}
-                            onClose={() => onClose(session.id)}
-                            onRename={(title) => onRename(session.id, title)}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="min-w-0 flex-1" />
-            )}
-            {/* Fixed session-actions cluster — pinned outside the scroll area so New session (+) sits
+        <MotionConfig reducedMotion="user">
+            <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
+                {showSessions ? (
+                    <div className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <AnimatePresence initial={false}>
+                            {sessions.map((session, index) => (
+                                <SessionTag
+                                    key={session.id}
+                                    session={session}
+                                    index={index}
+                                    active={session.id === activeId}
+                                    closable={closable}
+                                    presentAtMount={presentAtMountRef.current.has(session.id)}
+                                    onSelect={() => onSelect(session.id)}
+                                    onClose={() => onClose(session.id)}
+                                    onRename={(title) => onRename(session.id, title)}
+                                />
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                ) : (
+                    <div className="min-w-0 flex-1" />
+                )}
+                {/* Fixed session-actions cluster — pinned outside the scroll area so New session (+) sits
                 at the end of the tab strip without scrolling away, grouped with the inspect/history
                 controls. */}
-            {(showSessions || extra) && (
-                <div className="flex shrink-0 items-center gap-1">
-                    {showSessions && (
-                        <Tooltip
-                            title={
-                                addDisabled
-                                    ? "Available after your agent's first response"
-                                    : "New session"
-                            }
-                        >
-                            {/* Non-disabled span trigger: antd v6 Tooltips don't fire on a disabled Button. */}
-                            <span className="inline-flex">
-                                <Button
-                                    type="text"
-                                    aria-label="New session"
-                                    icon={<Plus size={14} />}
-                                    onClick={onAdd}
-                                    disabled={addDisabled}
-                                    className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                                />
-                            </span>
-                        </Tooltip>
-                    )}
-                    {extra}
-                </div>
-            )}
-        </div>
+                {(showSessions || extra) && (
+                    <div className="flex shrink-0 items-center gap-1">
+                        {showSessions && (
+                            <Tooltip
+                                title={
+                                    addDisabled
+                                        ? "Available after your agent's first response"
+                                        : "New session"
+                                }
+                            >
+                                {/* Non-disabled span trigger: antd v6 Tooltips don't fire on a disabled Button. */}
+                                <span className="inline-flex">
+                                    <Button
+                                        type="text"
+                                        aria-label="New session"
+                                        icon={<Plus size={14} />}
+                                        onClick={onAdd}
+                                        disabled={addDisabled}
+                                        className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
+                                    />
+                                </span>
+                            </Tooltip>
+                        )}
+                        {extra}
+                    </div>
+                )}
+            </div>
+        </MotionConfig>
     )
 }
 
