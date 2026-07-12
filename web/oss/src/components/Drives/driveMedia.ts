@@ -6,7 +6,7 @@
  * through the authenticated client once (cached blob → object URL). BACKEND ASK: an inline
  * disposition (or real signed URLs) to let media stream natively.
  */
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -98,4 +98,55 @@ export async function downloadMountFile({
     anchor.remove()
     URL.revokeObjectURL(url)
     return true
+}
+
+/** The raw-bytes URL for one drive file. Media tags can use it DIRECTLY on same-origin
+ * cookie-auth deployments (the browser streams progressively — bytes never enter the JS heap;
+ * Content-Disposition is ignored by <img>/<audio>/<video>). Header-auth/cross-origin setups 401
+ * on it — callers must handle onError and fall back to the blob path. */
+export function mountFileDownloadUrl(
+    mount: Mount | null,
+    path: string,
+    projectId: string | null | undefined,
+): string | null {
+    if (!mount || !projectId || !path) return null
+    const params = new URLSearchParams({path, project_id: projectId})
+    return `${getAgentaApiUrl()}/mounts/${mount.id}/files/download?${params.toString()}`
+}
+
+/**
+ * Media source with streaming-first semantics: try the direct URL (zero JS-heap, progressive
+ * playback), and only on tag error (auth/cross-origin) fetch the cached blob. `src` is null
+ * while the blob fallback loads. Wire `onError` to the media element.
+ */
+export function useMountFileMediaSrc(
+    mount: Mount | null,
+    path: string,
+): {src: string | null; isPending: boolean; failed: boolean; onError: () => void} {
+    const projectId = useAtomValue(projectIdAtom)
+    const directUrl = mountFileDownloadUrl(mount, path, projectId)
+    const [mode, setMode] = useState<"direct" | "blob">(directUrl ? "direct" : "blob")
+
+    // New file (paging) → try direct again.
+    useEffect(() => {
+        setMode(directUrl ? "direct" : "blob")
+    }, [directUrl])
+
+    const blobQuery = useAtomValue(
+        mountFileBlobQueryFamily({mountId: mode === "blob" ? (mount?.id ?? "") : "", path}),
+    )
+    const blob = mode === "blob" ? (blobQuery.data ?? null) : null
+    const blobUrl = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob])
+    useEffect(() => {
+        return () => {
+            if (blobUrl) URL.revokeObjectURL(blobUrl)
+        }
+    }, [blobUrl])
+
+    return {
+        src: mode === "direct" ? directUrl : blobUrl,
+        isPending: mode === "blob" && blobQuery.isPending,
+        failed: mode === "blob" && !blobQuery.isPending && !blob,
+        onError: () => setMode("blob"),
+    }
 }

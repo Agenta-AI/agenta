@@ -6,30 +6,65 @@
  */
 import {useMemo, useState} from "react"
 
+import {type Mount} from "@agenta/entities/session"
 import {FolderSimple, ListBullets, MagnifyingGlass, SquaresFour, Tray} from "@phosphor-icons/react"
 import {Input, Segmented, Select, Skeleton, Typography} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
+
+import {projectIdAtom} from "@/oss/state/project"
 
 import {DriveExplorer, driveFileIcon} from "./DriveDrawer"
+import {mountFileDownloadUrl} from "./driveMedia"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtom} from "./quickLook"
+import {resolveDriveFileKind} from "./renderers"
 import {useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
 
 type SortKey = "recent" | "name" | "size"
 
-const FileTile = ({file, onOpen}: {file: DriveRecentFile; onOpen: () => void}) => {
+// Image tiles show a real thumbnail when cheap: native lazy <img> straight at the bytes URL
+// (browser cache + decode, zero JS heap), capped so a huge image never loads for a LIST; any
+// error (auth, cross-origin) falls back to the type icon. Non-image kinds always get the icon.
+const THUMB_CAP = 2 * 1024 * 1024
+
+const FileTile = ({
+    file,
+    mount,
+    onOpen,
+}: {
+    file: DriveRecentFile
+    mount: Mount | null
+    onOpen: () => void
+}) => {
+    const projectId = useAtomValue(projectIdAtom)
+    const [thumbFailed, setThumbFailed] = useState(false)
     const name = file.path.split("/").pop() ?? file.path
     const folder = file.path.includes("/") ? file.path.split("/").slice(0, -1).join("/") : null
+    const thumbUrl =
+        !thumbFailed && resolveDriveFileKind(file.path) === "image" && (file.size ?? 0) <= THUMB_CAP
+            ? mountFileDownloadUrl(mount, file.path, projectId)
+            : null
     return (
         <button
             type="button"
             onClick={onOpen}
             className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 py-3 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
         >
-            <span className="flex h-10 w-10 items-center justify-center rounded bg-colorFillTertiary">
-                {driveFileIcon(file.path, 20)}
+            <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
+                {thumbUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- authed dynamic bytes URL; next/image can't optimize it
+                    <img
+                        src={thumbUrl}
+                        alt=""
+                        loading="lazy"
+                        onError={() => setThumbFailed(true)}
+                        className="h-10 w-10 object-cover"
+                    />
+                ) : (
+                    driveFileIcon(file.path, 20)
+                )}
             </span>
             <span className="w-full truncate text-center font-mono text-xs">{name}</span>
             <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
@@ -145,6 +180,7 @@ export default function FilesWindow({
                             <FileTile
                                 key={file.path}
                                 file={file}
+                                mount={drive.mount}
                                 onOpen={() => openQuickLook({path: file.path})}
                             />
                         ))}

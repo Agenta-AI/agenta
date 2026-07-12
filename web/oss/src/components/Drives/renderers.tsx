@@ -19,7 +19,7 @@ import {useAtomValue} from "jotai"
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {downloadMountFile, useMountFileObjectUrl} from "./driveMedia"
+import {downloadMountFile, useMountFileMediaSrc, useMountFileObjectUrl} from "./driveMedia"
 import {humanSize} from "./driveTree"
 
 export type DriveFileKind =
@@ -257,7 +257,8 @@ const MediaLoading = () => (
 )
 
 const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const {url, isPending, failed} = useMountFileObjectUrl(mount, path)
+    // Direct URL first: the browser streams/decodes outside the JS heap; blob only on auth error.
+    const {src: url, isPending, failed, onError} = useMountFileMediaSrc(mount, path)
     const [zoomed, setZoomed] = useState(false)
     if (isPending) return <MediaLoading />
     if (failed || !url)
@@ -271,6 +272,7 @@ const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                 <img
                     src={url}
                     alt={path.split("/").pop() ?? path}
+                    onError={onError}
                     onClick={() => setZoomed((z) => !z)}
                     className={
                         zoomed
@@ -299,29 +301,35 @@ const PdfBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 }
 
 const AudioBody = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const {url, isPending, failed} = useMountFileObjectUrl(mount, path)
+    // Direct URL first: progressive playback, no JS-heap buffering; blob only on auth error.
+    const {src: url, isPending, failed, onError} = useMountFileMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this audio file" />
     return (
         <Inset>
             <div className="flex flex-1 items-center justify-center p-4">
-                {}
-                <audio controls src={url} className="w-full" />
+                <audio controls preload="metadata" src={url} onError={onError} className="w-full" />
             </div>
         </Inset>
     )
 }
 
 const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const {url, isPending, failed} = useMountFileObjectUrl(mount, path)
+    // Direct URL first: progressive playback, no JS-heap buffering; blob only on auth error.
+    const {src: url, isPending, failed, onError} = useMountFileMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this video" />
     return (
         <Inset flush>
-            {}
-            <video controls src={url} className="max-h-full min-h-0 w-full flex-1 bg-black" />
+            <video
+                controls
+                preload="metadata"
+                src={url}
+                onError={onError}
+                className="max-h-full min-h-0 w-full flex-1 bg-black"
+            />
         </Inset>
     )
 }
