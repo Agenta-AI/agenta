@@ -260,9 +260,12 @@ async def test_test_subscription_reuses_existing_live_subscription_on_conflict()
 
     existing = _existing(is_test=False)  # a live, non-test subscription
     service.dao.create_subscription = AsyncMock(
-        side_effect=EntityCreationConflict(entity="Trigger subscription")
+        side_effect=EntityCreationConflict(
+            entity="Trigger subscription",
+            conflict={"trigger_id": "ti_existing"},
+        )
     )
-    service.dao.query_subscriptions = AsyncMock(return_value=[existing])
+    service.dao.fetch_subscription_by_trigger_id = AsyncMock(return_value=existing)
 
     old_delivery = _delivery()  # pre-existing baseline delivery
     new_delivery = _delivery()  # the newly captured one (different id)
@@ -282,6 +285,8 @@ async def test_test_subscription_reuses_existing_live_subscription_on_conflict()
     service.dao.delete_subscription.assert_not_awaited()
     # Only the single failed mint attempt — no duplicate persisted.
     service.dao.create_subscription.assert_awaited_once()
+    # Reuse resolved via the exact colliding trigger_id, not a connection+event query.
+    service.dao.fetch_subscription_by_trigger_id.assert_awaited_once()
     # Deliveries were polled against the existing subscription's id.
     assert (
         service.dao.query_deliveries.await_args.kwargs["delivery"].subscription_id

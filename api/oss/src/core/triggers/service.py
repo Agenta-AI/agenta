@@ -1193,18 +1193,21 @@ class TriggersService:
                 user_id=user_id,
                 subscription=subscription,
             )
-        except EntityCreationConflict:
-            existing = await self.dao.query_subscriptions(
-                project_id=project_id,
-                subscription=TriggerSubscriptionQuery(
-                    connection_id=subscription.connection_id,
-                    event_key=subscription.data.event_key,
-                ),
-                windowing=Windowing(limit=1),
+        except EntityCreationConflict as err:
+            # Capture against the exact colliding subscription (project-scoped, non-deleted),
+            # not a fuzzy connection+event match that could land on a stale or inactive row.
+            trigger_id = (err.conflict or {}).get("trigger_id")
+            existing = (
+                await self.dao.fetch_subscription_by_trigger_id(
+                    project_id=project_id,
+                    trigger_id=trigger_id,
+                )
+                if trigger_id
+                else None
             )
-            if not existing:
+            if existing is None:
                 raise
-            created = existing[0]
+            created = existing
             owns_created = False
 
         # A reused live subscription may already carry past deliveries; capture only

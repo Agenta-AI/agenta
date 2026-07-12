@@ -231,6 +231,32 @@ class TriggersDAO(TriggersDAOInterface):
                 for dbe in result.scalars().all()
             ]
 
+    async def fetch_subscription_by_trigger_id(
+        self,
+        *,
+        project_id: UUID,
+        trigger_id: str,
+    ) -> Optional[TriggerSubscription]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(TriggerSubscriptionDBE)
+                .filter(
+                    TriggerSubscriptionDBE.project_id == project_id,
+                    TriggerSubscriptionDBE.trigger_id == trigger_id,
+                    TriggerSubscriptionDBE.deleted_at.is_(None),
+                )
+                .limit(1)
+            )
+
+            result = await session.execute(stmt)
+
+            subscription_dbe = result.scalars().first()
+
+            if not subscription_dbe:
+                return None
+
+            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
+
     async def get_project_and_subscription_by_trigger_id(
         self,
         *,
