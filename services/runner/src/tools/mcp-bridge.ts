@@ -50,18 +50,9 @@ export const PI_USER_MCP_UNSUPPORTED_MESSAGE =
   "extension, not MCP). Use a non-Pi harness (e.g. claude) for a user MCP server, or remove " +
   "mcpServers.";
 
-/** ACP McpServerStdio entry: env is a list of {name, value}. Kept for the disabled user path. */
-interface EnvVariable {
-  name: string;
-  value: string;
-}
-
-export interface McpServerStdio {
-  name: string;
-  command: string;
-  args: string[];
-  env: EnvVariable[];
-}
+// The ACP `McpServerStdio` shape lives in `engines/sandbox_agent/mcp.ts` (ACP entry
+// materialization), produced only by the internal in-sandbox shim constructor there. This
+// module is the LOCAL HTTP channel and deliberately exports no stdio entry type.
 
 type Log = (message: string) => void;
 

@@ -1,13 +1,15 @@
 /**
- * Unit tests for the relay execution guard (finding P1).
+ * Unit tests for the relay execution guard (finding P1), now the REAL builder `runTurn` uses
+ * (`buildRelayExecutionGuard`), built for EVERY harness.
  *
- * The relay dir is sandbox-writable, so the model can forge an `<id>.req.json` execute record
- * without ever passing the in-sandbox `ctx.ui.confirm` dialog. The guard is the runner-side
- * re-check: an author-allow tool executes, an author-deny tool never does, and an `ask` tool
- * executes only by consuming a grant the dialog gate (or a parked-approval resume) recorded.
- * The guard here is composed exactly the way `runTurn` builds it (decide + an EMPTY stored
- * decision store + the grant ledger + context-binding redaction) so the test pins the composed
- * behavior, not just the pieces.
+ * The relay dir is sandbox-writable, so any in-sandbox process can forge an `<id>.req.json`
+ * execute record without ever passing an approval dialog. The guard is the runner-side
+ * re-check: on every harness an author-allow tool executes and an author-deny tool never does.
+ * `ask` splits by harness — Pi executes only by consuming a grant the dialog gate (or a
+ * parked-approval resume) recorded; a non-Pi MCP harness (Claude) passes `ask` WITHOUT a grant
+ * because its own harness enforces the ask dialog before a call reaches the shim (the stated
+ * residual: a forged file can still trigger an ask-tool without a dialog there — full
+ * ask-grant parity for MCP harnesses is a documented follow-up).
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-relay-guard.test.ts)
  */
@@ -31,11 +33,9 @@ import {
   type RelayExecutionGuard,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
-import {
-  ApprovedExecutionGrants,
-  ConversationDecisions,
-} from "../../src/responder.ts";
-import { decide, type PermissionPlan } from "../../src/permission-plan.ts";
+import { ApprovedExecutionGrants } from "../../src/responder.ts";
+import type { PermissionPlan } from "../../src/permission-plan.ts";
+import { buildRelayExecutionGuard } from "../../src/engines/sandbox_agent/relay-guard.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 const RUN_CONTEXT: RunContext = {
@@ -63,46 +63,19 @@ function stubFetch(body = "ok"): CapturedFetch[] {
   return calls;
 }
 
-/** The guard exactly as `runTurn` composes it: decide() over an EMPTY stored-decision store
- *  (the dialog is the stored decisions' consumer, never the guard), then the grant ledger,
- *  consuming under the same redaction `handlePiGate` applied when the grant was recorded. */
+/** The Pi-shaped guard exactly as `runTurn` composes it (isPi: true): decide() over an EMPTY
+ *  stored-decision store (the dialog is the stored decisions' consumer, never the guard),
+ *  then the grant ledger, consuming under the same redaction `handlePiGate` applied when the
+ *  grant was recorded. */
 function buildRelayGuard(
   permissionPlan: PermissionPlan,
   executionGrants: ApprovedExecutionGrants,
 ): RelayExecutionGuard {
-  const relayGuardDecisions = new ConversationDecisions(new Map());
-  return (spec, req) => {
-    const verdict = decide(
-      {
-        executor: "relay",
-        toolName: spec.name,
-        specPermission: spec.permission,
-        readOnlyHint: spec.readOnly,
-        args: req.args,
-      },
-      permissionPlan,
-      relayGuardDecisions,
-    );
-    if (verdict.kind === "allow") return { allow: true };
-    if (verdict.kind === "deny") {
-      return {
-        allow: false,
-        reason: `Tool '${spec.name}' is denied by the permission policy.`,
-      };
-    }
-    return executionGrants.consume(
-      spec.name,
-      redactContextBoundArgs(
-        req.args,
-        spec.callRef ? spec.contextBindings : undefined,
-      ),
-    )
-      ? { allow: true }
-      : {
-          allow: false,
-          reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
-        };
-  };
+  return buildRelayExecutionGuard({
+    isPi: true,
+    permissionPlan,
+    executionGrants,
+  });
 }
 
 /** Write one forged execute record and run the relay over it (a record the model could write
@@ -223,13 +196,89 @@ describe("startToolRelay execution guard", () => {
     assert.equal(calls.length, 1);
   });
 
-  it("no guard at all executes unconditionally (Claude parity: gates fire before the relay)", async () => {
+  it("no guard at all executes unconditionally (the relay itself never re-checks)", async () => {
+    // Pins the relay-level contract: authorization lives entirely in the guard. `runTurn`
+    // now builds a guard for EVERY harness, so a live run never hits this shape.
     const calls = stubFetch();
 
     const res = await relayOnce({ spec: askSpec(), args: { token: "T" } });
 
     assert.equal(res.ok, true);
     assert.equal(calls.length, 1);
+  });
+
+  it("(non-Pi) a forged record for a deny-policy tool is refused: the deny reason is the result, the executor never runs", async () => {
+    const calls = stubFetch();
+    const guard = buildRelayExecutionGuard({
+      isPi: false,
+      permissionPlan: ASK_PLAN,
+      executionGrants: new ApprovedExecutionGrants(),
+    });
+
+    const res = await relayOnce({
+      spec: askSpec({ permission: "deny" }),
+      args: { token: "T" },
+      guard,
+    });
+
+    assert.equal(res.ok, true, "a guard deny is a tool RESULT, not an error");
+    assert.match(res.text ?? "", /denied by the permission policy/);
+    assert.equal(calls.length, 0, "the forged record never executed");
+  });
+
+  it("(non-Pi) an allow tool executes with no grant", async () => {
+    const calls = stubFetch();
+    const guard = buildRelayExecutionGuard({
+      isPi: false,
+      permissionPlan: ASK_PLAN,
+      executionGrants: new ApprovedExecutionGrants(),
+    });
+
+    const res = await relayOnce({
+      spec: askSpec({ permission: "allow" }),
+      args: {},
+      guard,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+  });
+
+  it("(non-Pi) an `ask` tool executes WITHOUT any grant (the harness's own dialog is the ask gate)", async () => {
+    // The documented residual of the MCP path: the runner cannot see the harness's ask
+    // approvals, so the guard enforces only the deny boundary here — an `ask` record passes
+    // with an EMPTY grant ledger, and nothing is consumed from it.
+    const calls = stubFetch();
+    const executionGrants = new ApprovedExecutionGrants();
+    const guard = buildRelayExecutionGuard({
+      isPi: false,
+      permissionPlan: ASK_PLAN,
+      executionGrants,
+    });
+
+    const res = await relayOnce({
+      spec: askSpec(),
+      args: { token: "T" },
+      guard,
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1, "the ask tool executed with no grant");
+
+    // The ledger stays untouched: a grant seeded by a Pi-style resume would survive.
+    executionGrants.grant("park_probe", { token: "T" });
+    const again = await relayOnce({
+      spec: askSpec(),
+      args: { token: "T" },
+      guard,
+    });
+    assert.equal(again.ok, true);
+    assert.equal(calls.length, 2);
+    assert.equal(
+      executionGrants.consume("park_probe", { token: "T" }),
+      true,
+      "the non-Pi guard never consumed the grant",
+    );
   });
 
   it("a contextBindings tool: the grant is keyed on REDACTED args and matches the raw record", async () => {
