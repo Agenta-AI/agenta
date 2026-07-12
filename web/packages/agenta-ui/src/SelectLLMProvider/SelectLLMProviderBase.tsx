@@ -148,6 +148,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
     const renderTooltipContent = (metadata: Record<string, unknown>) => (
         <div className="flex flex-col gap-0.5">
+            {typeof metadata.description === "string" && metadata.description && (
+                <Typography.Text className="text-[10px] max-w-[220px] inline-block mb-0.5">
+                    {metadata.description}
+                </Typography.Text>
+            )}
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">

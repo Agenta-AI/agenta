@@ -70,6 +70,13 @@ export function buildPiExtensionEnv(
   if (specs.length && opts.relayDir) {
     env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
     env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
+    // Hop-1 response-watch kill switch (event-driven-tool-relay plan, decision 7): the
+    // in-sandbox writer defaults it to true, so it is only forwarded — verbatim — when
+    // the operator set it on the runner.
+    const responseWatch =
+      process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
+    if (responseWatch !== undefined)
+      env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
   }
   // Builtin gating needs no relay dir: the gate rides the extension's `ctx.ui.confirm`
   // dialog onto the ACP permission plane (Pi approval parking), not the file relay.

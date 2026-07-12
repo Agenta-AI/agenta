@@ -236,6 +236,82 @@ describe("connectionUtils: harness-filtered model picker", () => {
     })
 })
 
+describe("connectionUtils: model_catalog is preferred when published", () => {
+    // A capability map that carries the curated catalog alongside the ids-only models map.
+    const WITH_CATALOG: HarnessCapabilitiesMap = {
+        pi_core: {
+            providers: ["openai", "anthropic"],
+            deployments: ["direct"],
+            connection_modes: ["agenta", "self_managed"],
+            model_selection: "provider/id",
+            models: {openai: ["gpt-5.5"], anthropic: ["anthropic/claude-opus-4-7"]},
+            model_catalog: [
+                {
+                    id: "openai/gpt-5.5",
+                    provider: "openai",
+                    source: "pi_generated",
+                    name: "GPT-5.5",
+                    pricing: {input_per_mtok: 5, output_per_mtok: 30, currency: "USD"},
+                    description: "OpenAI's flagship general model.",
+                },
+                {
+                    id: "anthropic/claude-fable-5",
+                    provider: "anthropic",
+                    source: "pi_generated",
+                    name: "Claude Fable 5",
+                    label: "Fable",
+                    pricing: {input_per_mtok: 10, output_per_mtok: 50, currency: "USD"},
+                    description: "Anthropic's most capable model.",
+                    ratings: {cost: 1, intelligence: 5, speed: 2},
+                },
+            ],
+        },
+    }
+
+    it("builds options from the catalog, labeling by label ?? name ?? id", () => {
+        const groups = buildModelOptionGroups(WITH_CATALOG, "pi_core")
+        const openai = groups.find((g) => g.label === "Openai")!
+        const anthropic = groups.find((g) => g.label === "Anthropic")!
+        // Option value is the catalog id; label prefers label, then name, then id.
+        expect(openai.options[0]).toMatchObject({label: "GPT-5.5", value: "openai/gpt-5.5"})
+        expect(anthropic.options[0]).toMatchObject({
+            label: "Fable",
+            value: "anthropic/claude-fable-5",
+        })
+    })
+
+    it("fills the metadata seam: pricing as {input, output} plus description/name/ratings", () => {
+        const groups = buildModelOptionGroups(WITH_CATALOG, "pi_core")
+        const fable = groups
+            .flatMap((g) => g.options)
+            .find((o) => o.value === "anthropic/claude-fable-5")!
+        expect(fable.metadata).toEqual({
+            input: 10,
+            output: 50,
+            description: "Anthropic's most capable model.",
+            name: "Claude Fable 5",
+            ratings: {cost: 1, intelligence: 5, speed: 2},
+        })
+    })
+
+    it("resolves provider and reachability from the catalog id", () => {
+        expect(providerForModel(WITH_CATALOG, "pi_core", "anthropic/claude-fable-5")).toBe(
+            "anthropic",
+        )
+        expect(harnessAllowsModel(WITH_CATALOG, "pi_core", "anthropic/claude-fable-5")).toBe(true)
+        // An id in neither the catalog nor the models map is not reachable.
+        expect(harnessAllowsModel(WITH_CATALOG, "pi_core", "bogus/model")).toBe(false)
+    })
+
+    it("still resolves a legacy id that is only in the models map (migration fallback)", () => {
+        // anthropic/claude-opus-4-7 is in `models` but not in the catalog; it must still resolve.
+        expect(providerForModel(WITH_CATALOG, "pi_core", "anthropic/claude-opus-4-7")).toBe(
+            "anthropic",
+        )
+        expect(harnessAllowsModel(WITH_CATALOG, "pi_core", "anthropic/claude-opus-4-7")).toBe(true)
+    })
+})
+
 describe("connectionUtils: vaultModelGroups (custom_provider connections)", () => {
     it("includes a connection whose kind is a plain provider family the harness reaches", () => {
         // pi_core reaches "openai" directly — a second, differently-configured "openai"-kind
