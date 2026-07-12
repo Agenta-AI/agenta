@@ -4,8 +4,10 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
@@ -70,12 +72,25 @@ class TriggersDAO(TriggersDAOInterface):
             trigger_id=trigger_id,
         )
 
-        async with self.engine.session() as session:
-            session.add(subscription_dbe)
+        try:
+            async with self.engine.session() as session:
+                session.add(subscription_dbe)
 
-            await session.commit()
+                await session.commit()
 
-            await session.refresh(subscription_dbe)
+                await session.refresh(subscription_dbe)
+        except IntegrityError as e:
+            error_str = str(e.orig) if e.orig else str(e)
+            if "ix_trigger_subscriptions_trigger_id" in error_str:
+                # A live subscription already occupies this provider trigger (same
+                # connection + event); the partial-unique index forbids a second
+                # active row.
+                raise EntityCreationConflict(
+                    entity="Trigger subscription",
+                    message="A subscription for this connection and event already exists.",
+                    conflict={"trigger_id": trigger_id},
+                ) from e
+            raise
 
         return map_subscription_dbe_to_dto(
             subscription_dbe=subscription_dbe,
