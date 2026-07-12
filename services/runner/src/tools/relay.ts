@@ -27,6 +27,7 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -202,6 +203,15 @@ export interface RelayHost {
    */
   remove: (path: string) => Promise<void>;
   /**
+   * Optional mtime probe for one relay file, in epoch milliseconds; used only for the
+   * stage=relay_pickup telemetry line (pickup latency = now − request-file mtime).
+   * Undefined (no capability, missing file, or any error) makes the telemetry report
+   * pickup_ms=-1 — never an execution failure. Cost: one stat per executed request
+   * (local: free; Daytona: +1 daemon call per tool call, small next to the removed
+   * polling).
+   */
+  statMtimeMs?: (path: string) => Promise<number | undefined>;
+  /**
    * Optional hop 2 wake source for the relay dir (plan decision 3). Undefined means
    * the loop is byte-for-byte today's poll loop. A source that suspends polling
    * (Daytona watch exec) replaces the remote poll with the 30 s safety poll while
@@ -227,6 +237,13 @@ export function localRelayHost(): RelayHost {
     },
     remove: async (path) => {
       unlinkSync(path);
+    },
+    statMtimeMs: async (path) => {
+      try {
+        return statSync(path).mtimeMs;
+      } catch {
+        return undefined;
+      }
     },
     // Unflagged (plan decision 7, last paragraph): the local watch's failure mode is
     // "fall back to the poll" and the poll cadence is unchanged either way.
@@ -269,6 +286,19 @@ export function sandboxRelayHost(
     },
     remove: async (path) => {
       await sandbox.deleteFsEntry({ path });
+    },
+    statMtimeMs: async (path) => {
+      // FsStat.modified is an RFC3339 string | null (verified against
+      // node_modules/sandbox-agent/dist/index.d.ts); absent/null/unparseable -> undefined.
+      try {
+        const stat = await sandbox.statFs({ path });
+        const modified = stat?.modified;
+        if (typeof modified !== "string") return undefined;
+        const parsed = Date.parse(modified);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
     },
     // Flagged (plan decision 7): the remote watch changes what the runner asks the
     // daemon to do, so it ships behind AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED
@@ -390,18 +420,34 @@ export function startToolRelay(
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,
+  opts?: { log?: (msg: string) => void },
 ): { stop: () => Promise<void> } {
   let active = true;
+  const log = opts?.log ?? (() => {});
   const seen = new Set<string>();
   const inflight: Promise<void>[] = [];
   const specsByName = new Map(specs.map((spec) => [spec.name, spec]));
 
-  const handle = async (reqName: string): Promise<void> => {
+  // `wake` is the loop's wait outcome AT DISCOVERY time (captured when the handle is
+  // queued, not when this async body runs), for the stage=relay_pickup line below.
+  const handle = async (reqName: string, wake: string): Promise<void> => {
     const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
     let res: RelayResponse;
     try {
       const reqPath = `${relayDir}/${reqName}`;
       const raw = await host.read(reqPath);
+      // stage=relay_pickup telemetry: stat BEFORE the delete-on-pickup remove below
+      // (afterwards the file is gone and the stat can only miss). Clock caveat: on
+      // Daytona the mtime is sandbox-clock while `Date.now()` is runner-clock, so
+      // pickup_ms is approximate — good for QA latency distributions, not billing.
+      // Cost: one stat per executed request (local: free; Daytona: +1 daemon call per
+      // tool call, small next to the polling this feature removed).
+      let mtimeMs: number | undefined;
+      try {
+        mtimeMs = await host.statMtimeMs?.(reqPath);
+      } catch {
+        mtimeMs = undefined;
+      }
       // Delete-on-pickup: remove the request file BEFORE executing. The Daytona watch
       // exec wakes on ANY *.req.json present, so a request left on disk for the whole
       // execution would make every window insta-complete and rearm at network speed
@@ -415,6 +461,11 @@ export function startToolRelay(
       } catch {
         // Best-effort: a failed removal only costs extra wakes, never correctness.
       }
+      log(
+        `[relay] stage=relay_pickup id=${id} pickup_ms=${
+          mtimeMs === undefined ? -1 : Date.now() - mtimeMs
+        } wake=${wake}`,
+      );
       const req = JSON.parse(raw) as RelayRequest;
       const spec = specsByName.get(req.toolName);
       if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
@@ -456,16 +507,52 @@ export function startToolRelay(
     // request resets it. This cuts the remote `ls` rate on Daytona without delaying a real call.
     let idlePolls = 0;
     let lastWaitOutcome: "activity" | "timeout" | "closed" | undefined;
+    // Orphan-residue snapshot (a turn only executes requests created after it started):
+    // a reused relay dir on a warm-continued turn can hold a stale `<id>.req.json` from
+    // a crashed prior turn (cold builds are covered by prepareWorkspace's rm -rf; warm
+    // continuations skip it), and this loop's fresh `seen` set would re-execute it. The
+    // first SUCCESSFUL list is a snapshot pass: every `*.req.json` already present is
+    // stale — marked seen (never executed) and best-effort removed. Race analysis: the
+    // relay loop starts before the turn's prompt (or a resume's respondPermission) is
+    // issued, so no legitimate request can predate the snapshot; the snapshot list is
+    // issued at loop start, ahead of the resume flow's multiple round-trips. A list
+    // that THROWS (dir not created yet) is not the snapshot — a missing dir cannot
+    // hold stale files, so waiting for the first successful list is safe. Stale
+    // `.res.json` files are left alone: the writer's own id-keyed read tolerates them,
+    // a stale response for a dead writer is inert, and the dir is cleared on the next
+    // cold build.
+    let snapshotDone = false;
     try {
       while (active) {
         let sawNew = false;
         try {
           const names = await host.list(relayDir);
-          for (const name of names) {
-            if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
-            seen.add(name);
-            sawNew = true;
-            inflight.push(handle(name));
+          if (!snapshotDone) {
+            snapshotDone = true;
+            let stale = 0;
+            for (const name of names) {
+              if (!name.endsWith(RELAY_REQ_SUFFIX)) continue;
+              seen.add(name);
+              stale += 1;
+              try {
+                await host.remove(`${relayDir}/${name}`);
+              } catch {
+                // Best-effort: `seen` alone already guarantees it never executes.
+              }
+            }
+            if (stale > 0) {
+              log(
+                `[relay] cleared ${stale} stale request file(s) predating the turn`,
+              );
+            }
+            // The snapshot pass is an idle poll: no new work, no idle reset.
+          } else {
+            for (const name of names) {
+              if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
+              seen.add(name);
+              sawNew = true;
+              inflight.push(handle(name, lastWaitOutcome ?? "poll"));
+            }
           }
         } catch {
           // Transient (dir not created yet, or a poll raced sandbox teardown): retry.

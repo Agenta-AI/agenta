@@ -116,14 +116,6 @@ async function relayOnce(input: {
   const dir = mkdtempSync(join(tmpdir(), "agenta-relay-guard-"));
   try {
     const id = "call-1";
-    writeFileSync(
-      join(dir, `${id}.req.json`),
-      JSON.stringify({
-        toolName: input.spec.name,
-        toolCallId: id,
-        args: input.args,
-      }),
-    );
     const relay = startToolRelay(
       localRelayHost(),
       dir,
@@ -132,6 +124,18 @@ async function relayOnce(input: {
       input.runContext,
       undefined,
       input.guard,
+    );
+    // Written AFTER startToolRelay: the loop's first successful list (issued
+    // synchronously inside startToolRelay) is the orphan snapshot, and a request
+    // already present there is cleared as pre-turn residue instead of executed. A
+    // real forged record can also only appear after the loop starts.
+    writeFileSync(
+      join(dir, `${id}.req.json`),
+      JSON.stringify({
+        toolName: input.spec.name,
+        toolCallId: id,
+        args: input.args,
+      }),
     );
     const resPath = join(dir, `${id}.res.json`);
     const deadline = Date.now() + 5000;

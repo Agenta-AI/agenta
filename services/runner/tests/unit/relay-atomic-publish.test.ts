@@ -88,9 +88,12 @@ describe("startToolRelay response publication (write temp, then rename)", () => 
       path: string;
       extra: string;
     }> = [];
-    let listed = false;
+    // The request appears on the SECOND list: the first successful list is the orphan
+    // snapshot (a request already present there is cleared as pre-turn residue, never
+    // executed) — mirroring production, where the loop starts before the prompt.
+    let listCalls = 0;
     const host: RelayHost = {
-      list: async () => (listed ? [] : ((listed = true), [reqName])),
+      list: async () => (++listCalls === 2 ? [reqName] : []),
       read: async (path) => {
         ops.push({ op: "read", path, extra: "" });
         return JSON.stringify({

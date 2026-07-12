@@ -1749,6 +1749,7 @@ export async function runTurn(
         request.runContext,
         env.clientToolRelayRef.current,
         relayGuard,
+        { log: logger },
       );
     }
 
