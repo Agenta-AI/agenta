@@ -11,7 +11,7 @@
  * Naming: "Storage" + "drive" (App drive / Session drive), not "mounts" — a mount is the
  * MECHANISM (geesefs/FUSE mount points); a drive is the thing users have a model for.
  */
-import {useState, type ReactNode} from "react"
+import {type ReactNode} from "react"
 
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {ChatCircle, HardDrives} from "@phosphor-icons/react"
@@ -65,21 +65,18 @@ export function AgentOperationsSections({
     revisionId,
     disabled,
     sticky = true,
-    sessionDrive,
+    storage,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
     disabled?: boolean
     /** Non-sticky headers for embedded (drawer) surfaces, matching the embedded config header. */
     sticky?: boolean
-    /** The active conversation's file browser, slotted in by the app layer (which owns the chat
-     * session state this package can't reach). Absent → an explanatory placeholder. */
-    sessionDrive?: ReactNode
+    /** The Storage region body (App drive + Session drive rows), slotted in by the app layer —
+     * it owns the chat session state this package can't reach. Absent → static placeholders. */
+    storage?: ReactNode
 }) {
     const {count: triggerCount} = useAgentTriggers(revisionId)
-    // Session drive is controlled so the browser (and its queries) mounts only when expanded —
-    // a collapsed HeightCollapse body stays mounted, which would fetch on every playground load.
-    const [sessionDriveOpen, setSessionDriveOpen] = useState(false)
 
     return (
         <>
@@ -100,42 +97,40 @@ export function AgentOperationsSections({
                     <span className={titleClass}>Storage</span>
                 </div>
                 <div className="flex flex-col px-4 pb-3">
-                    {/* App drive: the agent's durable folder (#5215, design PR — not built yet).
-                        Wire this section to POST /mounts/agents/query + the mount file browser
-                        once slice 1 lands. */}
-                    <ConfigAccordionSection
-                        icon={<HardDrives size={16} />}
-                        title="App drive"
-                        summary="Coming soon"
-                        defaultOpen={false}
-                        animateInitialOpen
-                    >
-                        <Typography.Text type="secondary" className="text-xs">
-                            One durable folder this agent keeps across every conversation — the
-                            skills, notes, and artifacts it accumulates. Agent-level storage is in
-                            design; its files will be browsable here once it lands.
-                        </Typography.Text>
-                    </ConfigAccordionSection>
-                    <ConfigAccordionSection
-                        icon={<ChatCircle size={16} />}
-                        title="Session drive"
-                        summary="Per conversation"
-                        open={sessionDriveOpen}
-                        onOpenChange={setSessionDriveOpen}
-                        noDivider
-                    >
-                        {sessionDrive ? (
-                            sessionDriveOpen ? (
-                                sessionDrive
-                            ) : null
-                        ) : (
-                            <Typography.Text type="secondary" className="text-xs">
-                                Each conversation gets its own working folder while it runs — the
-                                files the agent reads and writes live there. Open a chat and browse
-                                them from the session panel beside the transcript.
-                            </Typography.Text>
-                        )}
-                    </ConfigAccordionSection>
+                    {storage ?? (
+                        // Static fallback for surfaces that don't slot the live Storage body.
+                        // App drive: the agent's durable folder (#5215, design PR — not built yet).
+                        <>
+                            <ConfigAccordionSection
+                                icon={<HardDrives size={16} />}
+                                title="App drive"
+                                summary="Coming soon"
+                                defaultOpen={false}
+                                animateInitialOpen
+                            >
+                                <Typography.Text type="secondary" className="text-xs">
+                                    One durable folder this agent keeps across every conversation —
+                                    the skills, notes, and artifacts it accumulates. Agent-level
+                                    storage is in design; its files will be browsable here once it
+                                    lands.
+                                </Typography.Text>
+                            </ConfigAccordionSection>
+                            <ConfigAccordionSection
+                                icon={<ChatCircle size={16} />}
+                                title="Session drive"
+                                summary="Per conversation"
+                                defaultOpen={false}
+                                noDivider
+                                animateInitialOpen
+                            >
+                                <Typography.Text type="secondary" className="text-xs">
+                                    Each conversation gets its own working folder while it runs —
+                                    the files the agent reads and writes live there. Open a chat and
+                                    browse them from the session panel beside the transcript.
+                                </Typography.Text>
+                            </ConfigAccordionSection>
+                        </>
+                    )}
                 </div>
             </section>
         </>
