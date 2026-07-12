@@ -105,10 +105,10 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         [selectedTemplate],
     )
 
-    // Always mounted (never null) so the chip can transition rather than pop. During the
-    // out-transition `selectedTemplate` is already null, so we show the retained last template
-    // (falling back to the registry's first only for the very first, never-picked render).
-    // TemplateChipDock owns the fade/rise + width-morph; passing `visible` drives them.
+    // During the exit `selectedTemplate` is already null, so we show the retained last template
+    // (falling back to the registry's first only for the very first, never-picked render) — the
+    // chip fades out with its real content. TemplateChipDock owns the AnimatePresence fade/rise
+    // and the width-morph; passing `visible` drives them.
     const chipNode = useMemo(() => {
         const shown = selectedTemplate ?? lastTemplateRef.current ?? AGENT_TEMPLATES[0]
         return (
