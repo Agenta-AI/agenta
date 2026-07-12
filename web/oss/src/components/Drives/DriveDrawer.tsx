@@ -66,6 +66,11 @@ export const fileTypeLabel = (path: string): string => {
     return ext && ext !== path ? ext.toUpperCase() : "File"
 }
 
+/** Breadcrumb root label. Mount slugs are the RESERVED form (`__ag__<uuid5>__cwd`) — surface
+ * only the human tail ("cwd"), never the uuid (spec: raw ids stay out of labels). */
+const driveRootLabel = (mount: Mount | null): string =>
+    mount?.slug?.split("__").filter(Boolean).pop() ?? "cwd"
+
 /** One tree row (folder or file), indented by depth; selection = fill + primary ring. */
 const TreeRow = ({
     node,
@@ -163,7 +168,6 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
     const name = path.split("/").pop() ?? path
     return (
         <Button
-            size="small"
             icon={<DownloadSimple size={13} />}
             disabled={typeof content !== "string"}
             onClick={() => typeof content === "string" && downloadTextFile(name, content)}
@@ -194,21 +198,22 @@ const DriveFilePreview = ({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
-            <div className="flex items-center gap-1 text-[11px] text-colorTextTertiary">
+            {/* One line, never wraps: the folder chain truncates, the filename always survives. */}
+            <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-colorTextTertiary">
                 <button
                     type="button"
                     onClick={onNavigateRoot}
-                    className="flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:text-colorText"
+                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:text-colorText"
                 >
                     <House size={12} />
                     <span className="font-mono">{rootLabel}</span>
                 </button>
-                {[...folders, name].map((segment, i) => (
-                    <span key={i} className="flex items-center gap-1 font-mono">
-                        <span className="text-colorTextQuaternary">/</span>
-                        {segment}
+                {folders.length ? (
+                    <span className="min-w-0 truncate font-mono">
+                        {folders.map((f) => `/ ${f} `).join("")}
                     </span>
-                ))}
+                ) : null}
+                <span className="shrink-0 font-mono">/ {name}</span>
             </div>
 
             <div className="flex items-start justify-between gap-2">
@@ -242,7 +247,7 @@ export function DriveExplorer({
     scope?: DriveScope
     initialPath?: string | null
 }) {
-    const rootLabel = drive.mount?.slug ?? "cwd"
+    const rootLabel = driveRootLabel(drive.mount)
     const [search, setSearch] = useState("")
     const [selectedPath, setSelectedPath] = useState<string | null>(() => initialPath ?? null)
     const [expanded, setExpanded] = useState<Set<string>>(
@@ -302,7 +307,7 @@ export function DriveExplorer({
         return (
             <div className="flex min-h-0 w-full flex-1">
                 <div className="w-[240px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary p-3">
-                    <Input size="small" disabled placeholder="Search" />
+                    <Input disabled placeholder="Search" />
                 </div>
                 <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
                     <Tray size={28} className="text-colorTextQuaternary" />
@@ -320,7 +325,6 @@ export function DriveExplorer({
         <div className="flex min-h-0 w-full flex-1">
             <div className="flex w-[240px] shrink-0 flex-col gap-2 overflow-y-auto border-0 border-r border-solid border-colorBorderSecondary p-3">
                 <Input
-                    size="small"
                     allowClear
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -423,7 +427,7 @@ export function DriveDrawer({
             }
             extra={
                 <Tooltip title="Download the whole drive as a zip — coming soon">
-                    <Button size="small" icon={<DownloadSimple size={13} />} disabled>
+                    <Button icon={<DownloadSimple size={13} />} disabled>
                         Download all
                     </Button>
                 </Tooltip>

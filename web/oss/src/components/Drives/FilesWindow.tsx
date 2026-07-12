@@ -70,7 +70,6 @@ export default function FilesWindow({sessionId}: {sessionId: string}) {
                     {view === "grid" ? (
                         <>
                             <Input
-                                size="small"
                                 allowClear
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
@@ -84,7 +83,6 @@ export default function FilesWindow({sessionId}: {sessionId: string}) {
                                 }
                             />
                             <Select
-                                size="small"
                                 value={sort}
                                 onChange={setSort}
                                 className="w-[92px]"
@@ -97,7 +95,6 @@ export default function FilesWindow({sessionId}: {sessionId: string}) {
                         </>
                     ) : null}
                     <Segmented
-                        size="small"
                         value={view}
                         onChange={(v) => setView(v as "grid" | "list")}
                         options={[

@@ -96,7 +96,6 @@ export function DriveQuickLook({sessionId}: {sessionId: string}) {
                     <div className="flex items-center justify-between text-[11px] text-colorTextTertiary">
                         <Button
                             type="text"
-                            size="small"
                             icon={<CaretLeft size={13} />}
                             onClick={() => page(-1)}
                             aria-label="Previous file"
@@ -106,7 +105,6 @@ export function DriveQuickLook({sessionId}: {sessionId: string}) {
                         </span>
                         <Button
                             type="text"
-                            size="small"
                             icon={<CaretRight size={13} />}
                             onClick={() => page(1)}
                             aria-label="Next file"
