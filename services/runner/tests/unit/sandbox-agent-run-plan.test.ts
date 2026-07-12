@@ -736,6 +736,10 @@ describe("buildRunPlan", () => {
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "compute it" }],
+        // A real code-tool wire payload still carries the SDK's executor fields
+        // (runtime/code). The runner no longer declares them on ResolvedToolSpec and ignores
+        // them; the double cast represents that extra-property wire reality. The refusal keys
+        // on `kind: "code"` alone, so it is unaffected.
         customTools: [
           {
             name: "secret_math",
@@ -744,7 +748,7 @@ describe("buildRunPlan", () => {
             code: "def main(x=0):\n    return x * 7 + 1\n",
           },
         ],
-      } as AgentRunRequest,
+      } as unknown as AgentRunRequest,
       {
         createLocalCwd: () => {
           created = true;

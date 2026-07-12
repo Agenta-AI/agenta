@@ -430,6 +430,12 @@ export const editorChip = {
 export const templateStrip = {
     inputBorder: {light: "#d6dee6", dark: "#2e3136"}, // mirrors drawerDark.fieldBorder
     selectedBg: {light: "#f5f7fa", dark: "rgba(255, 255, 255, 0.06)"},
+    // Card surface: dark elevates above the page (container and page are both #141414,
+    // so colorBgContainer gives no elevation) with a near-bg border; light keeps the
+    // white-card-with-border look.
+    cardBg: {light: "#ffffff", dark: "rgba(255, 255, 255, 0.04)"},
+    cardBorder: {light: "#eaeff5", dark: "#232327"},
+    cardBorderHover: {light: "#bdc7d1", dark: "#3a3a40"},
     cardHoverShadow: {
         light: "0 2px 8px -2px rgba(28, 44, 61, 0.12)",
         dark: "0 2px 8px -2px rgba(0, 0, 0, 0.45)",

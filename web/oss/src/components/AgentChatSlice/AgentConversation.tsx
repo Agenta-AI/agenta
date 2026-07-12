@@ -34,7 +34,6 @@ import {
     ArrowRight,
     Code,
     Paperclip,
-    Terminal,
     TreeStructure,
     UploadSimple,
 } from "@phosphor-icons/react"
@@ -66,6 +65,7 @@ import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/st
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
+import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentIntentActions"
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -713,10 +713,11 @@ const AgentConversation = ({
     })
     // Provenance is scoped to ONE agent revision. `AgentConversation` survives an `entityId`
     // change in place (see the self-commit `switchEntity` above and a revision swap) — without
-    // this, a template picked against the old entity would leak its name into the new one.
+    // this, a template picked against the old entity would leak its name into the new one. Drop
+    // only the chip, not the composer text: a commit must not wipe the user's in-progress draft (#5246).
     useEffect(() => {
-        stripProvenance.clear()
-    }, [entityId, stripProvenance.clear])
+        stripProvenance.clearProvenance()
+    }, [entityId, stripProvenance.clearProvenance])
     // S6 gate: fresh agent only (`version` v0/v1 = creation, same seed-vs-history convention used
     // elsewhere); unknown while loading counts as not-fresh so the strip never flashes in.
     const revisionQuery = useAtomValue(workflowMolecule.selectors.query(entityId))
@@ -2138,7 +2139,7 @@ const AgentConversation = ({
                                             onboardingActive
                                                 ? ideHandoffActive
                                                     ? "Continue in your IDE from the steps above — or start over."
-                                                    : "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything."
+                                                    : STRIP_COPY.describeAgentPlaceholder
                                                 : modelBlocked
                                                   ? "Connect a model to start chatting…"
                                                   : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
@@ -2193,26 +2194,23 @@ const AgentConversation = ({
                                                     >
                                                         Start over
                                                     </Button>
+                                                ) : TEMPLATE_STRIP_MODE ? (
+                                                    // Strip era: the SAME action cluster as the home hero composer
+                                                    // (shared component), with the one-click copy + toast handoff.
+                                                    <AgentIntentActions
+                                                        onCreate={handleCreateAgent}
+                                                        onCodingAgentCopy={handleCodingAgentCopy}
+                                                        creating={!!onboarding?.committing}
+                                                    />
                                                 ) : (
                                                     <div className="flex items-center gap-2">
-                                                        {TEMPLATE_STRIP_MODE ? (
-                                                            // Strip era: the IDE handoff is a one-click copy + toast, no modal/bubble.
-                                                            <Button
-                                                                icon={<Terminal size={15} />}
-                                                                onClick={handleCodingAgentCopy}
-                                                                className="!shadow-none"
-                                                            >
-                                                                {STRIP_COPY.useCodingAgent}
-                                                            </Button>
-                                                        ) : (
-                                                            <Button
-                                                                icon={<Code size={14} />}
-                                                                onClick={streamIdeBubble}
-                                                                className="!shadow-none"
-                                                            >
-                                                                Continue in IDE
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            icon={<Code size={14} />}
+                                                            onClick={streamIdeBubble}
+                                                            className="!shadow-none"
+                                                        >
+                                                            Continue in IDE
+                                                        </Button>
                                                         <Button
                                                             type="primary"
                                                             icon={<ArrowRight size={14} />}

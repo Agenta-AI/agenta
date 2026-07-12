@@ -22,9 +22,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
 import {
+    activeSessionIdAtomFamily,
     adoptScopeSessionsAtom,
     resetScopeAtomFamily,
+    sessionStatusAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
+import {ONBOARDING_SESSION_DEFAULT, onboardingSessionAtom} from "@/oss/state/onboarding"
 import {urlAtom} from "@/oss/state/url"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
@@ -71,6 +74,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const resetOnboardingScope = useSetAtom(resetScopeAtomFamily(ONBOARDING_SCOPE_KEY))
 
     const adoptScopeSessions = useSetAtom(adoptScopeSessionsAtom)
+    const setOnboardingSession = useSetAtom(onboardingSessionAtom)
 
     const [entityId, setEntityId] = useState<string | null>(null)
     const [realEntityId, setRealEntityId] = useState<string | null>(null)
@@ -81,6 +85,42 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const [chromeRevealed, setChromeRevealed] = useState(false)
     const [error, setError] = useState(false)
     const startedRef = useRef(false)
+
+    // Publish the onboarding lifecycle to a globally-readable atom so surfaces outside the playground
+    // subtree (the sidebar, the layout) can adjust without the playground-scoped OnboardingContext.
+    // `realEntityId` (not the agents query) is the authoritative "committed" signal — it flips the
+    // instant we commit, before the agents list refetches. Reset only on unmount (a per-change reset
+    // would briefly flash the default between updates).
+    useEffect(() => {
+        setOnboardingSession({active, committedRevisionId: realEntityId})
+    }, [active, realEntityId, setOnboardingSession])
+    useEffect(() => () => setOnboardingSession(ONBOARDING_SESSION_DEFAULT), [setOnboardingSession])
+
+    // New-session lock: the founding conversation must make real progress before parallel sessions
+    // unlock — a fresh "+ tab" while the seeded first run is still setting up/streaming only splits
+    // the user away from their agent being born. Latched (state + sawRun ref): once the first run
+    // settles the lock never re-engages, so normal parallel-session UX returns for good. After the
+    // latch we subscribe to the "" status atom (constant idle) instead of the session's, so post-
+    // onboarding run status changes no longer re-render this host.
+    const chatScopeKey = realAppId ?? ONBOARDING_SCOPE_KEY
+    const foundingSessionId = useAtomValue(activeSessionIdAtomFamily(chatScopeKey))
+    const [firstRunSettled, setFirstRunSettled] = useState(false)
+    const foundingStatus = useAtomValue(
+        sessionStatusAtomFamily(firstRunSettled ? "" : (foundingSessionId ?? "")),
+    )
+    const sawRunRef = useRef(false)
+    useEffect(() => {
+        if (!realEntityId || firstRunSettled) return
+        if (foundingStatus === "running") {
+            sawRunRef.current = true
+            return
+        }
+        // Settled = the seeded run finished (ran, then left "running"), paused on the user
+        // ("awaiting" approval/input IS progress), or failed ("error" — never trap the user).
+        if (sawRunRef.current || foundingStatus === "awaiting" || foundingStatus === "error") {
+            setFirstRunSettled(true)
+        }
+    }, [realEntityId, foundingStatus, firstRunSettled])
 
     // Post-commit chrome (session bar / connect-model banner / header mode switch) eases in a beat AFTER
     // the commit, so the send + transcript scroll settle first instead of everything moving at once.
@@ -223,6 +263,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                       browseAll,
                       setBrowseAll,
                       chromeRevealed,
+                      newSessionLocked: !firstRunSettled,
                   }
                 : null,
         [
@@ -234,6 +275,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             commit,
             browseAll,
             chromeRevealed,
+            firstRunSettled,
         ],
     )
 
@@ -281,6 +323,6 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         agentPanel: null,
         renderConfigOverride,
         contextValue,
-        chatScopeKey: realAppId ?? ONBOARDING_SCOPE_KEY,
+        chatScopeKey,
     }
 }

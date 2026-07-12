@@ -1,8 +1,8 @@
 import { local } from "sandbox-agent/local";
-import { daytona } from "sandbox-agent/daytona";
 
 import type { SandboxPermission } from "../../protocol.ts";
 import { daytonaEnvVars } from "./daytona.ts";
+import { daytonaWithLifecycle } from "./daytona-provider.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -31,13 +31,11 @@ export function daytonaNetworkFields(
 }
 
 /**
- * Idle-minute thresholds for the three Daytona lifecycle transitions. Each is measured from
- * last activity and refreshed on every turn: stop (HOT→WARM), archive (WARM→COLD), delete
- * (COLD→DEAD). A stopped sandbox keeps its disk (fast restart, no compute billing); an archived
- * one moves to cold storage (slower restore); a deleted one is gone (respawn + remount + load).
+ * Idle-minute thresholds for Daytona lifecycle transitions. Each is measured from last activity
+ * and refreshed on every turn. Stop must exceed the 300-second maximum silent stretch of a live
+ * turn. A stopped sandbox keeps its disk; a deleted one is gone and must be recreated.
  */
-export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 5;
-export const DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES = 15;
+export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
 export const DEFAULT_DAYTONA_AUTODELETE_MINUTES = 30;
 
 function positiveMinutes(rawValue: string | undefined, fallback: number): number {
@@ -53,14 +51,7 @@ export function daytonaAutoStopMinutes(
   return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
 }
 
-/** Idle minutes before a stopped sandbox is archived (cold). Override `DAYTONA_AUTOARCHIVE`. */
-export function daytonaAutoArchiveMinutes(
-  rawValue: string | undefined = process.env.DAYTONA_AUTOARCHIVE,
-): number {
-  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTOARCHIVE_MINUTES);
-}
-
-/** Idle minutes before an archived sandbox is deleted (dead). Override `DAYTONA_AUTODELETE`. */
+/** Idle minutes before a stopped sandbox is deleted. Override `DAYTONA_AUTODELETE`. */
 export function daytonaAutoDeleteMinutes(
   rawValue: string | undefined = process.env.DAYTONA_AUTODELETE,
 ): number {
@@ -90,12 +81,10 @@ export function buildDaytonaCreate(
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
     envVars: daytonaEnvVars(piExtEnv, secrets),
-    // Native five-state lifecycle: stop preserves the disk (warm), archive moves it to cold
-    // storage, delete reaps it (dead). `ephemeral: false` so a stop parks rather than deletes;
-    // the three intervals (spread after the wrapper's hardcoded 0s, so they win) are the
-    // platform-run reapers. A leaked sandbox self-reaps via autoDelete instead of ephemeral.
+    // `ephemeral: false` lets stop park the sandbox. Leave autoArchiveInterval unset so Daytona's
+    // seven-day default sits beyond our 30-minute delete. The ladder is stop, then delete.
+    // These intervals override the wrapper's hardcoded zeroes. A leaked sandbox self-reaps.
     autoStopInterval: daytonaAutoStopMinutes(),
-    autoArchiveInterval: daytonaAutoArchiveMinutes(),
     autoDeleteInterval: daytonaAutoDeleteMinutes(),
     ephemeral: false,
   };
@@ -127,7 +116,7 @@ export function buildSandboxProvider(
 ) {
   if (sandboxId === "daytona") {
     const image = process.env.DAYTONA_IMAGE;
-    return daytona({
+    return daytonaWithLifecycle({
       ...(image ? { image } : {}),
       create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
     });

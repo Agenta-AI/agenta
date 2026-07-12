@@ -315,11 +315,11 @@ export function buildRunPlan(
   }
 
   // Code tools were removed (F-010 security): the sidecar no longer executes author-supplied
-  // snippets. `runCodeTool` throws per-call, but a per-call throw becomes a tool RESULT the
-  // model launders into an `ok:true` reply ("Code tools are not supported by the sidecar."),
-  // so a removed capability reads as a SUCCESS at the response envelope (F-016). Fail loud
-  // up-front instead: refuse any run that carries a `code` tool, the way stdio MCP is gated.
-  // Keep the wire shape; the delivery is not supported.
+  // snippets. The dispatch sites still throw per-call as a backstop, but a per-call throw
+  // becomes a tool RESULT the model launders into an `ok:true` reply ("Code tools are not
+  // supported by the sidecar."), so a removed capability reads as a SUCCESS at the response
+  // envelope (F-016). Fail loud up-front instead: refuse any run that carries a `code` tool,
+  // the way stdio MCP is gated. Keep the wire shape; the delivery is not supported.
   if (hasCodeTool(toolSpecs)) {
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }

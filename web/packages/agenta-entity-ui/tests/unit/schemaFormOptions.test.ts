@@ -11,8 +11,10 @@ import {describe, expect, it} from "vitest"
 import type {FormFieldDescriptor} from "@agenta/shared/utils"
 
 import {
+    DEFAULT_CRON,
     OTHER_ENUM_OPTION,
     commitCustomValue,
+    cronInitialValue,
     digitKeyIndex,
     enumOptionsOf,
     isOffOptionsValue,
@@ -221,5 +223,20 @@ describe("digitKeyIndex / resolveDigitSelection (choice-card hotkeys)", () => {
     it("digits past the Other tile and non-digits resolve to nothing", () => {
         expect(resolveDigitSelection("5", options)).toBeNull()
         expect(resolveDigitSelection("x", options)).toBeNull()
+    })
+})
+
+describe("cronInitialValue", () => {
+    it("a cron field without a wire default is born answered with the builder's display default", () => {
+        expect(cronInitialValue(undefined)).toBe(DEFAULT_CRON)
+    })
+
+    it("a wire default wins over the display default", () => {
+        expect(cronInitialValue("30 8 * * 1")).toBe("30 8 * * 1")
+    })
+
+    it("empty or non-string defaults fall back to the display default", () => {
+        expect(cronInitialValue("")).toBe(DEFAULT_CRON)
+        expect(cronInitialValue(5)).toBe(DEFAULT_CRON)
     })
 })

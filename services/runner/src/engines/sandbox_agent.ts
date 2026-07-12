@@ -115,7 +115,12 @@ import {
   buildWorkflowReferences,
 } from "../sessions/interactions.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../sessions/alive.ts";
+import {
+  teardownDisposition,
+  type TeardownReason,
+} from "./sandbox_agent/teardown.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
+import { DaytonaReconnectTerminalError } from "./sandbox_agent/daytona-provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
@@ -149,8 +154,9 @@ import {
   syncHarnessSessionDurable,
 } from "./sandbox_agent/session-continuity-durable.ts";
 import {
-  readStoredSandboxId,
-  writeSandboxId,
+  readStoredSandboxPointer,
+  clearSandboxPointer,
+  writeSandboxPointer,
 } from "./sandbox_agent/sandbox-reconnect.ts";
 import {
   assertLocalRunnerOwnership,
@@ -200,7 +206,7 @@ const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
 // best-effort delete any still-running sandbox before exit. Remote (Daytona) sandboxes that even a
 // signal can never reach (SIGKILL/OOM) self-reap via the lifecycle reapers in `provider.ts`.
 const inFlightSandboxes = new Set<{
-  destroySandbox?: () => Promise<unknown>;
+  destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
 }>();
 
 /**
@@ -211,12 +217,13 @@ const inFlightSandboxes = new Set<{
  */
 export async function destroyInFlightSandboxes(
   timeoutMs = 5000,
+  reason: TeardownReason = "shutdown-in-flight",
 ): Promise<void> {
   const pending = [...inFlightSandboxes];
   if (pending.length === 0) return;
   const sweep = Promise.allSettled(
-    pending.map((sandbox) =>
-      Promise.resolve(sandbox.destroySandbox?.()).catch(() => {}),
+    pending.map((environment) =>
+      Promise.resolve(environment.destroy({ reason })).catch(() => {}),
     ),
   );
   await Promise.race([
@@ -230,7 +237,8 @@ function shouldSuppressPausedToolCallUpdate(
   pause: PendingApprovalPauseController,
 ): boolean {
   const frame = update as
-    { sessionUpdate?: unknown; toolCallId?: unknown } | undefined;
+    | { sessionUpdate?: unknown; toolCallId?: unknown }
+    | undefined;
   const kind = frame?.sessionUpdate;
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
   const toolCallId =
@@ -328,9 +336,10 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   /** Durable read-back/write-forward of the continuity store (tests inject fakes). */
   hydrateHarnessSessionFromDurable?: typeof hydrateHarnessSessionFromDurable;
   syncHarnessSessionDurable?: typeof syncHarnessSessionDurable;
-  /** Durable read/write of the sandbox id, for the remote reconnect ladder (tests inject fakes). */
-  readStoredSandboxId?: typeof readStoredSandboxId;
-  writeSandboxId?: typeof writeSandboxId;
+  /** Durable read/write of the sandbox pointer, for the remote reconnect ladder. */
+  readStoredSandboxPointer?: typeof readStoredSandboxPointer;
+  clearSandboxPointer?: typeof clearSandboxPointer;
+  writeSandboxPointer?: typeof writeSandboxPointer;
   /**
    * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
    * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
@@ -518,7 +527,8 @@ export interface SessionEnvironment {
   otlpAuthFilePath: string | undefined;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
-  /** The mount's owning project id (keep-alive pool key scope); undefined when there is no mount. */
+  /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
+   * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
   /** This acquire resumed the harness's native session via `session/load` (not cold). */
   loadedFromContinuity: boolean;
@@ -554,23 +564,26 @@ export interface SessionEnvironment {
    */
   approvalGateCount: number;
   destroyed: boolean;
-  /** Complete, idempotent teardown. `keepWarm` parks a remote sandbox instead of deleting it. */
-  destroy: (opts?: { keepWarm?: boolean }) => Promise<void>;
+  /** Complete, idempotent teardown selected from the typed teardown reason. */
+  destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
   /** End the active turn: clear the current-turn sink (called before a park). */
   clearTurn: () => void;
 }
 
 export type AcquireEnvironmentResult =
-  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
+  | { ok: true; env: SessionEnvironment }
+  | { ok: false; error: string };
 
 /**
  * Sign the session's durable mount up front so keep-alive can build a pool key (the mount's
- * owning `projectId`) and credential epoch without acquiring the whole environment. Returns
+ * owning `projectId`, the FALLBACK project scope when the run carries no service-stamped
+ * `runContext.project.id`) and credential epoch without acquiring the whole environment. Returns
  * exactly what the sign yielded: `null` when there is no session/credential to sign with, or
  * the sign returned no usable mount (store unconfigured, 503, ephemeral fallback). The caller
  * threads the result — null included — into `acquireEnvironment` as `presignedMount`, so the
- * mount is signed exactly once per run on every path; a null result additionally means there is
- * NO safe project key and the request must never park.
+ * mount is signed exactly once per run on every path. A null result no longer forces a cold run
+ * on its own: the request still parks when the run context supplied a project scope, and only
+ * skips parking when NEITHER source yields one (`poolKeyFor` returns null).
  */
 export async function resolveKeepaliveMount(
   request: AgentRunRequest,
@@ -608,6 +621,15 @@ export async function acquireEnvironment(
   presignedMount?: MountCredentials | null,
 ): Promise<AcquireEnvironmentResult> {
   const logger = deps.log ?? log;
+  const acquireStartedAt = Date.now();
+  const timingLog = (stage: string, startedAt: number, fields = ""): void => {
+    const sandboxId = environment?.sandbox?.sandboxId ?? "-";
+    const sessionId =
+      environment?.sessionId ?? request.sessionId?.trim() ?? "-";
+    logger(
+      `[timing] stage=${stage} ms=${Math.round(Date.now() - startedAt)} sandbox=${sandboxId} session=${sessionId}${fields}`,
+    );
+  };
 
   // Local multi-runner fails loudly. Session-owned + local-sandbox only (a non-session run
   // has no cross-replica identity to protect, and a remote sandbox has no runner-local pooled
@@ -818,11 +840,11 @@ export async function acquireEnvironment(
   // The one complete, idempotent teardown — the same steps the old per-run `finally` ran, in the
   // same order. Every resource is null-checked, so it is safe after a partial acquire and safe to
   // call twice (the guard returns on a second call). It must never throw.
-  environment.destroy = async (opts?: { keepWarm?: boolean }) => {
+  environment.destroy = async (opts?: { reason?: TeardownReason }) => {
     if (environment.destroyed) return;
     environment.destroyed = true;
     await environment.runtimeRemount?.catch(() => {});
-    if (environment.sandbox) inFlightSandboxes.delete(environment.sandbox);
+    inFlightSandboxes.delete(environment);
     await environment.currentTurn?.toolRelay?.stop().catch(() => {});
     // Teardown backstop: destroy any in-flight loopback `tools/call` before closing the server.
     environment.mcpAbort.abort();
@@ -833,14 +855,24 @@ export async function acquireEnvironment(
       await environment.sandbox
         ?.destroySession?.(environment.session.id)
         .catch(() => {});
-    // keepWarm pauses a remote sandbox (parked, resumable) instead of deleting it; falls back to destroy.
-    const parked =
-      opts?.keepWarm && plan.isDaytona && environment.sandbox?.pauseSandbox
-        ? await environment.sandbox
-            .pauseSandbox()
-            .then(() => true)
-            .catch(() => false)
-        : false;
+    const disposition = teardownDisposition(opts?.reason ?? "failed-turn");
+    let parked = false;
+    if (
+      disposition === "stop" &&
+      plan.isDaytona &&
+      environment.sandbox?.pauseSandbox
+    ) {
+      const sandboxLogId = environment.sandbox.sandboxId ?? plan.sandboxId;
+      try {
+        await environment.sandbox.pauseSandbox();
+        parked = true;
+        logger(`parked sandbox=${sandboxLogId}`);
+      } catch (err) {
+        logger(
+          `pause failed sandbox=${sandboxLogId}: ${conciseError(err, plan.harness)}`,
+        );
+      }
+    }
     if (!parked) await environment.sandbox?.destroySandbox().catch(() => {});
     await environment.sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
@@ -1022,42 +1054,73 @@ export async function acquireEnvironment(
         ? (deps.createCookieFetch ?? createCookieFetch)()
         : (deps.createAcpFetch ?? createAcpFetch)(),
     };
-    // Reconnect a parked remote sandbox by id; any failure falls through to a fresh create.
-    const storedSandboxId =
+    // A stored sandbox id is trusted: reconnect it by id and let reconnect converge its network
+    // policy to this run's plan. Any reconnect failure falls through to a fresh create. Snapshot
+    // and image drift are accepted as per-conversation version pinning, not grounds for a rebuild.
+    const storedSandboxPointer =
       plan.isDaytona && sessionForMount && runCred
-        ? await (deps.readStoredSandboxId ?? readStoredSandboxId)(
+        ? await (deps.readStoredSandboxPointer ?? readStoredSandboxPointer)(
             sessionForMount,
             { authorization: runCred, log: logger },
           )
         : undefined;
-    if (storedSandboxId) {
+    if (storedSandboxPointer) {
+      const sandboxStartStartedAt = Date.now();
       try {
         environment.sandbox = await startSandboxAgent({
           ...startOptions,
-          sandboxId: storedSandboxId,
+          sandboxId: storedSandboxPointer.sandboxId,
         });
-        logger(`reconnected sandbox=${storedSandboxId} session=${sessionForMount}`);
+        logger(
+          `reconnected sandbox=${storedSandboxPointer.sandboxId} session=${sessionForMount}`,
+        );
       } catch (err) {
         logger(
-          `reconnect failed sandbox=${storedSandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
+          `reconnect failed sandbox=${storedSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
         );
+        if (
+          err instanceof DaytonaReconnectTerminalError &&
+          sessionForMount &&
+          runCred
+        ) {
+          // The post-hydrate write later in acquire is authoritative. This clear only prevents
+          // repeated doomed reconnects if acquire fails before reaching that write. Hydrate
+          // first: after a runner restart the in-memory store is behind the durable
+          // latest_turn_index, and an unhydrated guard token would be rejected as stale.
+          await (
+            deps.hydrateHarnessSessionFromDurable ??
+            hydrateHarnessSessionFromDurable
+          )(
+            sessionForMount,
+            plan.harness,
+            deps.sessionContinuityStore ?? sessionContinuityStore,
+            { authorization: runCred, log: logger },
+          );
+          await (deps.clearSandboxPointer ?? clearSandboxPointer)(
+            sessionForMount,
+            nextTurnIndex(
+              sessionForMount,
+              deps.sessionContinuityStore ?? sessionContinuityStore,
+            ),
+            { authorization: runCred, log: logger },
+          );
+        }
+      } finally {
+        timingLog("sandbox_start", sandboxStartStartedAt, " mode=reconnect");
       }
     }
     if (!environment.sandbox) {
-      environment.sandbox = await startSandboxAgent(startOptions);
-    }
-    // Record the live sandbox id so the next turn can reconnect it.
-    if (sessionForMount && runCred) {
-      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
-      void (deps.writeSandboxId ?? writeSandboxId)(sessionForMount, liveSandboxId, {
-        authorization: runCred,
-        log: logger,
-      });
+      const sandboxStartStartedAt = Date.now();
+      try {
+        environment.sandbox = await startSandboxAgent(startOptions);
+      } finally {
+        timingLog("sandbox_start", sandboxStartStartedAt, " mode=create");
+      }
     }
     environment.resumable = Boolean(plan.isDaytona && sessionForMount);
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
-    if (environment.sandbox) inFlightSandboxes.add(environment.sandbox);
+    if (environment.sandbox) inFlightSandboxes.add(environment);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     if (plan.isDaytona) {
@@ -1072,55 +1135,60 @@ export async function acquireEnvironment(
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
     if (environment.mountCreds && plan.isDaytona) {
-      // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
-      // back to the tunnel only for an in-network store. No tunnel + in-network store => skip.
-      const storeEndpoint = environment.mountCreds.endpoint;
-      const endpoint = storeReachableFromSandbox(storeEndpoint)
-        ? undefined
-        : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-            log: logger,
-          })) ?? undefined);
-      const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
-      if (
-        canMount &&
-        (await (deps.mountStorageRemote ?? mountStorageRemote)(
-          environment.sandbox,
-          plan.cwd,
-          environment.mountCreds,
-          {
+      const mountsStartedAt = Date.now();
+      try {
+        // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
+        // back to the tunnel only for an in-network store. No tunnel + in-network store => skip.
+        const storeEndpoint = environment.mountCreds.endpoint;
+        const endpoint = storeReachableFromSandbox(storeEndpoint)
+          ? undefined
+          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              log: logger,
+            })) ?? undefined);
+        const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
+        if (
+          canMount &&
+          (await (deps.mountStorageRemote ?? mountStorageRemote)(
+            environment.sandbox,
+            plan.cwd,
+            environment.mountCreds,
+            {
+              endpoint,
+              log: logger,
+            },
+          ))
+        ) {
+          logger(`remote durable cwd active for session=${sessionForMount}`);
+        }
+        // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
+        // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
+        // byte-identical. Opt-out via env, default on wherever a durable cwd mount is active (no
+        // separate credential/session-id path from the cwd mount).
+        if (
+          canMount &&
+          sessionForMount &&
+          runCred &&
+          process.env.AGENTA_SESSION_HARNESS_MOUNTS !== "false"
+        ) {
+          const dirs = harnessSessionMounts(
+            plan.acpAgent,
+            "/home/sandbox",
+            DAYTONA_PI_DIR,
+          );
+          await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
+            environment.sandbox,
+            sessionForMount,
+            dirs,
             endpoint,
-            log: logger,
-          },
-        ))
-      ) {
-        logger(`remote durable cwd active for session=${sessionForMount}`);
-      }
-      // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
-      // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
-      // byte-identical. Opt-out via env, default on wherever a durable cwd mount is active (no
-      // separate credential/session-id path from the cwd mount).
-      if (
-        canMount &&
-        sessionForMount &&
-        runCred &&
-        process.env.AGENTA_SESSION_HARNESS_MOUNTS !== "false"
-      ) {
-        const dirs = harnessSessionMounts(
-          plan.acpAgent,
-          "/home/sandbox",
-          DAYTONA_PI_DIR,
-        );
-        await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
-          environment.sandbox,
-          sessionForMount,
-          dirs,
-          endpoint,
-          {
-            apiBase: apiBase(),
-            authorization: runCred,
-            log: logger,
-          },
-        );
+            {
+              apiBase: apiBase(),
+              authorization: runCred,
+              log: logger,
+            },
+          );
+        }
+      } finally {
+        timingLog("mounts", mountsStartedAt);
       }
     }
     if (
@@ -1170,6 +1238,7 @@ export async function acquireEnvironment(
       }
     }
 
+    const prepareWorkspaceStartedAt = Date.now();
     try {
       environment.workspace = await (deps.prepareWorkspace ?? prepareWorkspace)(
         {
@@ -1198,6 +1267,8 @@ export async function acquireEnvironment(
       } else {
         throw err;
       }
+    } finally {
+      timingLog("prepare_workspace", prepareWorkspaceStartedAt);
     }
 
     // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle.
@@ -1208,10 +1279,16 @@ export async function acquireEnvironment(
     );
 
     // Probe what this harness supports and branch on capabilities, not on the harness name.
-    const probed = await (deps.probeCapabilities ?? probeCapabilities)(
-      environment.sandbox,
-      plan.acpAgent,
-    );
+    const probeCapabilitiesStartedAt = Date.now();
+    let probed;
+    try {
+      probed = await (deps.probeCapabilities ?? probeCapabilities)(
+        environment.sandbox,
+        plan.acpAgent,
+      );
+    } finally {
+      timingLog("probe_capabilities", probeCapabilitiesStartedAt);
+    }
     const capabilities = probed.capabilities;
     environment.capabilities = capabilities;
 
@@ -1248,20 +1325,26 @@ export async function acquireEnvironment(
     // attempt unconditionally whenever we have an eligible id — worst case it is exactly today's
     // cold `createSession`.
     const continuitySessionKey = request.sessionId?.trim();
-    const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
+    const continuityStore =
+      deps.sessionContinuityStore ?? sessionContinuityStore;
     // Seed the in-memory store from the durable row before consulting it, so a resume after a
     // runner restart (in-memory map lost) still sees the prior turn's eligibility. No-op (and
     // cheap) when the store already has a live in-process record.
     if (continuitySessionKey && runCred) {
       await (
-        deps.hydrateHarnessSessionFromDurable ?? hydrateHarnessSessionFromDurable
+        deps.hydrateHarnessSessionFromDurable ??
+        hydrateHarnessSessionFromDurable
       )(continuitySessionKey, plan.harness, continuityStore, {
         authorization: runCred,
         log: logger,
       });
     }
     const priorAgentSessionId = continuitySessionKey
-      ? eligibleAgentSessionId(continuitySessionKey, plan.harness, continuityStore)
+      ? eligibleAgentSessionId(
+          continuitySessionKey,
+          plan.harness,
+          continuityStore,
+        )
       : undefined;
     const localSessionId = continuitySessionKey
       ? `${continuitySessionKey}:${plan.harness}`
@@ -1271,6 +1354,24 @@ export async function acquireEnvironment(
     environment.continuityTurnIndex = continuitySessionKey
       ? nextTurnIndex(continuitySessionKey, continuityStore)
       : undefined;
+    // Daytona only: a local run must not overwrite a conversation's remote pointer (switching
+    // sandboxes mid-conversation would strand the parked Daytona instance).
+    if (plan.isDaytona && sessionForMount && runCred) {
+      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
+      const pointerWriteOutcome = await (
+        deps.writeSandboxPointer ?? writeSandboxPointer
+      )(
+        sessionForMount,
+        {
+          sandboxId: liveSandboxId,
+          turnIndex: environment.continuityTurnIndex ?? 0,
+        },
+        { authorization: runCred, log: logger },
+      );
+      logger(
+        `sandbox pointer write ${pointerWriteOutcome} session=${sessionForMount} sandbox=${liveSandboxId}`,
+      );
+    }
     let loadedFromContinuity = false;
     if (priorAgentSessionId && localSessionId) {
       await persist.updateSession({
@@ -1281,6 +1382,7 @@ export async function acquireEnvironment(
         createdAt: Date.now(),
         sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
       });
+      const createSessionStartedAt = Date.now();
       try {
         environment.session =
           await environment.sandbox.resumeSession(localSessionId);
@@ -1295,16 +1397,23 @@ export async function acquireEnvironment(
           `[continuity] resumeSession failed, falling back to cold createSession: ` +
             `${conciseError(err, plan.harness)}`,
         );
+      } finally {
+        timingLog("create_session", createSessionStartedAt, " mode=load");
       }
     }
     environment.loadedFromContinuity = loadedFromContinuity;
     if (!environment.session) {
-      environment.session = await environment.sandbox.createSession({
-        ...(localSessionId ? { id: localSessionId } : {}),
-        agent: plan.acpAgent,
-        cwd: plan.cwd,
-        sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
-      });
+      const createSessionStartedAt = Date.now();
+      try {
+        environment.session = await environment.sandbox.createSession({
+          ...(localSessionId ? { id: localSessionId } : {}),
+          agent: plan.acpAgent,
+          cwd: plan.cwd,
+          sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+        });
+      } finally {
+        timingLog("create_session", createSessionStartedAt, " mode=create");
+      }
     }
     environment.sessionId = resolveRunSessionId(
       request,
@@ -1333,12 +1442,13 @@ export async function acquireEnvironment(
       routePermissionRequestToActiveTurn(environment, req),
     );
 
+    timingLog("acquire_total", acquireStartedAt);
     return { ok: true, env: environment };
   } catch (err) {
     const error = conciseError(err, plan.harness, request.provider);
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
-    await environment.destroy();
+    await environment.destroy({ reason: "failed-turn" });
     return { ok: false, error };
   }
 }
@@ -2007,11 +2117,16 @@ export async function runSandboxAgent(
     return result;
   } finally {
     // `result` is undefined when runTurn threw: a failed turn, so destroy.
+    const cleanResumable =
+      env.resumable &&
+      result !== undefined &&
+      shouldPark(result, signal, undefined);
     await env.destroy({
-      keepWarm:
-        env.resumable &&
-        result !== undefined &&
-        shouldPark(result, signal, undefined),
+      reason: cleanResumable
+        ? "clean-resumable"
+        : signal?.aborted
+          ? "aborted"
+          : "failed-turn",
     });
   }
 }

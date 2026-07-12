@@ -9,7 +9,7 @@
  *
  * This module is engine-agnostic: it holds opaque `environment` handles plus the metadata the
  * dispatch needs to decide continue-versus-cold (two fingerprints, a credential epoch, an LRU
- * timestamp, a state) and a complete idempotent `destroy()` closure the engine supplies. It
+ * timestamp, a state) and a complete idempotent `teardown(reason)` closure the engine supplies. It
  * never imports the engine, so it stays a pure map + timer + policy unit.
  */
 import { createHash } from "node:crypto";
@@ -21,6 +21,7 @@ import {
   messageText,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import type { TeardownReason } from "./teardown.ts";
 
 function log(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
@@ -35,6 +36,8 @@ export interface KeepaliveConfig {
   poolMax: number;
 }
 
+export type KeepaliveProviderName = "local" | "daytona";
+
 const KEEPALIVE_ENV = "AGENTA_RUNNER_SESSION_KEEPALIVE";
 const TTL_ENV = "AGENTA_RUNNER_SESSION_TTL_MS";
 const APPROVAL_TTL_ENV = "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS";
@@ -43,11 +46,29 @@ const POOL_MAX_ENV = "AGENTA_RUNNER_SESSION_POOL_MAX";
 const DEFAULT_TTL_MS = 60_000;
 const DEFAULT_APPROVAL_TTL_MS = 300_000;
 const DEFAULT_POOL_MAX = 8;
+const DAYTONA_TTL_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS";
+const DAYTONA_POOL_MAX_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM";
+// Two minutes: the shipping default decided in the plan (about half a cent per parked turn),
+// enabled after the E3 live verification. 0 disables keeping Daytona sandboxes running.
+const DEFAULT_DAYTONA_TTL_MS = 120_000;
+const DEFAULT_DAYTONA_POOL_MAX = 20;
 
 function positiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   const parsed = raw ? Number(raw) : NaN;
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+/**
+ * Like `positiveIntEnv` but zero is a VALID value, not a fallback trigger. The Daytona idle
+ * TTL uses this because 0 is its documented off switch; with a nonzero shipping default, a
+ * positive-only parse would silently turn "0" back into the default.
+ */
+function nonNegativeIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 }
 
 /** The runner treats only a few explicit truthy spellings as on; default OFF. */
@@ -56,8 +77,29 @@ function boolEnv(name: string): boolean {
   return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
 }
 
-/** Read the keep-alive config from the environment. One place; the dispatch calls it per run. */
-export function readKeepaliveConfig(): KeepaliveConfig {
+/** Read one provider's keep-alive config from the environment. */
+export function readKeepaliveConfig(
+  provider: KeepaliveProviderName,
+): KeepaliveConfig {
+  if (provider === "daytona") {
+    const ttlMs = nonNegativeIntEnv(DAYTONA_TTL_ENV, DEFAULT_DAYTONA_TTL_MS);
+    // Keep this live window comfortably below the signed mount-credential lifetime. The
+    // existing credential-epoch check evicts to cold when those credentials expire.
+    return {
+      enabled: ttlMs > 0,
+      ttlMs,
+      // Pending approvals on Daytona take the cold path until the F-018 gate plan lands; the
+      // pool never sees an awaiting_approval park for Daytona today because parkedApproval is
+      // only set by ACP gates.
+      approvalTtlMs: ttlMs,
+      // This budgets billed compute (idle warm sandboxes), deliberately separate from the local
+      // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
+      poolMax: positiveIntEnv(
+        DAYTONA_POOL_MAX_ENV,
+        DEFAULT_DAYTONA_POOL_MAX,
+      ),
+    };
+  }
   return {
     enabled: boolEnv(KEEPALIVE_ENV),
     ttlMs: positiveIntEnv(TTL_ENV, DEFAULT_TTL_MS),
@@ -354,20 +396,42 @@ export function credentialEpochValid(
   return credentialEpochMismatch(parked, incoming, now) === undefined;
 }
 
+/** Which project-scope source produced a pool key: the service-stamped run context, or the mount. */
+export type PoolScopeSource = "run-context" | "mount";
+
+/** A pool key plus the scope source that produced it (for the greppable `[keepalive] scope=` log). */
+export interface PoolScope {
+  key: string;
+  source: PoolScopeSource;
+}
+
 /**
- * The pool key: `<projectId>:<sessionId>`. The project scope is the mount's owning project id,
- * the only project scope the runner can trust (the /run wire carries no project id). Returns
- * null when there is no session id or no mount project id — such a request MUST NOT park (there
- * is no safe key that separates callers), and the dispatch runs it fully cold.
+ * The pool key: `<projectId>:<sessionId>`. The project scope is PREFERRED from the run context the
+ * service stamps server-side (`runContext.project.id`), and FALLS BACK to the mount's owning
+ * project id when the run context carries none. Provider separation does not need another key
+ * segment: providers have separate pools, and `configFingerprint` includes `request.sandbox`.
+ * The run-context id is the trustworthy source: the
+ * service derives it from its own request state (never from a caller-supplied wire field), so it
+ * does not depend on a durable mount existing. The mount scope stays as the fallback for the
+ * transition and for runs without a stamped project.
+ *
+ * Returns null when there is no session id, or when NEITHER source yields a project scope — such a
+ * request MUST NOT park (there is no safe key that separates callers), and the dispatch runs it
+ * fully cold. This no-scope-no-park rule is the keep-alive safety invariant and is unchanged.
  */
 export function poolKeyFor(
   request: AgentRunRequest,
   mountProjectId: string | undefined,
-): string | null {
+): PoolScope | null {
   const sessionId = request.sessionId?.trim();
-  const project = mountProjectId?.trim();
-  if (!sessionId || !project) return null;
-  return `${project}:${sessionId}`;
+  if (!sessionId) return null;
+  const runContextProject = request.runContext?.project?.id?.trim();
+  if (runContextProject) {
+    return { key: `${runContextProject}:${sessionId}`, source: "run-context" };
+  }
+  const mount = mountProjectId?.trim();
+  if (mount) return { key: `${mount}:${sessionId}`, source: "mount" };
+  return null;
 }
 
 // --- The pool --------------------------------------------------------------- //
@@ -376,7 +440,7 @@ export type SessionState = "busy" | "idle" | "awaiting_approval" | "destroyed";
 
 /**
  * One parked live session. `environment` is opaque to the pool (the engine reads it on a
- * continuation). `destroy` is the engine's complete, idempotent teardown closure.
+ * continuation). `teardown` is the engine's complete, idempotent teardown closure.
  */
 export interface LiveSession<E = unknown> {
   key: string;
@@ -386,9 +450,11 @@ export interface LiveSession<E = unknown> {
   credentialEpoch: CredentialEpoch;
   state: SessionState;
   lastUsed: number;
-  destroy: () => Promise<void>;
+  teardown: (reason: TeardownReason) => Promise<void>;
   /** Internal: the idle/approval TTL timer. */
   ttlTimer?: ReturnType<typeof setTimeout>;
+  /** Internal: the one teardown whose resolution confirms strict-capacity seat release. */
+  teardownPromise?: Promise<void>;
 }
 
 /** Fields the caller supplies to park a session (the pool arms the timer and state itself). */
@@ -398,13 +464,13 @@ export interface ParkInput<E> {
   configFingerprint: string;
   historyFingerprint: string;
   credentialEpoch: CredentialEpoch;
-  destroy: () => Promise<void>;
+  teardown: (reason: TeardownReason) => Promise<void>;
 }
 
 /**
  * A per-replica map of parked live sessions with an LRU cap and TTL reaping. Single-threaded
  * (Node), so check-and-set on a key needs no lock. All teardown routes through the session's
- * one idempotent `destroy`.
+ * one idempotent `teardown`.
  */
 export class SessionPool<E = unknown> {
   private readonly sessions = new Map<string, LiveSession<E>>();
@@ -412,6 +478,7 @@ export class SessionPool<E = unknown> {
   constructor(
     private readonly config: Pick<KeepaliveConfig, "poolMax">,
     private readonly logger: (message: string) => void = log,
+    private readonly options: { strictCapacity?: boolean } = {},
   ) {}
 
   /** Peek without mutating. */
@@ -452,19 +519,16 @@ export class SessionPool<E = unknown> {
 
   /**
    * Check out an approval-parked session for a live resume: clear its (longer) approval TTL timer,
-   * REMOVE it from the map, mark it busy, and return it. Returns undefined when the key is absent
-   * or not awaiting_approval. Removing it is what makes a racing request safe: the resume turn
-   * owns the environment exclusively, a duplicate approval or fresh message simply misses the pool
-   * and runs cold (today's concurrent-request semantics), and no supersede path can destroy the
-   * environment while it is executing the just-approved tool. The gate is therefore answered at
-   * most once: only the checkout winner ever holds the parked permission id. After the resume
-   * turn, `repark` re-inserts only if the slot is still empty (see there).
+   * mark it busy, and return it. Returns undefined when the key is absent or not
+   * awaiting_approval. The default pool removes it so a racing request misses, preserving today's
+   * local behavior. Strict capacity keeps it seated while busy so a reconnect consumes its warm
+   * slot before any provider start. The state change still makes duplicate checkout impossible.
    */
   checkoutApproval(key: string): LiveSession<E> | undefined {
     const session = this.sessions.get(key);
     if (!session || session.state !== "awaiting_approval") return undefined;
     this.clearTimer(session);
-    this.sessions.delete(key);
+    if (!this.options.strictCapacity) this.sessions.delete(key);
     session.state = "busy";
     session.lastUsed = Date.now();
     return session;
@@ -481,7 +545,7 @@ export class SessionPool<E = unknown> {
    * A destroyed session (e.g. drained by `destroyAll` mid-turn) is never resurrected.
    * Returns false when the session cannot return; the caller destroys its orphaned environment.
    */
-  repark(
+  async repark(
     session: LiveSession<E>,
     update: {
       configFingerprint: string;
@@ -490,13 +554,16 @@ export class SessionPool<E = unknown> {
     },
     ttlMs: number,
     state: "idle" | "awaiting_approval" = "idle",
-  ): boolean {
+  ): Promise<boolean> {
     if (session.state === "destroyed") return false;
     const current = this.sessions.get(session.key);
     if (current !== undefined && current !== session) return false;
     if (current === undefined) {
       // Re-inserting a checked-out-and-removed session: respect the cap like `park` does.
-      if (this.sessions.size >= this.config.poolMax && !this.evictLruIdle()) {
+      if (
+        this.sessions.size >= this.config.poolMax &&
+        !(await this.evictLruIdle())
+      ) {
         this.logger(
           `re-park skipped (pool full, nothing idle to evict) key=${session.key}`,
         );
@@ -534,11 +601,13 @@ export class SessionPool<E = unknown> {
     const existing = this.sessions.get(input.key);
     if (existing) {
       this.clearTimer(existing);
-      this.sessions.delete(input.key);
-      await this.safeDestroy(existing);
+      await this.removeAndTeardown(existing, "failed-turn");
     }
 
-    if (this.sessions.size >= this.config.poolMax && !this.evictLruIdle()) {
+    if (
+      this.sessions.size >= this.config.poolMax &&
+      !(await this.evictLruIdle())
+    ) {
       this.logger(
         `park skipped (pool full, nothing idle to evict) key=${input.key}`,
       );
@@ -553,7 +622,7 @@ export class SessionPool<E = unknown> {
       credentialEpoch: input.credentialEpoch,
       state,
       lastUsed: Date.now(),
-      destroy: input.destroy,
+      teardown: input.teardown,
     };
     this.armTtl(session, ttlMs, state);
     this.sessions.set(input.key, session);
@@ -578,7 +647,7 @@ export class SessionPool<E = unknown> {
       state === "awaiting_approval" ? "approval-ttl-expire" : "expire";
     session.ttlTimer = setTimeout(() => {
       this.logger(`${label} key=${session.key} (TTL ${ttlMs}ms)`);
-      void this.evict(session.key, label);
+      void this.evict(session.key, label, "idle-expiry");
     }, ttlMs);
     session.ttlTimer.unref?.();
   }
@@ -588,15 +657,18 @@ export class SessionPool<E = unknown> {
    * The returned promise resolves once the destroy completed, so a caller that reacquires the
    * same key (same durable cwd / mount) MUST await it — the old teardown's unmount must not
    * overlap the new acquire. Fire-and-forget callers (the TTL timer) `void` it.
-   * `reason` feeds the greppable `[keepalive] evict` log line.
+   * `label` feeds the greppable `[keepalive] evict` log line; `reason` drives engine teardown.
    */
-  async evict(key: string, reason: string): Promise<boolean> {
+  async evict(
+    key: string,
+    label: string,
+    reason: TeardownReason,
+  ): Promise<boolean> {
     const session = this.sessions.get(key);
     if (!session) return false;
     this.clearTimer(session);
-    this.sessions.delete(key);
-    this.logger(`evict key=${key} reason=${reason}`);
-    await this.safeDestroy(session);
+    this.logger(`evict key=${key} reason=${label}`);
+    await this.removeAndTeardown(session, reason);
     return true;
   }
 
@@ -607,37 +679,55 @@ export class SessionPool<E = unknown> {
    * awaits the destroy of THIS session either way (its environment belongs to the caller and is
    * dead; destroy is idempotent, so a supersede that already destroyed it is a no-op).
    */
-  async evictIfCurrent(session: LiveSession<E>, reason: string): Promise<void> {
+  async evictIfCurrent(
+    session: LiveSession<E>,
+    label: string,
+    reason: TeardownReason,
+  ): Promise<void> {
     if (this.sessions.get(session.key) === session) {
       this.clearTimer(session);
-      this.sessions.delete(session.key);
-      this.logger(`evict key=${session.key} reason=${reason}`);
+      this.logger(`evict key=${session.key} reason=${label}`);
+      await this.removeAndTeardown(session, reason);
+      return;
     }
-    await this.safeDestroy(session);
+    await this.safeTeardown(session, reason);
   }
 
   /** Remove a key and AWAIT its destroy. Idempotent. */
-  async destroy(key: string): Promise<void> {
+  async destroy(key: string, reason: TeardownReason = "kill"): Promise<void> {
     const session = this.sessions.get(key);
     if (!session) return;
     this.clearTimer(session);
-    this.sessions.delete(key);
     this.logger(`destroy key=${key}`);
-    await this.safeDestroy(session);
+    await this.removeAndTeardown(session, reason);
   }
 
   /**
    * Destroy every parked session, timeout-bounded so it can never hang shutdown (mirrors
    * `destroyInFlightSandboxes`). Drains the map first so a concurrent park cannot re-add.
    */
-  async destroyAll(timeoutMs = 5000): Promise<void> {
+  async destroyAll(
+    timeoutMs = 5000,
+    reasonForIdle: TeardownReason = "kill",
+    reasonForBusy: TeardownReason = reasonForIdle,
+  ): Promise<void> {
     const pending = [...this.sessions.values()];
-    this.sessions.clear();
+    if (!this.options.strictCapacity) this.sessions.clear();
     if (pending.length === 0) return;
     for (const session of pending) this.clearTimer(session);
     this.logger(`destroyAll count=${pending.length}`);
     const sweep = Promise.allSettled(
-      pending.map((session) => this.safeDestroy(session)),
+      pending.map((session) =>
+        this.options.strictCapacity
+          ? this.removeAndTeardown(
+              session,
+              session.state === "idle" ? reasonForIdle : reasonForBusy,
+            )
+          : this.safeTeardown(
+              session,
+              session.state === "idle" ? reasonForIdle : reasonForBusy,
+            ),
+      ),
     );
     await Promise.race([
       sweep,
@@ -645,7 +735,7 @@ export class SessionPool<E = unknown> {
     ]);
   }
 
-  private evictLruIdle(): boolean {
+  private async evictLruIdle(): Promise<boolean> {
     let oldest: LiveSession<E> | undefined;
     for (const session of this.sessions.values()) {
       if (session.state !== "idle") continue;
@@ -653,10 +743,36 @@ export class SessionPool<E = unknown> {
     }
     if (!oldest) return false;
     this.clearTimer(oldest);
-    this.sessions.delete(oldest.key);
     this.logger(`evict key=${oldest.key} reason=lru`);
-    void this.safeDestroy(oldest);
+    if (!this.options.strictCapacity) {
+      this.sessions.delete(oldest.key);
+      void this.safeTeardown(oldest, "capacity-eviction");
+      return true;
+    }
+
+    await this.removeAndTeardown(oldest, "capacity-eviction");
     return true;
+  }
+
+  private async removeAndTeardown(
+    session: LiveSession<E>,
+    reason: TeardownReason,
+  ): Promise<void> {
+    if (!this.options.strictCapacity) {
+      if (this.sessions.get(session.key) === session) {
+        this.sessions.delete(session.key);
+      }
+      await this.safeTeardown(session, reason);
+      return;
+    }
+
+    await this.safeTeardown(session, reason);
+    // teardown() resolving is the confirmation signal. environment.destroy currently swallows a
+    // failed stop plus failed delete, with Daytona's autostop and autodelete timers as the final
+    // backstop. A reconciliation pass that confirms remote state is future work.
+    if (this.sessions.get(session.key) === session) {
+      this.sessions.delete(session.key);
+    }
   }
 
   private clearTimer(session: LiveSession<E>): void {
@@ -666,16 +782,26 @@ export class SessionPool<E = unknown> {
     }
   }
 
-  private async safeDestroy(session: LiveSession<E>): Promise<void> {
-    session.state = "destroyed";
-    try {
-      await session.destroy();
-    } catch (err) {
-      this.logger(
-        `destroy failed key=${session.key}: ${String(
-          err instanceof Error ? err.message : err,
-        ).slice(0, 200)}`,
-      );
+  private async safeTeardown(
+    session: LiveSession<E>,
+    reason: TeardownReason,
+  ): Promise<void> {
+    if (session.teardownPromise) {
+      await session.teardownPromise;
+      return;
     }
+    session.state = "destroyed";
+    session.teardownPromise = (async () => {
+      try {
+        await session.teardown(reason);
+      } catch (err) {
+        this.logger(
+          `teardown failed key=${session.key}: ${String(
+            err instanceof Error ? err.message : err,
+          ).slice(0, 200)}`,
+        );
+      }
+    })();
+    await session.teardownPromise;
   }
 }

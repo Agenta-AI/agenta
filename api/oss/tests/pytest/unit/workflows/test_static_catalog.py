@@ -981,10 +981,13 @@ def test_request_input_matches_golden_request_fixture():
             assert isinstance(prop["default"], (str, int, float, bool)), name
     assert set(requested.get("required", [])) <= set(requested["properties"])
     # The golden must exercise the dialect's optional shapes: a prefilled field (#5190),
-    # a multi-select array, and context-ful oneOf options (choice cards).
+    # a multi-select array, context-ful oneOf options (choice cards), and a cron field.
     assert any("default" in prop for prop in requested["properties"].values())
     assert any(prop["type"] == "array" for prop in requested["properties"].values())
     assert any("oneOf" in prop for prop in requested["properties"].values())
+    assert any(
+        prop.get("format") == "cron" for prop in requested["properties"].values()
+    )
 
 
 def test_request_input_matches_golden_response_fixture():

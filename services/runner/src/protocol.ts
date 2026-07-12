@@ -133,9 +133,6 @@ export interface ResolvedToolSpec {
     args_into?: string;
   };
   kind?: "callback" | "code" | "client";
-  runtime?: "python" | "node";
-  code?: string;
-  env?: Record<string, string>;
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
   readOnly?: boolean;
@@ -183,6 +180,17 @@ export interface RunContextReference {
 export interface RunContext {
   run?: {
     kind?: string;
+  };
+  /**
+   * The run's owning project id, stamped by the service from its own request state (the OTel
+   * baggage), never from the request body. The id textually arrives on the caller's baggage
+   * header; it is trustworthy because the service's auth middleware denies any request whose
+   * credential is not authorized for that project id, so a forged id cannot cross tenants
+   * (that auth check backstops this field — do not weaken it). The runner prefers `project.id`
+   * over the mount-derived project scope when keying its parked-session pool (`poolKeyFor`).
+   */
+  project?: {
+    id?: string;
   };
   workflow?: {
     artifact?: RunContextReference;

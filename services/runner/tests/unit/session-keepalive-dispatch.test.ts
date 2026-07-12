@@ -17,6 +17,8 @@ import type {
   EmitEvent,
 } from "../../src/protocol.ts";
 import {
+  resolveKeepaliveDispatch,
+  resolveKeepaliveProvider,
   runWithKeepalive,
   type KeepaliveContext,
   type KeepaliveEngine,
@@ -43,6 +45,7 @@ interface EngineOptions {
   /** Per-call: when true, the fake runTurn streams one event through `emit` before returning
    *  its result (models a live turn that reached the client before failing). */
   turnEmits?: boolean[];
+  onParkedLive?: boolean;
 }
 
 interface FakeEnv {
@@ -67,6 +70,7 @@ function makeEngine(options: EngineOptions = {}) {
       continuation: boolean;
     }>,
     acquiredEnvs: [] as FakeEnv[],
+    parkedLive: [] as FakeEnv[],
   };
 
   let nextEnvId = 1;
@@ -141,6 +145,13 @@ function makeEngine(options: EngineOptions = {}) {
       calls.coldPresigned.push(presignedMount);
       return { ok: true, output: "cold", stopReason: "complete" };
     },
+    ...(options.onParkedLive
+      ? {
+          async onParkedLive(env: SessionEnvironment) {
+            calls.parkedLive.push(env as unknown as FakeEnv);
+          },
+        }
+      : {}),
   };
 
   return { engine, calls };
@@ -201,6 +212,77 @@ function turn2(
 }
 
 describe("runWithKeepalive: park + hit", () => {
+  it("calls the live-park hook once for Daytona, never for local", async () => {
+    const daytona = makeEngine({ onParkedLive: true });
+    const daytonaContext = makeCtx(daytona.engine);
+    await runWithKeepalive(
+      { ...turn1("daytona-session"), sandbox: "daytona" },
+      undefined,
+      undefined,
+      daytonaContext,
+    );
+    assert.equal(daytona.calls.parkedLive.length, 1);
+
+    const local = makeEngine({ onParkedLive: true });
+    await runWithKeepalive(
+      { ...turn1("local-session"), sandbox: "local" },
+      undefined,
+      undefined,
+      makeCtx(local.engine),
+    );
+    assert.equal(local.calls.parkedLive.length, 0);
+  });
+
+  it("a failing live-park hook does not fail the parked turn", async () => {
+    const daytona = makeEngine({ onParkedLive: true });
+    daytona.engine.onParkedLive = async () => {
+      throw new Error("activity refresh boom");
+    };
+
+    const result = await runWithKeepalive(
+      { ...turn1("daytona-hook-throw"), sandbox: "daytona" },
+      undefined,
+      undefined,
+      makeCtx(daytona.engine),
+    );
+
+    assert.equal(result.ok, true, "the session is already parked; the hook is best-effort");
+  });
+
+  it("does not call the live-park hook when Daytona park overflows", async () => {
+    const { engine, calls } = makeEngine({ onParkedLive: true });
+    const config: KeepaliveConfig = {
+      enabled: true,
+      ttlMs: 60_000,
+      approvalTtlMs: 60_000,
+      poolMax: 1,
+    };
+    const pool = new SessionPool<SessionEnvironment>(
+      { poolMax: 1 },
+      () => {},
+      { strictCapacity: true },
+    );
+    const context = { engine, pool, config };
+    await runWithKeepalive(
+      { ...turn1("occupied"), sandbox: "daytona" },
+      undefined,
+      undefined,
+      context,
+    );
+    pool.checkoutIdle("proj-1:occupied");
+    calls.parkedLive.length = 0;
+
+    await runWithKeepalive(
+      { ...turn1("overflow"), sandbox: "daytona" },
+      undefined,
+      undefined,
+      context,
+    );
+
+    assert.equal(calls.parkedLive.length, 0);
+    assert.equal(calls.acquiredEnvs[1].destroyed, 1);
+  });
+
   it("parks after a cold miss and continues the SAME env on the next turn (no re-acquire)", async () => {
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
@@ -442,6 +524,32 @@ describe("runWithKeepalive: never-park rules", () => {
     assert.equal(ctx.pool.size(), 0, "nothing parked without a safe key");
   });
 
+  it("no mount but a run-context project scope => the turn parks mount-less (never fails)", async () => {
+    // resolveKeepaliveMount legitimately returns null (store unconfigured / 503) while the
+    // request carries the service-stamped runContext.project.id, so poolKeyFor still yields a
+    // key. Regression (F5 review B1): the dispatch used to dereference the null mount
+    // (`signed!`.expiresAt) and throw, FAILING the turn — but a keep-alive gap may only ever
+    // cost a cold restart, never a failed turn. Mount-less parking is the design-correct
+    // behavior: the epoch just has no mount expiry and the acquire runs on an ephemeral cwd.
+    const { engine, calls } = makeEngine({ signReturnsNull: true });
+    const ctx = makeCtx(engine);
+    const req: AgentRunRequest = {
+      ...turn1(),
+      runContext: { project: { id: "proj-rc" } },
+    };
+    const r = await runWithKeepalive(req, undefined, undefined, ctx);
+    assert.equal(r.ok, true, "the turn must not fail on a missing mount");
+    assert.equal(r.output, "ok", "ran via the park path, not runCold");
+    assert.equal(calls.resolveMount, 1, "signed exactly once");
+    assert.equal(calls.cold, 0, "not the cold never-park path");
+    assert.equal(calls.acquire, 1, "acquired through the park path");
+    assert.equal(ctx.pool.size(), 1, "the session parked without a mount");
+    assert.ok(
+      ctx.pool.get("proj-rc:s1"),
+      "the pool key scope is the run-context project id",
+    );
+  });
+
   it("a mount without a project id => never parks; the presigned creds are threaded (single sign)", async () => {
     const { engine, calls } = makeEngine({ mountProjectId: null });
     const ctx = makeCtx(engine);
@@ -480,7 +588,7 @@ describe("runWithKeepalive: never-park rules", () => {
     assert.equal(ctx.pool.size(), 0);
   });
 
-  it("a daytona (remote) sandbox runs cold, never parks", async () => {
+  it("a Daytona provider pool can park a Daytona request", async () => {
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(
@@ -489,24 +597,42 @@ describe("runWithKeepalive: never-park rules", () => {
       undefined,
       ctx,
     );
-    assert.equal(calls.cold, 1);
-    assert.equal(ctx.pool.size(), 0);
+    assert.equal(calls.cold, 0);
+    assert.equal(ctx.pool.size(), 1);
   });
 
-  it("an unknown (future remote) provider fails closed to cold, never parks", async () => {
-    // The local-only gate keys on provider === "local" exactly, so a NEW remote provider
-    // (e2b et al.) cannot silently opt into parking before its lifecycle is proven.
-    const { engine, calls } = makeEngine();
-    const ctx = makeCtx(engine);
-    await runWithKeepalive(
-      { ...turn1(), sandbox: "e2b" },
+  it("resolves local and Daytona pools and fails unknown providers closed", () => {
+    assert.equal(resolveKeepaliveProvider({ sandbox: "local" }), "local");
+    assert.equal(resolveKeepaliveProvider({ sandbox: "daytona" }), "daytona");
+    assert.equal(resolveKeepaliveProvider({ sandbox: "e2b" }), undefined);
+  });
+
+  it("dispatches only to an enabled provider pool", () => {
+    const disabled = { enabled: false, ttlMs: 0, approvalTtlMs: 0, poolMax: 20 };
+    const enabled = { ...disabled, enabled: true, ttlMs: 120_000 };
+    const local = { enabled: true, ttlMs: 60_000, approvalTtlMs: 300_000, poolMax: 8 };
+    assert.equal(
+      resolveKeepaliveDispatch(
+        { sandbox: "daytona" },
+        { local, daytona: disabled },
+      ),
       undefined,
-      undefined,
-      ctx,
     );
-    assert.equal(calls.cold, 1);
-    assert.equal(calls.resolveMount, 0);
-    assert.equal(ctx.pool.size(), 0);
+    assert.equal(
+      resolveKeepaliveDispatch(
+        { sandbox: "daytona" },
+        { local, daytona: enabled },
+      ),
+      "daytona",
+    );
+    assert.equal(
+      resolveKeepaliveDispatch({ sandbox: "local" }, { local, daytona: enabled }),
+      "local",
+    );
+    assert.equal(
+      resolveKeepaliveDispatch({ sandbox: "e2b" }, { local, daytona: enabled }),
+      undefined,
+    );
   });
 
   it("a paused turn is NOT parked in slice 1 (destroyed as today)", async () => {

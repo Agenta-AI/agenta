@@ -408,6 +408,29 @@ describe("discoverTunnelEndpoint (remote)", () => {
 });
 
 describe("mountStorageRemote", () => {
+  it("detaches an existing mount before starting geesefs", async () => {
+    const commands: string[] = [];
+    const sandbox = {
+      runProcess: async (opts: { args?: string[] }) => {
+        const command = opts.args?.[1] ?? "";
+        commands.push(command);
+        return { exitCode: 0 };
+      },
+    };
+
+    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      aliveAttempts: 1,
+      log: SILENT,
+    });
+
+    assert.equal(ok, true);
+    const unmountIndex = commands.findIndex((command) => command.includes("fusermount -u"));
+    const mountIndex = commands.findIndex((command) => command.includes("geesefs --log-file"));
+    assert.ok(unmountIndex >= 0);
+    assert.ok(mountIndex > unmountIndex, "unmount attempt precedes the geesefs mount");
+  });
+
   it("execs geesefs IN the sandbox with the tunnel endpoint and creds in env", async () => {
     const calls: Array<{
       command: string;
@@ -519,6 +542,43 @@ describe("mountStorageRemote", () => {
     });
     assert.equal(ok, true);
     assert.equal(probes, 2, "polls until the mount serves I/O");
+  });
+
+  it("unmounts the dead FUSE node before giving up when the alive poll never succeeds", async () => {
+    // geesefs may register the mountpoint without ever serving I/O. If nothing detaches it, it
+    // shadows cwd and every later file op on the sandbox hangs until the run limit kills the turn.
+    const unmountCalls: string[] = [];
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        const shellCmd = opts.args?.[1] ?? "";
+        if (opts.command === "sh" && /mountpoint -q/.test(shellCmd)) {
+          return { exitCode: 1 }; // never alive
+        }
+        if (
+          opts.command === "sh" &&
+          (shellCmd.includes("fusermount") || shellCmd.includes("umount"))
+        ) {
+          unmountCalls.push(shellCmd);
+          return { exitCode: 0 };
+        }
+        return { exitCode: 0 };
+      },
+    };
+
+    const ok = await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      aliveAttempts: 2,
+      log: SILENT,
+    });
+
+    assert.equal(ok, false);
+    assert.equal(
+      unmountCalls.length,
+      2,
+      "cleans before mounting and again after the alive check fails",
+    );
+    assert.ok(unmountCalls[1].includes("fusermount -u /home/sandbox/work"));
+    assert.ok(unmountCalls[1].includes("umount -l /home/sandbox/work"));
   });
 
   it("uses the store's own endpoint when no tunnel is passed", async () => {

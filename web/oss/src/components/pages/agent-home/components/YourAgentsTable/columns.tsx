@@ -1,6 +1,6 @@
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {createStandardColumns} from "@agenta/ui/table"
-import {Note, Rocket, Trash} from "@phosphor-icons/react"
+import {Note, PencilSimple, Rocket, Trash} from "@phosphor-icons/react"
 
 import {AppNameCell} from "@/oss/components/pages/app-management/components/appWorkflowColumns"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
@@ -8,6 +8,7 @@ import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 export interface AgentColumnActions {
     onOpen: (record: AppWorkflowRow) => void
     onOpenPlayground: (record: AppWorkflowRow) => void
+    onRename: (record: AppWorkflowRow) => void
     onArchive: (record: AppWorkflowRow) => void
 }
 
@@ -65,6 +66,12 @@ export function createAgentColumns(actions: AgentColumnActions) {
                     label: "Open in playground",
                     icon: <Rocket size={16} />,
                     onClick: (record) => actions.onOpenPlayground(record),
+                },
+                {
+                    key: "rename",
+                    label: "Rename",
+                    icon: <PencilSimple size={16} />,
+                    onClick: (record) => actions.onRename(record),
                 },
                 {type: "divider"},
                 {

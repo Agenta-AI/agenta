@@ -1,55 +1,23 @@
 import {memo} from "react"
 
-import {bgColors} from "@agenta/ui"
-import {Robot} from "@phosphor-icons/react"
-import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/assets/constants"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
-import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
-// Neutral chunk-download fallback. It must NOT prejudge the app as non-agent — the old
-// shell hardcoded the eval stack (New Evaluation / Compare), which then vanished on agent
-// reloads. Read the early app-id agent signal so an agent app shows the agent-flavored
-// header from the first paint, and never render the eval actions here (the real header
-// commits them once the workflow type is confirmed).
-const PlaygroundLoadingShell = () => {
-    const isAgent = useAtomValue(playgroundEarlyAgentStateAtom) === "agent"
-    return (
-        <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
-            <div
-                className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
-            >
-                {isAgent ? (
-                    <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
-                            <Robot size={15} weight="fill" />
-                        </span>
-                        <Typography className="text-[16px] leading-[18px] font-[600]">
-                            Agent
-                        </Typography>
-                    </div>
-                ) : (
-                    <Typography className="text-[16px] leading-[18px] font-[600]">
-                        Playground
-                    </Typography>
-                )}
-            </div>
-        </div>
-    )
-}
+import PlaygroundLoadingShell from "./PlaygroundLoadingShell"
 
 const Playground = dynamic(() => import("../Playground/Playground"), {
     ssr: false,
     loading: PlaygroundLoadingShell,
 })
 
-// Same Playground component + chunk, but the onboarding-branded loader as the chunk-download fallback,
-// so the ephemeral onboarding flow shows one continuous "setting up" screen (matching OnboardingEntry +
-// the mint state) instead of the generic Playground header shell. Webpack dedupes the shared chunk.
+// Same Playground component + chunk, but the onboarding loader (agent-forced shell + chat skeleton) as
+// the chunk-download fallback, so the ephemeral onboarding flow shows one continuous screen (matching
+// OnboardingEntry + the mint state) that morphs straight into the live panel. Webpack dedupes the chunk.
 const OnboardingPlayground = dynamic(() => import("../Playground/Playground"), {
     ssr: false,
     loading: OnboardingLoader,

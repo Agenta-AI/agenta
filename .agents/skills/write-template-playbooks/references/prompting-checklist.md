@@ -63,7 +63,8 @@ builder-reliability findings, or design reasoning).
 
 Field types are `string`, `number`, `integer`, `boolean`, and the multi-pick array
 `{type: "array", items: {type: "string", enum: [...]}}`. No nested objects. Formats: `date`,
-`date-time`, `email`, `uri`, `multiline` (date fields ignore defaults).
+`date-time`, `email`, `uri`, `multiline`, `cron` (a recurring schedule; renders a
+friendly builder, the value is a 5-field cron expression; date fields ignore defaults).
 
 ## Verification (against our runtime)
 

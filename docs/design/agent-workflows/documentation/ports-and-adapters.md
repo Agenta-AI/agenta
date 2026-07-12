@@ -159,6 +159,6 @@ result fields should update both sides and the wire tests in the same PR.
 - Session history is not persisted: the runtime is cold and completed `/messages` turns are
   not stored.
 - `AgentaHarness` policy content is placeholder product copy.
-- MCP server resolution is disabled unless `AGENTA_AGENT_ENABLE_MCP` is truthy.
+- MCP server resolution is disabled unless `AGENTA_AGENT_MCPS_ENABLED` is truthy.
 - The code still has historical WP labels in some comments. Those labels should not guide new
   design decisions.

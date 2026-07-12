@@ -23,6 +23,7 @@ import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
 import {CodeFencePlugin} from "./plugins/CodeFencePlugin"
 import {EditableSyncPlugin} from "./plugins/EditableSyncPlugin"
 import {EditorRefBridge} from "./plugins/EditorRefBridge"
+import {FocusStatePlugin} from "./plugins/FocusStatePlugin"
 import {LinkPastePlugin} from "./plugins/LinkPastePlugin"
 import {SendButton} from "./plugins/SendButton"
 import {SubmitPlugin} from "./plugins/SubmitPlugin"
@@ -43,8 +44,6 @@ export interface RichChatInputProps {
     /** Disables editing entirely. For streaming chats prefer leaving editable + routing to a queue. */
     disabled?: boolean
     autoFocus?: boolean
-    /** Soft character limit — shown as `count/max` and turns red when exceeded. */
-    maxLength?: number
     className?: string
     /** Leading slot in the footer (e.g. an attach-files button). */
     prefix?: ReactNode
@@ -66,6 +65,9 @@ export interface RichChatInputProps {
     onStop?: () => void
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
+    /** Visual density: `compact` (default, chat) or `comfortable` (hero-scale surfaces) —
+     * pads the editor/footer without forking the component. */
+    size?: "compact" | "comfortable"
     /** Font-size class for the editor text + placeholder (default `text-xs`). */
     textSizeClassName?: string
     /** Hide just the Bold/Italic/Send/Newline shortcut hints (keep prefix + trailing). */
@@ -106,7 +108,6 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             placeholder = "Type a message…",
             disabled = false,
             autoFocus = false,
-            maxLength,
             className,
             prefix,
             header,
@@ -118,6 +119,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             streaming,
             onStop,
             minHeightClassName = "min-h-[72px]",
+            size = "compact",
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
             submitOnEnter = true,
@@ -127,7 +129,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         ref,
     ) {
         const editorRef = useRef<LexicalEditor | null>(null)
-        const [count, setCount] = useState(0)
+        const [focused, setFocused] = useState(false)
         const [modKey, setModKey] = useState("⌘")
 
         useEffect(() => {
@@ -172,7 +174,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             [],
         )
 
-        const overLimit = typeof maxLength === "number" && count > maxLength
+        const comfortable = size === "comfortable"
 
         return (
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
@@ -205,14 +207,16 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             aria-label="Chat message"
                             aria-placeholder={placeholder}
                             className={clsx(
-                                "max-h-40 overflow-y-auto break-words px-3 py-2.5 leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                "max-h-40 overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                comfortable ? "px-5 py-4" : "px-3 py-2.5",
                                 textSizeClassName,
                                 minHeightClassName,
                             )}
                             placeholder={
                                 <div
                                     className={clsx(
-                                        "pointer-events-none absolute left-3 top-2.5 select-none text-[var(--ag-composer-placeholder)]",
+                                        "pointer-events-none absolute select-none text-[var(--ag-composer-placeholder)]",
+                                        comfortable ? "left-5 top-4" : "left-3 top-2.5",
                                         textSizeClassName,
                                     )}
                                 >
@@ -222,10 +226,25 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         />
                     </div>
 
-                    <div className="flex items-center gap-2 px-2 py-1.5">
+                    <div
+                        className={clsx(
+                            "flex items-center gap-2",
+                            comfortable ? "px-4 pb-3 pt-1.5" : "px-2 py-1.5",
+                        )}
+                    >
                         {prefix}
                         {hideShortcutHints ? null : (
-                            <div className="flex flex-wrap items-center gap-2.5">
+                            // The format hints are a focus-only aid: kept mounted (so their space
+                            // never reflows the row) and faded in when the editor takes focus.
+                            <div
+                                className={clsx(
+                                    "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out",
+                                    focused
+                                        ? "translate-y-0 opacity-100"
+                                        : "pointer-events-none translate-y-0.5 opacity-0",
+                                )}
+                                aria-hidden={!focused}
+                            >
                                 <ShortcutHint keys={`${modKey} B`} label="Bold" />
                                 <ShortcutHint keys={`${modKey} I`} label="Italic" />
                                 <ShortcutHint keys="↵" label="Send" />
@@ -233,22 +252,6 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             </div>
                         )}
                         <div className="ml-auto flex items-center gap-2">
-                            {/* Only show a counter when there's a limit to track against, or when the
-                                user has actually typed — a lone "0" beside the button is just clutter. */}
-                            {(typeof maxLength === "number" || count > 0) && (
-                                <span
-                                    className={clsx(
-                                        "shrink-0 text-xs tabular-nums",
-                                        overLimit
-                                            ? "text-[var(--ag-colorError)]"
-                                            : "text-[var(--ag-colorTextTertiary)]",
-                                    )}
-                                >
-                                    {typeof maxLength === "number"
-                                        ? `${count}/${maxLength}`
-                                        : count}
-                                </span>
-                            )}
                             {hideSendButton ? null : (
                                 <SendButton
                                     onSubmit={onSubmit}
@@ -280,7 +283,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
                     {submitOnEnter ? <SubmitPlugin onSubmit={onSubmit} /> : null}
-                    <CharacterCountPlugin onCountChange={setCount} onTextChange={onChange} />
+                    <FocusStatePlugin onFocusChange={setFocused} />
+                    {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}
                 </div>
             </LexicalExtensionComposer>
         )

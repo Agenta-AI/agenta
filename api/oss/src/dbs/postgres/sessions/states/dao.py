@@ -4,7 +4,7 @@ from uuid import UUID
 
 import uuid_utils.compat as uuid_utils
 
-from sqlalchemy import select
+from sqlalchemy import Integer, case, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.utils.logging import get_module_logger
@@ -94,7 +94,23 @@ class SessionStatesDAO(SessionStatesDAOInterface):
         }
         if "data" in upsert.model_fields_set:
             update_values["data"] = stmt.excluded.data
-        if "sandbox_id" in upsert.model_fields_set:
+        guarded_pointer_write = (
+            "sandbox_id" in upsert.model_fields_set
+            and upsert.sandbox_turn_index is not None
+        )
+        if guarded_pointer_write:
+            pointer_write_allowed = (
+                func.coalesce(
+                    cast(SessionStateDBE.data["latest_turn_index"].astext, Integer),
+                    -1,
+                )
+                <= upsert.sandbox_turn_index
+            )
+            update_values["sandbox_id"] = case(
+                (pointer_write_allowed, stmt.excluded.sandbox_id),
+                else_=SessionStateDBE.sandbox_id,
+            )
+        elif "sandbox_id" in upsert.model_fields_set:
             update_values["sandbox_id"] = stmt.excluded.sandbox_id
 
         stmt = stmt.on_conflict_do_update(

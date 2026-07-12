@@ -42,6 +42,9 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
 
     const navigateToItem = useCallback(
         (item: SidebarConfig, event?: React.MouseEvent | React.KeyboardEvent) => {
+            // Inert item (e.g. Home during onboarding): render + highlight normally, but no navigation.
+            if (item.inert) return
+
             item.onClick?.(event as React.MouseEvent)
 
             if (!item.link) return
@@ -98,6 +101,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             href={item.link}
                             onClick={(event) => {
                                 event.stopPropagation()
+                                // Inert item: keep it highlighted but cancel navigation and its onClick.
+                                if (item.inert) {
+                                    event.preventDefault()
+                                    return
+                                }
                                 item.onClick?.(event)
                             }}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
@@ -218,6 +226,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             href={item.link}
                             onClick={(event) => {
                                 event.stopPropagation()
+                                // Inert item: keep it highlighted but cancel navigation and its onClick.
+                                if (item.inert) {
+                                    event.preventDefault()
+                                    return
+                                }
                                 item.onClick?.(event)
                             }}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}

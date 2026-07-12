@@ -9,6 +9,9 @@ export const STRIP_COPY = {
     useCodingAgent: "Use my coding agent",
     createAgent: "Create agent",
     copiedToast: "Copied — paste into Claude Code, Cursor, Codex, or any coding agent",
+    // Single source for every "describe an agent" composer (home hero + playground onboarding).
+    describeAgentPlaceholder:
+        "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything.",
 } as const
 
 /** Owner-specified install command (differs from the flag-off IDE_INSTALL_COMMAND on purpose). */
