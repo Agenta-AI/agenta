@@ -1,6 +1,6 @@
-import {useEffect, useRef} from "react"
+import {useEffect, useRef, useState} from "react"
 
-import {Plus, X} from "@phosphor-icons/react"
+import {PencilSimple, Plus, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -14,7 +14,7 @@ import {
     sessionStatusAtomFamily,
 } from "../state/sessions"
 
-import SessionTabLabel from "./SessionTabLabel"
+import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 
 /** `attention` states need the user (approval / input) or flag a failure — their semantic colour
  * outranks the active tab's clean white dot, so it's never masked on the session you're viewing. */
@@ -81,7 +81,9 @@ interface SessionTagProps {
     onRename: (title: string) => void
 }
 
-/** One session chip: status dot + truncated label (double-click to rename) + hover close. */
+/** One session chip: status dot + truncated label (double-click or pencil to rename) + hover
+ * actions. The rename/close buttons float OVER the label's tail (Chrome-tab style) instead of
+ * reserving in-flow width, so revealing them on hover never reflows the label or shifts pixels. */
 const SessionTag = ({
     session,
     index,
@@ -95,6 +97,9 @@ const SessionTag = ({
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
     const tabRef = useRef<HTMLDivElement>(null)
+    const labelRef = useRef<SessionTabLabelHandle>(null)
+    // Hide the hover actions while the inline rename input owns the row.
+    const [renaming, setRenaming] = useState(false)
     // Keep the active tab visible. Jump INSTANTLY only on the bar's initial reveal of a session that
     // was already present at mount (reload restoring a far-away active tab) — the strip's scroll-smooth
     // would otherwise play a long scroll across the whole strip. A session added later, or any user
@@ -133,7 +138,7 @@ const SessionTag = ({
                     }
                 }}
                 className={clsx(
-                    "group flex h-7 max-w-[180px] min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                    "group relative flex h-7 max-w-[180px] min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
                     // White pill on the recessed chat canvas (raised); the active tab keeps the
                     // primary text + a 2px accent underline so it's unmistakable against neighbours.
                     active
@@ -143,21 +148,54 @@ const SessionTag = ({
             >
                 <SessionStatusDot sessionId={session.id} active={active} />
                 <SessionTabLabel
+                    ref={labelRef}
                     label={label}
                     onRename={onRename}
+                    onEditingChange={setRenaming}
                     className="block min-w-0 flex-1 truncate"
                 />
-                {closable && (
-                    <Button
-                        type="text"
-                        aria-label="Close session"
-                        icon={<X size={12} />}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onClose()
-                        }}
-                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                    />
+                {/* Hover actions overlay the label's tail — absolutely positioned so no width is
+                    reserved at rest (no pixel shift). The gradient fades the covered text out under
+                    the buttons instead of hard-clipping it. */}
+                {!renaming && (
+                    <div
+                        className={clsx(
+                            "pointer-events-none absolute inset-y-0 right-0 flex items-center opacity-0 transition-opacity",
+                            "group-hover:pointer-events-auto group-hover:opacity-100",
+                            "group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+                        )}
+                    >
+                        <span
+                            aria-hidden
+                            className="h-full w-3 bg-gradient-to-l from-colorBgContainer to-transparent"
+                        />
+                        <span className="flex h-full items-center gap-0.5 rounded-r-md bg-colorBgContainer pr-1">
+                            <Tooltip title="Rename session" mouseEnterDelay={0.5}>
+                                <Button
+                                    type="text"
+                                    aria-label="Rename session"
+                                    icon={<PencilSimple size={12} />}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        labelRef.current?.startEditing()
+                                    }}
+                                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                                />
+                            </Tooltip>
+                            {closable && (
+                                <Button
+                                    type="text"
+                                    aria-label="Close session"
+                                    icon={<X size={12} />}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onClose()
+                                    }}
+                                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                                />
+                            )}
+                        </span>
+                    </div>
                 )}
             </div>
         </motion.div>
