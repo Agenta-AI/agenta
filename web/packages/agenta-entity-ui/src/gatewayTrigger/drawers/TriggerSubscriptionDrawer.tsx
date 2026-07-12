@@ -759,8 +759,14 @@ function SubscriptionForm({
                 savedId = result.id ?? null
                 message.success("Trigger created")
             }
-            if (onSaved && savedId) onSaved(savedId)
-            else onClose()
+            if (!isEdit) {
+                // A newly created trigger dismisses the drawer; it now shows in the triggers list.
+                onClose()
+            } else if (onSaved && savedId) {
+                onSaved(savedId)
+            } else {
+                onClose()
+            }
         } catch (error) {
             message.error(triggerApiErrorMessage(error, "Failed to save trigger"))
         }
