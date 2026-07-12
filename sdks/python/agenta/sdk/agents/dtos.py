@@ -22,6 +22,8 @@ from pydantic import (
     model_validator,
 )
 
+from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
+
 from .connections import ModelRef, ResolvedConnection
 from .mcp import (
     MCPServerConfig,
@@ -117,6 +119,23 @@ class InvalidPermissionDefaultError(ValueError):
             f"invalid runner.permissions.default {value!r}; expected one of "
             f"{sorted(PERMISSION_MODES)}"
         )
+
+
+class AgentTemplateShapeError(ErrorStatus):
+    """A run request used a pre-migration flat agent-template key, or an unknown key in an
+    execution-selector object (``harness`` / ``sandbox`` / ``runner``).
+
+    Maps to HTTP 400 so a stale caller fails loud (naming the bad key and the expected shape)
+    instead of silently falling back to defaults. Silent fallback is what let a pre-migration
+    "E3 daytona" request run in the LOCAL sandbox and go green (finding F-016): the flat
+    ``harness`` / ``sandbox`` strings and flat ``model`` / ``agents_md`` were simply ignored.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-template-shape"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(code=self.code, type=self.type, message=message)
 
 
 # ---------------------------------------------------------------------------
@@ -632,6 +651,9 @@ class AgentTemplate(BaseModel):
         harness's ``permissions`` / ``extras`` collapse onto the flat ``harness_permissions`` /
         ``harness_extras`` here.
         """
+        # Fail loud on a pre-migration flat template or unknown selector keys BEFORE parsing, so a
+        # stale caller gets a named 400 instead of silently running defaults (finding F-016).
+        _validate_agent_template_shape(params)
         base = defaults or cls()
         instructions, model, tools = _parse_agent_fields(params, base)
         harness, sandbox, permission_default = _parse_run_selection(params, base)
@@ -1067,6 +1089,80 @@ def _section(params: Dict[str, Any], key: str) -> Dict[str, Any]:
     """One execution section (``harness`` / ``runner`` / ``sandbox``) of the template, or ``{}``."""
     value = _template(params).get(key)
     return value if isinstance(value, dict) else {}
+
+
+def _has_agent_template(params: Dict[str, Any]) -> bool:
+    """True when the request carries an agent template (wrapped at ``agent``, or a bare template
+    with definition fields), as opposed to the ``prompt`` chat fallback.
+
+    Mirrors the ``has_template`` branch in :func:`_parse_agent_fields` so shape validation and
+    field parsing agree on which requests own an agent template."""
+    return isinstance(params.get("agent"), dict) or any(
+        key in params for key in ("instructions", "llm", "tools", "mcps", "skills")
+    )
+
+
+# The pre-migration flat definition keys and where they moved in the nested template. A caller
+# still sending these silently lost its instructions/model before this guard (finding F-016).
+_LEGACY_FLAT_TEMPLATE_KEYS: Dict[str, str] = {
+    "model": 'llm.model (e.g. "llm": {"model": "gpt-5.5"})',
+    "agents_md": 'instructions.agents_md (e.g. "instructions": {"agents_md": "..."})',
+}
+
+# The execution selectors and the exact keys each accepts. This set is the compat boundary: it is
+# CLOSED (unknown key -> loud error) precisely because it is a small, coordinated, schema-driven
+# enum surface (see ``build_agent_v0_default`` and the FE ``useModelHarness`` sections). The
+# element itself and the portable definition fields (instructions/llm/tools/mcps/skills) stay OPEN
+# for forward-compat; only these three objects are locked down.
+_SELECTOR_ALLOWED_KEYS: Dict[str, frozenset] = {
+    "harness": frozenset({"kind", "permissions", "extras"}),
+    "sandbox": frozenset({"kind", "permissions"}),
+    "runner": frozenset({"kind", "permissions"}),
+}
+
+
+def _validate_agent_template_shape(params: Dict[str, Any]) -> None:
+    """Reject a pre-migration flat agent template, and unknown keys in the execution selectors.
+
+    Fails loud (HTTP 400, naming the bad key and the expected shape) instead of the old silent
+    fallback to defaults that made finding F-016's false-green E3 possible. Scope is deliberately
+    narrow: ONLY the agent-template element and its three selector objects are checked. The prompt
+    chat fallback and the open definition fields are left untouched, so forward-compat additions to
+    the portable template are never rejected here."""
+    if not _has_agent_template(params):
+        return
+    element = _template(params)
+    if not isinstance(element, dict):
+        return
+
+    for legacy_key, moved_to in _LEGACY_FLAT_TEMPLATE_KEYS.items():
+        if legacy_key in element:
+            raise AgentTemplateShapeError(
+                f"agent template carries the pre-migration flat key {legacy_key!r}; "
+                f"put it under {moved_to}"
+            )
+
+    for section, allowed in _SELECTOR_ALLOWED_KEYS.items():
+        value = element.get(section)
+        if value is None:
+            continue
+        if not isinstance(value, dict):
+            if section in ("harness", "sandbox"):
+                raise AgentTemplateShapeError(
+                    f"agent template carries the pre-migration flat {section!r} "
+                    f"({type(value).__name__} {value!r}); use nested {section}.kind "
+                    f'(e.g. "{section}": {{"kind": "..."}})'
+                )
+            raise AgentTemplateShapeError(
+                f"agent template {section!r} must be an object with keys "
+                f"{sorted(allowed)} (got {type(value).__name__} {value!r})"
+            )
+        unknown = sorted(set(value) - allowed)
+        if unknown:
+            raise AgentTemplateShapeError(
+                f"agent template {section!r} has unknown key(s) {unknown}; "
+                f"allowed: {sorted(allowed)}"
+            )
 
 
 def _parse_mcp_servers_raw(
