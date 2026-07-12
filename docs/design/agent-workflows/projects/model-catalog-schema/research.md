@@ -97,9 +97,10 @@ runner has reported):
   pinned `claude-fable-5`) was not probed live in this pass (see confidence note).
 
 Design consequence: the curated catalog must never be the gate. A model is selectable if and
-only if the live harness accepts it. The catalog only decorates whatever set is in play, and it
-must be able to carry an entry for a model that is accepted but not advertised by default (the
-Fable case). The schema expresses this with an `advertised` flag (see `design.md`).
+only if the live harness accepts it. The catalog only decorates the models the harness accepts,
+and the rule for what it contains is one line: if the harness accepts a model (verified once,
+live), it gets a catalog entry. Fable needs no special case. It enters the catalog the moment the
+skill verifies the live harness accepts it (see `design.md`).
 
 Confidence: high on the mechanism (traced end to end through sandbox-agent and the ACP adapter
 dist, and cross-confirmed by `../model-config/research.md:214-218`, which independently found
@@ -182,4 +183,3 @@ migration must not touch that path. `plan.md` maps both precisely.
   (the auto-derivable Pi facts).
 - `../model-config/research.md` (independent confirmation of the Claude allowed-set source and
   the Pi availability mechanism).
-</content>

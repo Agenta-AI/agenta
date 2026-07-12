@@ -21,7 +21,7 @@ larger frontend change for the cleaner shape.
 ## 3. Should `models` (ids-only) survive as a derived view after cutover?
 
 Step 3 of the migration removes `models`. If any external or future reader wants a plain id list,
-we can keep `models` as a derived, deprecated view (the advertised entries' ids). Recommendation:
+we can keep `models` as a derived, deprecated view (the catalog entries' ids). Recommendation:
 remove it; regenerate on demand if a reader appears. Keeping two shapes invites drift.
 
 ## 4. Where the curated ratings and descriptions live for Pi
@@ -34,13 +34,6 @@ in the file it overwrites is a maintenance trap.
 ## 5. Does the skill's live Claude probe run in CI, or only by hand?
 
 The probe needs an authenticated Claude session, which CI does not have cheaply. Recommendation:
-the drift report's static half (advertised versus catalogued) runs in CI as a warning; the live
-half (versus the accepted set) runs by hand or on a periodic job with credentials. Confirm you do
-not want the live probe gating merges.
-
-## 6. Do we advertise Fable once the probe confirms its id?
-
-The schema supports `advertised: false` (curated, accepted, not surfaced by default). Whether to
-flip Fable to `advertised: true` is a product call, not a schema call. Recommendation: keep it
-`advertised: false` until you decide to promote it. The schema carries it either way.
-</content>
+the schema and range checks run in CI (a data unit test), and the live reconcile against the
+accepted set runs by hand or on a periodic job with credentials. Confirm you do not want the live
+probe gating merges.

@@ -21,8 +21,9 @@ curated catalog must decorate, never gate. Full trace in `research.md`.
 
 - `research.md`: current state with file:line refs, the accepted-versus-advertised (Fable)
   experiment, and every reader of the field we change.
-- `design.md`: the entry schema (facts versus judgments, pricing versus ratings), the layering,
-  the `advertised` flag, worked Pi and Claude examples, and the 1-5 ratings decision.
+- `design.md`: the entry schema (facts versus judgments, pricing versus ratings), the layering
+  (the catalog lists what the harness accepts), worked Pi and Claude examples, and the 1-5 ratings
+  decision.
 - `plan.md`: the curated data files, the `sync-model-catalog` skill, the additive migration, the
   work packages, and the coordination sequencing.
 - `open-questions.md`: decisions for the owner and CTO.
@@ -37,4 +38,3 @@ curated catalog must decorate, never gate. Full trace in `research.md`.
 - `../provider-model-auth/`: shipped the harness capability table this field lives in.
 - `../custom-providers-in-pi/`: adds the vault custom-provider picker source; composes with this
   catalog, does not conflict.
-</content>

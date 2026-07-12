@@ -9,19 +9,20 @@ capabilities.py / connections.py work. It is design only. No production code cha
 Two files, one per data discipline, both consumed by `capabilities.py`.
 
 - Pi: `sdks/python/agenta/sdk/agents/data/pi_models.generated.json`. Fully generated from the
-  pinned `@earendil-works/pi-ai` catalog. Header comment says "generated, do not hand-edit; run
-  the sync-model-catalog skill." One `ModelCatalogEntry` per model, `source: "pi_generated"`,
+  pinned `@earendil-works/pi-ai` catalog. One `ModelCatalogEntry` per model, `source: "pi_generated"`,
   curated fields (`label`/`description`/`ratings`) absent until a human adds them in the sibling
-  overlay (below).
+  overlay (below). JSON carries no comments, so the "generated, do not hand-edit" notice lives in a
+  `_generator` metadata field on the file envelope (source, pi-ai version, and timestamp) and in the
+  skill's README, not as an inline comment.
 - Claude: `sdks/python/agenta/sdk/agents/data/claude_models.curated.json`. Hand-written,
   `source: "curated"`. Facts seeded from pi-ai's `anthropic` block by the skill, then reviewed;
-  `label`/`description`/`ratings`/`advertised` written by a human.
+  `label`/`description`/`ratings` written by a human from current public sources.
 
 Curated overlay for Pi. Ratings and descriptions for Pi models are human judgments and must
 survive a regeneration that overwrites the generated file. Keep them in a small separate overlay
-`pi_models.curated.json` (id -> `{label?, description?, ratings?, advertised?}`), merged onto the
-generated facts at load time. The generator only ever writes the `.generated.json`; the human only
-ever edits the `.curated.json` overlay. Regeneration is then safe and idempotent.
+`pi_models.curated.json` (id -> `{label?, description?, ratings?}`), merged onto the generated
+facts at load time. The generator only ever writes the `.generated.json`; the human only ever
+edits the `.curated.json` overlay. Regeneration is then safe and idempotent.
 
 Format choice: JSON, not YAML or TS. It is Python-native for the SDK loader, it diffs cleanly for
 the generated file, and it needs no new dependency. The generated file is machine-written so
@@ -44,23 +45,25 @@ A skill under `.agents/skills/sync-model-catalog/` that keeps the data honest. I
    pi-ai version bump, which the skill detects from a lockfile diff on
    `@earendil-works+pi-ai@<version>`.
 
-2. Seed and validate Claude. Seed Claude facts from pi-ai's `anthropic` block (name, pricing,
-   context window per `claude-*` id), then validate the curated file against the live accepted set:
-   start a Claude session on a running runner, read the model config options
-   (`getConfigOptions`, the same call `allowedModels` uses in `model.ts:62`), and diff the reported
-   ids against the curated file. This probe is how the skill learns the real Fable id spelling and
-   any id a new Claude Code build adds. It needs an authenticated Claude session, so it is a manual
-   or periodic step, not a CI gate.
+2. Sync Claude to the accepted set. Probe the live accepted set: start a Claude session on a
+   running runner, read the model config options (`getConfigOptions`, the same call `allowedModels`
+   uses in `model.ts:62`), and reconcile the curated file to it. Two directions, no more: add an
+   entry for any accepted id the file lacks (this is how Fable and any new Claude Code build's model
+   enters), and remove any entry the harness no longer accepts. Seed a new entry's facts from
+   pi-ai's `anthropic` block. This needs an authenticated Claude session, so it is a manual or
+   periodic step, not a CI gate.
 
-3. Report drift. Compare the three sets from `design.md`: advertised (what `capabilities.py`
-   publishes), curated (the data files), accepted (the live probe). Emit the three-way diff
-   (advertised-not-accepted, accepted-not-catalogued, catalogued-not-accepted) so a human acts on it.
-   The over-advertised `default[1m]` and `haiku[1m]`, and the accepted-but-missing Fable, are the
-   first findings this report should surface.
+3. Refresh curated metadata from current public sources. The labels, descriptions, and ratings
+   state a model's current standing, which a language model's training data gets wrong (Claude's
+   top tier is Fable, not Opus, as of mid-2026). So this job looks up the current lineup, pricing,
+   and relative standing from the vendor's pages and announcements (web search and fetch), and
+   proposes updated descriptions and ratings for a human to confirm. It never writes a rating from
+   memory. It also validates the 1-5 range and flags any entry whose facts it could not verify.
 
-When it runs: on a pi-ai bump (jobs 1 and 3, automatable), and before a release or on demand (job 2,
-needs a live session). The skill writes files and a report; a human reviews the curated changes and
-commits. The skill never edits `capabilities.py` logic, only the data files.
+When it runs: on a pi-ai bump (job 1, automatable), and before a release or on demand (jobs 2 and
+3, which need a live session and a web lookup). The skill writes files and a proposal; a human
+reviews the curated changes and commits. The skill never edits `capabilities.py` logic, only the
+data files.
 
 ## The migration: additive field, then cut over
 
@@ -91,13 +94,13 @@ Step 2, frontend reads the new field. The picker switches from `models` to `mode
 Step 3, drop the old field. Once the frontend reads `model_catalog` everywhere and the compat window
 passes, remove `models` from the capability record and the SDK tests that assert it
 (`test_capabilities.py:116`, `:135`, `:144`). `models` can also be kept as a derived, deprecated view
-(the ids of the advertised entries) if any external reader needs it; decide at cut-over.
+(the ids of the catalog entries) if any external reader needs it; decide at cut-over.
 
 Readers to update in lockstep, from `research.md`:
 
 - `capabilities.py:126-194` (build both fields from the data files).
 - `connections.py:23-52` and `:109` (the server-side capability check imports `CLAUDE_MODEL_ALIASES`;
-  point it at the catalog's advertised Claude ids instead, or keep the constant as a thin derived view).
+  point it at the catalog's Claude ids instead, or keep the constant as a thin derived view).
 - `utils/types.py:1082-1084` (default-harness schema).
 - `test_capabilities.py`, `test_builtin_uri_binding.py:75` (assert the new field; keep the old
   assertions until step 3).
@@ -112,17 +115,18 @@ invariant, and the agent path is a different consumer.
 WP1, schema and data files. Add the pydantic models (`ModelCatalogEntry`, `ModelPricing`,
 `ModelRatings`, `ModelCatalog`), the three JSON files (Pi generated, Pi curated overlay, Claude
 curated), and the loader in `capabilities.py` that merges overlay onto generated and publishes
-`model_catalog` alongside `models`. Unit test: the files load, validate, and every advertised id has
-an entry. This is the standalone, non-breaking core.
+`model_catalog` alongside `models`. Unit test: the files load, validate (including the 1-5 rating
+range), and every published id has an entry. This is the standalone, non-breaking core.
 
-WP2, the skill. `sync-model-catalog` with the three jobs above. Includes the pi-ai generator, the
-live Claude probe, and the drift report. Independent of the frontend; can land before or after WP3.
+WP2, the skill. `sync-model-catalog` with the three jobs above: the pi-ai generator, the live
+Claude reconcile, and the current-sources metadata refresh. Independent of the frontend; can land
+before or after WP3.
 
 WP3, frontend cutover. Steps 2 above: read `model_catalog`, show label and description, keep selection
 working, keep the `models` fallback. Ratings deferred.
 
 WP4 (deferred), ratings UI and the runtime accepted-set source. Render the ratings meter in the
-picker, and switch the picker's source of truth from the static advertised set to the runtime accepted
+picker, and switch the picker's source of truth from the static published list to the runtime accepted
 set (building on `model-config` Part 3 layer 2), decorated by this catalog. Both are follow-ons, not
 needed for the first value.
 
@@ -148,7 +152,7 @@ Three overlaps, and how this plan avoids a collision:
   field stacks on the merged `models` field rather than conflicting with it.
 - `connections.py` is owned by `provider-model-auth` and is being changed by `custom-providers-in-pi`
   (a deployment-enum tightening and a resolver change). This plan's only touch there is repointing the
-  `CLAUDE_MODEL_ALIASES` import to the catalog's advertised Claude ids, and even that can be deferred
+  `CLAUDE_MODEL_ALIASES` import to the catalog's Claude ids, and even that can be deferred
   to step 3 or kept as a thin derived view. Do that repoint after the `custom-providers-in-pi` resolver
   change lands, not concurrently.
 - `custom-providers-in-pi` adds a second picker source (the vault's custom-provider models,
@@ -162,4 +166,3 @@ in parallel; WP3 frontend once WP1 publishes the field; WP4 after `model-config`
 
 Keep the INTENT note on the coordination board current, and ping `root-codex` before WP1 touches
 `capabilities.py`, so the additive change stacks cleanly on their rework rather than racing it.
-</content>

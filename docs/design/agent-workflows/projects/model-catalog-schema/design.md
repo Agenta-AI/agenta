@@ -5,9 +5,9 @@ publishes per harness. It separates concrete, sourced facts from curated judgmen
 is authoritative, and shows a worked entry for a Pi model and two Claude models. The migration
 mechanics live in `plan.md`; the schema and its rationale live here.
 
-## The model to hold in your head: three sets, one gate
+## The model to hold in your head: two sets, one gate
 
-Three sets of model ids exist. Keeping them distinct is the whole design.
+Two sets of model ids exist. Keeping them distinct is the whole design.
 
 1. The accepted set. The ids the live harness will actually switch to. Its source is the
    harness's own config options at session init: Pi lists `provider/id` for every provider it
@@ -16,19 +16,20 @@ Three sets of model ids exist. Keeping them distinct is the whole design.
    (per project for Pi, per harness build for Claude) and it is the only thing that decides
    whether a selection succeeds.
 
-2. The advertised set. The ids Agenta publishes so the frontend can render a picker without a
-   live session. Today this is `CLAUDE_MODEL_ALIASES` plus `_pi_models()`. It is a static,
-   best-effort hint. It has drifted from the accepted set in both directions.
-
-3. The curated catalog. The per-model records this project introduces: a clean label, a
+2. The curated catalog. The per-model records this project introduces: a clean label, a
    description, real pricing, and relative ratings, keyed by id.
 
-The rule that a pedantic reviewer should be able to check in one read: the curated catalog never
-gates selection. The accepted set gates, at run time, exactly as it does today. The catalog only
-decorates whichever ids are in play, and the advertised set is only a hint for the offline
-picker. A curated entry for a model the harness rejects can never make that model selectable,
-because the runtime gate is unchanged. This is the safety property the CTO asked for, and it
-falls out of keeping the catalog off the gate path entirely.
+The one rule, and it is simple: the catalog lists the models the harness accepts. A model earns
+a catalog entry by being verified, once, against the live accepted set. Nothing else. There is no
+separate "advertised" set and no per-model flag deciding whether to surface a model. If the
+harness accepts it, it is in the catalog and the picker shows it; if the harness stops accepting
+it, its entry is removed. The catalog tracks the accepted set.
+
+The safety property the CTO asked for falls out for free: the catalog never gates selection. The
+accepted set gates, at run time, exactly as it does today. The catalog only decorates the models
+already known to work. A stale entry can never make a rejected model selectable, because the
+runtime gate is unchanged. Keeping the catalog off the gate path is what lets the logic stay this
+plain.
 
 ## The entry schema
 
@@ -47,10 +48,12 @@ class ModelPricing(BaseModel):
     currency: str = "USD"
 
 class ModelRatings(BaseModel):
-    """Curated, relative 1-5 scores. Higher is better on every axis. Never a price."""
-    cost: Optional[int] = None          # 5 = most economical, 1 = most expensive
-    intelligence: Optional[int] = None  # 5 = strongest reasoning
-    speed: Optional[int] = None         # 5 = fastest
+    """Curated, relative 1-5 scores. Higher is better on every axis. Never a price.
+    The range is enforced, and the values are sourced from current public information
+    (see "Curated data is sourced, not remembered"), not from a model's own training."""
+    cost: Optional[int] = Field(default=None, ge=1, le=5)          # 5 = most economical
+    intelligence: Optional[int] = Field(default=None, ge=1, le=5)  # 5 = strongest reasoning
+    speed: Optional[int] = Field(default=None, ge=1, le=5)         # 5 = fastest
 
 class ModelCatalogEntry(BaseModel):
     # --- identity: the join key to the accepted set ---
@@ -71,7 +74,6 @@ class ModelCatalogEntry(BaseModel):
     label: Optional[str] = None         # display override when `name` is ugly or absent
     description: Optional[str] = None   # one sentence, shown in a tooltip
     ratings: Optional[ModelRatings] = None
-    advertised: bool = True             # include in the offline picker set; see below
 ```
 
 The envelope carries a schema version so the shape can grow without a silent break:
@@ -106,19 +108,23 @@ the entry, not in an outer key, so it has one source of truth. The frontend grou
   not cosmetic: an uncurated Pi model is a valid entry with `label`, `description`, and `ratings`
   all absent, and the frontend falls back to `name`, then `id`.
 
-### The `advertised` flag and the Fable case
+### Curated data is sourced, not remembered
 
-`advertised` encodes "accepted even if not surfaced by default." An entry with
-`advertised: false` is a real, curated model that the live harness may accept, but that Agenta
-does not put in the default picker list. The frontend filters the offline picker to
-`advertised: true`, while still using every entry (advertised or not) as a decoration lookup for
-whatever the runtime accepted set contains.
+The curated fields (`label`, `description`, `ratings`) state current facts about a model's
+standing, and a language model's training data goes stale. So these fields must be sourced from
+current public information (the vendor's model page, the pricing page, the release announcement)
+at the time they are written, and refreshed when the lineup changes. The `sync-model-catalog`
+skill does this refresh (`plan.md`): it looks up the current lineup rather than trusting any
+model's recollection. A concrete example of why: Claude's top tier in mid-2026 is Fable, above
+Opus. A description or rating that calls Opus "the strongest" is simply wrong now, and only a
+current lookup catches that. Any fact a curator cannot verify from a current source is left out.
 
-Fable is the motivating case. The Claude Code SDK accepts Fable, but Agenta does not advertise
-it. With this flag, the catalog carries a `claude-fable-5` entry with `advertised: false`: a user
-whose live harness offers Fable sees it with a proper label and description, and a user reading
-the offline picker does not see a model we have not chosen to promote. The gate never changes;
-only whether we list it by default does.
+### The Fable case, made trivial
+
+Because the catalog just lists what the harness accepts, Fable needs no special handling. The
+Claude Code SDK accepts Fable, so once the skill verifies that against the live accepted set,
+Fable gets an ordinary catalog entry with current facts, and the picker shows it. There is no
+flag, no "surface it or not" decision, no second code path. A model that works is in the list.
 
 ## Worked examples
 
@@ -141,8 +147,7 @@ only whether we list it by default does.
   "modalities": ["text"],
   "label": null,
   "description": null,
-  "ratings": null,
-  "advertised": true
+  "ratings": null
 }
 ```
 
@@ -150,7 +155,37 @@ Every field above the curated block is copied straight from the pinned pi-ai cat
 skill. The curated block is empty until a human adds a description or ratings; the frontend shows
 `name` in the meantime.
 
-### A Claude model, advertised (curated, facts seeded from the pi-ai anthropic block)
+### The top Claude model (curated, facts sourced from current public info)
+
+Claude's frontier in mid-2026 is Fable 5, above Opus. The entry reflects that:
+
+```json
+{
+  "id": "fable",
+  "provider": "anthropic",
+  "source": "curated",
+  "name": "Claude Fable 5",
+  "pricing": {
+    "input_per_mtok": 10.0,
+    "output_per_mtok": 50.0,
+    "currency": "USD"
+  },
+  "context_window": 1000000,
+  "modalities": ["text", "image"],
+  "label": "Fable",
+  "description": "Anthropic's most capable model. Use for the hardest reasoning and long-horizon agentic work.",
+  "ratings": { "cost": 1, "intelligence": 5, "speed": 2 }
+}
+```
+
+The `id` is the alias the Claude harness accepts, confirmed by the skill's probe against the live
+accepted set (`plan.md`). `name`, `pricing`, and `context_window` are sourced from the pi-ai
+`anthropic` block (`claude-fable-5`: input 10, output 50 per million tokens, 1M context) and the
+vendor's current pages. `label`, `description`, and `ratings` are the human's contribution,
+written from the current lineup (Fable is the strongest, so `intelligence` is 5; it is the
+priciest of the tiers, so `cost` is 1).
+
+### A second Claude tier, for contrast
 
 ```json
 {
@@ -159,44 +194,22 @@ skill. The curated block is empty until a human adds a description or ratings; t
   "source": "curated",
   "name": "Claude Opus 4.8",
   "pricing": {
-    "input_per_mtok": 15.0,
-    "output_per_mtok": 75.0,
+    "input_per_mtok": 5.0,
+    "output_per_mtok": 25.0,
     "currency": "USD"
   },
   "context_window": 1000000,
   "modalities": ["text", "image"],
   "label": "Opus (1M context)",
-  "description": "Strongest reasoning. Use for hard, multi-step work where quality beats cost.",
-  "ratings": { "cost": 1, "intelligence": 5, "speed": 2 },
-  "advertised": true
+  "description": "Strong reasoning below Fable, at a lower price. A good default for hard work.",
+  "ratings": { "cost": 3, "intelligence": 4, "speed": 3 }
 }
 ```
 
-The `id` is the alias the Claude harness accepts, not a vendor model string. `name`, `pricing`,
-and `context_window` are seeded from pi-ai's `anthropic` block (which carries `claude-opus-4-8`),
-then reviewed by a human. `label`, `description`, and `ratings` are the human's contribution.
-
-### A Claude model, accepted but not advertised (the Fable case)
-
-```json
-{
-  "id": "claude-fable-5",
-  "provider": "anthropic",
-  "source": "curated",
-  "name": "Claude Fable 5",
-  "pricing": { "input_per_mtok": 10.0, "output_per_mtok": 50.0, "currency": "USD" },
-  "context_window": 1000000,
-  "modalities": ["text", "image"],
-  "label": "Fable",
-  "description": "Creative-writing tuned. Available on request; not shown by default.",
-  "ratings": { "cost": 2, "intelligence": 4, "speed": 3 },
-  "advertised": false
-}
-```
-
-The exact `id` the live SDK reports for Fable is confirmed by the skill's probe (`plan.md`); the
-value here matches pi-ai's `anthropic` id. `advertised: false` keeps it out of the default list
-while still decorating it if the runtime set offers it.
+Opus sits one tier below Fable now, so its `intelligence` is 4 and its `description` says so.
+Its pricing (input 5, output 25 per million tokens) is half of Fable's, so its `cost` rating is
+higher (more economical). These relative scores come from the current lineup, not from any
+model's memory of it.
 
 ## The ratings scale: 1-5, higher is better
 
@@ -232,22 +245,22 @@ to rename it `economy` to make the direction self-evident is a minor open questi
   fact sheet. Keeping the catalog to "what is this model" and off "how do I authenticate to it"
   is what lets this project land without colliding with that layer (`plan.md`).
 
-## Layering and validation against the accepted set
+## Keeping the catalog equal to the accepted set
 
-The catalog is decoration; the accepted set is authority. The skill enforces that they agree, but
-a disagreement never makes an unaccepted model selectable, because the runtime gate is unchanged.
-The skill's drift report (`plan.md`) compares three sets and flags:
+The catalog is decoration; the accepted set is authority. The catalog should list exactly the
+models the harness accepts, so the skill keeps the two equal with a plain two-way sync
+(`plan.md`), not a dual-state comparison:
 
-- Advertised but not accepted: an id we publish that the live harness rejects (today: `default[1m]`,
-  `haiku[1m]`). Action: drop it from the advertised set, or mark `advertised: false`.
-- Accepted but not in the catalog: an id the live harness offers that we have no entry for (today:
-  Fable, and any model a new Claude Code build adds). Action: add a curated entry.
-- In the catalog but no longer accepted: a curated id the live harness dropped. Action: mark it
-  deprecated or remove it.
+- Accepted but not in the catalog: an id the live harness offers that we have no entry for. Add a
+  curated entry with current facts. This is how Fable, or any model a new Claude Code build adds,
+  enters the catalog.
+- In the catalog but no longer accepted: a curated id the live harness dropped. Remove its entry.
 
-The end state, which `model-config` Part 3 layer 2 already points at, is that the picker's source
-of truth becomes the runtime accepted set, decorated by this catalog, with the advertised set as
-the offline fallback. This project builds the decoration and the data discipline that end state
-needs. It does not require that end state to ship value: even against today's static advertised
-set, the catalog replaces raw ids with labels, descriptions, and pricing.
-</content>
+That is the whole rule. There is no third "advertised" set to reconcile, and there are no
+over-advertised ids to prune from the published list, because we only ever publish what we have
+verified the harness accepts.
+
+The end state, which `model-config` Part 3 layer 2 already points at, is that the picker reads the
+runtime accepted set directly, decorated by this catalog. This project builds the decoration and
+the data discipline that end state needs. It ships value before then: even against a static list,
+the catalog replaces raw ids with labels, descriptions, and pricing.

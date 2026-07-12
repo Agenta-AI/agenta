@@ -22,48 +22,58 @@ plan, the open questions, and this body.
 
 The design does three things.
 
-It separates the three sets that today are conflated: the accepted set (live, authoritative, the
-gate), the advertised set (static, a hint for the offline picker), and the curated catalog (the
-new per-model records). The rule a reviewer can check in one read: the curated catalog never
-gates selection, so a curated entry can never make an unaccepted model selectable.
+It keeps one authoritative idea and drops the rest. The live harness's accepted set gates every
+selection, exactly as today. The catalog is just the list of models the harness accepts, verified
+once against that live set, decorated with facts and metadata. There is no separate "advertised"
+set and no per-model flag deciding whether to surface a model. If the harness accepts it, it is in
+the catalog and the picker shows it. The catalog never gates, so a stale entry can never make a
+rejected model selectable.
 
 It designs the catalog entry so concrete facts and curated judgments are structurally distinct.
 Real pricing is a `pricing` object of dollar amounts per million tokens. Ratings are a separate
-`ratings` object of 1-5 scores. They are different types with different names, so a price and a
-score can never be confused. Identity (`id`, `provider`), provenance (`source`), and the sourced
-facts (`name`, `pricing`, `context_window`, `modalities`) sit apart from the curated fields
-(`label`, `description`, `ratings`, `advertised`). Everything optional is optional: Claude has no
-pricing until curated, Pi has no ratings until curated.
+`ratings` object of 1-5 scores (the range is enforced). They are different types with different
+names, so a price and a score can never be confused. Identity (`id`, `provider`), provenance
+(`source`), and the sourced facts (`name`, `pricing`, `context_window`, `modalities`) sit apart
+from the curated fields (`label`, `description`, `ratings`). Everything optional is optional:
+Claude has no pricing until curated, Pi has no ratings until curated.
 
-It handles the Fable case explicitly. An `advertised: false` entry is a model the live harness may
-accept but that Agenta does not surface by default. It still carries a label and description, so a
-user whose harness offers it sees it cleanly, and the default picker stays curated.
+It sources the curated metadata from current public information, not from a model's training data.
+Names, descriptions, and ratings state a model's current standing, which goes stale (Claude's top
+tier in mid-2026 is Fable, above Opus). The maintaining skill looks up the current lineup and
+pricing rather than trusting any model's recollection, and leaves out any fact it cannot verify.
 
 ## Before and after
 
 The published field changes from
 
-```
-models: { "anthropic": ["default", "sonnet", "opus", "haiku", "default[1m]", ...] }
+```json
+{ "models": { "anthropic": ["default", "sonnet", "opus", "haiku", "default[1m]"] } }
 ```
 
 to a list of records:
 
-```
-model_catalog: [
-  { "id": "opus[1m]", "provider": "anthropic", "source": "curated",
-    "name": "Claude Opus 4.8", "label": "Opus (1M context)",
-    "pricing": { "input_per_mtok": 15.0, "output_per_mtok": 75.0, "currency": "USD" },
-    "context_window": 1000000,
-    "description": "Strongest reasoning. Use for hard, multi-step work.",
-    "ratings": { "cost": 1, "intelligence": 5, "speed": 2 }, "advertised": true }
-]
+```json
+{
+  "model_catalog": [
+    {
+      "id": "fable",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Fable 5",
+      "label": "Fable",
+      "pricing": { "input_per_mtok": 10.0, "output_per_mtok": 50.0, "currency": "USD" },
+      "context_window": 1000000,
+      "description": "Anthropic's most capable model. Use for the hardest reasoning and long-horizon agentic work.",
+      "ratings": { "cost": 1, "intelligence": 5, "speed": 2 }
+    }
+  ]
+}
 ```
 
 The catalog lives in data files a skill maintains, not in code: a generated Pi file derived from
 the pinned pi-ai catalog, and a curated Claude file. The `sync-model-catalog` skill regenerates
-Pi facts on a version bump, seeds Claude facts from pi-ai's anthropic block, probes the live
-harness for the real accepted set, and reports drift between advertised, curated, and accepted.
+Pi facts on a version bump, seeds Claude facts from pi-ai's anthropic block, reconciles the catalog
+to the live accepted set, and refreshes the curated metadata from current public sources.
 
 ## Migration
 
@@ -76,11 +86,10 @@ picker is a separate consumer and is untouched by design.
 
 ## Notes for the reviewer
 
-- The interface heart is `design.md`: the fact-versus-judgment split, the `advertised` flag, and
+- The interface heart is `design.md`: the fact-versus-judgment split (pricing versus ratings) and
   the 1-5 ratings decision with its rationale.
 - The Fable finding and the full reader map are in `research.md`, traced to file and line.
 - `plan.md` sequences this behind the in-flight `capabilities.py` and `connections.py` rework so
   it stacks additively rather than racing it. `open-questions.md` collects the calls for you.
 
 https://claude.ai/code/session_0127AM79khCdvD2b8BG2joZL
-</content>
