@@ -16,6 +16,11 @@ import {
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 
+/** Slight left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when
+ * they overflow (mirrors the chat viewport's top/bottom fade). */
+const EDGE_FADE_PX = 20
+const EDGE_FADE_MASK = `linear-gradient(to right, transparent 0, #000 ${EDGE_FADE_PX}px, #000 calc(100% - ${EDGE_FADE_PX}px), transparent 100%)`
+
 /** `attention` states need the user (approval / input) or flag a failure — their semantic colour
  * outranks the active tab's clean white dot, so it's never masked on the session you're viewing. */
 const STATUS_META: Record<
@@ -106,6 +111,9 @@ const SessionTag = ({
     // switch, keeps the CSS smooth nudge (so a freshly-created tab still glides into view).
     const mountedRef = useRef(false)
     useEffect(() => {
+        // Reveal on tab switch / reload restore. For a newly-added tab this lands short (mount
+        // width is ~0), but onUpdate below tracks it the rest of the way — this stays as the
+        // reduced-motion fallback (when no enter-animation frames fire).
         if (active) {
             tabRef.current?.scrollIntoView({
                 block: "nearest",
@@ -124,6 +132,17 @@ const SessionTag = ({
             animate="animate"
             exit="exit"
             transition={SESSION_SPRING}
+            onUpdate={() => {
+                // Track a newly-added active tab into view AS it grows (width enters from ~0px), so
+                // the reveal starts on the first frame instead of lagging until the spring settles.
+                if (active && !presentAtMount) {
+                    tabRef.current?.scrollIntoView({
+                        block: "nearest",
+                        inline: "nearest",
+                        behavior: "instant",
+                    })
+                }
+            }}
             className="shrink-0 overflow-hidden"
         >
             <div
@@ -248,7 +267,30 @@ const SessionTagBar = ({
         <MotionConfig reducedMotion="user">
             <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
                 {showSessions ? (
-                    <div className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div
+                        className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                        style={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                        onWheel={(e) => {
+                            const el = e.currentTarget
+                            if (el.scrollWidth <= el.clientWidth) return
+                            const axis =
+                                Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+                            if (axis === 0) return
+                            // Wheels report deltaMode=LINE (tiny integers) and the strip has
+                            // scroll-smooth — together they crawl. Normalize to px, scroll instantly.
+                            const delta =
+                                e.deltaMode === 1
+                                    ? axis * 16
+                                    : e.deltaMode === 2
+                                      ? axis * el.clientWidth
+                                      : axis
+                            e.preventDefault()
+                            const prev = el.style.scrollBehavior
+                            el.style.scrollBehavior = "auto"
+                            el.scrollLeft += delta
+                            el.style.scrollBehavior = prev
+                        }}
+                    >
                         <AnimatePresence initial={false}>
                             {sessions.map((session, index) => (
                                 <SessionTag
