@@ -8,7 +8,7 @@
  */
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
+import {SchemaForm, type SchemaFormHandle, type StepInfo} from "@agenta/entity-ui/gatewayTool"
 import {
     type ElicitationResult,
     buildAcceptResult,
@@ -58,6 +58,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     const [form] = Form.useForm()
     const formRef = useRef<SchemaFormHandle>(null)
     const [submitting, setSubmitting] = useState(false)
+    const [stepInfo, setStepInfo] = useState<StepInfo | null>(null)
 
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
 
@@ -214,6 +215,8 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
         }
     }
 
+    const inStepper = stepInfo?.isStepper === true && stepInfo.isReview === false
+
     return (
         <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-2xl">
             <div className="flex items-start gap-2">
@@ -238,22 +241,29 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 openEnums
                 stepper={stepperHint}
                 onValuesChange={persistDraft}
+                onStepChange={setStepInfo}
             />
 
             <div className="flex items-center gap-2">
-                <Button
-                    type="primary"
-                    loading={submitting}
-                    disabled={!requiredReady}
-                    title={
-                        requiredReady
-                            ? undefined
-                            : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
-                    }
-                    onClick={handleAccept}
-                >
-                    Accept
-                </Button>
+                {inStepper ? (
+                    <Button type="primary" onClick={() => formRef.current?.next?.()}>
+                        Next
+                    </Button>
+                ) : (
+                    <Button
+                        type="primary"
+                        loading={submitting}
+                        disabled={!requiredReady}
+                        title={
+                            requiredReady
+                                ? undefined
+                                : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
+                        }
+                        onClick={handleAccept}
+                    >
+                        Accept
+                    </Button>
+                )}
                 <Button
                     type="text"
                     onClick={() =>
