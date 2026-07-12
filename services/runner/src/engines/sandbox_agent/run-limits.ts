@@ -1,3 +1,5 @@
+import type { AgentEvent } from "../../protocol.ts";
+
 /**
  * Time-based run limits: the runner had no deadline anywhere, so a wedged run (daemon up but
  * never engaging, or a harness that stops making progress mid-turn) held its sandbox/mount/socket
@@ -76,7 +78,7 @@ export interface RunLimitsHandle {
   noteToolCallEnd(id: string): void;
   /** Wrap an `EmitEvent` sink so every event it sees also resets idle/TTFB — the one
    *  observation point every harness's progress already flows through. */
-  wrapEmit(emit: (event: any) => void): (event: any) => void;
+  wrapEmit(emit: (event: AgentEvent) => void): (event: AgentEvent) => void;
   /** The turn parked for human input: freeze every timer for good (the pause path owns the
    *  turn's end from here; these deadlines must never re-fire on top of it). */
   notePaused(): void;
@@ -184,7 +186,7 @@ export function createRunLimits(
       // Every event is progress for idle/TTFB purposes; per-tool-call timers are driven
       // separately by noteToolCallStart/End (called from the raw ACP update handler, which
       // knows the harness's tool-call id before this typed event is even built).
-      return (event: any) => {
+      return (event: AgentEvent) => {
         noteProgress();
         emit(event);
       };

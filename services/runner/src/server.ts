@@ -53,10 +53,12 @@ import {
   priorConversation,
   readKeepaliveConfig,
   resolvesToLocalProvider,
-  SessionPool,
   tailIsFreshUserMessage,
   type KeepaliveConfig,
   type KeepaliveProviderName,
+} from "./engines/sandbox_agent/session-identity.ts";
+import {
+  SessionPool,
   type LiveSession,
 } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
@@ -575,11 +577,7 @@ export async function runWithKeepalive(
       klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
-      await pool.evict(
-        key,
-        `mismatch:${mismatch}`,
-        "compatibility-mismatch",
-      );
+      await pool.evict(key, `mismatch:${mismatch}`, "compatibility-mismatch");
       return coldAndPark();
     }
 
@@ -756,11 +754,7 @@ export async function runWithKeepalive(
     // environment can never be destroyed by this branch). Supersede — destroy the parked one and
     // cold-start — awaited so its teardown cannot overlap our acquire.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
-    await pool.evict(
-      key,
-      `supersede-${existing.state}`,
-      "failed-turn",
-    );
+    await pool.evict(key, `supersede-${existing.state}`, "failed-turn");
   } else {
     klog(`miss key=${key}; cold`);
   }
@@ -781,11 +775,9 @@ const keepalivePools: Record<
   SessionPool<SessionEnvironment>
 > = {
   local: new SessionPool<SessionEnvironment>(keepaliveConfigs.local),
-  daytona: new SessionPool<SessionEnvironment>(
-    keepaliveConfigs.daytona,
-    klog,
-    { strictCapacity: true },
-  ),
+  daytona: new SessionPool<SessionEnvironment>(keepaliveConfigs.daytona, klog, {
+    strictCapacity: true,
+  }),
 };
 
 const runAgent: RunAgent = (request, emit, signal, options) => {
@@ -1116,11 +1108,7 @@ if (isEntrypoint(import.meta.url)) {
     onCleanup: async (timeoutMs?: number) => {
       await Promise.all(
         Object.values(keepalivePools).map((pool) =>
-          pool.destroyAll(
-            timeoutMs,
-            "shutdown-idle",
-            "shutdown-in-flight",
-          ),
+          pool.destroyAll(timeoutMs, "shutdown-idle", "shutdown-in-flight"),
         ),
       );
       await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");

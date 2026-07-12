@@ -458,8 +458,8 @@ export async function discoverTunnelEndpoint(
     const https = tunnels.find(
       (t) => t.proto === "https" && !!t.public_url,
     )?.public_url;
-    const any = tunnels.find((t) => !!t.public_url)?.public_url;
-    return https ?? any ?? null;
+    const fallback = tunnels.find((t) => !!t.public_url)?.public_url;
+    return https ?? fallback ?? null;
   } catch (err) {
     log(
       `tunnel discovery failed: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
@@ -477,7 +477,7 @@ export interface SandboxExec {
     env?: Record<string, string>;
     timeoutMs?: number;
   }) => Promise<
-    { exitCode?: number; stderr?: unknown; result?: unknown } | undefined
+    { exitCode?: number | null; stderr?: unknown; result?: unknown } | undefined
   >;
 }
 
@@ -611,7 +611,9 @@ export async function mountStorageRemote(
       await unmountRemoteDeadMount(sandbox, cwd, log);
       return false;
     }
-    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
+    log(
+      `remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`,
+    );
     return true;
   } catch (err) {
     log(
@@ -667,7 +669,9 @@ export async function mountHarnessSessionDirs(
       dir.name,
     );
     if (!creds) {
-      log(`harness session mount '${dir.name}' not signed — skipping ${dir.path}`);
+      log(
+        `harness session mount '${dir.name}' not signed — skipping ${dir.path}`,
+      );
       continue;
     }
     await mountRemote(sandbox, dir.path, creds, {

@@ -67,31 +67,36 @@ export function toolDeliveryUnsupportedMessage(
  */
 export function mapCapabilities(
   harness: string,
-  info: any,
+  info: unknown,
 ): ProbedCapabilities {
   assert(
     typeof harness === "string" && harness.length > 0,
     "mapCapabilities requires a non-empty harness id",
   );
-  const c = info?.capabilities;
+  const c =
+    info && typeof info === "object"
+      ? (info as { capabilities?: unknown }).capabilities
+      : undefined;
   if (c) {
     assert(
       typeof c === "object",
       `probed capabilities for '${harness}' is not an object (got ${typeof c})`,
     );
+    const flags = c as Record<string, unknown>;
     return {
       source: "probed",
       capabilities: {
-        textMessages: c.textMessages ?? true,
-        images: !!c.images,
-        fileAttachments: !!c.fileAttachments,
-        mcpTools: !!c.mcpTools,
-        toolCalls: !!c.toolCalls,
-        reasoning: !!c.reasoning,
-        planMode: !!c.planMode,
-        permissions: !!c.permissions,
-        streamingDeltas: !!c.streamingDeltas,
-        sessionLifecycle: !!c.sessionLifecycle,
+        textMessages:
+          typeof flags.textMessages === "boolean" ? flags.textMessages : true,
+        images: !!flags.images,
+        fileAttachments: !!flags.fileAttachments,
+        mcpTools: !!flags.mcpTools,
+        toolCalls: !!flags.toolCalls,
+        reasoning: !!flags.reasoning,
+        planMode: !!flags.planMode,
+        permissions: !!flags.permissions,
+        streamingDeltas: !!flags.streamingDeltas,
+        sessionLifecycle: !!flags.sessionLifecycle,
         usage: true,
       },
     };
@@ -117,8 +122,12 @@ export function mapCapabilities(
 }
 
 /** Probe the harness's capabilities from the daemon, falling back to static policy. */
+export interface CapabilityProbe {
+  getAgent?(agent: string, options: { config: true }): Promise<unknown>;
+}
+
 export async function probeCapabilities(
-  sandbox: any,
+  sandbox: CapabilityProbe,
   harness: string,
 ): Promise<ProbedCapabilities> {
   assert(
@@ -127,7 +136,7 @@ export async function probeCapabilities(
   );
   let probed: ProbedCapabilities;
   try {
-    const info = await sandbox.getAgent(harness, { config: true });
+    const info = await sandbox.getAgent!(harness, { config: true });
     probed = mapCapabilities(harness, info);
   } catch {
     probed = mapCapabilities(harness, undefined);

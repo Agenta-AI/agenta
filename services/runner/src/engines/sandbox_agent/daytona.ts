@@ -8,6 +8,11 @@ import {
   uploadSystemPromptToSandbox,
 } from "./pi-assets.ts";
 import { shouldUploadOwnLogin, type RunPlan } from "./run-plan.ts";
+import type {
+  SandboxAssetPort,
+  SandboxFilePort,
+  SandboxProcessPort,
+} from "./sandbox-ports.ts";
 
 type Log = (message: string) => void;
 
@@ -48,7 +53,7 @@ export function daytonaEnvVars(
 
 /** Install the `pi` CLI into a Daytona sandbox (the sandbox-agent image lacks it). Best-effort. */
 export async function installPiInSandbox(
-  sandbox: any,
+  sandbox: SandboxProcessPort,
   log: Log = () => {},
 ): Promise<void> {
   try {
@@ -64,9 +69,13 @@ export async function installPiInSandbox(
       cwd: DAYTONA_PI_INSTALL_DIR,
       timeoutMs: 180_000,
     });
-    if (res?.exitCode !== 0) {
+    const result =
+      res && typeof res === "object"
+        ? (res as { exitCode?: number | null; stderr?: unknown })
+        : undefined;
+    if (result?.exitCode !== 0) {
       log(
-        `pi install in sandbox exit=${res?.exitCode}: ${String(res?.stderr).slice(-400)}`,
+        `pi install in sandbox exit=${result?.exitCode}: ${String(result?.stderr).slice(-400)}`,
       );
     }
   } catch (err) {
@@ -80,7 +89,7 @@ export async function installPiInSandbox(
  * back to any provider key in the sandbox env.
  */
 export async function uploadPiAuthToSandbox(
-  sandbox: any,
+  sandbox: SandboxFilePort,
   log: Log = () => {},
 ): Promise<void> {
   const localDir =
@@ -107,7 +116,7 @@ export async function uploadPiAuthToSandbox(
 }
 
 export interface PrepareDaytonaPiAssetsInput {
-  sandbox: any;
+  sandbox: SandboxAssetPort;
   plan: Pick<
     RunPlan,
     | "isPi"
@@ -170,12 +179,17 @@ export function createCookieFetch(
   inner: typeof fetch = createAcpFetch(),
 ): typeof fetch {
   const jar = new Map<string, Map<string, string>>(); // host -> (name -> "name=value")
-  return async (input: any, init?: any) => {
-    const url = new URL(typeof input === "string" ? input : input.url);
+  return async (
+    input: Parameters<typeof fetch>[0],
+    init?: RequestInit,
+  ): Promise<Response> => {
+    const url = new URL(
+      typeof input === "string" || input instanceof URL ? input : input.url,
+    );
     const host = url.host;
     const cookies = jar.get(host);
     const headers = new Headers(
-      init?.headers ?? (typeof input !== "string" ? input.headers : undefined),
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
     if (cookies && cookies.size > 0) {
       const existing = headers.get("cookie");
@@ -184,12 +198,15 @@ export function createCookieFetch(
       headers.set("cookie", merged.join("; "));
     }
     const response = await inner(input, { ...init, headers });
-    const setCookies =
-      typeof (response.headers as any).getSetCookie === "function"
-        ? (response.headers as any).getSetCookie()
-        : response.headers.get("set-cookie")
-          ? [response.headers.get("set-cookie")]
-          : [];
+    const cookieHeaders = response.headers as Headers & {
+      getSetCookie?: () => string[];
+    };
+    const combinedSetCookie = response.headers.get("set-cookie");
+    const setCookies = cookieHeaders.getSetCookie
+      ? cookieHeaders.getSetCookie()
+      : combinedSetCookie
+        ? [combinedSetCookie]
+        : [];
     if (setCookies.length) {
       const store = jar.get(host) ?? new Map<string, string>();
       for (const sc of setCookies) {

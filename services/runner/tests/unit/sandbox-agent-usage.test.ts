@@ -18,7 +18,8 @@ import {
 const dirs: string[] = [];
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs.splice(0))
+    rmSync(dir, { recursive: true, force: true });
 });
 
 describe("readRunUsage", () => {
@@ -26,14 +27,37 @@ describe("readRunUsage", () => {
     const dir = mkdtempSync(join(tmpdir(), "agenta-usage-test-"));
     dirs.push(dir);
     const file = join(dir, "usage.json");
-    writeFileSync(file, JSON.stringify({ input: 2, output: 3, total: 5, cost: 0.01 }), "utf-8");
+    writeFileSync(
+      file,
+      JSON.stringify({ input: 2, output: 3, total: 5, cost: 0.01 }),
+      "utf-8",
+    );
 
-    assert.deepEqual(await readRunUsage({}, file, false), { input: 2, output: 3, total: 5, cost: 0.01 });
+    assert.deepEqual(await readRunUsage({}, file, false), {
+      input: 2,
+      output: 3,
+      total: 5,
+      cost: 0.01,
+    });
+  });
+
+  it("rejects malformed usage writeback instead of leaking it across the run contract", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-usage-test-"));
+    dirs.push(dir);
+    const file = join(dir, "usage.json");
+    writeFileSync(
+      file,
+      JSON.stringify({ input: "2", output: 3, total: 5, cost: -1 }),
+      "utf-8",
+    );
+
+    assert.equal(await readRunUsage({}, file, false), undefined);
   });
 
   it("reads Daytona Pi usage writeback through the sandbox fs API", async () => {
     const sandbox = {
-      readFsFile: async () => JSON.stringify({ input: 1, output: 4, total: 5, cost: 0 }),
+      readFsFile: async () =>
+        JSON.stringify({ input: 1, output: 4, total: 5, cost: 0 }),
     };
 
     assert.deepEqual(await readRunUsage(sandbox, "/tmp/usage.json", true), {
@@ -66,7 +90,11 @@ describe("resolveRunUsage", () => {
     const dir = mkdtempSync(join(tmpdir(), "agenta-usage-test-"));
     dirs.push(dir);
     const file = join(dir, "usage.json");
-    writeFileSync(file, JSON.stringify({ input: 3, output: 4, total: 7, cost: 0.03 }), "utf-8");
+    writeFileSync(
+      file,
+      JSON.stringify({ input: 3, output: 4, total: 7, cost: 0.03 }),
+      "utf-8",
+    );
 
     assert.deepEqual(
       await resolveRunUsage({

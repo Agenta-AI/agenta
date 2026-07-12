@@ -46,7 +46,10 @@ const stripContextHint = (id: string) => id.replace(/\[[^[\]]*\]$/, "");
  * context) variant; it never falls back from a hinted request to a bare id, which would silently
  * shrink the context window.
  */
-export function pickModel(allowed: string[], wanted?: string): string | undefined {
+export function pickModel(
+  allowed: string[],
+  wanted?: string,
+): string | undefined {
   if (!wanted) return undefined;
   if (allowed.includes(wanted)) return wanted;
   const suffix = (id: string) => id.slice(id.indexOf("/") + 1);
@@ -58,18 +61,39 @@ export function pickModel(allowed: string[], wanted?: string): string | undefine
   );
 }
 
+interface ModelOptionsReader {
+  getConfigOptions?: () => Promise<unknown>;
+}
+
+interface ModelSession extends ModelOptionsReader {
+  setModel(model: string): Promise<unknown>;
+}
+
+function selectableModelIds(options: unknown): string[] {
+  if (!Array.isArray(options)) return [];
+  const modelOption = options.find((option) => {
+    if (!option || typeof option !== "object") return false;
+    const record = option as Record<string, unknown>;
+    return record.category === "model" || record.id === "model";
+  });
+  if (!modelOption || typeof modelOption !== "object") return [];
+  const choices = (modelOption as Record<string, unknown>).options;
+  if (!Array.isArray(choices)) return [];
+  return choices.flatMap((choice) => {
+    if (!choice || typeof choice !== "object") return [];
+    const record = choice as Record<string, unknown>;
+    const id = record.value ?? record.id;
+    return typeof id === "string" && id.length > 0 ? [id] : [];
+  });
+}
+
 /** Enumerate the harness's selectable model ids from the session config options. */
-export async function allowedModels(session: any): Promise<string[]> {
+export async function allowedModels(
+  session: ModelOptionsReader,
+): Promise<string[]> {
+  if (!session.getConfigOptions) return [];
   try {
-    const options = await session.getConfigOptions();
-    const modelOpt = (options ?? []).find(
-      (o: any) => o.category === "model" || o.id === "model",
-    );
-    const choices = modelOpt?.options ?? [];
-    // pi-acp builds each choice as `{ value: model.modelId, name, description }` and sandbox-agent
-    // reads `entry.value`; older shapes used `id`. Read `value` first so this returns the real
-    // selectable ids (reading only `id` silently returned [] for pi-acp).
-    return choices.map((c: any) => c.value ?? c.id).filter(Boolean);
+    return selectableModelIds(await session.getConfigOptions());
   } catch {
     return [];
   }
@@ -77,7 +101,9 @@ export async function allowedModels(session: any): Promise<string[]> {
 
 /** Parse the allowed model ids out of an UnsupportedSessionValueError message. */
 export function allowedFromError(err: unknown): string[] {
-  const match = /Allowed values:\s*(.+?)\s*$/.exec(String((err as Error)?.message ?? err));
+  const match = /Allowed values:\s*(.+?)\s*$/.exec(
+    String((err as Error)?.message ?? err),
+  );
   if (!match) return [];
   return match[1]
     .split(",")
@@ -97,7 +123,7 @@ export function allowedFromError(err: unknown): string[] {
  * `AGENTA_AGENT_MODEL_STRICT=false`). This is the F-007 fix.
  */
 export async function applyModel(
-  session: any,
+  session: ModelSession,
   wanted?: string,
   log: Log = () => {},
   options: { strict?: boolean } = {},
@@ -111,7 +137,9 @@ export async function applyModel(
     // The harness rejected the exact id. Resolve it against the harness's own selectable ids
     // (Pi exposes "openai-codex/gpt-5.5"; a caller passes a bare "gpt-5.5") and retry once.
     const allowed = allowedFromError(err);
-    const fallbackAllowed = allowed.length ? allowed : await allowedModels(session);
+    const fallbackAllowed = allowed.length
+      ? allowed
+      : await allowedModels(session);
     const match = pickModel(fallbackAllowed, wanted);
     if (match && match !== wanted) {
       try {
@@ -122,9 +150,15 @@ export async function applyModel(
       }
     }
     if (strict) {
-      throw new ModelNotSettableError(wanted, fallbackAllowed, (err as Error).message);
+      throw new ModelNotSettableError(
+        wanted,
+        fallbackAllowed,
+        (err as Error).message,
+      );
     }
-    log(`model '${wanted}' not settable (${(err as Error).message}); using harness default`);
+    log(
+      `model '${wanted}' not settable (${(err as Error).message}); using harness default`,
+    );
     return undefined;
   }
 }

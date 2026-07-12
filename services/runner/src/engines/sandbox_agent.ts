@@ -34,7 +34,13 @@ import { rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
 
-import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
+import {
+  SandboxAgent,
+  InMemorySessionPersistDriver,
+  type PermissionReply,
+  type SessionEvent,
+  type SessionPermissionRequest,
+} from "sandbox-agent";
 
 import {
   createSandboxAgentOtel,
@@ -160,7 +166,7 @@ import {
   sessionContinuityStore,
   type SessionContinuityStore,
 } from "./sandbox_agent/session-continuity.ts";
-import { resolvesToLocalProvider } from "./sandbox_agent/session-pool.ts";
+import { resolvesToLocalProvider } from "./sandbox_agent/session-identity.ts";
 
 export {
   buildTurnText,
@@ -1345,14 +1351,14 @@ export async function acquireEnvironment(
 
     // Session-lifetime listeners: attach ONCE, each demuxing into the active turn's sink. They
     // outlive any single turn, so the routing lives in dedicated non-throwing helpers below.
-    environment.session.onEvent((event: any) =>
+    environment.session.onEvent((event: SessionEvent) =>
       routeSessionEventToActiveTurn(
         environment,
         remountLocalCwdAfterRuntimeEnotconn,
         event,
       ),
     );
-    environment.session.onPermissionRequest((req: any) =>
+    environment.session.onPermissionRequest((req: SessionPermissionRequest) =>
       routePermissionRequestToActiveTurn(environment, req),
     );
 
@@ -1382,13 +1388,20 @@ export async function acquireEnvironment(
 function routeSessionEventToActiveTurn(
   environment: SessionEnvironment,
   remountLocalCwdAfterRuntimeEnotconn: (event: unknown) => void,
-  event: any,
+  event: SessionEvent,
 ): void {
   const { logger, plan } = environment;
   try {
     remountLocalCwdAfterRuntimeEnotconn(event);
-    const payload = event?.payload;
-    const update = payload?.params?.update ?? payload?.update;
+    const payload =
+      event && typeof event === "object" && "payload" in event
+        ? (event.payload as Record<string, unknown> | undefined)
+        : undefined;
+    const params =
+      payload?.params && typeof payload.params === "object"
+        ? (payload.params as Record<string, unknown>)
+        : undefined;
+    const update = params?.update ?? payload?.update;
     if (!update) return;
     // Record live ACP tool_call ids so a paused client_tool can correlate to Claude's bubble
     // (session-scoped; a lookup CONSUMES its matched id).
@@ -1420,7 +1433,7 @@ function routeSessionEventToActiveTurn(
  */
 function routePermissionRequestToActiveTurn(
   environment: SessionEnvironment,
-  req: any,
+  req: SessionPermissionRequest,
 ): void {
   const { logger, plan } = environment;
   try {
@@ -1667,7 +1680,7 @@ export async function runTurn(
         onPermissionRequest: (handler: (req: unknown) => void) => {
           turn.onPermissionRequest = handler;
         },
-        respondPermission: (id: string, reply: string) =>
+        respondPermission: (id: string, reply: PermissionReply) =>
           env.session.respondPermission(id, reply),
       },
       run,
@@ -1834,7 +1847,11 @@ export async function runTurn(
       throw new Error(runLimitReason ?? "run limit tripped");
     }
     const stopReason =
-      raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+      raced === PAUSED || pause.active
+        ? "paused"
+        : raced && typeof raced === "object" && "stopReason" in raced
+          ? String(raced.stopReason)
+          : undefined;
     const result = raced === PAUSED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to the parked record so a
     // later resume can await the same continuation. (Set after the race so `promptPromise` exists.
