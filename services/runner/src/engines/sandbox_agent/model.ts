@@ -25,8 +25,26 @@ export class ModelNotSettableError extends Error {
 }
 
 /**
+ * Strip a trailing Claude-style context-window hint (e.g. "sonnet[1m]" -> "sonnet") so a bare
+ * alias can be matched against the harness's own id regardless of which context variant the
+ * harness currently exposes for that model family.
+ */
+const stripContextHint = (id: string) => id.replace(/\[[^[\]]*\]$/, "");
+
+/**
  * Pick the harness-specific model id for a requested name. Harnesses expose their own ids
- * (Pi: "openai-codex/gpt-5.5"; Claude: its own). Match exact, then by provider suffix.
+ * (Pi: "openai-codex/gpt-5.5"; Claude: alias ids like "opus" / "sonnet[1m]"). Match exact, then
+ * by provider suffix (Pi), then by context-hint-normalized alias (Claude).
+ *
+ * The context-hint tier exists because the Claude harness's reported alias set is not symmetric
+ * across model families: at the time of writing it offers bare "opus"/"haiku" alongside their
+ * "[1m]" variants, but only "sonnet[1m]" — no bare "sonnet" — because the current Sonnet
+ * generation ships in a single (1M-context) variant with no separate short-context sibling to
+ * back a bare alias. A caller (or the agent-config default) requesting the friendly "sonnet"
+ * alias must still resolve, so a bare request matches the harness's own hinted id when that's
+ * the only variant on offer. This only widens a request to the harness's actual (equal-or-larger
+ * context) variant; it never falls back from a hinted request to a bare id, which would silently
+ * shrink the context window.
  */
 export function pickModel(allowed: string[], wanted?: string): string | undefined {
   if (!wanted) return undefined;
@@ -35,6 +53,7 @@ export function pickModel(allowed: string[], wanted?: string): string | undefine
   return (
     allowed.find((id) => suffix(id) === wanted) ??
     allowed.find((id) => suffix(id) === suffix(wanted)) ??
+    allowed.find((id) => id !== wanted && stripContextHint(id) === wanted) ??
     undefined
   );
 }

@@ -27,6 +27,23 @@ describe("pickModel", () => {
   it("returns undefined when no model matches", () => {
     assert.equal(pickModel(["anthropic/sonnet"], "gpt-5.5"), undefined);
   });
+
+  it("matches a bare Claude alias to its harness-reported [1m] variant", () => {
+    // The Claude harness's live alias set is not symmetric: "opus"/"haiku" are offered bare
+    // alongside "opus[1m]"/"haiku[1m]", but the current Sonnet generation ships in only its
+    // 1M-context variant, so the harness reports "sonnet[1m]" with no bare "sonnet" sibling.
+    const allowed = ["default", "sonnet[1m]", "opus", "opus[1m]", "haiku"];
+    assert.equal(pickModel(allowed, "sonnet"), "sonnet[1m]");
+    // Aliases the harness already exposes bare still match exactly, unaffected by the new tier.
+    assert.equal(pickModel(allowed, "opus"), "opus");
+    assert.equal(pickModel(allowed, "haiku"), "haiku");
+  });
+
+  it("does not fall back from a hinted request to a bare id (never shrinks context)", () => {
+    // Only "sonnet" is offered (no "[1m]" sibling): a caller that explicitly asked for the
+    // long-context variant must not be silently downgraded to the short-context one.
+    assert.equal(pickModel(["default", "sonnet", "opus"], "sonnet[1m]"), undefined);
+  });
 });
 
 describe("allowedFromError", () => {
