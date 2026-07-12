@@ -52,6 +52,12 @@ export interface StepInfo {
     isReview: boolean
     /** True only when stepper mode is actually active (`stepper` && >1 field). */
     isStepper: boolean
+    /** A previous step exists (⌘← applies). */
+    canGoBack: boolean
+    /** A forward step exists — another question or the review (⌘→ applies). */
+    canGoNext: boolean
+    /** The current question renders choice cards, so 1–9 digit selection applies. */
+    pickable: boolean
 }
 
 export interface SchemaFormHandle {
@@ -129,13 +135,17 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
             })
         }, [step, stepperOn, onReview])
         useEffect(() => {
+            const current = onReview ? undefined : fields[step]
             onStepChange?.({
                 step,
                 total: fields.length,
                 isReview: onReview,
                 isStepper: stepperOn,
+                canGoBack: stepperOn && step > 0,
+                canGoNext: stepperOn && !onReview,
+                pickable: stepperOn && !!current && wantsChoiceCards(current),
             })
-        }, [step, fields.length, onReview, stepperOn, onStepChange])
+        }, [step, fields, onReview, stepperOn, onStepChange])
         Form.useWatch([], form) // review rows re-render as answers change
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
 

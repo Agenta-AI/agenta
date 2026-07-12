@@ -20,6 +20,7 @@ import {
     partitionElicitationDraft,
     serializeElicitationContent,
 } from "@agenta/shared/utils"
+import {ShortcutHint} from "@agenta/ui/rich-chat-input"
 import {CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
 import {Button, Form, Typography} from "antd"
 import dayjs from "dayjs"
@@ -243,6 +244,15 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 onValuesChange={persistDraft}
                 onStepChange={setStepInfo}
             />
+
+            {stepInfo?.isStepper &&
+            (stepInfo.canGoBack || stepInfo.canGoNext || stepInfo.pickable) ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-0.5">
+                    {stepInfo.canGoBack ? <ShortcutHint keys="⌘ ←" label="back" /> : null}
+                    {stepInfo.canGoNext ? <ShortcutHint keys="⌘ →" label="next" /> : null}
+                    {stepInfo.pickable ? <ShortcutHint keys="1–9" label="pick" /> : null}
+                </div>
+            ) : null}
 
             <div className="flex items-center gap-2">
                 {inStepper ? (
