@@ -38,6 +38,12 @@ the compose var mapping corrected and a container recreate.
    self-healing (recreate a degraded/wrong-target link each run). If geesefs ever gains durable
    symlink support on the pinned version, the self-heal can relax to a plain create-if-absent.
 
+3a. **Timeout on the sign fetch.** `signAgentMountCredentials` now bounds its POST with
+   `AbortSignal.timeout(10_000)` so a hung `/sign` endpoint fails open instead of stalling
+   environment acquisition (CodeRabbit catch on #5247). The sibling `signSessionMountCredentials`
+   in `mount.ts` (durable-cwd path, out of this PR's scope) still issues an unbounded POST and
+   deserves the same guard.
+
 ## Cleanup and reuse
 
 4. **Shared sign core in the runner.** `signSessionMountCredentials` (mount.ts) and
