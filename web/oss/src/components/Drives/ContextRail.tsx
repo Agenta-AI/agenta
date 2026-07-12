@@ -66,12 +66,12 @@ export function ContextRail({
                     className="flex h-full flex-col items-center border-0 border-l border-solid border-[var(--ag-surface-divider)] px-0.5 pt-2"
                     style={{width: STRIP_WIDTH}}
                 >
-                    <Tooltip title="Show context rail" placement="left">
+                    <Tooltip title="Show files & context" placement="left">
                         <Button
                             type="text"
                             icon={<Sidebar size={15} />}
                             onClick={() => setOpen(true)}
-                            aria-label="Show context rail"
+                            aria-label="Show files and context"
                         />
                     </Tooltip>
                 </div>
@@ -115,20 +115,20 @@ const ExpandedRail = ({
                     </Tag>
                 ) : null}
                 <div className="ml-auto flex items-center">
-                    <Tooltip title="Open the Files window">
+                    <Tooltip title="Open all files">
                         <Button
                             type="text"
                             icon={<ArrowSquareOut size={13} />}
                             onClick={onOpenFiles}
-                            aria-label="Open the Files window"
+                            aria-label="Open all files"
                         />
                     </Tooltip>
-                    <Tooltip title="Hide context rail">
+                    <Tooltip title="Hide files & context">
                         <Button
                             type="text"
                             icon={<Sidebar size={13} />}
                             onClick={onCollapse}
-                            aria-label="Hide context rail"
+                            aria-label="Hide files and context"
                         />
                     </Tooltip>
                 </div>
