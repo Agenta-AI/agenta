@@ -73,6 +73,9 @@ export function EventSourcePicker({
                 setOpen(false)
                 onPick(event)
             }
+        } catch {
+            // Callers surface their own error before rejecting; swallow so the fire-and-forget
+            // `void wait()` never becomes an unhandled rejection.
         } finally {
             setWaiting(false)
         }
@@ -84,6 +87,9 @@ export function EventSourcePicker({
         if (next) {
             settledRef.current = false
             if (autoWaitOnOpen && onWaitForEvent) void wait()
+        } else {
+            // A wait resolving after the popover closed must not fire onPick.
+            settledRef.current = true
         }
     }
 
