@@ -67,7 +67,7 @@ const modelHubTests = () => {
 
         await scenarios.then('the "Custom providers" table lists the "mock" provider', async () => {
             const customProvidersSection = page
-                .getByText("Custom providers", {exact: true})
+                .getByText("Custom Provider", {exact: true})
                 .locator("xpath=ancestor::section[1]")
                 .first()
             const providersTable = customProvidersSection.getByRole("table").first()
@@ -206,12 +206,15 @@ const modelHubTests = () => {
                 "the user creates a new custom provider via the drawer",
                 async () => {
                     const customProvidersSection = page
-                        .getByText("Custom providers", {exact: true})
+                        .getByText("Custom Provider", {exact: true})
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
+                    // The section's own label IS the trigger button now — "Create" was
+                    // renamed to "Custom Provider".
                     const createButton = customProvidersSection.getByRole("button", {
-                        name: "Create",
+                        name: "Custom Provider",
+                        exact: true,
                     })
                     await expect(createButton).toBeVisible({timeout: 15000})
                     await createButton.click()
@@ -263,7 +266,7 @@ const modelHubTests = () => {
                 "the new custom provider row appears in the Custom providers table",
                 async () => {
                     const customProvidersSection = page
-                        .getByText("Custom providers", {exact: true})
+                        .getByText("Custom Provider", {exact: true})
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
@@ -282,7 +285,7 @@ const modelHubTests = () => {
 
             await scenarios.when("the user deletes the newly created custom provider", async () => {
                 const customProvidersSection = page
-                    .getByText("Custom providers", {exact: true})
+                    .getByText("Custom Provider", {exact: true})
                     .locator("xpath=ancestor::section[1]")
                     .first()
 
@@ -303,7 +306,7 @@ const modelHubTests = () => {
 
             await scenarios.then("the deleted provider row is no longer visible", async () => {
                 const customProvidersSection = page
-                    .getByText("Custom providers", {exact: true})
+                    .getByText("Custom Provider", {exact: true})
                     .locator("xpath=ancestor::section[1]")
                     .first()
 

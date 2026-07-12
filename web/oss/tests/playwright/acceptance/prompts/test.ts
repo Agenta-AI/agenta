@@ -84,11 +84,14 @@ const testWithPromptsFixtures = baseTest.extend<PromptsFixtures>({
             await expect(createButton).toBeEnabled({timeout: 15000})
             await createButton.click()
 
+            // The modal no longer wraps its buttons in a `.ant-modal-footer`
+            // div (migrated off the raw antd Modal footer), so filter by the
+            // "Create" button itself rather than the footer wrapper.
             const confirmModal = page
                 .locator(".ant-modal-wrap")
-                .filter({has: page.locator(".ant-modal-footer")})
+                .filter({has: page.getByRole("button", {name: "Create", exact: true})})
                 .last()
-            const confirmButton = confirmModal.locator(".ant-modal-footer").getByRole("button", {
+            const confirmButton = confirmModal.getByRole("button", {
                 name: "Create",
                 exact: true,
             })
