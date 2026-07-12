@@ -69,22 +69,6 @@ export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
   "sandbox, use the Pi harness, or remove the tools. Tracked in " +
   "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
 
-/**
- * A `client` (browser-fulfilled) tool on a non-Pi harness on a remote sandbox has no pause
- * path: on local Claude the internal loopback MCP channel pauses a client `tools/call` by
- * aborting the in-flight HTTP request, but through the in-sandbox stdio shim the relay loop
- * parks the call and writes no response file, so the shim would hang until the relay timeout
- * and teach the model the tool is broken. Executable (gateway/callback) tools work on
- * Claude+Daytona via the shim; client tools stay refused loud (never silently dropped —
- * F-032) until the Daytona client-tool bridge exists.
- */
-export const REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE =
-  "Client tools are not supported for a non-Pi harness on a remote sandbox: a client tool " +
-  "needs the browser round-trip, which the in-sandbox tool MCP channel cannot pause yet " +
-  "(executable gateway/callback tools work). Remove the client tools, run on the local " +
-  "sandbox, or use the Pi harness. Tracked in " +
-  "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
-
 export interface RunPlan {
   harness: string;
   acpAgent: string;
@@ -383,22 +367,14 @@ export function buildRunPlan(
 
   // Non-Pi + remote + tools: executable (gateway/callback) tools are DELIVERABLE on Daytona
   // via the in-sandbox stdio MCP shim (uploaded per run, advertised as the internal typeless
-  // stdio entry, calls relayed to the runner through the file relay). Two refusals remain,
-  // both loud (F1 / F-032, never a silent tool drop):
-  //  (a) a remote provider that is not Daytona fails CLOSED — the shim's upload + spawn path
-  //      is proven for Daytona only, and a new provider must not silently re-open the F1
-  //      zero-tools drop one provider over;
-  //  (b) any `client` (browser-fulfilled) tool — the relay loop parks a client call and
-  //      writes no response file, so through the shim it would hang until the relay timeout
-  //      and read as a broken tool. Executable tools pass; the client-tool bridge is its own
-  //      project (docs/design/agent-workflows/projects/in-sandbox-tool-mcp/).
-  // Both fire BEFORE any cwd is created, like the other up-front gates.
+  // stdio entry, calls relayed to the runner through the file relay). A remote provider that is
+  // not Daytona fails CLOSED because the shim's upload + spawn path is proven for Daytona only.
+  // Client tools are intentionally omitted from the Daytona shim's uploaded public specs: its
+  // blocking relay call cannot pause for a browser round-trip yet. Local Claude and Pi retain
+  // their existing client-tool delivery paths.
   if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
     if (!isDaytona) {
       return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
-    }
-    if (toolSpecs.some((spec) => spec.kind === "client")) {
-      return { ok: false, error: REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE };
     }
   }
 

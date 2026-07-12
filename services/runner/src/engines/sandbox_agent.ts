@@ -734,6 +734,16 @@ export async function acquireEnvironment(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
       `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
   );
+  if (!plan.isPi && plan.isDaytona) {
+    const omittedClientTools = plan.toolSpecs
+      .filter((spec) => spec.kind === "client")
+      .map((spec) => spec.name);
+    if (omittedClientTools.length > 0) {
+      logger(
+        `omitting client tools from Daytona stdio MCP shim: ${omittedClientTools.join(", ")}`,
+      );
+    }
+  }
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
