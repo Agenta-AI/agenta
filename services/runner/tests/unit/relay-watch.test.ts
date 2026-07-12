@@ -5,9 +5,10 @@
  * - The Daytona window loop: single-flight (at most ONE concurrent runProcess, ever),
  *   sticky coalescing, close-abandons-the-window with no unhandled rejection, demotion
  *   after exactly 3 consecutive failures with backoff-gated rearm, wake/failure
- *   classification per completion shape (rejected / timedOut / nonzero or null exit /
- *   success), the runner-side outer bound abandoning a never-settling exec, and the
- *   deferred arm inside a wait that starts during a backoff gap.
+ *   classification per completion shape (rejected / nullish result / timedOut /
+ *   nonzero-null-or-missing exit / exit 0), the runner-side outer bound abandoning a
+ *   never-settling exec, the deferred arm inside a wait that starts during a backoff
+ *   gap, and the mid-wait re-arm after a failure lands while a waiter is parked.
  * - Window config parsing and clamping, and the downward-only (−20%..0%) jitter bounds.
  * - The script args builder: the relay dir rides argv only, never the script text.
  * - The watch script AS A REAL PROCESS (execFile, argv, no shell) against temp dirs.
@@ -288,6 +289,36 @@ describe("daytonaRelayActivitySource invariants", () => {
     source.close();
   });
 
+  it("a nullish runProcess RESULT is a failure with NO wake, never a success reset; three demote", async () => {
+    // A broken daemon path can insta-resolve runProcess with undefined. If that read
+    // as success, the counter would pin at 0 and the source would storm windows
+    // forever; it must count as a failure and feed demotion instead.
+    const { sandbox, calls } = fakeSandbox();
+    const logs: string[] = [];
+    const source = daytonaRelayActivitySource(sandbox, "/relay", {
+      windowMs: 60_000,
+      backoffBaseMs: 1,
+      backoffCapMs: 2,
+      log: (msg) => logs.push(msg),
+    });
+
+    for (let i = 0; i < 3; i += 1) {
+      const wait = source.wait({ timeoutMs: 30 });
+      calls[i].resolve(undefined as unknown as { exitCode?: number | null });
+      assert.equal(await wait, "timeout", "a nullish result never wakes");
+      await sleep(10);
+    }
+    assert.equal(source.isHealthy(), false, "three nullish results demote");
+    assert.equal(
+      logs.filter((l) =>
+        l.includes("watch failure: exec resolved with no result"),
+      ).length,
+      3,
+    );
+    assert.equal(logs.filter((l) => l.includes("demoted")).length, 1);
+    source.close();
+  });
+
   it("timedOut:true is a failure with NO wake; a later success resets the counter", async () => {
     const { sandbox, calls } = fakeSandbox();
     const source = daytonaRelayActivitySource(sandbox, "/relay", {
@@ -342,7 +373,7 @@ describe("daytonaRelayActivitySource invariants", () => {
     source.close();
   });
 
-  it("outer bound: a never-settling exec counts as a failure, demotes after three, and late settles change nothing", async () => {
+  it("outer bound: a never-settling exec counts as a failure, re-arms inside the SAME wait, demotes after three, and late settles change nothing", async () => {
     const settlers: Array<{
       resolve: (r: { exitCode?: number | null; timedOut?: boolean }) => void;
       reject: (err: unknown) => void;
@@ -364,20 +395,16 @@ describe("daytonaRelayActivitySource invariants", () => {
       log: (msg) => logs.push(msg),
     });
 
-    for (let round = 1; round <= 3; round += 1) {
-      const wait = source.wait({ timeoutMs: 150 });
-      assert.equal(
-        settlers.length,
-        round,
-        "each round arms exactly one window",
-      );
-      // The exec never settles: the outer bound (jittered window + grace + margin,
-      // ~72-80 ms here) fires first, counts a failure with NO wake, and clears
-      // inFlight — proven by the next round arming a fresh window.
-      assert.equal(await wait, "timeout", "outer-bound expiry never wakes");
-      assert.equal(source.isHealthy(), round < 3);
-      await sleep(5); // past the tiny injected backoff
-    }
+    // ONE long wait: each outer bound (jittered window + grace + margin, ~72-80 ms
+    // here) abandons the never-settling exec, counts a failure with NO wake, and the
+    // mid-wait re-arm (fix 4) arms the next window after the tiny backoff — all
+    // inside this same parked wait, with no safety-poll help. Three abandoned
+    // windows demote the source; demotion stops the chain at exactly three.
+    const wait = source.wait({ timeoutMs: 600 });
+    assert.equal(settlers.length, 1, "wait entry armed the first window");
+    assert.equal(await wait, "timeout", "outer-bound expiry never wakes");
+    assert.equal(settlers.length, 3, "three windows chained, then demotion");
+    assert.equal(source.isHealthy(), false, "demoted after three");
     assert.equal(
       logs.filter((l) => l.includes("watch failure: window outer bound"))
         .length,
@@ -430,6 +457,39 @@ describe("daytonaRelayActivitySource invariants", () => {
     assert.equal(calls.length, 2, "the deferred arm fired inside the wait");
     calls[1].resolve({ exitCode: 0, timedOut: false });
     assert.equal(await w2, "activity", "the deferred window wakes the wait");
+    source.close();
+  });
+
+  it("a failure landing MID-wait re-arms after the backoff inside that same wait (fix 4)", async () => {
+    // The gap this closes: an exec that fails 1 s into a 30 s safety wait used to
+    // leave the source windowless until the wait's own timer — no deferred arm was
+    // scheduled because the wait STARTED with a window in flight, outside any backoff
+    // gap. Now countFailure re-enters the arm gate while a waiter is parked.
+    const { sandbox, calls } = fakeSandbox();
+    const source = daytonaRelayActivitySource(sandbox, "/relay", {
+      windowMs: 60_000,
+      backoffBaseMs: 50,
+      backoffCapMs: 50,
+    });
+
+    const wait = source.wait({ timeoutMs: 2_000 });
+    assert.equal(calls.length, 1, "wait entry armed a window");
+    calls[0].reject(new Error("exec died mid-wait"));
+    await tick();
+    assert.equal(
+      calls.length,
+      1,
+      "no instant rearm: the backoff gates the next window",
+    );
+
+    await sleep(200); // well past the <= 50 ms jittered backoff
+    assert.equal(
+      calls.length,
+      2,
+      "the failure re-armed inside the SAME parked wait",
+    );
+    calls[1].resolve({ exitCode: 0, timedOut: false });
+    assert.equal(await wait, "activity", "the re-armed window wakes the wait");
     source.close();
   });
 

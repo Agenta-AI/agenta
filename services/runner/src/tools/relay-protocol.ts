@@ -66,3 +66,17 @@ export function serializeRelayRequest(req: ExecuteRelayRequest): string {
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Read one boolean relay env flag at CALL time (so a test or an operator restart takes
+ * effect immediately). The exact strings "false"/"0" disable, "true"/"1" enable, and
+ * anything else (unset, empty, garbage) falls back to `defaultValue`. Shared by the
+ * hop-1 response-watch flag (default true) and the hop-2 remote-watch flag (default
+ * false) so the two flags cannot drift in parsing.
+ */
+export function relayEnvFlag(name: string, defaultValue: boolean): boolean {
+  const value = process.env[name];
+  if (value === "false" || value === "0") return false;
+  if (value === "true" || value === "1") return true;
+  return defaultValue;
+}

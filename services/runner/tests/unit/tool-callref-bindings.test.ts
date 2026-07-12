@@ -69,9 +69,9 @@ async function relayOnce(input: {
       { endpoint: ENDPOINT, authorization: "ApiKey secret" },
       input.runContext,
     );
-    // Written AFTER startToolRelay: the loop's first successful list (issued
-    // synchronously inside startToolRelay) is the orphan snapshot, and a request
-    // already present there is cleared as pre-turn residue instead of executed.
+    // Written AFTER startToolRelay: the stale-file sweep (whose listing is taken
+    // synchronously inside startToolRelay for this synchronous-list host) clears any
+    // request already present as pre-turn residue instead of executing it.
     writeFileSync(
       join(dir, `${id}.req.json`),
       JSON.stringify({

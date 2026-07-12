@@ -12,9 +12,11 @@
  *   failure. Behind `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED` (default false).
  *
  * This module is SERVER-SIDE: it may import ./relay-client.ts and ./relay-protocol.ts,
- * but must never be imported by them (they are bundled into the sandbox; the acceptance
- * gate greps the extension bundle for this module's symbols).
+ * but must never be imported by them (they are bundled into the sandbox;
+ * scripts/build-extension.mjs fails the build if this module's symbols appear in the
+ * extension bundle).
  */
+import { relayEnvFlag } from "./relay-protocol.ts";
 import { createRelayDirWatch } from "./relay-client.ts";
 
 export interface RelayActivitySource {
@@ -36,8 +38,7 @@ export interface RelayActivitySource {
  * (flips to true after the QA pass); only the exact strings "true" and "1" enable it.
  */
 export function remoteWatchEnabled(): boolean {
-  const value = process.env.AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED;
-  return value === "true" || value === "1";
+  return relayEnvFlag("AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED", false);
 }
 
 /**
@@ -269,14 +270,15 @@ export function daytonaRelayActivitySource(
   let stickyActivity = false;
   let consecutiveFailures = 0;
   let nextArmAt = 0;
-  let inFlight = false;
   // Window generations: each armWindow gets a fresh generation, and only the LIVE
-  // generation may settle. The outer-bound timer abandons a never-settling exec by
-  // killing its generation, so a late settle from the abandoned promise is ignored
-  // entirely (no wake, no counter reset, no inFlight mutation).
+  // generation may settle. `liveGeneration !== 0` is also the single source of truth
+  // for "a window is in flight". The outer-bound timer abandons a never-settling exec
+  // by killing its generation, so a late settle from the abandoned promise is ignored
+  // entirely (no wake, no counter reset, no in-flight mutation).
   let armGeneration = 0;
   let liveGeneration = 0; // 0 = no live window
   let outerBoundTimer: ReturnType<typeof setTimeout> | undefined;
+  let deferredArmTimer: ReturnType<typeof setTimeout> | undefined;
   let waiter:
     | ((outcome: "activity" | "timeout" | "closed") => void)
     | undefined;
@@ -288,11 +290,57 @@ export function daytonaRelayActivitySource(
     }
   };
 
+  const clearDeferredArm = (): void => {
+    if (deferredArmTimer !== undefined) {
+      clearTimeout(deferredArmTimer);
+      deferredArmTimer = undefined;
+    }
+  };
+
+  /**
+   * Deferred arm: (re)schedule the single source-level timer for `nextArmAt`. At most
+   * one such timer ever exists (a reschedule replaces it), and it is cleared when the
+   * current wait settles and on close(). The timer body goes back through `tryArm`,
+   * which re-defers if it fired marginally early (Node truncates delays) or the gate
+   * moved (another failure pushed `nextArmAt`) while the wait was parked.
+   */
+  const scheduleDeferredArm = (): void => {
+    clearDeferredArm();
+    deferredArmTimer = setTimeout(
+      () => {
+        deferredArmTimer = undefined;
+        tryArm();
+      },
+      Math.max(1, nextArmAt - Date.now()),
+    );
+  };
+
+  /**
+   * The single arm gate (fix 4 of the slice-3 review): arm a window now when the
+   * source can (not closed, not demoted, no live window) and the backoff gate is
+   * open; when only the gate blocks it, fall back to the deferred-arm timer. Used by
+   * (a) wait() entry, (b) the deferred-arm timer body, and (c) countFailure while a
+   * waiter is parked — so a window that fails 1 s into a 30 s wait re-arms after its
+   * backoff inside that same wait instead of leaving the source windowless until the
+   * safety timer.
+   */
+  const tryArm = (): void => {
+    if (closed || demoted || liveGeneration !== 0) return;
+    if (Date.now() >= nextArmAt) {
+      clearDeferredArm();
+      armWindow();
+      return;
+    }
+    scheduleDeferredArm();
+  };
+
   /**
    * The single failure account (finding 4 of the slice-2 review): every failure —
-   * exec rejection, daemon timeout, nonzero/null exit, outer-bound expiry, safety-poll
-   * miss — increments the counter, applies jittered exponential backoff to the next
-   * arm, logs one line, and demotes at the threshold (exactly one demotion log ever).
+   * exec rejection, nullish result, daemon timeout, nonzero/nullish exit, outer-bound
+   * expiry, safety-poll miss — increments the counter, applies jittered exponential
+   * backoff to the next arm, logs one line, and demotes at the threshold (exactly one
+   * demotion log ever). A failure that lands while a waiter is parked re-enters the
+   * arm gate so the wait is not left windowless (the gate defers past the backoff).
    */
   const countFailure = (reason: string): void => {
     consecutiveFailures += 1;
@@ -308,6 +356,7 @@ export function daytonaRelayActivitySource(
         `[relay] relay watch demoted to classic polling after ${consecutiveFailures} consecutive failures (${reason})`,
       );
     }
+    if (waiter && !closed && !demoted) tryArm();
   };
 
   /** Window completion or a straggler wake: resolve the waiter or set the sticky bit. */
@@ -323,7 +372,6 @@ export function daytonaRelayActivitySource(
   };
 
   const armWindow = (): void => {
-    inFlight = true;
     const gen = ++armGeneration;
     liveGeneration = gen;
     const jitteredWindow = applyRelayWatchJitter(windowMs);
@@ -350,15 +398,14 @@ export function daytonaRelayActivitySource(
       window = Promise.reject(err);
     }
     // Runner-side outer bound: the daemon's timeoutMs is a promise the daemon may
-    // never keep (a blackholed proxy leaves runProcess pending forever, pinning
-    // inFlight and starving demotion). Past window + grace + margin a still-pending
-    // window is abandoned: counted as a failure, inFlight cleared, generation killed.
+    // never keep (a blackholed proxy leaves runProcess pending forever, pinning the
+    // live window and starving demotion). Past window + grace + margin a still-pending
+    // window is abandoned: counted as a failure, generation killed.
     outerBoundTimer = setTimeout(
       () => {
         outerBoundTimer = undefined;
         if (closed || gen !== liveGeneration) return;
         liveGeneration = 0;
-        inFlight = false;
         countFailure("window outer bound expired (exec never settled)");
       },
       jitteredWindow + graceMs + outerBoundMarginMs,
@@ -368,22 +415,28 @@ export function daytonaRelayActivitySource(
         if (gen !== liveGeneration) return; // abandoned by the outer bound: dead gen
         liveGeneration = 0;
         clearOuterBound();
-        inFlight = false;
         if (closed) return; // abandoned window (see close()); its wake is meaningless now
-        if (result?.timedOut === true) {
+        // Completion classification (fix 2 of the slice-3 review). A nullish result
+        // is a broken daemon path, not a wake: an insta-resolving runProcess that
+        // returns nothing must feed demotion, never reset the counter and storm.
+        if (result === null || result === undefined) {
+          countFailure("exec resolved with no result");
+          return;
+        }
+        if (result.timedOut === true) {
           // The daemon killed the exec past window + grace: the script never expired on
           // its own timer, so this is a failure, not a wake.
           countFailure("daemon timeout");
           return;
         }
-        const exitCode = result?.exitCode;
-        if (exitCode === 0 || exitCode === undefined) {
+        if (result.exitCode === 0) {
           consecutiveFailures = 0;
         } else {
-          // Nonzero or null (signal-killed / OOM) exit is still a wake (the list pass
-          // is harmless) but counts as a failure so a script that keeps dying demotes
-          // the source; null must not read as success.
-          countFailure(`watch script exited with code ${exitCode}`);
+          // Nonzero, null (signal-killed / OOM), or MISSING exit is still a wake (the
+          // list pass is harmless) but counts as a failure so a script that keeps
+          // dying — or a daemon that stops reporting exit codes — demotes the source;
+          // an absent exitCode must not read as success.
+          countFailure(`watch script exited with code ${result.exitCode}`);
         }
         wake();
       })
@@ -391,7 +444,6 @@ export function daytonaRelayActivitySource(
         if (gen !== liveGeneration) return; // abandoned: keep the rejection handled, mutate nothing
         liveGeneration = 0;
         clearOuterBound();
-        inFlight = false;
         if (closed) return;
         // The exec could not run at all: failure, backoff, and NO wake (the waiter's
         // own timer resolves "timeout"). Never rethrown: a rejecting exec must never
@@ -417,15 +469,17 @@ export function daytonaRelayActivitySource(
         return Promise.resolve("activity");
       }
       if (signal?.aborted) return Promise.resolve("closed");
-      if (!demoted && !inFlight && Date.now() >= nextArmAt) armWindow();
+      // The arm gate: arm now when it can, or defer to the timer when a wait that
+      // starts inside a backoff gap would otherwise sit windowless for its whole
+      // timeout (up to the 30 s safety wait).
+      tryArm();
       return new Promise((resolve) => {
         let settled = false;
-        let deferredArmTimer: ReturnType<typeof setTimeout> | undefined;
         const settle = (outcome: "activity" | "timeout" | "closed"): void => {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
-          if (deferredArmTimer !== undefined) clearTimeout(deferredArmTimer);
+          clearDeferredArm();
           if (waiter === settle) waiter = undefined;
           signal?.removeEventListener("abort", onAbort);
           resolve(outcome);
@@ -436,34 +490,13 @@ export function daytonaRelayActivitySource(
         const timer = setTimeout(() => settle("timeout"), timeoutMs);
         waiter = settle;
         signal?.addEventListener("abort", onAbort, { once: true });
-        // Deferred arm: a wait that starts inside a backoff gap would otherwise sit
-        // windowless for its whole timeout (up to the 30 s safety wait). Arm when the
-        // gate opens, inside this wait; cleared on settle. Re-scheduled if the timer
-        // fires marginally early (Node truncates delays) or the gate moved (another
-        // failure pushed nextArmAt) while this wait was parked.
-        const scheduleDeferredArm = (): void => {
-          deferredArmTimer = setTimeout(
-            () => {
-              deferredArmTimer = undefined;
-              if (settled || closed || demoted || inFlight) return;
-              if (Date.now() < nextArmAt) {
-                scheduleDeferredArm();
-                return;
-              }
-              armWindow();
-            },
-            Math.max(1, nextArmAt - Date.now()),
-          );
-        };
-        if (!demoted && !inFlight && Date.now() < nextArmAt) {
-          scheduleDeferredArm();
-        }
       });
     },
     close: () => {
       if (closed) return;
       closed = true;
       clearOuterBound();
+      clearDeferredArm();
       // The in-flight runProcess CANNOT be aborted: the SDK's runProcess takes no
       // per-call AbortSignal (verified against node_modules/sandbox-agent/dist/
       // index.d.ts; only connection-level signals exist). Deviation from plan

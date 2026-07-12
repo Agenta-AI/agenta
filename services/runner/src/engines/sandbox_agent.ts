@@ -418,7 +418,7 @@ const RUN_LIMIT_TRIPPED = Symbol("run-limit-tripped");
 interface CurrentTurn {
   run: ReturnType<typeof createSandboxAgentOtel>;
   pause: PendingApprovalPauseController;
-  toolRelay?: { stop: () => Promise<void> };
+  toolRelay?: { ready?: Promise<void>; stop: () => Promise<void> };
   /** Route a session/update for the active turn (suppress + handleUpdate + pause re-sweep). */
   handleUpdate: (update: unknown) => void;
   /** Route a permission reverse-RPC for the active turn (built by attachPermissionResponder). */
@@ -1751,6 +1751,12 @@ export async function runTurn(
         relayGuard,
         { log: logger },
       );
+      // Ordering invariant: the relay's stale-file sweep must complete before the
+      // resume's respondPermission or the fresh prompt below can cause a legitimate
+      // request, so nothing legitimate can predate the sweep and be swallowed as
+      // stale. Optional-chained so a fake relay without `ready` is tolerated, and a
+      // sweep failure never kills the turn.
+      await turn.toolRelay?.ready?.catch?.(() => {});
     }
 
     // The prompt promise this turn races against the pause signal. A normal/continuation turn

@@ -31,6 +31,7 @@ import {
   RELAY_POLL_MS,
   RELAY_REQ_SUFFIX,
   RELAY_RES_SUFFIX,
+  relayEnvFlag,
   relayTempPath,
   serializeRelayRequest,
   sleep,
@@ -170,6 +171,31 @@ describe("waitForRelayResponse", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("a deadline-coincident response still wins: the post-loop check returns it instead of throwing", async () => {
+    // Pin the FINAL post-loop existsSync (fix 5): the watch is disabled so the poll
+    // sleep (RELAY_POLL_MS, 300 ms) cannot be cut short, and the deadline (150 ms)
+    // expires DURING that first sleep. The response lands mid-sleep, so neither the
+    // pre-loop fast path (file absent at entry) nor an in-loop check (the loop exits
+    // by deadline before re-checking) can explain a successful return.
+    const dir = tempDir();
+    const previous = process.env[WATCH_FLAG];
+    process.env[WATCH_FLAG] = "false";
+    try {
+      const resPath = join(dir, `call-deadline${RELAY_RES_SUFFIX}`);
+      setTimeout(() => {
+        publishResponseAtomically(resPath, { ok: true, text: "just-in-time" });
+      }, 50);
+      const res = await waitForRelayResponse(resPath, {
+        timeoutMs: Math.min(150, RELAY_POLL_MS - 50),
+      });
+      assert.equal(res.text, "just-in-time");
+    } finally {
+      if (previous === undefined) delete process.env[WATCH_FLAG];
+      else process.env[WATCH_FLAG] = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("waitForRelayResponse (hop-1 response watch)", () => {
@@ -264,6 +290,42 @@ describe("waitForRelayResponse (hop-1 response watch)", () => {
       if (previous === undefined) delete process.env[WATCH_FLAG];
       else process.env[WATCH_FLAG] = previous;
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("relayEnvFlag (shared call-time flag parsing)", () => {
+  const FLAG = "AGENTA_TEST_RELAY_FLAG";
+
+  it("explicit 'false'/'0' disable and 'true'/'1' enable, regardless of the default", () => {
+    try {
+      for (const value of ["false", "0"]) {
+        process.env[FLAG] = value;
+        assert.equal(relayEnvFlag(FLAG, true), false, `'${value}' disables`);
+        assert.equal(relayEnvFlag(FLAG, false), false);
+      }
+      for (const value of ["true", "1"]) {
+        process.env[FLAG] = value;
+        assert.equal(relayEnvFlag(FLAG, false), true, `'${value}' enables`);
+        assert.equal(relayEnvFlag(FLAG, true), true);
+      }
+    } finally {
+      delete process.env[FLAG];
+    }
+  });
+
+  it("anything else (unset, empty, garbage, wrong case) falls back to the default", () => {
+    try {
+      delete process.env[FLAG];
+      assert.equal(relayEnvFlag(FLAG, true), true);
+      assert.equal(relayEnvFlag(FLAG, false), false);
+      for (const value of ["", "yes", "TRUE", "False", "2"]) {
+        process.env[FLAG] = value;
+        assert.equal(relayEnvFlag(FLAG, true), true, `'${value}' -> default`);
+        assert.equal(relayEnvFlag(FLAG, false), false, `'${value}' -> default`);
+      }
+    } finally {
+      delete process.env[FLAG];
     }
   });
 });

@@ -88,9 +88,9 @@ describe("startToolRelay response publication (write temp, then rename)", () => 
       path: string;
       extra: string;
     }> = [];
-    // The request appears on the SECOND list: the first successful list is the orphan
-    // snapshot (a request already present there is cleared as pre-turn residue, never
-    // executed) — mirroring production, where the loop starts before the prompt.
+    // The request appears on the SECOND list: the first list feeds the stale-file
+    // sweep (a relay file already present there is cleared as pre-turn residue,
+    // never executed) — mirroring production, where the loop starts before the prompt.
     let listCalls = 0;
     const host: RelayHost = {
       list: async () => (++listCalls === 2 ? [reqName] : []),

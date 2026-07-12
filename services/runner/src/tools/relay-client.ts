@@ -24,6 +24,7 @@ import {
   RELAY_REQ_SUFFIX,
   RELAY_RES_SUFFIX,
   RELAY_TIMEOUT_MS,
+  relayEnvFlag,
   relayTempPath,
   sanitizeRelayId,
   serializeRelayRequest,
@@ -71,8 +72,7 @@ export class RelayTimeoutError extends Error {
  * "false" and "0" disable it.
  */
 export function responseWatchEnabled(): boolean {
-  const value = process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
-  return value !== "false" && value !== "0";
+  return relayEnvFlag("AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED", true);
 }
 
 export interface RelayDirWatch {
@@ -191,6 +191,14 @@ export async function waitForRelayResponse(
   opts: { timeoutMs: number; signal?: AbortSignal },
 ): Promise<RelayResponse> {
   const deadline = Date.now() + opts.timeoutMs;
+  if (opts.signal?.aborted) throw new Error("aborted");
+  // Fast path: a response that already exists needs no watcher at all (common for
+  // quick tools whose runner answered before this waiter started). The miss path
+  // below keeps arm-then-check: the watch is created BEFORE the next existsSync so a
+  // file created between the two is still observed.
+  if (existsSync(resPath)) {
+    return JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
+  }
   const dirWatch = responseWatchEnabled()
     ? createRelayDirWatch(dirname(resPath))
     : undefined;
@@ -202,6 +210,12 @@ export async function waitForRelayResponse(
       }
       if (dirWatch) await dirWatch.wait(RELAY_POLL_MS);
       else await sleep(RELAY_POLL_MS);
+    }
+    // Deadline-coincident wake: the last wait may have been cut short by the very
+    // event that published the response, with Date.now() landing on/after the
+    // deadline. One final check turns that from a spurious timeout into the answer.
+    if (existsSync(resPath)) {
+      return JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
     }
     throw new RelayTimeoutError(resPath);
   } finally {

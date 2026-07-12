@@ -406,11 +406,77 @@ async function executeAllowedRelayedTool(
   );
 }
 
+/** A relay-owned file name: request, response, or either one's atomic-publication temp
+ *  name. The sweep below may remove ONLY these — the relay dir also holds non-relay
+ *  files (Pi's usage file lives there) that must never be touched. */
+function isRelayFileName(name: string): boolean {
+  return (
+    name.endsWith(RELAY_REQ_SUFFIX) ||
+    name.endsWith(RELAY_RES_SUFFIX) ||
+    name.includes(`${RELAY_REQ_SUFFIX}.tmp.`) ||
+    name.includes(`${RELAY_RES_SUFFIX}.tmp.`)
+  );
+}
+
 /**
- * Runner-side relay loop. Polls the sandbox relay dir for request files, executes each
- * against the private spec in memory, and writes the response file
- * the in-sandbox extension is waiting on. Returns `stop()` to end the loop and drain any
- * in-flight executions; call it once the prompt resolves.
+ * Clear pre-turn relay residue from a reused relay dir (a warm-continued turn skips the
+ * cold build's rm -rf, so a crashed prior turn can leave files behind). Every relay
+ * file already present is stale — requests would re-execute under this turn's fresh
+ * `seen` set, temp names are dead atomic-publication residue, and stale RESPONSES are
+ * dangerous too: a resumed approval reuses its original toolCallId, so a crashed prior
+ * attempt's `<id>.res.json` would satisfy the new wait instantly with stale bytes.
+ * Non-relay names are never touched.
+ *
+ * The listing is retried up to 3 times (150 ms apart): a missing dir throws on some
+ * hosts and holds no stale files anyway, and a transiently unlistable dir accepts the
+ * pre-existing-residue risk rather than the swallow-a-live-request risk — the caller
+ * (startToolRelay) guarantees no LEGITIMATE request can exist before this sweep
+ * settles, so sweeping only what an early list shows is always safe, and giving up
+ * after 3 failures is too.
+ */
+export async function sweepStaleRelayFiles(
+  host: RelayHost,
+  relayDir: string,
+  log: (msg: string) => void,
+): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let names: string[];
+    try {
+      names = await host.list(relayDir);
+    } catch {
+      if (attempt < 3) {
+        await sleep(150);
+        continue;
+      }
+      log("[relay] stale sweep skipped: relay dir unlistable after 3 attempts");
+      return;
+    }
+    const stale = names.filter(isRelayFileName);
+    if (stale.length > 0) {
+      // Best-effort and concurrent: a failed removal is accepted (a leftover request
+      // is only re-armed watch noise once the loop's seen set has it; a leftover
+      // response is inert for fresh toolCallIds).
+      await Promise.allSettled(
+        stale.map((name) => host.remove(`${relayDir}/${name}`)),
+      );
+      log(
+        `[relay] cleared ${stale.length} stale relay file(s) predating the turn`,
+      );
+    }
+    return;
+  }
+}
+
+/** The loop's wait outcome AT DISCOVERY time, for the stage=relay_pickup line. */
+type RelayWakeTag = "activity" | "timeout" | "closed" | "poll";
+
+/**
+ * Runner-side relay loop. Sweeps pre-turn residue, then polls the sandbox relay dir
+ * for request files, executes each against the private spec in memory, and writes the
+ * response file the in-sandbox extension is waiting on. Returns `ready` (resolves once
+ * the stale sweep settled — the caller must not allow a legitimate request before
+ * then) and `stop()` to end the loop and drain any in-flight executions; call it once
+ * the prompt resolves.
  */
 export function startToolRelay(
   host: RelayHost,
@@ -421,51 +487,42 @@ export function startToolRelay(
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,
   opts?: { log?: (msg: string) => void },
-): { stop: () => Promise<void> } {
+): { ready: Promise<void>; stop: () => Promise<void> } {
   let active = true;
   const log = opts?.log ?? (() => {});
+  // Telemetry gate: without a log sink there is nowhere for pickup_ms to go, so the
+  // stat (a daemon round-trip on Daytona) is skipped entirely.
+  const telemetry = opts?.log !== undefined;
   const seen = new Set<string>();
+  // Request names whose delete-on-pickup remove rejected: retried (best-effort,
+  // concurrently) on each later list pass until the listing no longer shows them, so
+  // a lingering picked-up file cannot insta-wake watch windows forever.
+  const removeFailed = new Set<string>();
   const inflight: Promise<void>[] = [];
   const specsByName = new Map(specs.map((spec) => [spec.name, spec]));
 
-  // `wake` is the loop's wait outcome AT DISCOVERY time (captured when the handle is
-  // queued, not when this async body runs), for the stage=relay_pickup line below.
-  const handle = async (reqName: string, wake: string): Promise<void> => {
-    const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
+  const writeResponse = async (
+    id: string,
+    res: RelayResponse,
+  ): Promise<void> => {
+    try {
+      // Atomic publication (plan decision 2): full bytes under a temp name, then a
+      // same-directory rename to the final name the in-sandbox writer waits on.
+      const finalResPath = `${relayDir}/${id}${RELAY_RES_SUFFIX}`;
+      const tmpResPath = relayTempPath(finalResPath);
+      await host.write(tmpResPath, JSON.stringify(res));
+      await host.rename(tmpResPath, finalResPath);
+    } catch {
+      // The extension will time out and surface a tool error; nothing else to do here.
+    }
+  };
+
+  // Execute phase: runs in the background (pushed to `inflight`); the loop never
+  // waits on it. Parses, executes against the private spec, and publishes the
+  // response (or the error) the in-sandbox writer is waiting on.
+  const execute = async (id: string, raw: string): Promise<void> => {
     let res: RelayResponse;
     try {
-      const reqPath = `${relayDir}/${reqName}`;
-      const raw = await host.read(reqPath);
-      // stage=relay_pickup telemetry: stat BEFORE the delete-on-pickup remove below
-      // (afterwards the file is gone and the stat can only miss). Clock caveat: on
-      // Daytona the mtime is sandbox-clock while `Date.now()` is runner-clock, so
-      // pickup_ms is approximate — good for QA latency distributions, not billing.
-      // Cost: one stat per executed request (local: free; Daytona: +1 daemon call per
-      // tool call, small next to the polling this feature removed).
-      let mtimeMs: number | undefined;
-      try {
-        mtimeMs = await host.statMtimeMs?.(reqPath);
-      } catch {
-        mtimeMs = undefined;
-      }
-      // Delete-on-pickup: remove the request file BEFORE executing. The Daytona watch
-      // exec wakes on ANY *.req.json present, so a request left on disk for the whole
-      // execution would make every window insta-complete and rearm at network speed
-      // (~66 daemon req/s measured). The `seen` set still dedups the list race. This
-      // deliberately ends crash-redelivery-by-re-listing — a request is executed at
-      // most once per publication, consistent with the orphan-residue decision (a
-      // restarted turn must not re-execute stale requests; the writer times out and
-      // surfaces a tool error instead).
-      try {
-        await host.remove(reqPath);
-      } catch {
-        // Best-effort: a failed removal only costs extra wakes, never correctness.
-      }
-      log(
-        `[relay] stage=relay_pickup id=${id} pickup_ms=${
-          mtimeMs === undefined ? -1 : Date.now() - mtimeMs
-        } wake=${wake}`,
-      );
       const req = JSON.parse(raw) as RelayRequest;
       const spec = specsByName.get(req.toolName);
       if (!spec) throw new Error(`unknown tool '${req.toolName}'`);
@@ -485,15 +542,92 @@ export function startToolRelay(
         error: err instanceof Error ? err.message : String(err),
       };
     }
+    await writeResponse(id, res);
+  };
+
+  // Pickup phase: read the request file, then clear it from the dir. The loop AWAITS
+  // every pickup before its next wait (fix 3 of the slice-3 review), so a watch exec
+  // can never arm while a picked-up request file still exists on disk — the window
+  // would insta-complete on it and rearm at network speed for the whole execution.
+  // The execute phase above starts as soon as the read returns; only read+stat+remove
+  // gate the loop.
+  const pickup = async (reqName: string, wake: RelayWakeTag): Promise<void> => {
+    const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
+    const reqPath = `${relayDir}/${reqName}`;
+    let raw: string;
     try {
-      // Atomic publication (plan decision 2): full bytes under a temp name, then a
-      // same-directory rename to the final name the in-sandbox writer waits on.
-      const finalResPath = `${relayDir}/${id}${RELAY_RES_SUFFIX}`;
-      const tmpResPath = relayTempPath(finalResPath);
-      await host.write(tmpResPath, JSON.stringify(res));
-      await host.rename(tmpResPath, finalResPath);
+      raw = await host.read(reqPath);
+    } catch (err) {
+      // Nothing was picked up; surface the read failure as the tool's response so the
+      // in-sandbox writer fails fast instead of waiting out its timeout.
+      inflight.push(
+        writeResponse(id, {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      return;
+    }
+    // stage=relay_pickup telemetry: the stat is STARTED before the remove (afterwards
+    // the file is gone and the stat can only miss); both then run concurrently. Clock
+    // caveat: on Daytona the mtime is sandbox-clock while `Date.now()` is
+    // runner-clock, so pickup_ms is approximate — good for QA latency distributions,
+    // not billing. Cost: one stat per executed request, and none at all without a log
+    // sink (see `telemetry` above).
+    let statPromise: Promise<number | undefined> | undefined;
+    if (telemetry && host.statMtimeMs) {
+      try {
+        statPromise = host.statMtimeMs(reqPath).catch(() => undefined);
+      } catch {
+        statPromise = undefined;
+      }
+    }
+    // Delete-on-pickup: remove the request file BEFORE the next watch window can arm
+    // (the loop awaits this pickup). This deliberately ends
+    // crash-redelivery-by-re-listing — a request is executed at most once per
+    // publication, consistent with the stale-sweep decision (a restarted turn must
+    // not re-execute stale requests; the writer times out and surfaces a tool error
+    // instead). A failed removal is recorded for retry on later list passes.
+    let removeDone: Promise<void>;
+    try {
+      removeDone = host.remove(reqPath).then(
+        () => undefined,
+        () => {
+          removeFailed.add(reqName);
+        },
+      );
     } catch {
-      // The extension will time out and surface a tool error; nothing else to do here.
+      removeFailed.add(reqName);
+      removeDone = Promise.resolve();
+    }
+    // The execute phase starts NOW (as soon as the read returned) and runs in the
+    // background; the pickup itself only awaits stat + remove.
+    inflight.push(execute(id, raw));
+    const mtimeMs = statPromise ? await statPromise : undefined;
+    log(
+      `[relay] stage=relay_pickup id=${id} pickup_ms=${
+        mtimeMs === undefined ? -1 : Date.now() - mtimeMs
+      } wake=${wake}`,
+    );
+    await removeDone;
+  };
+
+  // Loop-owned safety bound (fix 6 of the slice-3 review): the plan's 30 s pickup
+  // bound must hold even if a wait() implementation wedges, so every wait races a
+  // timer slightly past its own timeout. The timer is cleared as soon as the race
+  // settles, so nothing leaks and nothing outlives the loop.
+  const boundedWait = async (
+    activitySource: RelayActivitySource,
+    timeoutMs: number,
+  ): Promise<"activity" | "timeout" | "closed"> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const bound = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), timeoutMs + 1_000);
+    });
+    try {
+      return await Promise.race([activitySource.wait({ timeoutMs }), bound]);
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -501,62 +635,61 @@ export function startToolRelay(
   // flag is off, or fs.watch failed) leaves the loop below byte-for-byte today's poll.
   const source = host.createActivitySource?.(relayDir);
 
+  // Stale sweep FIRST (fix 1 of the slice-3 review): the old "first successful list
+  // is the snapshot" raced the resume flow — on Daytona the snapshot ls exec's READ
+  // time is unordered against respondPermission, so a resume's approved request could
+  // land first and be swallowed, and a transiently rejecting first list deferred the
+  // snapshot behind later, legitimate requests. Now the sweep runs before the
+  // discovery loop, and `ready` lets the engine hold respondPermission/prompt until
+  // it settles — so nothing legitimate can predate the sweep, and after it EVERY
+  // listed request is legitimate.
+  const ready = sweepStaleRelayFiles(host, relayDir, log);
+
   const loop = (async () => {
+    // The discovery loop starts only after the sweep settled (see `ready` above).
+    await ready.catch(() => {});
     // Idle-poll backoff: a quiet turn (e.g. waiting on a browser-fulfilled client-tool pause)
     // grows the delay up to RELAY_POLL_MAX_MS instead of polling at 300 ms forever; any new
     // request resets it. This cuts the remote `ls` rate on Daytona without delaying a real call.
     let idlePolls = 0;
     let lastWaitOutcome: "activity" | "timeout" | "closed" | undefined;
-    // Orphan-residue snapshot (a turn only executes requests created after it started):
-    // a reused relay dir on a warm-continued turn can hold a stale `<id>.req.json` from
-    // a crashed prior turn (cold builds are covered by prepareWorkspace's rm -rf; warm
-    // continuations skip it), and this loop's fresh `seen` set would re-execute it. The
-    // first SUCCESSFUL list is a snapshot pass: every `*.req.json` already present is
-    // stale — marked seen (never executed) and best-effort removed. Race analysis: the
-    // relay loop starts before the turn's prompt (or a resume's respondPermission) is
-    // issued, so no legitimate request can predate the snapshot; the snapshot list is
-    // issued at loop start, ahead of the resume flow's multiple round-trips. A list
-    // that THROWS (dir not created yet) is not the snapshot — a missing dir cannot
-    // hold stale files, so waiting for the first successful list is safe. Stale
-    // `.res.json` files are left alone: the writer's own id-keyed read tolerates them,
-    // a stale response for a dead writer is inert, and the dir is cleared on the next
-    // cold build.
-    let snapshotDone = false;
     try {
       while (active) {
         let sawNew = false;
+        // This iteration's pickup phases (and remove retries): all awaited below,
+        // BEFORE the next wait, so no watch window arms over a lingering file.
+        const pickups: Promise<void>[] = [];
         try {
           const names = await host.list(relayDir);
-          if (!snapshotDone) {
-            snapshotDone = true;
-            let stale = 0;
-            for (const name of names) {
-              if (!name.endsWith(RELAY_REQ_SUFFIX)) continue;
-              seen.add(name);
-              stale += 1;
-              try {
-                await host.remove(`${relayDir}/${name}`);
-              } catch {
-                // Best-effort: `seen` alone already guarantees it never executes.
-              }
+          // Retry earlier failed delete-on-pickup removals until gone from the listing.
+          for (const name of [...removeFailed]) {
+            if (!names.includes(name)) {
+              removeFailed.delete(name);
+              continue;
             }
-            if (stale > 0) {
-              log(
-                `[relay] cleared ${stale} stale request file(s) predating the turn`,
+            try {
+              pickups.push(
+                host.remove(`${relayDir}/${name}`).then(
+                  () => {
+                    removeFailed.delete(name);
+                  },
+                  () => undefined,
+                ),
               );
+            } catch {
+              // Still failing synchronously; keep it in the retry set.
             }
-            // The snapshot pass is an idle poll: no new work, no idle reset.
-          } else {
-            for (const name of names) {
-              if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
-              seen.add(name);
-              sawNew = true;
-              inflight.push(handle(name, lastWaitOutcome ?? "poll"));
-            }
+          }
+          for (const name of names) {
+            if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;
+            seen.add(name);
+            sawNew = true;
+            pickups.push(pickup(name, lastWaitOutcome ?? "poll"));
           }
         } catch {
           // Transient (dir not created yet, or a poll raced sandbox teardown): retry.
         }
+        if (pickups.length > 0) await Promise.allSettled(pickups);
         // A safety-poll ("timeout") wake that FOUND work while the suspended watch
         // claimed healthy is a watch miss (plan decision 4): it feeds demotion.
         if (
@@ -571,14 +704,13 @@ export function startToolRelay(
         if (source && source.isHealthy() && source.suspendsPolling) {
           // Healthy remote watch: the watch exec's completion is the wake; the remote
           // poll is suspended and only the 30 s safety poll remains (plan decision 6).
-          lastWaitOutcome = await source.wait({
-            timeoutMs: RELAY_SAFETY_POLL_MS,
-          });
+          lastWaitOutcome = await boundedWait(source, RELAY_SAFETY_POLL_MS);
         } else if (source && source.isHealthy()) {
           // Local watch: shortens the sleep only; the poll cadence is unchanged.
-          lastWaitOutcome = await source.wait({
-            timeoutMs: relayPollDelayMs(idlePolls),
-          });
+          lastWaitOutcome = await boundedWait(
+            source,
+            relayPollDelayMs(idlePolls),
+          );
         } else {
           // Classic loop, byte for byte (no source, demoted, or closed).
           await sleep(relayPollDelayMs(idlePolls));
@@ -593,6 +725,7 @@ export function startToolRelay(
   })();
 
   return {
+    ready,
     stop: async () => {
       active = false;
       // Close before awaiting the loop so a held 30 s safety-poll wait resolves

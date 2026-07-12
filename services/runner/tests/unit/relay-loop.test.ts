@@ -17,11 +17,17 @@
  *
  * Plus the slice-3 additions:
  *
- * - the orphan-residue snapshot: a request file already present at the FIRST successful
- *   list predates the turn and is cleared, never executed (with the one-line stale log),
- *   and a throwing first list does not count as the snapshot,
+ * - the stale-file sweep: every relay file (request, response, temp) already present
+ *   when startToolRelay runs predates the turn and is swept before the discovery loop
+ *   starts (`ready` resolves once the sweep settled); non-relay names are never
+ *   touched; a transiently failing list is retried; a sweep whose listing never
+ *   succeeds is skipped and the loop still serves later requests normally,
+ * - pickup-before-rearm (fix 3): the loop awaits read+stat+remove of every discovered
+ *   request BEFORE its next wait, retries failed removals on later list passes, and
+ *   skips the stat entirely without a log sink,
  * - stage=relay_pickup telemetry: one log line per executed request, with pickup_ms
- *   from host.statMtimeMs (stat'd BEFORE the delete-on-pickup remove) and the wake tag.
+ *   from host.statMtimeMs (stat started BEFORE the delete-on-pickup remove) and the
+ *   wake tag.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/relay-loop.test.ts)
  */
@@ -31,6 +37,7 @@ import assert from "node:assert/strict";
 import {
   RELAY_POLL_MS,
   startToolRelay,
+  sweepStaleRelayFiles,
   type RelayHost,
 } from "../../src/tools/relay.ts";
 import {
@@ -305,7 +312,7 @@ describe("startToolRelay with an activity source", () => {
         runProcessCalls += 1;
         // Mirrors the in-sandbox watch script's readdir interval: the window
         // completes as soon as ANY *.req.json is present, including one that lands
-        // MID-window. (Since the orphan snapshot, the request must be written after
+        // MID-window. (Since the stale-file sweep, the request must be written after
         // the loop starts, so it can no longer be guaranteed present at arm time.)
         // `testDone` drains an idle parked window at the end so no timer chain
         // outlives the test.
@@ -357,11 +364,12 @@ describe("startToolRelay with an activity source", () => {
     };
 
     const relay = startToolRelay(host, DIR, [], undefined);
-    // Written AFTER the loop starts: the orphan snapshot (slice 3) treats any request
-    // already present at the first successful list as pre-turn residue and never
-    // executes it. The first list is issued synchronously inside startToolRelay, so
-    // this write is reliably post-snapshot — exactly how a real request arrives (the
-    // loop starts before the prompt is issued).
+    // Written AFTER the loop starts: the stale-file sweep (slice 3) treats any relay
+    // file already present when startToolRelay runs as pre-turn residue and removes
+    // it. The sweep's listing is taken synchronously inside startToolRelay (this
+    // host's list body is synchronous), so this write is reliably post-sweep —
+    // exactly how a real request arrives (the loop starts before the prompt is
+    // issued).
     putRequest(files, "call-1");
     await until(() => files.has(`${DIR}/call-1.res.json`), "the response");
 
@@ -406,7 +414,7 @@ describe("startToolRelay with an activity source", () => {
     const { host, files } = fakeHost(undefined);
     const relay = startToolRelay(host, DIR, [], undefined);
 
-    // Post-snapshot write (see the delete-on-pickup test): a request seeded before
+    // Post-sweep write (see the delete-on-pickup test): a request seeded before
     // startToolRelay would now be cleared as pre-turn residue instead of served.
     putRequest(files, "call-1");
     await until(() => files.has(`${DIR}/call-1.res.json`), "classic pickup");
@@ -422,7 +430,7 @@ describe("startToolRelay with an activity source", () => {
 function startRelayWithLog(
   host: RelayHost,
   logs: string[],
-): { stop: () => Promise<void> } {
+): { ready: Promise<void>; stop: () => Promise<void> } {
   return startToolRelay(
     host,
     DIR,
@@ -435,48 +443,60 @@ function startRelayWithLog(
   );
 }
 
-describe("startToolRelay orphan-residue snapshot (a turn only executes requests created after it started)", () => {
-  it("a request file present at loop start is cleared and never executed; a post-snapshot request is served", async () => {
+describe("startToolRelay stale-file sweep (a turn only executes requests created after it started)", () => {
+  it("sweeps pre-existing request, response, AND temp names; never other names; ready resolves after the sweep", async () => {
     const logs: string[] = [];
-    const { host, files, readCounts, removed } = fakeHost(undefined);
+    const { host, files, readCounts } = fakeHost(undefined);
     // Residue of a crashed prior turn in a reused relay dir (warm continuation skips
-    // the cold-build rm -rf): present BEFORE the loop starts.
+    // the cold-build rm -rf): a request, a stale RESPONSE (a resumed approval reuses
+    // its original toolCallId, so a leftover res file would satisfy the new wait
+    // instantly with stale bytes), and both directions' atomic-publication temp
+    // names. Pi's usage file shares the dir and must survive.
     putRequest(files, "stale-1");
+    files.set(`${DIR}/stale-1.res.json`, '{"ok":true,"text":"stale"}');
+    files.set(`${DIR}/stale-2.req.json.tmp.abc123`, "{");
+    files.set(`${DIR}/stale-2.res.json.tmp.def456`, "{");
+    files.set(`${DIR}/pi-usage.json`, '{"tokens":1}');
+
     const relay = startRelayWithLog(host, logs);
+    await relay.ready;
 
-    await until(
-      () => removed.includes(`${DIR}/stale-1.req.json`),
-      "the stale removal",
+    assert.ok(!files.has(`${DIR}/stale-1.req.json`), "request swept");
+    assert.ok(!files.has(`${DIR}/stale-1.res.json`), "stale response swept");
+    assert.ok(
+      !files.has(`${DIR}/stale-2.req.json.tmp.abc123`),
+      "req temp swept",
     );
-
-    // A request that arrives after the snapshot is served normally.
-    putRequest(files, "fresh-1");
-    await until(() => files.has(`${DIR}/fresh-1.res.json`), "fresh response");
-
+    assert.ok(
+      !files.has(`${DIR}/stale-2.res.json.tmp.def456`),
+      "res temp swept",
+    );
+    assert.ok(files.has(`${DIR}/pi-usage.json`), "non-relay file untouched");
     assert.equal(
       readCounts.get(`${DIR}/stale-1.req.json`),
       undefined,
       "the stale request was never read (no execution path started)",
     );
+
+    // A request written after `ready` (the engine holds prompt/respondPermission on
+    // it) is legitimate and served normally.
+    putRequest(files, "fresh-1");
+    await until(() => files.has(`${DIR}/fresh-1.res.json`), "fresh response");
     assert.ok(
       !files.has(`${DIR}/stale-1.res.json`),
-      "no response was written for the stale request",
-    );
-    assert.ok(
-      !files.has(`${DIR}/stale-1.req.json`),
-      "the stale request file was removed",
+      "no response was resurrected for the stale request",
     );
 
     await relay.stop();
   });
 
-  it("a throwing first list is not the snapshot: the first SUCCESSFUL list clears the residue", async () => {
+  it("a transiently failing list is retried: the residue is swept on the retry", async () => {
     const logs: string[] = [];
     const { host, files, readCounts, removed } = fakeHost(undefined);
     const baseList = host.list;
     let listCalls = 0;
-    // The dir does not exist yet when the loop starts (the pre-existing transient
-    // branch): the FIRST list rejects; the residue is only visible from the second.
+    // The dir is transiently unlistable when the sweep starts: the FIRST list
+    // rejects; the residue is only visible from the second attempt.
     host.list = async (dir) => {
       listCalls += 1;
       if (listCalls === 1) throw new Error("relay dir not created yet");
@@ -485,9 +505,10 @@ describe("startToolRelay orphan-residue snapshot (a turn only executes requests 
     putRequest(files, "stale-1");
     const relay = startRelayWithLog(host, logs);
 
-    await until(
-      () => removed.includes(`${DIR}/stale-1.req.json`),
-      "the stale removal on the first successful list",
+    await relay.ready;
+    assert.ok(
+      removed.includes(`${DIR}/stale-1.req.json`),
+      "the retry attempt swept the residue",
     );
     assert.ok(listCalls >= 2, "the rejecting list was retried");
     assert.equal(
@@ -495,6 +516,34 @@ describe("startToolRelay orphan-residue snapshot (a turn only executes requests 
       undefined,
       "still treated as stale: never executed",
     );
+
+    await relay.stop();
+  });
+
+  it("all list attempts fail: the sweep is skipped once, and the loop still serves later requests normally", async () => {
+    const logs: string[] = [];
+    const { host, files } = fakeHost(undefined);
+    const baseList = host.list;
+    let listCalls = 0;
+    // All 3 sweep attempts reject; the loop's own lists then succeed.
+    host.list = async (dir) => {
+      listCalls += 1;
+      if (listCalls <= 3) throw new Error("dir unlistable");
+      return baseList(dir);
+    };
+    const relay = startRelayWithLog(host, logs);
+    await relay.ready;
+    assert.equal(listCalls, 3, "exactly 3 sweep attempts");
+    assert.deepEqual(
+      logs.filter((msg) => msg.includes("stale sweep skipped")),
+      ["[relay] stale sweep skipped: relay dir unlistable after 3 attempts"],
+      "one skip line",
+    );
+
+    // A request arriving after the failed sweep is NOT treated as stale: the loop
+    // serves it normally (the sweep never defers behind live traffic).
+    putRequest(files, "fresh-1");
+    await until(() => files.has(`${DIR}/fresh-1.res.json`), "fresh response");
 
     await relay.stop();
   });
@@ -508,14 +557,118 @@ describe("startToolRelay orphan-residue snapshot (a turn only executes requests 
 
     await until(() => removed.length === 2, "both stale removals");
     // Serve one real request so several more list passes have run by the assertion:
-    // the stale line must not repeat on later (non-snapshot) passes.
+    // the stale line must not repeat on later (post-sweep) passes.
     putRequest(files, "fresh-1");
     await until(() => files.has(`${DIR}/fresh-1.res.json`), "fresh response");
 
     assert.deepEqual(
-      logs.filter((msg) => msg.includes("stale request file")),
-      ["[relay] cleared 2 stale request file(s) predating the turn"],
+      logs.filter((msg) => msg.includes("stale relay file")),
+      ["[relay] cleared 2 stale relay file(s) predating the turn"],
       "exactly one stale line, carrying the count",
+    );
+
+    await relay.stop();
+  });
+
+  it("sweepStaleRelayFiles removals settle before it resolves; non-relay names survive", async () => {
+    const { host, files, removed } = fakeHost(undefined);
+    putRequest(files, "stale-1");
+    putRequest(files, "stale-2");
+    files.set(`${DIR}/keep.txt`, "x");
+    const logs: string[] = [];
+    await sweepStaleRelayFiles(host, DIR, (msg) => logs.push(msg));
+    assert.deepEqual(
+      removed.sort(),
+      [`${DIR}/stale-1.req.json`, `${DIR}/stale-2.req.json`],
+      "both removed by the time the sweep resolves",
+    );
+    assert.ok(files.has(`${DIR}/keep.txt`), "non-relay name untouched");
+    assert.equal(logs.length, 1);
+  });
+});
+
+describe("startToolRelay pickup-before-rearm (fix 3)", () => {
+  it("the loop does not re-wait (so no watch window can arm) until the pickup's remove settled", async () => {
+    const fake = fakeSource(true);
+    const files = new Map<string, string>();
+    let readCount = 0;
+    let releaseRemove: (() => void) | undefined;
+    const removeGate = new Promise<void>((resolve) => {
+      releaseRemove = resolve;
+    });
+    const host: RelayHost = {
+      list: async (dir) =>
+        [...files.keys()]
+          .filter((path) => path.startsWith(`${dir}/`))
+          .map((path) => path.slice(dir.length + 1)),
+      read: async (path) => {
+        readCount += 1;
+        const contents = files.get(path);
+        if (contents === undefined) throw new Error(`missing ${path}`);
+        return contents;
+      },
+      remove: async (path) => {
+        await removeGate;
+        files.delete(path);
+      },
+      write: async (path, contents) => {
+        files.set(path, contents);
+      },
+      rename: async (from, to) => {
+        const contents = files.get(from);
+        if (contents === undefined) throw new Error(`missing ${from}`);
+        files.delete(from);
+        files.set(to, contents);
+      },
+      createActivitySource: () => fake.source,
+    };
+
+    const relay = startToolRelay(host, DIR, [], undefined);
+    await until(() => fake.waitTimeouts.length === 1, "the first wait");
+    putRequest(files, "call-1");
+    fake.wake();
+
+    // The request is read (execution can start), but the remove is still pending:
+    // the loop must NOT have armed another wait — a watch exec issued now would
+    // insta-complete on the still-present request file.
+    await until(() => readCount === 1, "the pickup read");
+    await sleep(50);
+    assert.equal(
+      fake.waitTimeouts.length,
+      1,
+      "no second wait while the pickup remove is pending",
+    );
+
+    releaseRemove?.();
+    await until(() => fake.waitTimeouts.length === 2, "re-parked after pickup");
+    await until(() => files.has(`${DIR}/call-1.res.json`), "the response");
+
+    await relay.stop();
+  });
+
+  it("a failed delete-on-pickup remove is retried on later list passes until gone from the listing", async () => {
+    const { host, files, readCounts } = fakeHost(undefined);
+    const baseRemove = host.remove;
+    let removeAttempts = 0;
+    host.remove = async (path) => {
+      removeAttempts += 1;
+      if (removeAttempts === 1) throw new Error("EBUSY");
+      return baseRemove(path);
+    };
+    const relay = startToolRelay(host, DIR, [], undefined);
+    await relay.ready;
+
+    putRequest(files, "call-1");
+    await until(() => files.has(`${DIR}/call-1.res.json`), "the response");
+    await until(
+      () => !files.has(`${DIR}/call-1.req.json`),
+      "the retried removal",
+    );
+    assert.ok(removeAttempts >= 2, "the failed remove was retried");
+    assert.equal(
+      readCounts.get(`${DIR}/call-1.req.json`),
+      1,
+      "retries never re-execute (seen-set dedup holds)",
     );
 
     await relay.stop();
@@ -594,6 +747,22 @@ describe("startToolRelay stage=relay_pickup telemetry", () => {
       ops.filter((op) => op.path === reqPath).map((op) => op.op),
       ["read", "stat", "remove"],
       "read, then stat, then remove",
+    );
+  });
+
+  it("no log sink -> no stat at all (no daemon round-trip when nothing consumes pickup_ms)", async () => {
+    const { host, files, ops } = telemetryHost(() => Date.now());
+    // No opts.log: the telemetry gate must skip host.statMtimeMs entirely.
+    const relay = startToolRelay(host, DIR, [], undefined);
+
+    putRequest(files, "call-1");
+    await until(() => files.has(`${DIR}/call-1.res.json`), "the response");
+    await relay.stop();
+
+    assert.deepEqual(
+      ops.filter((op) => op.op === "stat"),
+      [],
+      "statMtimeMs never called without a log sink",
     );
   });
 
