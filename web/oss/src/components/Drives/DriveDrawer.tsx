@@ -9,7 +9,7 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
-import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
+import {type Mount} from "@agenta/entities/session"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     BracketsCurly,
@@ -18,20 +18,25 @@ import {
     ChatCircle,
     DownloadSimple,
     File,
+    FilePdf,
     FileText,
     FolderSimple,
     HardDrives,
     House,
+    ImageSquare,
     MagnifyingGlass,
+    MusicNotes,
+    Table,
     Tray,
+    VideoCamera,
 } from "@phosphor-icons/react"
 import {Alert, Button, Input, Skeleton, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import useURL from "@/oss/hooks/useURL"
+import {projectIdAtom} from "@/oss/state/project"
 
-import {downloadTextFile} from "./download"
+import {downloadMountFile} from "./driveMedia"
 import {
     ancestorPaths,
     buildDriveTree,
@@ -41,6 +46,7 @@ import {
     relativeTime,
     type DriveTreeNode,
 } from "./driveTree"
+import {DriveFileBody, resolveDriveFileKind} from "./renderers"
 import {useSessionDrive, type SessionDriveData} from "./useSessionDrive"
 
 const {Text} = Typography
@@ -55,9 +61,24 @@ const SCOPE_META = {
 export type DriveScope = keyof typeof SCOPE_META
 
 export const driveFileIcon = (path: string, size = 14) => {
-    if (isMarkdownPath(path)) return <FileText size={size} className="text-[#4fd1b5]" />
-    if (/\.json$/i.test(path)) return <BracketsCurly size={size} className="text-colorWarning" />
-    return <File size={size} className="text-colorTextTertiary" />
+    switch (resolveDriveFileKind(path)) {
+        case "markdown":
+            return <FileText size={size} className="text-[#4fd1b5]" />
+        case "json":
+            return <BracketsCurly size={size} className="text-colorWarning" />
+        case "csv":
+            return <Table size={size} className="text-colorInfo" />
+        case "image":
+            return <ImageSquare size={size} className="text-[#7fb0ff]" />
+        case "pdf":
+            return <FilePdf size={size} className="text-colorError" />
+        case "audio":
+            return <MusicNotes size={size} className="text-[#4fd1b5]" />
+        case "video":
+            return <VideoCamera size={size} className="text-colorWarning" />
+        default:
+            return <File size={size} className="text-colorTextTertiary" />
+    }
 }
 
 export const fileTypeLabel = (path: string): string => {
@@ -137,40 +158,26 @@ const TreeRow = ({
     )
 }
 
-/** The inset content viewer: markdown for `.md/.markdown`, raw mono (pre-wrap) otherwise.
- * Shared by the drawer preview and the chat Quick Look — one renderer everywhere. */
-export const DriveFileContentViewer = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
-    const content = contentQuery.data
-    return (
-        <div className="min-h-0 flex-1 overflow-y-auto rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3">
-            {contentQuery.isPending ? (
-                <Skeleton active paragraph={{rows: 6}} />
-            ) : typeof content !== "string" ? (
-                <Text type="secondary" className="!text-xs">
-                    Couldn&rsquo;t load this file&rsquo;s content.
-                </Text>
-            ) : isMarkdownPath(path) ? (
-                <Markdown content={content} className="!text-xs" />
-            ) : (
-                <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
-                    {content}
-                </pre>
-            )}
-        </div>
-    )
-}
+/** The content viewer — the renderer registry (build-spec 3): kind-matched body, size caps,
+ * Download fallback. Shared by the drawer preview and the chat Quick Look. */
+export const DriveFileContentViewer = ({
+    mount,
+    path,
+    size,
+}: {
+    mount: Mount | null
+    path: string
+    size?: number | null
+}) => <DriveFileBody mount={mount} path={path} size={size} />
 
-/** Download button for one file — enabled once its content is cached/loadable. */
+/** Download button for one file — raw bytes, so every type round-trips (not just text). */
 export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
-    const content = contentQuery.data
-    const name = path.split("/").pop() ?? path
+    const projectId = useAtomValue(projectIdAtom)
     return (
         <Button
             icon={<DownloadSimple size={13} />}
-            disabled={typeof content !== "string"}
-            onClick={() => typeof content === "string" && downloadTextFile(name, content)}
+            disabled={!mount}
+            onClick={() => void downloadMountFile({mount, path, projectId})}
         >
             Download
         </Button>
@@ -228,7 +235,7 @@ const DriveFilePreview = ({
                 <DriveFileDownloadButton mount={mount} path={path} />
             </div>
 
-            <DriveFileContentViewer mount={mount} path={path} />
+            <DriveFileContentViewer mount={mount} path={path} size={size} />
         </div>
     )
 }

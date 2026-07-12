@@ -5,19 +5,15 @@
  * download enrich from the ambient conversation drive when the file resolves against the
  * listing; deletes render struck-through with no actions.
  */
-import {
-    mountPathMatchesToolPath,
-    readMountFile,
-    type FileActivityOp,
-} from "@agenta/entities/session"
+import {mountPathMatchesToolPath, type FileActivityOp} from "@agenta/entities/session"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {downloadTextFile} from "./download"
 import {driveFileIcon, fileTypeLabel} from "./DriveDrawer"
+import {downloadMountFile} from "./driveMedia"
 import {useDriveSessionId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtom} from "./quickLook"
@@ -42,14 +38,9 @@ export function DriveFileCard({path, op}: {path: string; op: FileActivityOp}) {
     const deleted = op === "delete"
     const meta = OP_META[op]
 
-    const download = async () => {
-        if (!resolved || !drive.mount || !projectId) return
-        const content = await readMountFile({
-            mountId: drive.mount.id,
-            projectId,
-            path: resolved.path,
-        })
-        if (typeof content === "string") downloadTextFile(name, content)
+    const download = () => {
+        if (!resolved) return
+        void downloadMountFile({mount: drive.mount, path: resolved.path, projectId})
     }
 
     return (

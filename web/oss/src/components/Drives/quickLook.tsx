@@ -84,7 +84,11 @@ export function DriveQuickLook({sessionId}: {sessionId: string}) {
 
                 <div className="flex max-h-[60vh] min-h-[200px] flex-col overflow-hidden">
                     {file ? (
-                        <DriveFileContentViewer mount={drive.mount} path={file.path} />
+                        <DriveFileContentViewer
+                            mount={drive.mount}
+                            path={file.path}
+                            size={file.size}
+                        />
                     ) : (
                         <div className="flex flex-1 items-center justify-center text-xs text-colorTextTertiary">
                             {drive.isLoading ? "Loading…" : "This file isn't in the drive yet."}
