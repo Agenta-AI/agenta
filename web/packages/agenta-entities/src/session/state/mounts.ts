@@ -55,7 +55,8 @@ export const mountFilesQueryFamily = atomFamily((mountId: string) =>
     }),
 )
 
-/** One mount file's text content. */
+/** One mount file's text content. Bodies can be ~1.5 MB strings, so retention is short:
+ * a minute after the last viewer unmounts the string is dropped (refetch is cheap). */
 export const mountFileContentQueryFamily = atomFamily(
     ({mountId, path}: {mountId: string; path: string}) =>
         atomWithQuery<string | null>((get) => {
@@ -66,6 +67,7 @@ export const mountFileContentQueryFamily = atomFamily(
                     readMountFile({mountId, projectId, abortSignal: signal, path}),
                 enabled: Boolean(mountId && path && projectId),
                 staleTime: 30_000,
+                gcTime: 60_000,
                 refetchOnWindowFocus: false,
             }
         }),

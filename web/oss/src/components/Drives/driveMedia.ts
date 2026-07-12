@@ -8,7 +8,7 @@
  */
 import {useEffect, useMemo} from "react"
 
-import {mountFileContentQueryKey, type Mount} from "@agenta/entities/session"
+import {type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -39,17 +39,21 @@ export async function fetchMountFileBlob({
     }
 }
 
-/** One drive file's raw bytes. Keyed UNDER the text-content key so the drive revalidation
- * (turn-finish / mid-stream signals) marks blobs stale with the same prefix invalidation. */
+/** One drive file's raw bytes (up to the 25 MB media cap). MEMORY POLICY: a blob lives only
+ * while a body renders it — `gcTime: 0` drops it the moment the viewer unmounts (paging away,
+ * closing the preview), so browsing N media files never pins N blobs. Deliberately keyed OUTSIDE
+ * the content-key prefix: the drive revalidation must not re-download an actively-viewed video
+ * on every finished turn — reopening refetches anyway since nothing is retained. */
 export const mountFileBlobQueryFamily = atomFamily(
     ({mountId, path}: {mountId: string; path: string}) =>
         atomWithQuery<Blob | null>((get) => {
             const projectId = get(projectIdAtom) ?? ""
             return {
-                queryKey: [...mountFileContentQueryKey(projectId, mountId, path), "blob"],
+                queryKey: ["mounts", "file-blob", projectId, mountId, path],
                 queryFn: () => fetchMountFileBlob({mountId, projectId, path}),
                 enabled: Boolean(mountId && path && projectId),
-                staleTime: 30_000,
+                staleTime: Infinity,
+                gcTime: 0,
                 refetchOnWindowFocus: false,
             }
         }),

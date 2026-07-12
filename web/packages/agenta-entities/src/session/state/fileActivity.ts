@@ -43,6 +43,8 @@ export interface SessionFileActivityEntry extends FileActivity {
 
 // Bounded signal log: plenty for "react to recent activity", never a leak on long sessions.
 const MAX_ENTRIES = 50
+// Diff-base snapshot bound (chars ≈ bytes): keeps the whole log's worst case ~a few MB.
+const MAX_SNAPSHOT_CHARS = 256 * 1024
 
 /** Append-only (capped) log of a session's file activity, newest last. */
 export const sessionFileActivityAtomFamily = atomFamily((_sessionId: string) =>
@@ -105,12 +107,16 @@ export const recordFileActivityAtom = atom(
                     ? "created"
                     : "unknown"
 
-        // Snapshot the pre-activity body while it's still in cache (the diff base).
-        const previousContent = resolved
+        // Snapshot the pre-activity body while it's still in cache (the diff base) — bounded:
+        // the log holds up to 50 entries per session, so an unbounded string per entry could
+        // pin tens of MB. Oversized bodies just lose their diff base.
+        const cached = resolved
             ? queryClient.getQueryData<string | null>(
                   mountFileContentQueryKey(projectId, resolved.mountId, resolved.path),
               )
             : undefined
+        const previousContent =
+            typeof cached === "string" && cached.length <= MAX_SNAPSHOT_CHARS ? cached : undefined
 
         const entry: SessionFileActivityEntry = {
             ...activity,
