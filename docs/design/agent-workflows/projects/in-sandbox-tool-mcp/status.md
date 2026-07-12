@@ -1,82 +1,94 @@
 # Status
 
-**State: DESIGN ONLY, awaiting owner review.** No runtime code changed. The PR carrying this
-workspace is the review surface; the owner will interview on it.
+**State: IMPLEMENTED, draft PR up for review.** Slices 0-1 landed on lane
+`feat-in-sandbox-tool-mcp` (stacked on `feat-event-driven-tool-relay`, PR #5243, the
+relay-module prerequisite). Slice 2 ran: every runnable live cell is green; the cells that
+need a real Claude model turn on Daytona are credit-blocked and recorded as the explicit
+merge gate below. Evidence: [spike-restart.md](spike-restart.md) (slice 0) and
+[qa-slice2.md](qa-slice2.md) (slice 2).
+
+## Merge gate (do not merge until)
+
+The Claude+Daytona EXECUTION cells (a real gateway tool called by the model, plus the
+warm-live-reuse and stopped-VM-restart turns) are blocked on Daytona/Anthropic credit.
+The delivery mechanism is proven live (see qa-slice2 cell 3: no gate refusal, assets
+uploaded, `agenta-tools` stdio entry advertised, session created, adapter spawned the
+shim) and the restart respawn is proven by the slice-0 spike, but "the tool executes and
+the result reaches the answer" has not run end to end on Daytona. Re-run qa-slice2 cells
+3 and 7 once credit is restored, then flip the PR to ready.
 
 ## Done
 
-- 2026-07-11: workspace created. Prior art read and reconciled (`claude-daytona-tools`,
-  `remote-tools-delivery`, `mcp-delivery-architecture` including the 2026-07-11 decision in
-  `gateway-mcp-location.md`, `gateway-tool-mcp`). PR #4873 mined; its stdio implementation
-  is the revival base. Current code re-verified against the working tree (anchors in
-  [research.md](research.md)), including the warm-reuse lifecycle from PR #5225 and the
-  client-tool pause semantics on the local channel.
-- Owner decisions of 2026-07-11 encoded in [context.md](context.md): runner-only sandbox
-  communication (API gateway rejected), user MCP HTTP-only permanently with API-key-header
-  auth now and OAuth as future work, platform tools via an in-sandbox MCP server, and
-  unification with Pi as the primary design goal.
-- Recommendation written in [plan.md](plan.md): A2 (harness-spawned stdio shim) as the one
-  transport, shared handler + relay-writer modules with a golden byte-contract test as the
-  unification path, slices 1-4, and the live-QA matrix including the warm-reuse cells.
-- 2026-07-11: cross-consistency review round (requested by the owner alongside his own
-  review of the event-driven-tool-relay PR) folded in. Corrections: the relay dir is an
-  ephemeral sibling keyed by `basename(cwd)`, not derived from the durable cwd; the
-  orphaned-request risk narrowed to warm-continued turns (`workspace.ts:60-66` already
-  clears cold builds). Additions: the `waitForRelayResponse` seam contract and landing
-  order with the sibling, the bearer layering rule and ordering with
-  `mcp-client-tool-continuation`, the unowned Daytona client-tool bridge cross-reference,
-  the crash-after-write at-least-once note, and the `best_effort` clarification on the
-  network-off QA cell. Combined landing order:
-  [../mcp-delivery-architecture/orchestration.md](../mcp-delivery-architecture/orchestration.md).
-- 2026-07-11 (late): Codex xhigh review of this workspace folded in. The owner was asleep;
-  per his standing simplify-aggressively instruction the cuts were adopted rather than
-  argued, and every adoption is reversible at his review. Verdict: approve A2
-  conditionally, reject the earlier scope. Changes: a new slice 0 restart spike gates A2
-  (the "correct by construction" claim was wrong; `session/load` may seed persisted
-  `mcpServers` without respawning subprocesses, and the orphan-exit claim is weakened to an
-  expectation); relay-module extraction moved out of this project entirely (PR #5232 owns
-  `relay-client.ts`/`relay-protocol.ts` as its slice 0 and is now an explicit prerequisite,
-  reversing the ordering the earlier consistency pass wrote); the standalone
-  transport-neutral `mcp-handler.ts` slice is cut and the unification section rewritten
-  honestly (Pi never speaks MCP; the real sharing is the relay client and file protocol);
-  specs move from an unbounded env variable to a file, decided now; v1 cuts moved to
-  explicit follow-ups (client tools, Codex-on-Daytona, snapshot bake, U2, watch adoption,
-  mandatory replay capture); warm-reuse edges added (session/load after VM stop,
-  sanitized-ID collision, bundle-version skew, partial request visibility via #5232's
-  atomic-rename amendment); security separation made structural (dedicated internal entry
-  constructor/type, reserved-name rejection for user config, `toAcpMcpServers` never
-  generalized to stdio); naming fixed (`tool-mcp-stdio.ts`, `internal-tool-mcp-handler.ts`
-  if a handler exists, upload helpers under `engines/sandbox_agent/`, ACP entry shapes out
-  of `mcp-bridge.ts`).
+- 2026-07-11: workspace created; prior art reconciled; PR #4873 mined as the revival base;
+  owner decisions encoded in [context.md](context.md); A2 recommendation written.
+- 2026-07-11 (late): Codex xhigh review folded in — conditional A2 gated on a slice-0
+  restart spike, relay modules handed to PR #5232/#5243, specs moved to a file, v1 cut to
+  spike + shim + live acceptance. Details in the decision log.
+- 2026-07-12 (overnight run): **slice 0 executed live.** Verdict: `session/load` respawns
+  the stdio MCP subprocess on the pinned adapter (`@zed-industries/claude-agent-acp 0.22.2`,
+  snapshot `agenta-sandbox-pi`, in-sandbox `sandbox-agent 0.5.0-rc.2`): new pid, fresh
+  `initialize` + `tools/list`, `loadedFromContinuity=true`. **A2 locked, no engine fork
+  needed.** Evidence + caveats (Pi login upload is Pi-only; `pauseSandbox()` clears
+  `sandbox.sandboxId`) in [spike-restart.md](spike-restart.md).
+- 2026-07-12: **slice 1 implemented and committed** (4 commits on
+  `feat-in-sandbox-tool-mcp`): `tools/tool-mcp-stdio.ts` (9.6 kB bundle, NDJSON JSON-RPC,
+  consumes the shared relay client, specs from a FILE via
+  `AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE`), `engines/sandbox_agent/tool-mcp-assets.ts`
+  (fail-loud always-write upload, `SANDBOX_AGENT_RELAY_MCP_BUNDLE` override),
+  the dedicated typeless `agenta-tools` entry constructor in `mcp.ts` (McpServerStdio moved
+  out of mcp-bridge; `toAcpMcpServers` still cannot emit stdio), the narrowed run-plan gate
+  (executable tools on Daytona pass; client tools and non-Daytona remotes refuse loud; the
+  reserved name is refused at declaration + materialization), and — from the review round —
+  the relay execution guard now built for EVERY harness (deny enforced everywhere; ask
+  consumes the Pi grant ledger on Pi, passes on MCP harnesses whose own dialog gates the
+  call; forged-ask residual documented as a follow-up). Lane tip verified standalone:
+  typecheck clean, 994/994 unit tests green.
+- 2026-07-12: **slice 2 ran** ([qa-slice2.md](qa-slice2.md)): Claude+local+gateway PASS
+  (loopback channel, echo token end to end); Pi+Daytona+gateway PASS (file relay);
+  Claude+Daytona+gateway cold MECHANISM PASS (no refusal, shim uploaded + advertised,
+  session created; model turn blocked upstream by credit); Claude+Daytona+client-tool
+  refusal PASS (29 ms, zero sandboxes); Claude+Daytona no-tools PASS (no shim upload);
+  reserved-name rejection PASS. Warm/restart cells BLOCKED on credit (spike covers the
+  respawn mechanism). Teardown verified twice: 0 sandboxes left.
+- 2026-07-12: living docs synced in the same PR (runner-to-mcp-server interface page,
+  interface index, harness-adapters, mcp-models, permission-responder, tools.md,
+  ground-truth.md, claude-code.md, running-the-agent.md).
+
+## Known caveats / deferred (each its own decision, see plan.md follow-ups)
+
+- Client tools through the shim (Daytona client-tool bridge workspace owns it).
+- Ask-grant parity for MCP harnesses in the relay guard (a forged relay file can trigger
+  an ask-tool without a dialog on the MCP path; deny is enforced runner-side everywhere).
+- Shim-side abort: the shim passes no AbortSignal into `relayToolCall`; a harness-cancelled
+  `tools/call` runs to completion/timeout (relay timeout residue is #5243-owned).
+- Codex-on-Daytona, snapshot bake, Pi-as-MCP-client, watch adoption in the shim, replay
+  capture: unchanged follow-ups.
+- Dev-stack operational note: the running dev sidecar containers were built from an image
+  whose CMD does not rebuild bundles on restart; loading a new shim build needs a
+  `docker cp` of `scripts/build-extension.mjs` (or the dist file) before the restart.
+  Deployed images bake the bundle at build time and are unaffected. Also, the deployed
+  main runner carries `DAYTONA_SNAPSHOT=daytona-small` (the daemon-less code-evaluator
+  snapshot) because the env file's API-scoped value leaks into the runner service; the
+  sub-sidecar has the correct `agenta-sandbox-pi`. Worth an env-file sweep.
+- QA note: the sidecar's Codex-subscription Pi login cannot set `openai/gpt-4o-mini`
+  (fail-loud ModelNotSettableError); Pi QA cells use `openai-codex/gpt-5.4-mini`.
 
 ## Next
 
-1. Owner review of this workspace (interview against
-   [open-questions.md](open-questions.md), especially the conditional A2 approval and the
-   specs-file decision).
-2. On approval: run slice 0 (the restart spike) first. Implementation waits for PR #5232
-   slice 0 (relay module extraction); then slice 1 (#4873 revival over the consumed
-   modules), then slice 2 (live acceptance). Coordinate lane usage on the agent board.
-
-## Blockers
-
-- Implementation waits on PR #5232 slice 0 (relay module extraction), now an explicit
-  prerequisite.
-- Slice 0 and slice 2 need Daytona credit; slice 2 also needs the `pi-agents` project's
-  live Composio connections (the same live-QA prerequisites recorded in
-  `claude-daytona-tools/design.md`).
+1. Owner review of the draft PR (interview against [open-questions.md](open-questions.md);
+   the conditional A2 approval is now backed by the spike).
+2. Restore Daytona/Anthropic credit, re-run qa-slice2 cells 3 + 7 (execution, warm reuse,
+   stopped-VM restart, tool-set change, network-off), record them, flip the PR to ready.
 
 ## Decision log
 
-- 2026-07-11: transport recommendation flipped from A1 (HTTP loopback,
-  `claude-daytona-tools`) to A2 (harness-spawned stdio, PR #4873), driven by the warm-reuse
-  lifecycle (PR #5225) and the existence of tested A2 code. Recorded in
-  [plan.md](plan.md); awaiting owner confirmation (open question 1).
+- 2026-07-11: transport recommendation flipped from A1 (HTTP loopback) to A2
+  (harness-spawned stdio, PR #4873), driven by the warm-reuse lifecycle (PR #5225).
 - 2026-07-11 (late, Codex review fold): A2 approval made conditional on the slice 0 restart
   spike; relay-module ownership handed to PR #5232; the standalone shared-handler slice cut;
-  specs delivery decided as a file; v1 reduced to spike + shim + live acceptance with
-  everything else an explicit follow-up. Adopted while the owner slept, flagged for his
-  review, reversible.
-- 2026-07-11: the daemon-spawned variant from `remote-tools-delivery` recognized as the
-  same mechanism as A2 (the daemon already forwards session MCP entries; the adapter
-  spawns them), so no daemon change is requested from the sandbox-agent package.
+  specs delivery decided as a file; v1 reduced to spike + shim + live acceptance.
+- 2026-07-11: the daemon-spawned variant recognized as the same mechanism as A2.
+- 2026-07-12: slice-0 spike PASSED; A2 locked unconditionally (no cold-createSession
+  fallback needed). Relay guard extended to every harness after the implementation review
+  found the plan's forged-file invariant unimplemented on the new path; ask-grant parity
+  for MCP harnesses recorded as a follow-up rather than blocking v1.
