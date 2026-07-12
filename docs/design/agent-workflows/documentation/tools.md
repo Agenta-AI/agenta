@@ -243,13 +243,49 @@ never leave the service — the same safety property gateway tools have. The wor
 relays a `callback` spec exactly as it does a gateway tool (direct or via the Daytona file relay).
 
 There is one transport wrinkle. On Daytona the in-sandbox process cannot reach Agenta over the
-network. So the call is relayed through files instead: the in-sandbox tool writes a request
-file to a relay directory, the runner (which can reach Agenta) reads it, performs the same
-`/tools/call` POST, and writes the answer back (`relayToolCall` in `dispatch.ts`,
-`startToolRelay` in `tools/relay.ts`). Same callback, same envelope, different delivery. The
+network. So the call is relayed through files instead: the in-sandbox tool publishes a request
+file into a relay directory, the runner (which can reach Agenta) picks it up, performs the same
+`/tools/call` POST, and publishes the answer back. The writer is `relayToolCall` in
+`tools/relay-client.ts` (re-exported by `dispatch.ts`); the wire protocol (file suffixes,
+request and response shapes, byte-pinned request serialization) is `tools/relay-protocol.ts`;
+the runner-side loop is `startToolRelay` in `tools/relay.ts`. The two writer modules import
+node builtins only, so the Pi extension bundle and the future in-sandbox MCP shim (#5234)
+consume them from inside the sandbox. Same callback, same envelope, different delivery. The
 non-Pi internal MCP channel (a loopback HTTP MCP server the runner serves) uses this same relay
 even on local runs, because the harness calling it is kept blind to the private spec — only
 public metadata crosses the channel, and execution relays back to the runner.
+
+The relay files carry three guarantees. Publication is atomic in both directions: each side
+writes the full bytes to a temp name (`<final>.tmp.<nonce>`) and renames it to the final name
+in the same directory, so a reader never sees partial JSON (on Daytona the daemon's `moveFs`
+is `rename(2)` underneath). The runner deletes each request file right after reading it, so a
+request executes at most once per publication; a request lost to a runner crash surfaces as a
+writer timeout and a tool error, never a redelivery. And each turn's relay loop treats its
+first directory listing as a snapshot: request files that predate the turn are deleted, never
+executed, so a crashed earlier turn cannot leak a stale call into a warm-continued one.
+
+Pickup is event-driven, with polling kept as the fallback. The writer arms one coalescing
+`fs.watch` on the relay dir before its first response check, so the runner's answer wakes it
+instantly; the 300 ms poll survives as the racing safety timer. The runner's loop wakes the
+same way: locally from an in-process `fs.watch` (unflagged; it only shortens the poll sleeps),
+and on Daytona, behind a flag, from one bounded watch exec per window inside the sandbox.
+While the Daytona watch is healthy the runner suspends its remote `ls` polling and keeps a
+30 s safety poll; failures demote the turn to classic polling with jittered backoff and one
+log line. Three env vars control the wakes:
+
+- `AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED`: the in-sandbox response watch (hop 1).
+  Default true; only the exact strings `false` and `0` disable it. Forwarded into the sandbox
+  env only when the operator set it.
+- `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_ENABLED`: the Daytona watch exec (hop 2). Default
+  false; only the exact strings `true` and `1` enable it.
+- `AGENTA_AGENT_TOOLS_RELAY_REMOTE_WATCH_WINDOW_MS`: one watch exec window. Default 25000,
+  clamped to [5000, 120000], with downward-only jitter of up to 20 percent. Keep it below the
+  30 s safety poll: a window of 30 s or more still works but degrades pickup latency and can
+  demote a healthy watch.
+
+The existing relay vars (`AGENTA_AGENT_TOOLS_RELAY_POLLING`, `_POLLING_MAX`,
+`_IDLE_GROW_AFTER`, `_TIMEOUT`) keep their names and meanings; they now describe the fallback
+poll mode and the safety timers.
 
 ### Platform tools: the runner calls an existing Agenta endpoint directly
 
@@ -576,7 +612,9 @@ never drift from the files that exist. The canonical playbook format lives in th
 | Runtime dispatch (branch on `kind`) | `services/agent/src/tools/dispatch.ts` |
 | Callback transport | `services/agent/src/tools/callback.ts` |
 | Code execution | `services/agent/src/tools/code.ts` |
-| Daytona/non-Pi relay | `services/agent/src/tools/relay.ts` |
+| Daytona/non-Pi relay (runner-side loop) | `services/runner/src/tools/relay.ts` |
+| In-sandbox relay writer + wire protocol | `services/runner/src/tools/relay-client.ts`, `relay-protocol.ts` |
+| Relay wake sources (local `fs.watch`, Daytona watch exec) | `services/runner/src/tools/relay-watch.ts` |
 | Pi native delivery | `services/agent/src/extensions/agenta.ts` |
 | `agenta-tools` server for non-Pi harnesses | `services/agent/src/tools/mcp-bridge.ts`, `services/agent/src/tools/mcp-server.ts` |
 | Capability probe | `services/agent/src/engines/sandbox_agent/capabilities.ts` |

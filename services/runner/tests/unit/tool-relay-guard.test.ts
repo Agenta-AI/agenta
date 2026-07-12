@@ -116,14 +116,6 @@ async function relayOnce(input: {
   const dir = mkdtempSync(join(tmpdir(), "agenta-relay-guard-"));
   try {
     const id = "call-1";
-    writeFileSync(
-      join(dir, `${id}.req.json`),
-      JSON.stringify({
-        toolName: input.spec.name,
-        toolCallId: id,
-        args: input.args,
-      }),
-    );
     const relay = startToolRelay(
       localRelayHost(),
       dir,
@@ -132,6 +124,18 @@ async function relayOnce(input: {
       input.runContext,
       undefined,
       input.guard,
+    );
+    // Written AFTER startToolRelay: the stale-file sweep (whose listing is taken
+    // synchronously inside startToolRelay for this synchronous-list host) clears any
+    // request already present as pre-turn residue instead of executing it. A real
+    // forged record can also only appear after the loop starts.
+    writeFileSync(
+      join(dir, `${id}.req.json`),
+      JSON.stringify({
+        toolName: input.spec.name,
+        toolCallId: id,
+        args: input.args,
+      }),
     );
     const resPath = join(dir, `${id}.res.json`);
     const deadline = Date.now() + 5000;

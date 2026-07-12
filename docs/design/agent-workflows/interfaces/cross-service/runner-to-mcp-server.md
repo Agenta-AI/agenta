@@ -63,10 +63,18 @@ local", so an unknown remote provider fails closed too. A user http MCP server (
 harness dials directly) is NOT loopback-bound and stays delivered on Daytona unchanged.
 
 **The file relay.** A resolved tool may need to run privately rather than inside the harness
-process. The relay moves the call across that boundary: the child writes a `<id>.req.json`
-request into the relay directory, the runner polls (every ~300ms), executes the tool through
-the `RelayHost` (local `node:fs` or the Daytona sandbox filesystem), and writes a
-`<id>.res.json` response. A tool slower than the relay timeout surfaces as a tool error.
+process. The relay moves the call across that boundary: the child publishes a `<id>.req.json`
+request into the relay directory, the runner picks it up, executes the tool through the
+`RelayHost` (local `node:fs` or the Daytona sandbox filesystem), and publishes a
+`<id>.res.json` response. Every publication is atomic on both sides: full bytes under a temp
+name (`<final>.tmp.<nonce>`), then a same-directory rename, so neither side ever reads partial
+JSON. The runner deletes the request file as soon as it has read it, so a request executes at
+most once per publication; the writer still deletes the response after reading it (its own
+request unlink is now usually a no-op). Crash redelivery is gone on both backends: a runner
+crash after pickup loses the request, the writer times out, and the call surfaces as a tool
+error. Pickup is event-driven with polling as the fallback: an in-process `fs.watch` locally,
+a flagged bounded watch exec on Daytona, and the ~300 ms poll as the safety timer. A tool
+slower than the relay timeout surfaces as a tool error.
 
 **User-declared servers.** `mcpServers` in `/run` carries each user server with its
 transport, command or url, args, env (secrets already injected by the Python resolver), tool
@@ -109,7 +117,12 @@ allowlist, and permission. Two transports, opposite states:
 - `services/runner/src/tools/spec-schema.ts`: the shared `specInputSchema` accessor + arg
   validation.
 - `services/runner/src/tools/mcp-server.ts`: the removed stdio JSON-RPC server (refusing stub).
-- `services/runner/src/tools/relay.ts`: the file relay loop and hosts (idle-poll backoff).
+- `services/runner/src/tools/relay.ts`: the runner-side relay loop and hosts
+  (delete-on-pickup; idle-poll backoff in fallback mode).
+- `services/runner/src/tools/relay-client.ts` and `relay-protocol.ts`: the bundle-safe
+  in-sandbox writer and wire protocol (atomic publication; the hop-1 response watch).
+- `services/runner/src/tools/relay-watch.ts`: the hop-2 wake sources (local `fs.watch`; the
+  flagged Daytona watch exec).
 
 ## Watch for when changing
 
@@ -127,8 +140,9 @@ allowlist, and permission. Two transports, opposite states:
 - **The remote-tools gate.** A non-Pi remote-sandbox run carrying ANY custom tool (client kind
   included) is refused in `run-plan.ts`. Swap it for a real in-sandbox delivery path when one
   exists; do not widen it.
-- **The relay.** Polling interval, idle backoff, timeout, and the local-versus-Daytona host. A
-  slow tool must fail cleanly.
+- **The relay.** Atomic temp-plus-rename publication, delete-on-pickup (at most one execution
+  per publication), the wake sources and their flags, polling interval, idle backoff, timeout,
+  and the local-versus-Daytona host. A slow tool must fail cleanly.
 - **HTTP MCP delivery.** `toAcpMcpServers` routes the resolved secret from `env` into a
   request header and builds the ACP `type: "http"` entry. Changing the env-to-header mapping or
   the ACP variant shape changes which auth reaches the remote server.

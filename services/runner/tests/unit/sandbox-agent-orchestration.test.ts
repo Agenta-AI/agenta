@@ -707,6 +707,12 @@ describe("runSandboxAgent orchestration", () => {
     // A Pi run passes the execution guard: the relay dir is sandbox-writable, so every execute
     // record is re-checked runner-side (a forged record must not run an ask/deny tool).
     assert.equal(typeof calls.toolRelayArgs?.[6], "function");
+    // The 8th argument carries the log sink: without it the relay skips pickup
+    // telemetry (and its per-request stat) entirely, so the engine must pass one.
+    assert.equal(
+      typeof (calls.toolRelayArgs?.[7] as { log?: unknown } | undefined)?.log,
+      "function",
+    );
     assert.equal(
       calls.toolRelayStops,
       2,
