@@ -52,10 +52,25 @@ export function EventRow({
     const [open, setOpen] = useState(defaultExpanded)
     const meta = EVENT_META[event.type]
     const isError = event.type === "error" || (event.type === "tool_result" && hasError(event))
+    const isInteraction = event.type === "interaction_request"
     const json = JSON.stringify(event.payload ?? {}, null, 2)
+    // Errors/interactions read as typed events IN PLACE (spec §4.1) — a left accent bar, not a
+    // detached banner.
+    const accent = isError
+        ? EVENT_META.error.dot
+        : isInteraction
+          ? EVENT_META.interaction_request.dot
+          : null
 
     return (
-        <div className="border-0 border-b border-solid border-[#24262b] last:border-b-0">
+        <div
+            className="border-0 border-b border-solid border-[#24262b] last:border-b-0"
+            style={
+                accent
+                    ? {boxShadow: `inset 2px 0 0 ${accent}`, background: `${accent}0d`}
+                    : undefined
+            }
+        >
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
@@ -106,6 +121,13 @@ export function EventRow({
                     <pre className="m-0 max-h-64 overflow-auto rounded border border-solid border-[#24262b] bg-[#0f1012] p-2 font-mono text-[11px] leading-snug text-colorTextSecondary">
                         {json}
                     </pre>
+                    {/* Approvals are actioned in the live chat dock (durable respond is deferred
+                        backend-side); the inspector shows the request read-only. */}
+                    {isInteraction ? (
+                        <div className="mt-1 text-[10px] text-colorTextQuaternary">
+                            Approvals are actioned in the chat.
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
         </div>
