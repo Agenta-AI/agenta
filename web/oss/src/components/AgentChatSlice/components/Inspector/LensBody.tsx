@@ -54,16 +54,25 @@ export function LensBody({
     targetTurn,
     lens,
     rawOpen,
+    onDrillTurn,
 }: {
     sessionId: string
     scope: InspectorScope
     targetTurn?: number | null
     lens: InspectorLens
     rawOpen: boolean
+    onDrillTurn?: (turn: number) => void
 }) {
     if (rawOpen) return <RawView sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
     if (lens === "timeline")
-        return <TimelineLens sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
+        return (
+            <TimelineLens
+                sessionId={sessionId}
+                scope={scope}
+                targetTurn={targetTurn}
+                onDrillTurn={onDrillTurn}
+            />
+        )
     if (lens === "context")
         return <ContextLens sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
     return <RuntimeLens sessionId={sessionId} scope={scope} />

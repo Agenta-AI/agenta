@@ -14,6 +14,8 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {downloadText} from "@/oss/lib/helpers/fileManipulations"
 
+import {sessionLivenessAtomFamily} from "../../state/liveness"
+
 import {LensBody} from "./LensBody"
 import {LensRail} from "./LensRail"
 import {
@@ -24,6 +26,29 @@ import {
     type InspectorScope,
 } from "./state"
 import {buildTimeline} from "./timeline"
+
+/** alive/running/attached chips on the session identity line (build-spec §3). */
+const LivenessChips = ({sessionId}: {sessionId: string}) => {
+    const {nest} = useAtomValue(sessionLivenessAtomFamily(sessionId))
+    const chips: {label: string; color: string}[] = []
+    if (nest.isAlive) chips.push({label: "alive", color: "#4fd1b5"})
+    if (nest.isRunning) chips.push({label: "running", color: "#e0b050"})
+    if (nest.isAttached) chips.push({label: "attached", color: "#7fb0ff"})
+    if (chips.length === 0) chips.push({label: "dormant", color: "#9aa0a6"})
+    return (
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+            {chips.map((c) => (
+                <span
+                    key={c.label}
+                    className="rounded px-1.5 py-px text-[10px] font-medium"
+                    style={{background: "#212327", color: c.color}}
+                >
+                    {c.label}
+                </span>
+            ))}
+        </span>
+    )
+}
 
 export function Inspector({sessionId}: {sessionId: string}) {
     const target = useAtomValue(inspectorTargetAtom)
@@ -120,7 +145,10 @@ export function Inspector({sessionId}: {sessionId: string}) {
                 {/* Identity line (build-spec §3). */}
                 <div className="flex items-center gap-2 pl-1 text-[11px] text-colorTextTertiary">
                     {scope === "session" ? (
-                        <span className="truncate font-mono">{sessionId}</span>
+                        <>
+                            <span className="min-w-0 truncate font-mono">{sessionId}</span>
+                            <LivenessChips sessionId={sessionId} />
+                        </>
                     ) : (
                         <>
                             <span className="font-medium text-colorText">
@@ -146,6 +174,7 @@ export function Inspector({sessionId}: {sessionId: string}) {
                 targetTurn={targetTurn}
                 lens={lens}
                 rawOpen={rawOpen}
+                onDrillTurn={(turn) => setTarget({sessionId, scope: "turn", targetTurn: turn})}
             />
         </div>
     )

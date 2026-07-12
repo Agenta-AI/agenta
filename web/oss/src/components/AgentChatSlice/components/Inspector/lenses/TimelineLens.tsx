@@ -37,33 +37,54 @@ const turnTotal = (group: TurnGroup): string =>
         ? toolDuration(group.startAt, group.endAt) || "0ms"
         : ""
 
-const TurnGroupCard = ({group, defaultOpen}: {group: TurnGroup; defaultOpen: boolean}) => {
+const TurnGroupCard = ({
+    group,
+    defaultOpen,
+    onDrill,
+}: {
+    group: TurnGroup
+    defaultOpen: boolean
+    onDrill?: (turn: number) => void
+}) => {
     const [open, setOpen] = useState(defaultOpen)
     const statusColor =
         group.status === "error" ? "#f0857c" : group.status === "running" ? "#e0b050" : "#8fd07a"
     return (
         <div className="border-0 border-b border-solid border-[#24262b]">
-            <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2 py-2 text-left hover:bg-[#212327]"
-            >
-                <CaretRight
-                    size={11}
-                    weight="bold"
-                    className={`shrink-0 text-colorTextTertiary transition-transform ${open ? "rotate-90" : ""}`}
-                />
-                <span className="text-xs font-medium">Turn {group.turn}</span>
-                <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{background: statusColor}}
-                />
-                <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[10px] text-colorTextQuaternary">
-                    {group.startAt != null ? <span>{formatWallClock(group.startAt)}</span> : null}
-                    {turnTotal(group) ? <span>· {turnTotal(group)}</span> : null}
-                    <span>· {group.events.length} events</span>
-                </span>
-            </button>
+            {/* Caret toggles expand; the header body drills into Turn scope (build-spec §3). */}
+            <div className="flex w-full items-center gap-2 px-2 py-2 hover:bg-[#212327]">
+                <button
+                    type="button"
+                    onClick={() => setOpen((v) => !v)}
+                    className="shrink-0 cursor-pointer border-0 bg-transparent p-0"
+                    aria-label={open ? "Collapse turn" : "Expand turn"}
+                >
+                    <CaretRight
+                        size={11}
+                        weight="bold"
+                        className={`text-colorTextTertiary transition-transform ${open ? "rotate-90" : ""}`}
+                    />
+                </button>
+                <button
+                    type="button"
+                    onClick={() => (onDrill ? onDrill(group.turn) : setOpen((v) => !v))}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
+                    title={onDrill ? "Inspect this turn" : undefined}
+                >
+                    <span className="text-xs font-medium">Turn {group.turn}</span>
+                    <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{background: statusColor}}
+                    />
+                    <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[10px] text-colorTextQuaternary">
+                        {group.startAt != null ? (
+                            <span>{formatWallClock(group.startAt)}</span>
+                        ) : null}
+                        {turnTotal(group) ? <span>· {turnTotal(group)}</span> : null}
+                        <span>· {group.events.length} events</span>
+                    </span>
+                </button>
+            </div>
             {open ? (
                 <div className="border-0 border-t border-solid border-[#24262b] pl-2">
                     <EventList events={group.events} turnStart={group.startAt} />
@@ -77,10 +98,12 @@ export function TimelineLens({
     sessionId,
     scope,
     targetTurn,
+    onDrillTurn,
 }: {
     sessionId: string
     scope: InspectorScope
     targetTurn?: number | null
+    onDrillTurn?: (turn: number) => void
 }) {
     const query = useAtomValue(sessionRecordsQueryFamily(sessionId))
     const [filter, setFilter] = useAtom(inspectorFilterAtom)
@@ -168,6 +191,7 @@ export function TimelineLens({
                             key={group.turn}
                             group={group}
                             defaultOpen={turns.length <= 2 || group.status === "running"}
+                            onDrill={onDrillTurn}
                         />
                     ))
                 )}
