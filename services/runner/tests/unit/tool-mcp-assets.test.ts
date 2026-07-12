@@ -98,6 +98,47 @@ describe("uploadToolMcpAssets", () => {
     assert.deepEqual(written, specs);
   });
 
+  it("starts both remote writes together after mkdir and caches the bundle by path", async () => {
+    const sourceBundle = fixtureBundle();
+    process.env.SANDBOX_AGENT_RELAY_MCP_BUNDLE = sourceBundle;
+    const started: string[] = [];
+    const releases: Array<() => void> = [];
+    const sandbox = {
+      mkdirFs: async () => {
+        started.push("mkdir");
+      },
+      writeFsFile: ({ path }: { path: string }, body: string) => {
+        started.push(`${path}:${body}`);
+        return new Promise<void>((resolve) => releases.push(resolve));
+      },
+    };
+
+    const first = uploadToolMcpAssets(sandbox, "/first", specs);
+    await Promise.resolve();
+    assert.equal(started[0], "mkdir");
+    assert.equal(
+      started.filter((entry) => entry.startsWith("/first/")).length,
+      2,
+      "both writes start before either remote write settles",
+    );
+    releases.splice(0).forEach((release) => release());
+    await first;
+
+    writeFileSync(sourceBundle, "// changed after first acquire", "utf-8");
+    const second = uploadToolMcpAssets(sandbox, "/second", specs);
+    await Promise.resolve();
+    const secondBundleWrite = started.find((entry) =>
+      entry.startsWith("/second/tool-mcp-stdio.js:"),
+    );
+    assert.equal(
+      secondBundleWrite,
+      "/second/tool-mcp-stdio.js:// shim bundle",
+      "the static bundle is read once per resolved path",
+    );
+    releases.splice(0).forEach((release) => release());
+    await second;
+  });
+
   it("throws (fail loud) when the bundle is missing — never silently drops tools", async () => {
     process.env.SANDBOX_AGENT_RELAY_MCP_BUNDLE = join(
       tmpdir(),

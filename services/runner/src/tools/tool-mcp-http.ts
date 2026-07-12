@@ -311,15 +311,7 @@ export function startInternalToolMcpServer(
   const requestListener = (req: IncomingMessage, res: ServerResponse): void => {
     active.add(res);
     res.on("close", () => active.delete(res));
-    // The MCP Streamable-HTTP client opens a GET SSE stream and sends a DELETE on close; this
-    // stateless server offers neither, so it returns 405 (the client tolerates 405 for both).
-    if (req.method !== "POST") {
-      res.writeHead(405, { "content-type": "application/json", allow: "POST" });
-      res.end(JSON.stringify({ error: "method not allowed" }));
-      return;
-    }
-
-    // Gate the POST path before reading or parsing attacker-controlled input.
+    // Authenticate every MCP transport verb before dispatching or revealing method support.
     if (!hasValidAuthorization(req.headers.authorization, authorizationToken)) {
       res.writeHead(401, { "content-type": "application/json" });
       res.end(
@@ -329,6 +321,14 @@ export function startInternalToolMcpServer(
           error: { code: -32001, message: "unauthorized" },
         }),
       );
+      return;
+    }
+
+    // The MCP Streamable-HTTP client opens a GET SSE stream and sends a DELETE on close; this
+    // stateless server offers neither, so it returns 405 (the client tolerates 405 for both).
+    if (req.method !== "POST") {
+      res.writeHead(405, { "content-type": "application/json", allow: "POST" });
+      res.end(JSON.stringify({ error: "method not allowed" }));
       return;
     }
 

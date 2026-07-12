@@ -185,6 +185,64 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
   });
 
   describe("the served MCP endpoint", () => {
+    it("authenticates every method and token shape before either executor can run", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "agenta-tool-auth-"));
+      let clientDispatchCount = 0;
+      const clientToolRelay: ClientToolRelay = {
+        onClientTool: async () => {
+          clientDispatchCount += 1;
+          return "deny";
+        },
+      };
+      try {
+        const { servers } = await build(
+          [
+            { name: "search", kind: "callback", callRef: "composio.search" },
+            { name: "confirm", kind: "client" },
+          ],
+          dir,
+          { clientToolRelay },
+        );
+        const url = servers[0].url;
+        const token = authorizationFor(url).slice("Bearer ".length);
+
+        for (const method of ["GET", "DELETE"]) {
+          const response = await fetch(url, { method });
+          assert.equal(response.status, 401, `unauthenticated ${method}`);
+          assert.equal(((await response.json()) as any).error.code, -32001);
+        }
+
+        const request = JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "search", arguments: { q: "hi" } },
+        });
+        for (const authorization of [
+          "Basic " + token,
+          "Bearer",
+          "Bearer  " + token,
+          "Bearer\t" + token,
+        ]) {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization,
+            },
+            body: request,
+          });
+          assert.equal(response.status, 401, authorization);
+          assert.equal(((await response.json()) as any).error.code, -32001);
+        }
+
+        assert.deepEqual(readdirSync(dir), [], "the callback executor never publishes a request");
+        assert.equal(clientDispatchCount, 0, "the client relay is never invoked");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
     it("answers initialize / tools/list (public spec only, client filtered)", async () => {
       const specs: ResolvedToolSpec[] = [
         {

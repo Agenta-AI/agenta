@@ -418,6 +418,29 @@ function isRelayFileName(name: string): boolean {
   );
 }
 
+/** Bound one daemon removal so relay startup, polling, and shutdown cannot wedge on it. */
+const RELAY_REMOVE_TIMEOUT_MS = 10_000;
+
+async function removeRelayFile(host: RelayHost, path: string): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), RELAY_REMOVE_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      Promise.resolve(host.remove(path)).then(
+        () => true,
+        () => false,
+      ),
+      timeout,
+    ]);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Clear pre-turn relay residue from a reused relay dir (a warm-continued turn skips the
  * cold build's rm -rf, so a crashed prior turn can leave files behind). Every relay
@@ -457,7 +480,7 @@ export async function sweepStaleRelayFiles(
       // is only re-armed watch noise once the loop's seen set has it; a leftover
       // response is inert for fresh toolCallIds).
       await Promise.allSettled(
-        stale.map((name) => host.remove(`${relayDir}/${name}`)),
+        stale.map((name) => removeRelayFile(host, `${relayDir}/${name}`)),
       );
       log(
         `[relay] cleared ${stale.length} stale relay file(s) predating the turn`,
@@ -588,18 +611,9 @@ export function startToolRelay(
     // publication, consistent with the stale-sweep decision (a restarted turn must
     // not re-execute stale requests; the writer times out and surfaces a tool error
     // instead). A failed removal is recorded for retry on later list passes.
-    let removeDone: Promise<void>;
-    try {
-      removeDone = host.remove(reqPath).then(
-        () => undefined,
-        () => {
-          removeFailed.add(reqName);
-        },
-      );
-    } catch {
-      removeFailed.add(reqName);
-      removeDone = Promise.resolve();
-    }
+    const removeDone = removeRelayFile(host, reqPath).then((removed) => {
+      if (!removed) removeFailed.add(reqName);
+    });
     // The execute phase starts NOW (as soon as the read returned) and runs in the
     // background; the pickup itself only awaits stat + remove.
     inflight.push(execute(id, raw));
@@ -667,18 +681,11 @@ export function startToolRelay(
               removeFailed.delete(name);
               continue;
             }
-            try {
-              pickups.push(
-                host.remove(`${relayDir}/${name}`).then(
-                  () => {
-                    removeFailed.delete(name);
-                  },
-                  () => undefined,
-                ),
-              );
-            } catch {
-              // Still failing synchronously; keep it in the retry set.
-            }
+            pickups.push(
+              removeRelayFile(host, `${relayDir}/${name}`).then((removed) => {
+                if (removed) removeFailed.delete(name);
+              }),
+            );
           }
           for (const name of names) {
             if (!name.endsWith(RELAY_REQ_SUFFIX) || seen.has(name)) continue;

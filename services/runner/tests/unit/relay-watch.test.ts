@@ -373,6 +373,31 @@ describe("daytonaRelayActivitySource invariants", () => {
     source.close();
   });
 
+  it("a zero exit from the same missed generation does not reset the demotion counter", async () => {
+    const { sandbox, calls } = fakeSandbox();
+    const source = daytonaRelayActivitySource(sandbox, "/relay", {
+      windowMs: 60_000,
+      backoffBaseMs: 1,
+      backoffCapMs: 2,
+    });
+
+    for (let generation = 0; generation < 3; generation += 1) {
+      const wait = source.wait({ timeoutMs: 5_000 });
+      assert.equal(calls.length, generation + 1);
+      source.noteMiss?.();
+      calls[generation].resolve({ exitCode: 0, timedOut: false });
+      assert.equal(await wait, "activity");
+      await sleep(10);
+    }
+
+    assert.equal(
+      source.isHealthy(),
+      false,
+      "three missed generations demote even though each later exits zero",
+    );
+    source.close();
+  });
+
   it("outer bound: a never-settling exec counts as a failure, re-arms inside the SAME wait, demotes after three, and late settles change nothing", async () => {
     const settlers: Array<{
       resolve: (r: { exitCode?: number | null; timedOut?: boolean }) => void;
@@ -533,6 +558,17 @@ describe("remote watch window config", () => {
   it("garbage -> default with one warning", () => {
     const logs: string[] = [];
     process.env[WINDOW_ENV] = "soon";
+    assert.equal(
+      resolveRemoteWatchWindowMs((m) => logs.push(m)),
+      RELAY_REMOTE_WATCH_WINDOW_DEFAULT_MS,
+    );
+    assert.equal(logs.length, 1);
+    assert.match(logs[0], /unparseable/);
+  });
+
+  it("partial numeric garbage -> default with one warning", () => {
+    const logs: string[] = [];
+    process.env[WINDOW_ENV] = "30000junk";
     assert.equal(
       resolveRemoteWatchWindowMs((m) => logs.push(m)),
       RELAY_REMOTE_WATCH_WINDOW_DEFAULT_MS,

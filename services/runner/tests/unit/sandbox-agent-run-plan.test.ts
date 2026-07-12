@@ -717,13 +717,7 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
     });
 
-    it("refuses claude x daytona x client tools (no pause path through the shim yet)", () => {
-      // A client tool is browser-fulfilled across a turn boundary: on local Claude the
-      // loopback channel pauses the call, but the in-sandbox stdio shim cannot — the relay
-      // loop parks a client call and writes no response file, so the shim would hang until
-      // the relay timeout and read as a broken tool. Refuse loud (never silently drop),
-      // even when executable tools ride along.
-      let created = false;
+    it("allows claude x daytona x mixed tools and keeps only executable shim specs", () => {
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -735,26 +729,38 @@ describe("buildRunPlan", () => {
           ],
         } as AgentRunRequest,
         {
-          createDaytonaCwd: () => {
-            created = true;
-            return "/home/sandbox/agenta-fixed";
-          },
+          createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
         },
       );
 
-      assert.equal(result.ok, false);
-      if (result.ok) return;
-      assert.match(result.error, /Client tools are not supported/);
-      assert.match(result.error, /browser round-trip/);
-      assert.match(
-        result.error,
-        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.deepEqual(
+        result.plan.toolSpecs.map((tool) => tool.name),
+        ["server_tool", "request_connection"],
       );
-      assert.equal(
-        created,
-        false,
-        "fails before any cwd is created (up-front gate)",
+      assert.deepEqual(
+        result.plan.executableToolSpecs.map((tool) => tool.name),
+        ["server_tool"],
       );
+    });
+
+    it("allows claude x daytona x client-only tools with no shim specs", () => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "request_connection", kind: "client" }],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
+        },
+      );
+
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.deepEqual(result.plan.executableToolSpecs, []);
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
