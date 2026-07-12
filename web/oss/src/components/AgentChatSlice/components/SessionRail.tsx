@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
+import {MagnifyingGlass, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Empty, Input, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -23,7 +23,7 @@ import {
     timeAgo,
 } from "../state/sessions"
 
-import SessionTabLabel from "./SessionTabLabel"
+import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
 
 interface SessionRailRowProps {
@@ -40,9 +40,9 @@ interface SessionRailRowProps {
     onRename: (title: string) => void
 }
 
-/** One history row: status dot + label (double-click to rename) + created-at stamp, with an
- * inspect action on the active row and a hover-revealed delete. Wrapped in a grid-rows collapse so
- * it eases in on add and out on remove (siblings reflow smoothly). */
+/** One history row: status dot + label (double-click or pencil to rename) + created-at stamp,
+ * with an inspect action on the active row and hover-revealed rename/delete. Wrapped in a
+ * grid-rows collapse so it eases in on add and out on remove (siblings reflow smoothly). */
 const SessionRailRow = ({
     session,
     label,
@@ -54,6 +54,9 @@ const SessionRailRow = ({
     onDelete,
     onRename,
 }: SessionRailRowProps) => {
+    const labelRef = useRef<SessionTabLabelHandle>(null)
+    // Hide the action cluster while the inline rename input owns the row, so it gets full width.
+    const [renaming, setRenaming] = useState(false)
     // Start collapsed only for genuinely-new rows; reveal a frame later so the transition plays.
     const [shown, setShown] = useState(!enter)
     useEffect(() => {
@@ -91,8 +94,10 @@ const SessionRailRow = ({
                     <SessionStatusDot sessionId={session.id} />
                     <div className="flex min-w-0 flex-1 flex-col">
                         <SessionTabLabel
+                            ref={labelRef}
                             label={label}
                             onRename={onRename}
+                            onEditingChange={setRenaming}
                             className={clsx(
                                 "block min-w-0 truncate text-xs",
                                 active ? "text-colorText" : "text-colorTextSecondary",
@@ -104,13 +109,33 @@ const SessionRailRow = ({
                             </span>
                         )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-0.5">
+                    <div
+                        className={clsx("flex shrink-0 items-center gap-0.5", renaming && "hidden")}
+                    >
                         {open && !active && (
                             <span className="ag-surface-chip rounded px-1.5 py-px text-[11px] text-colorTextSecondary">
                                 open
                             </span>
                         )}
-                        {active && <SessionInspectorButton sessionId={session.id} />}
+                        {active && (
+                            <SessionInspectorButton
+                                sessionId={session.id}
+                                iconSize={12}
+                                className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                            />
+                        )}
+                        <Tooltip title="Rename session">
+                            <Button
+                                type="text"
+                                aria-label="Rename session"
+                                icon={<PencilSimple size={12} />}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    labelRef.current?.startEditing()
+                                }}
+                                className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                            />
+                        </Tooltip>
                         <Tooltip title="Delete session">
                             <Button
                                 type="text"
