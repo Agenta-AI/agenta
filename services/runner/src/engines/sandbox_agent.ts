@@ -768,6 +768,10 @@ export async function acquireEnvironment(
         skills: plan.skillDirs.map((s) => s.name),
       })
     : {};
+  // Daytona's provider is built from `piExtEnv` rather than the local daemon env. Keep the
+  // transcript location in both environment slices so Pi and pi-acp see the same durable path
+  // regardless of provider.
+  if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +

@@ -370,6 +370,11 @@ describe("runSandboxAgent orchestration", () => {
         .PI_CODING_AGENT_SESSION_DIR,
       expected,
     );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
     assert.equal(existsSync(expected), true);
     rmSync(cwd, { recursive: true, force: true });
   });
@@ -393,6 +398,11 @@ describe("runSandboxAgent orchestration", () => {
     const expected = "/home/sandbox/agenta-fake-cwd/agents/sessions/pi";
     assert.equal(
       (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
         .PI_CODING_AGENT_SESSION_DIR,
       expected,
     );
