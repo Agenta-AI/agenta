@@ -165,7 +165,7 @@ class WireToolCallback(_WireModel):
     """Where callback (gateway) tools route their calls back to."""
 
     endpoint: Optional[str] = None
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Field(default=None, repr=False)
 
 
 class WireRunContextReference(_WireModel):

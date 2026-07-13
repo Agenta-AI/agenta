@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Mapping, Sequence
 
 from agenta.sdk.agents.tools.models import MissingSecretPolicy
+from agenta.sdk.utils.net import assert_endpoint_url_allowed
 
-from .errors import MissingMCPSecretError
+from .errors import MCPServerURLBlockedError, MissingMCPSecretError
 from .interfaces import MCPSecretProvider
 from .models import MCPServerConfig, ResolvedMCPServer
 
@@ -53,6 +54,14 @@ class MCPResolver:
             for env_var, secret_name in server_config.secrets.items():
                 if secret_name in secret_values:
                     env[env_var] = secret_values[secret_name]
+
+            if server_config.url:
+                try:
+                    assert_endpoint_url_allowed(server_config.url)
+                except ValueError as exc:
+                    raise MCPServerURLBlockedError(
+                        server_name=server_config.name, url=server_config.url
+                    ) from exc
 
             resolved.append(
                 ResolvedMCPServer(
