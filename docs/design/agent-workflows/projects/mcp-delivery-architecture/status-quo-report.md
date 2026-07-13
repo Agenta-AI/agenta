@@ -251,7 +251,7 @@ Adopt role-based nesting before broad availability:
 {
   "name": "memory",
   "connection": {
-    "type": "remote_http",
+    "type": "http",
     "url": "https://memory.example.com/mcp",
     "headers": {},
     "credentials": {"type": "none"}
@@ -268,7 +268,7 @@ A future static secret header does not move fields:
 ```json
 {
   "connection": {
-    "type": "remote_http",
+    "type": "http",
     "url": "https://memory.example.com/mcp",
     "headers": {},
     "credentials": {
@@ -284,7 +284,7 @@ Future OAuth changes only the credential discriminator:
 ```json
 {
   "connection": {
-    "type": "remote_http",
+    "type": "http",
     "url": "https://memory.example.com/mcp",
     "credentials": {
       "type": "oauth_connection",
@@ -307,58 +307,38 @@ Contract rules:
 - Empty arrays carry no overloaded meaning. Use `mode: "all"` or `mode: "include"`.
 - Keep the author model separate from the internal resolved credential and placeholder contract.
 
-## Backwards-compatible migration
+## Pre-production reset
 
-Do not mutate old saved templates during invocation. Add one normalization boundary:
-
-1. Continue accepting the legacy flat shape as version 1.
-2. Convert it into the canonical nested model before resolution.
-3. Emit only the nested model for newly saved MCP entries.
-4. Preserve old entries byte-for-byte until the user edits or explicitly migrates them.
-5. Reject legacy stdio clearly. Do not reinterpret it.
-6. Treat legacy HTTP `env` as headers only in compatibility decoding.
-7. Map legacy `tools: []` to `policy.tools.mode = "all"`; non-empty lists become `include`.
-8. Keep resolved values and Daytona placeholders out of the author model.
-
-This lets execution move from direct Claude MCP to the platform gateway without changing saved
-agent templates.
+Reject the old flat object. Do not add a decoder, migration-on-read, dual write, or feature flag.
+Development users recreate old MCP entries in the new editor. Keep resolved values and Daytona
+placeholders out of the author model.
 
 ## Recommended UI and delivery order
 
-### Slice 1: no-secret HTTP MCP
+### Slices 0-2: contract, delivery pin, and truthful UI
 
-Show server name, remote MCP URL, authentication set to `None`, a Connect button, connection
-status and error, discovered tools, all-or-selected tool access, and allow/ask/deny permission.
-Hide stdio, environment, raw secret mapping, and manual tool-name tags.
+Replace the public contract, pin Claude HTTP delivery with tests, and gate the editor from the
+selected harness's runtime catalog. Show server name, URL, public headers, and credential
+strategy. Hide stdio, environment, command, arguments, and manual tool names.
 
-The Connect action should perform the same initialization and `tools/list` call as production.
-Show negotiated server identity, protocol version, capabilities, and tool count. Saving an
-untested server may remain possible, but the row must say "Not tested".
+### Slice 2.2: Pi parity
 
-### Slice 2: gateway and Pi parity
+Plan the smallest bridge from external MCP tools onto Pi's existing tool plane. Compare a runner
+MCP client with the future gateway; do not assume the gateway decision in this cleanup.
 
-Move discovery and calls behind the platform gateway. Convert discovered MCP tools into the same
-public specs Pi already receives. Apply selection and permission at the gateway executor. The
-same server then works on Claude and Pi, local and Daytona.
+### Slice 3: product features
 
-### Slice 3: authentication
-
-Add platform connection selection and OAuth. Keep static secret-header references as a bounded
-advanced option only if demand exists. Do not add raw tokens to agent templates.
+Plan connection testing, discovery, status, tool selection and enforcement, static credentials,
+OAuth, and the long-run gateway boundary in a separate draft PR.
 
 ### Work sequence
 
-1. Make deployment capability visible to the frontend. Do not render an editable MCP section
-   when the service has MCP disabled.
+1. Publish `mcp.user_servers` for Claude in the runtime harness catalog.
 2. Remove stdio from the UI and stop seeding entries with `transport: "stdio"`.
-3. Add the nested author model and legacy normalization tests. Keep the runner wire unchanged.
-4. Add service-side connect and discovery for unauthenticated HTTPS MCP.
-5. Surface connection state and discovered tools. Enforce selected tools.
-6. Enable MCP in development and run live Claude local and Claude Daytona acceptance tests.
-7. Build gateway execution and Pi projection. Run the full four-cell matrix.
-8. Add connection-backed OAuth and settle the PR #5242 recut for remaining direct-sandbox use.
-
-Do not flip the production feature flag until steps 1 through 6 are complete.
+3. Add the nested author model and reject the old shape.
+4. Run live Claude local and Daytona acceptance tests.
+5. Plan and build Pi slice 2.2.
+6. Plan the slice 3 product features separately.
 
 ## Verification performed
 
@@ -374,7 +354,7 @@ Do not flip the production feature flag until steps 1 through 6 are complete.
 
 - Ship remote HTTP only in the public UI.
 - Start without secrets.
-- Treat stdio as unsupported legacy input, not a product option.
+- Remove public stdio rather than preserving it as a variant.
 - Remove or implement `tools`; do not keep dead configuration.
 - Add connect, discover, and visible status before enablement.
 - Normalize the public contract into connection, credentials, and policy roles.

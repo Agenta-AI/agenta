@@ -2,9 +2,8 @@
 
 ## Capability and UI
 
-- Disabled deployment: MCP section absent.
-- Enabled deployment plus unsupported harness: MCP section absent.
-- Enabled Claude capability: MCP section visible.
+- Pi or another unsupported harness: MCP section absent.
+- Claude capability: MCP section visible.
 - Missing or old capability metadata: section absent.
 - Internal `agenta-tools`: never rendered, counted, saved, or editable.
 - New server form: no transport, command, arguments, or environment controls.
@@ -13,14 +12,13 @@
 
 ## Contract
 
-- Version 2 remote HTTP config round-trips without defaults changing meaning.
+- External HTTP config round-trips without defaults changing meaning.
 - Unknown fields fail validation.
 - `agenta-tools` name fails validation.
 - Non-HTTPS and private or metadata URLs fail before credentials are attached.
 - `include` requires at least one discovered tool name.
 - `all` rejects a `names` field.
-- Version 1 HTTP maps deterministically to version 2.
-- Version 1 stdio fails with a specific unsupported error.
+- Every old flat HTTP or stdio object fails validation.
 - Resolved secret-bearing objects never appear in repr, logs, inspect, or persistence snapshots.
 
 ## Live no-secret matrix
@@ -28,8 +26,8 @@
 | Harness | Local | Daytona |
 | --- | --- | --- |
 | Claude | connect, list, call, bad-URL error | connect, list, call, bad-URL error |
-| Pi before gateway | clear unsupported response | clear unsupported response |
-| Pi after gateway | connect, list, call, filtered-tool denial | connect, list, call, filtered-tool denial |
+| Pi before slice 2.2 | clear unsupported response | clear unsupported response |
+| Pi after slice 2.2 | connect, list, call | connect, list, call |
 
 Use a deterministic HTTPS fixture with one read-only tool and one tool that returns its input. The
 fixture must record initialization, `tools/list`, and `tools/call` without recording authorization
@@ -69,7 +67,6 @@ This becomes a replayable regression test at the first failed seam.
 
 ## Release gate
 
-Do not enable this in production until the Claude local and Daytona no-secret cells pass, status is
-visible in the UI, excluded tools are enforced, and the failure path is covered by an integration
-or replay test.
-
+Do not release this to production until the Claude local and Daytona no-secret cells pass and the
+failure path is covered by an integration or replay test. Status and tool selection are separate
+slice 3 features.
