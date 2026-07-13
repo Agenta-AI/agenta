@@ -184,6 +184,26 @@ const EvaluatorTemplateDropdownContent = memo(
 )
 EvaluatorTemplateDropdownContent.displayName = "EvaluatorTemplateDropdownContent"
 
+interface EvaluatorTemplateDropdownGateProps extends EvaluatorTemplateDropdownContentProps {
+    open: boolean
+}
+
+/**
+ * Wraps `EvaluatorTemplateDropdownContent` so `Popover`'s `content` prop is always a
+ * stable, non-null element — the actual hook-calling content only mounts once `open`
+ * is true. `content` starting out (and staying) `null` until first open breaks the
+ * click trigger: antd's Popover appears to permanently disable itself when it never
+ * sees a truthy `content` on an early render, so nulling `content` directly at the
+ * `Popover` call site — even conditionally — must be avoided.
+ */
+const EvaluatorTemplateDropdownGate = memo(
+    ({open, onSelect, onClose}: EvaluatorTemplateDropdownGateProps) => {
+        if (!open) return null
+        return <EvaluatorTemplateDropdownContent onSelect={onSelect} onClose={onClose} />
+    },
+)
+EvaluatorTemplateDropdownGate.displayName = "EvaluatorTemplateDropdownGate"
+
 /**
  * Dropdown component for selecting an evaluator template.
  * Shows a filterable list of enabled evaluator types with tab-based category filtering.
@@ -225,11 +245,12 @@ const EvaluatorTemplateDropdown = ({
             open={open}
             onOpenChange={setOpen}
             trigger={["click"]}
-            destroyOnHidden
             content={
-                open ? (
-                    <EvaluatorTemplateDropdownContent onSelect={onSelect} onClose={handleClose} />
-                ) : null
+                <EvaluatorTemplateDropdownGate
+                    open={open}
+                    onSelect={onSelect}
+                    onClose={handleClose}
+                />
             }
             placement={placement}
             arrow={false}

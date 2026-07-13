@@ -276,7 +276,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
                     {/* When not searching and has model options with showGroup: show provider/model panels */}
                     {!isSearching && hasModelOptions && showGroup && (
-                        <div className="relative min-w-0">
+                        <div className="relative flex min-h-[220px] min-w-0">
                             <div
                                 className="flex min-w-0 flex-col"
                                 style={{width: providerPanelWidth}}
@@ -317,7 +317,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     })}
                                 </div>
 
-                                {footerContent}
+                                {footerContent && (
+                                    <div className="mt-auto w-full">{footerContent}</div>
+                                )}
                             </div>
 
                             {hoveredGroup && (

@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, TypeVar
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -17,11 +17,20 @@ from oss.src.core.tracing.dtos import (
     #
     Bucket,
     Analytics,
+    MetricsBucket,
 )
 from oss.src.core.tracing.utils.attributes import marshall, unmarshall
 
 
 log = get_module_logger(__name__)
+
+
+AnalyticsBucket = TypeVar("AnalyticsBucket", Bucket, MetricsBucket)
+
+
+def sort_buckets_by_timestamp(buckets: List[AnalyticsBucket]) -> List[AnalyticsBucket]:
+    """Return analytics buckets in chronological order."""
+    return sorted(buckets, key=lambda bucket: bucket.timestamp)
 
 
 def map_span_dbe_to_link_dto(
