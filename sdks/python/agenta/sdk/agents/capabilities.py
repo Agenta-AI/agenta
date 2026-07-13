@@ -14,8 +14,8 @@ The provider lists are the REAL harness facts, derived from
 
 - **Pi** reaches eight Agenta-vault-mapped providers directly (the ones whose ``provider_key``
   secret drives a Pi provider via its env-key map), plus ``openai-codex`` (OpenAI's ChatGPT/Codex
-  subscription), which Pi reaches through its own OAuth login rather than a vault key — usable
-  under ``self_managed`` (and the ``agenta`` default's ``runtime_provided`` fallback). Pi also
+  subscription), which Pi reaches through its own OAuth login rather than a vault key, usable
+  under ``self_managed``. Pi also
   reaches ~24 more providers that have no Agenta vault kind; those are out of scope unless a
   ``custom_provider`` secret is made for them, so they are not enumerated here. Pi's cloud
   deployments (azure/bedrock/vertex) are *declared* but Pi *consumption* of them stages with the
@@ -58,9 +58,8 @@ PI_VAULT_PROVIDERS: List[str] = [
 # ``/login``), NOT an Agenta vault ``provider_key`` (no vault secret kind maps to it). ``self_managed``
 # is broader than this one provider: it covers any way a harness signs itself in without an
 # Agenta-stored key, including machine credentials such as environment variables. This provider's
-# on-ramp under ``self_managed`` happens to be the subscription OAuth. It is also reachable under
-# the ``agenta`` default's ``runtime_provided`` fallback, so it belongs in Pi's reachable providers
-# even though it carries no vault key. Its model ids are carried explicitly below because they are
+# on-ramp under ``self_managed`` happens to be the subscription OAuth. Its model ids are carried
+# explicitly below because they are
 # not in the litellm-derived ``supported_llm_models`` catalog. See
 # ``docs/design/agent-workflows/projects/provider-model-auth/harness-provider-matrix.md`` and the
 # subscription-sidecar recipe.

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createAcpFetch } from "./acp-fetch.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
   uploadPiExtensionToSandbox,
   uploadSkillsToSandbox,
@@ -31,13 +32,14 @@ export const DAYTONA_PI_VERSION =
  */
 export function daytonaEnvVars(
   piExtEnv: Record<string, string>,
-  secrets: Record<string, string>,
+  environment: Record<string, string>,
 ): Record<string, string> {
   const env: Record<string, string> = {
     PI_CODING_AGENT_DIR: DAYTONA_PI_DIR,
     ...piExtEnv,
-    // Provider API keys from the vault: the in-sandbox harness authenticates with these.
-    ...secrets,
+    // Non-secret config and explicitly local-use values. Opaque HTTP credentials attach through
+    // Daytona's `secrets` create field and never enter this plaintext environment map.
+    ...environment,
   };
   // Point pi-acp at the `pi` we install into the sandbox (the image lacks it).
   if (DAYTONA_PI_INSTALL) {
@@ -108,6 +110,7 @@ export async function uploadPiAuthToSandbox(
 
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
+  extensionEnv?: Record<string, string>;
   plan: Pick<
     RunPlan,
     | "isPi"
@@ -127,6 +130,7 @@ export interface PrepareDaytonaPiAssetsInput {
  */
 export async function prepareDaytonaPiAssets({
   sandbox,
+  extensionEnv = {},
   plan,
   log = () => {},
 }: PrepareDaytonaPiAssetsInput): Promise<void> {
@@ -137,7 +141,12 @@ export async function prepareDaytonaPiAssets({
   // "env") NEVER triggers the fallback. The decision lives in `shouldUploadOwnLogin` so the rule
   // is in one place and testable.
   if (shouldUploadOwnLogin(plan)) await uploadPiAuthToSandbox(sandbox, log);
-  await uploadPiExtensionToSandbox(sandbox, DAYTONA_PI_DIR, log);
+  await uploadPiExtensionToSandbox(
+    sandbox,
+    DAYTONA_PI_DIR,
+    log,
+    extensionEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined,
+  );
   if (plan.skillDirs.length > 0) {
     await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, plan.skillDirs, log);
   }

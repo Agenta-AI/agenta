@@ -59,7 +59,7 @@ describe("buildDaemonEnv", () => {
     process.env.COMPOSIO_API_KEY = "composio";
     process.env.DAYTONA_API_KEY = "daytona";
 
-    // Default (clearProviderEnv: false) = a runtime_provided / un-migrated run: keep the
+    // Default (clearProviderEnv: false) = a runtime_provided / no-modelConnection run: keep the
     // sidecar's own provider/auth keys so the harness login still works.
     const env = buildDaemonEnv("claude");
 

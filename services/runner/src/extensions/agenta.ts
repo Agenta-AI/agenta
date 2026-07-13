@@ -48,6 +48,10 @@ import {
   PI_GATE_DIALOG_TITLE,
   type PiGateKind,
 } from "../engines/sandbox_agent/pi-gate-envelope.ts";
+import {
+  decodePiModelProviderOverride,
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+} from "./model-provider-override.ts";
 
 /** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
 export function readOtlpAuthFile(path?: string): string | undefined {
@@ -356,6 +360,12 @@ function registerTools(pi: ExtensionAPI): void {
 
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
 const factory = (pi: ExtensionAPI): void => {
+  const modelProviderOverrideRaw =
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
+  const modelProviderOverride =
+    modelProviderOverrideRaw === undefined
+      ? undefined
+      : decodePiModelProviderOverride(modelProviderOverrideRaw);
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
   const hasTracing = !!(
@@ -370,7 +380,22 @@ const factory = (pi: ExtensionAPI): void => {
     process.env.AGENTA_AGENT_BUILTIN_GRANTS,
   );
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
-  if (!hasTracing && !hasTools && !hasBuiltinGating && !usageOut) return;
+  if (
+    !modelProviderOverride &&
+    !hasTracing &&
+    !hasTools &&
+    !hasBuiltinGating &&
+    !usageOut
+  )
+    return;
+
+  // Extension factories complete before Pi selects the configured model. Registering only a
+  // baseUrl here overrides the built-in provider without replacing its model catalog or auth.
+  if (modelProviderOverride) {
+    pi.registerProvider(modelProviderOverride.provider, {
+      baseUrl: modelProviderOverride.baseUrl,
+    });
+  }
 
   if (hasTools) registerTools(pi);
   if (hasBuiltinGating) registerBuiltinGating(pi, builtinGrants);

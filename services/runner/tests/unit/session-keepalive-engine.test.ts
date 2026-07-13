@@ -222,6 +222,81 @@ describe("acquireEnvironment / runTurn split", () => {
     assert.equal(calls.sandboxDestroyed, 1);
   });
 
+  it("extends the redactor with every fresh continuation credential before the turn", async () => {
+    const { deps } = fakeHarness();
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const values = {
+      model: "fresh-model-secret",
+      mcp: "fresh-mcp-secret",
+      run: "Bearer fresh-run-secret",
+      callback: "Bearer fresh-callback-secret",
+      otlp: "Bearer fresh-otlp-secret",
+    };
+    const continuation: AgentRunRequest = {
+      harness: "claude",
+      messages: [{ role: "user", content: "again" }],
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: values.model,
+            usage: "opaque_http",
+          },
+        ],
+      },
+      mcpServers: [
+        {
+          name: "linear",
+          transport: "http",
+          url: "https://mcp.linear.app",
+          credentials: [
+            {
+              binding: { kind: "header", name: "Authorization" },
+              value: values.mcp,
+              usage: "opaque_http",
+            },
+          ],
+        },
+      ],
+      toolCallback: {
+        endpoint: "https://callback.example",
+        authorization: values.callback,
+      },
+      telemetry: {
+        exporters: {
+          otlp: {
+            endpoint: "https://otel.example/v1/traces",
+            headers: { authorization: values.otlp },
+          },
+        },
+      },
+    };
+    // The run credential is the same OTLP authorization field on the current wire.
+    continuation.telemetry!.exporters!.otlp!.headers!.authorization =
+      values.run;
+    await runTurn(acquired.env, continuation, undefined, undefined, {
+      continuation: true,
+    });
+    for (const value of [
+      values.model,
+      values.mcp,
+      values.run,
+      values.callback,
+    ]) {
+      assert.doesNotMatch(
+        acquired.env.redactor.redactString(value)!,
+        new RegExp(value),
+      );
+    }
+    await acquired.env.destroy();
+  });
+
   it("destroy is idempotent: a second destroy is a no-op", async () => {
     const { calls, deps } = fakeHarness();
     const acquired = await acquireEnvironment(request, deps);

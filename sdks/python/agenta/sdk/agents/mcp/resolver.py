@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Mapping, Sequence
 
 from agenta.sdk.agents.tools.models import MissingSecretPolicy
+from agenta.sdk.utils.net import assert_endpoint_url_allowed
 
-from .errors import MissingMCPSecretError
+from .errors import MCPConfigurationError, MissingMCPSecretError
 from .interfaces import MCPSecretProvider
 from .models import MCPServerConfig, ResolvedMCPServer
 
@@ -41,7 +42,7 @@ class MCPResolver:
             missing = [
                 secret_name
                 for secret_name in server_config.secrets.values()
-                if secret_name not in secret_values
+                if not secret_values.get(secret_name)
             ]
             if missing and self._missing_secret_policy == MissingSecretPolicy.ERROR:
                 raise MissingMCPSecretError(
@@ -49,10 +50,23 @@ class MCPResolver:
                     secret_names=missing,
                 )
 
-            env = dict(server_config.env)
-            for env_var, secret_name in server_config.secrets.items():
-                if secret_name in secret_values:
-                    env[env_var] = secret_values[secret_name]
+            if server_config.transport == "http":
+                try:
+                    assert_endpoint_url_allowed(server_config.url or "")
+                except ValueError as exc:
+                    raise MCPConfigurationError(
+                        f"HTTP MCP server '{server_config.name}' has an unsafe url: {exc}"
+                    ) from exc
+
+            credentials = [
+                {
+                    "binding": {"kind": "header", "name": header_name},
+                    "value": secret_values[secret_name],
+                    "usage": "opaque_http",
+                }
+                for header_name, secret_name in server_config.secrets.items()
+                if secret_values.get(secret_name)
+            ]
 
             resolved.append(
                 ResolvedMCPServer(
@@ -60,8 +74,10 @@ class MCPResolver:
                     transport=server_config.transport,
                     command=server_config.command,
                     args=list(server_config.args),
-                    env=env,
+                    environment=dict(server_config.env),
                     url=server_config.url,
+                    headers=dict(server_config.headers),
+                    credentials=credentials,
                     tools=list(server_config.tools),
                     permission=server_config.permission,
                 )

@@ -24,11 +24,13 @@ from ..capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_ENV_VARS,
 )
+from ..connections.endpoints import build_resolved_connection
 from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
     Endpoint,
+    MissingCredentialError,
     MissingProviderError,
     ModelRef,
     ProviderMismatchError,
@@ -451,11 +453,11 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
-        return ResolvedConnection(
+        return build_resolved_connection(
             provider=model.provider or "",
             model=model.model,
             credential_mode="runtime_provided",
-            env={},
+            values={},
         )
     if connection.mode != "agenta":
         raise UnsupportedConnectionModeError(mode=str(connection.mode))
@@ -469,12 +471,14 @@ def _resolve_from_secrets(
     )
     provider = chosen.resolved_provider(model)
     env = chosen.resolved_env(provider)
-    return ResolvedConnection(
+    if not env:
+        raise MissingCredentialError(provider=provider, slug=chosen.slug)
+    return build_resolved_connection(
         provider=provider,
         model=chosen.selected_model_id(model),
         deployment=chosen.deployment,
-        credential_mode="env" if env else "runtime_provided",
-        env=env,
+        credential_mode="env",
+        values=env,
         endpoint=chosen.endpoint,
     )
 

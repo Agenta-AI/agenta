@@ -34,6 +34,12 @@ import type {
   ResolvedToolSpec,
 } from "../../src/protocol.ts";
 
+const credential = (name: string, value: string) => ({
+  binding: { kind: "header" as const, name },
+  value,
+  usage: "opaque_http" as const,
+});
+
 const relayDir = "/tmp/agenta-tools-layering";
 const mcpCapable: HarnessCapabilities = { mcpTools: true, toolCalls: true };
 
@@ -111,7 +117,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
           name: "linear",
           transport: "http",
           url: "https://mcp.linear.app/sse",
-          env: { Authorization: "Bearer x" },
+          credentials: [credential("Authorization", "Bearer x")],
         },
       ],
       relayDir,
@@ -468,7 +474,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
           name: "linear",
           transport: "http",
           url: "https://mcp.linear.app/sse",
-          env: { Authorization: "Bearer x" },
+          credentials: [credential("Authorization", "Bearer x")],
         },
       ],
       relayDir,

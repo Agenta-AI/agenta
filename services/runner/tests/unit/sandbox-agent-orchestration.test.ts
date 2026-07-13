@@ -84,6 +84,7 @@ function fakeHarness(options: FakeOptions = {}) {
     runFinished: 0,
     runFlushed: 0,
     recordedErrors: [] as Array<{ message: string; provider?: string }>,
+    handledUpdates: [] as unknown[],
   };
   const events: AgentEvent[] = [];
   let eventHandler: ((event: any) => void) | undefined;
@@ -172,7 +173,9 @@ function fakeHarness(options: FakeOptions = {}) {
     start(input: any) {
       calls.runStart = input;
     },
-    handleUpdate(_update: any) {},
+    handleUpdate(update: any) {
+      calls.handledUpdates.push(update);
+    },
     emitEvent(event: AgentEvent) {
       events.push(event);
     },
@@ -301,6 +304,67 @@ describe("PendingApprovalPauseController", () => {
 });
 
 describe("runSandboxAgent orchestration", () => {
+  it("redacts resolved credentials from traces, events, results, errors, and logs", async () => {
+    const secret = "marker-model-secret-7f31";
+    const success = fakeHarness({
+      output: `assistant echoed ${secret}`,
+      promptEvent: {
+        payload: { update: { kind: "message", text: `event ${secret}` } },
+      },
+    });
+    const logs: string[] = [];
+    success.deps.log = (line) => logs.push(line);
+    const request: AgentRunRequest = {
+      harness: "claude",
+      messages: [{ role: "user", content: `please use ${secret}` }],
+      modelConnection: {
+        provider: "openai",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.openai.com/v1" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "OPENAI_API_KEY" },
+            value: secret,
+            usage: "opaque_http",
+          },
+        ],
+      },
+    };
+    const result = await runSandboxAgent(
+      request,
+      undefined,
+      undefined,
+      success.deps,
+    );
+    const observable = JSON.stringify({
+      result,
+      traceStart: success.calls.runStart,
+      updates: success.calls.handledUpdates,
+      logs,
+    });
+    assert.doesNotMatch(observable, new RegExp(secret));
+    assert.match(observable, /ag:redacted/);
+    assert.match(
+      JSON.stringify(success.calls.promptBlocks),
+      new RegExp(secret),
+      "the harness still receives the real prompt",
+    );
+
+    const failure = fakeHarness({
+      promptError: new Error(`provider rejected ${secret}`),
+    });
+    const failed = await runSandboxAgent(
+      request,
+      undefined,
+      undefined,
+      failure.deps,
+    );
+    assert.equal(failed.ok, false);
+    assert.doesNotMatch(JSON.stringify(failed), new RegExp(secret));
+    assert.match(JSON.stringify(failed), /ag:redacted/);
+  });
+
   it("returns a successful one-shot result and cleans up acquired resources", async () => {
     const { calls, deps } = fakeHarness();
 
@@ -380,8 +444,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     assert.equal(
-      (calls.providerArgs[1] as Record<string, string>)
-        .AGENTA_AGENT_MOUNT_DIR,
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       `${cwd}-agent`,
     );
     assert.match(
@@ -424,8 +487,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     assert.equal(
-      (calls.providerArgs[1] as Record<string, string>)
-        .AGENTA_AGENT_MOUNT_DIR,
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
     assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
@@ -1254,9 +1316,19 @@ describe("runSandboxAgent orchestration", () => {
       {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "env",
-        secrets: { ANTHROPIC_API_KEY: "resolved" },
-        endpoint: { baseUrl: "https://claude-gw.example/v1" },
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://claude-gw.example/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "resolved",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1333,10 +1405,22 @@ describe("runSandboxAgent orchestration", () => {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
         model: "anthropic.claude-x",
-        deployment: "bedrock",
-        credentialMode: "env",
-        secrets: { AWS_ACCESS_KEY_ID: "AKIA" },
-        endpoint: { region: "us-east-1" },
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "bedrock",
+          endpoint: {
+            baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+          },
+          credentialMode: "env",
+          environment: { AWS_REGION: "us-east-1" },
+          credentials: [
+            {
+              binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+              value: "AKIA",
+              usage: "local_use",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1364,11 +1448,28 @@ describe("runSandboxAgent orchestration", () => {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
         model: "claude-sonnet-4",
-        deployment: "vertex_ai",
-        credentialMode: "env",
-        secrets: {
-          GOOGLE_CLOUD_PROJECT: "proj",
-          GOOGLE_CLOUD_LOCATION: "us-central1",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "vertex_ai",
+          endpoint: {
+            baseUrl: "https://us-central1-aiplatform.googleapis.com",
+            region: "us-central1",
+          },
+          credentialMode: "env",
+          environment: {
+            GOOGLE_CLOUD_PROJECT: "proj",
+            GOOGLE_CLOUD_LOCATION: "us-central1",
+          },
+          credentials: [
+            {
+              binding: {
+                kind: "environment",
+                name: "GOOGLE_APPLICATION_CREDENTIALS",
+              },
+              value: "/tmp/adc.json",
+              usage: "local_use",
+            },
+          ],
         },
       } as AgentRunRequest,
       undefined,
@@ -1390,7 +1491,12 @@ describe("runSandboxAgent orchestration", () => {
       {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1402,6 +1508,27 @@ describe("runSandboxAgent orchestration", () => {
     assert.deepEqual(calls.daemonOptions, { clearProviderEnv: false });
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_BASE_URL, undefined);
+  });
+
+  it("clears inherited provider env when the resolved credential mode is none", async () => {
+    const { calls, deps } = fakeHarness();
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+        },
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: true });
   });
 });
 
@@ -1671,7 +1798,10 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
               sessionUpdate: "tool_call",
               toolCallId: "tool-late",
               title: "request_connection",
-              rawInput: { integration: "slack" },
+              rawInput: {
+                integration: "slack",
+                token: "marker-late-secret-9a21",
+              },
             },
           },
         },
@@ -1686,6 +1816,19 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         harness: "claude",
         permissions: { default: "ask" },
         messages: [{ role: "user", content: "commit and connect" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "marker-late-secret-9a21",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1710,6 +1853,11 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         isError: true,
       },
     ]);
+    assert.doesNotMatch(
+      JSON.stringify(result.events),
+      /marker-late-secret-9a21/,
+    );
+    assert.match(JSON.stringify(result.events), /ag:redacted/);
   });
 
   it("emits the deferred sibling result before the paused turn is done", async () => {
@@ -1726,21 +1874,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
             },
           },
         },
+      ],
+      emitPermission: true,
+      permissionToolCallId: "tool-a",
+      permissionToolName: "commit_revision",
+      permissionRawInput: { revision: "r1" },
+      postPermissionEvents: [
         {
           payload: {
             update: {
               sessionUpdate: "tool_call",
               toolCallId: "tool-b",
               title: "create_subscription",
-              rawInput: { plan: "pro" },
+              rawInput: { plan: "pro", token: "marker-live-secret-42bd" },
             },
           },
         },
       ],
-      emitPermission: true,
-      permissionToolCallId: "tool-a",
-      permissionToolName: "commit_revision",
-      permissionRawInput: { revision: "r1" },
       hangPrompt: true,
     });
     delete deps.responderFactory;
@@ -1751,6 +1901,19 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         harness: "claude",
         permissions: { default: "ask" },
         messages: [{ role: "user", content: "commit and subscribe" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "marker-live-secret-42bd",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       (event) => emitted.push(event),
       undefined,
@@ -1762,21 +1925,50 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     const interactionIndex = emitted.findIndex(
       (event) => event.type === "interaction_request",
     );
+    const siblingCallIndex = emitted.findIndex(
+      (event) => event.type === "tool_call" && (event as any).id === "tool-b",
+    );
     const siblingResultIndex = emitted.findIndex(
       (event) => event.type === "tool_result" && (event as any).id === "tool-b",
     );
     const doneIndex = emitted.findIndex((event) => event.type === "done");
 
     assert.notEqual(interactionIndex, -1, "approval request is emitted");
+    assert.notEqual(siblingCallIndex, -1, "late sibling call is emitted");
     assert.notEqual(siblingResultIndex, -1, "sibling result is emitted");
     assert.notEqual(doneIndex, -1, "done is emitted");
     assert.ok(
-      interactionIndex < siblingResultIndex,
-      "approval request is emitted before the teardown sweep runs",
+      interactionIndex < siblingCallIndex &&
+        siblingCallIndex < siblingResultIndex,
+      "the queued late call is emitted and settled after the approval request",
     );
     assert.ok(
       siblingResultIndex < doneIndex,
       "sibling result reaches the live sink before turn finish",
+    );
+    assert.equal(
+      emitted.filter(
+        (event) =>
+          event.type === "tool_result" && (event as any).id === "tool-b",
+      ).length,
+      1,
+      "the late sibling is settled exactly once",
+    );
+    assert.equal(
+      emitted.some(
+        (event) =>
+          event.type === "tool_result" && (event as any).id === "tool-a",
+      ),
+      false,
+      "the gated call remains open for human approval",
+    );
+    assert.doesNotMatch(JSON.stringify(emitted), /marker-live-secret-42bd/);
+    assert.match(JSON.stringify(emitted), /ag:redacted/);
+    await flushPromises();
+    assert.equal(
+      emitted.at(-1)?.type,
+      "done",
+      "done remains terminal after another event-loop turn",
     );
   });
 

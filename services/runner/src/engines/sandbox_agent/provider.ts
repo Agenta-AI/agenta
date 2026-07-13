@@ -1,8 +1,16 @@
+import { createHash } from "node:crypto";
+
+import { Daytona } from "@daytonaio/sdk";
 import { local } from "sandbox-agent/local";
 
 import type { SandboxPermission } from "../../protocol.ts";
 import { daytonaEnvVars } from "./daytona.ts";
 import { daytonaWithLifecycle } from "./daytona-provider.ts";
+import { daytonaWithProcessLocalSecrets } from "./daytona-secret-provider.ts";
+import {
+  assertDaytonaOpaqueSecretsEnabled,
+  type DaytonaSecretPlan,
+} from "./daytona-secret-plan.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -38,7 +46,10 @@ export function daytonaNetworkFields(
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
 export const DEFAULT_DAYTONA_AUTODELETE_MINUTES = 30;
 
-function positiveMinutes(rawValue: string | undefined, fallback: number): number {
+function positiveMinutes(
+  rawValue: string | undefined,
+  fallback: number,
+): number {
   const parsed = Number(rawValue);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
   return Math.floor(parsed);
@@ -68,8 +79,9 @@ export function daytonaAutoDeleteMinutes(
  */
 export function buildDaytonaCreate(
   piExtEnv: Record<string, string>,
-  secrets: Record<string, string>,
+  environment: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
+  secretAttachments: Record<string, string> = {},
 ): Record<string, unknown> {
   // Agent override first, then the snapshot shared with the code evaluators.
   const snapshot =
@@ -82,7 +94,10 @@ export function buildDaytonaCreate(
     ...(snapshot ? { snapshot, image: undefined } : {}),
     ...(target ? { target } : {}),
     ...daytonaNetworkFields(sandboxPermission),
-    envVars: daytonaEnvVars(piExtEnv, secrets),
+    envVars: daytonaEnvVars(piExtEnv, environment),
+    ...(Object.keys(secretAttachments).length > 0
+      ? { secrets: secretAttachments }
+      : {}),
     // `ephemeral: false` lets stop park the sandbox. Leave autoArchiveInterval unset so Daytona's
     // seven-day default sits beyond our 30-minute delete. The ladder is stop, then delete.
     // These intervals override the wrapper's hardcoded zeroes. A leaked sandbox self-reaps.
@@ -90,6 +105,28 @@ export function buildDaytonaCreate(
     autoDeleteInterval: daytonaAutoDeleteMinutes(),
     ephemeral: false,
   };
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entry]) => entry !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return `{${entries
+    .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
+    .join(",")}}`;
+}
+
+/** Opaque comparison key for every field baked into a parked Daytona sandbox at create time. */
+export function daytonaCreateFingerprint(input: {
+  image?: string;
+  create: Record<string, unknown>;
+  secretPlan: DaytonaSecretPlan;
+}): string {
+  return createHash("sha256").update(canonicalJson(input)).digest("hex");
 }
 
 /** Sandbox ids this runner can actually provision (the "expected one of" set). */
@@ -116,13 +153,47 @@ export function buildSandboxProvider(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
   sandboxPermission?: SandboxPermission,
+  daytonaSecretPlan?: DaytonaSecretPlan,
 ) {
   if (sandboxId === "daytona") {
     const image = process.env.DAYTONA_IMAGE;
-    return daytonaWithLifecycle({
-      ...(image ? { image } : {}),
-      create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
-    });
+    const createFields = buildDaytonaCreate(
+      piExtEnv,
+      secrets,
+      sandboxPermission,
+    );
+    const buildDaytona = (secretAttachments: Record<string, string>) =>
+      daytonaWithLifecycle({
+        ...(image ? { image } : {}),
+        create: {
+          ...createFields,
+          ...(Object.keys(secretAttachments).length > 0
+            ? { secrets: secretAttachments }
+            : {}),
+        } as any,
+      });
+    if (daytonaSecretPlan) {
+      assertDaytonaOpaqueSecretsEnabled(daytonaSecretPlan!);
+      const client = new Daytona();
+      const createFingerprint = daytonaCreateFingerprint({
+        image,
+        create: createFields,
+        secretPlan: daytonaSecretPlan,
+      });
+      return daytonaWithProcessLocalSecrets(
+        buildDaytona,
+        daytonaSecretPlan!,
+        client.secret,
+        {
+          createFingerprint,
+          // Run slightly after Daytona's own auto-delete backstop. The timer first issues an
+          // idempotent sandbox delete, then removes Secrets, preserving the hard deletion order.
+          cleanupDelayMilliseconds: daytonaAutoDeleteMinutes() * 60_000 + 5_000,
+          log: (message) => process.stderr.write(`[daytona] ${message}\n`),
+        },
+      );
+    }
+    return buildDaytona({});
   }
 
   if ((PLANNED_SANDBOX_IDS as readonly string[]).includes(sandboxId)) {

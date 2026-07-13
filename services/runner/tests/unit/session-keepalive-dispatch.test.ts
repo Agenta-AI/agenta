@@ -466,7 +466,19 @@ describe("runWithKeepalive: validation mismatches degrade to cold", () => {
 
   it("a changed secret value evicts to cold (same config, same history)", async () => {
     const withSecret = turn2("s1", {
-      secrets: { ANTHROPIC_API_KEY: "rotated" },
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "rotated",
+            usage: "opaque_http",
+          },
+        ],
+      },
     });
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);

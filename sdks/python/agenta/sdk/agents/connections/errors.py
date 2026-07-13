@@ -25,6 +25,25 @@ class ConnectionResolutionError(AgentConnectionError):
     """Raised when a connection cannot be resolved into a credential plan."""
 
 
+class MissingCredentialError(ConnectionResolutionError):
+    """Raised when an Agenta-managed connection has no usable credential."""
+
+    def __init__(self, *, provider: str, slug: Optional[str] = None) -> None:
+        subject = (
+            f"connection '{slug}'" if slug else f"provider '{provider}' connection"
+        )
+        super().__init__(
+            f"{subject} has no usable credential; configure a credential or select "
+            "self_managed authentication"
+        )
+        self.provider = provider
+        self.slug = slug
+
+
+class InvalidConnectionConfigurationError(AgentConnectionError):
+    """Raised when resolved routing and credentials form an unsafe combination."""
+
+
 class ConnectionNotFoundError(ConnectionResolutionError):
     """Raised when a named connection (``mode == agenta`` + ``slug``) does not exist."""
 

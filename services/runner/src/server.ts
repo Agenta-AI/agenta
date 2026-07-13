@@ -47,6 +47,7 @@ import {
   configFingerprint,
   credentialEpochMismatch,
   mountCredentialsExpired,
+  sandboxCredentialsRotated,
   expectedNextHistoryFingerprint,
   historyFingerprint,
   poolKeyFor,
@@ -642,15 +643,9 @@ export async function runWithKeepalive(
     // An approval-parked session. A validated approval decision that matches the parked
     // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
     //
-    // Unlike the idle-continuation branch above, this branch does NOT require the resume request's
-    // configFingerprint or credential epoch to EQUAL the parked session's. Every approval reply is
-    // a fresh /run the backend mints carrying freshly minted short-lived material (gateway/Composio
-    // secret VALUES, a per-turn tool-callback bearer), so the incoming credential epoch — and often
-    // the config fingerprint, which can embed those per-turn tokens — practically never match the
-    // parked ones. But the parked live process already holds its OWN resolved credentials baked at
-    // acquire time; the resume request only delivers the human's yes/no. Re-minted per-turn material
-    // on the resume says nothing about the parked environment's validity, so matching it against the
-    // park would evict a perfectly good live session on every approval (the "approve twice" bug).
+    // Approval replies may carry re-minted per-turn callback authorization, which does not invalidate
+    // the parked process. Credentials baked into the model/MCP environment are different: rotation
+    // must evict and cold-start so the resumed process never keeps stale credential material.
     //
     // We keep the checks that DO bound the parked environment: the approval-decision match, the
     // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
@@ -676,6 +671,10 @@ export async function runWithKeepalive(
       mismatch = "history";
     } else if (mountCredentialsExpired(existing.credentialEpoch)) {
       mismatch = "credentials-expired";
+    } else if (
+      sandboxCredentialsRotated(existing.credentialEpoch, incomingEpoch)
+    ) {
+      mismatch = "credentials-rotated";
     }
 
     if (mismatch || !parked || !decision) {

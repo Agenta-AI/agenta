@@ -17,6 +17,7 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ResolvedConnection,
 )
+from agenta.sdk.agents.connections.endpoints import build_resolved_connection
 
 
 # ----------------------------------------------------------------- ModelRef.coerce
@@ -134,22 +135,31 @@ def test_no_default_mode():
 # --------------------------------------------------- ResolvedConnection / Endpoint shape
 
 
-def test_resolved_connection_to_wire_excludes_env():
+def test_resolved_connection_to_wire_nests_typed_credentials():
     resolved = ResolvedConnection(
         provider="openai",
         model="gpt-5.5",
         credential_mode="env",
-        env={"OPENAI_API_KEY": "sk-secret"},
+        credentials=[
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "sk-secret",
+                "usage": "opaque_http",
+            }
+        ],
         endpoint=Endpoint(base_url="https://gw.example/v1"),
     )
-    wire = resolved.to_wire()
-    assert "env" not in wire
-    assert "sk-secret" not in repr(wire)
-    assert wire == {
+    assert resolved.to_wire() == {
         "provider": "openai",
-        "model": "gpt-5.5",
         "deployment": "direct",
         "credentialMode": "env",
+        "credentials": [
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "sk-secret",
+                "usage": "opaque_http",
+            }
+        ],
         "endpoint": {"baseUrl": "https://gw.example/v1"},
     }
 
@@ -162,14 +172,131 @@ def test_resolved_connection_to_wire_omits_endpoint_when_absent():
     )
     wire = resolved.to_wire()
     assert "endpoint" not in wire
+    assert wire["credentials"] == []
     assert wire["credentialMode"] == "runtime_provided"
 
 
-def test_resolved_connection_env_is_hidden_from_repr():
+def test_local_use_credentials_do_not_require_an_http_endpoint():
+    resolved = build_resolved_connection(
+        provider="bedrock",
+        model="anthropic.claude-x",
+        deployment="bedrock",
+        credential_mode="env",
+        values={"AWS_PROFILE": "profile"},
+    )
+    assert resolved.endpoint is None
+    assert resolved.credential_mode == "env"
+    assert [credential.usage for credential in resolved.credentials] == ["local_use"]
+
+
+def test_resolved_connection_credential_is_hidden_from_repr():
     resolved = ResolvedConnection(
         provider="openai",
         model="gpt-5.5",
         credential_mode="env",
-        env={"OPENAI_API_KEY": "do-not-print"},
+        credentials=[
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "do-not-print",
+                "usage": "opaque_http",
+            }
+        ],
+        endpoint=Endpoint(base_url="https://api.openai.com/v1"),
     )
     assert "do-not-print" not in repr(resolved)
+
+
+@pytest.mark.parametrize(
+    "credentials, endpoint, mode",
+    [
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": ""},
+                    "value": "key",
+                    "usage": "opaque_http",
+                }
+            ],
+            Endpoint(base_url="https://api.example"),
+            "env",
+        ),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "",
+                    "usage": "opaque_http",
+                }
+            ],
+            Endpoint(base_url="https://api.example"),
+            "env",
+        ),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "key",
+                    "usage": "opaque_http",
+                }
+            ],
+            None,
+            "env",
+        ),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "key",
+                    "usage": "opaque_http",
+                }
+            ],
+            Endpoint(base_url="http://api.example"),
+            "env",
+        ),
+        ([], Endpoint(base_url="https://api.example"), "env"),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "key",
+                    "usage": "local_use",
+                }
+            ],
+            Endpoint(base_url="https://api.example"),
+            "runtime_provided",
+        ),
+    ],
+)
+def test_resolved_connection_rejects_invalid_credential_combinations(
+    credentials, endpoint, mode
+):
+    with pytest.raises(ValidationError):
+        ResolvedConnection(
+            provider="test",
+            model="m",
+            credential_mode=mode,
+            credentials=credentials,
+            endpoint=endpoint,
+        )
+
+
+def test_plaintext_environment_materializes_only_at_local_boundary():
+    resolved = ResolvedConnection(
+        provider="anthropic",
+        model="claude",
+        deployment="bedrock",
+        credential_mode="env",
+        environment={"AWS_REGION": "us-east-1"},
+        credentials=[
+            {
+                "binding": {"kind": "environment", "name": "AWS_ACCESS_KEY_ID"},
+                "value": "AKIA",
+                "usage": "local_use",
+            }
+        ],
+        endpoint=Endpoint(base_url="https://bedrock-runtime.us-east-1.amazonaws.com"),
+    )
+    assert resolved.plaintext_environment() == {
+        "AWS_REGION": "us-east-1",
+        "AWS_ACCESS_KEY_ID": "AKIA",
+    }

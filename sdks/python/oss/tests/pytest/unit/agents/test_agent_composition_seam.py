@@ -105,7 +105,7 @@ class _FakeBackend(Backend):
 
 def _no_connection_result() -> ResolvedConnection:
     return ResolvedConnection(
-        provider="openai", model="m", credential_mode="runtime_provided", env={}
+        provider="openai", model="m", credential_mode="runtime_provided"
     )
 
 
@@ -170,7 +170,7 @@ async def test_absent_run_kind_leaves_composition_run_context_untouched():
 
 
 # --------------------------------------------------------------------------- #
-# Drift 1 + 2: capability gating and degradation policy are the SEAM DEFAULT now
+# Drift 1 + 2: capability and fail-closed resolution policy are the SEAM DEFAULT now
 # (previously a bare fallback in handler.py with neither).
 # --------------------------------------------------------------------------- #
 async def test_default_composition_rejects_unsupported_provider_pre_resolve():
@@ -206,7 +206,13 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
             model="anthropic.claude-x",
             deployment="bedrock",
             credential_mode="env",
-            env={"AWS_ACCESS_KEY_ID": "AKIA"},
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "AWS_ACCESS_KEY_ID"},
+                    "value": "AKIA",
+                    "usage": "local_use",
+                }
+            ],
         )
 
     comp = AgentComposition(
@@ -226,10 +232,7 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
         )
 
 
-async def test_default_composition_degrades_default_connection_failure():
-    """An unconfigured default-mode connection degrades to runtime_provided, no raise --
-    even with NO composition override (the SDK default now has the degradation policy
-    the old bare fallback lacked)."""
+async def test_default_composition_fails_closed_on_connection_resolution_failure():
     backend = _FakeBackend(output="echo")
 
     async def _resolve(*, model, context):
@@ -241,13 +244,14 @@ async def test_default_composition_degrades_default_connection_failure():
     )
     handler = make_agent_handler(comp)
 
-    result = await handler(
-        request=_request(),
-        messages=[{"role": "user", "content": "hi"}],
-        parameters=_params("pi_core", model={"provider": "openai", "model": "gpt-5.5"}),
-    )
-
-    assert result == {"messages": [{"role": "assistant", "content": "echo"}]}
+    with pytest.raises(ConnectionResolutionError, match="network unreachable"):
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(
+                "pi_core", model={"provider": "openai", "model": "gpt-5.5"}
+            ),
+        )
 
 
 async def test_composition_override_replaces_default_gating():
