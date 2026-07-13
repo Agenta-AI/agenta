@@ -60,5 +60,11 @@ The design separates four lifecycles:
   discover it by convention; the runner supplies one exact snapshot as an explicit skill path.
 - **Project `.agents/skills`:** Pi's hidden conventional project directory. It is trust-gated and
   is not used for runner-injected skills.
+- **Trust-gated:** Loaded only after the user trusts the project in Pi's consent flow. Pi stores
+  the decision in `<agent-dir>/trust.json` keyed by the cwd. Trust authorizes the project's own
+  in-cwd configuration: `.pi/settings.json`, executable `.pi/extensions`, `.pi/skills`,
+  `.agents/skills`, prompts, themes, and `SYSTEM.md`. RPC runs cannot prompt, so the default `ask`
+  policy leaves projects untrusted and loads none of these.
 - **Immutable skill snapshot:** A content-addressed directory that is written once and never
-  reconciled in place.
+  reconciled in place. Immutability is a convention the runner upholds, not something the
+  filesystem enforces.

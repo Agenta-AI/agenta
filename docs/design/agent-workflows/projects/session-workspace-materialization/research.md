@@ -49,14 +49,61 @@ Pi 0.80.6 uses the cwd for project resources, `AGENTS.md`, tool path resolution,
 naming. It uses the agent directory for credentials, private settings, global resources, custom
 models, and native sessions.
 
-Project `.pi/skills` and `.agents/skills` are trust-gated. RPC mode cannot display a trust prompt,
-and the default `ask` policy leaves them unloaded. Trusting the whole cwd would also authorize
-project settings and executable extensions.
+Trust gating is Pi's project consent mechanism. The first time Pi runs in a cwd, it asks whether
+to trust that project, and it stores the decision in `<agent-dir>/trust.json` keyed by the
+canonical cwd path. Trust authorizes loading the project's own configuration from inside the cwd:
+`.pi/settings.json`, executable `.pi/extensions`, `.pi/skills`, `.agents/skills`, prompts, themes,
+and `SYSTEM.md`. Global settings in the agent directory load regardless of trust. RPC mode cannot
+display a trust prompt, and the default `ask` policy resolves to untrusted, so none of these
+project resources load. One nuance: an installed extension can answer the trust request
+programmatically before the UI check. The runner installs the Agenta extension into every Pi run,
+so that extension must never answer trust requests.
 
 The literal `./agents/skills` path has no leading dot. Pi does not discover it automatically, but
 Pi accepts arbitrary skill directories through global `settings.json` or repeatable `--skill`
-arguments. An explicit path can therefore load one runner-created snapshot without widening
-project trust.
+arguments. Explicit paths bypass trust regardless of where they point. An explicit path can
+therefore load one runner-created snapshot without widening project trust.
+
+## Pi session storage and load behavior
+
+Pi resolves its session directory with the precedence `--session-dir`, then the
+`PI_CODING_AGENT_SESSION_DIR` env var, then the `sessionDir` key in the agent directory's
+`settings.json`, then the default `<agent-dir>/sessions/--<encoded-cwd>--/`. RPC mode honors the
+override. With an override set, transcripts for all cwds land flat in that directory without the
+encoded-cwd subdirectory.
+
+`--session <id>` and `--session <path>` behave differently on stale references. The id form scans
+known sessions, matches transcript headers, and exits with an error when nothing matches. The path
+form performs no existence check: a missing file silently becomes a new blank session at that
+path. `pi-acp` spawns Pi with the path form. This is the exact mechanism that created the blank
+replacement transcript in the incident.
+
+`pi-acp@0.0.29` validates asymmetrically. When `session-map.json` has an entry, it trusts the
+stored path blindly: no existence check and no header comparison. When the map misses, it scans
+the sessions directory and matches each transcript's header ID, which does validate identity. The
+load response never carries a session ID in either case, so the adapter offers no positive
+evidence that history loaded.
+
+`pi-acp` computes its scan directory as `<agent-dir>/sessions`, or the `sessionDir` value it reads
+from the agent directory's `settings.json`. It does not read `PI_CODING_AGENT_SESSION_DIR`. An
+env-only override therefore splits the two programs. Pi writes transcripts to the override
+directory, and the main loop keeps working because `pi-acp` learns each new transcript's absolute
+path from Pi over RPC and stores it in the map. But `pi-acp`'s two scan paths, session listing and
+the map-miss fallback, still point at the old directory. Writing `sessionDir` into the run agent
+directory's `settings.json` aligns both programs on the same directory, which also aims the
+validating map-miss fallback at the durable transcripts. `session-map.json` itself lives under
+`~/.pi/pi-acp/` and no override affects it.
+
+## What the runner can already verify
+
+On local runs the runner, sandbox-agent, `pi-acp`, and Pi share one host, one filesystem, and one
+`HOME`. The runner created the agent directory, knows it as `environment.runAgentDir`, and holds
+the expected native session ID in its continuity store both before `session/load` and after the
+turn. It already reads Pi transcripts and parses their first-line headers for error handling in
+`pi-error.ts`. Local existence and header-identity verification is therefore a pure file read of
+information the runner already has, with no new access path. On Daytona the same check would reuse
+the existing in-sandbox exec and file APIs, but the transcript read-back direction is new code
+there.
 
 ## Current Claude behavior
 

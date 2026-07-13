@@ -53,9 +53,24 @@ Only `verified` permits last-message-only prompting. Every other outcome must:
 The sandbox-agent wrapper must not substitute `requestedSessionId` for a missing response ID and
 then present it as loaded identity. A requested identifier is routing input, not evidence.
 
-The immediate gate should validate at the closest layer that owns the native transcript mapping.
-For Pi, that is `pi-acp`. The runner still applies the conservative rule so an adapter regression
-cannot silently drop history.
+Verification evidence belongs in the layer that owns the native transcript mapping. For Pi, that
+is `pi-acp`. But `pi-acp` is an external prebuilt dependency pinned at 0.0.29, and its load
+response carries no identity evidence at all. The launch gate therefore must not depend on
+changing it. At launch, the runner applies the conservative rule alone: every cold Pi load is
+`unverified`, and every cold continuation replays the canonical transcript. That is the intended
+launch behavior, not a regression. It trades repeated replay tokens for guaranteed history.
+
+Verified loads return as evidence lands, from two acceptable sources in order of preference:
+
+1. `pi-acp` validates existence and header identity and returns the actual loaded ID, through an
+   upstream fix, a version bump, or a patch file like the existing sandbox-agent patch.
+2. The runner checks the mapped transcript itself. On local runs this is a pure file read of
+   information the runner already has: it shares the filesystem and `HOME` with Pi, knows the
+   agent directory it created, holds the expected native ID in its continuity store, and already
+   parses transcript headers in `pi-error.ts`. On Daytona the same check reuses the existing
+   in-sandbox exec and file channel but is new code on the read-back direction.
+
+Either source may upgrade an outcome to `verified`. Nothing relaxes the conservative rule.
 
 ## Existing mapping migration
 
@@ -69,17 +84,25 @@ The private transcript directory must live as long as the Agenta conversation. D
 whole `PI_CODING_AGENT_DIR` durable because it also contains credentials, settings, extensions,
 and system prompt files with different lifecycles.
 
-The existing harness-session mount model already identifies only Pi's `sessions` child. Extend
-that model to local execution, or link the temporary agent directory's `sessions` child to a
-stable private per-conversation directory. Choose the mechanism after fault-injection tests prove
-teardown, runner restart, and mount failure behavior.
+Pi has a supported seam for this: a session directory override, resolved from `--session-dir`,
+`PI_CODING_AGENT_SESSION_DIR`, or the `sessionDir` key in the agent directory's `settings.json`.
+The leading option is to write `sessionDir` into the per-run agent directory's `settings.json`,
+pointing at stable private per-conversation storage. The settings form is required rather than the
+env var because `pi-acp` resolves its scan directory from the same settings key and ignores the
+env var. The settings form keeps Pi's writes, `pi-acp`'s session listing, and its validating
+map-miss fallback on one directory. The alternatives remain extending the harness-session mount
+model to local execution, or linking the temporary agent directory's `sessions` child to stable
+storage. Confirm the choice with fault-injection tests that prove teardown, runner restart, and
+storage-failure behavior.
 
 Durability improves efficiency, but it does not relax the verified-load gate. A durable file can
 still be missing, corrupt, or mismatched.
 
 Two processes must never append to the same native transcript concurrently. Reuse the existing
 session ownership and serialization boundary and fail closed if exclusive ownership cannot be
-proven.
+proven. This is deliberately different from history uncertainty. Uncertain history degrades to a
+clean session with canonical replay because reading stale history risks nothing. Uncertain write
+ownership refuses the turn because two writers can corrupt the transcript for every later turn.
 
 ## Append-only Pi skill snapshots
 
@@ -103,6 +126,12 @@ The runner writes the completion record last and supplies only a complete curren
 explicit Pi skill source. It never trusts the whole project. It never deletes or replaces an old
 snapshot during acquisition. Old paths remain readable for references already present in a resumed
 transcript, but Pi does not advertise them as current skills.
+
+Snapshots are immutable by convention, not enforcement. The cwd is agent-writable, so a run can
+edit its own snapshot files, and the completion record lists expected files without hashing their
+contents. This is the accepted threat model: the workspace already belongs to the same user and
+agent, so an in-place edit crosses no trust boundary. Acquisition-time content verification is out
+of scope.
 
 This intentionally trades bounded storage growth for launch safety. Session retention can remove
 the whole workspace when the session is deleted. Fine-grained garbage collection requires a

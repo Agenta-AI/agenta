@@ -11,6 +11,17 @@
 - A replayed turn records its new native ID only after successful completion.
 - Existing stale mappings recover through replay instead of failing the user turn.
 
+## Pinned upstream behavior
+
+Pin the upstream behaviors the gate defends against, so a Pi or `pi-acp` upgrade that changes
+them fails a test instead of silently shifting the safety argument:
+
+- Pi `--session <path>` on a missing file creates a blank session at that path without error.
+- Pi `--session <id>` on an unknown ID exits with an error.
+- The `pi-acp@0.0.29` load response omits a session ID.
+- `pi-acp` trusts a `session-map.json` hit without an existence or header check, while its
+  map-miss scan matches transcript header IDs.
+
 ## Conversation-loss regression
 
 Automate the supplied production-shaped reproduction:
@@ -36,8 +47,13 @@ Every variant must preserve conversation history through canonical replay.
 
 ## Durable transcript tests
 
-- Local Pi persists only the `sessions` child, not auth, settings, models, extensions, or system
+- Local Pi persists only the native transcripts, not auth, settings, models, extensions, or system
   prompt files.
+- The `sessionDir` override is written into the run agent directory's `settings.json`, and Pi and
+  `pi-acp` resolve the same directory: new transcripts land in durable storage, and `pi-acp`'s
+  session listing and map-miss fallback scan that directory.
+- A deleted `session-map.json` entry with a valid durable transcript recovers through the
+  header-matching scan.
 - Full environment teardown does not remove the private transcript.
 - Runner restart can verify and load the same transcript.
 - Expired conversation cleanup removes transcript state according to retention policy.
