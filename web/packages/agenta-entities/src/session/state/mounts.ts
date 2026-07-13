@@ -86,13 +86,15 @@ export const revalidateSessionMountsAtom = atom(null, (get, _set, sessionId: str
     if (!projectId || !sessionId) return
     const queryClient = get(queryClientAtom)
 
+    // The session's mount LIST (a run can add a mount).
     void queryClient.invalidateQueries({queryKey: sessionMountsQueryKey(projectId, sessionId)})
-    const mounts = queryClient.getQueryData<Mount[] | null>(
-        sessionMountsQueryKey(projectId, sessionId),
-    )
-    for (const mount of mounts ?? []) {
-        void queryClient.invalidateQueries({queryKey: mountFilesQueryKey(projectId, mount.id)})
-        // Prefix match: drops every cached file body under this mount.
-        void queryClient.invalidateQueries({queryKey: ["mounts", "file", projectId, mount.id]})
-    }
+    // Every mount's file listing + bodies for the project (prefix match). This covers the session
+    // cwd mounts AND the artifact-scoped agent mount folded into the session drive under
+    // `agent-files/`: the agent mount is keyed by ARTIFACT, not session, so a per-session loop
+    // missed it — files written there stayed stale until a reload. Inactive queries just refetch on
+    // next open; active ones (the open drive) refetch now.
+    void queryClient.invalidateQueries({queryKey: ["mounts", "files", projectId]})
+    void queryClient.invalidateQueries({queryKey: ["mounts", "file", projectId]})
+    // The agent-mount lookup itself (`agentDrive` key), in case the first write just created it.
+    void queryClient.invalidateQueries({queryKey: ["mounts", "agent", projectId]})
 })
