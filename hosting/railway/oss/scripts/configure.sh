@@ -288,7 +288,6 @@ main() {
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
         AGENTA_RUNNER_INTERNAL_URL="$agent_runner_url" \
-        AGENTA_AGENT_MCPS_ENABLED="${AGENTA_AGENT_MCPS_ENABLED:-false}" \
         AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
         AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
         AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \

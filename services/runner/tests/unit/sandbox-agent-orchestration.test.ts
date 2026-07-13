@@ -17,7 +17,6 @@ import {
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -1060,29 +1059,6 @@ describe("runSandboxAgent orchestration", () => {
     );
     // The internal server is opened then released, so its port does not leak past the run.
     assert.equal(calls.sandboxDestroyed, 1, "sandbox disposed in finally");
-  });
-
-  it("still refuses a run carrying a USER stdio MCP server (user gate untouched)", async () => {
-    // The user-facing stdio MCP path stays disabled (parity with removed code execution); only
-    // the internal gateway-tool channel was restored. A user-declared stdio MCP server is still
-    // rejected up front with the user-facing message.
-    const { deps } = fakeHarness();
-
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        messages: [{ role: "user", content: "go" }],
-        mcpServers: [{ name: "github", transport: "stdio", command: "npx" }],
-      } as AgentRunRequest,
-      undefined,
-      undefined,
-      deps,
-    );
-
-    assert.deepEqual(result, {
-      ok: false,
-      error: USER_MCP_UNSUPPORTED_MESSAGE,
-    });
   });
 
   it("fails loud when a non-Pi harness probes mcpTools:false but the run carries tools", async () => {

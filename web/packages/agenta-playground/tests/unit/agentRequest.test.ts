@@ -533,14 +533,17 @@ describe("buildAgentRequest", () => {
             config: {
                 agent: {
                     mcps: [
-                        {name: "", transport: "stdio", command: "", args: []},
+                        {
+                            name: "",
+                            connection: {type: "http", url: ""},
+                            policy: {tools: {mode: "all"}},
+                        },
                         {
                             name: "github",
-                            transport: "stdio",
-                            command: "npx",
-                            args: ["-y", "x"],
+                            connection: {type: "http", url: "https://mcp.example.com/mcp"},
+                            policy: {tools: {mode: "all"}},
                         },
-                        {name: "  ", transport: "stdio"},
+                        {name: "  ", connection: {type: "http", url: ""}},
                     ],
                 },
             },

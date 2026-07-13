@@ -73,6 +73,13 @@ export interface HarnessCapabilities {
      * and falls back to `models`. Absent on an older backend.
      */
     model_catalog?: ModelCatalogEntry[]
+    /** External MCP servers the selected harness can consume. */
+    mcp?: {
+        user_servers?: {
+            connection_types: string[]
+            credentials: string[]
+        } | null
+    } | null
 }
 
 /** The full per-harness capability map (harness type -> capabilities). */
