@@ -1042,9 +1042,10 @@ export function createRequestListener(
 
       return send(res, 404, { ok: false, error: "Not found" });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // Stack stays server-side; only the message goes on the wire.
-      if (err instanceof Error && err.stack) console.error(err.stack);
+      // Only .message goes on the wire: the raw thrown value (even via String()) is
+      // stack-trace-tainted to CodeQL, and the stack itself stays server-side.
+      const message = err instanceof Error ? err.message : "Internal error";
+      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
       return send(res, 500, { ok: false, error: message });
     }
   };
