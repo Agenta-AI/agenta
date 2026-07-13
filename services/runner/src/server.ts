@@ -65,6 +65,7 @@ import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
+import { seedForRun } from "./redaction.ts";
 
 const PORT = Number(process.env.AGENTA_RUNNER_PORT ?? 8765);
 
@@ -575,11 +576,7 @@ export async function runWithKeepalive(
       klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
-      await pool.evict(
-        key,
-        `mismatch:${mismatch}`,
-        "compatibility-mismatch",
-      );
+      await pool.evict(key, `mismatch:${mismatch}`, "compatibility-mismatch");
       return coldAndPark();
     }
 
@@ -756,11 +753,7 @@ export async function runWithKeepalive(
     // environment can never be destroyed by this branch). Supersede — destroy the parked one and
     // cold-start — awaited so its teardown cannot overlap our acquire.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
-    await pool.evict(
-      key,
-      `supersede-${existing.state}`,
-      "failed-turn",
-    );
+    await pool.evict(key, `supersede-${existing.state}`, "failed-turn");
   } else {
     klog(`miss key=${key}; cold`);
   }
@@ -781,11 +774,9 @@ const keepalivePools: Record<
   SessionPool<SessionEnvironment>
 > = {
   local: new SessionPool<SessionEnvironment>(keepaliveConfigs.local),
-  daytona: new SessionPool<SessionEnvironment>(
-    keepaliveConfigs.daytona,
-    klog,
-    { strictCapacity: true },
-  ),
+  daytona: new SessionPool<SessionEnvironment>(keepaliveConfigs.daytona, klog, {
+    strictCapacity: true,
+  }),
 };
 
 const runAgent: RunAgent = (request, emit, signal, options) => {
@@ -898,11 +889,18 @@ async function runAndStreamWithApiBaseResolved(
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own). Best-effort, never blocks the turn.
     void cancelStaleInteractions(sessionId, turnId, watchdog.credential);
+    // Deny-set from THIS run's resolved provider keys + run credential (not process env,
+    // which never holds them).
     const {
       emit: persistingEmit,
       persist,
       flush,
-    } = buildPersistingEmitter(sessionId, watchdog.credential, liveEmit);
+    } = buildPersistingEmitter(
+      sessionId,
+      watchdog.credential,
+      liveEmit,
+      seedForRun(request),
+    );
     // Record the inbound user turn first so the session record is the full conversation,
     // not just agent output. Interaction replies ride tool_result blocks (no text) and are
     // already recorded on the interaction, so an empty prompt persists nothing.
@@ -1045,7 +1043,7 @@ export function createRequestListener(
       // Only .message goes on the wire: the raw thrown value (even via String()) is
       // stack-trace-tainted to CodeQL, and the stack itself stays server-side.
       const message = err instanceof Error ? err.message : "Internal error";
-      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
+      console.error(err instanceof Error ? err.stack ?? err.message : err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -1103,7 +1101,7 @@ if (isEntrypoint(import.meta.url)) {
   // run still returns its own error to its caller.
   process.on("unhandledRejection", (reason) => {
     process.stderr.write(
-      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
+      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`,
     );
   });
   process.on("uncaughtException", (err) => {
@@ -1119,11 +1117,7 @@ if (isEntrypoint(import.meta.url)) {
     onCleanup: async (timeoutMs?: number) => {
       await Promise.all(
         Object.values(keepalivePools).map((pool) =>
-          pool.destroyAll(
-            timeoutMs,
-            "shutdown-idle",
-            "shutdown-in-flight",
-          ),
+          pool.destroyAll(timeoutMs, "shutdown-idle", "shutdown-in-flight"),
         ),
       );
       await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");

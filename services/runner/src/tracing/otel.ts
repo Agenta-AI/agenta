@@ -54,6 +54,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
+import type { Redactor } from "../redaction.ts";
 
 /** Machine-readable prefix on a sibling force-settle result (see TOOL_NOT_EXECUTED_PAUSED). The
  *  responder keys off this to keep the deferral out of the client-output store, and the web widget
@@ -74,6 +75,26 @@ interface ExportTarget {
 
 /** traceId (hex) -> where that trace's spans should be exported. Set on agent_start. */
 const traceTargets = new Map<string, ExportTarget>();
+
+/** traceId (hex) -> this run's seeded Redactor. Set alongside traceTargets; read at flush
+ * time (Slice 1, WP1.5) so a known live secret never reaches the exported span attributes. */
+const traceRedactors = new Map<string, Redactor>();
+
+/** Redact every string-valued span attribute in place (known-value pass; sink-level, right
+ * before export — same rationale as the persist.ts sink). Fail-safe: redactJson never throws. */
+function redactSpanAttributes(span: ReadableSpan, redactor: Redactor): void {
+  const attrs = span.attributes as Record<string, unknown>;
+  for (const [key, value] of Object.entries(attrs)) {
+    if (typeof value === "string") {
+      attrs[key] = redactor.redactString(value, "spans");
+    } else if (
+      Array.isArray(value) &&
+      value.every((v) => typeof v === "string")
+    ) {
+      attrs[key] = value.map((v) => redactor.redactString(v, "spans"));
+    }
+  }
+}
 
 /** Cache one exporter per distinct endpoint+auth so we do not rebuild per export. */
 const exporterCache = new Map<string, OTLPTraceExporter>();
@@ -146,6 +167,11 @@ class TraceBatchProcessor implements SpanProcessor {
     this.buffers.delete(traceId);
     const target = traceTargets.get(traceId) ?? defaultTarget();
     traceTargets.delete(traceId);
+    // Redact at the sink: the last point before the spans leave the process.
+    const redactor = traceRedactors.get(traceId);
+    traceRedactors.delete(traceId);
+    if (redactor)
+      for (const span of spans) redactSpanAttributes(span, redactor);
     return new Promise((resolve) => {
       try {
         getExporter(target).export(orderParentFirst(spans), (result) => {
@@ -280,6 +306,8 @@ export interface RunConfig {
    * extension owns the agent span (the runner's sandbox-agent otel is span-less there).
    */
   skills?: string[];
+  /** Per-run known-value redactor; scrubs the run's live secrets from exported spans. */
+  redactor?: Redactor;
   /** Filled by the extension on agent_start so the runner can flush/return it. */
   traceId?: string;
 }
@@ -463,6 +491,7 @@ export function createAgentaOtel(
     provider: init.provider,
     requestModel: init.requestModel,
     skills: init.skills,
+    redactor: init.redactor,
   };
 
   const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
@@ -530,6 +559,7 @@ export function createAgentaOtel(
         endpoint: config.endpoint ?? defaultTarget().endpoint,
         authorization: config.authorization ?? defaultTarget().authorization,
       });
+      if (config.redactor) traceRedactors.set(traceId, config.redactor);
       agentCtx = trace.setSpan(parent ?? context.active(), agentSpan);
     });
 
@@ -1104,6 +1134,7 @@ export function createSandboxAgentOtel(
 
     runTraceId = agentSpan.spanContext().traceId;
     traceTargets.set(runTraceId, { endpoint, authorization });
+    if (init.redactor) traceRedactors.set(runTraceId, init.redactor);
     agentCtx = trace.setSpan(parent ?? context.active(), agentSpan);
 
     turnSpan = tracer.startSpan("turn 0", undefined, agentCtx);
@@ -1237,8 +1268,8 @@ export function createSandboxAgentOtel(
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : (usage?.total ?? 0),
-        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
+        total: typeof total === "number" ? total : usage?.total ?? 0,
+        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
       };
       record({ type: "usage", ...usage });
     }
@@ -1328,6 +1359,7 @@ export function createSandboxAgentOtel(
       // traceparent, which is the same id — but set it defensively if it was never resolved).
       runTraceId = runTraceId ?? errSpan.spanContext().traceId;
       traceTargets.set(runTraceId, { endpoint, authorization });
+      if (init.redactor) traceRedactors.set(runTraceId, init.redactor);
     } catch {
       // tracing must never break the run
     }
