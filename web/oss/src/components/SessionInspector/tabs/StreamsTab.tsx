@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {deriveStreamNest} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
@@ -6,7 +6,10 @@ import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Button, Popconfirm, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {isSessionStreamingAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
+import {
+    isSessionStreamingAtomFamily,
+    sessionStatusAtomFamily,
+} from "@/oss/components/AgentChatSlice/state/sessions"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {attachStream, detachStream, fetchStream, killStream} from "../api"
@@ -16,11 +19,19 @@ import {
     setSessionInspectorWatcherIdAtom,
 } from "../store"
 
-const NestBadge = ({on, label}: {on: boolean; label: string}) => (
-    <Tag color={on ? "green" : "default"} className="m-0">
-        {label}
-    </Tag>
-)
+// On = solid colored Tag. Off = deliberately "off": a hollow, dashed, de-emphasized chip with a
+// ring dot — distinct from a disabled button or a loading flash, so the idle/dead state reads clearly.
+const NestBadge = ({on, label}: {on: boolean; label: string}) =>
+    on ? (
+        <Tag color="green" className="m-0">
+            {label}
+        </Tag>
+    ) : (
+        <span className="m-0 inline-flex items-center gap-1 rounded border border-dashed border-colorBorderSecondary bg-transparent px-2 py-0.5 text-xs leading-[18px] text-colorTextQuaternary">
+            <span className="h-1.5 w-1.5 rounded-full border border-colorTextQuaternary" />
+            {label}
+        </span>
+    )
 
 const StreamsTab = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
@@ -28,6 +39,9 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
     // This browser tab is itself streaming the session — it IS the live connection, even though
     // an inline chat run never calls the coordination-plane attach. Treat it as attached.
     const localStreaming = useAtomValue(isSessionStreamingAtomFamily(sessionId))
+    // Run state ("running" while a turn streams) drives revalidation: these are live sandbox facts,
+    // so a one-shot fetch goes stale the moment the run starts, settles, or errors.
+    const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
     const setWatcherId = useSetAtom(setSessionInspectorWatcherIdAtom)
     const closeInspector = useSetAtom(closeSessionInspectorAtom)
     const queryClient = useQueryClient()
@@ -39,9 +53,18 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
         queryFn: () => fetchStream(sessionId, projectId),
         enabled: Boolean(sessionId),
         refetchOnWindowFocus: false,
+        refetchOnMount: "always",
+        // Poll while a turn is live so stream_id/turn_id/status track the run; stop once idle.
+        refetchInterval: runStatus === "running" ? 2500 : false,
     })
 
     const refresh = () => queryClient.invalidateQueries({queryKey})
+
+    // Refetch on every run-state transition (start / settle / error / await) so the Lifecycle
+    // snapshot reflects the current stream instead of whatever it was when the panel first opened.
+    useEffect(() => {
+        void queryClient.invalidateQueries({queryKey})
+    }, [runStatus, sessionId, projectId])
 
     const onAttach = async () => {
         setBusy(true)
@@ -86,6 +109,11 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
         try {
             await killStream(sessionId, projectId)
             message.success("Session killed")
+            // Refresh this panel (Lifecycle/State flip to the killed state) and the shared liveness
+            // query (tab dots). The old SessionInspector drawer also closes; the new Inspector lens
+            // has no-op close and instead stays open showing the now-dead session.
+            await queryClient.invalidateQueries({queryKey: ["session-inspector"]})
+            void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
             closeInspector()
         } catch {
             message.error("Kill failed")
@@ -152,8 +180,11 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
                     title="Kill this session?"
                     onConfirm={onKill}
                     okButtonProps={{danger: true}}
+                    disabled={!data && !localStreaming}
                 >
-                    <Button danger loading={busy}>
+                    {/* Enabled whenever a stream row exists — alive, parked, or resumable are all
+                        killable. Only truly nothing-to-kill (no row) disables it. */}
+                    <Button danger loading={busy} disabled={!data && !localStreaming}>
                         Kill
                     </Button>
                 </Popconfirm>

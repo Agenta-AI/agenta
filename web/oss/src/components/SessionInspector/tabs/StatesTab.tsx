@@ -1,7 +1,10 @@
-import {useQuery} from "@tanstack/react-query"
+import {useEffect} from "react"
+
+import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {sessionStatusAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {fetchState} from "../api"
@@ -10,6 +13,10 @@ const {Text} = Typography
 
 const StatesTab = ({sessionId}: {sessionId: string}) => {
     const projectId = useAtomValue(projectIdAtom)
+    // Durable state (state_id / sandbox_id) is written mid-run, so revalidate on run transitions
+    // and poll while streaming — otherwise a brand-new session shows "no durable state" forever.
+    const runStatus = useAtomValue(sessionStatusAtomFamily(sessionId))
+    const queryClient = useQueryClient()
 
     const queryKey = ["session-inspector", "state", projectId, sessionId]
     const {data, isLoading, error} = useQuery({
@@ -17,7 +24,13 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
         queryFn: () => fetchState(sessionId, projectId),
         enabled: Boolean(sessionId),
         refetchOnWindowFocus: false,
+        refetchOnMount: "always",
+        refetchInterval: runStatus === "running" ? 2500 : false,
     })
+
+    useEffect(() => {
+        void queryClient.invalidateQueries({queryKey})
+    }, [runStatus, sessionId, projectId])
 
     if (isLoading) return <Skeleton active />
     if (error) return <Alert type="error" message="Failed to load state" showIcon />
