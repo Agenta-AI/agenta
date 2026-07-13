@@ -95,7 +95,7 @@ export const getEvaluatorTagValues = (item: FilterableEvaluator): string[] => {
     }
 
     // Legacy Evaluator type uses `tags`
-    const legacyTags = (item as Evaluator).tags
+    const legacyTags = (item as any).tags
     if (Array.isArray(legacyTags)) {
         legacyTags.filter(Boolean).forEach((tag) => {
             registry.add(String(tag).toLowerCase())
@@ -129,7 +129,7 @@ export const getEvaluatorTagColor = (item: FilterableEvaluator): string | undefi
  * Uses `flags.is_recommended` from the catalog when available.
  * Falls back to the legacy ENABLED_EVALUATORS allowlist + !archived check.
  */
-export const filterEnabledEvaluators = <T extends Record<string, unknown>>(
+export const filterEnabledEvaluators = <T extends FilterableEvaluator>(
     evaluators: T[],
 ): T[] => {
     return evaluators.filter((item) => {

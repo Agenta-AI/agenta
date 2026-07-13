@@ -191,7 +191,7 @@ const EvaluatorTemplateDropdown = ({
             arrow={false}
             styles={{container: {padding: 0}}}
         >
-            <span className={className}>{trigger || defaultTrigger}</span>
+            {trigger || defaultTrigger}
         </Popover>
     )
 }
