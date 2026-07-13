@@ -88,6 +88,7 @@ import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {getMessageTraceId} from "./assets/trace"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
+import AgentChatHistoryUnavailable from "./components/AgentChatHistoryUnavailable"
 import {ComposerSkeleton, TranscriptSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
@@ -623,6 +624,10 @@ const AgentConversation = ({
     const [isHydrating, setIsHydrating] = useState(
         () => initialMessages.length === 0 && !isSessionFresh(sessionId),
     )
+    // Set when server hydration for a KNOWN (non-fresh, uncached) session returns no records — its
+    // durable history was pruned by retention or never persisted. Drives the "history unavailable"
+    // notice so a wiped session isn't mistaken for a brand-new chat.
+    const [hydratedEmpty, setHydratedEmpty] = useState(false)
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
@@ -634,7 +639,13 @@ const AgentConversation = ({
         let cancelled = false
         loadSessionMessages(sessionId)
             .then((msgs) => {
-                if (cancelled || !msgs || msgs.length === 0) return
+                if (cancelled) return
+                if (!msgs || msgs.length === 0) {
+                    // Known session, but the server has no records for it → history was pruned or
+                    // never persisted. Flag it so the transcript shows the "unavailable" notice.
+                    setHydratedEmpty(true)
+                    return
+                }
                 // Restored history renders settled (no live fade-in) and pinned to the bottom.
                 msgs.forEach((m) => {
                     seenIdsRef.current.add(m.id)
@@ -2032,6 +2043,10 @@ const AgentConversation = ({
                                                 // Server-history hydration in flight — skeleton, not the "start a
                                                 // chat" hero, so a durable session doesn't flash the empty state.
                                                 <TranscriptSkeleton />
+                                            ) : hydratedEmpty && !onboardingActive ? (
+                                                // Known session whose records hydrated empty (pruned/expired) — a
+                                                // soft notice, not the new-chat hero. Composer below stays usable.
+                                                <AgentChatHistoryUnavailable />
                                             ) : (
                                                 <AgentChatEmptyState
                                                     entityId={entityId}
