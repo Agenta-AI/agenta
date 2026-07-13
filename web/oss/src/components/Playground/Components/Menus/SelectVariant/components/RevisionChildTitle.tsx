@@ -10,6 +10,7 @@ interface RevisionChildTitleProps {
     isDisabled: boolean
     showLatestTag: boolean
     showAsCompare: boolean
+    showBadges?: boolean
     onCreateLocalCopy: (revisionId: string, e: React.MouseEvent) => void
     latestRevisionId?: string | null
 }
@@ -22,6 +23,7 @@ const RevisionChildTitle = ({
     isDisabled,
     showLatestTag,
     showAsCompare,
+    showBadges = true,
     onCreateLocalCopy,
     latestRevisionId,
 }: RevisionChildTitleProps) => {
@@ -37,7 +39,7 @@ const RevisionChildTitle = ({
                 revision={version}
                 variant={variant as any}
                 hideName
-                showBadges
+                showBadges={showBadges}
                 showLatestTag={showLatestTag}
                 isLatest={isLatest}
             />

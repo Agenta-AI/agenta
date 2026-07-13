@@ -57,8 +57,10 @@ const SelectVariant = ({
     customBrowseAdapter,
     style,
     borderlessTrigger = false,
+    versioning = "branching",
     ...props
 }: SelectVariantProps) => {
+    const isLinearVersioning = versioning === "linear"
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
     const setSelectedVariants = useSetAtom(playgroundController.actions.setEntityIds)
     const selectedAppId = useAtomValue(selectedAppIdAtom)
@@ -122,13 +124,14 @@ const SelectVariant = ({
         selectedExistsInAppList,
     ])
 
-    const selectPlaceholder =
-        !showAsCompare &&
-        !!singleSelectedValue &&
-        selectedRevisionQuery.isPending &&
-        !hasSelectedDisplayName
-            ? "Loading variant..."
-            : "Select variant"
+    const selectPlaceholder = isLinearVersioning
+        ? "History"
+        : !showAsCompare &&
+            !!singleSelectedValue &&
+            selectedRevisionQuery.isPending &&
+            !hasSelectedDisplayName
+          ? "Loading variant..."
+          : "Select variant"
 
     // Scoped adapter: 2-level (Variant → Revision), scoped to the current app
     const scopedAdapter = useMemo(
@@ -260,12 +263,20 @@ const SelectVariant = ({
                     isDisabled={disabledIds.has(c.id)}
                     showLatestTag={showLatestTag}
                     showAsCompare={showAsCompare}
+                    showBadges={!isLinearVersioning}
                     onCreateLocalCopy={handleCreateLocalCopy}
                     latestRevisionId={latestRevisionId}
                 />
             )
         },
-        [showLatestTag, showAsCompare, handleCreateLocalCopy, disabledIds, latestRevisionId],
+        [
+            showLatestTag,
+            showAsCompare,
+            handleCreateLocalCopy,
+            disabledIds,
+            latestRevisionId,
+            isLinearVersioning,
+        ],
     )
 
     const renderSelectedLabel = useCallback(
@@ -363,6 +374,7 @@ const SelectVariant = ({
     // Uses singleSelectedValue directly (not selectedValueForControl which
     // may be undefined while the existence check resolves).
     const triggerLabel = useMemo(() => {
+        if (isLinearVersioning && mode === "scoped") return "History"
         if (!singleSelectedValue) return selectPlaceholder
         if (isLocalDraftId(singleSelectedValue)) {
             return selectedVariantName ?? selectedRevisionData?.name ?? "Draft"
@@ -388,6 +400,7 @@ const SelectVariant = ({
         selectPlaceholder,
         mode,
         workflowName,
+        isLinearVersioning,
     ])
 
     // Initial expanded keys for browse mode — expand the parent workflow of the selected revision
@@ -503,11 +516,15 @@ const SelectVariant = ({
                                 onSelect={handleSingleSelect}
                                 selectedValue={selectedValueForControl}
                                 disabledChildIds={disabledIds}
-                                renderParentTitle={renderParentTitle}
+                                renderParentTitle={
+                                    isLinearVersioning ? undefined : renderParentTitle
+                                }
                                 renderChildTitle={renderChildTitle}
                                 renderSelectedLabel={renderSelectedLabel}
                                 popupMinWidth={280}
                                 maxHeight={400}
+                                showSearch={!isLinearVersioning}
+                                flattenSingleParent={isLinearVersioning}
                             />
                         )}
                     </div>

@@ -44,6 +44,8 @@ export type TreeSelectPopupContentProps<TSelection = EntitySelectionResult> = Om
      * Children for these parents will be fetched on mount.
      */
     initialExpandedKeys?: string[]
+    /** Hide a sole structural parent and render its children as a flat list. */
+    flattenSingleParent?: boolean
 }
 
 // ============================================================================
@@ -77,6 +79,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
     width = 280,
     showDate = false,
     initialExpandedKeys,
+    flattenSingleParent = false,
 }: TreeSelectPopupContentProps<TSelection>) {
     const generatedId = useId()
     const instanceId = providedInstanceId ?? generatedId
@@ -150,6 +153,8 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
     // Get display messages
     const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
     const displayLoadingMessage = loadingMessage ?? resolvedAdapter.loadingMessage ?? "Loading..."
+    const displayTreeData =
+        flattenSingleParent && treeData.length === 1 ? (treeData[0].children ?? []) : treeData
 
     // Handle tree node selection
     const handleTreeSelect = useCallback(
@@ -195,7 +200,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
             {popupHeader}
 
             {/* Loading state — only shown when no tree data is available yet */}
-            {(isLoadingParents || isLoadingChildren) && treeData.length === 0 && (
+            {(isLoadingParents || isLoadingChildren) && displayTreeData.length === 0 && (
                 <div className="flex items-center justify-center py-4">
                     <Spin size="small" />
                     <span className="ml-2 text-sm text-gray-500">{displayLoadingMessage}</span>
@@ -208,22 +213,29 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
             )}
 
             {/* Empty state */}
-            {!isLoadingParents && !parentsError && treeData.length === 0 && (
-                <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                    {displayEmptyMessage}
-                </div>
-            )}
+            {!isLoadingParents &&
+                !isLoadingChildren &&
+                !parentsError &&
+                displayTreeData.length === 0 && (
+                    <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                        {displayEmptyMessage}
+                    </div>
+                )}
 
             {/* Tree list */}
-            {!isLoadingParents && !parentsError && treeData.length > 0 && (
+            {!isLoadingParents && !parentsError && displayTreeData.length > 0 && (
                 <div
                     ref={scrollContainerRef}
                     style={{maxHeight, overflow: "auto"}}
-                    className="tree-popup-compact px-2 pb-2"
+                    className={cn(
+                        "tree-popup-compact pb-2",
+                        flattenSingleParent ? "tree-popup-flat px-1.5 pt-2.5" : "px-2",
+                    )}
                 >
                     <style>{`
                         .tree-popup-compact .ant-tree-treenode-leaf .ant-tree-indent { display: none !important; }
                         .tree-popup-compact .ant-tree-treenode-leaf { padding-left: 24px !important; }
+                        .tree-popup-compact.tree-popup-flat .ant-tree-treenode-leaf { padding-left: 0 !important; width: 100%; }
                         .tree-popup-compact .ant-tree-checkbox { display: none; }
                         .tree-popup-compact .ant-tree-treenode-selected > .ant-tree-node-content-wrapper { background: var(--ant-blue-1, #e6f4ff); opacity: 0.8; }
                         .tree-popup-compact .ant-tree-node-content-wrapper { padding-left: 4px !important; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; }
@@ -244,7 +256,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                         .tree-popup-compact .ant-tree-treenode-leaf { background: var(--ant-color-bg-elevated, #fff); }
                     `}</style>
                     <Tree
-                        treeData={treeData}
+                        treeData={displayTreeData}
                         expandedKeys={expandedKeys}
                         onExpand={handleTreeExpand}
                         onSelect={handleTreeSelect}
