@@ -33,6 +33,7 @@
 import { mkdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
+import { seedForRun } from "../redaction.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
 
@@ -909,13 +910,13 @@ export async function acquireEnvironment(
     if (!parked && !plan.isDaytona && environment.agentMountedPath) {
       const agentMountSafeToDelete = await (
         environment.deps.unmountStorage ?? unmountStorage
-      )(
-        environment.agentMountedPath,
-        { log },
-      ).catch(() => false);
+      )(environment.agentMountedPath, { log }).catch(() => false);
       if (agentMountSafeToDelete) {
         try {
-          rmSync(environment.agentMountedPath, { recursive: true, force: true });
+          rmSync(environment.agentMountedPath, {
+            recursive: true,
+            force: true,
+          });
         } catch (err) {
           logger(
             `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
@@ -1272,9 +1273,9 @@ export async function acquireEnvironment(
         const storeEndpoint = environment.mountCreds.endpoint;
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+          : (await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
-            })) ?? undefined);
+            })) ?? undefined;
         const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
         if (
           canMount &&
@@ -1332,9 +1333,9 @@ export async function acquireEnvironment(
         const storeEndpoint = environment.agentMountCreds.endpoint;
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+          : (await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
-            })) ?? undefined);
+            })) ?? undefined;
         const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
         const mountPath = agentMountDir;
         if (
@@ -1350,12 +1351,9 @@ export async function acquireEnvironment(
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
-          await linkAgentFilesRemote(
-            environment.sandbox,
-            plan.cwd,
-            mountPath,
-            { log: logger },
-          );
+          await linkAgentFilesRemote(environment.sandbox, plan.cwd, mountPath, {
+            log: logger,
+          });
           await activateAgentMountGuidance();
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
@@ -1743,6 +1741,16 @@ export async function runTurn(
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
+      // Seed from the keys actually APPLIED to this run (`plan.secrets`) plus the mount's STS
+      // pair — neither lives in the sidecar's process env.
+      redactor: seedForRun(
+        { secrets: plan.secrets, telemetry: request.telemetry },
+        [
+          env.mountCreds?.accessKey,
+          env.mountCreds?.secretKey,
+          env.mountCreds?.sessionToken,
+        ],
+      ),
       emitSpans: !plan.isPi || plan.isDaytona,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
