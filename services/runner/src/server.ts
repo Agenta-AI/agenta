@@ -1014,7 +1014,7 @@ export function createRequestListener(
           } catch (err) {
             return send(res, 400, {
               ok: false,
-              error: `Invalid JSON: ${String(err)}`,
+              error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
             });
           }
 
