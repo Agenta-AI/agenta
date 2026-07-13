@@ -1,4 +1,4 @@
-import {lazy, Suspense, useEffect, useRef, useState} from "react"
+import {lazy, Suspense, useEffect, useRef, useState, type CSSProperties} from "react"
 
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Splitter, Tabs} from "antd"
@@ -136,16 +136,18 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 collapsible={false}
                 className="!overflow-hidden !p-0"
             >
-                {/* `inert` drops the clipped rail from tab order + a11y while collapsed. */}
-                <div className="h-full w-full" inert={!chatMaximized}>
+                {/* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
+                    (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
+                    h-full chain through the fade wrapper grew with content and never bounded. */}
+                <div className="flex h-full min-h-0 w-full flex-col" inert={!chatMaximized}>
                     {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
                     <Suspense fallback={null}>
                         {/* min-w matches RAIL_MIN_WIDTH (Tailwind needs the literal). */}
-                        <MountFade className="h-full w-full">
+                        <MountFade className="flex min-h-0 w-full flex-1 flex-col">
                             <SessionRail
                                 activeId={activeId}
                                 addDisabled={addLocked}
-                                className="h-full w-full min-w-[240px]"
+                                className="min-h-0 w-full min-w-[240px] flex-1"
                             />
                         </MountFade>
                     </Suspense>
@@ -154,18 +156,29 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             <Splitter.Panel collapsible={false} className="!overflow-hidden !p-0">
                 <Tabs
                     animated={false}
-                    className="flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
+                    // The session bar is an ABSOLUTE overlay (`.ant-tabs-nav` pinned top) so its
+                    // presence never reflows the transcript. The build↔chat motion is driven by the
+                    // content-holder's TOP PADDING (`--agent-bar-inset`: 48 in build, 0 in chat) — the
+                    // transcript eases to its position; the composer (bottom) never moves.
+                    style={
+                        {
+                            "--agent-bar-inset": chromeHidden || chatMaximized ? "0px" : "48px",
+                        } as CSSProperties
+                    }
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-content-holder]:pt-[var(--agent-bar-inset)] [&_.ant-tabs-content-holder]:motion-safe:transition-[padding-top] [&_.ant-tabs-content-holder]:motion-safe:duration-[240ms] [&_.ant-tabs-content-holder]:motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
                     activeKey={activeId}
                     onChange={setActiveSession}
                     renderTabBar={() => (
-                        // Kept mounted in ALL states so its height ANIMATES on transitions rather than the node
-                        // mounting at full height (which snapped the content down). Collapsed to 0 in chat mode
-                        // (controls live in the SessionRail) AND during onboarding (single ephemeral session);
-                        // expands to 48 when the committed build view takes over — same eased height transition
-                        // as the rail/config panes.
+                        // renderTabBar's node stands in for the nav, so making IT absolute (pinned top,
+                        // bounded to the pane width) takes the bar out of flow — the transcript no longer
+                        // reflows when it appears, and the strip has a bounded width so tabs scroll. It just
+                        // fades (opacity) out in chat mode / onboarding while the content padding animates.
                         <div
-                            className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                            style={{height: chromeHidden || chatMaximized ? 0 : 48}}
+                            className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                            style={{
+                                opacity: chromeHidden || chatMaximized ? 0 : 1,
+                                pointerEvents: chromeHidden || chatMaximized ? "none" : undefined,
+                            }}
                         >
                             {/* Region fallback = the same bar skeleton the pre-confirmation gate
                             renders, so the strip's lane holds its shape while this chunk loads; the

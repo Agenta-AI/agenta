@@ -292,7 +292,7 @@ const SessionTagBar = ({
     }, [])
     return (
         <MotionConfig reducedMotion="user">
-            <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
+            <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3">
                 {showSessions ? (
                     <div
                         ref={scrollStripRef}
