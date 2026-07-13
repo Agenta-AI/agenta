@@ -51,3 +51,14 @@ class MissingMCPSecretError(MCPError):
         )
         self.server_name = server_name
         self.secret_names = names
+
+
+class MCPServerURLBlockedError(MCPError):
+    """An MCP server's ``url`` failed the SSRF guard (private/loopback/link-local/metadata)."""
+
+    def __init__(self, *, server_name: str, url: str) -> None:
+        super().__init__(
+            f"MCP server '{server_name}' url is blocked by the outbound egress guard: {url}"
+        )
+        self.server_name = server_name
+        self.url = url

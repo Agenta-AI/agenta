@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from agenta.sdk.agents.mcp import (
     MCPResolver,
     MCPServerConfig,
+    MCPServerURLBlockedError,
     MissingMCPSecretError,
 )
 from agenta.sdk.agents.tools import MissingSecretPolicy
@@ -83,6 +84,19 @@ def test_legacy_permission_mode_alias_is_ignored():
         {"name": "github", "command": "npx", "permission_mode": "deny"}
     )
     assert config.permission is None
+
+
+async def test_http_server_url_blocked_by_ssrf_guard():
+    with pytest.raises(MCPServerURLBlockedError):
+        await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+            [
+                MCPServerConfig(
+                    name="internal",
+                    transport="http",
+                    url="http://169.254.169.254/latest/meta-data/",
+                )
+            ]
+        )
 
 
 async def test_mcp_compatibility_policy_can_omit_missing_secret():
