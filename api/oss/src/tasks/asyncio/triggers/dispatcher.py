@@ -181,10 +181,28 @@ class TriggersDispatcher:
         event_id: str,
         event: Dict[str, Any],
     ) -> None:
-        """Dispatch a cron tick for one schedule (no provider/dedup/validity gates)."""
+        """Dispatch a cron tick for one schedule (no provider/validity gates).
+
+        Dedups on the (schedule, tick) event_id like ``dispatch_subscription``: the task
+        is retried on error, so without this a failure after the workflow's side effects
+        landed would re-invoke it.
+        """
         if not schedule.flags.is_active:
             log.info(
                 "[TRIGGERS DISPATCHER] Schedule %s inactive — skipping",
+                schedule.id,
+            )
+            return
+
+        already_seen = await self.triggers_dao.dedup_seen_schedule(
+            project_id=project_id,
+            schedule_id=schedule.id,
+            event_id=event_id,
+        )
+        if already_seen:
+            log.info(
+                "[TRIGGERS DISPATCHER] Duplicate event %s for schedule %s — skipping",
+                event_id,
                 schedule.id,
             )
             return

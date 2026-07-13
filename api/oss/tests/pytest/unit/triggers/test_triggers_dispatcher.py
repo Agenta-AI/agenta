@@ -11,8 +11,13 @@ from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.triggers.dtos import (
+    TriggerSchedule,
+    TriggerScheduleData,
+    TriggerScheduleFlags,
     TriggerSubscription,
     TriggerSubscriptionData,
     TriggerSubscriptionFlags,
@@ -44,9 +49,25 @@ def _make_subscription(
     )
 
 
+def _make_schedule(*, is_active=True, references=None, inputs_fields=None):
+    return TriggerSchedule(
+        id=uuid4(),
+        created_by_id=uuid4(),
+        flags=TriggerScheduleFlags(is_active=is_active),
+        data=TriggerScheduleData(
+            event_key="cron.tick",
+            schedule="* * * * *",
+            inputs_fields=inputs_fields,
+            references=references,
+            selector=None,
+        ),
+    )
+
+
 def _make_dao(*, seen=False):
     dao = MagicMock()
     dao.dedup_seen = AsyncMock(return_value=seen)
+    dao.dedup_seen_schedule = AsyncMock(return_value=seen)
     dao.write_delivery = AsyncMock()
     return dao
 
@@ -315,3 +336,118 @@ async def test_detached_dispatch_writes_dispatched_delivery():
     delivery = dao.write_delivery.await_args.kwargs["delivery"]
     assert delivery.status.code == "202"
     assert delivery.data.result == {"run_id": run_id}
+
+
+# --- SCHEDULES ---------------------------------------------------------------- #
+# The schedule dispatch task is registered with retry_on_error, and _run writes a
+# delivery keyed by (schedule_id, event_id) before re-raising. Without a dedup gate a
+# retry would re-invoke the workflow and re-fire its side effects.
+
+_SCHEDULE_EVENT = {
+    "metadata": {"trigger_slug": "cron.tick", "id": "sched-1:2026-07-13T00:00:00"},
+    "payload": {"timestamp": "2026-07-13T00:00:00"},
+}
+
+
+async def test_inactive_schedule_is_skipped():
+    schedule = _make_schedule(is_active=False)
+    dao = _make_dao()
+    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=MagicMock())
+
+    await dispatcher.dispatch_schedule(
+        project_id=uuid4(),
+        schedule=schedule,
+        event_id="e1",
+        event=_SCHEDULE_EVENT,
+    )
+
+    dao.dedup_seen_schedule.assert_not_awaited()
+    dao.write_delivery.assert_not_awaited()
+
+
+async def test_duplicate_schedule_event_is_skipped():
+    """A retried cron tick must not re-invoke the workflow (re-firing side effects)."""
+    project_id = uuid4()
+    schedule = _make_schedule(references={"workflow": Reference(slug="wf-1")})
+    dao = _make_dao(seen=True)
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock()
+    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+
+    await dispatcher.dispatch_schedule(
+        project_id=project_id,
+        schedule=schedule,
+        event_id="e1",
+        event=_SCHEDULE_EVENT,
+    )
+
+    dao.dedup_seen_schedule.assert_awaited_once()
+    kwargs = dao.dedup_seen_schedule.await_args.kwargs
+    assert kwargs["project_id"] == project_id
+    assert kwargs["schedule_id"] == schedule.id
+    assert kwargs["event_id"] == "e1"
+
+    workflows.invoke_workflow.assert_not_awaited()
+    dao.write_delivery.assert_not_awaited()
+
+
+async def test_first_schedule_event_invokes_workflow():
+    """The dedup gate must not block the first (unseen) tick."""
+    project_id = uuid4()
+    schedule = _make_schedule(references={"workflow": Reference(slug="wf-1")})
+    dao = _make_dao(seen=False)
+
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock(
+        return_value=SimpleNamespace(
+            status=SimpleNamespace(code=200, message="success"),
+            outputs={"ok": True},
+            trace_id="tr-1",
+            span_id="sp-1",
+        )
+    )
+    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+
+    await dispatcher.dispatch_schedule(
+        project_id=project_id,
+        schedule=schedule,
+        event_id="e1",
+        event=_SCHEDULE_EVENT,
+    )
+
+    dao.dedup_seen_schedule.assert_awaited_once()
+    workflows.invoke_workflow.assert_awaited_once()
+
+    dao.write_delivery.assert_awaited_once()
+    delivery = dao.write_delivery.await_args.kwargs["delivery"]
+    assert delivery.status.code == "200"
+    assert delivery.schedule_id == schedule.id
+    assert delivery.subscription_id is None
+    assert delivery.event_id == "e1"
+
+
+async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():
+    """The retry gate only works because the failure path records the delivery
+    (schedule_id + event_id) BEFORE re-raising to taskiq.
+    """
+    project_id = uuid4()
+    schedule = _make_schedule(references={"workflow": Reference(slug="wf-1")})
+    dao = _make_dao(seen=False)
+
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock(side_effect=RuntimeError("boom"))
+    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+
+    with pytest.raises(RuntimeError):
+        await dispatcher.dispatch_schedule(
+            project_id=project_id,
+            schedule=schedule,
+            event_id="e1",
+            event=_SCHEDULE_EVENT,
+        )
+
+    dao.write_delivery.assert_awaited_once()
+    delivery = dao.write_delivery.await_args.kwargs["delivery"]
+    assert delivery.status.code == "500"
+    assert delivery.schedule_id == schedule.id
+    assert delivery.event_id == "e1"
