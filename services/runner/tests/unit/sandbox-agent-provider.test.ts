@@ -115,6 +115,17 @@ describe("buildDaytonaCreate (lifecycle on the create object)", () => {
     assert.equal(create.autoDeleteInterval, DEFAULT_DAYTONA_AUTODELETE_MINUTES);
   });
 
+  it("prefers the agent snapshot var over the shared code-evaluator one", () => {
+    process.env["DAYTONA_SNAPSHOT"] = "daytona-small";
+    const shared = buildDaytonaCreate({}, {}, undefined);
+    assert.equal(shared.snapshot, "daytona-small");
+    process.env["DAYTONA_SNAPSHOT_AGENT"] = "agenta-sandbox-pi";
+    const own = buildDaytonaCreate({}, {}, undefined);
+    assert.equal(own.snapshot, "agenta-sandbox-pi");
+    delete process.env["DAYTONA_SNAPSHOT"];
+    delete process.env["DAYTONA_SNAPSHOT_AGENT"];
+  });
+
   it("carries the env-configured intervals", () => {
     process.env["DAYTONA_AUTOSTOP"] = "5";
     process.env["DAYTONA_AUTODELETE"] = "120";

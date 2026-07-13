@@ -171,6 +171,150 @@ export class MountsClient {
     }
 
     /**
+     * @param {AgentaApi.SignAgentMountCredentialsRequest} request
+     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.mounts.signAgentMountCredentials({
+     *         artifact_id: "artifact_id"
+     *     })
+     */
+    public signAgentMountCredentials(
+        request: AgentaApi.SignAgentMountCredentialsRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.MountCredentialsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__signAgentMountCredentials(request, requestOptions));
+    }
+
+    private async __signAgentMountCredentials(
+        request: AgentaApi.SignAgentMountCredentialsRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.MountCredentialsResponse>> {
+        const { artifact_id: artifactId, name } = request;
+        const _queryParams: Record<string, unknown> = {
+            artifact_id: artifactId,
+            name,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "mounts/agents/sign",
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.MountCredentialsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/mounts/agents/sign");
+    }
+
+    /**
+     * @param {AgentaApi.AgentMountQueryRequest} request
+     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.mounts.queryAgentMount({
+     *         artifact_id: "artifact_id"
+     *     })
+     */
+    public queryAgentMount(
+        request: AgentaApi.AgentMountQueryRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.MountsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__queryAgentMount(request, requestOptions));
+    }
+
+    private async __queryAgentMount(
+        request: AgentaApi.AgentMountQueryRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.MountsResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "mounts/agents/query",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.MountsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/mounts/agents/query");
+    }
+
+    /**
      * @param {AgentaApi.FetchMountRequest} request
      * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
