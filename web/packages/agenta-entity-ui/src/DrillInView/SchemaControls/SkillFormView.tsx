@@ -12,16 +12,16 @@
  * `.zip`, or `.skill` (parsed into the fields) or editing inline. `@ag.embed` reference entries are
  * NOT edited here — the host renders the drawer JSON-only for those so their markers round-trip.
  */
-import {useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {File as FileIcon, Info, Plus, Trash} from "@phosphor-icons/react"
-import {Input, Switch, Tooltip, Typography} from "antd"
+import {App, Input, Switch, Tooltip, Typography} from "antd"
 
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
-import {type ParsedSkill, type SkillFileEntry} from "./skillUpload"
+import {mergePastedSkill, type ParsedSkill, type SkillFileEntry} from "./skillUpload"
 import {SkillUploadZone} from "./SkillUploadZone"
 
 export interface SkillFormViewProps {
@@ -125,6 +125,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         : []
 
     const [selected, setSelected] = useState<Selection>("skill")
+    const {message} = App.useApp()
 
     const set = (key: string, fieldValue: unknown) => {
         const next = {...skill}
@@ -176,6 +177,35 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         setSelected("skill")
     }
 
+    // Drawer-wide SKILL.md paste: refs keep the once-registered listener reading the latest draft.
+    const skillRef = useRef(skill)
+    skillRef.current = skill
+    const onChangeRef = useRef(onChange)
+    onChangeRef.current = onChange
+    useEffect(() => {
+        if (disabled) return
+        const onPaste = (e: ClipboardEvent) => {
+            const el = e.target as HTMLElement | null
+            if (
+                el &&
+                (el.tagName === "INPUT" ||
+                    el.tagName === "TEXTAREA" ||
+                    el.isContentEditable ||
+                    el.closest('[contenteditable="true"]'))
+            )
+                return
+            const text = e.clipboardData?.getData("text/plain") ?? ""
+            // Only claim a paste that opens with a metadata block, so arbitrary pastes fall through.
+            if (!/^\uFEFF?---\r?\n/.test(text)) return
+            e.preventDefault()
+            onChangeRef.current(mergePastedSkill(skillRef.current, text))
+            setSelected("skill")
+            message.success("Filled from the pasted skill")
+        }
+        document.addEventListener("paste", onPaste)
+        return () => document.removeEventListener("paste", onPaste)
+    }, [disabled, message])
+
     // The selected entry: SKILL.md (body) unless a valid file index is active.
     const activeFile = typeof selected === "number" ? files[selected] : undefined
     const showSkill = selected === "skill" || !activeFile
@@ -222,8 +252,11 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                 </div>
 
                 {!disabled ? (
-                    <div className="shrink-0">
+                    <div className="flex shrink-0 flex-col gap-1.5">
                         <SkillUploadZone onParsed={applyParsed} disabled={disabled} />
+                        <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                            …or paste a SKILL.md anywhere here to fill the fields
+                        </Typography.Text>
                     </div>
                 ) : null}
             </div>

@@ -13,4 +13,9 @@ export {default as ToolExecutionDrawer} from "./drawers/ToolExecutionDrawer"
 
 export {default as ConnectionStatusBadge} from "./components/ConnectionStatusBadge"
 export {default as ResultViewer} from "./components/ResultViewer"
-export {default as SchemaForm, type SchemaFormHandle} from "./components/SchemaForm"
+export {
+    default as SchemaForm,
+    type SchemaFormHandle,
+    type StepInfo,
+    formatReviewValue,
+} from "./components/SchemaForm"

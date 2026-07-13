@@ -12,6 +12,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import (
+    MountArtifactIdInvalid,
     MountDataInvalid,
     MountFileNotFound,
     MountImmutableField,
@@ -24,6 +25,7 @@ from oss.src.core.mounts.types import (
 )
 
 from oss.src.apis.fastapi.mounts.models import (
+    AgentMountQueryRequest,
     MountCreateRequest,
     MountCredentialsResponse,
     MountEditRequest,
@@ -61,6 +63,11 @@ def handle_mount_exceptions():
                     detail=e.message,
                 ) from e
             except MountNameInvalid as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=e.message,
+                ) from e
+            except MountArtifactIdInvalid as e:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
@@ -126,6 +133,25 @@ class MountsRouter:
             self.query_mounts,
             methods=["POST"],
             operation_id="query_mounts",
+            response_model=MountsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        # Fixed agent sub-paths must be registered before "/{mount_id}" so they win.
+        self.router.add_api_route(
+            "/agents/sign",
+            self.sign_agent_mount_credentials,
+            methods=["POST"],
+            operation_id="sign_agent_mount_credentials",
+            response_model=MountCredentialsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/agents/query",
+            self.query_agent_mount,
+            methods=["POST"],
+            operation_id="query_agent_mount",
             response_model=MountsResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
@@ -282,6 +308,48 @@ class MountsRouter:
             windowing=body.windowing,
         )
 
+        return MountsResponse(count=len(mounts), mounts=mounts)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def sign_agent_mount_credentials(
+        self,
+        request: Request,
+        *,
+        artifact_id: str = Query(...),
+        name: str = Query(default="default"),
+    ) -> MountCredentialsResponse:
+        await self._check(request, Permission.RUN_SESSIONS)
+
+        mount = await self.mounts_service.get_or_create_agent_mount(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            artifact_id=artifact_id,
+            name=name,
+        )
+        credentials = await sign_mount_credentials(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount.id,
+        )
+        return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def query_agent_mount(
+        self,
+        request: Request,
+        *,
+        body: AgentMountQueryRequest,
+    ) -> MountsResponse:
+        await self._check(request, Permission.VIEW_SESSIONS)
+
+        mount = await self.mounts_service.fetch_agent_mount(
+            project_id=UUID(request.state.project_id),
+            artifact_id=body.artifact_id,
+            name=body.name,
+        )
+        mounts = [mount] if mount else []
         return MountsResponse(count=len(mounts), mounts=mounts)
 
     @intercept_exceptions()

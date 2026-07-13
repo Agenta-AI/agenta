@@ -19,6 +19,7 @@ import {
     type AppWorkflowColumnActions,
 } from "../app-management/components/appWorkflowColumns"
 import {openDeleteAppModalAtom} from "../app-management/modals/DeleteAppModal/store/deleteAppModalStore"
+import {openEditAppModalAtom} from "../app-management/modals/EditAppModal/store/editAppModalStore"
 import type {AppWorkflowRow} from "../app-management/store"
 
 import AgentsTableSection from "./AgentsTableSection"
@@ -37,6 +38,7 @@ export default function AgentsPage() {
     const {goToPlayground} = usePlaygroundNavigation()
     const setOpenDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
+    const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const rows = useAtomValue(agentsWorkflowsAtom)
     const isLoading = useAtomValue(agentsWorkflowsLoadingAtom)
     const searchTerm = useAtomValue(agentsSearchTermAtom)
@@ -82,6 +84,12 @@ export default function AgentsPage() {
         () => ({
             onOpen: (record) => router.push(`${baseAppURL}/${record.workflowId}/overview`),
             onOpenPlayground: (record) => goToPlayground(undefined, {appId: record.workflowId}),
+            onRename: (record) =>
+                openEditAppModal({
+                    id: record.workflowId,
+                    name: record.name,
+                    onRenamed: () => refetchAgents(),
+                }),
             onDelete: (record) =>
                 openDeleteAppModal({
                     id: record.workflowId,
@@ -89,7 +97,15 @@ export default function AgentsPage() {
                     onArchived: handleArchived,
                 }),
         }),
-        [baseAppURL, goToPlayground, handleArchived, openDeleteAppModal, router],
+        [
+            baseAppURL,
+            goToPlayground,
+            handleArchived,
+            openDeleteAppModal,
+            openEditAppModal,
+            refetchAgents,
+            router,
+        ],
     )
     const columns = useMemo(() => createAppWorkflowColumns(columnActions), [columnActions])
 

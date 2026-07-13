@@ -1,6 +1,6 @@
-import {useState} from "react"
+import {useRef, useState} from "react"
 
-import {MagnifyingGlass, Plus, Trash} from "@phosphor-icons/react"
+import {MagnifyingGlass, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Empty, Input, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -25,11 +25,12 @@ import {
     timeAgo,
 } from "../state/sessions"
 
-import SessionTabLabel from "./SessionTabLabel"
+import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
 
 interface SessionRailRowProps {
     session: AgentChatSession
+    artifactId?: string | null
     label: string
     active: boolean
     open: boolean
@@ -38,83 +39,113 @@ interface SessionRailRowProps {
     onRename: (title: string) => void
 }
 
-/** History row: status dot, label (double-click to rename), timestamp; collapses its height + gap margin on enter/exit so nothing snaps. */
+/** History row: status dot, label (double-click or pencil to rename), timestamp, with an inspect
+ * action on the active row and hover-revealed rename/delete; collapses its height + gap margin on
+ * enter/exit so nothing snaps. */
 const SessionRailRow = ({
     session,
+    artifactId,
     label,
     active,
     open,
     onSelect,
     onDelete,
     onRename,
-}: SessionRailRowProps) => (
-    <motion.div
-        variants={ROW_VARIANTS}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        transition={SESSION_SPRING}
-        className="overflow-hidden"
-    >
-        <div
-            role="tab"
-            aria-selected={active}
-            tabIndex={0}
-            onClick={onSelect}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onSelect()
-                }
-            }}
-            className={clsx(
-                "group flex cursor-pointer items-center gap-2 rounded-md border border-solid px-2 py-1.5 transition-colors",
-                active ? "ag-surface-selected" : "ag-row-hover border-transparent",
-            )}
+}: SessionRailRowProps) => {
+    const labelRef = useRef<SessionTabLabelHandle>(null)
+    // Hide the action cluster while the inline rename input owns the row, so it gets full width.
+    const [renaming, setRenaming] = useState(false)
+    return (
+        <motion.div
+            variants={ROW_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={SESSION_SPRING}
+            className="overflow-hidden"
         >
-            <SessionStatusDot sessionId={session.id} />
-            <div className="flex min-w-0 flex-1 flex-col">
-                <SessionTabLabel
-                    label={label}
-                    onRename={onRename}
-                    className={clsx(
-                        "block min-w-0 truncate text-xs",
-                        active ? "text-colorText" : "text-colorTextSecondary",
-                    )}
-                />
-                {timeAgo(session.createdAt) && (
-                    <span className="text-[11px] text-colorTextTertiary">
-                        {timeAgo(session.createdAt)}
-                    </span>
+            <div
+                role="tab"
+                aria-selected={active}
+                tabIndex={0}
+                onClick={onSelect}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        onSelect()
+                    }
+                }}
+                className={clsx(
+                    "group flex cursor-pointer items-center gap-2 rounded-md border border-solid px-2 py-1.5 transition-colors",
+                    active ? "ag-surface-selected" : "ag-row-hover border-transparent",
                 )}
-            </div>
-            <div className="flex shrink-0 items-center gap-0.5">
-                {open && !active && (
-                    <span className="ag-surface-chip rounded px-1.5 py-px text-[11px] text-colorTextSecondary">
-                        open
-                    </span>
-                )}
-                {active && <SessionInspectorButton sessionId={session.id} />}
-                <Tooltip title="Delete session">
-                    <Button
-                        type="text"
-                        aria-label="Delete session"
-                        icon={<Trash size={12} />}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onDelete()
-                        }}
-                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+                <SessionStatusDot sessionId={session.id} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                    <SessionTabLabel
+                        ref={labelRef}
+                        label={label}
+                        onRename={onRename}
+                        onEditingChange={setRenaming}
+                        className={clsx(
+                            "block min-w-0 truncate text-xs",
+                            active ? "text-colorText" : "text-colorTextSecondary",
+                        )}
                     />
-                </Tooltip>
+                    {timeAgo(session.createdAt) && (
+                        <span className="text-[11px] text-colorTextTertiary">
+                            {timeAgo(session.createdAt)}
+                        </span>
+                    )}
+                </div>
+                <div className={clsx("flex shrink-0 items-center gap-0.5", renaming && "hidden")}>
+                    {open && !active && (
+                        <span className="ag-surface-chip rounded px-1.5 py-px text-[11px] text-colorTextSecondary">
+                            open
+                        </span>
+                    )}
+                    {active && (
+                        <SessionInspectorButton
+                            sessionId={session.id}
+                            artifactId={artifactId}
+                            iconSize={12}
+                            className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                        />
+                    )}
+                    <Tooltip title="Rename session">
+                        <Button
+                            type="text"
+                            aria-label="Rename session"
+                            icon={<PencilSimple size={12} />}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                labelRef.current?.startEditing()
+                            }}
+                            className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                        />
+                    </Tooltip>
+                    <Tooltip title="Delete session">
+                        <Button
+                            type="text"
+                            aria-label="Delete session"
+                            icon={<Trash size={12} />}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onDelete()
+                            }}
+                            className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                        />
+                    </Tooltip>
+                </div>
             </div>
-        </div>
-    </motion.div>
-)
+        </motion.div>
+    )
+}
 
 export interface SessionRailProps {
     /** The resolved active session id (source of truth for the chat), used for row highlight. */
     activeId?: string
+    artifactId?: string | null
     /** Disable the New session (+) button (e.g. onboarding, until the founding run settles). */
     addDisabled?: boolean
     className?: string
@@ -126,7 +157,7 @@ export interface SessionRailProps {
  * the two stay consistent, and uses the space freed by maximizing to make every past session
  * directly reachable. Clicking a row reopens it as the active tab; rename inline, delete permanently.
  */
-const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProps) => {
+const SessionRail = ({activeId, artifactId, addDisabled = false, className}: SessionRailProps) => {
     const scope = useChatScopeKey()
     const history = useAtomValue(sessionHistoryAtomFamily(scope))
     const openIds = useAtomValue(openSessionIdsAtomFamily(scope))
@@ -212,6 +243,7 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                             <SessionRailRow
                                 key={session.id}
                                 session={session}
+                                artifactId={artifactId}
                                 label={label}
                                 active={session.id === currentActiveId}
                                 open={openIds.has(session.id)}

@@ -146,6 +146,16 @@ class TriggersDAOInterface(ABC):
     ) -> List[TriggerSubscription]: ...
 
     @abstractmethod
+    async def fetch_subscription_by_trigger_id(
+        self,
+        *,
+        project_id: UUID,
+        trigger_id: str,
+    ) -> Optional[TriggerSubscription]:
+        """Fetch the live (non-deleted) subscription owning ``trigger_id`` in this project."""
+        ...
+
+    @abstractmethod
     async def get_project_and_subscription_by_trigger_id(
         self,
         *,

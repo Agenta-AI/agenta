@@ -16,6 +16,7 @@ import {
     invalidateAgentsWorkflowQueries,
 } from "@/oss/components/pages/agents/store"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
+import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
@@ -38,6 +39,7 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
     const {baseAppURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
+    const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const rows = useAtomValue(agentsWorkflowsAtom)
     const isLoading = useAtomValue(agentsWorkflowsLoadingAtom)
 
@@ -63,13 +65,25 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
         [openDeleteAppModal],
     )
 
+    const handleRename = useCallback(
+        (record: AppWorkflowRow) => {
+            openEditAppModal({
+                id: record.workflowId,
+                name: record.name,
+                onRenamed: () => invalidateAgentsWorkflowQueries(),
+            })
+        },
+        [openEditAppModal],
+    )
+
     const actions: AgentColumnActions = useMemo(
         () => ({
             onOpen: handleOpenOverview,
             onOpenPlayground: handleOpenPlayground,
+            onRename: handleRename,
             onArchive: handleArchive,
         }),
-        [handleOpenOverview, handleOpenPlayground, handleArchive],
+        [handleOpenOverview, handleOpenPlayground, handleRename, handleArchive],
     )
     const columns = useMemo(() => createAgentColumns(actions), [actions])
 
