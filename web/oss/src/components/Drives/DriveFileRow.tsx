@@ -18,29 +18,10 @@ import {type Mount} from "@agenta/entities/session"
 
 import {driveFileIcon} from "./DriveDrawer"
 import {FileThumb} from "./FileThumb"
-import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile, type FileOrigin} from "./useSessionDrive"
-
-// Agent-teal, matching the config self-commit indicator, for a file that just changed.
-const AGENT_ACCENT = "var(--ag-c-13C2C2, #13c2c2)"
+import {AGENT_ACCENT, OriginTag} from "./OriginTag"
+import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
 
 export type DriveFileVariant = "row" | "card" | "tile"
-
-/** A small pill marking where a file lives: teal "Agent" for the durable per-agent mount (shared
- * across the agent's sessions), a quiet neutral "Session" for the ephemeral session cwd. Only shown
- * when the drive holds both kinds (see `showOrigin`). */
-const OriginTag = ({origin}: {origin: FileOrigin}) =>
-    origin === "agent" ? (
-        <span
-            className="inline-flex shrink-0 items-center rounded px-1 align-middle text-[10px] font-medium leading-[15px]"
-            style={{color: AGENT_ACCENT, border: `1px solid ${AGENT_ACCENT}`}}
-        >
-            Agent
-        </span>
-    ) : (
-        <span className="inline-flex shrink-0 items-center rounded border border-solid border-colorBorderSecondary px-1 align-middle text-[10px] font-medium leading-[15px] text-colorTextTertiary">
-            Session
-        </span>
-    )
 
 export const DriveFileRow = ({
     path,

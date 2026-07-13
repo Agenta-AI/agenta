@@ -46,8 +46,9 @@ import {
     type DriveTreeNode,
 } from "./driveTree"
 import {DriveFileMetaList} from "./fileMeta"
+import {OriginTag} from "./OriginTag"
 import {DriveFileBody, resolveDriveFileKind} from "./renderers"
-import {type SessionDriveData} from "./useSessionDrive"
+import {driveHasMixedOrigins, fileOrigin, type SessionDriveData} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -98,6 +99,7 @@ const TreeRow = ({
     depth,
     expanded,
     selectedPath,
+    showOrigin,
     onToggle,
     onSelect,
 }: {
@@ -105,6 +107,8 @@ const TreeRow = ({
     depth: number
     expanded: Set<string>
     selectedPath: string | null
+    /** Tag top-level nodes with their origin (agent-files vs session) — only when mixed. */
+    showOrigin?: boolean
     onToggle: (path: string) => void
     onSelect: (path: string) => void
 }) => {
@@ -135,6 +139,9 @@ const TreeRow = ({
                     <span className="shrink-0 pl-[14px]">{driveFileIcon(node.path)}</span>
                 )}
                 <span className="min-w-0 truncate font-mono">{node.name}</span>
+                {/* Only the top-level items carry the tag; nested rows inherit it from their
+                    (already-tagged) agent-files folder, so the tree stays quiet. */}
+                {showOrigin && depth === 0 ? <OriginTag origin={fileOrigin(node.path)} /> : null}
                 {!node.isFolder && node.size != null ? (
                     <span className="ml-auto shrink-0 text-[11px] text-colorTextQuaternary">
                         {humanSize(node.size)}
@@ -149,6 +156,7 @@ const TreeRow = ({
                           depth={depth + 1}
                           expanded={expanded}
                           selectedPath={selectedPath}
+                          showOrigin={showOrigin}
                           onToggle={onToggle}
                           onSelect={onSelect}
                       />
@@ -188,20 +196,29 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
 const DriveFilePreview = ({
     mount,
     path,
+    displayPath,
     rootLabel,
+    showOrigin,
     touchedAt,
     size,
     onNavigateRoot,
 }: {
     mount: Mount | null
+    /** Path relative to `mount` — used for reading (content/meta/download). */
     path: string
+    /** Path as shown to the user (with the `agent-files/` prefix) — used for the breadcrumb + name.
+     * Defaults to `path` when the file is in the cwd mount. */
+    displayPath?: string
     rootLabel: string
+    /** Tag the file's origin next to its name — only when the drive holds both kinds. */
+    showOrigin?: boolean
     touchedAt?: number
     size?: number
     onNavigateRoot?: () => void
 }) => {
-    const name = path.split("/").pop() ?? path
-    const folders = path.split("/").slice(0, -1)
+    const shown = displayPath ?? path
+    const name = shown.split("/").pop() ?? shown
+    const folders = shown.split("/").slice(0, -1)
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
@@ -224,7 +241,10 @@ const DriveFilePreview = ({
             </div>
 
             <div className="flex items-start justify-between gap-2">
-                <div className="truncate font-mono text-[13px] font-semibold">{name}</div>
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-mono text-[13px] font-semibold">{name}</span>
+                    {showOrigin ? <OriginTag origin={fileOrigin(shown)} /> : null}
+                </div>
                 <DriveFileDownloadButton mount={mount} path={path} />
             </div>
 
@@ -273,6 +293,7 @@ export function DriveExplorer({
         [search, shownTree, expanded],
     )
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
+    const showOrigin = driveHasMixedOrigins(drive.recents)
 
     if (drive.errored) {
         return (
@@ -346,6 +367,7 @@ export function DriveExplorer({
                                 depth={0}
                                 expanded={shownExpanded}
                                 selectedPath={selectedPath}
+                                showOrigin={showOrigin}
                                 onToggle={(path) =>
                                     setExpanded((prev) => {
                                         const next = new Set(prev)
@@ -362,9 +384,12 @@ export function DriveExplorer({
             </div>
             {selectedPath ? (
                 <DriveFilePreview
-                    // Preview reads from the file's own mount (cwd or the nested agent-files mount).
+                    // Preview reads from the file's own mount (cwd or the nested agent-files mount),
+                    // but the breadcrumb/name show the presented path (with the agent-files/ prefix).
                     mount={drive.resolveMount(selectedPath)?.mount ?? drive.mount}
                     path={drive.resolveMount(selectedPath)?.path ?? selectedPath}
+                    displayPath={selectedPath}
+                    showOrigin={showOrigin}
                     rootLabel={rootLabel}
                     touchedAt={selected?.touchedAt}
                     size={selected?.size ?? undefined}
@@ -421,9 +446,16 @@ export function DriveDrawer({
                     <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
                             <span className="truncate text-sm font-medium">
-                                {scope === "session" ? "Session drive" : "Agent drive"}
+                                {scope === "session" ? "Files" : "Agent drive"}
                             </span>
-                            <Tag className="m-0 shrink-0 text-[11px] font-normal">{meta.tag}</Tag>
+                            {/* The session drawer now folds in the agent's durable folder, so the
+                                "per conversation" scope tag would misdescribe it — the per-file
+                                Agent/Session tags carry that distinction instead. */}
+                            {scope === "session" ? null : (
+                                <Tag className="m-0 shrink-0 text-[11px] font-normal">
+                                    {meta.tag}
+                                </Tag>
+                            )}
                         </div>
                         {/* The raw session UUID lives HERE only — never as a user-facing label. */}
                         <div className="truncate text-xs font-normal text-colorTextTertiary">
