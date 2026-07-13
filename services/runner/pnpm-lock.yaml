@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  acp-http-client@0.4.2:
+    hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
+    path: patches/acp-http-client@0.4.2.patch
   sandbox-agent@0.4.2:
     hash: ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4
     path: patches/sandbox-agent@0.4.2.patch
@@ -46,6 +49,9 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: 1.28.0
         version: 1.28.0
+      acp-http-client:
+        specifier: 0.4.2
+        version: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3)
       pi-acp:
         specifier: 0.0.29
         version: 0.0.29
@@ -3829,7 +3835,7 @@ snapshots:
 
   acorn@8.17.0: {}
 
-  acp-http-client@0.4.2(zod@4.4.3):
+  acp-http-client@0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3):
     dependencies:
       '@agentclientprotocol/sdk': 0.16.1(zod@4.4.3)
     transitivePeerDependencies:
@@ -4716,7 +4722,7 @@ snapshots:
   sandbox-agent@0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytonaio/sdk@0.187.0(ws@8.21.0))(zod@4.4.3):
     dependencies:
       '@sandbox-agent/cli-shared': 0.4.2
-      acp-http-client: 0.4.2(zod@4.4.3)
+      acp-http-client: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3)
     optionalDependencies:
       '@daytonaio/sdk': 0.187.0(ws@8.21.0)
       '@sandbox-agent/cli': 0.4.2

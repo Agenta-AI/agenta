@@ -54,7 +54,7 @@ export function useLLMProviderConfig() {
         <>
             <Divider className="!mx-0 !my-0.5" />
             <Button
-                className="flex items-center justify-between mb-0.5 px-2"
+                className="mb-0.5 flex w-full items-center justify-between px-2"
                 onClick={() => setIsConfigProviderOpen(true)}
                 type="text"
                 variant="outlined"
