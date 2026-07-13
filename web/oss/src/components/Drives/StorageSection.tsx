@@ -14,6 +14,7 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {CaretRight} from "@phosphor-icons/react"
 import {Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
@@ -24,6 +25,7 @@ import {
 
 import {DriveDrawer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
+import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, relativeTime} from "./driveTree"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {driveHasMixedOrigins, useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
@@ -89,15 +91,28 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                 // Files win regardless of session status — the agent's durable folder is per-artifact,
                 // so it shows even before any conversation opens.
                 <div className="flex flex-col">
-                    {drive.recents.slice(0, 5).map((file) => (
-                        <RecentFileRow
-                            key={file.path}
-                            file={file}
-                            recent={isRecentlyChanged(file.touchedAt, now)}
-                            showOrigin={showOrigin}
-                            onOpen={() => openDrawer(file.path)}
-                        />
-                    ))}
+                    <MotionConfig reducedMotion="user">
+                        <AnimatePresence mode="popLayout" initial={false}>
+                            {drive.recents.slice(0, 5).map((file) => (
+                                <motion.div
+                                    key={file.path}
+                                    layout
+                                    variants={FILE_ITEM_VARIANTS}
+                                    initial="initial"
+                                    animate="animate"
+                                    exit="exit"
+                                    transition={FILE_SPRING}
+                                >
+                                    <RecentFileRow
+                                        file={file}
+                                        recent={isRecentlyChanged(file.touchedAt, now)}
+                                        showOrigin={showOrigin}
+                                        onOpen={() => openDrawer(file.path)}
+                                    />
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                    </MotionConfig>
                     {drive.fileCount > 5 ? (
                         <button
                             type="button"

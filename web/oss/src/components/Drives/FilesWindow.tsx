@@ -9,9 +9,11 @@ import {useMemo, useState} from "react"
 import {FolderSimple, ListBullets, MagnifyingGlass, SquaresFour, Tray} from "@phosphor-icons/react"
 import {Input, Segmented, Select, Skeleton, Typography} from "antd"
 import {useSetAtom} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {DriveExplorer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
+import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
@@ -145,24 +147,39 @@ export default function FilesWindow({
             ) : (
                 <>
                     <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto p-3">
-                        {shown.map((file) => {
-                            // Thumbnail reads from the file's own mount (cwd or agent-files) with a
-                            // mount-relative path; the tile still displays the presented path.
-                            const resolved = drive.resolveMount(file.path)
-                            return (
-                                <DriveFileRow
-                                    key={file.path}
-                                    variant="tile"
-                                    path={file.path}
-                                    file={resolved ? {...file, path: resolved.path} : file}
-                                    mount={resolved?.mount ?? drive.mount}
-                                    showOrigin={mixed}
-                                    trailing={humanSize(file.size)}
-                                    recent={isRecentlyChanged(file.touchedAt, now)}
-                                    onOpen={() => openQuickLook({path: file.path})}
-                                />
-                            )
-                        })}
+                        <MotionConfig reducedMotion="user">
+                            <AnimatePresence mode="popLayout" initial={false}>
+                                {shown.map((file) => {
+                                    // Thumbnail reads from the file's own mount (cwd or agent-files)
+                                    // with a mount-relative path; the tile shows the presented path.
+                                    const resolved = drive.resolveMount(file.path)
+                                    return (
+                                        <motion.div
+                                            key={file.path}
+                                            layout
+                                            variants={FILE_ITEM_VARIANTS}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                            transition={FILE_SPRING}
+                                        >
+                                            <DriveFileRow
+                                                variant="tile"
+                                                path={file.path}
+                                                file={
+                                                    resolved ? {...file, path: resolved.path} : file
+                                                }
+                                                mount={resolved?.mount ?? drive.mount}
+                                                showOrigin={mixed}
+                                                trailing={humanSize(file.size)}
+                                                recent={isRecentlyChanged(file.touchedAt, now)}
+                                                onOpen={() => openQuickLook({path: file.path})}
+                                            />
+                                        </motion.div>
+                                    )
+                                })}
+                            </AnimatePresence>
+                        </MotionConfig>
                         {shown.length === 0 ? (
                             <Text type="secondary" className="col-span-3 !text-[11px]">
                                 No files match.

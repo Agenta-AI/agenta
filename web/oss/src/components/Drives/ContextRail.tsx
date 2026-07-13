@@ -9,10 +9,12 @@ import {ArrowSquareOut, FolderSimple, Sidebar} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
 import {DriveFileRow} from "./DriveFileRow"
+import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
@@ -179,28 +181,46 @@ const ExpandedRail = ({
                         {/* The recent files as friendly thumbnail cards (a preview a user recognises
                             at a glance) — the rail has room for it; older files live behind "View
                             all files". */}
-                        {drive.recents.slice(0, 5).map((file) => {
-                            // Route the thumbnail read to the file's own mount (cwd or agent-files),
-                            // with a mount-relative path; the row still displays the presented path.
-                            const resolved = drive.resolveMount(file.path)
-                            return (
-                                <DriveFileRow
-                                    key={file.path}
-                                    variant="card"
-                                    path={file.path}
-                                    file={resolved ? {...file, path: resolved.path} : file}
-                                    mount={resolved?.mount ?? drive.mount}
-                                    showOrigin={showOrigin}
-                                    recent={isRecentlyChanged(file.touchedAt, now)}
-                                    trailing={
-                                        file.touchedAt
-                                            ? relativeTime(file.touchedAt).replace(" ago", "")
-                                            : undefined
-                                    }
-                                    onOpen={() => onQuickLook(file.path)}
-                                />
-                            )
-                        })}
+                        <MotionConfig reducedMotion="user">
+                            <AnimatePresence mode="popLayout" initial={false}>
+                                {drive.recents.slice(0, 5).map((file) => {
+                                    // Route the thumbnail read to the file's own mount (cwd or
+                                    // agent-files); the card still displays the presented path.
+                                    const resolved = drive.resolveMount(file.path)
+                                    return (
+                                        <motion.div
+                                            key={file.path}
+                                            layout
+                                            variants={FILE_ITEM_VARIANTS}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                            transition={FILE_SPRING}
+                                        >
+                                            <DriveFileRow
+                                                variant="card"
+                                                path={file.path}
+                                                file={
+                                                    resolved ? {...file, path: resolved.path} : file
+                                                }
+                                                mount={resolved?.mount ?? drive.mount}
+                                                showOrigin={showOrigin}
+                                                recent={isRecentlyChanged(file.touchedAt, now)}
+                                                trailing={
+                                                    file.touchedAt
+                                                        ? relativeTime(file.touchedAt).replace(
+                                                              " ago",
+                                                              "",
+                                                          )
+                                                        : undefined
+                                                }
+                                                onOpen={() => onQuickLook(file.path)}
+                                            />
+                                        </motion.div>
+                                    )
+                                })}
+                            </AnimatePresence>
+                        </MotionConfig>
                         {drive.fileCount > 5 ? (
                             <button
                                 type="button"

@@ -9,8 +9,10 @@
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {Broadcast, CaretRight, Database, FolderSimple} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {DriveFileRow} from "@/oss/components/Drives/DriveFileRow"
+import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@/oss/components/Drives/driveMotion"
 import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
 import {humanSize} from "@/oss/components/Drives/driveTree"
 import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
@@ -42,16 +44,29 @@ const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
         )
     return (
         <div className="flex flex-col">
-            {drive.recents.slice(0, 6).map((f) => (
-                <DriveFileRow
-                    key={f.path}
-                    path={f.path}
-                    label={f.path}
-                    trailing={humanSize(f.size)}
-                    showOrigin={driveHasMixedOrigins(drive.recents)}
-                    onOpen={() => openQuickLook({path: f.path})}
-                />
-            ))}
+            <MotionConfig reducedMotion="user">
+                <AnimatePresence mode="popLayout" initial={false}>
+                    {drive.recents.slice(0, 6).map((f) => (
+                        <motion.div
+                            key={f.path}
+                            layout
+                            variants={FILE_ITEM_VARIANTS}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            transition={FILE_SPRING}
+                        >
+                            <DriveFileRow
+                                path={f.path}
+                                label={f.path}
+                                trailing={humanSize(f.size)}
+                                showOrigin={driveHasMixedOrigins(drive.recents)}
+                                onOpen={() => openQuickLook({path: f.path})}
+                            />
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </MotionConfig>
             {drive.fileCount > 6 ? (
                 <button
                     type="button"
