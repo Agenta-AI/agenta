@@ -46,9 +46,9 @@ The shared token is the same protocol credential at both ends, so one name is co
 | `AGENTA_RUNNER_HOST` | server binding | `127.0.0.1`; hosting sets a private interface | no |
 | `AGENTA_RUNNER_PORT` | server binding | `8765` | no |
 | `AGENTA_RUNNER_CONCURRENCY_LIMIT` | capacity configuration | current safe default | no |
+| `AGENTA_RUNNER_LOG_LEVEL` | logging configuration | current default | no |
 | `AGENTA_RUNNER_REPLICA_ID` | replica identity | generated when absent | no |
 | `AGENTA_API_INTERNAL_URL` | callback routing locator | deployment-specific | no |
-| `AGENTA_RUNNER_BOOTSTRAP_CONFIG` | locator for a mounted bootstrap manifest | absent | no |
 
 `AGENTA_API_INTERNAL_URL` keeps its standard name because it identifies the API, not the runner. The runner does not receive a static `AGENTA_API_KEY`. Session coordination, mount signing, and trace export use the caller credential already carried on each run request. Removing the static exporter fallback prevents a local harness from stealing a reusable platform credential through /proc.
 
@@ -73,6 +73,15 @@ Rules:
 
 This is capability configuration, not a user authorization list. Per-project entitlement or policy can restrict the deployment set later, but cannot expand it.
 
+The API reads the same two variables. Hosting templates set both services from one operator-facing entry in the env file, so the operator configures the value once. See section 4.
+
+### Deployment postures
+
+The enabled-provider list is also the security posture switch:
+
+- **Trusted self-host (default):** `local` only. Local harnesses share the runner container; that is documented as a convenience for a single trusted operator, not an isolation boundary. Subscription mounts are an opt-in for this posture.
+- **Multi-tenant or exposed:** `daytona` only. No harness process ever runs inside the runner container, so user code cannot read the runner's process environment or its Daytona provisioning credential. Setting the list is the entire posture change.
+
 ### Runner-owned Daytona configuration
 
 | Variable | Role | Required when Daytona is enabled | Sensitive |
@@ -96,6 +105,7 @@ The runner constructs a Daytona client explicitly from this object. It does not 
 The cleanup deletes these names and their tests, examples, Helm values, and docs:
 
 - `SANDBOX_AGENT_PROVIDER`
+- `SANDBOX_AGENT_LOG_LEVEL` (becomes `AGENTA_RUNNER_LOG_LEVEL`)
 - `DAYTONA_API_KEY`
 - `DAYTONA_API_URL`
 - `DAYTONA_TARGET`
@@ -123,7 +133,6 @@ It fails startup when:
 - Daytona is enabled without a provisioning credential;
 - snapshot and image are both set;
 - lifecycle values are invalid;
-- the bootstrap manifest is invalid or a required source is missing;
 - the runner token is required by hosting but missing on one side.
 
 Startup logs one redacted resolved configuration summary:
@@ -131,43 +140,23 @@ Startup logs one redacted resolved configuration summary:
 ~~~text
 runner providers enabled=[local,daytona] default=local
 runner daytona target=eu artifact=snapshot:agenta-agent-runner-v3
-runner bootstrap assets=2 local=2 daytona=0
 ~~~
 
-No credential value, bootstrap content, or local source path is logged.
+No credential value or local source path is logged.
 
-## 4. Provider capability discovery
+## 4. Provider availability for API and web
 
-The runner is authoritative. API and web do not parse the same environment variable independently.
+Version 1 uses one shared value instead of a discovery endpoint.
 
-Add an authenticated internal endpoint:
+The API already gates sandbox availability from its own environment today (`AGENTA_SANDBOX_LOCAL_ALLOWED` in `api/oss/src/utils/env.py`). The cleanup renames that existing gate rather than adding a new mechanism:
 
-~~~http
-GET /capabilities
-Authorization: Bearer <AGENTA_RUNNER_TOKEN>
-~~~
+- The API reads `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` and `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` with the same parsing rules as the runner.
+- Compose, Helm, and Railway set both services from one operator-facing entry, so the operator configures the value once and drift requires deliberate effort.
+- The web filters the sandbox picker from the API's existing configuration surface.
+- The runner remains the final authority. A request for a disabled provider fails before side effects with an explicit "provider not enabled on this deployment" error, so even a drifted API produces an honest failure instead of a wrong run.
+- `/health` remains a cheap unauthenticated process-health check.
 
-Response:
-
-~~~json
-{
-  "protocol": 1,
-  "sandboxProviders": {
-    "default": "local",
-    "enabled": ["local", "daytona"]
-  },
-  "harnesses": ["pi", "claude"]
-}
-~~~
-
-Rules:
-
-- `/health` remains a cheap unauthenticated process-health check and does not claim provider readiness.
-- `/capabilities` uses the runner token when configured and contains no secrets.
-- Services fetches and caches capabilities with a short TTL, rejects disabled providers early, and exposes the result through an authenticated platform endpoint.
-- The web filters the sandbox picker from the platform response.
-- The runner still enforces the provider at run time. Discovery is for honest UX, not the security boundary.
-- An unreachable runner produces "runner unavailable," not an invented local-only capability set.
+A runner `GET /capabilities` endpoint is deferred to [open issue RSH-7](./open-issues.md). It becomes worthwhile when deployments have multiple heterogeneous runners, not before.
 
 ## 5. Run protocol authentication
 
@@ -176,79 +165,55 @@ Rules:
 | Value | Meaning | Credential source |
 |---|---|---|
 | `env` | Agenta resolved a managed credential | per-run secret map |
-| `runtime_provided` | the harness authenticates from explicitly prepared runtime state | local bootstrap asset |
+| `runtime_provided` | the harness authenticates from explicitly prepared runtime state | local subscription mount |
 | `none` | the run intentionally has no model credential | no credential |
 
-Provider and deployment metadata required for model-key narrowing are also required. Missing or unknown values fail contract validation. There is no legacy "infer from hasApiKey" branch and no inherit-all escape hatch.
+The target contract requires the provider and deployment metadata used for model-key narrowing; missing or unknown values fail validation, and the legacy "infer from hasApiKey" branch does not exist. Because the flip breaks any caller that omits the fields, it lands only after the caller audit in [plan.md phase 2](./plan.md) confirms every in-repo run path already sends them. The `AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS` escape hatch is deleted regardless.
 
 For `runtime_provided`:
 
-- local Pi and local Claude require a matching bootstrap asset with `purpose: harness-auth`;
+- local Pi and local Claude read explicitly mounted subscription state (section 6);
 - Daytona Pi and Daytona Claude return a specific unsupported-combination error in version 1;
 - the runner never searches its own home directory.
 
-## 6. Bootstrap manifest
+## 6. Local subscription mounts and runtime customization
 
-Bootstrap assets describe files or directories the operator intentionally makes available to a run. The manifest is mounted read-only and selected through `AGENTA_RUNNER_BOOTSTRAP_CONFIG`.
+Version 1 has no bootstrap manifest, no `AGENTA_RUNNER_BOOTSTRAP_CONFIG`, and no validation engine. The operator moves files the same way they customize every other service they run: through the Compose file and images they own.
 
-Example:
+The two problems this replaces the manifest for:
+
+1. The runner must stop discovering its own Pi login and uploading it to Daytona. `shouldUploadOwnLogin` and `uploadPiAuthToSandbox` are deleted with their tests.
+2. A local operator needs a declared way to use their own Pi, Claude, or Codex subscription.
+
+### Local subscription mounts
+
+The operator mounts credential state read-only into the runner container and points the harness config variable at it. The Compose files ship commented examples:
 
 ~~~yaml
-version: 1
-assets:
-  - id: pi-subscription
-    purpose: harness-auth
-    when:
-      sandboxProviders: [local]
-      harnesses: [pi]
-    source:
-      type: file
-      path: /run/agenta/bootstrap/pi/auth.json
-    destination:
-      root: harness-config
-      path: auth.json
-    mode: "0600"
-    required: true
-
-  - id: company-ca
-    purpose: runtime-config
-    when:
-      sandboxProviders: [local, daytona]
-      harnesses: [pi, claude]
-    source:
-      type: file
-      path: /run/agenta/bootstrap/certs/company-ca.pem
-    destination:
-      root: runtime-config
-      path: certs/company-ca.pem
-    mode: "0644"
-    required: true
+runner:
+  # Opt-in: use your own harness subscription for local runs.
+  # volumes:
+  #   - ~/.pi:/agenta/harness/pi:ro
+  # environment:
+  #   - PI_CODING_AGENT_DIR=/agenta/harness/pi
 ~~~
 
-### Field semantics
+Rules:
 
-| Field | Role | Rules |
-|---|---|---|
-| `id` | stable asset identity | unique, log-safe |
-| `purpose` | semantic intent | `harness-auth` or `runtime-config` in version 1 |
-| `when.sandboxProviders` | applicability | non-empty subset of enabled providers |
-| `when.harnesses` | applicability | non-empty subset of supported harnesses |
-| `source.type` | source data shape | `file` or `directory` |
-| `source.path` | mounted input locator | absolute path under an allowlisted bootstrap input root |
-| `destination.root` | logical target | `harness-config` or `runtime-config` |
-| `destination.path` | target data path | relative, normalized, no traversal |
-| `mode` | file policy | octal string, cannot grant group or world write |
-| `required` | failure policy | required source or copy failure aborts before harness start |
+- Mounts are read-only. The runner copies the state into a per-run directory so harness writes never touch the operator's source credential.
+- A `runtime_provided` local run without the matching mount fails with an error naming the missing configuration.
+- Mounted subscription state never leaves the runner container. Daytona runs never receive it.
+- One personal subscription belongs to one operator. The docs state this is a single-tenant convenience.
 
-### Materialization
+### Runtime customization
 
-- The local adapter creates a unique per-run harness configuration root, copies applicable assets, sets `PI_CODING_AGENT_DIR` or `CLAUDE_CONFIG_DIR`, and deletes the copy at teardown.
-- The Daytona adapter uploads applicable non-auth assets before daemon start and applies the same logical destination mapping.
-- Version 1 rejects `purpose: harness-auth` for Daytona.
-- Sources are read-only inputs. Harness changes never write back to the operator's source credential.
-- Symlinks, devices, sockets, path traversal, excessive file counts, and excessive total size are rejected.
-- Asset content and credential filenames are redacted from traces and normal logs.
-- Version 1 does not execute scripts. Hooks, plugins, and VPN setup remain future work.
+Extra binaries, certificates, and system dependencies are image concerns, not run-time file copies:
+
+- Local: build a custom runner image from `services/runner/docker/Dockerfile.gh` (documented how-to).
+- Daytona: build and upload a custom snapshot with the existing scripts in `services/runner/sandbox-images/daytona/`, then set `AGENTA_RUNNER_DAYTONA_SNAPSHOT` (documented how-to).
+- Extra project folders for local runs: an operator-owned Compose volume mount (documented how-to).
+
+A declarative bootstrap-asset manifest, hooks, plugins, and VPN setup remain future work ([RSH-4](./open-issues.md)) and start from real operator demand.
 
 ## 7. Harness installation
 
@@ -265,31 +230,27 @@ There is no "installed" environment flag.
 
 ## 8. Mount contract
 
-The run identity determines persistence:
+The run identity determines what persistence the run is supposed to have:
 
-| Run shape | Required storage |
+| Run shape | Expected storage |
 |---|---|
 | no session id, no workflow artifact | ephemeral cwd is valid |
 | session id present | session cwd mount |
 | workflow artifact present | agent mount |
-| resumable harness session | required harness transcript mounts |
+| resumable harness session | harness transcript mounts |
 
-For required storage:
+Version 1 keeps the current best-effort behavior. Changing mount failure semantics is a behavior rewrite, not configuration cleanup, and it stays out of the release. Version 1 changes only two things:
 
-1. signing failure fails the run;
-2. missing store configuration fails the run;
-3. unreachable store fails the run;
-4. geesefs mount or readiness failure fails the run;
-5. transport-disconnected recovery gets one bounded remount attempt, then fails;
-6. no plain directory is substituted at the durable path.
+1. When a durable mount degrades to an ephemeral directory, the runner emits one structured warning naming the mount kind and the cause, so degradation frequency becomes measurable instead of silent.
+2. `AGENTA_SESSION_HARNESS_MOUNTS` is removed as a public switch; transcript mounts derive from the session contract.
 
-Errors name the failed mount kind and remediation category without exposing credentials. There is no public environment switch to disable transcript mounts.
+The fail-loud contract (a required mount failure fails the run, no silent durable-to-ephemeral downgrade) is deferred to [RSH-11](./open-issues.md) and should be informed by the warning-log data.
 
 ## 9. Hosting shape
 
 ### Docker Compose
 
-The runner service enumerates only runner variables. It has no shared `env_file`. The examples include commented, opt-in read-only volumes for subscription inputs and a commented bootstrap manifest path.
+The runner service enumerates only runner variables. It has no shared `env_file`. The examples include commented, opt-in read-only volumes for subscription inputs (section 6).
 
 One runner service can enable `local,daytona`; there is no second subscription runner in the default stack.
 
@@ -316,11 +277,6 @@ agentRunner:
     tokenSecretRef:
       name: agenta-runner
       key: token
-  bootstrap:
-    configMapRef:
-      name: agenta-runner-bootstrap
-      key: bootstrap.yaml
-    inputVolumes: []
 ~~~
 
 The runner deployment must not include `agenta.commonEnv`. A dedicated helper renders only its narrow environment and provider secret references. Callback authorization arrives per run rather than through a pod-wide API key.

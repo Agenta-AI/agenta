@@ -24,9 +24,9 @@ Obtain written guidance from OpenAI and Anthropic for third-party clients, stora
 
 No implementation or tutorial should precede that decision.
 
-## RSH-4: Bootstrap hooks and network plugins
+## RSH-4: Declarative bootstrap assets, hooks, and network plugins
 
-Operators may eventually need repository checkout hooks, VPN enrollment, certificate rotation, or custom initialization. Version 1 bootstraps data only.
+Version 1 ships no bootstrap manifest at all: local subscription state arrives through an operator-owned read-only Compose mount, and runtime customization happens through images and snapshots. If operator demand shows a real need for declarative per-run file assets (typed manifest, validation, Daytona upload of non-auth files), design it then, together with hooks: repository checkout, VPN enrollment, certificate rotation, custom initialization.
 
 A future design must define:
 
@@ -48,9 +48,9 @@ Add typed source variants only after the file contract is stable.
 
 Multiple replicas need provider-aware capacity, session ownership, warm-sandbox adoption, and capability aggregation. A single logical runner deployment is enough for the current cleanup.
 
-## RSH-7: Capability API caching and versioning
+## RSH-7: Runner capability discovery endpoint
 
-The design selects an internal `GET /capabilities` endpoint. Implementation should open a narrow issue if protocol negotiation, cache invalidation, or heterogeneous runner replicas require more than the version 1 response.
+Version 1 has no `GET /capabilities` endpoint. API and runner read the same enabled-provider value from one deployment entry, and the runner stays the final authority. Build the endpoint (with caching, versioning, and platform exposure) when deployments have multiple heterogeneous runners and one shared value stops being true, not before.
 
 ## RSH-8: Local isolation provider
 
@@ -63,3 +63,11 @@ PR #5274 did not add mount-viewer UI. The product still needs an explicit UX for
 ## RSH-10: Custom mount-role documentation
 
 The product is pre-production, so this cleanup does not add a compatibility bridge for old custom permission lists. Before public RBAC customization ships, document the final mount permissions and add a role-validation diagnostic.
+
+## RSH-11: Fail-loud required mounts
+
+Version 1 keeps best-effort mount behavior and adds one structured warning when a durable mount degrades to an ephemeral directory. The deferred contract: a session, workflow-artifact, or resumable-session run whose required mount cannot be signed or mounted fails the run instead of silently continuing on ephemeral storage. Use the warning-log data to size the problem and to catch race conditions before making failures hard.
+
+## RSH-12: Runner secret narrowing in shared-env deployments
+
+A deployment that delivers one shared environment file to every container exposes the runner token and the Daytona key to services that do not need them. Daytona-only deployments tolerate this for now because no user code runs in the runner container. The follow-up hardening: a dedicated runner secret, no shared environment file on the runner, and FUSE privilege removal where local mounts are not needed. Run it as its own project after the release.

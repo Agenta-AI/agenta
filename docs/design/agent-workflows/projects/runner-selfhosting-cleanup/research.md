@@ -34,7 +34,7 @@ That couples three unrelated decisions:
 2. the runner happens to have Pi state;
 3. the state should be copied to a third-party remote sandbox.
 
-The target removes this inference. Local subscription use requires an explicit bootstrap asset. Daytona runtime-provided subscription authentication is unsupported in version 1.
+The target removes this inference. Local subscription use requires an explicit read-only mount. Daytona runtime-provided subscription authentication is unsupported in version 1.
 
 ### Runtime-fact and policy booleans
 
@@ -48,14 +48,14 @@ Both variables are removed.
 
 Mount signing and mounting can currently degrade to an ephemeral directory. On Daytona, a store endpoint that is unreachable from the sandbox can also produce a plain directory at the expected durable path. This gives a successful run whose files or harness state later disappear.
 
-The target defines persistence from request identity:
+Request identity defines what persistence a run is supposed to have:
 
 - sessionless run: ephemeral is valid;
-- session id present: the session cwd is required;
-- workflow artifact present: the agent mount is required;
-- continuation that needs harness-native state: transcript mounts are required.
+- session id present: the session cwd;
+- workflow artifact present: the agent mount;
+- continuation that needs harness-native state: transcript mounts.
 
-A required sign or mount failure is a run error with an actionable cause.
+Version 1 keeps best-effort behavior and logs one structured warning when a durable mount degrades, so the degradation rate becomes measurable. Failing the run instead is RSH-11.
 
 ## PR #5285 assessment
 
@@ -143,8 +143,8 @@ Sources:
 
 | Sandbox | Harness | Managed API key | Local subscription |
 |---|---|---:|---:|
-| local | Pi | supported | supported through explicit bootstrap |
-| local | Claude | supported | supported through explicit bootstrap |
+| local | Pi | supported | supported through an explicit mount |
+| local | Claude | supported | supported through an explicit mount |
 | Daytona | Pi | supported | unsupported |
 | Daytona | Claude | supported | unsupported |
 

@@ -50,7 +50,7 @@ DAYTONA_JWT_TOKEN and DAYTONA_ORGANIZATION_ID.
 
 Nothing was wrong with the user's Daytona account. The request reached a runner deployment that was not configured for Daytona. The setup made it easy to split capabilities accidentally.
 
-The target local QA deployment is one trusted development runner with both providers enabled and explicit local subscription bootstrap assets. This is a development convenience, not a production multi-tenant topology. A local harness shares the runner container and can inspect other same-user processes through `/proc`.
+The target local QA deployment is one trusted development runner with both providers enabled and explicit read-only local subscription mounts. This is a development convenience, not a production multi-tenant topology. A local harness shares the runner container and can inspect other same-user processes through `/proc`.
 
 ## Trust boundaries
 
@@ -71,7 +71,7 @@ The runner stays in the deployment. The daemon and harness execute in a Daytona 
 - the resolved model credential for the run;
 - workspace and instruction files;
 - scoped durable-mount credentials;
-- explicitly configured bootstrap assets;
+- explicitly configured runtime files;
 - runner-owned support binaries and configuration.
 
 The runner's Daytona organization credential provisions the sandbox. It is infrastructure control-plane material and must never enter the sandbox environment.
@@ -80,7 +80,7 @@ The runner's Daytona organization credential provisions the sandbox. It is infra
 
 ### Configuration describes intent
 
-Operators configure facts they own: enabled providers, a default, credentials, lifecycle values, and mounted bootstrap inputs. The runner detects runtime facts such as whether Pi is already installed.
+Operators configure facts they own: enabled providers, a default, credentials, lifecycle values, and mounted subscription inputs. The runner detects runtime facts such as whether Pi is already installed.
 
 ### One owner per value
 
@@ -88,11 +88,11 @@ A Daytona API key used to provision agent sandboxes belongs to the runner. A Day
 
 ### Explicit data movement
 
-The runner should never infer that a missing model API key means "copy whatever login I happen to have." Runtime authentication is a declared mode, and bootstrap assets are a declared deployment input.
+The runner should never infer that a missing model API key means "copy whatever login I happen to have." Runtime authentication is a declared mode, and subscription state is a declared deployment mount.
 
 ### Fail before side effects
 
-Unknown providers, disabled providers, missing provider credentials, invalid bootstrap paths, and contradictory defaults fail at startup or before sandbox creation. Required mount failures fail the run. There is no silent provider fallback and no silent durable-to-ephemeral downgrade.
+Unknown providers, disabled providers, missing provider credentials, and contradictory defaults fail at startup or before sandbox creation. There is no silent provider fallback. Mount behavior stays best-effort in version 1, with a structured warning on durable-to-ephemeral degradation (the fail-loud contract is RSH-11).
 
 ### Pre-production cleanup
 

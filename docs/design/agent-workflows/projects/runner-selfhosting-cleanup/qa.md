@@ -7,9 +7,9 @@ The cleanup is complete only when one deployment can exercise the supported comb
 | Sandbox | Harness | Authentication | Expected |
 |---|---|---|---|
 | local | Pi | managed OpenAI or other provider key | pass |
-| local | Pi | explicit Pi subscription bootstrap | pass |
+| local | Pi | explicit Pi subscription mount | pass |
 | local | Claude | managed Anthropic or supported custom-provider key | pass |
-| local | Claude | explicit Claude subscription bootstrap | pass |
+| local | Claude | explicit Claude subscription mount | pass |
 | Daytona | Pi | managed provider key | pass |
 | Daytona | Claude | managed provider key | pass |
 | Daytona | Pi | runtime-provided subscription | reject before sandbox creation |
@@ -41,24 +41,18 @@ Run the passing cells with:
 - invalid zero, negative, non-numeric, and fractional lifecycle values fail;
 - Compose-substituted empty optional values become absent.
 
+The API-side parser (`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` read by the API) gets the same parser unit cases so both readers agree on every input.
+
 ### Execution-gate tests
 
 - explicit enabled provider passes;
-- explicit disabled provider fails before temp directory creation;
+- explicit disabled provider fails before temp directory creation with the explicit "provider not enabled on this deployment" error;
 - omitted provider uses the configured default;
 - no silent fallback occurs;
 - keepalive does not create or park an environment for a rejected provider;
-- provider factory repeats the hard gate for callers that bypass run-plan construction.
-
-### Capability tests
-
-- `/health` contains process identity only;
-- `/capabilities` returns enabled and default providers;
-- configured token protects capabilities;
-- response contains no credentials or provider URLs;
-- Services cache expires and refreshes;
-- unavailable runner is not converted into local-only;
-- web picker matches the platform response.
+- provider factory repeats the hard gate for callers that bypass run-plan construction;
+- the web picker shows exactly the configured enabled set (API-derived);
+- a deliberately drifted API value still ends in the runner's honest rejection, not a wrong run.
 
 ## 3. Credential-boundary tests
 
@@ -72,10 +66,9 @@ Run the passing cells with:
 
 ### Runtime-provided credentials
 
-- provider, deployment, and credential mode are required;
-- no `hasApiKey` inference remains;
+- caller audit outcome is enforced: if the strictness flip landed, provider, deployment, and credential mode are required and no `hasApiKey` inference remains; if it was deferred, the audit record in status.md names the omitting caller and the follow-up;
 - no inherit-all environment mode remains;
-- local auth requires a matching `purpose: harness-auth` asset;
+- local runtime-provided auth requires the matching subscription mount and fails with an error naming the missing configuration when absent;
 - Daytona runtime auth fails with a stable unsupported-combination code;
 - no function scans `HOME`, `PI_CODING_AGENT_DIR`, or `CLAUDE_CONFIG_DIR` for implicit upload;
 - no Pi `auth.json` is written to a Daytona sandbox during managed runs.
@@ -96,39 +89,16 @@ Render OSS and EE Helm charts and inspect the runner container environment. Asse
 
 Assert the presence of only configured runner values, runner token reference, API locator, and provider-specific secret references. Callback and trace tests assert that the per-run caller credential is used and never promoted to process-wide state.
 
-## 4. Bootstrap tests
+## 4. Subscription mount tests
 
-### Manifest validation
-
-- version must be 1;
-- asset ids are unique;
-- source type is file or directory;
-- source path must be inside a configured bootstrap input root;
-- destination path is relative and traversal-free;
-- destination root is known;
-- provider and harness selectors are non-empty and known;
-- file mode cannot be group/world writable;
-- required source must exist at startup;
-- optional missing source is omitted with one redacted warning;
-- symlink, socket, device, excessive count, excessive depth, and excessive size are rejected.
-
-### Local materialization
-
-- every run gets a unique config root;
+- every runtime-provided run gets a unique per-run config copy;
 - Pi receives `PI_CODING_AGENT_DIR` pointing at the copy;
 - Claude receives `CLAUDE_CONFIG_DIR` pointing at the copy;
-- source is mounted read-only;
-- harness writes do not mutate the source;
+- the operator source is mounted read-only and harness writes do not mutate it;
 - teardown removes the per-run copy;
-- concurrent runs cannot see each other's bootstrap copies.
-
-### Daytona materialization
-
-- matching runtime-config file and directory assets upload before daemon start;
-- mode and destination match local semantics;
-- harness-auth assets are rejected before sandbox creation;
-- upload failure tears down the partial sandbox;
-- content, source paths, and remote credential paths do not appear in logs or traces.
+- concurrent runs cannot see each other's copies;
+- subscription state never uploads to a Daytona sandbox;
+- content and credential paths do not appear in logs or traces.
 
 ## 5. Harness installation tests
 
@@ -142,20 +112,17 @@ Assert the presence of only configured runner values, runner token reference, AP
 
 ## 6. Mount tests
 
+Version 1 keeps best-effort behavior, so QA asserts observability instead of hard failure:
+
 | Case | Expected |
 |---|---|
-| sessionless run, store unavailable | ephemeral run passes |
-| session run, signing unavailable | run fails |
-| session run, scoped credentials invalid | run fails |
-| session run, store unreachable | run fails |
-| session run, geesefs readiness fails | run fails |
+| sessionless run, store unavailable | ephemeral run passes, no warning |
+| session run, durable mount degrades to ephemeral | run continues and one structured warning names mount kind and cause |
 | transport endpoint disconnected once | one remount, then continue if healthy |
-| transport endpoint disconnected twice | run fails |
-| artifact run, agent mount invalid | run fails |
-| resumable run, transcript mount unavailable | run fails and does not park |
 | successful session turn | file survives a cold next turn |
+| `AGENTA_SESSION_HARNESS_MOUNTS` set in the environment | no effect; variable absent from the contract |
 
-Each failure assertion checks the structured error code, mount kind, user-action category, redaction, teardown, and zero leaked Daytona sandboxes.
+The fail-loud cases (session, artifact, and transcript mount failures failing the run) move to RSH-11 with this table as their starting point.
 
 ## 7. Local 8280 acceptance
 
@@ -165,14 +132,14 @@ Before deleting the extra runners:
 2. Confirm which service contains the Daytona credential.
 3. Confirm which read-only subscription inputs exist.
 4. Configure the normal runner with enabled providers `local,daytona`.
-5. Add local-only Pi and Claude auth bootstrap assets.
+5. Add local-only Pi and Claude read-only subscription mounts.
 6. Run the primary matrix.
 7. Confirm the Daytona sandbox count returns to zero.
 8. Stop the legacy subscription sidecars.
 9. Repeat one local subscription cell and both Daytona managed-key cells.
 10. Record the final Compose service and environment shape.
 
-Personal credentials and generated bootstrap copies must never be committed.
+Personal credentials and generated per-run copies must never be committed.
 
 ## 8. CI commands
 
@@ -180,7 +147,7 @@ Implementation PRs should run the narrow suites first, then the area suite requi
 
 - runner unit and acceptance tests under `services/runner`;
 - Services and SDK agent tests for wire changes;
-- API tests for capability proxy or configuration responses;
+- API tests for the provider-availability configuration;
 - web package tests for the picker;
 - Helm lint and rendered-template assertions;
 - Compose config rendering for OSS/EE and dev/GH variants;
