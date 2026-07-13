@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from oss.src.core.shared.dtos import Status
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerSubscription,
@@ -249,3 +250,45 @@ async def test_test_subscription_tears_down_on_error():
         )
 
     service.dao.delete_subscription.assert_awaited_once()
+
+
+async def test_test_subscription_reuses_existing_live_subscription_on_conflict():
+    """When a live subscription already owns the provider trigger (the mint hits
+    the partial-unique index and the DAO raises EntityCreationConflict), the test
+    captures against the existing subscription and leaves it in place."""
+    service = _make_service()
+
+    existing = _existing(is_test=False)  # a live, non-test subscription
+    service.dao.create_subscription = AsyncMock(
+        side_effect=EntityCreationConflict(
+            entity="Trigger subscription",
+            conflict={"trigger_id": "ti_existing"},
+        )
+    )
+    service.dao.fetch_subscription_by_trigger_id = AsyncMock(return_value=existing)
+
+    old_delivery = _delivery()  # pre-existing baseline delivery
+    new_delivery = _delivery()  # the newly captured one (different id)
+    service.dao.query_deliveries = AsyncMock(
+        side_effect=[[old_delivery], [new_delivery]]
+    )
+
+    result = await service.test_subscription(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        subscription=_create(is_test=False),
+    )
+
+    # The freshly arrived delivery is returned, not the stale baseline.
+    assert result is new_delivery
+    # The existing live subscription must NOT be torn down.
+    service.dao.delete_subscription.assert_not_awaited()
+    # Only the single failed mint attempt — no duplicate persisted.
+    service.dao.create_subscription.assert_awaited_once()
+    # Reuse resolved via the exact colliding trigger_id, not a connection+event query.
+    service.dao.fetch_subscription_by_trigger_id.assert_awaited_once()
+    # Deliveries were polled against the existing subscription's id.
+    assert (
+        service.dao.query_deliveries.await_args.kwargs["delivery"].subscription_id
+        == existing.id
+    )

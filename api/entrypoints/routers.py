@@ -862,6 +862,7 @@ mounts_service = MountsService(
     mounts_store=store,
     bucket=env.store.bucket,
     namespace=env.store.namespace,
+    workflows_service=workflows_service,
 )
 
 session_mounts_service = SessionMountsService(

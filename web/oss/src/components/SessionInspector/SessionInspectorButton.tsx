@@ -5,7 +5,18 @@ import {useSetAtom} from "jotai"
 import {openSessionInspectorAtom} from "./store"
 
 /** Session-inspector trigger; disabled until a backend session_id exists. */
-const SessionInspectorButton = ({sessionId}: {sessionId: string | null}) => {
+const SessionInspectorButton = ({
+    sessionId,
+    artifactId,
+    iconSize = 14,
+    className,
+}: {
+    sessionId: string | null
+    artifactId?: string | null
+    /** Icon px, so dense contexts (rail rows) can match their sibling action icons. */
+    iconSize?: number
+    className?: string
+}) => {
     const open = useSetAtom(openSessionInspectorAtom)
 
     const tooltip = sessionId ? "Inspect session" : "Run once to start a session before inspecting"
@@ -15,10 +26,11 @@ const SessionInspectorButton = ({sessionId}: {sessionId: string | null}) => {
             <Button
                 type="text"
                 size="small"
-                icon={<MagnifyingGlass size={16} />}
+                icon={<MagnifyingGlass size={iconSize} />}
                 aria-label="Inspect session"
                 disabled={!sessionId}
-                onClick={() => sessionId && open(sessionId)}
+                onClick={() => sessionId && open(sessionId, artifactId ?? null)}
+                className={className}
             />
         </Tooltip>
     )

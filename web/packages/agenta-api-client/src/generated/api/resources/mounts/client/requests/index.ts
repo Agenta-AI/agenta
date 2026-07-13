@@ -1,3 +1,4 @@
+export type { AgentMountQueryRequest } from "./AgentMountQueryRequest.js";
 export type { ArchiveMountRequest } from "./ArchiveMountRequest.js";
 export type { BodyUploadMountFile } from "./BodyUploadMountFile.js";
 export type { CreateMountFolderRequest } from "./CreateMountFolderRequest.js";
@@ -8,6 +9,7 @@ export type { GetMountFilesRequest } from "./GetMountFilesRequest.js";
 export type { MountCreateRequest } from "./MountCreateRequest.js";
 export type { MountEditRequest } from "./MountEditRequest.js";
 export type { MountQueryRequest } from "./MountQueryRequest.js";
+export type { SignAgentMountCredentialsRequest } from "./SignAgentMountCredentialsRequest.js";
 export type { SignMountCredentialsRequest } from "./SignMountCredentialsRequest.js";
 export type { UnarchiveMountRequest } from "./UnarchiveMountRequest.js";
 export type { WriteMountFileRequest } from "./WriteMountFileRequest.js";

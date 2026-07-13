@@ -31,6 +31,11 @@ class MountQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
+class AgentMountQueryRequest(BaseModel):
+    artifact_id: str
+    name: str = "default"
+
+
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------

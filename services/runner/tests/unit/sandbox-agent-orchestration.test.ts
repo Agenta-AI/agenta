@@ -6,6 +6,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
@@ -14,6 +15,7 @@ import {
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
+import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
@@ -344,6 +346,163 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  it("advertises durable agent storage only after a confirmed local mount", async () => {
+    const cwd = join(
+      tmpdir(),
+      `agenta-agent-mount-success-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signAgentMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/agent-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .AGENTA_AGENT_MOUNT_DIR,
+      `${cwd}-agent`,
+    );
+    assert.match(
+      calls.createSessionOptions.sessionInit._meta.systemPrompt.append,
+      /agent-files\//,
+    );
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("removes a safe failed agent mountpoint without advertising it to Pi", async () => {
+    const cwd = join(
+      tmpdir(),
+      `agenta-agent-mount-failure-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signAgentMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/agent-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => false) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .AGENTA_AGENT_MOUNT_DIR,
+      undefined,
+    );
+    assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
+    assert.equal(existsSync(`${cwd}-agent`), false);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("preserves the durable cwd when failed mount detach is unsafe", async () => {
+    const prefix = "unsafe-mount-" + process.pid + "-" + Date.now();
+    const cwd = join(tmpdir(), "agenta", prefix);
+    const sentinel = join(cwd, "must-not-delete.txt");
+    mkdirSync(cwd, { recursive: true });
+    writeFileSync(sentinel, "durable data");
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix,
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    let mountpointProbes = 0;
+    deps.mountStorage = ((cwd: string, creds: any, options: any) =>
+      mountStorage(cwd, creds, {
+        ...options,
+        checkMounted: async () => false,
+        runGeesefs: async () => {
+          throw new Error("fuse: device not found");
+        },
+        unmountDeps: {
+          runUnmount: async () => {},
+          checkMountpoint: async () => {
+            mountpointProbes += 1;
+            return mountpointProbes === 1 ? "gone" : "mounted";
+          },
+        },
+      })) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(
+      result.error ?? "",
+      /detach could not be confirmed.*refusing ephemeral cwd fallback/,
+    );
+    assert.equal(
+      calls.workspacePlan,
+      undefined,
+      "unsafe detach fails before workspace preparation",
+    );
+    assert.equal(
+      calls.workspaceCleanup,
+      0,
+      "prepareWorkspace cleanup never starts after unsafe mount acquisition",
+    );
+    assert.equal(
+      existsSync(sentinel),
+      true,
+      "environment teardown must preserve the possibly-live durable cwd",
+    );
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
   it("re-signs, remounts, and retries local workspace prep on durable cwd ENOTCONN", async () => {
     const { calls, deps } = fakeHarness();
     const seenMountAccessKeys: string[] = [];
@@ -506,6 +665,80 @@ describe("runSandboxAgent orchestration", () => {
       1,
       "cleanup waits for runtime remount before unmount",
     );
+  });
+
+  it("re-signs and remounts the agent mount when an ACP event reports ENOTCONN", async () => {
+    // Sessionless: exercises the agent-mount-only recovery gate.
+    const cwd = join(
+      tmpdir(),
+      `agenta-agent-mount-enotconn-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { deps } = fakeHarness({
+      cwd,
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              kind: "tool_result",
+              content:
+                "cat 'agent-files/notes.md': Transport endpoint is not connected",
+            },
+          },
+        },
+      ],
+    });
+    const seenMountAccessKeys: string[] = [];
+    let signAgentCalls = 0;
+    let mountCalls = 0;
+
+    deps.signAgentMountCredentials = (async () => {
+      signAgentCalls += 1;
+      return {
+        endpoint: "http://seaweedfs:8333",
+        region: "us-east-1",
+        bucket: "agenta-store",
+        prefix: "mounts/proj-1/agent-1",
+        accessKey: `AK-${signAgentCalls}`,
+        secretKey: `SK-${signAgentCalls}`,
+        sessionToken: `TOK-${signAgentCalls}`,
+      };
+    }) as any;
+    deps.mountStorage = (async (_path: string, creds: any) => {
+      mountCalls += 1;
+      seenMountAccessKeys.push(creds.accessKey);
+      return true;
+    }) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      signAgentCalls,
+      2,
+      "initial sign + one capped runtime re-sign after ENOTCONN",
+    );
+    assert.equal(
+      mountCalls,
+      2,
+      "initial agent mount + one capped runtime remount after ENOTCONN",
+    );
+    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(`${cwd}-agent`, { recursive: true, force: true });
   });
 
   it("skips the durable cwd delete when unmount is not confirmed", async () => {
@@ -707,10 +940,65 @@ describe("runSandboxAgent orchestration", () => {
     // A Pi run passes the execution guard: the relay dir is sandbox-writable, so every execute
     // record is re-checked runner-side (a forged record must not run an ask/deny tool).
     assert.equal(typeof calls.toolRelayArgs?.[6], "function");
+    // The 8th argument carries the log sink: without it the relay skips pickup
+    // telemetry (and its per-request stat) entirely, so the engine must pass one.
+    assert.equal(
+      typeof (calls.toolRelayArgs?.[7] as { log?: unknown } | undefined)?.log,
+      "function",
+    );
     assert.equal(
       calls.toolRelayStops,
       2,
       "stopped after prompt and again in finally",
+    );
+  });
+
+  it("wires Pi ask grants into the captured relay guard while non-Pi ask passes", async () => {
+    const request = {
+      messages: [{ role: "user", content: "use the tool" }],
+      permissions: { default: "ask" },
+      customTools: [
+        { name: "server_tool", kind: "callback", permission: "ask" },
+      ],
+    } as AgentRunRequest;
+    const relayRequest = {
+      toolName: "server_tool",
+      toolCallId: "forged-call",
+      args: {},
+    };
+
+    const pi = fakeHarness();
+    const piResult = await runSandboxAgent(
+      { ...request, harness: "pi_core" },
+      undefined,
+      undefined,
+      pi.deps,
+    );
+    assert.equal(piResult.ok, true);
+    const piGuard = pi.calls.toolRelayArgs?.[6] as Function;
+    assert.deepEqual(
+      piGuard(request.customTools?.[0], relayRequest),
+      {
+        allow: false,
+        reason:
+          "Tool 'server_tool' was not approved via the permission dialog.",
+      },
+      "Pi ask without a grant fails closed",
+    );
+
+    const claude = fakeHarness();
+    const claudeResult = await runSandboxAgent(
+      { ...request, harness: "claude" },
+      undefined,
+      undefined,
+      claude.deps,
+    );
+    assert.equal(claudeResult.ok, true);
+    const claudeGuard = claude.calls.toolRelayArgs?.[6] as Function;
+    assert.deepEqual(
+      claudeGuard(request.customTools?.[0], relayRequest),
+      { allow: true },
+      "non-Pi ask remains gated by the harness and passes the relay guard",
     );
   });
 
@@ -738,9 +1026,11 @@ describe("runSandboxAgent orchestration", () => {
       true,
       "the run succeeds; gateway tools reach Claude",
     );
-    // The relay carries execution only; Claude's own ACP gates decide before a call reaches it,
-    // so a Claude run never gets the Pi execution guard.
-    assert.equal(calls.toolRelayArgs?.[6], undefined);
+    // The relay dir is sandbox-writable on every harness, so a Claude run gets the execution
+    // guard too — its non-Pi shape enforces the hard deny boundary against forged records
+    // while `ask` stays with Claude's own harness dialog (see buildRelayExecutionGuard; the
+    // non-Pi semantics are pinned in tool-relay-guard.test.ts).
+    assert.equal(typeof calls.toolRelayArgs?.[6], "function");
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
     assert.equal(
@@ -759,7 +1049,15 @@ describe("runSandboxAgent orchestration", () => {
       /^http:\/\/127\.0\.0\.1:\d+\/mcp$/,
       "loopback url",
     );
-    assert.deepEqual(mcpServers[0].headers, [], "no credential on the channel");
+    // WP1 (#5201): the loopback HTTP endpoint carries a per-session bearer guard so another local
+    // process cannot reach it. It is a locally minted access token, not a provider credential.
+    assert.equal(mcpServers[0].headers.length, 1, "the loopback guard header");
+    assert.equal(mcpServers[0].headers[0].name, "Authorization");
+    assert.match(
+      mcpServers[0].headers[0].value,
+      /^Bearer .+/,
+      "per-session loopback guard token",
+    );
     // The internal server is opened then released, so its port does not leak past the run.
     assert.equal(calls.sandboxDestroyed, 1, "sandbox disposed in finally");
   });

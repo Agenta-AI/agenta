@@ -13,6 +13,11 @@ fresh sandbox. Set the runner service to use it:
     DAYTONA_SNAPSHOT=agenta-sandbox-pi
     AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
 
+The snapshot is shared with the SDK code-evaluator runner (which also falls back to
+`DAYTONA_SNAPSHOT`), so the recipe additionally installs python3 and typescript/ts-node.
+Per-consumer overrides when the two must diverge: DAYTONA_SNAPSHOT_CODE /
+DAYTONA_SNAPSHOT_AGENT.
+
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 
 Licensing (see services/runner/docker/README.md):
@@ -101,7 +106,15 @@ def main() -> None:
             "&& echo opencode-baked-in-base-image",
             # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
             "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
+            "python3 "
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
+            # Code-evaluator runtimes: this snapshot is shared with the SDK DaytonaRunner.
+            # typescript@5: ts-node needs the JS compiler API; typescript 7+ is the Go
+            # rewrite with no JS API (ts.sys undefined).
+            "RUN npm install -g typescript@5 ts-node@10 "
+            "&& python3 --version "
+            "&& echo 'const v: number = 1; console.log(v)' > /tmp/v.ts "
+            "&& ts-node /tmp/v.ts && rm /tmp/v.ts",
             f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
             "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",

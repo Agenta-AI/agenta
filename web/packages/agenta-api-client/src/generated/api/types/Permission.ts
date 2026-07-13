@@ -62,5 +62,8 @@ export const Permission = {
     ViewSessions: "view_sessions",
     EditSessions: "edit_sessions",
     RunSessions: "run_sessions",
+    ViewMounts: "view_mounts",
+    EditMounts: "edit_mounts",
+    UseMounts: "use_mounts",
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];

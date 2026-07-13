@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {
@@ -52,6 +52,7 @@ import {
     agentChatVirtualizeAtom,
     isAgentChatVirtualizationAvailable,
 } from "@/oss/components/AgentChatSlice/state/virtualization"
+import {AgentNameInline} from "@/oss/components/EntityIdentity"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
@@ -204,6 +205,12 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     // The is_custom flag still resolves correctly because it's a URI-derived
     // flag that exists on the workflow data regardless of role.
     const currentWorkflow = useAtomValue(currentWorkflowAtom)
+    // Local mirror of the agent name so a rename reflects instantly in the header, ahead of the
+    // list refetch that the identity card triggers.
+    const [displayAgentName, setDisplayAgentName] = useState(currentWorkflow?.name ?? "")
+    useEffect(() => {
+        setDisplayAgentName(currentWorkflow?.name ?? "")
+    }, [currentWorkflow?.name])
     const currentWorkflowCtx = useAtomValue(currentWorkflowContextAtom)
     const routeAppId = useAtomValue(routerAppIdAtom)
     const isProjectLevelPlayground = !routeAppId
@@ -704,9 +711,17 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     <Robot size={15} weight="fill" />
                                 </span>
                             </Tooltip>
-                            <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
-                                {currentWorkflow?.name || "Agent"}
-                            </Typography>
+                            {currentWorkflow?.id ? (
+                                <AgentNameInline
+                                    workflowId={currentWorkflow.id}
+                                    name={displayAgentName}
+                                    onRenamed={setDisplayAgentName}
+                                />
+                            ) : (
+                                <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
+                                    {displayAgentName || "Agent"}
+                                </Typography>
+                            )}
                             {rootEntityId ? (
                                 <>
                                     <Divider orientation="vertical" className="!mx-1 h-5" />

@@ -33,6 +33,9 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
     selectedTemplateKey: string | null
     pick: (template: AgentTemplate) => void
     clear: () => void
+    /** Drop the chip without touching composer text — for callers (e.g. a revision swap) that must
+     * reset provenance while preserving the user's in-progress draft. */
+    clearProvenance: () => void
     /** Wire to the composer's text-change signal (e.g. `RichChatInput`'s `onChange`) so a fully
      * emptied composer drops the chip too — a template pick must not survive its own erasure. */
     onComposerTextChange: (text: string) => void
@@ -102,10 +105,7 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         [selectedTemplate],
     )
 
-    // Always mounted (never null) so the chip can transition rather than pop. During the
-    // out-transition `selectedTemplate` is already null, so we show the retained last template
-    // (falling back to the registry's first only for the very first, never-picked render).
-    // TemplateChipDock owns the fade/rise + width-morph; passing `visible` drives them.
+    // Keep showing the last template during the exit so the chip fades out with real content, not a placeholder.
     const chipNode = useMemo(() => {
         const shown = selectedTemplate ?? lastTemplateRef.current ?? AGENT_TEMPLATES[0]
         return (
@@ -122,6 +122,7 @@ export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi})
         selectedTemplateKey: selectedTemplate?.key ?? null,
         pick,
         clear,
+        clearProvenance,
         onComposerTextChange,
         resolveTemplateName,
         chipNode,

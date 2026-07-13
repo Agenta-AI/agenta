@@ -10,6 +10,7 @@ import {useRouter} from "next/router"
 
 import {invalidateAgentsWorkflowQueries} from "@/oss/components/pages/agents/store"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
+import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {useAppsData} from "@/oss/state/app"
@@ -45,6 +46,7 @@ const ApplicationManagementSection = ({
     const {baseAppURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
+    const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const setWorkflowTypeFilter = useSetAtom(workflowTypeFilterAtom)
     const setWorkflowInvokableOnly = useSetAtom(workflowInvokableOnlyAtom)
     const {mutate: mutateApps} = useAppsData()
@@ -105,6 +107,18 @@ const ApplicationManagementSection = ({
                     goToPlayground(undefined, {appId: record.workflowId})
                 }
             },
+            onRename: (record) => {
+                if (!isArchived) {
+                    openEditAppModal({
+                        id: record.workflowId,
+                        name: record.name,
+                        onRenamed: async () => {
+                            await mutateApps?.()
+                            await invalidateAppManagementWorkflowQueries()
+                        },
+                    })
+                }
+            },
             onDelete: (record) => {
                 if (!isArchived) {
                     openDeleteAppModal({
@@ -128,7 +142,15 @@ const ApplicationManagementSection = ({
                 }
             },
         }),
-        [router, baseAppURL, isArchived, goToPlayground, openDeleteAppModal, mutateApps],
+        [
+            router,
+            baseAppURL,
+            isArchived,
+            goToPlayground,
+            openDeleteAppModal,
+            openEditAppModal,
+            mutateApps,
+        ],
     )
 
     const columns = useMemo(() => createAppWorkflowColumns(actions, {mode}), [actions, mode])

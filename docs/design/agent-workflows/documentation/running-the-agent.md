@@ -176,6 +176,10 @@ sections).
   this non-zero auto-stop so a sandbox the runner leaks (a process KILL skips the per-run
   teardown) self-reaps instead of burning credit. Values below `1` fall back to the default
   (a `0` would re-disable auto-stop and reintroduce the leak).
+- `SANDBOX_AGENT_RELAY_MCP_BUNDLE`. Overrides the path of the in-sandbox stdio MCP shim bundle
+  the runner uploads to Daytona for non-Pi tool delivery. Default
+  `dist/tools/tool-mcp-stdio.js` (built by `pnpm run build:extension`). Trusted deployment
+  configuration — it selects code — never run or request configuration.
 - `AGENTA_RUNNER_SESSION_KEEPALIVE`. Gates session keep-alive: after a turn ends, the runner
   parks the live harness session and continues it on the next matching message in the same
   conversation, instead of cold-replaying the transcript. Default off. Local sandbox only;

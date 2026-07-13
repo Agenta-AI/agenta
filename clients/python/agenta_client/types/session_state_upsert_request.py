@@ -18,6 +18,11 @@ class SessionStateUpsertRequest(UniversalBaseModel):
     Remote sandbox id to record alongside the continuity state.
     """
     
+    sandbox_turn_index: typing.Optional[int] = pydantic.Field(default=None)
+    """
+    the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
