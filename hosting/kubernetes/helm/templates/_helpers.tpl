@@ -329,6 +329,16 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- end }}
 - name: AGENTA_AGENT_MCPS_ENABLED
   value: {{ default false $runner.enableMcp | quote }}
+{{- /* agentRunner.token — the caller side of the runner's shared-token gate; the runner reads
+     the same var (see runner-deployment.yaml). Unset = gate off (default). */}}
+{{- if $runner.token }}
+- name: AGENTA_RUNNER_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_RUNNER_TOKEN
+      optional: true
+{{- end }}
 {{- end }}
 
 {{/* ================================================================

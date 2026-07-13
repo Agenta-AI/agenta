@@ -138,6 +138,7 @@ redisDurable:
 # agentRunner:
 #   enabled: true
 #   enableMcp: true
+#   token: ""
 #   daytona:
 #     sessionIdleTtlMs: ""
 #     sessionMaxWarm: ""
