@@ -107,8 +107,8 @@ const ConnectCard = ({
                 </Text>
             ) : (
                 <Text type="secondary" className="!text-xs">
-                    It needs a <span className="font-medium text-colorText">{label}</span>{" "}
-                    connection to keep going. Skipping tells the agent to continue without it.
+                    Connect <span className="font-medium text-colorText">{label}</span> to let the
+                    agent continue, or continue without the connection.
                 </Text>
             )}
 
