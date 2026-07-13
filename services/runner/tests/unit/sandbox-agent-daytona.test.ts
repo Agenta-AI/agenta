@@ -72,7 +72,7 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     assert.deepEqual(calls[0].args, ["-x", DAYTONA_PI_COMMAND]);
   });
 
-  it("installs the pinned Pi version when the probe misses (custom image)", async () => {
+  it("links a PATH-baked pi to the pinned path instead of reinstalling (recipe snapshot)", async () => {
     const calls: any[] = [];
     let probed = 0;
     const sandbox = {
@@ -81,9 +81,38 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
         calls.push(input);
         if (input.command === "test") {
           probed += 1;
-          // Missing on the first probe, present after the install.
+          // Pinned path missing before the link, present after it.
           return { exitCode: probed === 1 ? 1 : 0 };
         }
+        // The `sh -lc command -v pi && ln -sf ...` link succeeds.
+        return { exitCode: 0 };
+      },
+    };
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(
+      calls.some((c) => c.command === "sh"),
+      "expected the global-pi link attempt",
+    );
+    assert.equal(
+      calls.some((c) => c.command === "npm"),
+      false,
+      "a baked snapshot must not pay a session-time npm install",
+    );
+  });
+
+  it("installs the pinned Pi version when the probe and PATH both miss (custom image)", async () => {
+    const calls: any[] = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      runProcess: async (input: any) => {
+        calls.push(input);
+        if (input.command === "test") {
+          // Missing until the install completes.
+          return { exitCode: calls.some((c) => c.command === "npm") ? 0 : 1 };
+        }
+        if (input.command === "sh") return { exitCode: 1 }; // no pi on PATH
         return { exitCode: 0 };
       },
     };
@@ -105,8 +134,11 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     const sandbox = {
       mkdirFs: async () => {},
       runProcess: async (input: any) => {
-        // Probe always misses, install "succeeds" but leaves nothing behind.
-        return { exitCode: input.command === "test" ? 1 : 0 };
+        // Probe and PATH both always miss; install "succeeds" but leaves nothing behind.
+        if (input.command === "test" || input.command === "sh") {
+          return { exitCode: 1 };
+        }
+        return { exitCode: 0 };
       },
     };
 

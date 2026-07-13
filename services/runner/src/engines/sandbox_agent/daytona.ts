@@ -57,6 +57,29 @@ async function probePiInstalled(sandbox: any): Promise<boolean> {
   }
 }
 
+/**
+ * Link a snapshot-baked `pi` (on PATH, e.g. the recipe's global npm install) to the pinned
+ * path so a baked snapshot never pays a session-time reinstall. Returns false when no `pi`
+ * is on PATH.
+ */
+async function linkGlobalPi(sandbox: any): Promise<boolean> {
+  try {
+    const res = await sandbox.runProcess({
+      command: "sh",
+      args: [
+        "-lc",
+        `command -v pi >/dev/null 2>&1 && ` +
+          `mkdir -p ${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin && ` +
+          `ln -sf "$(command -v pi)" ${DAYTONA_PI_COMMAND}`,
+      ],
+      timeoutMs: 15_000,
+    });
+    return res?.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Install the pinned `pi` CLI into a Daytona sandbox (a custom image may lack it). */
 async function installPiInSandbox(
   sandbox: any,
@@ -82,16 +105,23 @@ async function installPiInSandbox(
 }
 
 /**
- * Probe for the pinned Pi executable and repair (install the pinned version) when a custom image
- * or snapshot lacks it. The published snapshot bakes Pi to skip this path. If Pi is still missing
- * after the install attempt, the run fails with the missing executable and the attempted version —
- * harness availability is an image/runtime contract, never a silent skip (interface.md section 7).
+ * Probe for the pinned Pi executable and repair when a custom image or snapshot lacks it
+ * (interface.md section 7). Repair ladder, cheapest first:
+ *  1. the pinned path already exists (baked or repaired earlier) — done;
+ *  2. a `pi` is on PATH (the snapshot recipe installs it globally) — link it to the pinned path;
+ *  3. install the pinned version.
+ * If Pi is still missing after that, the run fails with the missing executable and the attempted
+ * version — harness availability is an image/runtime contract, never a silent skip.
  */
 export async function ensurePiInSandbox(
   sandbox: any,
   log: Log = () => {},
 ): Promise<void> {
   if (await probePiInstalled(sandbox)) return;
+  if ((await linkGlobalPi(sandbox)) && (await probePiInstalled(sandbox))) {
+    log(`[pi-repair] linked snapshot-baked pi to ${DAYTONA_PI_COMMAND}`);
+    return;
+  }
   log(
     `[pi-repair] pinned pi ${PINNED_PI_VERSION} missing at ${DAYTONA_PI_COMMAND}; installing`,
   );
