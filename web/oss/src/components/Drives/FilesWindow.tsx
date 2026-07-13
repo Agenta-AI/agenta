@@ -156,6 +156,7 @@ export default function FilesWindow({
                                     path={file.path}
                                     file={resolved ? {...file, path: resolved.path} : file}
                                     mount={resolved?.mount ?? drive.mount}
+                                    showOrigin={mixed}
                                     trailing={humanSize(file.size)}
                                     recent={isRecentlyChanged(file.touchedAt, now)}
                                     onOpen={() => openQuickLook({path: file.path})}

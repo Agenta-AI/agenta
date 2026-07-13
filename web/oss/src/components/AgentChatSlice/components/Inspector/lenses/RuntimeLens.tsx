@@ -15,7 +15,7 @@ import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
 import {humanSize} from "@/oss/components/Drives/driveTree"
 import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
 import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
-import {useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
+import {driveHasMixedOrigins, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
 
@@ -48,6 +48,7 @@ const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
                     path={f.path}
                     label={f.path}
                     trailing={humanSize(f.size)}
+                    showOrigin={driveHasMixedOrigins(drive.recents)}
                     onOpen={() => openQuickLook({path: f.path})}
                 />
             ))}

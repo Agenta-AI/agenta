@@ -18,23 +18,29 @@ import {type Mount} from "@agenta/entities/session"
 
 import {driveFileIcon} from "./DriveDrawer"
 import {FileThumb} from "./FileThumb"
-import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
+import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile, type FileOrigin} from "./useSessionDrive"
 
 // Agent-teal, matching the config self-commit indicator, for a file that just changed.
 const AGENT_ACCENT = "var(--ag-c-13C2C2, #13c2c2)"
 
 export type DriveFileVariant = "row" | "card" | "tile"
 
-/** A small teal pill marking a file that lives in the agent's durable mount (shared across the
- * agent's sessions), distinguishing it from ephemeral session-cwd files. */
-const OriginTag = () => (
-    <span
-        className="inline-flex shrink-0 items-center rounded px-1 align-middle text-[10px] font-medium leading-[15px]"
-        style={{color: AGENT_ACCENT, border: `1px solid ${AGENT_ACCENT}`}}
-    >
-        Agent
-    </span>
-)
+/** A small pill marking where a file lives: teal "Agent" for the durable per-agent mount (shared
+ * across the agent's sessions), a quiet neutral "Session" for the ephemeral session cwd. Only shown
+ * when the drive holds both kinds (see `showOrigin`). */
+const OriginTag = ({origin}: {origin: FileOrigin}) =>
+    origin === "agent" ? (
+        <span
+            className="inline-flex shrink-0 items-center rounded px-1 align-middle text-[10px] font-medium leading-[15px]"
+            style={{color: AGENT_ACCENT, border: `1px solid ${AGENT_ACCENT}`}}
+        >
+            Agent
+        </span>
+    ) : (
+        <span className="inline-flex shrink-0 items-center rounded border border-solid border-colorBorderSecondary px-1 align-middle text-[10px] font-medium leading-[15px] text-colorTextTertiary">
+            Session
+        </span>
+    )
 
 export const DriveFileRow = ({
     path,
@@ -45,6 +51,7 @@ export const DriveFileRow = ({
     variant = "row",
     file,
     mount,
+    showOrigin,
 }: {
     path: string
     /** Main label; defaults to the basename. Pass the full relative path for the config surfaces. */
@@ -59,6 +66,8 @@ export const DriveFileRow = ({
     /** The file + its mount — required by the card/tile thumbnail preview. */
     file?: DriveRecentFile
     mount?: Mount | null
+    /** Show the agent/session origin tag. Pass true only when the drive holds both kinds. */
+    showOrigin?: boolean
 }) => {
     const name = label ?? path.split("/").pop() ?? path
     const origin = fileOrigin(path)
@@ -76,7 +85,7 @@ export const DriveFileRow = ({
                     stays in its own right-aligned column (tagged and untagged rows line up). */}
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
                     <span className="min-w-0 truncate font-mono text-xs">{name}</span>
-                    {origin === "agent" ? <OriginTag /> : null}
+                    {showOrigin ? <OriginTag origin={origin} /> : null}
                 </span>
                 {trailing != null ? (
                     <span className="shrink-0 text-right text-[11px] tabular-nums text-colorTextTertiary">
@@ -90,8 +99,10 @@ export const DriveFileRow = ({
     // card / tile — thumbnail-forward, "avg user friendly". Agent files show their path relative to
     // `agent-files/` (the tag already conveys the origin); session files show their raw folder.
     const rawFolder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null
+    // When the tag is shown, agent files drop the redundant `agent-files/` prefix (the tag conveys
+    // it). Without the tag, keep the raw folder so the origin still reads from the path.
     const folder =
-        origin === "agent"
+        showOrigin && origin === "agent"
             ? rawFolder === AGENT_FILES_DIR
                 ? null
                 : (rawFolder?.slice(AGENT_FILES_DIR.length + 1) ?? null)
@@ -107,11 +118,11 @@ export const DriveFileRow = ({
         ? {borderColor: AGENT_ACCENT, boxShadow: `0 0 0 1px ${AGENT_ACCENT}`}
         : undefined
     const meta =
-        origin === "agent" || folder || trailing != null ? (
+        showOrigin || folder || trailing != null ? (
             <>
-                {origin === "agent" ? (
+                {showOrigin ? (
                     <>
-                        <OriginTag />{" "}
+                        <OriginTag origin={origin} />{" "}
                     </>
                 ) : null}
                 {folder ? <>{folder} · </> : null}

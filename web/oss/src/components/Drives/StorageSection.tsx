@@ -26,23 +26,26 @@ import {DriveDrawer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
 import {humanSize, relativeTime} from "./driveTree"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
+import {driveHasMixedOrigins, useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
 
 const RecentFileRow = ({
     file,
     recent,
+    showOrigin,
     onOpen,
 }: {
     file: DriveRecentFile
     recent?: boolean
+    showOrigin?: boolean
     onOpen: () => void
 }) => (
     <DriveFileRow
         path={file.path}
         label={file.path}
         recent={recent}
+        showOrigin={showOrigin}
         trailing={
             <>
                 {humanSize(file.size)}
@@ -76,6 +79,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
 
     const drive = useSessionDrive(sessionId, artifactId ?? undefined)
     const now = useRecentChangeClock(drive.lastTouchedAt)
+    const showOrigin = driveHasMixedOrigins(drive.recents)
 
     return (
         <div className="flex flex-col gap-2">
@@ -100,6 +104,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                             key={file.path}
                             file={file}
                             recent={isRecentlyChanged(file.touchedAt, now)}
+                            showOrigin={showOrigin}
                             onOpen={() => openDrawer(file.path)}
                         />
                     ))}

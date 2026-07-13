@@ -17,7 +17,7 @@ import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {useSessionDrive} from "./useSessionDrive"
+import {driveHasMixedOrigins, useSessionDrive} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -137,6 +137,7 @@ const ExpandedRail = ({
     onQuickLook: (path: string) => void
 }) => {
     const now = useRecentChangeClock(drive.lastTouchedAt)
+    const showOrigin = driveHasMixedOrigins(drive.recents)
     return (
         <aside
             className="flex h-full flex-col overflow-y-auto border-0 border-l border-solid"
@@ -189,6 +190,7 @@ const ExpandedRail = ({
                                     path={file.path}
                                     file={resolved ? {...file, path: resolved.path} : file}
                                     mount={resolved?.mount ?? drive.mount}
+                                    showOrigin={showOrigin}
                                     recent={isRecentlyChanged(file.touchedAt, now)}
                                     trailing={
                                         file.touchedAt

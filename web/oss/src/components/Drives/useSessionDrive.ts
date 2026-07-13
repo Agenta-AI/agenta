@@ -30,6 +30,19 @@ export const fileOrigin = (path: string): FileOrigin => {
     return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`) ? "agent" : "session"
 }
 
+/** True when a listing holds BOTH agent and session files — the only time the origin tags/filter
+ * carry information (a single-origin drive doesn't need them). */
+export const driveHasMixedOrigins = (files: {path: string}[]): boolean => {
+    let agent = false
+    let session = false
+    for (const f of files) {
+        if (fileOrigin(f.path) === "agent") agent = true
+        else session = true
+        if (agent && session) return true
+    }
+    return false
+}
+
 export interface DriveRecentFile extends MountFile {
     /** Best-effort last-touched timestamp — from the file-activity signal log. The listing
      * carries NO mtime (backend ask: thread S3 LastModified through `MountFile`), so recency
