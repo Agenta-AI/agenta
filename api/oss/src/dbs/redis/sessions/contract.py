@@ -21,18 +21,20 @@ that omits it.
 The nest: alive ⊇ running ⊇ attached. attached ⟹ running ⟹ alive.
 """
 
+from oss.src.utils.env import env
+
 # ---------------------------------------------------------------------------
-# TTL constants (seconds)
+# TTL constants (seconds) — sourced from env.py; defaults match the golden
+# fixture (services/runner/tests/fixtures/sessions/redis_contract.json).
+# Changing a default requires updating that fixture and the TS side too.
 # ---------------------------------------------------------------------------
 
-ALIVE_TTL_SECONDS: int = 3600  # 1h — long-running agents; refreshed by heartbeat
-RUNNING_TTL_SECONDS: int = 3600  # = alive; set on turn start, cleared on turn end
-ATTACHED_TTL_SECONDS: int = 60  # 1min — client must refresh while watching
-OWNER_TTL_SECONDS: int = 120  # 2min — affinity; refreshed by heartbeat
-HEARTBEAT_INTERVAL_SECONDS: int = 30  # how often the runner sends a heartbeat
-HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = (
-    60  # min gap between Postgres last_seen_at writes
-)
+ALIVE_TTL_SECONDS: int = env.sessions.alive_ttl_seconds
+RUNNING_TTL_SECONDS: int = env.sessions.running_ttl_seconds
+ATTACHED_TTL_SECONDS: int = env.sessions.attached_ttl_seconds
+OWNER_TTL_SECONDS: int = env.sessions.owner_ttl_seconds
+HEARTBEAT_INTERVAL_SECONDS: int = env.sessions.heartbeat_interval_seconds
+HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = env.sessions.heartbeat_write_threshold_seconds
 
 # ---------------------------------------------------------------------------
 # Key builders
@@ -107,7 +109,9 @@ return current
 # Concurrency cap
 # ---------------------------------------------------------------------------
 
-CONCURRENCY_LIMIT: int = 1000  # per replica; over-limit → HTTP 429
+CONCURRENCY_LIMIT: int = (
+    env.sessions.concurrency_limit
+)  # per replica; over-limit → HTTP 429
 
 # ---------------------------------------------------------------------------
 # Session id validation
