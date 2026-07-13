@@ -46,6 +46,16 @@ export async function fetchMounts(sessionId: string, projectId?: string | null) 
     return client().sessions.querySessionMounts({session_id: sessionId}, scope(projectId))
 }
 
+// Fern has no query_agent_mount yet; migrate after client regeneration.
+export async function fetchAgentMount(artifactId: string, projectId?: string | null) {
+    const res = await axios.post<Awaited<ReturnType<typeof fetchMounts>>>(
+        `${getAgentaApiUrl()}/mounts/agents/query`,
+        {artifact_id: artifactId},
+        {params: {project_id: projectId}, _ignoreError: true} as Record<string, unknown>,
+    )
+    return res.data.mounts?.[0] ?? null
+}
+
 export async function fetchMountFiles(
     mountId: string,
     projectId?: string | null,

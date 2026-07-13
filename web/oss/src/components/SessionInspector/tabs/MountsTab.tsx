@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {
+    fetchAgentMount,
     fetchMountFileBlob,
     fetchMountFiles,
     fetchMountFileText,
@@ -289,29 +290,40 @@ const MountFilesPanel = ({mountId, projectId}: {mountId: string; projectId?: str
     )
 }
 
-const MountsTab = ({sessionId}: {sessionId: string}) => {
+const MountsTab = ({sessionId, artifactId}: {sessionId: string; artifactId?: string | null}) => {
     const projectId = useAtomValue(projectIdAtom)
 
-    const queryKey = ["session-inspector", "mounts", projectId, sessionId]
-    const {data, isLoading, error} = useQuery({
-        queryKey,
+    const mountsQuery = useQuery({
+        queryKey: ["session-inspector", "mounts", projectId, sessionId],
         queryFn: () => fetchMounts(sessionId, projectId),
         enabled: Boolean(sessionId),
         refetchOnWindowFocus: false,
     })
 
-    if (isLoading) return <Skeleton active />
-    if (error) return <Alert type="error" message="Failed to load mounts" showIcon />
+    const agentMountQuery = useQuery({
+        queryKey: ["session-inspector", "agent-mount", projectId, artifactId],
+        queryFn: () => fetchAgentMount(artifactId!, projectId),
+        enabled: Boolean(artifactId),
+        refetchOnWindowFocus: false,
+    })
 
-    const mounts = data?.mounts ?? []
-    if (!mounts.length) return <Empty description="No mounts bound to this session" />
+    const mounts = mountsQuery.data?.mounts ?? []
 
     // File ops need a concrete mount id; a mount row without one can't be browsed.
     const mountsWithId = mounts.filter((mount): mount is typeof mount & {id: string} =>
         Boolean(mount.id),
     )
+    const agentMountId = agentMountQuery.data?.id
 
-    return (
+    // The session mount lives inside the agent's durable folder (the runner symlinks it in as
+    // `agent-files/`), so render it nested under the agent-files panel rather than as a sibling
+    // section. Presentation only: each mount keeps its own id and its own file-listing query;
+    // this only changes how the two are grouped on screen.
+    const sessionMountsSection = mountsQuery.isLoading ? (
+        <Skeleton active />
+    ) : mountsQuery.error ? (
+        <Alert type="error" message="Failed to load mounts" showIcon />
+    ) : mountsWithId.length ? (
         <Collapse
             size="small"
             items={mountsWithId.map((mount) => ({
@@ -328,6 +340,54 @@ const MountsTab = ({sessionId}: {sessionId: string}) => {
                 children: <MountFilesPanel mountId={mount.id} projectId={projectId} />,
             }))}
         />
+    ) : (
+        <Empty description="No mounts bound to this session" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+    )
+
+    return (
+        <div className="flex flex-col gap-4">
+            {artifactId ? (
+                agentMountQuery.isLoading ? (
+                    <Skeleton active />
+                ) : agentMountQuery.error ? (
+                    <Alert type="error" message="Failed to load agent files" showIcon />
+                ) : agentMountId ? (
+                    <Collapse
+                        size="small"
+                        items={[
+                            {
+                                key: agentMountId,
+                                label: "Agent files",
+                                children: (
+                                    <div className="flex flex-col gap-3">
+                                        <MountFilesPanel
+                                            mountId={agentMountId}
+                                            projectId={projectId}
+                                        />
+                                        <div className="flex flex-col gap-2 border-0 border-l-2 border-solid border-colorBorderSecondary pl-3">
+                                            <Text
+                                                type="secondary"
+                                                className="text-xs font-medium uppercase tracking-wide"
+                                            >
+                                                Session (this conversation)
+                                            </Text>
+                                            {sessionMountsSection}
+                                        </div>
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        <Text type="secondary">No agent files yet.</Text>
+                        {sessionMountsSection}
+                    </div>
+                )
+            ) : (
+                sessionMountsSection
+            )}
+        </div>
     )
 }
 

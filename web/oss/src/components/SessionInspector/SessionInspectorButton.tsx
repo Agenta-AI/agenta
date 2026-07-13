@@ -7,10 +7,12 @@ import {openSessionInspectorAtom} from "./store"
 /** Session-inspector trigger; disabled until a backend session_id exists. */
 const SessionInspectorButton = ({
     sessionId,
+    artifactId,
     iconSize = 14,
     className,
 }: {
     sessionId: string | null
+    artifactId?: string | null
     /** Icon px, so dense contexts (rail rows) can match their sibling action icons. */
     iconSize?: number
     className?: string
@@ -24,10 +26,10 @@ const SessionInspectorButton = ({
             <Button
                 type="text"
                 size="small"
-                icon={<MagnifyingGlass size={14} />}
+                icon={<MagnifyingGlass size={iconSize} />}
                 aria-label="Inspect session"
                 disabled={!sessionId}
-                onClick={() => sessionId && open(sessionId)}
+                onClick={() => sessionId && open(sessionId, artifactId ?? null)}
                 className={className}
             />
         </Tooltip>

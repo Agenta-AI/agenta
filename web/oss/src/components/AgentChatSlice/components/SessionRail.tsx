@@ -30,6 +30,7 @@ import {SessionStatusDot} from "./SessionTagBar"
 
 interface SessionRailRowProps {
     session: AgentChatSession
+    artifactId?: string | null
     label: string
     active: boolean
     open: boolean
@@ -43,6 +44,7 @@ interface SessionRailRowProps {
  * enter/exit so nothing snaps. */
 const SessionRailRow = ({
     session,
+    artifactId,
     label,
     active,
     open,
@@ -105,6 +107,7 @@ const SessionRailRow = ({
                     {active && (
                         <SessionInspectorButton
                             sessionId={session.id}
+                            artifactId={artifactId}
                             iconSize={12}
                             className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
                         />
@@ -142,6 +145,7 @@ const SessionRailRow = ({
 export interface SessionRailProps {
     /** The resolved active session id (source of truth for the chat), used for row highlight. */
     activeId?: string
+    artifactId?: string | null
     /** Disable the New session (+) button (e.g. onboarding, until the founding run settles). */
     addDisabled?: boolean
     className?: string
@@ -153,7 +157,7 @@ export interface SessionRailProps {
  * the two stay consistent, and uses the space freed by maximizing to make every past session
  * directly reachable. Clicking a row reopens it as the active tab; rename inline, delete permanently.
  */
-const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProps) => {
+const SessionRail = ({activeId, artifactId, addDisabled = false, className}: SessionRailProps) => {
     const scope = useChatScopeKey()
     const history = useAtomValue(sessionHistoryAtomFamily(scope))
     const openIds = useAtomValue(openSessionIdsAtomFamily(scope))
@@ -239,6 +243,7 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                             <SessionRailRow
                                 key={session.id}
                                 session={session}
+                                artifactId={artifactId}
                                 label={label}
                                 active={session.id === currentActiveId}
                                 open={openIds.has(session.id)}
