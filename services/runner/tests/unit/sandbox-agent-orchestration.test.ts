@@ -667,6 +667,80 @@ describe("runSandboxAgent orchestration", () => {
     );
   });
 
+  it("re-signs and remounts the agent mount when an ACP event reports ENOTCONN", async () => {
+    // Sessionless: exercises the agent-mount-only recovery gate.
+    const cwd = join(
+      tmpdir(),
+      `agenta-agent-mount-enotconn-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { deps } = fakeHarness({
+      cwd,
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              kind: "tool_result",
+              content:
+                "cat 'agent-files/notes.md': Transport endpoint is not connected",
+            },
+          },
+        },
+      ],
+    });
+    const seenMountAccessKeys: string[] = [];
+    let signAgentCalls = 0;
+    let mountCalls = 0;
+
+    deps.signAgentMountCredentials = (async () => {
+      signAgentCalls += 1;
+      return {
+        endpoint: "http://seaweedfs:8333",
+        region: "us-east-1",
+        bucket: "agenta-store",
+        prefix: "mounts/proj-1/agent-1",
+        accessKey: `AK-${signAgentCalls}`,
+        secretKey: `SK-${signAgentCalls}`,
+        sessionToken: `TOK-${signAgentCalls}`,
+      };
+    }) as any;
+    deps.mountStorage = (async (_path: string, creds: any) => {
+      mountCalls += 1;
+      seenMountAccessKeys.push(creds.accessKey);
+      return true;
+    }) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      signAgentCalls,
+      2,
+      "initial sign + one capped runtime re-sign after ENOTCONN",
+    );
+    assert.equal(
+      mountCalls,
+      2,
+      "initial agent mount + one capped runtime remount after ENOTCONN",
+    );
+    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(`${cwd}-agent`, { recursive: true, force: true });
+  });
+
   it("skips the durable cwd delete when unmount is not confirmed", async () => {
     // A failed/still-mounted unmount must never be followed by rmSync on the cwd — that would
     // delete through a possibly-live FUSE mount into the durable store.

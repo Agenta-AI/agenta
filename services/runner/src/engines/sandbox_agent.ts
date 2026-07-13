@@ -1037,6 +1037,38 @@ export async function acquireEnvironment(
       return false;
     }
   };
+  let localAgentMountEnotconnRemounts = 0;
+  const reSignAndRemountLocalAgentMount = async (): Promise<boolean> => {
+    if (!artifactId || !runCred || plan.isDaytona) return false;
+    if (
+      localAgentMountEnotconnRemounts >=
+      LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT
+    ) {
+      logger(
+        `local agent mount ENOTCONN remount limit reached artifact=${artifactId} path=${agentMountPath(plan.cwd)}`,
+      );
+      return false;
+    }
+    localAgentMountEnotconnRemounts += 1;
+    logger(
+      `local agent mount ENOTCONN artifact=${artifactId}; re-signing and remounting`,
+    );
+    const fresh = await signAgentMount(artifactId, {
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+    if (!fresh) {
+      logger(
+        `local agent mount re-sign returned no credentials artifact=${artifactId}`,
+      );
+      return false;
+    }
+    environment.agentMountCreds = fresh;
+    // Clear the marker so mountLocalAgentCwd remounts instead of short-circuiting.
+    environment.agentMountedPath = undefined;
+    return mountLocalAgentCwd();
+  };
   let localDurableCwdEnotconnRemounts = 0;
   const reSignAndRemountLocalCwd = async (): Promise<boolean> => {
     if (!sessionForMount || !runCred || plan.isDaytona) return false;
@@ -1068,19 +1100,29 @@ export async function acquireEnvironment(
     return mountLocalDurableCwd("enotconn-retry");
   };
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown): void => {
-    if (plan.isDaytona || !environment.mountCreds || !environment.mountedCwd)
-      return;
+    if (plan.isDaytona) return;
+    // The event cannot say which mount broke; remount every eligible one (alive mounts no-op).
+    const cwdEligible = !!environment.mountCreds && !!environment.mountedCwd;
+    const agentEligible =
+      !!environment.agentMountCreds && !!environment.agentMountedPath;
+    if (!cwdEligible && !agentEligible) return;
     if (
       environment.runtimeRemount ||
       !containsTransportEndpointDisconnected(event)
     )
       return;
     logger(
-      `local durable cwd ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
+      `local durable mount ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
     );
-    environment.runtimeRemount = reSignAndRemountLocalCwd().catch((err) => {
+    environment.runtimeRemount = (async () => {
+      const cwdOk = cwdEligible ? await reSignAndRemountLocalCwd() : true;
+      const agentOk = agentEligible
+        ? await reSignAndRemountLocalAgentMount()
+        : true;
+      return cwdOk && agentOk;
+    })().catch((err) => {
       logger(
-        `local durable cwd runtime remount failed session=${sessionForMount}: ${conciseError(err, plan.harness)}`,
+        `local durable mount runtime remount failed session=${sessionForMount}: ${conciseError(err, plan.harness)}`,
       );
       return false;
     });

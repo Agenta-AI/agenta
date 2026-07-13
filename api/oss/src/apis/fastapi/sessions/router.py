@@ -943,6 +943,16 @@ class SessionMountsRouter:
             status_code=status.HTTP_200_OK,
         )
 
+    async def _check(self, request: Request, *permissions: Permission) -> None:
+        # Session mounts sit in both domains: the caller needs the session AND mounts permission.
+        for permission in permissions:
+            if not await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=permission,
+            ):
+                raise FORBIDDEN_EXCEPTION
+
     @intercept_exceptions()
     async def fetch_session_mounts(
         self,
@@ -951,12 +961,7 @@ class SessionMountsRouter:
         session_id: str = Query(...),
         include_archived: bool = Query(default=False),
     ) -> SessionMountsResponse:
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
+        await self._check(request, Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS)
 
         mounts = await self.session_mounts_service.query_mounts(
             project_id=UUID(request.state.project_id),
@@ -978,12 +983,7 @@ class SessionMountsRouter:
         session_id: Optional[str] = Query(default=None),
         include_archived: bool = Query(default=False),
     ) -> SessionMountsResponse:
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
+        await self._check(request, Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS)
 
         # session_id is required for the session-scoped view; query param wins, then body.
         resolved_session_id = session_id or (
@@ -1029,12 +1029,7 @@ class SessionMountsRouter:
     ) -> MountCredentialsResponse:
         _validate_session_id_http(session_id)
 
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
+        await self._check(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
 
         mount = await self.mounts_service.get_or_create_session_mount(
             project_id=UUID(request.state.project_id),
@@ -1060,12 +1055,7 @@ class SessionMountsRouter:
         file: UploadFile,
         path: Optional[str] = Query(default=None),
     ) -> MountFileWrittenResponse:
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
+        await self._check(request, Permission.EDIT_SESSIONS, Permission.EDIT_MOUNTS)
 
         written = await upload_mount_file(
             mounts_service=self.mounts_service,
@@ -1085,12 +1075,7 @@ class SessionMountsRouter:
         *,
         path: str = Query(...),
     ):
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
+        await self._check(request, Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS)
 
         return await download_mount_file(
             mounts_service=self.mounts_service,

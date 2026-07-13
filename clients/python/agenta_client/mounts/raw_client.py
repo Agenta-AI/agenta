@@ -133,6 +133,100 @@ class RawMountsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def sign_agent_mount_credentials(self, *, artifact_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountCredentialsResponse]:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[MountCredentialsResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "mounts/agents/sign",method="POST",
+            params={"artifact_id": artifact_id, "name": name, }
+            ,
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    MountCredentialsResponse,
+                    parse_obj_as(
+                        type_ =MountCredentialsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def query_agent_mount(self, *, artifact_id: str, name: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountsResponse]:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[MountsResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "mounts/agents/query",method="POST",
+            json={
+                "artifact_id": artifact_id,
+                "name": name,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    MountsResponse,
+                    parse_obj_as(
+                        type_ =MountsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def fetch_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountResponse]:
         """
         Parameters
@@ -701,6 +795,100 @@ class AsyncRawMountsClient:
             json={
                 "mount": convert_and_respect_annotation_metadata(object_=mount, annotation=typing.Optional[MountQuery], direction="write"),
                 "windowing": convert_and_respect_annotation_metadata(object_=windowing, annotation=typing.Optional[Windowing], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    MountsResponse,
+                    parse_obj_as(
+                        type_ =MountsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def sign_agent_mount_credentials(self, *, artifact_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountCredentialsResponse]:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[MountCredentialsResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "mounts/agents/sign",method="POST",
+            params={"artifact_id": artifact_id, "name": name, }
+            ,
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    MountCredentialsResponse,
+                    parse_obj_as(
+                        type_ =MountCredentialsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def query_agent_mount(self, *, artifact_id: str, name: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountsResponse]:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[MountsResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "mounts/agents/query",method="POST",
+            json={
+                "artifact_id": artifact_id,
+                "name": name,
             }
             ,
             headers={"content-type": "application/json", }

@@ -71,7 +71,9 @@ export function buildDaytonaCreate(
   secrets: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
 ): Record<string, unknown> {
-  const snapshot = process.env.DAYTONA_SNAPSHOT;
+  // Agent override first, then the snapshot shared with the code evaluators.
+  const snapshot =
+    process.env.DAYTONA_SNAPSHOT_AGENT ?? process.env.DAYTONA_SNAPSHOT;
   const target = process.env.DAYTONA_TARGET;
   return {
     // The sandbox-agent provider always sets a default `image`, which Daytona turns into a
@@ -99,8 +101,9 @@ export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
 /**
  * Build the sandbox-agent provider for the requested axis.
  *
- * Daytona needs an image or snapshot that carries the daemon and harness CLI. The
- * code-evaluator `DAYTONA_SNAPSHOT` is intentionally not reused because it has no daemon.
+ * Daytona needs an image or snapshot that carries the daemon and harness CLI: the shared
+ * `DAYTONA_SNAPSHOT` (which the build recipe equips for code evaluators too), or the
+ * `DAYTONA_SNAPSHOT_AGENT` override when the two consumers must diverge.
  * Provider keys come from the request secrets. Pi's self-managed login is only uploaded
  * when no key is available. The Layer 2 network policy (S1b) is enforced on Daytona via
  * `networkBlockAll` / `networkAllowList`; `buildRunPlan` rejects restricted policies the

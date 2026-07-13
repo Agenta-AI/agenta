@@ -170,6 +170,11 @@ class Permission(str, Enum):
     EDIT_SESSIONS = "edit_sessions"
     RUN_SESSIONS = "run_sessions"
 
+    # Mounts
+    VIEW_MOUNTS = "view_mounts"
+    EDIT_MOUNTS = "edit_mounts"
+    USE_MOUNTS = "use_mounts"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
@@ -195,6 +200,7 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION_QUEUES,
             cls.VIEW_TOOLS,
             cls.VIEW_TRIGGERS,
+            cls.VIEW_MOUNTS,
         ]
         ANNOTATOR_PERMISSIONS = VIEWER_PERMISSIONS + [
             cls.EDIT_ANNOTATIONS,
@@ -216,6 +222,8 @@ class Permission(str, Enum):
             cls.RUN_WORKFLOWS,
             cls.EDIT_SESSIONS,
             cls.RUN_SESSIONS,
+            cls.EDIT_MOUNTS,
+            cls.USE_MOUNTS,
             cls.EDIT_EVALUATORS,
             cls.EDIT_QUERIES,
             cls.EDIT_TESTSETS,
