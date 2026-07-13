@@ -18,7 +18,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/mcp-servers.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import { toAcpMcpServers } from "../../src/engines/sandbox_agent.ts";
@@ -100,7 +100,12 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
 
 describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
   const previousAllowlist = process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST;
+  // Egress defaults permissive (unset -> allowed); this suite exercises the guard, so arm it.
+  beforeEach(() => {
+    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "false";
+  });
   afterEach(() => {
+    delete process.env.AGENTA_INSECURE_EGRESS_ALLOWED;
     if (previousAllowlist === undefined)
       delete process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST;
     else process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST = previousAllowlist;
