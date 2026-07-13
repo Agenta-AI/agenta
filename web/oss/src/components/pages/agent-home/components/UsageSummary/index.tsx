@@ -3,9 +3,12 @@ import {useMemo, useState} from "react"
 import {formatNumber} from "@agenta/shared/utils"
 import {CaretDown, CaretUp, ChartLineIcon} from "@phosphor-icons/react"
 import {Button} from "antd"
+import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import Sort from "@/oss/components/Filters/Sort"
 import {useObservabilityDashboard} from "@/oss/state/observability"
+import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
 // Reuse the full observability charts for the expanded view (default range = 30 days).
 const AnalyticsDashboard = dynamic(
@@ -19,10 +22,11 @@ const StatItem = ({label, value}: {label: string; value: string}) => (
     </div>
 )
 
-/** Collapsed 30-day usage strip; expands to the full observability charts. */
+/** Usage summary with an optional expanded observability dashboard. */
 const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) => {
     const [expanded, setExpanded] = useState(false)
     const {data} = useObservabilityDashboard()
+    const [timeRange, setTimeRange] = useAtom(observabilityDashboardTimeRangeAtom)
 
     const stats = useMemo(
         () => [
@@ -47,9 +51,13 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                         <span className="text-[14.5px] font-semibold text-[var(--ag-colorText)]">
                             Usage
                         </span>
-                        <span className="text-[12.5px] text-[var(--ag-colorTextTertiary)]">
-                            last 30 days
-                        </span>
+                        <Sort
+                            type="text"
+                            onSortApply={setTimeRange}
+                            defaultSortValue={timeRange.label || "1 month"}
+                            exclude={["all time"]}
+                            ariaLabel="Usage date range"
+                        />
                     </div>
                     <div className="ml-4 flex flex-wrap items-center gap-8">
                         {stats.map((stat) => (
@@ -80,7 +88,9 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                     </button>
                 </div>
 
-                {expanded ? <AnalyticsDashboard layout="grid-4" /> : null}
+                {expanded ? (
+                    <AnalyticsDashboard layout="grid-4" showTimeRangeSelector={false} />
+                ) : null}
             </section>
         )
     }
@@ -91,9 +101,13 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                 <div className="flex items-center gap-2">
                     <ChartLineIcon size={16} className="text-[var(--ag-colorTextSecondary)]" />
                     <span className="text-xs font-medium">Usage</span>
-                    <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
-                        last 30 days
-                    </span>
+                    <Sort
+                        type="text"
+                        onSortApply={setTimeRange}
+                        defaultSortValue={timeRange.label || "1 month"}
+                        exclude={["all time"]}
+                        ariaLabel="Usage date range"
+                    />
                 </div>
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
                     {stats.map((stat) => (
@@ -110,7 +124,7 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                 </Button>
             </div>
 
-            {expanded ? <AnalyticsDashboard layout="grid-4" /> : null}
+            {expanded ? <AnalyticsDashboard layout="grid-4" showTimeRangeSelector={false} /> : null}
         </section>
     )
 }
