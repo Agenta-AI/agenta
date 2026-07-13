@@ -316,17 +316,20 @@ class ObjectStore:
         *,
         bucket: str,
         prefix: str,
-    ) -> List[Tuple[str, int]]:
-        """Return (key, size) for every object under `prefix`."""
+    ) -> List[Tuple[str, int, Optional[int]]]:
+        """Return (key, size, last_modified_ms) for every object under `prefix`. `last_modified_ms`
+        is the object store's LastModified as epoch milliseconds, or None when the store omits it."""
         client = self._client()
-        results: List[Tuple[str, int]] = []
+        results: List[Tuple[str, int, Optional[int]]] = []
         # list_objects returns an async iterator directly (not a coroutine) and manages its
         # own http session; iterate it, do not `await` or `async with` the client. It can yield
         # a trailing None on an empty/last page, so skip falsy entries.
         async for obj in client.list_objects(bucket, prefix=prefix, recursive=True):
             if obj is None:
                 continue
-            results.append((obj.object_name, obj.size or 0))
+            last_modified = getattr(obj, "last_modified", None)
+            mtime = int(last_modified.timestamp() * 1000) if last_modified else None
+            results.append((obj.object_name, obj.size or 0, mtime))
         return results
 
     async def get_object(
@@ -388,5 +391,5 @@ class ObjectStore:
     ) -> int:
         """Delete every key under `prefix` (cascades a folder). Returns count."""
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
-        keys = [key for key, _ in objects]
+        keys = [key for key, *_ in objects]
         return await self.delete_keys(bucket=bucket, keys=keys)

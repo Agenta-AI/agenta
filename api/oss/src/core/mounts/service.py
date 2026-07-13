@@ -451,7 +451,7 @@ class MountsService:
         mount_base = base + "/"
         files: List[MountFile] = []
         folders: set[str] = set()
-        for key, size in objects:
+        for key, size, mtime in objects:
             rel = key[len(mount_base) :] if key.startswith(mount_base) else key
             # Hide bare trailing-slash marker objects (empty-folder markers).
             if key.endswith("/"):
@@ -459,7 +459,7 @@ class MountsService:
                 if folder_rel:
                     folders.add(folder_rel)
                 continue
-            files.append(MountFile(path=rel, size=size))
+            files.append(MountFile(path=rel, size=size, mtime=mtime))
 
         existing = {f.path for f in files}
         for folder_rel in sorted(folders):
@@ -559,14 +559,14 @@ class MountsService:
             bucket=bucket,
             prefix=folder_prefix,
         )
-        keys = [key for key, _ in objects]
+        keys = [key for key, *_ in objects]
 
         # The exact file (or the folder marker) may also exist alongside contents.
         single = await self.mounts_store.list_objects_v2(
             bucket=bucket,
             prefix=exact_key,
         )
-        if any(key == exact_key for key, _ in single):
+        if any(key == exact_key for key, *_ in single):
             keys.append(exact_key)
 
         unique_keys = list(dict.fromkeys(keys))

@@ -148,6 +148,8 @@ export const mountFileSchema = z.object({
     path: z.string(),
     size: z.number().nullish(),
     is_folder: z.boolean().nullish(),
+    /** Object-store LastModified as epoch ms — the recency source for "newest first" ordering. */
+    mtime: z.number().nullish(),
 })
 
 export const mountFileListResponseSchema = z.object({
