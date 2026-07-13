@@ -28,7 +28,10 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     conn = op.get_bind()
 
-    # Only add each key where absent — never overwrite an already-set value.
+    # Only add each key where absent — never overwrite an already-set value. Each row
+    # records which keys THIS backfill added, under a private marker key: an explicit
+    # false is otherwise indistinguishable from one a caller stored, and downgrade must
+    # not strip the latter.
     conn.execute(
         sa.text(
             """
@@ -38,6 +41,13 @@ def upgrade() -> None:
                         THEN '{"is_agent": false}'::jsonb ELSE '{}'::jsonb END
                 || CASE WHEN NOT (COALESCE(flags, '{}'::jsonb) ? 'is_skill')
                         THEN '{"is_skill": false}'::jsonb ELSE '{}'::jsonb END
+                || jsonb_build_object(
+                       '__oss000000010__',
+                       (CASE WHEN NOT (COALESCE(flags, '{}'::jsonb) ? 'is_agent')
+                             THEN '["is_agent"]'::jsonb ELSE '[]'::jsonb END)
+                       || (CASE WHEN NOT (COALESCE(flags, '{}'::jsonb) ? 'is_skill')
+                                THEN '["is_skill"]'::jsonb ELSE '[]'::jsonb END)
+                   )
             WHERE flags IS NULL
                OR NOT (flags ? 'is_agent')
                OR NOT (flags ? 'is_skill')
@@ -47,16 +57,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Strip only the false values this backfill added; leave rows that carried
-    # a real (true) value or predate the keys untouched beyond the removal.
     conn = op.get_bind()
+
+    # Strip only the keys this backfill added, per row, then drop the marker.
     conn.execute(
         sa.text(
             """
             UPDATE workflow_revisions
-            SET flags = flags - 'is_agent' - 'is_skill'
-            WHERE (flags ->> 'is_agent') = 'false'
-               OR (flags ->> 'is_skill') = 'false'
+            SET flags = (
+                    SELECT COALESCE(jsonb_object_agg(kv.key, kv.value), '{}'::jsonb)
+                    FROM jsonb_each(flags) AS kv
+                    WHERE kv.key <> '__oss000000010__'
+                      AND NOT (flags -> '__oss000000010__' ? kv.key)
+                )
+            WHERE flags ? '__oss000000010__'
             """
         )
     )
