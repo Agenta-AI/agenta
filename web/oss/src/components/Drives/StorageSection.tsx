@@ -12,7 +12,7 @@ import {useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {CaretRight} from "@phosphor-icons/react"
-import {Typography} from "antd"
+import {Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
@@ -83,21 +83,11 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
 
     return (
         <div className="flex flex-col gap-2">
-            {!sessionId ? (
-                <Text type="secondary" className="!text-xs">
-                    No conversation open yet — the agent&rsquo;s working files appear here once a
-                    chat starts.
-                </Text>
-            ) : drive.errored ? (
-                <Text type="secondary" className="!text-xs">
-                    Couldn&rsquo;t load files — the file store may not be configured on this
-                    deployment.
-                </Text>
-            ) : drive.fileCount === 0 ? (
-                <Text type="secondary" className="!text-xs">
-                    No files yet — the agent gets its working folder on the first run.
-                </Text>
-            ) : (
+            {drive.isLoading ? (
+                <Skeleton active title={false} paragraph={{rows: 2}} className="px-1" />
+            ) : drive.fileCount > 0 ? (
+                // Files win regardless of session status — the agent's durable folder is per-artifact,
+                // so it shows even before any conversation opens.
                 <div className="flex flex-col">
                     {drive.recents.slice(0, 5).map((file) => (
                         <RecentFileRow
@@ -119,6 +109,20 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                         </button>
                     ) : null}
                 </div>
+            ) : drive.errored ? (
+                <Text type="secondary" className="!text-xs">
+                    Couldn&rsquo;t load files — the file store may not be configured on this
+                    deployment.
+                </Text>
+            ) : !sessionId ? (
+                <Text type="secondary" className="!text-xs">
+                    No conversation open yet — the agent&rsquo;s working files appear here once a
+                    chat starts.
+                </Text>
+            ) : (
+                <Text type="secondary" className="!text-xs">
+                    No files yet — the agent gets its working folder on the first run.
+                </Text>
             )}
 
             <DriveDrawer

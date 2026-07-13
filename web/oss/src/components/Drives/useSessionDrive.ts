@@ -120,10 +120,13 @@ export function useSessionDrive(sessionId: string, artifactId?: string): Session
             return mount ? {mount, path: rel} : null
         }
 
-        // Newest signal wins per file; matching is tail-based (tool paths are absolute/relative).
-        // Seed from the durable record log first, then let the live browser activity (fresher, same
-        // turn) raise it — Math.max folds both without double-counting.
+        // Base recency = the object store's mtime — covers files made ANY way (bash-run scripts,
+        // uploads, Write tools). The tool-event signals below can only raise it (Math.max).
         const touchedAt = new Map<string, number>()
+        for (const file of files) {
+            if (typeof file.mtime === "number") touchedAt.set(file.path, file.mtime)
+        }
+        // Newest signal wins per file; matching is tail-based (tool paths are absolute/relative).
         const stamp = (toolPath: string, at: number) => {
             for (const file of files) {
                 if (mountPathMatchesToolPath(file.path, toolPath)) {
@@ -145,12 +148,14 @@ export function useSessionDrive(sessionId: string, artifactId?: string): Session
         // Disabled queries (no session) stay isPending forever — an empty id means "no drive",
         // not "loading". The agent mount is optional: it only contributes loading/error when an
         // artifact was supplied AND a mount resolved.
+        // The agent mount is artifact-scoped, so it loads (and shows files) with no session at all.
         const agentPending =
             Boolean(artifactId) &&
             (agentMountQuery.isPending || Boolean(agentMount && agentFilesQuery.isPending))
         const isLoading =
-            Boolean(sessionId) &&
-            (mountsQuery.isPending || Boolean(mount && filesQuery.isPending) || agentPending)
+            (Boolean(sessionId) &&
+                (mountsQuery.isPending || Boolean(mount && filesQuery.isPending))) ||
+            agentPending
         const errored =
             Boolean(sessionId) &&
             ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
