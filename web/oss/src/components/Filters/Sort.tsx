@@ -78,6 +78,7 @@ interface Props {
     type?: "link" | "text" | "default" | "primary" | "dashed"
     disabled?: boolean
     exclude?: SortTypes[]
+    ariaLabel?: string
 }
 
 const SORT_PRESETS: SortPresetMeta[] = [
@@ -93,7 +94,14 @@ const SORT_PRESETS: SortPresetMeta[] = [
     {label: "all time"},
 ]
 
-const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, exclude}) => {
+const Sort: React.FC<Props> = ({
+    onSortApply,
+    defaultSortValue,
+    type,
+    disabled,
+    exclude,
+    ariaLabel,
+}) => {
     const classes = useStyles()
 
     const [sort, setSort] = useState<SortTypes>(defaultSortValue)
@@ -301,6 +309,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue, type, disabled, e
                     disabled={disabled}
                     icon={<Calendar size={14} className="mt-0.5" />}
                     onClick={() => setDropdownVisible(true)}
+                    aria-label={ariaLabel}
                     className="flex items-center gap-2"
                 >
                     {sort ? (
