@@ -97,7 +97,7 @@ import {
   uploadToolMcpAssets,
   type ToolMcpAssets,
 } from "./sandbox_agent/tool-mcp-assets.ts";
-import { advertisedToolSpecs } from "../tools/public-spec.ts";
+import { advertisedToolSpecs, toolSpecsByName } from "../tools/public-spec.ts";
 import { buildRelayExecutionGuard } from "./sandbox_agent/relay-guard.ts";
 import {
   PendingApprovalLatch,
@@ -249,8 +249,7 @@ function shouldSuppressPausedToolCallUpdate(
   pause: PendingApprovalPauseController,
 ): boolean {
   const frame = update as
-    | { sessionUpdate?: unknown; toolCallId?: unknown }
-    | undefined;
+    { sessionUpdate?: unknown; toolCallId?: unknown } | undefined;
   const kind = frame?.sessionUpdate;
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
   const toolCallId =
@@ -593,8 +592,7 @@ export interface SessionEnvironment {
 }
 
 export type AcquireEnvironmentResult =
-  | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
 
 /**
  * Sign the session's durable mount up front so keep-alive can build a pool key (the mount's
@@ -909,13 +907,13 @@ export async function acquireEnvironment(
     if (!parked && !plan.isDaytona && environment.agentMountedPath) {
       const agentMountSafeToDelete = await (
         environment.deps.unmountStorage ?? unmountStorage
-      )(
-        environment.agentMountedPath,
-        { log },
-      ).catch(() => false);
+      )(environment.agentMountedPath, { log }).catch(() => false);
       if (agentMountSafeToDelete) {
         try {
-          rmSync(environment.agentMountedPath, { recursive: true, force: true });
+          rmSync(environment.agentMountedPath, {
+            recursive: true,
+            force: true,
+          });
         } catch (err) {
           logger(
             `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
@@ -1350,12 +1348,9 @@ export async function acquireEnvironment(
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
-          await linkAgentFilesRemote(
-            environment.sandbox,
-            plan.cwd,
-            mountPath,
-            { log: logger },
-          );
+          await linkAgentFilesRemote(environment.sandbox, plan.cwd, mountPath, {
+            log: logger,
+          });
           await activateAgentMountGuidance();
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
@@ -1895,6 +1890,9 @@ export async function runTurn(
       void resolveInteraction(sessionId, token, () => cred);
     };
     const serverPermissions = serverPermissionsFromRequest(request);
+    // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
+    // the approval card and the guard cannot disagree about a tool's permission/readOnly.
+    const specsByName = toolSpecsByName(plan.toolSpecs);
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
     // `currentTurn`. A capturing shim reuses attachPermissionResponder unchanged; its
@@ -1916,6 +1914,7 @@ export async function runTurn(
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: resolveInteractionToken,
+      toolSpecsByName: specsByName,
       // Pi runs only: presence of the specs map turns Pi gate envelope detection on AND is how
       // the runner recovers specPermission/readOnlyHint (the envelope carries identity, never
       // policy). Absent for Claude, so a title collision there keeps the base path.

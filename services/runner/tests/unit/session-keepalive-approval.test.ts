@@ -1210,12 +1210,18 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
   it("a client-tool MCP pause is NOT parkable and tears down cold, even in park mode", async () => {
     const { calls, deps, captured } = pausableHarness({ clientTool: true });
-    const acquired = await acquireEnvironment(engineReq, deps);
+    // The client spec is resolved by NAME from the run's customTools (the run plan, built here)
+    // — a real ACP tool-call never carries the spec inline.
+    const clientReq: AgentRunRequest = {
+      ...engineReq,
+      customTools: [{ name: "browser", kind: "client" }],
+    };
+    const acquired = await acquireEnvironment(clientReq, deps);
     assert.equal(acquired.ok, true);
     if (!acquired.ok) return;
     const env = acquired.env;
 
-    const p1 = runTurn(env, engineReq, undefined, undefined, {
+    const p1 = runTurn(env, clientReq, undefined, undefined, {
       approvalParkMode: true,
     });
     await flush();
@@ -1224,11 +1230,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     captured.onPermissionRequest!({
       id: "perm-c",
       availableReplies: ["once", "reject"],
-      toolCall: {
-        toolCallId: "tc-client",
-        name: "browser",
-        spec: { kind: "client", name: "browser" },
-      },
+      toolCall: { toolCallId: "tc-client", name: "browser" },
     });
     await flush();
     const r1 = await p1;
