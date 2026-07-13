@@ -1,5 +1,6 @@
 import {lazy, Suspense, useEffect, useRef, useState} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Splitter, Tabs} from "antd"
 import clsx from "clsx"
@@ -52,6 +53,7 @@ const RAIL_MAX_WIDTH = 480
  * `buildAgentRequest` against the current `entityId` (so the run always uses the live draft config).
  */
 const AgentChatPanel = ({entityId}: {entityId: string}) => {
+    const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
     const scope = useChatScopeKey()
     // Pre-commit onboarding: one ephemeral session, no multi-session UX — hide the whole session bar
     // (tabs / new / search / history). Stays hidden through the commit + first send, then eases in a beat
@@ -144,6 +146,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                         <MountFade className="h-full w-full">
                             <SessionRail
                                 activeId={activeId}
+                                artifactId={artifactId}
                                 addDisabled={addLocked}
                                 className="h-full w-full min-w-[240px]"
                             />
@@ -186,6 +189,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                                 <>
                                                     <SessionInspectorButton
                                                         sessionId={activeId ?? null}
+                                                        artifactId={artifactId}
                                                     />
                                                     <SessionHistoryMenu />
                                                 </>

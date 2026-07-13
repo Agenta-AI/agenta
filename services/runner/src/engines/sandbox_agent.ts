@@ -30,7 +30,7 @@
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
-import { rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
 
@@ -42,7 +42,6 @@ import {
 } from "../tracing/otel.ts";
 import {
   localRelayHost,
-  redactContextBoundArgs,
   sandboxRelayHost,
   startToolRelay,
   type RelayExecutionGuard,
@@ -90,10 +89,17 @@ import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
+  uploadSystemPromptToSandbox,
+  writeSystemPromptLocal,
   writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
-  decide,
+  uploadToolMcpAssets,
+  type ToolMcpAssets,
+} from "./sandbox_agent/tool-mcp-assets.ts";
+import { advertisedToolSpecs } from "../tools/public-spec.ts";
+import { buildRelayExecutionGuard } from "./sandbox_agent/relay-guard.ts";
+import {
   PendingApprovalLatch,
   permissionsFromRequest,
 } from "../permission-plan.ts";
@@ -140,6 +146,21 @@ import {
   storeReachableFromSandbox,
   type MountCredentials,
 } from "./sandbox_agent/mount.ts";
+import {
+  AGENT_MOUNT_ENV_VAR,
+  agentMountPath,
+  linkAgentFiles,
+  linkAgentFilesRemote,
+  seedAgentReadme,
+  seedAgentReadmeRemote,
+  signAgentMountCredentials,
+} from "./sandbox_agent/agent-mount.ts";
+import {
+  AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
+  claudeMountSystemPromptMeta,
+  combineAppendSystemPrompt,
+  type ClaudeSystemPromptMeta,
+} from "./sandbox_agent/agent-mount-guidance.ts";
 import {
   hydrateHarnessSessionFromDurable,
   syncHarnessSessionDurable,
@@ -249,8 +270,8 @@ function applyClaudeConnectionEnv(
   request: AgentRunRequest,
   acpAgent: string,
   logger: Log,
-): boolean {
-  if (acpAgent !== "claude") return false;
+): void {
+  if (acpAgent !== "claude") return;
 
   // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
   // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
@@ -290,9 +311,18 @@ function applyClaudeConnectionEnv(
     logger(
       `claude model=${selectedModel} deployment=${deployment ?? "<none>"}`,
     );
-    return true;
   }
-  return false;
+}
+
+/**
+ * Whether a requested-but-unsettable model fails the run (F-007). Strict by default on every
+ * harness path: a user who picks a model either runs that model or sees a loud error, never a
+ * silent (often pricier) fallback to the harness default. `AGENTA_AGENT_MODEL_STRICT=false` is
+ * the explicit opt-out that restores the legacy warn-and-fallback behavior. A run that requests
+ * no model is unaffected either way — it keeps the harness default.
+ */
+function modelResolutionStrict(): boolean {
+  return process.env.AGENTA_AGENT_MODEL_STRICT !== "false";
 }
 
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
@@ -306,12 +336,14 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createAcpFetch?: typeof createAcpFetch;
   prepareWorkspace?: typeof prepareWorkspace;
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
+  uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
   startToolRelay?: typeof startToolRelay;
   localRelayHost?: typeof localRelayHost;
   sandboxRelayHost?: typeof sandboxRelayHost;
   signSessionMountCredentials?: typeof signSessionMountCredentials;
+  signAgentMountCredentials?: typeof signAgentMountCredentials;
   mountStorage?: typeof mountStorage;
   mountStorageRemote?: typeof mountStorageRemote;
   unmountStorage?: typeof unmountStorage;
@@ -418,7 +450,7 @@ const RUN_LIMIT_TRIPPED = Symbol("run-limit-tripped");
 interface CurrentTurn {
   run: ReturnType<typeof createSandboxAgentOtel>;
   pause: PendingApprovalPauseController;
-  toolRelay?: { stop: () => Promise<void> };
+  toolRelay?: { ready?: Promise<void>; stop: () => Promise<void> };
   /** Route a session/update for the active turn (suppress + handleUpdate + pause re-sweep). */
   handleUpdate: (update: unknown) => void;
   /** Route a permission reverse-RPC for the active turn (built by attachPermissionResponder). */
@@ -516,6 +548,7 @@ export interface SessionEnvironment {
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;
   mountCreds: MountCredentials | null;
+  agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
    * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
@@ -528,6 +561,7 @@ export interface SessionEnvironment {
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
   sessionDestroyRequested: boolean;
   mountedCwd: string | undefined;
+  agentMountedPath?: string;
   durableCwdSafeToDelete: boolean;
   workspace: { cleanup: () => Promise<void> } | undefined;
   runtimeRemount: Promise<boolean> | undefined;
@@ -660,6 +694,17 @@ export async function acquireEnvironment(
           })
         : null;
 
+  const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
+  const signAgentMount =
+    deps.signAgentMountCredentials ?? signAgentMountCredentials;
+  const agentMountCreds: MountCredentials | null =
+    artifactId && runCred
+      ? await signAgentMount(artifactId, {
+          apiBase: apiBase(),
+          authorization: runCred,
+          log: logger,
+        })
+      : null;
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
   // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
@@ -683,6 +728,7 @@ export async function acquireEnvironment(
   });
   if (!planResult.ok) return { ok: false, error: planResult.error };
   const plan = planResult.plan;
+  const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
   // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.secrets` are
@@ -693,12 +739,8 @@ export async function acquireEnvironment(
     clearProviderEnv,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
-  const strictModel = applyClaudeConnectionEnv(
-    env,
-    request,
-    plan.acpAgent,
-    logger,
-  );
+  applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
+  const strictModel = modelResolutionStrict();
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
   // private specs, scoped env, callback endpoints, and callback auth in memory.
@@ -729,9 +771,19 @@ export async function acquireEnvironment(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
       `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
   );
+  if (!plan.isPi && plan.isDaytona) {
+    const omittedClientTools = plan.toolSpecs
+      .filter((spec) => spec.kind === "client")
+      .map((spec) => spec.name);
+    if (omittedClientTools.length > 0) {
+      logger(
+        `omitting client tools from Daytona stdio MCP shim: ${omittedClientTools.join(", ")}`,
+      );
+    }
+  }
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
-  const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+  let runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
@@ -777,12 +829,14 @@ export async function acquireEnvironment(
     runAgentDir,
     otlpAuthFilePath,
     mountCreds,
+    agentMountCreds,
     mountProjectId: mountCreds?.projectId,
     loadedFromContinuity: false,
     resumable: false,
     continuityTurnIndex: undefined,
     sessionDestroyRequested: false,
     mountedCwd: undefined,
+    agentMountedPath: undefined,
     durableCwdSafeToDelete: true,
     // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
     workspace: plan.isDaytona
@@ -852,6 +906,23 @@ export async function acquireEnvironment(
         environment.deps.unmountStorage ?? unmountStorage
       )(environment.mountedCwd, { log }).catch(() => false);
     }
+    if (!parked && !plan.isDaytona && environment.agentMountedPath) {
+      const agentMountSafeToDelete = await (
+        environment.deps.unmountStorage ?? unmountStorage
+      )(
+        environment.agentMountedPath,
+        { log },
+      ).catch(() => false);
+      if (agentMountSafeToDelete) {
+        try {
+          rmSync(environment.agentMountedPath, { recursive: true, force: true });
+        } catch (err) {
+          logger(
+            `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
+          );
+        }
+      }
+    }
     if (!environment.durableCwdSafeToDelete) {
       logger(
         `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
@@ -870,25 +941,101 @@ export async function acquireEnvironment(
     plan.skillsCleanup();
   };
 
+  let agentMountGuidanceActive = false;
+  const activateAgentMountGuidance = async (): Promise<void> => {
+    const mountedPath = environment.agentMountedPath;
+    if (!mountedPath || agentMountGuidanceActive) return;
+    agentMountGuidanceActive = true;
+
+    // Only advertise durable storage after the mount is confirmed active. Local daemon env is
+    // still mutable here because local mounts run before SandboxAgent.start below. Daytona cannot
+    // change daemon env after sandbox creation, so its harness discovers the mount through the
+    // post-mount system-prompt channel and the cwd-local agent-files symlink instead.
+    if (!plan.isDaytona) {
+      env[AGENT_MOUNT_ENV_VAR] = mountedPath;
+      piExtEnv[AGENT_MOUNT_ENV_VAR] = mountedPath;
+    }
+    if (!plan.isPi) return;
+
+    plan.appendSystemPrompt = combineAppendSystemPrompt(
+      plan.appendSystemPrompt,
+      AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
+    );
+    plan.hasSystemPrompt = true;
+    if (plan.isDaytona) {
+      await uploadSystemPromptToSandbox(
+        environment.sandbox,
+        DAYTONA_PI_DIR,
+        plan.systemPrompt,
+        plan.appendSystemPrompt,
+        logger,
+      );
+      return;
+    }
+    if (environment.runAgentDir) {
+      writeSystemPromptLocal(
+        environment.runAgentDir,
+        plan.systemPrompt,
+        plan.appendSystemPrompt,
+        logger,
+      );
+      return;
+    }
+    runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+    environment.runAgentDir = runAgentDir;
+  };
+
   // --- local durable cwd mount helpers (session-scoped, close over environment) ------ //
   const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
     if (!environment.mountCreds || plan.isDaytona) return false;
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
-    if (
-      await (deps.mountStorage ?? mountStorage)(
-        plan.cwd,
-        environment.mountCreds,
-        {
-          log: logger,
-        },
-      )
-    ) {
+    environment.durableCwdSafeToDelete = false;
+    const mounted = await (deps.mountStorage ?? mountStorage)(
+      plan.cwd,
+      environment.mountCreds,
+      {
+        log: logger,
+      },
+    );
+    if (mounted) {
       environment.mountedCwd = plan.cwd;
       return true;
     }
+    // A false result means mountStorage stopped the attempt and confirmed the path detached.
+    environment.durableCwdSafeToDelete = true;
     return false;
+  };
+  const mountLocalAgentCwd = async (): Promise<boolean> => {
+    if (!environment.agentMountCreds || plan.isDaytona) return false;
+    const mountPath = agentMountPath(plan.cwd);
+    if (environment.agentMountedPath === mountPath) return true;
+    try {
+      mkdirSync(mountPath, { recursive: true });
+      if (
+        !(await (deps.mountStorage ?? mountStorage)(
+          mountPath,
+          environment.agentMountCreds,
+          { log: logger },
+        ))
+      ) {
+        // false means mountStorage confirmed detach is safe. This path is a sibling of the
+        // session cwd, so workspace cleanup cannot remove the failed mountpoint stub.
+        rmSync(mountPath, { recursive: true, force: true });
+        return false;
+      }
+      environment.agentMountedPath = mountPath;
+      await seedAgentReadme(mountPath, { log: logger });
+      await linkAgentFiles(plan.cwd, mountPath, { log: logger });
+      await activateAgentMountGuidance();
+      return true;
+    } catch (err) {
+      logger(
+        `local agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
+      );
+      return false;
+    }
   };
   let localDurableCwdEnotconnRemounts = 0;
   const reSignAndRemountLocalCwd = async (): Promise<boolean> => {
@@ -947,6 +1094,15 @@ export async function acquireEnvironment(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
+    // Local geesefs runs on the host, so mount before spawning the daemon. This lets the
+    // mount-success path add guidance/env atomically, while a failed mount starts a normal
+    // scratch-only harness with no false durable-storage signal.
+    if (environment.mountCreds && !plan.isDaytona) {
+      await mountLocalDurableCwd("initial");
+    }
+    if (environment.agentMountCreds && !plan.isDaytona) {
+      await mountLocalAgentCwd();
+    }
     const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
       plan.sandboxId,
       env,
@@ -1036,20 +1192,36 @@ export async function acquireEnvironment(
     if (environment.sandbox) inFlightSandboxes.add(environment);
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
+    // For a non-Pi harness with executable tools, also push the in-sandbox stdio MCP shim
+    // assets (bundle + public-specs file): a non-Pi harness in the sandbox cannot reach the
+    // runner-loopback HTTP MCP channel, so the harness's ACP adapter spawns the uploaded shim
+    // as the internal stdio MCP server instead. Uploaded unconditionally for non-Pi (the
+    // capability probe runs later; a harness that turns out to lack MCP fails loud in
+    // `assertRequiredCapabilities` below). Pi delivers via its extension; local non-Pi uses
+    // the loopback HTTP channel — neither needs this. The upload helper THROWS when the shim
+    // cannot be delivered (fail loud — this path requires it).
+    let internalToolMcp: ToolMcpAssets | undefined;
     if (plan.isDaytona) {
       await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
         sandbox: environment.sandbox,
         plan,
         log: logger,
       });
+      if (!plan.isPi && plan.executableToolSpecs.length > 0) {
+        internalToolMcp = await (
+          deps.uploadToolMcpAssets ?? uploadToolMcpAssets
+        )(
+          environment.sandbox,
+          plan.toolMcpDir,
+          advertisedToolSpecs(plan.executableToolSpecs),
+          logger,
+        );
+      }
     }
 
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
-    if (environment.mountCreds && !plan.isDaytona) {
-      await mountLocalDurableCwd("initial");
-    }
     if (environment.mountCreds && plan.isDaytona) {
       const mountsStartedAt = Date.now();
       try {
@@ -1105,6 +1277,52 @@ export async function acquireEnvironment(
         }
       } finally {
         timingLog("mounts", mountsStartedAt);
+      }
+    }
+    if (
+      environment.agentMountCreds &&
+      agentMountDir &&
+      plan.isDaytona &&
+      !environment.agentMountedPath
+    ) {
+      const agentMountStartedAt = Date.now();
+      try {
+        const storeEndpoint = environment.agentMountCreds.endpoint;
+        const endpoint = storeReachableFromSandbox(storeEndpoint)
+          ? undefined
+          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              log: logger,
+            })) ?? undefined);
+        const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
+        const mountPath = agentMountDir;
+        if (
+          canMount &&
+          (await (deps.mountStorageRemote ?? mountStorageRemote)(
+            environment.sandbox,
+            mountPath,
+            environment.agentMountCreds,
+            { endpoint, log: logger },
+          ))
+        ) {
+          environment.agentMountedPath = mountPath;
+          await seedAgentReadmeRemote(environment.sandbox, mountPath, {
+            log: logger,
+          });
+          await linkAgentFilesRemote(
+            environment.sandbox,
+            plan.cwd,
+            mountPath,
+            { log: logger },
+          );
+          await activateAgentMountGuidance();
+          logger(`remote agent mount active for artifact=${artifactId}`);
+        }
+      } catch (err) {
+        logger(
+          `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
+        );
+      } finally {
+        timingLog("agent_mount", agentMountStartedAt);
       }
     }
 
@@ -1182,10 +1400,31 @@ export async function acquireEnvironment(
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
+      // The uploaded in-sandbox stdio MCP shim assets, set only on Daytona + non-Pi +
+      // executable-tools; advertises the gateway tools the loopback channel cannot reach
+      // from inside the sandbox. No server to close for this entry (the harness owns the
+      // shim process), so `sessionMcp.close` semantics are unchanged.
+      internalToolMcp,
       log: logger,
     });
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
+
+    // Shared session-init payload for both the createSession and continuity-resume paths below.
+    // Built as a plain variable (not an inline object literal at the call site) so the extra
+    // `_meta` key survives the daemon SDK's narrow `Omit<NewSessionRequest, "_meta">` types —
+    // the daemon's own runtime forwards `_meta` unconditionally (`normalizeSessionInit` /
+    // `buildLoadSessionParams` in the vendored `sandbox-agent` patch), only the published types
+    // are stricter than the wire protocol they describe.
+    const claudeSystemPromptMeta: ClaudeSystemPromptMeta | undefined =
+      environment.agentMountedPath && plan.acpAgent === "claude"
+        ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
+        : undefined;
+    const sessionInit = {
+      cwd: plan.cwd,
+      mcpServers: sessionMcp.servers,
+      ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
+    };
 
     // If this harness authored the conversation's most recent turn (staleness-guarded) and we
     // still remember its native `agentSessionId`, seed the fresh persist driver with a synthetic
@@ -1250,7 +1489,7 @@ export async function acquireEnvironment(
         agentSessionId: priorAgentSessionId,
         lastConnectionId: "",
         createdAt: Date.now(),
-        sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+        sessionInit,
       });
       const createSessionStartedAt = Date.now();
       try {
@@ -1279,7 +1518,7 @@ export async function acquireEnvironment(
           ...(localSessionId ? { id: localSessionId } : {}),
           agent: plan.acpAgent,
           cwd: plan.cwd,
-          sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+          sessionInit,
         });
       } finally {
         timingLog("create_session", createSessionStartedAt, " mode=create");
@@ -1574,9 +1813,6 @@ export async function runTurn(
       extractClientToolOutputs(request),
     );
     const executionGrants = new ApprovedExecutionGrants();
-    // The guard's decide() must never consume this turn's stored decisions — the DIALOG is their
-    // consumer (it runs first). An empty store makes every `ask` route to the grant ledger.
-    const relayGuardDecisions = new ConversationDecisions(new Map());
     const latch = new PendingApprovalLatch();
     const responder =
       deps.responderFactory?.(request) ??
@@ -1698,48 +1934,27 @@ export async function runTurn(
       log: logger,
     });
 
-    // Pi only: the dialog gate lives in the sandbox, so the relay re-checks every execute record
-    // runner-side (a forged record must not run an ask/deny tool). Claude keeps today's behavior:
-    // its harness gates fire before a call reaches the relay, and its relay was never re-checked.
-    const relayGuard: RelayExecutionGuard | undefined = plan.isPi
-      ? (spec, req) => {
-          const verdict = decide(
-            {
-              executor: "relay",
-              toolName: spec.name,
-              specPermission: spec.permission,
-              readOnlyHint: spec.readOnly,
-              args: req.args,
-            },
-            permissionPlan,
-            relayGuardDecisions,
-          );
-          if (verdict.kind === "allow") return { allow: true };
-          if (verdict.kind === "deny") {
-            return {
-              allow: false,
-              reason: `Tool '${spec.name}' is denied by the permission policy.`,
-            };
-          }
-          return executionGrants.consume(
-            spec.name,
-            redactContextBoundArgs(
-              req.args,
-              spec.callRef ? spec.contextBindings : undefined,
-            ),
-          )
-            ? { allow: true }
-            : {
-                allow: false,
-                reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
-              };
-        }
-      : undefined;
+    // EVERY harness gets the guard: the relay dir is sandbox-writable, so a forged
+    // `<id>.req.json` proves nothing about any dialog having run, and this runner-side
+    // re-check is the only enforcement of the hard deny boundary against forged files.
+    // `allow` passes and `deny` refuses identically everywhere; `ask` splits by harness —
+    // Pi consumes a dialog-recorded execution grant (fail-closed parity with the in-sandbox
+    // confirm), while a non-Pi MCP harness (Claude) passes `ask` because its own harness
+    // enforces the ask dialog (the rendered `mcp__agenta-tools__<tool>` ask rules + the ACP
+    // permission flow) before a call reaches the shim. See buildRelayExecutionGuard for the
+    // stated residual (a forged file can still trigger an ask-tool without a dialog there).
+    const relayGuard: RelayExecutionGuard = buildRelayExecutionGuard({
+      isPi: plan.isPi,
+      permissionPlan,
+      executionGrants,
+    });
 
     if (plan.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
-          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox)
+          ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox, {
+              log: logger,
+            })
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.relayDir,
         plan.toolSpecs,
@@ -1747,7 +1962,14 @@ export async function runTurn(
         request.runContext,
         env.clientToolRelayRef.current,
         relayGuard,
+        { log: logger },
       );
+      // Ordering invariant: the relay's stale-file sweep must complete before the
+      // resume's respondPermission or the fresh prompt below can cause a legitimate
+      // request, so nothing legitimate can predate the sweep and be swallowed as
+      // stale. Optional-chained so a fake relay without `ready` is tolerated, and a
+      // sweep failure never kills the turn.
+      await turn.toolRelay?.ready?.catch?.(() => {});
     }
 
     // The prompt promise this turn races against the pause signal. A normal/continuation turn
@@ -1808,6 +2030,16 @@ export async function runTurn(
     }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+    // Pause notification is immediate, but terminalization must wait for managed cancellation
+    // and already-queued ACP updates. Re-sweep after the drain so a sibling announced during
+    // cancellation receives exactly one deterministic terminal result before `done`.
+    if (stopReason === "paused") {
+      await pause.waitForEventDrain();
+      run.settleOpenToolCalls(
+        (id) => pause.isPausedToolCall(id),
+        TOOL_NOT_EXECUTED_PAUSED,
+      );
+    }
     const result = raced === PAUSED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to the parked record so a
     // later resume can await the same continuation. (Set after the race so `promptPromise` exists.

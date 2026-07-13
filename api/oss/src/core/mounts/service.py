@@ -18,6 +18,7 @@ from oss.src.core.mounts.dtos import (
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
+    MountArtifactIdInvalid,
     MountFileNotFound,
     MountNameInvalid,
     MountNotFound,
@@ -71,6 +72,21 @@ def mint_session_slug(*, session_id: str, name: str) -> str:
     constraint holds for both session and non-session mounts.
     """
     return f"{_RESERVED_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+
+
+def mint_agent_slug(*, artifact_id: str, name: str) -> str:
+    """Mint the deterministic reserved slug for an artifact mount.
+
+    Artifact IDs are UUID-parsed and rendered lowercase. Sign and query must use
+    this same derivation byte-identically so they address the same mount.
+    """
+    try:
+        canonical_artifact_id = UUID(str(artifact_id))
+    except (ValueError, TypeError, AttributeError) as e:
+        raise MountArtifactIdInvalid(str(artifact_id)) from e
+
+    slug_name = slugify_mount_name(name)
+    return f"{_RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
 
 def reject_reserved_slug(slug: str) -> None:
@@ -188,6 +204,26 @@ class MountsService:
             mount_create=mount_create,
         )
 
+    async def get_or_create_agent_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        artifact_id: str,
+        name: str = "default",
+    ) -> Mount:
+        """Bind idempotently one durable mount for an artifact, keyed by name."""
+        slug_name = slugify_mount_name(name)
+        mount_create = MountCreate(
+            slug=mint_agent_slug(artifact_id=artifact_id, name=name),
+            name=slug_name,
+        )
+        return await self.mounts_dao.upsert_mount(
+            project_id=project_id,
+            user_id=user_id,
+            mount_create=mount_create,
+        )
+
     async def get_or_create_session_cwd(
         self,
         *,
@@ -214,6 +250,20 @@ class MountsService:
         return await self.mounts_dao.fetch_mount(
             project_id=project_id,
             mount_id=mount_id,
+        )
+
+    async def fetch_agent_mount(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: str,
+        name: str = "default",
+    ) -> Optional[Mount]:
+        """Fetch the active artifact mount keyed by name without creating it."""
+        slug = mint_agent_slug(artifact_id=artifact_id, name=name)
+        return await self.mounts_dao.fetch_mount_by_slug(
+            project_id=project_id,
+            slug=slug,
         )
 
     async def edit_mount(

@@ -306,7 +306,7 @@ def _custom_provider_candidate(
     settings = _settings(secret)
     extras = _extras(settings)
     slug = _header_name(secret) or _stripped(data.get("provider_slug"))
-    deployment = _stripped(data.get("kind")) or "custom"
+    provider_kind = _stripped(data.get("kind")) or "custom"
     if not slug:
         return None
 
@@ -327,8 +327,12 @@ def _custom_provider_candidate(
     if not endpoint.to_wire():
         endpoint = None
 
-    data_kind = deployment.lower()
+    data_kind = provider_kind.lower()
     provider = data_kind if data_kind in _PROVIDER_ENV_VARS else None
+    # Vault custom-provider records use data.kind for two different roles: a known
+    # provider family (for example openrouter) or a deployment surface (for example
+    # bedrock). Pi consumes the known provider families through its direct surface.
+    deployment = "direct" if provider is not None else provider_kind
     api_key = _stripped(settings.get("key")) or _stripped(extras.get("api_key"))
 
     return _ConnectionCandidate(
@@ -340,7 +344,9 @@ def _custom_provider_candidate(
         env=env,
         endpoint=endpoint,
         model_slugs=_model_slugs(data),
-        model_keys=_model_keys(data, slug=slug, deployment=deployment),
+        # Stored model keys remain namespaced by the vault provider kind. Runtime
+        # deployment normalization must not change how a committed model selector matches.
+        model_keys=_model_keys(data, slug=slug, deployment=provider_kind),
     )
 
 

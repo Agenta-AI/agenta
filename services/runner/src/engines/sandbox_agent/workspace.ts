@@ -102,6 +102,11 @@ export async function prepareWorkspace({
     return { cleanup: async () => {} };
   }
 
+  // A durable local cwd mount is best-effort. When geesefs cannot mount (for example, the
+  // runner has no /dev/fuse), acquisition deliberately falls back to an ephemeral cwd. Ensure
+  // that fallback exists before writing CLAUDE.md/AGENTS.md or any harness files into it.
+  mkdirSync(plan.cwd, { recursive: true });
+
   if (plan.useToolRelay) {
     // Clear stale .req.json from a prior turn: relayDir is keyed on the durable cwd and
     // is never otherwise cleared, so an old request would be re-picked-up by the fresh `seen` set.

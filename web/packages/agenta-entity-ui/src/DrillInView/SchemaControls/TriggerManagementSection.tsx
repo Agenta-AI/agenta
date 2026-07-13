@@ -255,6 +255,7 @@ function SubscriptionRunPopover({
     return (
         <EventSourcePicker
             placement="bottomRight"
+            autoWaitOnOpen
             onOpenChange={(open) => open && refresh()}
             trigger={
                 <Tooltip title="Run in playground">
