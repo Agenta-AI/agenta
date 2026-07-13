@@ -43,6 +43,17 @@ function getApiURL(webURL: string): string {
     }
 }
 
+// AGENTA_WEB_URL may carry a deployment-specific path (e.g. Railway previews
+// publish it as ".../w", the workspace picker), but top-level routes like
+// /auth live at the origin root. Strip any path before composing them.
+function getOriginURL(webURL: string): string {
+    try {
+        return new URL(webURL).origin
+    } catch {
+        return webURL
+    }
+}
+
 function createTestEmail(scope: string): string {
     return generateRuntimeTestEmail({
         scope,
@@ -873,6 +884,7 @@ async function globalSetup() {
     console.log("[global-setup] Starting global setup for authentication")
 
     const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
+    const rootURL = getOriginURL(baseURL)
     const license = process.env.AGENTA_LICENSE || "oss"
     const storageState = getStorageStatePath()
     console.log(`[global-setup] Base URL: ${baseURL}, License: ${license}`)
@@ -910,7 +922,7 @@ async function globalSetup() {
         console.log(`[global-setup] Authenticating ${license} user: ${userEmail}`)
         await authenticateUser({
             page: authenticatedPage,
-            entryUrl: `${baseURL}/auth`,
+            entryUrl: `${rootURL}/auth`,
             email: userEmail,
             password: userPassword,
             authMode,
@@ -929,7 +941,7 @@ async function globalSetup() {
             )
             const cachedContext = await browser.newContext({storageState})
             const cachedPage = await cachedContext.newPage()
-            await cachedPage.goto(`${baseURL}/apps`, {timeout, waitUntil: "domcontentloaded"})
+            await cachedPage.goto(`${rootURL}/apps`, {timeout, waitUntil: "domcontentloaded"})
             await maybeCreateEphemeralProject(cachedPage, baseURL)
             await cachedContext.close()
             return
