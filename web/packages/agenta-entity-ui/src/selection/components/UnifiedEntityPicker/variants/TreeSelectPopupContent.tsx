@@ -141,14 +141,15 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                 ".ant-tree-treenode-selected, .ant-tree-treenode-checkbox-checked",
             )
             if (hit) {
-                hit.scrollIntoView({block: "center"})
+                hit.scrollIntoView({block: "center", inline: "nearest"})
+                if (flattenSingleParent) el.scrollLeft = 0
                 return
             }
             if (++scrollRetryRef.current < 5) rafId = requestAnimationFrame(attempt)
         }
         rafId = requestAnimationFrame(attempt)
         return () => cancelAnimationFrame(rafId)
-    }, [selectedValueProp, treeData])
+    }, [flattenSingleParent, selectedValueProp, treeData])
 
     // Get display messages
     const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
@@ -226,16 +227,25 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
             {!isLoadingParents && !parentsError && displayTreeData.length > 0 && (
                 <div
                     ref={scrollContainerRef}
-                    style={{maxHeight, overflow: "auto"}}
+                    style={{
+                        maxHeight,
+                        overflowY: "auto",
+                        overflowX: flattenSingleParent ? "hidden" : "auto",
+                    }}
                     className={cn(
                         "tree-popup-compact pb-2",
                         flattenSingleParent ? "tree-popup-flat px-1.5 pt-2.5" : "px-2",
                     )}
                 >
                     <style>{`
+                        .tree-popup-compact.tree-popup-flat { scrollbar-width: none; -ms-overflow-style: none; }
+                        .tree-popup-compact.tree-popup-flat::-webkit-scrollbar { display: none; }
                         .tree-popup-compact .ant-tree-treenode-leaf .ant-tree-indent { display: none !important; }
                         .tree-popup-compact .ant-tree-treenode-leaf { padding-left: 24px !important; }
-                        .tree-popup-compact.tree-popup-flat .ant-tree-treenode-leaf { padding-left: 0 !important; width: 100%; }
+                        .tree-popup-compact.tree-popup-flat .ant-tree-treenode-leaf { padding-left: 0 !important; width: 100%; min-width: 0; max-width: 100%; }
+                        .tree-popup-compact.tree-popup-flat .ant-tree-node-content-wrapper { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+                        .tree-popup-compact.tree-popup-flat .ant-tree-title { min-width: 0; max-width: 100%; overflow: hidden; }
+                        .tree-popup-compact.tree-popup-flat .ant-tree-list-holder-inner { width: 100%; min-width: 0; }
                         .tree-popup-compact .ant-tree-checkbox { display: none; }
                         .tree-popup-compact .ant-tree-treenode-selected > .ant-tree-node-content-wrapper { background: var(--ant-blue-1, #e6f4ff); opacity: 0.8; }
                         .tree-popup-compact .ant-tree-node-content-wrapper { padding-left: 4px !important; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; }

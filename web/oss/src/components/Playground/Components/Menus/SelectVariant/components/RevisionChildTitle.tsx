@@ -4,6 +4,7 @@ import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {dayjs} from "@agenta/shared/utils"
 import {Check, CopySimple} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
+import clsx from "clsx"
 
 interface RevisionMetadata {
     message?: string | null
@@ -44,25 +45,27 @@ const OverflowMessage = ({message}: {message: string}) => {
     }, [])
 
     return (
-        <Tooltip
-            open={open}
-            onOpenChange={handleOpenChange}
-            placement="left"
-            mouseEnterDelay={0.5}
-            styles={{root: {maxWidth: 300}}}
-            title={
-                <span className="line-clamp-6 whitespace-pre-wrap break-words text-xs leading-relaxed">
+        <div className="w-full min-w-0 max-w-full overflow-hidden">
+            <Tooltip
+                open={open}
+                onOpenChange={handleOpenChange}
+                placement="left"
+                mouseEnterDelay={0.5}
+                styles={{root: {maxWidth: 300}}}
+                title={
+                    <span className="line-clamp-6 whitespace-pre-wrap break-words text-xs leading-relaxed">
+                        {message}
+                    </span>
+                }
+            >
+                <span
+                    ref={textRef}
+                    className="block w-full min-w-0 max-w-full truncate text-xs text-[var(--ant-color-text-secondary)]"
+                >
                     {message}
                 </span>
-            }
-        >
-            <span
-                ref={textRef}
-                className="block w-full min-w-0 truncate text-xs text-[var(--ant-color-text-secondary)]"
-            >
-                {message}
-            </span>
-        </Tooltip>
+            </Tooltip>
+        </div>
     )
 }
 
@@ -91,10 +94,35 @@ const RevisionChildTitle = ({
 
     if (linear) {
         return (
-            <div className="group/revision grid h-9 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-2 px-1.5">
-                <span className="shrink-0 rounded-md bg-[var(--ant-color-fill-secondary)] px-2 py-1 text-xs font-medium text-[var(--ant-color-text)]">
-                    v{version}
-                </span>
+            <div className="group/revision flex min-h-12 w-full min-w-0 flex-col justify-center gap-1.5 overflow-hidden px-1.5 py-2">
+                <div className="flex w-full min-w-0 items-center gap-2">
+                    <span className="shrink-0 rounded-md bg-[var(--ant-color-fill-secondary)] px-2 py-1 text-xs font-medium text-[var(--ant-color-text)]">
+                        v{version}
+                    </span>
+                    <span className="flex-1" />
+                    {isLatest && showLatestTag ? (
+                        <span className="shrink-0 text-[10px] font-medium text-[var(--ant-color-primary)]">
+                            Latest
+                        </span>
+                    ) : null}
+                    {relativeTime ? (
+                        <time
+                            className={clsx(
+                                "shrink-0 whitespace-nowrap text-[11px] text-[var(--ant-color-text-tertiary)]",
+                                {"mr-2": !isCurrent},
+                            )}
+                            dateTime={timestamp ?? undefined}
+                            title={exactTime ?? undefined}
+                        >
+                            {relativeTime}
+                        </time>
+                    ) : null}
+                    {isCurrent ? (
+                        <span className="mr-0.5 flex size-5 shrink-0 items-center justify-center text-[var(--ant-color-primary)]">
+                            <Check size={14} aria-label="Current revision" />
+                        </span>
+                    ) : null}
+                </div>
                 {commitMessage ? (
                     <OverflowMessage message={commitMessage} />
                 ) : (
@@ -102,28 +130,6 @@ const RevisionChildTitle = ({
                         No commit message
                     </span>
                 )}
-                {relativeTime ? (
-                    <time
-                        className="shrink-0 whitespace-nowrap text-[11px] text-[var(--ant-color-text-tertiary)]"
-                        dateTime={timestamp ?? undefined}
-                        title={exactTime ?? undefined}
-                    >
-                        {relativeTime}
-                    </time>
-                ) : null}
-                {isLatest && showLatestTag ? (
-                    <span className="shrink-0 text-[10px] font-medium text-[var(--ant-color-primary)]">
-                        Latest
-                    </span>
-                ) : null}
-                {isCurrent ? (
-                    <Check
-                        size={14}
-                        weight="bold"
-                        className="shrink-0 text-[var(--ant-color-primary)]"
-                        aria-label="Current revision"
-                    />
-                ) : null}
             </div>
         )
     }
