@@ -7,7 +7,6 @@ import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import {
   buildRunPlan,
   shouldUploadOwnLogin,
@@ -458,24 +457,6 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
-  it("errors on any run carrying a stdio MCP server (MCP disabled)", () => {
-    // The stdio MCP implementation is disabled in the sidecar; a stdio server errors the
-    // not-implemented way regardless of sandbox/enforcement, even with no network policy.
-    const result = buildRunPlan(
-      {
-        harness: "claude",
-        sandbox: "daytona",
-        messages: [{ role: "user", content: "hello" }],
-        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
-      } as AgentRunRequest,
-      { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
-    );
-
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
-  });
-
   it("refuses a user MCP server that claims the reserved internal name 'agenta-tools'", () => {
     // The internal gateway-tool channel is keyed by name and claude_settings.py renders
     // permission rules against it; a user server with the name would collide/steal them.
@@ -487,8 +468,8 @@ describe("buildRunPlan", () => {
         mcpServers: [
           {
             name: "agenta-tools",
-            transport: "http",
-            url: "https://mcp.example.com/mcp",
+            connection: { type: "http", url: "https://mcp.example.com/mcp" },
+            policy: { tools: { mode: "all" } },
           },
         ],
       } as AgentRunRequest,
@@ -497,41 +478,6 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
-  });
-
-  it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {
-    const result = buildRunPlan(
-      {
-        harness: "claude",
-        sandbox: "local",
-        messages: [{ role: "user", content: "hello" }],
-        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
-  });
-
-  it("errors LOUD on a Pi run carrying a user STDIO MCP server (F-032, Pi-specific)", () => {
-    // Pi delivers tools through its bundled extension, not MCP, so a user MCP server would be
-    // dropped silently (the F-032 bug). The Pi gate refuses it up front with a Pi-specific
-    // message (precedes the harness-agnostic stdio gate).
-    const result = buildRunPlan(
-      {
-        harness: "pi_core",
-        sandbox: "local",
-        messages: [{ role: "user", content: "hello" }],
-        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.match(result.error, /not supported on the Pi harness/);
   });
 
   it("errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)", () => {
@@ -547,8 +493,8 @@ describe("buildRunPlan", () => {
         mcpServers: [
           {
             name: "linear",
-            transport: "http",
-            url: "https://mcp.linear.app/sse",
+            connection: { type: "http", url: "https://mcp.linear.app/sse" },
+            policy: { tools: { mode: "all" } },
           },
         ],
       } as AgentRunRequest,
@@ -579,8 +525,8 @@ describe("buildRunPlan", () => {
         mcpServers: [
           {
             name: "linear",
-            transport: "http",
-            url: "https://mcp.linear.app/sse",
+            connection: { type: "http", url: "https://mcp.linear.app/sse" },
+            policy: { tools: { mode: "all" } },
           },
         ],
       } as AgentRunRequest,
@@ -860,7 +806,11 @@ describe("buildRunPlan", () => {
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         mcpServers: [
-          { name: "remote", transport: "http", url: "https://mcp.example" },
+          {
+            name: "remote",
+            connection: { type: "http", url: "https://mcp.example" },
+            policy: { tools: { mode: "all" } },
+          },
         ],
         sandboxPermission: {
           network: { mode: "off" },

@@ -111,16 +111,23 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         editView: () => "form",
         jsonOnly: () => false,
         isReadOnly: () => false,
-        createSeed: () => ({name: "", transport: "stdio", command: "", args: []}),
+        createSeed: () => ({
+            name: "",
+            connection: {
+                type: "http",
+                url: "",
+                credentials: {type: "none"},
+            },
+            policy: {tools: {mode: "all"}},
+        }),
         draftInvalid: (draft) => {
-            // A server needs a launch target too, not just a name: stdio → command, http → url.
             const name = String(draft.name ?? "").trim()
-            const transport = draft.transport === "http" ? "http" : "stdio"
-            const target =
-                transport === "http"
-                    ? String(draft.url ?? "").trim()
-                    : String(draft.command ?? "").trim()
-            return !name || !target
+            const connection =
+                draft.connection && typeof draft.connection === "object"
+                    ? (draft.connection as Record<string, unknown>)
+                    : {}
+            const url = String(connection.url ?? "").trim()
+            return !name || !url
         },
     },
     skill: {

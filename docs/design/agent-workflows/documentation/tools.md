@@ -112,7 +112,7 @@ Resolution is the service's job, but most of it now lives in the SDK. The servic
 entrypoints in `services/oss/src/agent/app.py` (`_agent`): `resolve_tools(agent_config.tools)`
 and `resolve_mcp_servers(agent_config.mcp_servers)`. Both are thin re-exports. The service
 files under `services/oss/src/agent/tools/` are shims:
-`resolver.py` re-exports the SDK's `resolve_tools` and adds the MCP gate; `gateway.py` and
+`resolver.py` re-exports the SDK's `resolve_tools`; `gateway.py` and
 `secrets.py` re-export the SDK platform adapters. The real composition is
 `resolve_tools` in `sdks/python/agenta/sdk/agents/platform/resolve.py`, which builds a
 `ToolResolver` (`sdks/python/agenta/sdk/agents/tools/resolver.py`) wired with two
@@ -162,14 +162,11 @@ invoke immediately instead of failing the model mid-loop, and the agent only eve
 name, a schema, and an opaque slug. The Composio key and the connection's auth never leave the
 service.
 
-MCP servers resolve on the same path but only when `AGENTA_AGENT_MCPS_ENABLED` is truthy. The
-gate lives in `resolve_mcp_servers` (`services/oss/src/agent/tools/resolver.py`): when the
-flag is off it returns an empty list before the SDK `MCPResolver` ever runs. When on, the
-`MCPResolver` injects each server's named secrets into its `env`, the same way code tools get
-theirs. By default this is off, so `mcp_servers` is dropped at the service and `mcpServers` is
-omitted from the wire. See the [status](#status-and-known-gaps) section: even with the flag on,
-user MCP reaches Claude only, not the default Pi harness, so the field is a no-op in the common
-case.
+External MCP servers resolve on their own path for every run. The `MCPResolver` reads the nested
+HTTP connection, fetches named header-secret references, and creates a secret-bearing per-run
+server. There is no deployment feature flag. The harness catalog exposes user MCP authoring for
+Claude and hides it for Pi until Pi has a delivery bridge. A direct Pi request carrying an
+external MCP server fails loudly.
 
 The whole resolved bundle then rides the `/run` wire: built-in names in `tools`, resolved
 specs in `customTools`, the callback in `toolCallback`, and resolved MCP servers in
@@ -398,24 +395,17 @@ separately, at session start. The extension edits Pi's active tool set at
 every non-builtin tool untouched. A builtin outside the grant list is simply absent from the
 model's active tools, so no call for it ever fires, and the permission hook never sees it.
 
-### MCP servers: a server process the daemon launches
+### External MCP servers: remote HTTP connections
 
-Execution happens in a separate server process. A declared MCP server is resolved server-side
-(secrets injected into its `env`) and, for MCP-capable harnesses, passed to the ACP daemon as a
-stdio server (`toAcpMcpServers` in `services/agent/src/engines/sandbox_agent/mcp.ts`). The
-daemon launches the server's `command` with the resolved `env`, and the harness talks to it
-over the MCP protocol.
+A declared user MCP server contains identity, an HTTP connection, credential references, and
+policy. The service resolves credential references into request headers for the current run. The
+runner validates the remote URL and passes an ACP HTTP MCP entry to Claude. Claude then connects
+directly to the external server and discovers its tools through MCP. Public stdio commands and
+process environments are not part of the author or runner interface.
 
-In practice user MCP is dead on the default path, and for two reasons that stack. First,
-resolution is gated behind `AGENTA_AGENT_MCPS_ENABLED`, which is off by default, so the servers
-never reach the wire. Second, even with the flag on, `buildSessionMcpServers` drops user MCP
-for Pi (Pi's ACP adapter does not forward them), so it would reach Claude only. Pi and Agenta
-are the default harnesses, so the `mcp_servers` field is accepted and then silently ignored in
-the common case. This is the silent-drop that the
-[harness-capabilities project](../../projects/harness-capabilities/proposal.md) is built to fix
-(fail loud, or deliver MCP on Pi through the extension). The
-[removal-and-capability notes](../../scratch/notes-tools-mcp-capabilities.md) lay out the two
-options.
+The editor shows this section only when the selected harness publishes `mcp.user_servers`. Claude
+publishes it. Pi does not and rejects external MCP servers until its bridge exists. The private
+`agenta-tools` server remains a separate trusted delivery mechanism for Agenta tools.
 
 ## Approval and rendering
 
@@ -612,7 +602,7 @@ never drift from the files that exist. The canonical playbook format lives in th
 | Platform | `callback` spec + direct `call` | the Agenta service | the exposed endpoint, called directly (no `/tools/call` hop) | caller credential reused; self-targeting ids bound server-side |
 | Code | `code` spec + `env` | the runner | a local subprocess | only the tool's own secrets, scoped to the child |
 | Client | `client` spec | the browser | the user's browser, next turn | none |
-| MCP | resolved server + `env` | a server process | a stdio child the daemon launches | secrets injected into the server env |
+| MCP | resolved HTTP server + headers | the external MCP server | remote URL reached by Claude | named secret references become per-run request headers |
 
 ## Where this lives
 
@@ -626,7 +616,7 @@ never drift from the files that exist. The canonical playbook format lives in th
 | Platform-op catalog (the `op` table + schema/context-binding resolution) | `sdks/python/agenta/sdk/agents/platform/op_catalog.py` |
 | Platform tool resolver (catalog → `CallbackToolSpec` + `call`) | `sdks/python/agenta/sdk/agents/platform/platform_tools.py` |
 | `x-ag-type-ref` schema expansion | `sdks/python/agenta/sdk/agents/platform/_schema.py` |
-| Service entrypoints (shims + MCP gate) | `services/oss/src/agent/tools/resolver.py`, `__init__.py` |
+| Service MCP composition | `sdks/python/agenta/sdk/agents/platform/resolve.py` |
 | Gateway resolver (calls `/tools/resolve`) | `sdks/python/agenta/sdk/agents/platform/gateway.py` (shim: `services/oss/src/agent/tools/gateway.py`) |
 | Named-secret resolution (`/secrets/resolve`) | `sdks/python/agenta/sdk/agents/platform/secrets.py` (shim: `services/oss/src/agent/tools/secrets.py`) |
 | API resolve + execute | `api/oss/src/core/tools/service.py`, `api/oss/src/apis/fastapi/tools/router.py` |
@@ -653,12 +643,10 @@ never drift from the files that exist. The canonical playbook format lives in th
 
 ## Status and known gaps
 
-- **User MCP is effectively dead on the default path.** Resolution is off unless
-  `AGENTA_AGENT_MCPS_ENABLED` is truthy, and even on, the runner drops user MCP for Pi. Pi and
-  Agenta are the default harnesses, so `mcp_servers` is a silent no-op for most runs. It would
-  reach Claude only. Do not confuse this with the `agenta-tools` server, which is an internal
-  tool-delivery vehicle for Claude, not a user MCP server; the name is reserved, and a
-  user-declared server claiming it is refused.
+- **User MCP is harness-capability gated.** Claude receives external HTTP MCP servers through ACP.
+  Pi hides the editor and refuses external MCP servers until its bridge exists. Do not confuse
+  user MCP with `agenta-tools`, which is the trusted internal tool-delivery channel; its name is
+  reserved.
 - A tool's `permission` is honored on both harnesses now, including Pi's own builtins. Claude
   checks its rendered settings file first, then the ACP responder. Pi has no separate
   harness-side settings gate, so the relay decides everything Pi runs: gateway and code tools

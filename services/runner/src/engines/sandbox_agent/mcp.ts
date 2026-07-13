@@ -5,7 +5,6 @@ import type {
 } from "../../protocol.ts";
 import {
   buildToolMcpServers,
-  USER_MCP_UNSUPPORTED_MESSAGE,
 } from "../../tools/mcp-bridge.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
@@ -194,63 +193,28 @@ export async function validateUserMcpUrl(
   return undefined;
 }
 
-/**
- * Convert USER-declared MCP servers into ACP entries. (This is the USER MCP capability layer —
- * distinct from the INTERNAL gateway-tool channel below; see `buildSessionMcpServers`.)
- *
- * - HTTP (`transport: "http"` + `url`) is ENABLED. A remote server has no child process on the
- *   runner host: the harness connects to the URL and the named secret rides in a request header,
- *   so it does not bypass the sandbox boundary the way a stdio child does. The resolved secret
- *   arrives on the `/run` wire in the server's `env` map (the SDK resolver merges named secrets
- *   into `env` regardless of transport, and the wire has no separate `headers` field), so each
- *   `env` entry is emitted as an HTTP header (`Authorization: <token>`, etc.). The author names
- *   the header via the secret-map key, exactly as a stdio server names its env var.
- * - STDIO (`transport: "stdio"` + `command`) is DISABLED. A stdio MCP server launches an
- *   arbitrary process on the runner host, outside the sandbox boundary, so the implementation is
- *   disabled (parity with the removed code execution) until its security is fixed. The wire shape
- *   (`McpServerConfig`) is kept, but a stdio server throws `USER_MCP_UNSUPPORTED_MESSAGE` rather
- *   than being delivered.
- * - A server that is neither a valid http (no `url`) nor a valid stdio (no `command`) is skipped
- *   with a log — it was never deliverable.
- * - An http `url` that fails the SSRF guard (`validateUserMcpUrl`: non-https, or an
- *   internal/metadata host) throws, so a credentialed request is never sent to an internal sink.
- */
+/** Convert external HTTP MCP servers into Claude ACP session entries. */
 export async function toAcpMcpServers(
   servers: McpServerConfig[] | undefined,
   log: Log = () => {},
 ): Promise<McpServerEntry[]> {
   const out: McpServerEntry[] = [];
   for (const s of servers ?? []) {
-    const transport = s.transport ?? "stdio";
-
-    if (transport === "http") {
-      if (!s.url) {
-        log(`skipping http MCP server '${s?.name ?? "?"}' (no url)`);
-        continue;
-      }
-      // SSRF guard: the resolved named secret rides as a header on this author-supplied URL, so
-      // reject a non-https / internal / metadata target before any credential is attached.
-      const urlError = await validateUserMcpUrl(s.url);
-      if (urlError) throw new Error(urlError);
-      out.push({
-        type: "http",
-        name: s.name,
-        url: s.url,
-        headers: Object.entries(s.env ?? {}).map(([name, value]) => ({
-          name,
-          value,
-        })),
-      });
+    const url = s.connection?.url;
+    if (!url) {
+      log(`skipping HTTP MCP server '${s?.name ?? "?"}' (no URL)`);
       continue;
     }
-
-    // stdio: a command-less server was never launched, so it stays a skipped no-op; a real
-    // stdio server is disabled and fails loud.
-    if (!s.command) {
-      log(`skipping stdio MCP server '${s?.name ?? "?"}' (no command)`);
-      continue;
-    }
-    throw new Error(USER_MCP_UNSUPPORTED_MESSAGE);
+    const urlError = await validateUserMcpUrl(url);
+    if (urlError) throw new Error(urlError);
+    out.push({
+      type: "http",
+      name: s.name,
+      url,
+      headers: Object.entries(s.connection.headers ?? {}).map(
+        ([name, value]) => ({ name, value }),
+      ),
+    });
   }
   return out;
 }

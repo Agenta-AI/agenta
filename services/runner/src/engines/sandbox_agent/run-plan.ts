@@ -5,7 +5,6 @@ import { basename, join } from "node:path";
 
 import {
   type AgentRunRequest,
-  type McpServerConfig,
   type ResolvedToolSpec,
   type SandboxPermission,
   resolvePromptText,
@@ -14,7 +13,6 @@ import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import {
   PI_USER_MCP_UNSUPPORTED_MESSAGE,
-  USER_MCP_UNSUPPORTED_MESSAGE,
 } from "../../tools/mcp-bridge.ts";
 import {
   INTERNAL_TOOL_MCP_SERVER_NAME,
@@ -147,20 +145,6 @@ export interface BuildRunPlanDeps {
   durableCwd?: string;
   resolveSkillDirs?: typeof defaultResolveSkillDirs;
   log?: Log;
-}
-
-/**
- * True when an MCP server runs as a host command (stdio) rather than a remote URL. Mirrors
- * the delivery rule in `mcp.ts` (`toAcpMcpServers`): the default transport is `stdio`, and a
- * stdio server only runs when it carries a `command`. Such a server is an arbitrary process
- * on the RUNNER HOST, so a network-blocked sandbox does not confine it. HTTP servers
- * (`transport: "http"`) are delivered (the harness connects to the remote URL with the secret
- * in a header) and are NOT flagged here — they have no runner-host process to confine.
- */
-function hasStdioMcpServer(servers: McpServerConfig[] | undefined): boolean {
-  return (servers ?? []).some(
-    (s) => (s.transport ?? "stdio") === "stdio" && !!s.command,
-  );
 }
 
 /**
@@ -336,20 +320,10 @@ export function buildRunPlan(
 
   // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server on
   // a Pi run is DROPPED by `buildSessionMcpServers` (it returns [] for Pi). Dropping it silently
-  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse ANY user MCP server (stdio AND http)
-  // on Pi up front with a Pi-specific message, the way the stdio-MCP and code-tool gates fail
-  // loud. This MUST precede the harness-agnostic stdio gate so Pi gets the clearer reason for
-  // both transports (http MCP is otherwise a Claude-only capability, #4834).
+  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse any external user MCP server
+  // on Pi up front with a Pi-specific message.
   if (isPi && (request.mcpServers?.length ?? 0) > 0) {
     return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
-  }
-
-  // stdio MCP servers run as arbitrary processes on the RUNNER HOST, outside the sandbox
-  // boundary, and the sidecar's stdio MCP implementation is disabled (parity with the removed
-  // code execution) until its security is fixed. Refuse any run carrying one, the way code
-  // tools are gated — keep the wire shape, but the delivery is not supported.
-  if (hasStdioMcpServer(request.mcpServers)) {
-    return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
   }
 
   // The internal gateway-tool channel's name is reserved on every transport: the Python

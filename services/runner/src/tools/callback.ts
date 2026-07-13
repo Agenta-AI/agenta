@@ -3,7 +3,7 @@
  *
  * One implementation of the tool round-trip used by every delivery path:
  *  - extensions/agenta.ts registerTools (Pi under sandbox-agent/ACP, via the bundled extension)
- *  - tools/mcp-server.ts (the MCP stdio bridge for non-Pi harnesses)
+ *  - the internal MCP channels used by non-Pi harnesses
  *
  * Each call POSTs the OpenAI-style envelope to Agenta's /tools/call, so the Composio key
  * and connection auth stay server-side. Keeping the request envelope and response parse in

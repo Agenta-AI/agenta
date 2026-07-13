@@ -304,7 +304,6 @@
       "properties": {
         "enabled":     { "type": "boolean", "description": "Deploy the runner sidecar; the Services API derives AGENTA_RUNNER_INTERNAL_URL from it unless externalUrl is set." },
         "externalUrl": { "type": "string", "description": "AGENTA_RUNNER_INTERNAL_URL override pointing at an external runner." },
-        "enableMcp":   { "type": "boolean", "description": "AGENTA_AGENT_MCPS_ENABLED." },
         "provider":    { "type": "string", "description": "SANDBOX_AGENT_PROVIDER (e.g. local, daytona) read by the runner service." },
         "piAgentDir":  { "type": "string", "description": "PI_CODING_AGENT_DIR for local Pi runs (default /pi-agent); unset means no Agenta extension for the run (the runner logs a warning)." },
         "logLevel":    { "type": "string", "description": "SANDBOX_AGENT_LOG_LEVEL read by the runner service." },

@@ -113,7 +113,8 @@ def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
     deny: List[str] = []
     for server in mcp_servers or []:
         name = _get(server, "name")
-        permission = _get(server, "permission")
+        policy = _get(server, "policy")
+        permission = _get(policy, "permission")
         if not permission or not name:
             continue
         if name == INTERNAL_TOOL_MCP_SERVER:

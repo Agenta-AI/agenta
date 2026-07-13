@@ -665,10 +665,9 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
         mcp_servers=[
             {
                 "name": "github",
-                "transport": "stdio",
-                "command": "npx",
-                "env": {"GITHUB_TOKEN": "ghp"},
-                "tools": ["create_issue"],
+                "url": "https://mcp.example.com/mcp",
+                "headers": {"Authorization": "Bearer ghp"},
+                "policy": {"tools": {"mode": "include", "names": ["create_issue"]}},
             }
         ],
     )
@@ -692,10 +691,12 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
     assert payload["mcpServers"] == [
         {
             "name": "github",
-            "transport": "stdio",
-            "command": "npx",
-            "env": {"GITHUB_TOKEN": "ghp"},
-            "tools": ["create_issue"],
+            "connection": {
+                "type": "http",
+                "url": "https://mcp.example.com/mcp",
+                "headers": {"Authorization": "Bearer ghp"},
+            },
+            "policy": {"tools": {"mode": "include", "names": ["create_issue"]}},
         }
     ]
 
@@ -762,9 +763,8 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
         mcp_servers=[
             {
                 "name": "github",
-                "transport": "http",
                 "url": "https://x",
-                "permission": "ask",
+                "policy": {"permission": "ask"},
             }
         ],
     )

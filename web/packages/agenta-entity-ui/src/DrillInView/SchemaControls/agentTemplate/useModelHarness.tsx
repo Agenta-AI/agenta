@@ -30,6 +30,7 @@ import {
     composeModelValue,
     connectionFromConfig,
     harnessAllowsModel,
+    harnessSupportsUserMcp,
     modelIdFromConfig,
     providerForModel,
     vaultModelGroups,
@@ -167,6 +168,7 @@ export function useModelHarness({
         useMemo(() => harnessCapabilitiesAtomFamily(harnessRefKey ?? ""), [harnessRefKey]),
     )
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
+    const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
     // The vault query backs `vaultLoaded` below (gates the "needs a key" flag) and the custom_provider
     // model groups (`vaultModelGroups`); connections themselves are always the project default now,
@@ -819,6 +821,7 @@ export function useModelHarness({
 
     return {
         hasModelOrHarness,
+        mcpSupported,
         // The selected model's provider has a standard vault slot but no key yet — the config panel
         // highlights the Model & harness section and the chat gates on it until it's connected.
         needsProviderKey: providerNeedsKey,

@@ -18,6 +18,7 @@ import {
     connectionFromConfig,
     harnessAllowsModel,
     harnessAllowsProvider,
+    harnessSupportsUserMcp,
     isDeploymentProviderKind,
     modelIdFromConfig,
     modelSelectionMode,
@@ -46,6 +47,12 @@ const CAPABILITIES: HarnessCapabilitiesMap = {
         connection_modes: ["agenta", "self_managed"],
         model_selection: "alias",
         models: {anthropic: ["opus", "sonnet", "opus[1m]"]},
+        mcp: {
+            user_servers: {
+                connection_types: ["http"],
+                credentials: ["none", "header_secret_refs"],
+            },
+        },
     },
 }
 
@@ -159,6 +166,12 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
 })
 
 describe("connectionUtils: capability gating (inspect-fed)", () => {
+    it("shows external MCP authoring only when the harness publishes it", () => {
+        expect(harnessSupportsUserMcp(CAPABILITIES, "claude")).toBe(true)
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(false)
+        expect(harnessSupportsUserMcp(null, "claude")).toBe(false)
+    })
+
     it("reads providers and modes from the passed-in capability map", () => {
         expect(allowedProviders(CAPABILITIES, "pi_core")).toEqual(["openai", "anthropic", "gemini"])
         expect(allowedProviders(CAPABILITIES, "claude")).toEqual(["anthropic"])
