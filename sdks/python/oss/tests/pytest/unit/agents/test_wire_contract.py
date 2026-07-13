@@ -542,7 +542,7 @@ def test_request_to_wire_carries_consumer_owned_model_connection():
         messages=[Message(role="user", content="hi")],
     )
     assert set(payload) <= KNOWN_REQUEST_KEYS
-    assert payload["model"] == "gpt-5.5-2026"
+    assert payload["model"] == "openai/gpt-5.5-2026"
     assert payload["modelConnection"] == {
         "provider": "openai",
         "deployment": "custom",
@@ -565,6 +565,52 @@ def test_request_to_wire_carries_consumer_owned_model_connection():
         "credentialMode",
     ):
         assert removed not in payload
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "expected"),
+    [
+        ("openai", "shared-model", "openai/shared-model"),
+        ("openrouter", "shared-model", "openrouter/shared-model"),
+        ("openrouter", "meta-llama/llama-3", "openrouter/meta-llama/llama-3"),
+    ],
+)
+def test_pi_wire_model_preserves_resolved_provider(provider, model, expected):
+    config = PiAgentTemplate(
+        model=model,
+        resolved_connection=ResolvedConnection(
+            provider=provider,
+            model=model,
+            deployment="direct",
+            credential_mode="runtime_provided",
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessType.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["model"] == expected
+
+
+def test_claude_wire_model_keeps_bare_alias():
+    config = ClaudeAgentTemplate(
+        model="sonnet",
+        resolved_connection=ResolvedConnection(
+            provider="anthropic",
+            model="sonnet",
+            deployment="direct",
+            credential_mode="runtime_provided",
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessType.CLAUDE,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["model"] == "sonnet"
 
 
 def test_request_to_wire_omits_resolved_connection_when_none():

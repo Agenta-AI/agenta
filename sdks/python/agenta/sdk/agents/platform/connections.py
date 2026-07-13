@@ -30,6 +30,7 @@ from ..connections import (
     ConnectionNotFoundError,
     ConnectionResolutionError,
     Endpoint,
+    MissingCredentialError,
     MissingProviderError,
     ModelRef,
     ProviderMismatchError,
@@ -470,11 +471,13 @@ def _resolve_from_secrets(
     )
     provider = chosen.resolved_provider(model)
     env = chosen.resolved_env(provider)
+    if not env:
+        raise MissingCredentialError(provider=provider, slug=chosen.slug)
     return build_resolved_connection(
         provider=provider,
         model=chosen.selected_model_id(model),
         deployment=chosen.deployment,
-        credential_mode="env" if env else "runtime_provided",
+        credential_mode="env",
         values=env,
         endpoint=chosen.endpoint,
     )

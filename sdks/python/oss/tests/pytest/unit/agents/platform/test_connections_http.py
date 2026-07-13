@@ -9,6 +9,7 @@ from agenta.sdk.agents.connections import (
     ConnectionNotFoundError,
     ConnectionResolutionError,
     InvalidConnectionConfigurationError,
+    MissingCredentialError,
     MissingProviderError,
     ModelRef,
     ProviderMismatchError,
@@ -113,6 +114,14 @@ async def test_default_connection_requires_unique_provider_match(fake_http, conn
         model=_model(slug=None), context=_context()
     )
     assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-default"}
+
+
+async def test_managed_connection_with_empty_key_fails_closed(fake_http, connection):
+    fake_http(connections, payload=[_provider_key("default", "openai", "")])
+    with pytest.raises(MissingCredentialError, match="self_managed"):
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(slug=None), context=_context()
+        )
 
 
 async def test_default_connection_ambiguous(fake_http, connection):
@@ -505,7 +514,16 @@ async def test_full_custom_model_key_selects_and_strips_to_backend_model(
     fake_http(
         connections,
         payload=[
-            _custom_provider("my-bedrock", "bedrock", models=["anthropic.claude-x"])
+            _custom_provider(
+                "my-bedrock",
+                "bedrock",
+                extras={
+                    "aws_access_key_id": "AKIA",
+                    "aws_secret_access_key": "secret",
+                    "aws_region_name": "us-east-1",
+                },
+                models=["anthropic.claude-x"],
+            )
         ],
     )
     resolved = await VaultConnectionResolver(connection).resolve(

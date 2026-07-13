@@ -17,6 +17,7 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ResolvedConnection,
 )
+from agenta.sdk.agents.connections.endpoints import build_resolved_connection
 
 
 # ----------------------------------------------------------------- ModelRef.coerce
@@ -173,6 +174,19 @@ def test_resolved_connection_to_wire_omits_endpoint_when_absent():
     assert "endpoint" not in wire
     assert wire["credentials"] == []
     assert wire["credentialMode"] == "runtime_provided"
+
+
+def test_local_use_credentials_do_not_require_an_http_endpoint():
+    resolved = build_resolved_connection(
+        provider="bedrock",
+        model="anthropic.claude-x",
+        deployment="bedrock",
+        credential_mode="env",
+        values={"AWS_PROFILE": "profile"},
+    )
+    assert resolved.endpoint is None
+    assert resolved.credential_mode == "env"
+    assert [credential.usage for credential in resolved.credentials] == ["local_use"]
 
 
 def test_resolved_connection_credential_is_hidden_from_repr():

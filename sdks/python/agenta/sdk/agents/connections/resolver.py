@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 
 from ..capabilities import PROVIDER_ENV_VARS
 from .endpoints import build_resolved_connection
-from .errors import UnsupportedProviderError
+from .errors import MissingCredentialError, UnsupportedProviderError
 from .models import (
     Endpoint,
     ModelRef,
@@ -39,8 +39,8 @@ class EnvConnectionResolver:
     - ``agenta`` (the default mode, with or without a slug) -> infer the provider (from
       ``ModelRef.provider``, else error), look up its env var, and:
         - present -> ``credential_mode = env`` carrying exactly that one var;
-        - absent  -> ``credential_mode = runtime_provided`` with empty ``env`` (absence is
-          valid; the harness falls back to its own login, matching today's semantics).
+        - absent  -> fail closed. Only an explicit ``self_managed`` connection may let the
+          harness own authentication.
 
     The model passes through unchanged. Offline, no vault, no network.
     """
@@ -79,12 +79,9 @@ class EnvConnectionResolver:
                 credential_mode="env",
                 values={env_var: key},
             )
-        # Absence is valid: inject nothing and let the harness use its own login/OAuth.
-        return build_resolved_connection(
+        raise MissingCredentialError(
             provider=provider,
-            model=model.model,
-            credential_mode="runtime_provided",
-            values={},
+            slug=model.connection.slug,
         )
 
 
@@ -129,17 +126,30 @@ class StaticConnectionResolver:
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
         provider = self._provider or model.provider or ""
+        if model.connection.mode == "self_managed":
+            return build_resolved_connection(
+                provider=provider,
+                model=model.model,
+                deployment=self._deployment,
+                credential_mode="runtime_provided",
+                values={},
+            )
         env: Dict[str, str] = {}
         if self._api_key:
             env_var = self._env_var or _PROVIDER_ENV_VARS.get(provider.lower())
             if env_var:
                 env[env_var] = self._api_key
         endpoint = Endpoint(base_url=self._base_url) if self._base_url else None
+        if not env:
+            raise MissingCredentialError(
+                provider=provider,
+                slug=model.connection.slug,
+            )
         return build_resolved_connection(
             provider=provider,
             model=model.model,
             deployment=self._deployment,
-            credential_mode="env" if env else "runtime_provided",
+            credential_mode="env",
             values=env,
             endpoint=endpoint,
         )

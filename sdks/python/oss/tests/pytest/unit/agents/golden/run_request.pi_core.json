@@ -3,7 +3,7 @@
   "sandbox": "local",
   "sessionId": "sess-1",
   "agentsMd": "You are a helpful assistant.",
-  "model": "gpt-5.5",
+  "model": "openai-codex/gpt-5.5",
   "messages": [
     {
       "role": "user",

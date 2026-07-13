@@ -1,8 +1,7 @@
 """The offline SDK-default resolvers: ``EnvConnectionResolver`` / ``StaticConnectionResolver``.
 
-Locks the least-privilege contract: the env resolver returns exactly the one provider var when
-present, ``runtime_provided`` (empty env) when absent or self-managed, and the static resolver
-builds a resolved connection from a user-supplied credential.
+Locks the least-privilege contract: managed resolvers return exactly the requested credential or
+fail closed. Only an explicit self-managed connection yields ``runtime_provided`` with no env.
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ import pytest
 from agenta.sdk.agents.connections import (
     Connection,
     EnvConnectionResolver,
+    MissingCredentialError,
     ModelRef,
     RuntimeAuthContext,
     StaticConnectionResolver,
@@ -58,16 +58,13 @@ async def test_env_resolver_reads_the_live_process_env(monkeypatch):
     assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-from-env"}
 
 
-async def test_env_resolver_absent_key_is_runtime_provided():
+async def test_env_resolver_absent_key_fails_closed():
     resolver = EnvConnectionResolver(env={})
-    resolved = await resolver.resolve(
-        model=ModelRef(provider="openai", model="gpt-5.5"),
-        context=_CTX,
-    )
-    # Absence is valid: inject nothing, harness falls back to its own login.
-    assert resolved.credential_mode == "runtime_provided"
-    assert _credential_environment(resolved) == {}
-    assert resolved.model == "gpt-5.5"
+    with pytest.raises(MissingCredentialError, match="self_managed"):
+        await resolver.resolve(
+            model=ModelRef(provider="openai", model="gpt-5.5"),
+            context=_CTX,
+        )
 
 
 async def test_env_resolver_self_managed_is_runtime_provided():
@@ -122,10 +119,23 @@ async def test_static_resolver_carries_a_base_url_into_the_endpoint():
     assert _credential_environment(resolved) == {"OPENAI_API_KEY": "sk-static"}
 
 
-async def test_static_resolver_without_a_key_is_runtime_provided():
+async def test_static_resolver_without_a_key_fails_closed():
+    resolver = StaticConnectionResolver(provider="openai")
+    with pytest.raises(MissingCredentialError, match="self_managed"):
+        await resolver.resolve(
+            model=ModelRef(provider="openai", model="gpt-5.5"),
+            context=_CTX,
+        )
+
+
+async def test_static_resolver_self_managed_without_a_key_is_runtime_provided():
     resolver = StaticConnectionResolver(provider="openai")
     resolved = await resolver.resolve(
-        model=ModelRef(provider="openai", model="gpt-5.5"),
+        model=ModelRef(
+            provider="openai",
+            model="gpt-5.5",
+            connection=Connection(mode="self_managed"),
+        ),
         context=_CTX,
     )
     assert resolved.credential_mode == "runtime_provided"

@@ -114,6 +114,10 @@ def build_resolved_connection(
             "Vertex API-key authentication is not supported by the agent connection contract"
         )
     credentials, environment = classify_environment(values.items())
+    if credential_mode == "env" and not credentials:
+        raise InvalidConnectionConfigurationError(
+            "credential_mode 'env' requires at least one usable credential"
+        )
     try:
         route = effective_endpoint(
             provider=provider,
@@ -124,18 +128,14 @@ def build_resolved_connection(
     except ValueError as exc:
         # A runtime-owned login with no resolved credential does not need a credential host.
         # Once Agenta supplies any credential, an indeterminate route is unsafe and fails loud.
-        if credentials:
+        if any(credential.usage == "opaque_http" for credential in credentials):
             raise InvalidConnectionConfigurationError(str(exc)) from exc
         route = None
     return ResolvedConnection(
         provider=provider,
         model=model,
         deployment=deployment,
-        credential_mode=(
-            credential_mode
-            if credentials or credential_mode != "env"
-            else "runtime_provided"
-        ),
+        credential_mode=credential_mode,
         credentials=credentials,
         environment=environment,
         endpoint=route,

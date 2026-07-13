@@ -815,6 +815,23 @@ class PiAgentTemplate(HarnessAgentTemplate):
 
     harness: ClassVar[HarnessType] = HarnessType.PI
 
+    def wire_model_connection(self) -> Dict[str, Any]:
+        """Keep Pi's selector provider-qualified so equal model suffixes cannot misroute.
+
+        ``modelConnection.provider`` describes credential ownership, but Pi routes on the
+        top-level model string. Agenta inherits this behavior; Claude keeps its bare aliases.
+        """
+        wire = super().wire_model_connection()
+        if not wire or self.resolved_connection is None:
+            return wire
+        provider = self.resolved_connection.provider
+        model = self.resolved_connection.model
+        prefix = f"{provider}/" if provider else ""
+        wire["model"] = (
+            model if not prefix or model.startswith(prefix) else f"{prefix}{model}"
+        )
+        return wire
+
     builtin_names: List[str] = Field(
         default_factory=list,
         validation_alias=AliasChoices("builtin_names", "builtin_tools"),
