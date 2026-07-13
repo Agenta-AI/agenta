@@ -668,7 +668,11 @@ class TestUIMessageStream:
         assert err["toolCallId"] == "c1"
         assert err["errorText"] == "boom"
 
-    async def test_terminal_failure_emits_error_part_and_no_finish(self):
+    async def test_terminal_failure_emits_error_part_and_still_finishes(self):
+        # SDK-3: this used to assert `"finish" not in types`. That was the defect, not a
+        # contract — the routing-layer twin has always drained to a finish frame from its
+        # `finally:`, and a consumer waiting on `finish` hangs without one. The two twins now
+        # agree: the error part surfaces AND the stream terminates.
         records = [
             {"kind": "event", "event": {"type": "message", "text": "partial"}},
             {"kind": "result", "result": {"ok": False, "error": "kaboom"}},
@@ -677,6 +681,6 @@ class TestUIMessageStream:
         parts = [part async for part in agent_run_to_vercel_parts(run, session_id="s1")]
         types = [p["type"] for p in parts]
         assert types[0] == "start"
-        assert "finish" not in types
+        assert types[-1] == "finish"
         error = next(p for p in parts if p["type"] == "error")
         assert "kaboom" in error["errorText"]

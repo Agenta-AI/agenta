@@ -279,42 +279,41 @@ async def _agent_run_to_vercel_parts_impl(
                 if reason is not None:
                     stop_reason = reason
     except Exception as exc:
-        # A graceful terminal failure (the run's own AgentResult says ok=false) surfaces here
-        # as a plain exception from AgentStream iteration; that case intentionally ends the
-        # stream on the error part with no finish frame, so this path stays as-is. Sanitize
-        # either way — an unexpected exception's raw str() can carry a stack/path dump.
+        # Sanitize — an unexpected exception's raw str() can carry a stack/path dump.
         log.error("agent_run_to_vercel_parts: error mid-stream", exc_info=True)
         yield {"type": "error", "errorText": sanitize_runner_error(exc)}
-        return
+    finally:
+        # Every exit path — including the raw exception above — must still drain to a
+        # finish frame, or a consumer waiting on it hangs. Mirrors the routing-layer twin.
+        # The terminal AgentResult is authoritative. Its stop_reason wins over the `done`
+        # event's, which the live runner leaves empty on a HITL pause (mirrors fold's
+        # terminal-wins precedence); usage/trace_id fall back to it only when the stream
+        # carried neither.
+        result = _safe_result(run)
+        if result is not None:
+            if result.stop_reason is not None:
+                stop_reason = result.stop_reason
+            if usage is None:
+                usage = _usage_metadata(result.usage or {})
+            if trace_id is None:
+                trace_id = result.trace_id
 
-    # The terminal AgentResult is authoritative. Its stop_reason wins over the `done` event's,
-    # which the live runner leaves empty on a HITL pause (mirrors fold's terminal-wins
-    # precedence); usage/trace_id fall back to it only when the stream carried neither.
-    result = _safe_result(run)
-    if result is not None:
-        if result.stop_reason is not None:
-            stop_reason = result.stop_reason
-        if usage is None:
-            usage = _usage_metadata(result.usage or {})
-        if trace_id is None:
-            trace_id = result.trace_id
-
-    yield {"type": "finish-step"}
-    if content_parts_emitted == 0:
-        # An ok:true run with zero content parts would otherwise render as a blank bubble.
-        yield {"type": "error", "errorText": "The agent produced no output."}
-    finish: Dict[str, Any] = {"type": "finish"}
-    finish_reason = _map_finish_reason(stop_reason)
-    if finish_reason is not None:
-        finish["finishReason"] = finish_reason
-    metadata: Dict[str, Any] = {}
-    if usage:
-        metadata["usage"] = usage
-    if trace_id is not None:
-        metadata["traceId"] = trace_id
-    if metadata:
-        finish["messageMetadata"] = metadata
-    yield finish
+        yield {"type": "finish-step"}
+        if content_parts_emitted == 0:
+            # An ok:true run with zero content parts would otherwise render as a blank bubble.
+            yield {"type": "error", "errorText": "The agent produced no output."}
+        finish: Dict[str, Any] = {"type": "finish"}
+        finish_reason = _map_finish_reason(stop_reason)
+        if finish_reason is not None:
+            finish["finishReason"] = finish_reason
+        metadata: Dict[str, Any] = {}
+        if usage:
+            metadata["usage"] = usage
+        if trace_id is not None:
+            metadata["traceId"] = trace_id
+        if metadata:
+            finish["messageMetadata"] = metadata
+        yield finish
 
 
 async def agent_stream_to_vercel_stream(
