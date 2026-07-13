@@ -18,6 +18,11 @@ import { promisify } from "node:util";
 
 const pExecFile = promisify(execFile);
 
+/** POSIX single-quote escaping for values interpolated into `sh -c` strings. */
+export function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
 /** Signed, scoped, short-lived credentials for one mount (mirror of the API `MountCredentials`). */
 export interface MountCredentials {
   endpoint?: string;
@@ -579,7 +584,10 @@ async function remoteMountAlive(
     try {
       const res = await sandbox.runProcess({
         command: "sh",
-        args: ["-c", `mountpoint -q ${cwd} && ls ${cwd} >/dev/null 2>&1`],
+        args: [
+          "-c",
+          `mountpoint -q ${shellQuote(cwd)} && ls ${shellQuote(cwd)} >/dev/null 2>&1`,
+        ],
         timeoutMs: 5_000,
       });
       consecutiveThrows = 0;
@@ -610,7 +618,7 @@ async function unmountRemoteDeadMount(
       command: "sh",
       args: [
         "-c",
-        `fusermount -u ${cwd} 2>/dev/null || umount -l ${cwd} 2>/dev/null || true`,
+        `fusermount -u ${shellQuote(cwd)} 2>/dev/null || umount -l ${shellQuote(cwd)} 2>/dev/null || true`,
       ],
       timeoutMs: 10_000,
     });
@@ -640,13 +648,14 @@ export async function mountStorageRemote(
     // Ensure the directory exists before mounting.
     await sandbox.runProcess({
       command: "sh",
-      args: ["-c", `mkdir -p ${cwd}`],
+      args: ["-c", `mkdir -p ${shellQuote(cwd)}`],
       timeoutMs: 30_000,
     });
     // Background geesefs with its logs to a file so the RPC returns immediately.
     const args = geesefsArgs(creds, cwd, deps.endpoint, false);
     const logFile = "/tmp/geesefs-mount.log";
-    const geefsCmd = `geesefs --log-file ${logFile} ${args.join(" ")} >>${logFile} 2>&1 &`;
+    const quotedArgs = args.map(shellQuote).join(" ");
+    const geefsCmd = `geesefs --log-file ${shellQuote(logFile)} ${quotedArgs} >>${shellQuote(logFile)} 2>&1 &`;
     log(`remote geesefs argv: ${args.join(" ")}`);
     const res = await sandbox.runProcess({
       command: "sh",
