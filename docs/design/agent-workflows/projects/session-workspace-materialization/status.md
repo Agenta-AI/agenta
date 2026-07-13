@@ -2,8 +2,9 @@
 
 ## Current state
 
-Research and revised launch design complete. No implementation has started. The plan now covers
-native transcript loss as well as stale skill paths.
+Phase 0 is implemented and locally verified. Cold Pi continuations now bypass identity-free native
+loads, invalidate the stale continuity pointer, create a clean native session, and receive canonical
+replay. Later transcript-storage and skill-snapshot phases remain planned.
 
 ## Progress log
 
@@ -27,6 +28,19 @@ native transcript loss as well as stale skill paths.
   settings key for its scans and ignores the env var.
 - 2026-07-13: Accepted immutable-by-convention skill snapshots as the threat model and documented
   the write-ownership fail-closed rule as distinct from history-uncertainty fallback.
+- 2026-07-13: Implemented Phase 0 in the runner. Cold Pi continuations no longer call native
+  `session/load` while the pinned adapter cannot prove loaded identity. Claude native resume is
+  unchanged.
+- 2026-07-13: Added a production-shaped runner regression that seeds a stale Pi pointer, proves
+  `resumeSession` is not called, verifies full replay contains the earlier marker, and confirms the
+  new native ID replaces the stale pointer only after success. Added a companion Claude guard.
+- 2026-07-13: Focused replay and continuity tests pass, runner typecheck passes, and the complete
+  runner suite reports 1,045 passing tests. Two older transcript captures fail on an unrelated
+  concurrent harness-ID contract change; both new Phase 0 tests pass.
+- 2026-07-13: Live local QA passes with `pi_core` and the self-managed Codex subscription. After a
+  60-second environment TTL eviction, the second turn answered `BETA-9`; after a full sidecar
+  restart, the second turn answered `ALPHA-7`. Both logs show a cold keepalive miss, canonical
+  replay, `outcome=unverified replay=canonical`, and a fresh native session create.
 
 ## Decisions
 
@@ -53,7 +67,7 @@ native transcript loss as well as stale skill paths.
 ## Blockers
 
 The explicit Pi skill-path seam and local transcript persistence seam require focused probes before
-their follow-up implementations. They do not block the verified-load correctness gate.
+their follow-up implementations. They do not block the completed Phase 0 correctness gate.
 
 ## Open questions
 
@@ -69,7 +83,7 @@ their follow-up implementations. They do not block the verified-load correctness
 ## Next steps
 
 1. Issue #5283 and design PR #5284 are filed; the review updates are on the PR.
-2. Implement the Phase 0 conservative fallback as the launch gate.
+2. Review and merge the implemented Phase 0 conservative fallback.
 3. Restore verified loads (Phase 0b), preferably in `pi-acp`.
 4. Add durable local Pi transcript storage through the `sessionDir` settings override.
 5. Move Pi skills to append-only cwd snapshots after the explicit-path probe passes.

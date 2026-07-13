@@ -3,15 +3,13 @@
 ## Phase 0: launch gate for conversation correctness
 
 1. Turn the supplied `session-7e9ad207` run into a production-shaped regression case.
-2. Stop the sandbox-agent wrapper from substituting the requested ID when the adapter omits actual
-   loaded identity.
-3. Replace inferred `loaded=true` with an explicit verified-history outcome. With pinned
+2. Replace inferred `loaded=true` with an explicit verified-history outcome. With pinned
    `pi-acp@0.0.29` no load can produce evidence, so every cold Pi continuation replays. That is
    the intended launch behavior.
-4. On missing, corrupt, mismatched, or unverified history, invalidate continuity, create a clean
+3. On missing, corrupt, mismatched, or unverified history, invalidate continuity, create a clean
    native session, and send `plan.turnText`.
-5. Record the new native ID only after the replayed turn succeeds.
-6. Add structured logs and counters without transcript content.
+4. Record the new native ID only after the replayed turn succeeds.
+5. Add structured logs and counters without transcript content.
 
 Exit criterion: after deleting or replacing the mapped Pi transcript, turn 1 still receives turn 0
 through canonical replay. Only a verified native load sends the newest message alone.
@@ -22,14 +20,17 @@ exists yet.
 
 ## Phase 0b: restore verified loads
 
-1. Preferred: fix `pi-acp` so `session/load` rejects a missing transcript before spawning Pi with
+1. Stop the sandbox-agent wrapper from substituting the requested ID when the adapter omits actual
+   loaded identity. This cleanup is required before any Pi load can become verified, but it is not
+   required for the Phase 0 gate because Phase 0 bypasses cold Pi loading entirely.
+2. Preferred: fix `pi-acp` so `session/load` rejects a missing transcript before spawning Pi with
    `--session`, requires the transcript header ID to equal the requested mapping ID, and returns
    the actual loaded ID. Deliver through an upstream fix, a version bump, or a patch file like the
    existing sandbox-agent patch. Name the mechanism in the implementation PR.
-2. Acceptable interim: the runner performs the existence and header-identity check itself on local
+3. Acceptable interim: the runner performs the existence and header-identity check itself on local
    runs. It already holds the agent directory, the expected native ID, and a transcript header
    parser in `pi-error.ts`, so this adds no new access path.
-3. Either source upgrades the history outcome to `verified` and re-enables newest-message-only
+4. Either source upgrades the history outcome to `verified` and re-enables newest-message-only
    prompting. The conservative fallback from Phase 0 stays in place regardless.
 
 ## Phase 1: durable local Pi transcripts
