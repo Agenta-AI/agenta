@@ -15,8 +15,17 @@ import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphem
 import {DriveFileCard} from "./DriveFileCard"
 import {useSessionDrive} from "./useSessionDrive"
 
-export function DriveFileLinkProvider({sessionId}: {sessionId: string}) {
-    const drive = useSessionDrive(isSessionFresh(sessionId) ? "" : sessionId)
+export function DriveFileLinkProvider({
+    sessionId,
+    artifactId,
+}: {
+    sessionId: string
+    artifactId?: string | null
+}) {
+    const drive = useSessionDrive(
+        isSessionFresh(sessionId) ? "" : sessionId,
+        artifactId ?? undefined,
+    )
     const setLink = useSetAtom(chatFileLinkAtomFamily(sessionId))
 
     // Index the listing once per change: full paths for exact hits, basenames for bare-name hits.

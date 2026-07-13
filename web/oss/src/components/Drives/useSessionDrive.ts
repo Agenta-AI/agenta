@@ -11,13 +11,27 @@ import {
 } from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
 
+import {agentMountQueryFamily} from "./agentDrive"
 import {driveFiles, driveTotalSize, relativeTime} from "./driveTree"
+
+/** The agent's durable mount is symlinked into the session cwd under this name (runner:
+ * `AGENT_FILES_LINK_NAME`). Its files live in a SEPARATE mount/prefix, so the drive folds them in
+ * under this path — matching how the agent sees them on disk. */
+export const AGENT_FILES_DIR = "agent-files"
+
+const cleanPath = (p: string): string => p.replace(/^\/+|\/+$/g, "")
 
 export interface DriveRecentFile extends MountFile {
     /** Best-effort last-touched timestamp — from the file-activity signal log. The listing
      * carries NO mtime (backend ask: thread S3 LastModified through `MountFile`), so recency
      * exists only for files the agent touched while this browser watched. */
     touchedAt?: number
+}
+
+/** Which mount backs a presented drive path, and that path relative to the mount's own root. */
+export interface ResolvedMountPath {
+    mount: Mount
+    path: string
 }
 
 export interface SessionDriveData {
@@ -34,19 +48,30 @@ export interface SessionDriveData {
     isLoading: boolean
     /** Listing (or mount discovery) failed — e.g. object store not configured. */
     errored: boolean
+    /** Map a presented path (as it appears in `files`/`recents`) to the mount + mount-relative path
+     * that backs it — the cwd mount, or the nested `agent-files/` agent mount — for read/download. */
+    resolveMount: (path: string) => ResolvedMountPath | null
 }
 
 /**
  * One data source for every session-drive surface (config row, drawer, chat rail/grid): the
- * primary mount + its listing from the centralized mount atoms, enriched with recency from the
- * per-session file-activity signals.
+ * primary (cwd) mount + its listing, PLUS the agent's durable mount folded in under `agent-files/`
+ * (queried by `artifactId` — the agent mount is keyed by artifact, shared across the agent's
+ * sessions). Enriched with recency from the per-session file-activity signals.
  */
-export function useSessionDrive(sessionId: string): SessionDriveData {
+export function useSessionDrive(sessionId: string, artifactId?: string): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
     const mount = mounts.find((m) => m.slug === "cwd") ?? mounts[0] ?? null
 
     const filesQuery = useAtomValue(mountFilesQueryFamily(mount?.id ?? ""))
+
+    // Agent (durable) mount — keyed by artifact, not session. Its files are surfaced under
+    // `agent-files/`. Queries stay disabled (empty key) when there's no artifact.
+    const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
+    const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
+    const agentFilesQuery = useAtomValue(mountFilesQueryFamily(agentMount?.id ?? ""))
+
     const activity = useAtomValue(sessionFileActivityAtomFamily(sessionId))
     // Durable, cross-device recency from the record log — the base layer under the live browser
     // activity below (which only sees THIS tab's turns). Without it, files created before this tab
@@ -55,7 +80,23 @@ export function useSessionDrive(sessionId: string): SessionDriveData {
 
     return useMemo(() => {
         const listing = filesQuery.data ?? null
-        const files = driveFiles(listing)
+        const cwdFiles = driveFiles(listing).filter((f) => cleanPath(f.path) !== AGENT_FILES_DIR)
+
+        // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd.
+        const agentListing = agentFilesQuery.data ?? null
+        const agentFiles = driveFiles(agentListing).map((f) => ({
+            ...f,
+            path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
+        }))
+        const files: MountFile[] = [...cwdFiles, ...agentFiles]
+
+        const resolveMount = (path: string): ResolvedMountPath | null => {
+            const rel = cleanPath(path)
+            if (agentMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
+                return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+            }
+            return mount ? {mount, path: rel} : null
+        }
 
         // Newest signal wins per file; matching is tail-based (tool paths are absolute/relative).
         // Seed from the durable record log first, then let the live browser activity (fresher, same
@@ -80,15 +121,22 @@ export function useSessionDrive(sessionId: string): SessionDriveData {
         const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
 
         // Disabled queries (no session) stay isPending forever — an empty id means "no drive",
-        // not "loading".
+        // not "loading". The agent mount is optional: it only contributes loading/error when an
+        // artifact was supplied AND a mount resolved.
+        const agentPending =
+            Boolean(artifactId) &&
+            (agentMountQuery.isPending || Boolean(agentMount && agentFilesQuery.isPending))
         const isLoading =
-            Boolean(sessionId) && (mountsQuery.isPending || Boolean(mount && filesQuery.isPending))
+            Boolean(sessionId) &&
+            (mountsQuery.isPending || Boolean(mount && filesQuery.isPending) || agentPending)
         const errored =
             Boolean(sessionId) &&
             ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
                 (Boolean(mount) &&
                     !filesQuery.isPending &&
                     (listing === null || filesQuery.isError)))
+
+        const totalSize = driveTotalSize(listing) + driveTotalSize(agentListing)
 
         const summary = isLoading
             ? "…"
@@ -104,19 +152,25 @@ export function useSessionDrive(sessionId: string): SessionDriveData {
             mount,
             files,
             fileCount: files.length,
-            totalSize: driveTotalSize(listing),
+            totalSize,
             recents,
             lastTouchedAt,
             summary,
             isLoading,
             errored,
+            resolveMount,
         }
     }, [
         sessionId,
+        artifactId,
         mount,
+        agentMount,
         filesQuery.data,
         filesQuery.isPending,
         filesQuery.isError,
+        agentFilesQuery.data,
+        agentFilesQuery.isPending,
+        agentMountQuery.isPending,
         mountsQuery.data,
         mountsQuery.isPending,
         mountsQuery.isError,

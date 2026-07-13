@@ -12,6 +12,7 @@ import {useSetAtom} from "jotai"
 
 import {DriveExplorer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
+import {useDriveArtifactId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
@@ -29,7 +30,8 @@ export default function FilesWindow({
     /** Rendered inside a titled shell (the Files drawer) — hide the inner "Files" label. */
     embedded?: boolean
 }) {
-    const drive = useSessionDrive(sessionId)
+    const artifactId = useDriveArtifactId()
+    const drive = useSessionDrive(sessionId, artifactId ?? undefined)
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
     const now = useRecentChangeClock(drive.lastTouchedAt)
 
@@ -123,18 +125,23 @@ export default function FilesWindow({
             ) : (
                 <>
                     <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto p-3">
-                        {shown.map((file) => (
-                            <DriveFileRow
-                                key={file.path}
-                                variant="tile"
-                                path={file.path}
-                                file={file}
-                                mount={drive.mount}
-                                trailing={humanSize(file.size)}
-                                recent={isRecentlyChanged(file.touchedAt, now)}
-                                onOpen={() => openQuickLook({path: file.path})}
-                            />
-                        ))}
+                        {shown.map((file) => {
+                            // Thumbnail reads from the file's own mount (cwd or agent-files) with a
+                            // mount-relative path; the tile still displays the presented path.
+                            const resolved = drive.resolveMount(file.path)
+                            return (
+                                <DriveFileRow
+                                    key={file.path}
+                                    variant="tile"
+                                    path={file.path}
+                                    file={resolved ? {...file, path: resolved.path} : file}
+                                    mount={resolved?.mount ?? drive.mount}
+                                    trailing={humanSize(file.size)}
+                                    recent={isRecentlyChanged(file.touchedAt, now)}
+                                    onOpen={() => openQuickLook({path: file.path})}
+                                />
+                            )
+                        })}
                         {shown.length === 0 ? (
                             <Text type="secondary" className="col-span-3 !text-[11px]">
                                 No files match.

@@ -343,6 +343,9 @@ const AgentConversation = ({
     revealPlayedRef: MutableRefObject<boolean>
 }) => {
     const store = useStore()
+    // Workflow artifact id for this conversation — the key for the agent's durable `agent-files`
+    // mount, folded into the session drive by the Drive surfaces below (via the drive context).
+    const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
@@ -597,7 +600,7 @@ const AgentConversation = ({
     // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
     // THIS conversation's drive: the link provider makes filename mentions clickable, and the
     // Files drawer (below) hosts both the grid and the single-file preview in one surface.
-    const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} />
+    const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
     const filesWindowHost = <FilesDrawer sessionId={sessionId} />
     const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
 
@@ -1839,7 +1842,7 @@ const AgentConversation = ({
     return (
         // Ambient drive session: in-thread file cards + rail resolve files against THIS
         // conversation without prop-threading through the message tree.
-        <DriveSessionProvider sessionId={sessionId}>
+        <DriveSessionProvider sessionId={sessionId} artifactId={artifactId}>
             <div
                 className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
                 onDragEnter={onDragEnter}

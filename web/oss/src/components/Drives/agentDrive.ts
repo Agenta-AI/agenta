@@ -80,6 +80,9 @@ export function useAgentDrive(artifactId: string): SessionDriveData & {exists: b
             fileCount: files.length,
             totalSize: driveTotalSize(listing),
             recents,
+            // Single-mount drive: every path maps straight to this mount.
+            resolveMount: (path: string) =>
+                mount ? {mount, path: path.replace(/^\/+|\/+$/g, "")} : null,
             lastTouchedAt: null,
             summary: isLoading
                 ? "…"

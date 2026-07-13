@@ -10,6 +10,7 @@
  */
 import {useState} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CaretRight} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -52,8 +53,11 @@ const RecentFileRow = ({
     />
 )
 
-export default function StorageSection(_props: {revisionId?: string | null}) {
+export default function StorageSection({revisionId}: {revisionId?: string | null}) {
     const scope = useChatScopeKey()
+    // The agent's durable folder (`agent-files/`) is keyed by the workflow artifact, not the
+    // session — resolve it from the edited revision so it folds into this listing.
+    const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(revisionId ?? ""))
     const sessions = useAtomValue(sessionsListAtomFamily(scope))
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     // Same fallback the chat uses: a stale active id (closed tab) resolves to the first open tab.
@@ -70,7 +74,7 @@ export default function StorageSection(_props: {revisionId?: string | null}) {
     })
     const openDrawer = (initialPath: string | null) => setDrawer({open: true, initialPath})
 
-    const drive = useSessionDrive(sessionId)
+    const drive = useSessionDrive(sessionId, artifactId ?? undefined)
     const now = useRecentChangeClock(drive.lastTouchedAt)
 
     return (

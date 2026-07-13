@@ -13,6 +13,7 @@ import {atomWithStorage} from "jotai/utils"
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
 import {DriveFileRow} from "./DriveFileRow"
+import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
@@ -53,7 +54,11 @@ export function ContextRail({
 }) {
     const [open, setOpen] = useAtom(contextRailOpenAtom)
     // A brand-new never-run tab has no server data — hold the queries off until its first run.
-    const drive = useSessionDrive(isSessionFresh(sessionId) ? "" : sessionId)
+    const artifactId = useDriveArtifactId()
+    const drive = useSessionDrive(
+        isSessionFresh(sessionId) ? "" : sessionId,
+        artifactId ?? undefined,
+    )
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
 
     const width = hidden ? 0 : open ? RAIL_WIDTH : STRIP_WIDTH
@@ -173,22 +178,27 @@ const ExpandedRail = ({
                         {/* The recent files as friendly thumbnail cards (a preview a user recognises
                             at a glance) — the rail has room for it; older files live behind "View
                             all files". */}
-                        {drive.recents.slice(0, 5).map((file) => (
-                            <DriveFileRow
-                                key={file.path}
-                                variant="card"
-                                path={file.path}
-                                file={file}
-                                mount={drive.mount}
-                                recent={isRecentlyChanged(file.touchedAt, now)}
-                                trailing={
-                                    file.touchedAt
-                                        ? relativeTime(file.touchedAt).replace(" ago", "")
-                                        : undefined
-                                }
-                                onOpen={() => onQuickLook(file.path)}
-                            />
-                        ))}
+                        {drive.recents.slice(0, 5).map((file) => {
+                            // Route the thumbnail read to the file's own mount (cwd or agent-files),
+                            // with a mount-relative path; the row still displays the presented path.
+                            const resolved = drive.resolveMount(file.path)
+                            return (
+                                <DriveFileRow
+                                    key={file.path}
+                                    variant="card"
+                                    path={file.path}
+                                    file={resolved ? {...file, path: resolved.path} : file}
+                                    mount={resolved?.mount ?? drive.mount}
+                                    recent={isRecentlyChanged(file.touchedAt, now)}
+                                    trailing={
+                                        file.touchedAt
+                                            ? relativeTime(file.touchedAt).replace(" ago", "")
+                                            : undefined
+                                    }
+                                    onOpen={() => onQuickLook(file.path)}
+                                />
+                            )
+                        })}
                         {drive.fileCount > 5 ? (
                             <button
                                 type="button"

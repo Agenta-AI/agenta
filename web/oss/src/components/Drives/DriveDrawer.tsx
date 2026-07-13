@@ -362,8 +362,9 @@ export function DriveExplorer({
             </div>
             {selectedPath ? (
                 <DriveFilePreview
-                    mount={drive.mount}
-                    path={selectedPath}
+                    // Preview reads from the file's own mount (cwd or the nested agent-files mount).
+                    mount={drive.resolveMount(selectedPath)?.mount ?? drive.mount}
+                    path={drive.resolveMount(selectedPath)?.path ?? selectedPath}
                     rootLabel={rootLabel}
                     touchedAt={selected?.touchedAt}
                     size={selected?.size ?? undefined}

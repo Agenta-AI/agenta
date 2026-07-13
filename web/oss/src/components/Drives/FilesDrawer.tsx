@@ -26,6 +26,7 @@ import {SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMoti
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 
 import {DriveFileContentViewer, DriveFileDownloadButton, driveFileIcon} from "./DriveDrawer"
+import {useDriveArtifactId} from "./driveSessionContext"
 import {humanSize, relativeTime} from "./driveTree"
 import {DriveFileMetaList} from "./fileMeta"
 import FilesWindow from "./FilesWindow"
@@ -47,10 +48,14 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
     const open = gridOpen || quickLook != null
     const inPreview = quickLook != null
 
-    const drive = useSessionDrive(open ? sessionId : "")
+    const artifactId = useDriveArtifactId()
+    const drive = useSessionDrive(open ? sessionId : "", artifactId ?? undefined)
     const files = drive.recents
     const index = inPreview ? files.findIndex((f) => matchesTail(f.path, quickLook.path)) : -1
     const file = index >= 0 ? files[index] : null
+    // A previewed file may live in the cwd mount or the nested agent-files mount — resolve which,
+    // and its path relative to that mount, for the content viewer + download.
+    const resolvedFile = file ? drive.resolveMount(file.path) : null
 
     const page = (delta: number) => {
         if (!files.length) return
@@ -130,7 +135,10 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
             }
             extra={
                 inPreview && file ? (
-                    <DriveFileDownloadButton mount={drive.mount} path={file.path} />
+                    <DriveFileDownloadButton
+                        mount={resolvedFile?.mount ?? null}
+                        path={resolvedFile?.path ?? file.path}
+                    />
                 ) : undefined
             }
             footer={
@@ -177,15 +185,15 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
                                 <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
                                     {buildMode ? (
                                         <DriveFileMetaList
-                                            mount={drive.mount}
-                                            path={file.path}
+                                            mount={resolvedFile?.mount ?? null}
+                                            path={resolvedFile?.path ?? file.path}
                                             size={file.size}
                                             touchedAt={file.touchedAt}
                                         />
                                     ) : null}
                                     <DriveFileContentViewer
-                                        mount={drive.mount}
-                                        path={file.path}
+                                        mount={resolvedFile?.mount ?? null}
+                                        path={resolvedFile?.path ?? file.path}
                                         size={file.size}
                                     />
                                 </div>

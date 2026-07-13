@@ -14,7 +14,7 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import {driveFileIcon} from "./DriveDrawer"
 import {downloadMountFile} from "./driveMedia"
-import {useDriveSessionId} from "./driveSessionContext"
+import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {fileTypeLabel} from "./renderers"
@@ -31,8 +31,9 @@ const OP_META: Record<FileActivityOp, {label: string; color?: string}> = {
 export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
     const projectId = useAtomValue(projectIdAtom)
     const sessionId = useDriveSessionId()
+    const artifactId = useDriveArtifactId()
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
-    const drive = useSessionDrive(sessionId ?? "")
+    const drive = useSessionDrive(sessionId ?? "", artifactId ?? undefined)
 
     const resolved = drive.files.find((f) => mountPathMatchesToolPath(f.path, path)) ?? null
     const name = path.split("/").pop() ?? path
@@ -42,7 +43,10 @@ export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
 
     const download = () => {
         if (!resolved) return
-        void downloadMountFile({mount: drive.mount, path: resolved.path, projectId})
+        // The file may live in the cwd mount or the nested agent-files mount — route to whichever.
+        const target = drive.resolveMount(resolved.path)
+        if (!target) return
+        void downloadMountFile({mount: target.mount, path: target.path, projectId})
     }
 
     // A <span> root (inline-flex) so the card is valid inline — it's rendered both standalone in a

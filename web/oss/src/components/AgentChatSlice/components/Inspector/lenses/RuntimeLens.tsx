@@ -11,6 +11,7 @@ import {Broadcast, CaretRight, Database, FolderSimple} from "@phosphor-icons/rea
 import {useSetAtom} from "jotai"
 
 import {DriveFileRow} from "@/oss/components/Drives/DriveFileRow"
+import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
 import {humanSize} from "@/oss/components/Drives/driveTree"
 import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
 import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
@@ -21,7 +22,8 @@ import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
 /** The session's files, via the shared drive stack — a click opens the same Quick Look drawer as
  * the chat/config surfaces; "View all files" opens the full Files drawer. */
 const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
-    const drive = useSessionDrive(sessionId)
+    const artifactId = useDriveArtifactId()
+    const drive = useSessionDrive(sessionId, artifactId ?? undefined)
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
     const openFiles = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
 
