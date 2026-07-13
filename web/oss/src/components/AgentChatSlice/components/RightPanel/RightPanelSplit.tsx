@@ -39,6 +39,13 @@ const FILL_PANE_CLASS =
 // inner/outer slides read as one motion.
 const DRIVEN_SLIDE_CLASS =
     "[&>.ant-splitter-panel:last-child]:[transition:flex-basis_240ms_cubic-bezier(0.4,0,0.2,1)]"
+// The divider bar spans the full pane height, so in build mode its top rides UP under the
+// absolute session bar (whose tab gaps are transparent) and the line shows through it. Bottom-align
+// the bar and trim its height by the same `--agent-bar-inset` the panes clear, so the divider starts
+// below the session bar. Transitioned on the build↔chat inset flip to move in lockstep with the panes.
+const BAR_INSET_CLASS =
+    "[&>.ant-splitter-bar]:!h-[calc(100%-var(--agent-bar-inset,0px))] [&>.ant-splitter-bar]:!self-end " +
+    "[&>.ant-splitter-bar]:[transition:height_240ms_cubic-bezier(0.4,0,0.2,1)]"
 
 /**
  * Nested resizable split: [chat | right panel]. The Splitter (and thus the chat column) stays
@@ -119,7 +126,7 @@ const RightPanelSplit = ({
 
     return (
         <Splitter
-            className={`h-full min-h-0 w-full flex-1 ${FILL_PANE_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""}`}
+            className={`h-full min-h-0 w-full flex-1 ${FILL_PANE_CLASS} ${BAR_INSET_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""}`}
             onResizeStart={() => setDragging(true)}
             onResize={(sizes) => {
                 if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1]))
