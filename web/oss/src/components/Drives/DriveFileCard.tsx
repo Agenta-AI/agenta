@@ -16,7 +16,7 @@ import {driveFileIcon} from "./DriveDrawer"
 import {downloadMountFile} from "./driveMedia"
 import {useDriveSessionId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
-import {driveQuickLookAtom} from "./quickLook"
+import {driveQuickLookAtomFamily} from "./quickLook"
 import {fileTypeLabel} from "./renderers"
 import {useSessionDrive} from "./useSessionDrive"
 
@@ -29,9 +29,9 @@ const OP_META: Record<FileActivityOp, {label: string; color?: string}> = {
 }
 
 export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
-    const openQuickLook = useSetAtom(driveQuickLookAtom)
     const projectId = useAtomValue(projectIdAtom)
     const sessionId = useDriveSessionId()
+    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
     const drive = useSessionDrive(sessionId ?? "")
 
     const resolved = drive.files.find((f) => mountPathMatchesToolPath(f.path, path)) ?? null

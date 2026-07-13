@@ -6,7 +6,8 @@
  *
  * The grid stays mounted (scroll preserved); the preview slides OVER it and back, so exiting is a
  * single close from either state (the old stack needed two). Every opener — tiles, in-thread
- * cards, rail rows, chat links — just sets `driveQuickLookAtom` (the file to preview); that also
+ * cards, rail rows, chat links — just sets this session's `driveQuickLookAtomFamily` slot (the file
+ * to preview); that also
  * opens the drawer, so a chat link jumps straight to the file and Back reveals the grid behind it.
  *
  * Chat mode is jargon-free and content-first: NO metadata block here (that lives in the Build
@@ -18,6 +19,7 @@ import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, CaretLeft, CaretRight, FolderSimple} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
+import {atomFamily} from "jotai/utils"
 import {AnimatePresence, motion} from "motion/react"
 
 import {SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
@@ -27,17 +29,19 @@ import {DriveFileContentViewer, DriveFileDownloadButton, driveFileIcon} from "./
 import {humanSize, relativeTime} from "./driveTree"
 import {DriveFileMetaList} from "./fileMeta"
 import FilesWindow from "./FilesWindow"
-import {driveQuickLookAtom} from "./quickLook"
+import {driveQuickLookAtomFamily} from "./quickLook"
 import {useSessionDrive} from "./useSessionDrive"
 
-export const filesDrawerOpenAtom = atom(false)
+// Keyed by session id — every mounted pane has its own FilesDrawer host, so a shared open flag
+// would leak the drawer's open state across sessions on a tab switch.
+export const filesDrawerOpenAtomFamily = atomFamily((_sessionId: string) => atom(false))
 
 const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
 export function FilesDrawer({sessionId}: {sessionId: string}) {
-    const [gridOpen, setGridOpen] = useAtom(filesDrawerOpenAtom)
-    const [quickLook, setQuickLook] = useAtom(driveQuickLookAtom)
+    const [gridOpen, setGridOpen] = useAtom(filesDrawerOpenAtomFamily(sessionId))
+    const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     // Build mode gets the full metadata block; chat mode stays content-first (jargon-free).
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
     const open = gridOpen || quickLook != null

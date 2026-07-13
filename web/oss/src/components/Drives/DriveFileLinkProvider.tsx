@@ -9,7 +9,7 @@ import {useEffect, useMemo} from "react"
 
 import {useSetAtom} from "jotai"
 
-import {chatFileLinkAtom} from "@/oss/components/AgentChatSlice/state/fileLinks"
+import {chatFileLinkAtomFamily} from "@/oss/components/AgentChatSlice/state/fileLinks"
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
 import {DriveFileCard} from "./DriveFileCard"
@@ -17,7 +17,7 @@ import {useSessionDrive} from "./useSessionDrive"
 
 export function DriveFileLinkProvider({sessionId}: {sessionId: string}) {
     const drive = useSessionDrive(isSessionFresh(sessionId) ? "" : sessionId)
-    const setLink = useSetAtom(chatFileLinkAtom)
+    const setLink = useSetAtom(chatFileLinkAtomFamily(sessionId))
 
     // Index the listing once per change: full paths for exact hits, basenames for bare-name hits.
     const {byPath, byName} = useMemo(() => {

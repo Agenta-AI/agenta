@@ -18,6 +18,7 @@ import {
     activeSessionIdAtomFamily,
     addSessionAtomFamily,
     closeSessionAtomFamily,
+    pruneSessionHusksAtomFamily,
     renameSessionAtomFamily,
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
@@ -66,6 +67,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
+    const pruneSessionHusks = useSetAtom(pruneSessionHusksAtomFamily(scope))
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Shared entrance latch: the composer's Reveal plays for the first conversation this
     // panel mounts; every additional session pane skips it (no per-switch flash).
@@ -81,6 +83,13 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         }
         if (sessions.length > 0) seeded.current = false
     }, [sessions.length, addSession])
+
+    // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
+    // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops
+    // the blank tab you're about to type in.
+    useEffect(() => {
+        pruneSessionHusks()
+    }, [pruneSessionHusks])
 
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id

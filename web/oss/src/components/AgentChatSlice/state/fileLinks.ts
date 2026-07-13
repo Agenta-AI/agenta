@@ -5,11 +5,18 @@
  * listing + the Quick Look opener) publishes a resolver here; Markdown just consumes it.
  *
  * `resolve(text)` returns the drive-relative path to open (or null if the span isn't a known
- * file); `open(path)` opens it. Null atom value → no active drive → code spans render plain.
+ * file); `renderCard(path)` renders the in-thread file card. Null value → no active drive → code
+ * spans render plain.
+ *
+ * Keyed by SESSION ID (not a single slot): antd Tabs keeps every visited session pane mounted at
+ * once, so each pane publishes its own resolver against its own drive listing. A backgrounded
+ * pane's file mentions resolve against ITS session — not whichever pane's provider happened to
+ * write last, which is what made cards vanish or resolve to a foreign file on tab switch.
  */
 import {type ReactNode} from "react"
 
 import {atom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 export interface ChatFileLinkResolver {
     /** Map an inline-code string to a drive file path, or null when it names no known file. */
@@ -19,4 +26,6 @@ export interface ChatFileLinkResolver {
     renderCard: (path: string) => ReactNode
 }
 
-export const chatFileLinkAtom = atom<ChatFileLinkResolver | null>(null)
+export const chatFileLinkAtomFamily = atomFamily((_sessionId: string) =>
+    atom<ChatFileLinkResolver | null>(null),
+)

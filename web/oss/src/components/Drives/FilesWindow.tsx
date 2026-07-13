@@ -13,7 +13,7 @@ import {useSetAtom} from "jotai"
 import {DriveExplorer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
 import {humanSize} from "./driveTree"
-import {driveQuickLookAtom} from "./quickLook"
+import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {useSessionDrive} from "./useSessionDrive"
 
@@ -30,7 +30,7 @@ export default function FilesWindow({
     embedded?: boolean
 }) {
     const drive = useSessionDrive(sessionId)
-    const openQuickLook = useSetAtom(driveQuickLookAtom)
+    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
     const now = useRecentChangeClock(drive.lastTouchedAt)
 
     const [view, setView] = useState<"grid" | "list">("grid")

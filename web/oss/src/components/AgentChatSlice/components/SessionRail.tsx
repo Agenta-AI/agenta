@@ -14,6 +14,7 @@ import {
     addSessionAtomFamily,
     deleteSessionAtomFamily,
     firstUserText,
+    isSessionHusk,
     openSessionAtomFamily,
     openSessionIdsAtomFamily,
     renameSessionAtomFamily,
@@ -29,7 +30,6 @@ interface SessionRailRowProps {
     session: AgentChatSession
     label: string
     active: boolean
-    open: boolean
     onSelect: () => void
     onDelete: () => void
     onRename: (title: string) => void
@@ -42,7 +42,6 @@ const SessionRailRow = ({
     session,
     label,
     active,
-    open,
     onSelect,
     onDelete,
     onRename,
@@ -96,11 +95,6 @@ const SessionRailRow = ({
                     )}
                 </div>
                 <div className={clsx("flex shrink-0 items-center gap-0.5", renaming && "hidden")}>
-                    {open && !active && (
-                        <span className="ag-surface-chip rounded px-1.5 py-px text-[11px] text-colorTextSecondary">
-                            open
-                        </span>
-                    )}
                     {/* Inspection is build-mode only, so the chat-mode rail has no inspect entry. */}
                     <Tooltip title="Rename session">
                         <Button
@@ -161,10 +155,15 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     const q = query.trim().toLowerCase()
     const currentActiveId = activeId ?? resolvedActiveId
 
-    const rows = history.map((session) => ({
-        session,
-        label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
-    }))
+    // Hide never-initiated husks (untitled, no messages) unless they're an open tab — so a blank
+    // in-progress session still shows, but abandoned empties don't clutter the list (the mount-time
+    // prune then drops them from storage). Matches the discard-on-close rule.
+    const rows = history
+        .filter((session) => openIds.has(session.id) || !isSessionHusk(session, allMessages))
+        .map((session) => ({
+            session,
+            label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
+        }))
     const filtered = q ? rows.filter((r) => r.label.toLowerCase().includes(q)) : rows
 
     return (
@@ -234,7 +233,6 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                                 session={session}
                                 label={label}
                                 active={session.id === currentActiveId}
-                                open={openIds.has(session.id)}
                                 onSelect={() => openSession(session.id)}
                                 onDelete={() => deleteSession(session.id)}
                                 onRename={(title) => renameSession({id: session.id, title})}

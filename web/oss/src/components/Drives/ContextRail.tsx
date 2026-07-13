@@ -14,7 +14,7 @@ import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphem
 
 import {DriveFileRow} from "./DriveFileRow"
 import {relativeTime} from "./driveTree"
-import {driveQuickLookAtom} from "./quickLook"
+import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {useSessionDrive} from "./useSessionDrive"
 
@@ -54,7 +54,7 @@ export function ContextRail({
     const [open, setOpen] = useAtom(contextRailOpenAtom)
     // A brand-new never-run tab has no server data — hold the queries off until its first run.
     const drive = useSessionDrive(isSessionFresh(sessionId) ? "" : sessionId)
-    const openQuickLook = useSetAtom(driveQuickLookAtom)
+    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
 
     const width = hidden ? 0 : open ? RAIL_WIDTH : STRIP_WIDTH
 

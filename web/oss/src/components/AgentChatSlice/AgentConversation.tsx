@@ -47,7 +47,7 @@ import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
-import {FilesDrawer, filesDrawerOpenAtom} from "@/oss/components/Drives/FilesDrawer"
+import {FilesDrawer, filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
 import {
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
@@ -423,6 +423,11 @@ const AgentConversation = ({
         revealPlayedRef.current = true
     }, [revealPlayedRef])
 
+    // A brand-new session mounts a fresh pane — drop the cursor straight into the composer so the
+    // user can type immediately. Frozen at mount (fresh-until-first-send) and driven through the
+    // editor's own AutoFocusPlugin, which fires on the lazy Lexical mount rather than racing it.
+    const [autoFocusComposer] = useState(() => isSessionFresh(sessionId))
+
     // Per-session unsent draft: restore once at mount (initialMarkdown is mount-only) and
     // capture edits debounced — markdown is read from the handle at capture time, not per
     // keystroke (serialization isn't free).
@@ -594,7 +599,7 @@ const AgentConversation = ({
     // Files drawer (below) hosts both the grid and the single-file preview in one surface.
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} />
     const filesWindowHost = <FilesDrawer sessionId={sessionId} />
-    const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtom)
+    const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
 
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
     // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
@@ -2139,6 +2144,7 @@ const AgentConversation = ({
                                 >
                                     <RichChatInput
                                         ref={richInputRef}
+                                        autoFocus={autoFocusComposer}
                                         className={`${CHAT_COLUMN} mb-3`}
                                         // Onboarding: submit = commit the ephemeral — Enter creates the agent
                                         // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines

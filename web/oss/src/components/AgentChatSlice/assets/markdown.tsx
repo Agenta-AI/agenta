@@ -8,7 +8,9 @@ import {useAtomValue} from "jotai"
 import {PrismAsync as SyntaxHighlighter} from "react-syntax-highlighter"
 import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism"
 
-import {chatFileLinkAtom} from "../state/fileLinks"
+import {useDriveSessionId} from "@/oss/components/Drives/driveSessionContext"
+
+import {chatFileLinkAtomFamily} from "../state/fileLinks"
 
 // Dark-mode-aware markdown styling. `min-w-0` + `max-w-full` + the per-element width guards
 // keep long lines / code blocks from widening their container; code blocks scroll within their
@@ -72,7 +74,10 @@ const childrenToText = (children: ReactNode): string => {
  * mentions in prose reads exactly like the artifact cards above it. Otherwise it's a plain chip.
  */
 const InlineCode = ({className, children}: {className?: string; children?: ReactNode}) => {
-    const link = useAtomValue(chatFileLinkAtom)
+    // Resolve against THIS conversation's session (from the ambient drive context), so a
+    // backgrounded pane's file mentions don't read another mounted session's resolver.
+    const sessionId = useDriveSessionId()
+    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
     const text = childrenToText(children).trim()
     const path = link && text ? link.resolve(text) : null
     if (!path || !link) return <code className={className}>{children}</code>

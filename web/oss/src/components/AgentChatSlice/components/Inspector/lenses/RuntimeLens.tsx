@@ -12,8 +12,8 @@ import {useSetAtom} from "jotai"
 
 import {DriveFileRow} from "@/oss/components/Drives/DriveFileRow"
 import {humanSize} from "@/oss/components/Drives/driveTree"
-import {filesDrawerOpenAtom} from "@/oss/components/Drives/FilesDrawer"
-import {driveQuickLookAtom} from "@/oss/components/Drives/quickLook"
+import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
+import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
 import {useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
@@ -22,8 +22,8 @@ import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
  * the chat/config surfaces; "View all files" opens the full Files drawer. */
 const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
     const drive = useSessionDrive(sessionId)
-    const openQuickLook = useSetAtom(driveQuickLookAtom)
-    const openFiles = useSetAtom(filesDrawerOpenAtom)
+    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
+    const openFiles = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
 
     if (drive.errored)
         return (
