@@ -205,6 +205,19 @@ class TriggersDAOInterface(ABC):
     ) -> List[TriggerDelivery]: ...
 
     @abstractmethod
+    async def poll_delivery_after(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+        baseline_id: Optional[UUID],
+        timeout_seconds: float,
+        interval_seconds: float = 1.0,
+    ) -> Optional[TriggerDelivery]:
+        """Wait (on one held connection) for a delivery newer than baseline_id."""
+        ...
+
+    @abstractmethod
     async def dedup_seen(
         self,
         *,

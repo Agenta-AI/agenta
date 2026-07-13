@@ -1223,17 +1223,12 @@ class TriggersService:
             baseline_id = baseline[0].id if baseline else None
 
         try:
-            deadline = asyncio.get_event_loop().time() + _TEST_TIMEOUT_SECONDS
-            while asyncio.get_event_loop().time() < deadline:
-                deliveries = await self.dao.query_deliveries(
-                    project_id=project_id,
-                    delivery=TriggerDeliveryQuery(subscription_id=created.id),
-                    windowing=Windowing(limit=1),
-                )
-                if deliveries and deliveries[0].id != baseline_id:
-                    return deliveries[0]
-                await asyncio.sleep(1.0)
-            return None
+            return await self.dao.poll_delivery_after(
+                project_id=project_id,
+                subscription_id=created.id,
+                baseline_id=baseline_id,
+                timeout_seconds=_TEST_TIMEOUT_SECONDS,
+            )
         finally:
             if owns_created:
                 await self.delete_subscription(

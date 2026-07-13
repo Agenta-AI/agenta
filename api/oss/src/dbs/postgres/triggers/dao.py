@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
@@ -435,6 +436,39 @@ class TriggersDAO(TriggersDAOInterface):
                 map_delivery_dbe_to_dto(delivery_dbe=dbe)
                 for dbe in result.scalars().all()
             ]
+
+    async def poll_delivery_after(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+        baseline_id: Optional[UUID],
+        timeout_seconds: float,
+        interval_seconds: float = 1.0,
+    ) -> Optional[TriggerDelivery]:
+        stmt = (
+            select(TriggerDeliveryDBE)
+            .filter(
+                TriggerDeliveryDBE.project_id == project_id,
+                TriggerDeliveryDBE.subscription_id == subscription_id,
+            )
+            .order_by(TriggerDeliveryDBE.created_at.desc())
+            .limit(1)
+        )
+
+        # One held connection for the whole wait, instead of a fresh checkout per tick.
+        async with self.engine.session() as session:
+            deadline = asyncio.get_event_loop().time() + timeout_seconds
+            while asyncio.get_event_loop().time() < deadline:
+                result = await session.execute(stmt)
+                dbe = result.scalars().first()
+
+                if dbe is not None and dbe.id != baseline_id:
+                    return map_delivery_dbe_to_dto(delivery_dbe=dbe)
+
+                await asyncio.sleep(interval_seconds)
+
+            return None
 
     async def dedup_seen(
         self,
