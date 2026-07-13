@@ -27,10 +27,44 @@ interface DraftMessage {
     reasoning: Map<string, Part>
     /** Tool parts keyed by toolCallId so results/approvals attach to the right call. */
     tools: Map<string, Part>
+    /** The turn's observability trace id, if the durable record carries one (see below). */
+    traceId?: string
 }
 
 const roleOf = (sender?: string | null): "user" | "assistant" =>
     sender === "user" ? "user" : "assistant"
+
+/**
+ * Best-effort trace id for a replayed turn. The durable session records DON'T carry a trace link
+ * today, so on reload the trace-hover actions stay dark (the id only exists on the live stream via
+ * `message.metadata.traceId`). This reads the shapes the backend is most likely to add it in — a
+ * `trace_id` column on the record row, a `trace_id`/`traceId` on the event payload, or a
+ * `data-trace` part — so the moment the runner starts stamping one, replayed turns light up with
+ * the SAME `metadata.traceId` `getMessageTraceId` already reads. A pure no-op until then.
+ */
+function extractTraceId(row: SessionRecord, p: Record<string, unknown>): string | undefined {
+    const asStr = (v: unknown): string | undefined =>
+        typeof v === "string" && v.trim() ? v : undefined
+
+    const rowLike = row as {trace_id?: unknown; traceId?: unknown}
+    const rowLevel = asStr(rowLike.trace_id) ?? asStr(rowLike.traceId)
+    if (rowLevel) return rowLevel
+
+    const payloadLevel = asStr(p.trace_id) ?? asStr(p.traceId)
+    if (payloadLevel) return payloadLevel
+
+    if (p.type === "data-trace") {
+        const data = (p.data ?? {}) as {traceId?: unknown; url?: unknown}
+        const fromData = asStr(data.traceId)
+        if (fromData) return fromData
+        const url = asStr(data.url)
+        if (url) {
+            const tail = url.split("?")[0].split("/").filter(Boolean).pop()
+            if (tail) return tail
+        }
+    }
+    return undefined
+}
 
 const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
     id,
@@ -170,10 +204,14 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         const payload = row.payload
         if (!payload || typeof payload !== "object") continue
         const p = payload as Record<string, unknown>
+        // Speculative trace link (no-op until the backend stamps one) — the id can ride the `done`
+        // row too, so read it before the turn closes.
+        const traceId = extractTraceId(row, p)
         // `done` terminates a turn. Records are runner-output-only (no user rows), so without
         // this every turn folds into one assistant bubble; closing the draft here starts a
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
+            if (current && traceId && !current.traceId) current.traceId = traceId
             current = null
             continue
         }
@@ -182,12 +220,24 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             current = newDraft(row.id, role)
             drafts.push(current)
         }
+        if (traceId && !current.traceId) current.traceId = traceId
         applyEvent(current, p)
     }
 
     const messages = drafts
         .filter((d) => d.parts.length > 0)
-        .map((d) => ({id: d.id, role: d.role, parts: d.parts}) as unknown as UIMessage)
+        .map(
+            (d) =>
+                ({
+                    id: d.id,
+                    role: d.role,
+                    parts: d.parts,
+                    // Only present once a record actually carries a trace id; `getMessageTraceId`
+                    // reads exactly this, so the hover trace actions light up on reload with no
+                    // other change.
+                    ...(d.traceId ? {metadata: {traceId: d.traceId}} : {}),
+                }) as unknown as UIMessage,
+        )
 
     return messages.length > 0 ? messages : null
 }
