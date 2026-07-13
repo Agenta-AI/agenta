@@ -343,6 +343,8 @@ describe("createRelayDirWatch (coalescing invariants)", () => {
     const dirWatch = createRelayDirWatch(dir);
     try {
       assert.ok(dirWatch, "watch armed on an existing dir");
+      // macOS fsevents replays the tempDir creation after arming; drain it first.
+      while ((await dirWatch.wait(50)) === "activity") {}
       writeFileSync(join(dir, "poke.txt"), "x", "utf-8");
       await sleep(50); // let the event deliver while NO waiter is armed
       assert.equal(await dirWatch.wait(50), "activity");
@@ -368,6 +370,8 @@ describe("createRelayDirWatch (coalescing invariants)", () => {
     process.on("warning", onWarning);
     try {
       assert.ok(dirWatch, "watch armed on an existing dir");
+      // macOS fsevents replays the tempDir creation after arming; drain it first.
+      while ((await dirWatch.wait(50)) === "activity") {}
       for (let i = 0; i < 200; i += 1) {
         assert.equal(await dirWatch.wait(1), "timeout");
       }

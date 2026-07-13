@@ -600,7 +600,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     # 2. Fetch first preset (optional)
     # ------------------------------------------------------------------
     preset_parameters: Dict[str, Any] = {}
-    resp = mod_api("GET", f"{catalog_root}/{template_key}/presets")
+    resp = mod_api("GET", f"{catalog_root}/{template_key}/presets/")
     if resp.status_code == 200:
         presets = resp.json().get("presets", [])
         if presets:

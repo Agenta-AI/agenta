@@ -109,8 +109,12 @@ def main() -> None:
             "python3 "
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
             # Code-evaluator runtimes: this snapshot is shared with the SDK DaytonaRunner.
-            "RUN npm install -g typescript ts-node "
-            "&& python3 --version && ts-node --version",
+            # typescript@5: ts-node needs the JS compiler API; typescript 7+ is the Go
+            # rewrite with no JS API (ts.sys undefined).
+            "RUN npm install -g typescript@5 ts-node@10 "
+            "&& python3 --version "
+            "&& echo 'const v: number = 1; console.log(v)' > /tmp/v.ts "
+            "&& ts-node /tmp/v.ts && rm /tmp/v.ts",
             f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
             "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",

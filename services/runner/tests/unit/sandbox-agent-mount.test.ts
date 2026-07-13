@@ -253,6 +253,10 @@ describe("mountStorage", () => {
         seenArgs = args;
         seenEnv = env;
       },
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
       log: SILENT,
     });
 
@@ -285,6 +289,10 @@ describe("mountStorage", () => {
         checkMounted: notMountedThenAlive(),
         runGeesefs: async (args) => {
           seenArgs = args;
+        },
+        unmountDeps: {
+          runUnmount: async () => {},
+          checkMountpoint: async () => "gone",
         },
         log: SILENT,
       },
