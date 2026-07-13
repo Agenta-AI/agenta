@@ -191,6 +191,13 @@ const uriAtomFamily = atomFamily((workflowId: string) =>
     }),
 )
 
+const workflowIdAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return entity?.workflow_id ?? null
+    }),
+)
+
 /**
  * Workflow key selector.
  * Parses the key segment from the URI (e.g., "auto_exact_match").
@@ -1357,6 +1364,8 @@ export const workflowMolecule = {
         isEphemeral: workflowIsEphemeralAtomFamily,
         /** Workflow URI (e.g., "agenta:builtin:auto_exact_match:v0") */
         uri: uriAtomFamily,
+        /** Workflow artifact ID */
+        workflowId: workflowIdAtomFamily,
         /** Workflow key parsed from URI (e.g., "auto_exact_match") */
         workflowKey: workflowKeyAtomFamily,
         /** Raw parameters from entity data */

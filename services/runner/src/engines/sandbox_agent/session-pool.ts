@@ -1,16 +1,16 @@
 /**
- * Session keep-alive pool: normal turn boundaries, local sandbox, flag-gated off by default.
+ * Session keep-alive pool: normal turn boundaries, local sandbox, enabled by default.
  *
- * Background: today the runner destroys the sandbox and harness session at the end of every
- * turn (`sandbox_agent.ts` teardown). Keep-alive parks a live session for a short TTL so the
- * next message in the same conversation continues the same live harness process, keeping its
- * native memory. If the window expires or anything mismatches, the dispatch falls back to
- * today's cold path. Nothing gets worse than today; with the flag off nothing here runs.
+ * At a normal turn boundary, keep-alive parks the live session for a short TTL so the next
+ * message in the same conversation continues the same harness process and native memory. If the
+ * window expires, the operator disables keep-alive, or any fingerprint mismatches, dispatch falls
+ * back to the cold path.
  *
  * This module is engine-agnostic: it holds opaque `environment` handles plus the metadata the
  * dispatch needs to decide continue-versus-cold (two fingerprints, a credential epoch, an LRU
  * timestamp, a state) and a complete idempotent `teardown(reason)` closure the engine supplies. It
- * never imports the engine, so it stays a pure map + timer + policy unit.
+ * never imports the engine, so it stays a pure map + timer + policy unit. Operators can disable
+ * it explicitly with `AGENTA_RUNNER_SESSION_KEEPALIVE=off`.
  */
 import { createHash } from "node:crypto";
 
@@ -71,10 +71,12 @@ function nonNegativeIntEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 }
 
-/** The runner treats only a few explicit truthy spellings as on; default OFF. */
-function boolEnv(name: string): boolean {
+function boolEnv(name: string, fallback: boolean): boolean {
   const raw = (process.env[name] ?? "").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  if (!raw) return fallback;
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true;
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false;
+  return fallback;
 }
 
 /** Read one provider's keep-alive config from the environment. */
@@ -101,7 +103,7 @@ export function readKeepaliveConfig(
     };
   }
   return {
-    enabled: boolEnv(KEEPALIVE_ENV),
+    enabled: boolEnv(KEEPALIVE_ENV, true),
     ttlMs: positiveIntEnv(TTL_ENV, DEFAULT_TTL_MS),
     approvalTtlMs: positiveIntEnv(APPROVAL_TTL_ENV, DEFAULT_APPROVAL_TTL_MS),
     poolMax: positiveIntEnv(POOL_MAX_ENV, DEFAULT_POOL_MAX),

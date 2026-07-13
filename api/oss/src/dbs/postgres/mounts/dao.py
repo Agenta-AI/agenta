@@ -115,6 +115,29 @@ class MountsDAO(MountsDAOInterface):
 
             return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
 
+    async def fetch_mount_by_slug(
+        self,
+        *,
+        project_id: UUID,
+        #
+        slug: str,
+    ) -> Optional[Mount]:
+        """Fetch by slug, excluding archived rows for agent-mount reads."""
+        async with self.engine.session() as session:
+            stmt = select(MountDBE).where(
+                MountDBE.project_id == project_id,
+                MountDBE.slug == slug,
+                MountDBE.deleted_at.is_(None),
+            )
+
+            result = await session.execute(stmt)
+            mount_dbe = result.scalar_one_or_none()
+
+            if not mount_dbe:
+                return None
+
+            return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+
     async def edit_mount(
         self,
         *,
