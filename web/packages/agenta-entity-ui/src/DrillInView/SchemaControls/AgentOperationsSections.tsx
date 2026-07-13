@@ -95,7 +95,7 @@ export function AgentOperationsSections({
                 <div className={barClass(sticky)}>
                     <span className={titleClass}>Files</span>
                 </div>
-                <div className="flex flex-col px-4 pb-3">
+                <div className="flex flex-col px-4 py-3">
                     {storage ?? (
                         // Static fallback for surfaces that don't slot the live Files body.
                         <Typography.Text type="secondary" className="text-xs">

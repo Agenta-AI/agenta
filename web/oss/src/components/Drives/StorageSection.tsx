@@ -74,7 +74,7 @@ export default function StorageSection(_props: {revisionId?: string | null}) {
     const now = useRecentChangeClock(drive.lastTouchedAt)
 
     return (
-        <div className="flex flex-col gap-2 py-1">
+        <div className="flex flex-col gap-2">
             {!sessionId ? (
                 <Text type="secondary" className="!text-xs">
                     No conversation open yet — the agent&rsquo;s working files appear here once a
