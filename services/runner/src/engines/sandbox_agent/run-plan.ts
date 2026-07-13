@@ -30,6 +30,11 @@ import {
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
 import { buildTurnText } from "./transcript.ts";
+import {
+  KNOWN_SANDBOX_PROVIDER_IDS,
+  loadRunnerConfig,
+  type SandboxProviderId,
+} from "../../config/runner-config.ts";
 
 type Log = (message: string) => void;
 
@@ -139,6 +144,8 @@ export type BuildRunPlanResult =
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
+  /** Providers this deployment enables; a request for anything outside this set is rejected. */
+  enabledProviders?: readonly SandboxProviderId[];
   createLocalCwd?: (durableCwd?: string) => string;
   createDaytonaCwd?: (durableCwd?: string) => string;
   /** Pre-computed durable cwd derived from the sign prefix; when set, skips the ephemeral helpers. */
@@ -232,7 +239,8 @@ function defaultDaytonaCwd(durableCwd?: string): string {
 export function buildRunPlan(
   request: AgentRunRequest,
   {
-    sandboxProvider = process.env.SANDBOX_AGENT_PROVIDER,
+    sandboxProvider,
+    enabledProviders,
     createLocalCwd = defaultLocalCwd,
     createDaytonaCwd = defaultDaytonaCwd,
     durableCwd,
@@ -240,8 +248,26 @@ export function buildRunPlan(
     log = () => {},
   }: BuildRunPlanDeps = {},
 ): BuildRunPlanResult {
+  const runnerConfig = loadRunnerConfig();
+  const defaultProvider = sandboxProvider ?? runnerConfig.providers.default;
+  const enabled = enabledProviders ?? runnerConfig.providers.enabled;
   const harness = request.harness || "pi_core";
-  const sandboxId = request.sandbox || sandboxProvider || "local";
+  const sandboxId = request.sandbox || defaultProvider || "local";
+
+  // Deployment posture gate (interface.md section 2, rule 7): a request for a known but disabled
+  // provider fails here, before any cwd/temp dir, mount, file, secret, or sandbox is created.
+  // There is no silent fallback to another provider.
+  if (
+    (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
+    !enabled.includes(sandboxId as SandboxProviderId)
+  ) {
+    return {
+      ok: false,
+      error:
+        `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
+        `(enabled: ${enabled.join(", ")}).`,
+    };
+  }
 
   // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
   // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both

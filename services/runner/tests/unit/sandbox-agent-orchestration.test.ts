@@ -3,7 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
-import { describe, it } from "vitest";
+import { beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -22,6 +22,15 @@ import {
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
+import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+
+// Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
+// the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
+beforeEach(() => {
+  process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
+  process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "test-key";
+  resetRunnerConfigCache();
+});
 
 function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));

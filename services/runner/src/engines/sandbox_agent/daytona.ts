@@ -15,62 +15,98 @@ type Log = (message: string) => void;
 export const DAYTONA_PI_DIR =
   process.env.AGENTA_AGENT_SANDBOX_PI_DIR ?? "/home/sandbox/.pi/agent";
 
-// Keep fresh bare images reliable by installing Pi at session time by default. A
-// snapshot that already bakes the pinned CLI can explicitly set
-// AGENTA_AGENT_SANDBOX_PI_INSTALLED=false to skip that work.
+// Harness availability is a runtime contract, not operator truth (interface.md section 7): the
+// runner pins the Pi version, probes the expected executable in the sandbox, and installs the
+// pinned version when a custom image or snapshot lacks it. There is no "installed" env flag.
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
-export const DAYTONA_PI_INSTALL =
-  process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED !== "false";
-export const DAYTONA_PI_VERSION =
-  process.env.AGENTA_AGENT_SANDBOX_PI_VERSION ?? "0.80.6";
+export const PINNED_PI_VERSION = "0.80.6";
+/** The expected Pi executable path the runner probes and points `PI_ACP_PI_COMMAND` at. */
+export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
 
 /**
  * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
  * and the Agenta extension env (traceparent + OTLP + tool spec) so the remote Pi traces
- * and runs tools exactly like local. No local-only paths (PATH/PI_ACP_PI_COMMAND) here.
+ * and runs tools exactly like local. No local-only paths (PATH) here.
  */
 export function daytonaEnvVars(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
 ): Record<string, string> {
-  const env: Record<string, string> = {
+  return {
     PI_CODING_AGENT_DIR: DAYTONA_PI_DIR,
+    // Point pi-acp at the pinned `pi` the runner probes/installs at a stable path. The published
+    // snapshot bakes Pi there; a custom image gets the pinned install before the session.
+    PI_ACP_PI_COMMAND: DAYTONA_PI_COMMAND,
     ...piExtEnv,
     // Provider API keys from the vault: the in-sandbox harness authenticates with these.
     ...secrets,
   };
-  // Point pi-acp at the `pi` we install into the sandbox (the image lacks it).
-  if (DAYTONA_PI_INSTALL) {
-    env.PI_ACP_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
-  }
-  return env;
 }
 
-/** Install the `pi` CLI into a Daytona sandbox (the sandbox-agent image lacks it). Best-effort. */
-export async function installPiInSandbox(
+/** True when the pinned Pi executable is already present at the expected path in the sandbox. */
+async function probePiInstalled(sandbox: any): Promise<boolean> {
+  try {
+    const res = await sandbox.runProcess({
+      command: "test",
+      args: ["-x", DAYTONA_PI_COMMAND],
+      timeoutMs: 15_000,
+    });
+    return res?.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Install the pinned `pi` CLI into a Daytona sandbox (a custom image may lack it). */
+async function installPiInSandbox(
   sandbox: any,
   log: Log = () => {},
 ): Promise<void> {
+  await sandbox.mkdirFs({ path: DAYTONA_PI_INSTALL_DIR });
+  const res = await sandbox.runProcess({
+    command: "npm",
+    args: [
+      "install",
+      "--no-fund",
+      "--no-audit",
+      `@earendil-works/pi-coding-agent@${PINNED_PI_VERSION}`,
+    ],
+    cwd: DAYTONA_PI_INSTALL_DIR,
+    timeoutMs: 180_000,
+  });
+  if (res?.exitCode !== 0) {
+    log(
+      `pi install in sandbox exit=${res?.exitCode}: ${String(res?.stderr).slice(-400)}`,
+    );
+  }
+}
+
+/**
+ * Probe for the pinned Pi executable and repair (install the pinned version) when a custom image
+ * or snapshot lacks it. The published snapshot bakes Pi to skip this path. If Pi is still missing
+ * after the install attempt, the run fails with the missing executable and the attempted version —
+ * harness availability is an image/runtime contract, never a silent skip (interface.md section 7).
+ */
+export async function ensurePiInSandbox(
+  sandbox: any,
+  log: Log = () => {},
+): Promise<void> {
+  if (await probePiInstalled(sandbox)) return;
+  log(
+    `[pi-repair] pinned pi ${PINNED_PI_VERSION} missing at ${DAYTONA_PI_COMMAND}; installing`,
+  );
   try {
-    await sandbox.mkdirFs({ path: DAYTONA_PI_INSTALL_DIR });
-    const res = await sandbox.runProcess({
-      command: "npm",
-      args: [
-        "install",
-        "--no-fund",
-        "--no-audit",
-        `@earendil-works/pi-coding-agent@${DAYTONA_PI_VERSION}`,
-      ],
-      cwd: DAYTONA_PI_INSTALL_DIR,
-      timeoutMs: 180_000,
-    });
-    if (res?.exitCode !== 0) {
-      log(
-        `pi install in sandbox exit=${res?.exitCode}: ${String(res?.stderr).slice(-400)}`,
-      );
-    }
+    await installPiInSandbox(sandbox, log);
   } catch (err) {
-    log(`pi install in sandbox skipped: ${(err as Error).message}`);
+    throw new Error(
+      `Failed to install pinned pi ${PINNED_PI_VERSION} at ${DAYTONA_PI_COMMAND}: ` +
+        `${(err as Error).message}`,
+    );
+  }
+  if (!(await probePiInstalled(sandbox))) {
+    throw new Error(
+      `pi ${PINNED_PI_VERSION} is not available at ${DAYTONA_PI_COMMAND} after install.`,
+    );
   }
 }
 
@@ -151,9 +187,9 @@ export async function prepareDaytonaPiAssets({
     );
   }
   const piInstallStartedAt = Date.now();
-  if (DAYTONA_PI_INSTALL) await installPiInSandbox(sandbox, log);
+  await ensurePiInSandbox(sandbox, log);
   log(
-    `[timing] stage=pi_install ms=${Math.round(Date.now() - piInstallStartedAt)} sandbox=${sandbox?.sandboxId ?? "-"} session=- skipped=${!DAYTONA_PI_INSTALL}`,
+    `[timing] stage=pi_install ms=${Math.round(Date.now() - piInstallStartedAt)} sandbox=${sandbox?.sandboxId ?? "-"} session=-`,
   );
 }
 

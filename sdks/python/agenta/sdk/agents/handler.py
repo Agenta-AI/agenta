@@ -53,7 +53,6 @@ from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
     WorkflowServiceRequest,
 )
-from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -75,21 +74,16 @@ def _default_template() -> AgentTemplate:
     return AgentTemplate()
 
 
-def _sandbox_local_allowed() -> bool:
-    return (
-        os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true"
-    ).strip().lower() in TRUTHY
-
-
 def _default_select_backend(agent_template: AgentTemplate) -> Backend:
     """Env-driven default: `AGENTA_RUNNER_INTERNAL_URL` picks HTTP transport; else local cwd.
 
-    `local` (unconfined host bash, not a tenant boundary) is refused unless
-    `AGENTA_SANDBOX_LOCAL_ALLOWED` is on — a bare `agent_v0` gets this protocol-level
-    safety behavior for free, same as capability gating and MCP gating above.
+    A sandbox the deployment has not enabled is refused before any run — a bare `agent_v0`
+    gets this protocol-level safety behavior for free, same as capability gating and MCP
+    gating above. The runner remains the final authority; this is a pre-filter that reads the
+    same `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` registry.
     """
-    if agent_template.sandbox == "local" and not _sandbox_local_allowed():
-        raise LocalSandboxNotAllowedError()
+    if not sandbox_provider_enabled(agent_template.sandbox):
+        raise LocalSandboxNotAllowedError(sandbox=agent_template.sandbox)
     url = os.getenv("AGENTA_RUNNER_INTERNAL_URL", "").strip() or None
     return SandboxAgentBackend(sandbox=agent_template.sandbox, url=url, cwd=os.getcwd())
 

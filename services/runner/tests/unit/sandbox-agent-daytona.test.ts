@@ -3,24 +3,24 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-daytona.test.ts)
  */
-import { afterEach, describe, it, vi } from "vitest";
+import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  DAYTONA_PI_COMMAND,
   DAYTONA_PI_DIR,
-  DAYTONA_PI_INSTALL,
   DAYTONA_PI_INSTALL_DIR,
-  DAYTONA_PI_VERSION,
+  PINNED_PI_VERSION,
   createCookieFetch,
   daytonaEnvVars,
-  installPiInSandbox,
+  ensurePiInSandbox,
   uploadPiAuthToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
 
-const envKeys = ["PI_CODING_AGENT_DIR", "AGENTA_AGENT_SANDBOX_PI_INSTALLED"];
+const envKeys = ["PI_CODING_AGENT_DIR"];
 const previousEnv = new Map<string, string | undefined>();
 for (const key of envKeys) previousEnv.set(key, process.env[key]);
 
@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 describe("daytonaEnvVars", () => {
-  it("combines Pi agent dir, extension env, provider secrets, and Pi command", () => {
+  it("combines Pi agent dir, extension env, provider secrets, and the pinned Pi command", () => {
     const env = daytonaEnvVars(
       { TRACEPARENT: "trace", AGENTA_AGENT_TOOLS_RELAY_DIR: "/relay" },
       { OPENAI_API_KEY: "key" },
@@ -47,66 +47,73 @@ describe("daytonaEnvVars", () => {
     assert.equal(env.TRACEPARENT, "trace");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/relay");
     assert.equal(env.OPENAI_API_KEY, "key");
-    if (DAYTONA_PI_INSTALL) {
-      assert.equal(env.PI_ACP_PI_COMMAND, `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`);
-    }
+    // The command always points at the runner-pinned Pi path; the probe/repair path guarantees
+    // the binary is present there before the session runs.
+    assert.equal(env.PI_ACP_PI_COMMAND, DAYTONA_PI_COMMAND);
   });
 });
 
-describe("DAYTONA_PI_INSTALL default", () => {
-  afterEach(() => {
-    vi.resetModules();
-  });
-
-  it("defaults to installing Pi for a fresh bare sandbox", async () => {
-    delete process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED;
-    vi.resetModules();
-    const mod = await import("../../src/engines/sandbox_agent/daytona.ts");
-    assert.equal(mod.DAYTONA_PI_INSTALL, true);
-  });
-
-  it("installs Pi when explicitly enabled", async () => {
-    process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED = "true";
-    vi.resetModules();
-    const mod = await import("../../src/engines/sandbox_agent/daytona.ts");
-    assert.equal(mod.DAYTONA_PI_INSTALL, true);
-  });
-
-  it("skips the session install only when the snapshot already bakes Pi", async () => {
-    process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED = "false";
-    vi.resetModules();
-    const mod = await import("../../src/engines/sandbox_agent/daytona.ts");
-    assert.equal(mod.DAYTONA_PI_INSTALL, false);
-  });
-});
-
-describe("installPiInSandbox", () => {
-  it("installs the pinned Pi version", async () => {
+describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
+  it("skips the install when the pinned Pi executable is already present (baked snapshot)", async () => {
     const calls: any[] = [];
     const sandbox = {
       mkdirFs: async () => {},
       runProcess: async (input: any) => {
         calls.push(input);
+        // `test -x <pinned path>` succeeds: Pi is already baked in.
         return { exitCode: 0 };
       },
     };
 
-    await installPiInSandbox(sandbox);
+    await ensurePiInSandbox(sandbox);
 
-    assert.equal(DAYTONA_PI_VERSION, "0.80.6");
-    assert.deepEqual(calls, [
-      {
-        command: "npm",
-        args: [
-          "install",
-          "--no-fund",
-          "--no-audit",
-          "@earendil-works/pi-coding-agent@0.80.6",
-        ],
-        cwd: DAYTONA_PI_INSTALL_DIR,
-        timeoutMs: 180_000,
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].command, "test");
+    assert.deepEqual(calls[0].args, ["-x", DAYTONA_PI_COMMAND]);
+  });
+
+  it("installs the pinned Pi version when the probe misses (custom image)", async () => {
+    const calls: any[] = [];
+    let probed = 0;
+    const sandbox = {
+      mkdirFs: async () => {},
+      runProcess: async (input: any) => {
+        calls.push(input);
+        if (input.command === "test") {
+          probed += 1;
+          // Missing on the first probe, present after the install.
+          return { exitCode: probed === 1 ? 1 : 0 };
+        }
+        return { exitCode: 0 };
       },
+    };
+
+    await ensurePiInSandbox(sandbox);
+
+    const install = calls.find((c) => c.command === "npm");
+    assert.ok(install, "expected a pinned npm install");
+    assert.deepEqual(install.args, [
+      "install",
+      "--no-fund",
+      "--no-audit",
+      `@earendil-works/pi-coding-agent@${PINNED_PI_VERSION}`,
     ]);
+    assert.equal(install.cwd, DAYTONA_PI_INSTALL_DIR);
+  });
+
+  it("fails the run when Pi is still missing after the install attempt", async () => {
+    const sandbox = {
+      mkdirFs: async () => {},
+      runProcess: async (input: any) => {
+        // Probe always misses, install "succeeds" but leaves nothing behind.
+        return { exitCode: input.command === "test" ? 1 : 0 };
+      },
+    };
+
+    await assert.rejects(
+      () => ensurePiInSandbox(sandbox),
+      new RegExp(`pi ${PINNED_PI_VERSION} is not available`),
+    );
   });
 });
 
