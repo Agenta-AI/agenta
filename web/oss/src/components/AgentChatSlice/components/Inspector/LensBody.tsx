@@ -35,7 +35,7 @@ const RawView = ({sessionId, focusedTurn}: {sessionId: string; focusedTurn?: num
             <div className="absolute right-4 top-4 z-[1]">
                 <CopyButton text={json} />
             </div>
-            <pre className="m-0 rounded border border-solid border-[#24262b] bg-[#0f1012] p-3 font-mono text-[11px] leading-snug text-colorTextSecondary">
+            <pre className="m-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3 font-mono text-[11px] leading-snug text-colorTextSecondary">
                 {json}
             </pre>
         </div>

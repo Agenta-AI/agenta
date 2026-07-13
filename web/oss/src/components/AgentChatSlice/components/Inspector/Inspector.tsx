@@ -37,19 +37,19 @@ const BODY_READY_MS = 300
  * work during the animation. */
 const InspectorBodySkeleton = () => (
     <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-[#2a2c30] px-2 py-1.5">
-            <div className="h-6 w-40 rounded bg-[#212327]" />
-            <div className="ml-auto h-6 w-28 rounded bg-[#212327]" />
+        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorSplit px-2 py-1.5">
+            <div className="h-6 w-40 rounded bg-colorFillTertiary" />
+            <div className="ml-auto h-6 w-28 rounded bg-colorFillTertiary" />
         </div>
         <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-pulse">
             {Array.from({length: 9}).map((_, i) => (
                 <div key={i} className="flex items-center gap-2 px-2 py-[9px]">
-                    <div className="h-2 w-2 shrink-0 rounded-full bg-[#2a2c30]" />
+                    <div className="h-2 w-2 shrink-0 rounded-full bg-colorFillTertiary" />
                     <div
-                        className="h-3 rounded bg-[#212327]"
+                        className="h-3 rounded bg-colorFillTertiary"
                         style={{width: `${42 + ((i * 17) % 44)}%`}}
                     />
-                    <div className="ml-auto h-3 w-10 rounded bg-[#212327]" />
+                    <div className="ml-auto h-3 w-10 rounded bg-colorFillTertiary" />
                 </div>
             ))}
         </div>
@@ -60,17 +60,17 @@ const InspectorBodySkeleton = () => (
 const LivenessChips = ({sessionId}: {sessionId: string}) => {
     const {nest} = useAtomValue(sessionLivenessAtomFamily(sessionId))
     const chips: {label: string; color: string}[] = []
-    if (nest.isAlive) chips.push({label: "alive", color: "#4fd1b5"})
-    if (nest.isRunning) chips.push({label: "running", color: "#e0b050"})
-    if (nest.isAttached) chips.push({label: "attached", color: "#7fb0ff"})
-    if (chips.length === 0) chips.push({label: "dormant", color: "#9aa0a6"})
+    if (nest.isAlive) chips.push({label: "alive", color: "var(--ag-colorSuccess)"})
+    if (nest.isRunning) chips.push({label: "running", color: "var(--ag-colorWarning)"})
+    if (nest.isAttached) chips.push({label: "attached", color: "var(--ag-colorInfo)"})
+    if (chips.length === 0) chips.push({label: "dormant", color: "var(--ag-colorTextTertiary)"})
     return (
         <span className="ml-auto flex shrink-0 items-center gap-1">
             {chips.map((c) => (
                 <span
                     key={c.label}
                     className="rounded px-1.5 py-px text-[10px] font-medium"
-                    style={{background: "#212327", color: c.color}}
+                    style={{background: "var(--ag-colorFillTertiary)", color: c.color}}
                 >
                     {c.label}
                 </span>
@@ -136,9 +136,9 @@ export function Inspector({sessionId}: {sessionId: string}) {
     }
 
     return (
-        <div className="ag-inspector-panel flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#17181b]">
+        <div className="ag-inspector-panel flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             {/* Header (build-spec §2): close · title · ScopeSwitch · identity · {} · refresh · export */}
-            <div className="flex shrink-0 flex-col gap-1.5 border-0 border-b border-solid border-[#2a2c30] px-2 py-2">
+            <div className="flex shrink-0 flex-col gap-1.5 border-0 border-b border-solid border-colorSplit px-2 py-2">
                 <div className="flex items-center gap-2">
                     <Button
                         type="text"

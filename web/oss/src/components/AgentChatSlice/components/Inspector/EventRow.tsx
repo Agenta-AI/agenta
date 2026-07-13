@@ -57,7 +57,7 @@ export function EventRow({
     // hue — a "you" chip + a brighter tone (their input reads as highlighted vs the muted agent
     // grey). `record_source` rides on `event.source`.
     const isUser = event.type === "message" && event.source === "user"
-    const USER_TONE = "#e8eaed"
+    const USER_TONE = "var(--ag-colorText)"
     const dotColor = isError ? EVENT_META.error.dot : isUser ? USER_TONE : meta.dot
     const chipText = isUser ? "you" : meta.chip
     const json = JSON.stringify(event.payload ?? {}, null, 2)
@@ -71,7 +71,7 @@ export function EventRow({
 
     return (
         <div
-            className="border-0 border-b border-solid border-[#24262b] last:border-b-0"
+            className="border-0 border-b border-solid border-colorSplit last:border-b-0"
             style={
                 accent
                     ? {boxShadow: `inset 2px 0 0 ${accent}`, background: `${accent}0d`}
@@ -81,7 +81,7 @@ export function EventRow({
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="group flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2 py-1.5 text-left hover:bg-[#212327]"
+                className="group flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2 py-1.5 text-left hover:bg-colorFillTertiary"
             >
                 <CaretRight
                     size={10}
@@ -99,7 +99,7 @@ export function EventRow({
                 </span>
                 <Tag
                     className="m-0 shrink-0 border-0 font-mono !text-[10px] leading-[16px]"
-                    style={{background: "#212327", color: dotColor}}
+                    style={{background: "var(--ag-colorFillTertiary)", color: dotColor}}
                 >
                     {chipText}
                 </Tag>
@@ -119,7 +119,7 @@ export function EventRow({
                     <div className="absolute right-2 top-1 z-[1]">
                         <CopyButton text={json} />
                     </div>
-                    <pre className="m-0 max-h-64 overflow-auto rounded border border-solid border-[#24262b] bg-[#0f1012] p-2 font-mono text-[11px] leading-snug text-colorTextSecondary">
+                    <pre className="m-0 max-h-64 overflow-auto rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 font-mono text-[11px] leading-snug text-colorTextSecondary">
                         {json}
                     </pre>
                     {/* Approvals are actioned in the live chat dock (durable respond is deferred

@@ -31,7 +31,7 @@ export function LensRail({
     onChange: (lens: InspectorLens) => void
 }) {
     return (
-        <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-[#2a2c30] px-2 py-1.5">
+        <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorSplit px-2 py-1.5">
             {(["timeline", "context", "runtime"] as InspectorLens[]).map((l) => (
                 <Tooltip key={l} title={DESC[l]} placement="bottom" mouseEnterDelay={0.4}>
                     <Button
@@ -41,7 +41,7 @@ export function LensRail({
                         className={`!h-7 !rounded-md !px-2.5 !text-xs ${
                             lens === l
                                 ? "!bg-[var(--ag-colorPrimaryBg)] !font-medium !text-[var(--ag-colorPrimary)]"
-                                : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[#212327]"
+                                : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)]"
                         }`}
                     >
                         {LABEL[l]}

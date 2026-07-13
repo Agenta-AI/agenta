@@ -41,8 +41,8 @@ export function InspectorDrawer({
             closeOnLayoutClick={false}
             styles={{body: {padding: 0, display: "flex", minHeight: 0}, header: {display: "none"}}}
         >
-            <div className="flex h-full min-h-0 flex-col bg-[#17181b]">
-                <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-[#2a2c30] px-2 py-2">
+            <div className="flex h-full min-h-0 flex-col bg-[var(--ag-surface-raised)]">
+                <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorSplit px-2 py-2">
                     <span className="text-[13px] font-semibold">Inspector</span>
                     <span className="min-w-0 truncate font-mono text-[11px] text-colorTextTertiary">
                         {sessionId}

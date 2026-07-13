@@ -72,7 +72,7 @@ const approxTokens = (messages: ContextMessage[]): number =>
 
 /** One reconstructed context message card. */
 const MessageCard = ({m}: {m: ContextMessage}) => (
-    <div className="flex flex-col gap-1 rounded border border-solid border-[#24262b] bg-[#0f1012] p-2">
+    <div className="flex flex-col gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary p-2">
         <Tag color={ROLE_META[m.role].color} className="m-0 w-fit !text-[10px]">
             {m.role === "tool_call" ? `→ ${m.toolName || "tool"}` : m.role}
         </Tag>
@@ -130,7 +130,7 @@ export function ContextLens({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center gap-3 border-0 border-b border-solid border-[#2a2c30] px-3 py-1.5 text-[11px] text-colorTextTertiary">
+            <div className="flex shrink-0 items-center gap-3 border-0 border-b border-solid border-colorSplit px-3 py-1.5 text-[11px] text-colorTextTertiary">
                 <span>{messages.length} messages</span>
                 <span>~{approxTokens(messages).toLocaleString()} tokens</span>
                 <div className="ml-auto">

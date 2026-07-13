@@ -43,11 +43,15 @@ const TurnGroupCard = ({
 }) => {
     const [open, setOpen] = useState(defaultOpen)
     const statusColor =
-        group.status === "error" ? "#f0857c" : group.status === "running" ? "#e0b050" : "#8fd07a"
+        group.status === "error"
+            ? "var(--ag-colorError)"
+            : group.status === "running"
+              ? "var(--ag-colorWarning)"
+              : "var(--ag-colorSuccess)"
     return (
-        <div className="border-0 border-b border-solid border-[#24262b]">
+        <div className="border-0 border-b border-solid border-colorSplit">
             {/* Caret toggles expand; the header body FOCUSES the turn (scopes the whole panel to it). */}
-            <div className="flex w-full items-center gap-2 px-2 py-2 hover:bg-[#212327]">
+            <div className="flex w-full items-center gap-2 px-2 py-2 hover:bg-colorFillTertiary">
                 <button
                     type="button"
                     onClick={() => setOpen((v) => !v)}
@@ -81,7 +85,7 @@ const TurnGroupCard = ({
                 </button>
             </div>
             {open ? (
-                <div className="border-0 border-t border-solid border-[#24262b] pl-2">
+                <div className="border-0 border-t border-solid border-colorSplit pl-2">
                     <EventList events={group.events} turnStart={group.startAt} />
                 </div>
             ) : null}
@@ -131,7 +135,7 @@ export function TimelineLens({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-[#2a2c30] px-2 py-1.5">
+            <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorSplit px-2 py-1.5">
                 <Tooltip
                     title="Filter events — all, only tool calls & results, or only interactions (approvals & inputs)."
                     placement="bottom"
@@ -151,7 +155,10 @@ export function TimelineLens({
                                             <Badge
                                                 count={interactionCount}
                                                 size="small"
-                                                style={{background: "#e0b050", color: "#0f1012"}}
+                                                style={{
+                                                    background: "var(--ag-colorWarning)",
+                                                    color: "var(--ag-colorTextLightSolid)",
+                                                }}
                                             />
                                         ) : null}
                                     </span>

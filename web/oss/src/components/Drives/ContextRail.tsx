@@ -20,10 +20,10 @@ import {useSessionDrive} from "./useSessionDrive"
 
 const {Text} = Typography
 
-// Shared elevated dark surface with the Inspector (build-spec §elevation) — the right dock reads
-// the same in chat (this rail) and build (Inspector).
-const SURFACE = "#17181b"
-const BORDER = "#2a2c30"
+// Shared elevated surface with the Inspector (build-spec §elevation) — the right dock reads the
+// same in chat (this rail) and build (Inspector). Theme-aware tokens, same as the Inspector panel.
+const SURFACE = "var(--ag-surface-raised)"
+const BORDER = "var(--ag-colorSplit)"
 
 /** Rail visibility — a global UI preference (survives session switches and reloads).
  * Starts CLOSED; opening it once is the opt-in. */
@@ -78,7 +78,7 @@ export function ContextRail({
                         }
                     }}
                     aria-label="Show files"
-                    className="group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[#212327]"
+                    className="group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[var(--ag-colorFillTertiary)]"
                     style={{width: STRIP_WIDTH, borderColor: BORDER}}
                 >
                     <Tooltip title="Show files" placement="left">
