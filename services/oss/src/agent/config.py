@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional
 
+from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -53,7 +54,6 @@ def runner_url() -> Optional[str]:
     return value.strip() if value and value.strip() else None
 
 
-_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 _SANDBOX_LOCAL_WARNED = False
 
 
@@ -66,7 +66,7 @@ def sandbox_local_allowed() -> bool:
     see `runner_dir`/`runner_url` above) rather than importing the shared `env` object.
     """
     global _SANDBOX_LOCAL_WARNED
-    allowed = (os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true").lower() in _TRUTHY
+    allowed = (os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true").lower() in TRUTHY
     if allowed and not _SANDBOX_LOCAL_WARNED:
         _SANDBOX_LOCAL_WARNED = True
         log.warning(

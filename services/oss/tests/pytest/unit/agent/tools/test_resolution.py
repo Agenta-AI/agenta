@@ -12,7 +12,6 @@ from agenta.sdk.agents import (
 )
 
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
-from oss.src.agent.tools import resolver as resolver_module
 
 
 class _FakeSecretProvider:
@@ -97,7 +96,9 @@ async def test_mcp_disabled_with_servers_fails_loud_instead_of_silent_strip(
 
 
 async def test_missing_mcp_secret_is_explicit_when_enabled(monkeypatch):
-    monkeypatch.setattr(resolver_module, "_mcp_enabled", lambda: True)
+    # Drive the real gate input (the env var), like the sibling cases above. The gate itself
+    # now lives once in the SDK (SVC-4), so there is no module-local _mcp_enabled to patch.
+    monkeypatch.setenv("AGENTA_AGENT_MCPS_ENABLED", "true")
     with pytest.raises(MissingMCPSecretError):
         await resolve_mcp_servers(
             [

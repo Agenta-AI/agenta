@@ -99,26 +99,32 @@ async def _default_resolve_tools(tools, **kwargs) -> ResolvedToolSet:
     return await _platform_resolve_tools(tools, **kwargs)
 
 
-def _mcp_enabled() -> bool:
+def mcp_enabled() -> bool:
     # MCP gating: off by default, deployment opts in via AGENTA_AGENT_MCPS_ENABLED.
     return os.getenv("AGENTA_AGENT_MCPS_ENABLED", "").strip().lower() in TRUTHY
 
 
-async def _default_resolve_mcp_servers(
-    mcp_servers, **kwargs
-) -> List[ResolvedMCPServer]:
+async def resolve_mcp_servers_gated(mcp_servers, **kwargs) -> List[ResolvedMCPServer]:
     """Resolve MCP servers, gated by ``AGENTA_AGENT_MCPS_ENABLED`` (off by default).
 
     Disabled + no servers declared -> ``[]`` (the common case, unchanged). Disabled + servers
     declared -> :class:`MCPDisabledError`, so a caller's ignored MCP config fails loud instead
     of silently running with none.
+
+    The ONE definition of the gate (SVC-4): the agent service imports this rather than
+    keeping a byte-identical copy. ``platform.resolve_mcp`` stays gate-free by design.
     """
-    if not _mcp_enabled():
+    if not mcp_enabled():
         if not mcp_servers:
             return []
         names = [config.name for config in parse_mcp_server_configs(mcp_servers)]
         raise MCPDisabledError(server_names=names)
     return await _platform_resolve_mcp(mcp_servers, **kwargs)
+
+
+# Back-compat aliases for the private names the default composition binds below.
+_mcp_enabled = mcp_enabled
+_default_resolve_mcp_servers = resolve_mcp_servers_gated
 
 
 async def _default_resolve_connection(*, model, context) -> ResolvedConnection:
@@ -271,6 +277,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             params, defaults=comp.default_template()
         )
 
+        # SVC-1: select the backend BEFORE resolving. select_backend carries the sandbox gate
+        # (a `local` run on a shared deployment is refused), and it reads only agent_template,
+        # so a doomed request must not first pay for the tool/MCP/vault resolution below.
+        harness = make_harness(
+            agent_template.harness, Environment(comp.select_backend(agent_template))
+        )
+
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
         resolved_tools = await comp.resolve_tools(agent_template.tools)
         resolved_mcp = await comp.resolve_mcp_servers(agent_template.mcp_servers)
@@ -313,10 +326,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
             mcp_servers=resolved_mcp,
-        )
-
-        harness = make_harness(
-            agent_template.harness, Environment(comp.select_backend(agent_template))
         )
 
         if stream:
