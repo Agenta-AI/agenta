@@ -194,54 +194,55 @@ const ChatMessageItem: React.FC<{
                     ) : undefined
                 }
                 headerRight={
-                    <div
-                        className={cn(
-                            flexLayouts.rowCenter,
-                            gapClasses.xs,
-                            "invisible group-hover/item:visible",
-                        )}
-                    >
-                        <ViewModeDropdown<ChatViewMode>
-                            value={chatViewMode}
-                            options={viewOptions}
-                            onChange={setViewMode}
-                        />
-                        {allowFileUpload && !disabled && (
-                            <AttachmentButton
-                                onAddImage={(url) => onAddImage(index, url)}
-                                onAddFile={(data, name, format) =>
-                                    onAddFile(index, data, name, format)
-                                }
-                                disabled={disabled}
+                    <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
+                        <div
+                            className={cn(
+                                flexLayouts.rowCenter,
+                                gapClasses.xs,
+                                "invisible group-hover/item:visible",
+                            )}
+                        >
+                            <ViewModeDropdown<ChatViewMode>
+                                value={chatViewMode}
+                                options={viewOptions}
+                                onChange={setViewMode}
                             />
-                        )}
-                        {showCopyButton && (
-                            <Tooltip title="Copy">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<Copy size={14} />}
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(textContent)
-                                    }}
+                            {allowFileUpload && !disabled && (
+                                <AttachmentButton
+                                    onAddImage={(url) => onAddImage(index, url)}
+                                    onAddFile={(data, name, format) =>
+                                        onAddFile(index, data, name, format)
+                                    }
+                                    disabled={disabled}
                                 />
-                            </Tooltip>
-                        )}
-                        {(showRemoveButton ?? showControls) && !disabled && (
-                            <Tooltip title="Remove">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<MinusCircle size={14} />}
-                                    onClick={() => onRemove(index)}
-                                />
-                            </Tooltip>
-                        )}
+                            )}
+                            {showCopyButton && (
+                                <Tooltip title="Copy">
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<Copy size={14} />}
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(textContent)
+                                        }}
+                                    />
+                                </Tooltip>
+                            )}
+                            {(showRemoveButton ?? showControls) && !disabled && (
+                                <Tooltip title="Remove">
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<MinusCircle size={14} />}
+                                        onClick={() => onRemove(index)}
+                                    />
+                                </Tooltip>
+                            )}
+                        </div>
                         <CollapseToggleButton
                             collapsed={isMinimized}
                             onToggle={() => onToggleMinimize(index)}
-                            contentRef={containerRef}
-                            collapsedMaxHeight={48}
+                            className="!transition-opacity !duration-0 !delay-200 group-hover/item:!delay-0 opacity-50 group-hover/item:opacity-100"
                         />
                     </div>
                 }
