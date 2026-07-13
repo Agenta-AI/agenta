@@ -57,7 +57,9 @@ const SessionRailRow = ({
             animate="animate"
             exit="exit"
             transition={SESSION_SPRING}
-            className="overflow-hidden"
+            // shrink-0 so a long history overflows into a scroll instead of the flex column
+            // squashing every row to fit (which clips the timestamp line).
+            className="shrink-0 overflow-hidden"
         >
             <div
                 role="tab"
