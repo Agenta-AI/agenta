@@ -20,6 +20,27 @@ import type { RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
+/**
+ * Pi native transcripts belong to the Agenta conversation, not the temporary Pi agent dir.
+ * The session cwd is already the durable, session-scoped workspace on both local and Daytona
+ * runs, so keeping transcripts below it gives Pi a stable path without persisting credentials,
+ * settings, extensions, or system prompts.
+ */
+export function piSessionWorkspaceDir(cwd: string): string {
+  return join(cwd, "agents", "sessions", "pi");
+}
+
+/** Point Pi at the durable conversation-scoped transcript directory. */
+export function configurePiSessionWorkspace(
+  plan: Pick<RunPlan, "isPi" | "cwd">,
+  env: Record<string, string>,
+): string | undefined {
+  if (!plan.isPi) return undefined;
+  const sessionDir = piSessionWorkspaceDir(plan.cwd);
+  env.PI_CODING_AGENT_SESSION_DIR = sessionDir;
+  return sessionDir;
+}
+
 // The bundled Agenta Pi extension (tracing + tools). Built by `pnpm run build:extension`
 // and baked into the image; installed into Pi's agent dir so Pi loads it on every run.
 export const EXTENSION_BUNDLE =

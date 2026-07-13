@@ -88,6 +88,7 @@ import { applyModel } from "./sandbox_agent/model.ts";
 import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
+  configurePiSessionWorkspace,
   prepareLocalPiAssets,
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
@@ -740,6 +741,7 @@ export async function acquireEnvironment(
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
+  const piSessionDir = configurePiSessionWorkspace(plan, env);
   const strictModel = modelResolutionStrict();
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
@@ -1399,6 +1401,17 @@ export async function acquireEnvironment(
       }
     } finally {
       timingLog("prepare_workspace", prepareWorkspaceStartedAt);
+    }
+
+    // Pi native transcripts belong to the conversation workspace, not the temporary agent
+    // directory that holds credentials, settings, extensions, skills, and system prompts.
+    // The cwd mount is already active here on local and Daytona before Pi starts.
+    if (piSessionDir) {
+      if (plan.isDaytona) {
+        await environment.sandbox.mkdirFs({ path: piSessionDir });
+      } else {
+        mkdirSync(piSessionDir, { recursive: true });
+      }
     }
 
     // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle.

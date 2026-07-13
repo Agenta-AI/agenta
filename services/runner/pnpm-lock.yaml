@@ -8,6 +8,9 @@ patchedDependencies:
   acp-http-client@0.4.2:
     hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
     path: patches/acp-http-client@0.4.2.patch
+  pi-acp@0.0.29:
+    hash: 02294f0adb0cd9d3f3650f8fd86f3d2a9eef567b6eef0b6eb495415685dbb0a3
+    path: patches/pi-acp@0.0.29.patch
   sandbox-agent@0.4.2:
     hash: ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4
     path: patches/sandbox-agent@0.4.2.patch
@@ -54,7 +57,7 @@ importers:
         version: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3)
       pi-acp:
         specifier: 0.0.29
-        version: 0.0.29
+        version: 0.0.29(patch_hash=02294f0adb0cd9d3f3650f8fd86f3d2a9eef567b6eef0b6eb495415685dbb0a3)
       sandbox-agent:
         specifier: 0.4.2
         version: 0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytonaio/sdk@0.187.0(ws@8.21.0))(zod@4.4.3)
@@ -4578,7 +4581,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pi-acp@0.0.29:
+  pi-acp@0.0.29(patch_hash=02294f0adb0cd9d3f3650f8fd86f3d2a9eef567b6eef0b6eb495415685dbb0a3):
     dependencies:
       '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
       zod: 3.25.76

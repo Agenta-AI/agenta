@@ -63,6 +63,7 @@ function fakeHarness(options: FakeOptions = {}) {
     daemonAgent: "",
     daemonOptions: undefined as { clearProviderEnv?: boolean } | undefined,
     providerArgs: [] as unknown[],
+    mkdirFsPaths: [] as string[],
     startOptions: undefined as any,
     createSessionOptions: undefined as any,
     promptBlocks: undefined as any,
@@ -147,6 +148,9 @@ function fakeHarness(options: FakeOptions = {}) {
   };
 
   const sandbox = {
+    async mkdirFs({ path }: { path: string }) {
+      calls.mkdirFsPaths.push(path);
+    },
     async createSession(opts: any) {
       calls.createSessionOptions = opts;
       return session;
@@ -343,6 +347,56 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("points local Pi and pi-acp at the conversation workspace transcript directory", async () => {
+    const cwd = join(
+      tmpdir(),
+      "agenta-pi-session-dir-" + process.pid + "-" + Date.now(),
+    );
+    const { calls, deps } = fakeHarness({ cwd });
+
+    const result = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const expected = join(cwd, "agents", "sessions", "pi");
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(existsSync(expected), true);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => {}) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const expected = "/home/sandbox/agenta-fake-cwd/agents/sessions/pi";
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.ok(calls.mkdirFsPaths.includes(expected));
   });
 
   it("advertises durable agent storage only after a confirmed local mount", async () => {
