@@ -1468,13 +1468,11 @@ export async function acquireEnvironment(
       ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
     };
 
-    // If this harness authored the conversation's most recent turn (staleness-guarded) and we
-    // still remember its native `agentSessionId`, seed the fresh persist driver with a synthetic
-    // record and resume-by-id so the patched `resumeSession` reaches `session/load` instead of
-    // `session/new`. Any failure inside `resumeSession` already degrades to a plain new session
-    // internally (the patch's own `catch {}` around `loadRemoteSession`), so this call is safe to
-    // attempt unconditionally whenever we have an eligible id — worst case it is exactly today's
-    // cold `createSession`.
+    // If this harness authored the most recent turn and we still remember its native session id,
+    // non-Pi harnesses may resume by id. Pi is deliberately excluded: the pinned adapter does not
+    // return loaded-session identity, and the compatibility patch substitutes the requested id
+    // when that response field is absent. Until the adapter supplies verifiable identity, every
+    // cold Pi continuation starts a clean session and receives canonical replay.
     const continuitySessionKey = request.sessionId?.trim();
     const continuityStore =
       deps.sessionContinuityStore ?? sessionContinuityStore;
@@ -1524,7 +1522,17 @@ export async function acquireEnvironment(
       );
     }
     let loadedFromContinuity = false;
-    if (priorAgentSessionId && localSessionId) {
+    if (plan.isPi && priorAgentSessionId && continuitySessionKey) {
+      continuityStore.invalidate(continuitySessionKey, plan.harness);
+      logger(
+        "[continuity] native load skipped session=" +
+          continuitySessionKey +
+          " harness=" +
+          plan.harness +
+          " outcome=unverified replay=canonical",
+      );
+    }
+    if (!plan.isPi && priorAgentSessionId && localSessionId) {
       await persist.updateSession({
         id: localSessionId,
         agent: plan.acpAgent,

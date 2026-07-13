@@ -27,6 +27,8 @@ import {
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
+import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
+import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   agentRunRequestFromTranscript,
   loadTranscript,
@@ -41,14 +43,18 @@ import {
  * unchanged, not exercise every orchestration branch (that is the existing suite's job).
  */
 function fakeReplayHarness() {
+  const continuityStore = new SessionContinuityStore();
   const calls = {
     createSessionOptions: undefined as any,
     promptBlocks: undefined as any,
     workspacePlan: undefined as any,
+    resumeSessionIds: [] as string[],
+    logs: [] as string[],
   };
 
   const session = {
     id: "session-replay",
+    agentSessionId: "native-new",
     onEvent() {},
     onPermissionRequest() {},
     async prompt(blocks: any) {
@@ -58,6 +64,10 @@ function fakeReplayHarness() {
   };
 
   const sandbox = {
+    async resumeSession(id: string) {
+      calls.resumeSessionIds.push(id);
+      return { ...session, agentSessionId: "native-stale" };
+    },
     async createSession(opts: any) {
       calls.createSessionOptions = opts;
       return session;
@@ -93,14 +103,19 @@ function fakeReplayHarness() {
   };
 
   const deps: SandboxAgentDeps = {
-    log: () => {},
+    log: (message) => {
+      calls.logs.push(message);
+    },
+    sessionContinuityStore: continuityStore,
+    hydrateHarnessSessionFromDurable: async () => {},
+    syncHarnessSessionDurable: async () => {},
     createLocalCwd: () => "/tmp/agenta-replay-cwd",
     createDaytonaCwd: () => "/home/sandbox/agenta-replay-cwd",
     resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
     buildDaemonEnv: () => ({}),
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: () => ({ provider: true }) as any,
-    createPersist: () => ({}) as any,
+    createPersist: () => ({ updateSession: async () => {} }) as any,
     startSandboxAgent: (async () => sandbox) as any,
     prepareWorkspace: (async ({ plan }: any) => {
       calls.workspacePlan = plan;
@@ -131,7 +146,7 @@ function fakeReplayHarness() {
     }),
   };
 
-  return { calls, deps };
+  return { calls, deps, continuityStore };
 }
 
 describe("runSandboxAgent replays real captured QA transcripts", () => {
@@ -197,4 +212,66 @@ describe("runSandboxAgent replays real captured QA transcripts", () => {
       }
     },
   );
+});
+
+describe("cold Pi native-history fallback", () => {
+  it("bypasses an eligible stale native pointer and sends canonical replay to a clean session", async () => {
+    const { calls, deps, continuityStore } = fakeReplayHarness();
+    continuityStore.record("session-loss", "pi_core", "native-stale", 0);
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      sessionId: "session-loss",
+      messages: [
+        { role: "user", content: "Remember marker ALPHA-7" },
+        { role: "assistant", content: "I will remember ALPHA-7" },
+        { role: "user", content: "What marker did I give you?" },
+      ],
+    };
+
+    const result = await runSandboxAgent(request, undefined, undefined, deps);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.resumeSessionIds,
+      [],
+      "cold Pi must not call an identity-free native load",
+    );
+    assert.equal(calls.createSessionOptions.agent, "pi");
+    assert.match(calls.promptBlocks[0].text, /Conversation so far:/);
+    assert.match(calls.promptBlocks[0].text, /Remember marker ALPHA-7/);
+    assert.match(calls.promptBlocks[0].text, /What marker did I give you\?/);
+    assert.ok(
+      calls.logs.some((line) =>
+        line.includes("outcome=unverified replay=canonical"),
+      ),
+      "the continuity decision must be observable without transcript content",
+    );
+    assert.deepEqual(continuityStore.get("session-loss", "pi_core"), {
+      agentSessionId: "native-new",
+      turnIndex: 1,
+    });
+  });
+
+  it("keeps non-Pi native resume behavior unchanged", async () => {
+    const { calls, deps, continuityStore } = fakeReplayHarness();
+    continuityStore.record("session-claude", "claude", "native-stale", 0);
+    const request: AgentRunRequest = {
+      harness: "claude",
+      sandbox: "local",
+      sessionId: "session-claude",
+      messages: [
+        { role: "user", content: "earlier" },
+        { role: "assistant", content: "answer" },
+        { role: "user", content: "latest" },
+      ],
+    };
+
+    const result = await runSandboxAgent(request, undefined, undefined, deps);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.resumeSessionIds, ["session-claude:claude"]);
+    assert.equal(calls.createSessionOptions, undefined);
+    assert.deepEqual(calls.promptBlocks, [{ type: "text", text: "latest" }]);
+  });
 });
