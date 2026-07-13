@@ -29,7 +29,6 @@ const SCRUBBED = [
   "DAYTONA_API_URL",
   "DAYTONA_TARGET",
   "DAYTONA_SNAPSHOT",
-  "DAYTONA_SNAPSHOT_AGENT",
 ];
 
 for (const name of SCRUBBED) delete process.env[name];
