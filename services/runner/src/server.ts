@@ -1042,8 +1042,9 @@ export function createRequestListener(
 
       return send(res, 404, { ok: false, error: "Not found" });
     } catch (err) {
-      const message =
-        err instanceof Error ? (err.stack ?? err.message) : String(err);
+      const message = err instanceof Error ? err.message : String(err);
+      // Stack stays server-side; only the message goes on the wire.
+      if (err instanceof Error && err.stack) console.error(err.stack);
       return send(res, 500, { ok: false, error: message });
     }
   };
