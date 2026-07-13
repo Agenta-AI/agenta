@@ -47,20 +47,33 @@ export function projectScopedRequest(projectId: string, appId?: string, abortSig
     return {queryParams, abortSignal}
 }
 
-/** True for fetch/Fern abort + timeout cancellations (vs real failures). */
+/** True for fetch/Fern abort + timeout cancellations (vs real failures).
+ *
+ * Fern does NOT rethrow the raw `AbortError`: its fetcher repackages an aborted request as
+ * an `AgentaApiError` (name `"AgentaApiError"`, message `"The user aborted a request"`) with
+ * the original `DOMException` stashed on `cause`. So we unwrap the `cause` chain and also
+ * match Fern's abort marker message — otherwise cancelled queries log as real failures. */
 export function isAbortError(error: unknown): boolean {
-    if (
-        error instanceof DOMException &&
-        (error.name === "AbortError" || error.name === "TimeoutError")
-    ) {
-        return true
+    let current: unknown = error
+    for (let depth = 0; current != null && depth < 5; depth++) {
+        if (
+            current instanceof DOMException &&
+            (current.name === "AbortError" || current.name === "TimeoutError")
+        ) {
+            return true
+        }
+        if (typeof current === "object" && current !== null) {
+            const name = (current as {name?: string}).name
+            const message = (current as {message?: string}).message
+            if (name === "AbortError" || message === "The user aborted a request") {
+                return true
+            }
+            current = (current as {cause?: unknown}).cause
+        } else {
+            break
+        }
     }
-    return (
-        typeof error === "object" &&
-        error !== null &&
-        "name" in error &&
-        (error as {name?: string}).name === "AbortError"
-    )
+    return false
 }
 
 /**
