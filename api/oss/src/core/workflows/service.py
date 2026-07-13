@@ -277,9 +277,11 @@ class WorkflowsService:
             return {}
 
         if hasattr(flags, "model_dump"):
+            # exclude_unset: a flag the caller never set must not persist as an explicit false.
             dumped = flags.model_dump(
                 mode="json",
                 exclude_none=True,
+                exclude_unset=True,
             )
         elif isinstance(flags, dict):
             dumped = {key: value for key, value in flags.items() if value is not None}

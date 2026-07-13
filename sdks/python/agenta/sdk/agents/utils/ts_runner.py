@@ -20,7 +20,9 @@ from agenta.sdk.utils.logging import get_module_logger
 # (no records flowing) should trip. The HTTP transport's httpx read timeout is already per-read
 # (idle); the subprocess transport resets its deadline on each received line to match. On the
 # one-shot (dev-only) result transports there is a single request, so idle and total coincide.
-_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180"))
+# Must stay strictly wider than the runner's own idle timeout (run-limits.ts DEFAULT_IDLE_TIMEOUT_MS,
+# 300s) so the runner — the authority — always trips first and its terminal record reaches us.
+_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "360"))
 
 log = get_module_logger(__name__)
 

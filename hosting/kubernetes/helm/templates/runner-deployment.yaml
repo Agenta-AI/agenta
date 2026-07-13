@@ -46,6 +46,7 @@ spec:
               containerPort: {{ include "agenta.agentRunner.port" . }}
               protocol: TCP
           env:
+            {{- include "agenta.commonEnv" . | nindent 12 }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
             {{- /* Shared-token gate on /run + /kill. Unset = off (network isolation only). */}}

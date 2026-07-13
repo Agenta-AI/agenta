@@ -60,11 +60,8 @@ async def test_create_workflow_persists_only_artifact_flags():
     artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
     assert artifact_create.flags is not None
     # Only the role flags land on the artifact; is_chat / is_custom are revision-level facts.
-    assert artifact_create.flags == {
-        "is_application": True,
-        "is_evaluator": False,
-        "is_snippet": False,
-    }
+    # Flags the caller never set are not persisted as an explicit false.
+    assert artifact_create.flags == {"is_application": True}
 
 
 @pytest.mark.asyncio
@@ -276,25 +273,52 @@ async def test_create_workflow_revision_v0_persists_explicit_revision_flags():
     )
 
     revision_create = workflows_dao.create_revision.await_args.kwargs["revision_create"]
+    # Only the flags the caller actually set are persisted; an unset flag must not
+    # materialize as an explicit false (it is indistinguishable from a real one).
     assert revision_create.flags == {
-        "is_managed": False,
         "is_custom": True,
-        "is_llm": False,
-        "is_hook": False,
-        "is_code": False,
-        "is_match": False,
-        "is_feedback": False,
-        "is_agent": False,
-        "is_skill": False,
         "is_chat": True,
-        "has_url": False,
-        "has_script": False,
-        "has_handler": False,
-        # is_static is server-owned (slug-derived); hard-coded false on write.
-        "is_static": False,
     }
     assert workflow_revision is not None
     assert workflow_revision.flags == WorkflowRevisionFlags(is_application=True)
+
+
+def test_dump_stored_flags_omits_unset_flags():
+    """An unset flag must never persist as an explicit false: stored `false` is
+    indistinguishable from a caller-declared one, which is what made the oss000000010
+    downgrade unable to tell the backfill's rows from ordinary ones.
+    """
+    stored = WorkflowsService._dump_stored_revision_flags(
+        WorkflowsService._revision_flags_from_any(WorkflowFlags(is_chat=True))
+    )
+
+    assert stored == {"is_chat": True}
+    assert "is_agent" not in stored
+    assert "is_skill" not in stored
+
+
+def test_dump_stored_flags_keeps_caller_supplied_false():
+    """An explicit false the caller DID set is a real fact and must still persist."""
+    stored = WorkflowsService._dump_stored_revision_flags(
+        WorkflowsService._revision_flags_from_any(
+            WorkflowFlags(is_agent=False, is_chat=True)
+        )
+    )
+
+    assert stored["is_agent"] is False
+
+
+def test_dump_stored_flags_still_scrubs_forged_server_owned_flag():
+    """exclude_unset must not weaken the is_static anti-forgery scrub: a supplied
+    is_static is 'set', so it still reaches the scrubber and is hard-coded to False.
+    """
+    stored = WorkflowsService._dump_stored_revision_flags(
+        WorkflowsService._revision_flags_from_any(
+            WorkflowFlags(is_static=True, is_chat=True)
+        )
+    )
+
+    assert stored["is_static"] is False
 
 
 @pytest.mark.asyncio

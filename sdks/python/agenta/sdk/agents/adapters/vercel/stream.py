@@ -193,14 +193,16 @@ async def _agent_run_to_vercel_parts_impl(
                 if first_seen:
                     tool_names_by_id[tool_call_id] = tool_name
                 tool_name = tool_names_by_id.get(tool_call_id) or tool_name
-                content_parts_emitted += 1
                 if first_seen:
-                    yield {
+                    start_part = {
                         "type": "tool-input-start",
                         "toolCallId": tool_call_id,
                         "toolName": tool_name,
                     }
-                yield {
+                    if _conform(start_part) is not None:
+                        content_parts_emitted += 1
+                    yield start_part
+                input_part = {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
@@ -214,31 +216,39 @@ async def _agent_run_to_vercel_parts_impl(
                         else data.get("input")
                     ),
                 }
+                if _conform(input_part) is not None:
+                    content_parts_emitted += 1
+                yield input_part
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                content_parts_emitted += 1
                 # A tool part (-error/-available) only ever emits for a tool call this
                 # stream actually surfaced; an orphaned one has no tool part to attach to
                 # and the client throws. The commit-revision side-channel below is a plain
                 # data event, not a tool-result envelope, so it fires regardless.
                 has_tool_part = tool_call_id in seen_tool_calls
                 if has_tool_part and data.get("isError"):
-                    yield {
+                    error_part = {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
+                    if _conform(error_part) is not None:
+                        content_parts_emitted += 1
+                    yield error_part
                 elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
                     if has_tool_part:
-                        yield {
+                        output_part = {
                             "type": "tool-output-available",
                             "toolCallId": tool_call_id,
                             "output": out,
                         }
+                        if _conform(output_part) is not None:
+                            content_parts_emitted += 1
+                        yield output_part
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -251,7 +261,8 @@ async def _agent_run_to_vercel_parts_impl(
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
                 for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
-                    content_parts_emitted += 1
+                    if _conform(part) is not None:
+                        content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -263,12 +274,14 @@ async def _agent_run_to_vercel_parts_impl(
                 content_parts_emitted += 1
                 yield part
             elif etype == "file":
-                content_parts_emitted += 1
-                yield {
+                file_part = {
                     "type": "file",
                     "url": data.get("url"),
                     "mediaType": data.get("mediaType"),
                 }
+                if _conform(file_part) is not None:
+                    content_parts_emitted += 1
+                yield file_part
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
@@ -431,14 +444,16 @@ async def _agent_stream_to_vercel_stream_impl(
                 if first_seen:
                     tool_names_by_id[tool_call_id] = tool_name
                 tool_name = tool_names_by_id.get(tool_call_id) or tool_name
-                content_parts_emitted += 1
                 if first_seen:
-                    yield {
+                    start_part = {
                         "type": "tool-input-start",
                         "toolCallId": tool_call_id,
                         "toolName": tool_name,
                     }
-                yield {
+                    if _conform(start_part) is not None:
+                        content_parts_emitted += 1
+                    yield start_part
+                input_part = {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
@@ -452,31 +467,39 @@ async def _agent_stream_to_vercel_stream_impl(
                         else data.get("input")
                     ),
                 }
+                if _conform(input_part) is not None:
+                    content_parts_emitted += 1
+                yield input_part
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                content_parts_emitted += 1
                 # A tool part (-error/-available) only ever emits for a tool call this
                 # stream actually surfaced; an orphaned one has no tool part to attach to
                 # and the client throws. The commit-revision side-channel below is a plain
                 # data event, not a tool-result envelope, so it fires regardless.
                 has_tool_part = tool_call_id in seen_tool_calls
                 if has_tool_part and data.get("isError"):
-                    yield {
+                    error_part = {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
+                    if _conform(error_part) is not None:
+                        content_parts_emitted += 1
+                    yield error_part
                 elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
                     if has_tool_part:
-                        yield {
+                        output_part = {
                             "type": "tool-output-available",
                             "toolCallId": tool_call_id,
                             "output": out,
                         }
+                        if _conform(output_part) is not None:
+                            content_parts_emitted += 1
+                        yield output_part
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -489,7 +512,8 @@ async def _agent_stream_to_vercel_stream_impl(
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
                 for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
-                    content_parts_emitted += 1
+                    if _conform(part) is not None:
+                        content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -501,12 +525,14 @@ async def _agent_stream_to_vercel_stream_impl(
                 content_parts_emitted += 1
                 yield part
             elif etype == "file":
-                content_parts_emitted += 1
-                yield {
+                file_part = {
                     "type": "file",
                     "url": data.get("url"),
                     "mediaType": data.get("mediaType"),
                 }
+                if _conform(file_part) is not None:
+                    content_parts_emitted += 1
+                yield file_part
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":

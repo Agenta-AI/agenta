@@ -138,6 +138,41 @@ async def test_zero_content_run_emits_conforming_error_frame() -> None:
     assert any(p["type"] == "error" for p in parts)
 
 
+@pytest.mark.asyncio
+async def test_dropped_only_content_part_still_triggers_zero_content_guard() -> None:
+    """A run whose only content is a `file` part `_conform` rejects (no `url`) must still
+    trip the zero-content backstop -- the drop must not be counted as emitted content.
+    """
+    events = [
+        {"type": "file", "data": {"url": None, "mediaType": "image/png"}},
+        {"type": "done", "data": {"stopReason": "stop"}},
+    ]
+    parts = [
+        part
+        async for part in agent_stream_to_vercel_stream(_records(events), trace_id="t3")
+    ]
+    assert not any(p["type"] == "file" for p in parts)
+    assert any(
+        p["type"] == "error" and p.get("errorText") == "The agent produced no output."
+        for p in parts
+    )
+
+
+@pytest.mark.asyncio
+async def test_dropped_only_content_part_still_triggers_zero_content_guard_dev_twin() -> (
+    None
+):
+    """Dev-twin counterpart of the guard above, on the ``AgentStream``-based projection."""
+    events = [{"type": "file", "data": {"url": None, "mediaType": "image/png"}}]
+    run = _run_with(events, result={"output": None})
+    parts = [part async for part in agent_run_to_vercel_parts(run)]
+    assert not any(p["type"] == "file" for p in parts)
+    assert any(
+        p["type"] == "error" and p.get("errorText") == "The agent produced no output."
+        for p in parts
+    )
+
+
 def test_vendored_version_matches_package_pin() -> None:
     # CI-grep-able tripwire: bump this const (and re-audit the shape above) whenever
     # web/oss/package.json's "ai" pin changes.
