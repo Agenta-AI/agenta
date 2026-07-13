@@ -170,9 +170,9 @@ describe("readKeepaliveConfig", () => {
     }
   });
 
-  it("defaults: off, 60s idle, 5m approval, cap 8", () => {
+  it("defaults: on, 60s idle, 5m approval, cap 8", () => {
     assert.deepEqual(readKeepaliveConfig("local"), {
-      enabled: false,
+      enabled: true,
       ttlMs: 60_000,
       approvalTtlMs: 300_000,
       poolMax: 8,
@@ -190,6 +190,8 @@ describe("readKeepaliveConfig", () => {
 
     process.env.AGENTA_RUNNER_SESSION_KEEPALIVE = "off";
     assert.equal(readKeepaliveConfig("local").enabled, false);
+    process.env.AGENTA_RUNNER_SESSION_KEEPALIVE = "not-a-boolean";
+    assert.equal(readKeepaliveConfig("local").enabled, true);
     process.env.AGENTA_RUNNER_SESSION_TTL_MS = "-1";
     assert.equal(
       readKeepaliveConfig("local").ttlMs,
