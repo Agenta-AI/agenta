@@ -157,15 +157,16 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 <Tabs
                     animated={false}
                     // The session bar is an ABSOLUTE overlay (`.ant-tabs-nav` pinned top) so its
-                    // presence never reflows the transcript. The build↔chat motion is driven by the
-                    // content-holder's TOP PADDING (`--agent-bar-inset`: 48 in build, 0 in chat) — the
-                    // transcript eases to its position; the composer (bottom) never moves.
+                    // presence never reflows the content. The build↔chat motion is published as a
+                    // CSS var (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
+                    // consumes as its top padding — so only the transcript eases, not the context rail
+                    // beside it (which the shared content-holder padding used to drag up too).
                     style={
                         {
                             "--agent-bar-inset": chromeHidden || chatMaximized ? "0px" : "48px",
                         } as CSSProperties
                     }
-                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-content-holder]:pt-[var(--agent-bar-inset)] [&_.ant-tabs-content-holder]:motion-safe:transition-[padding-top] [&_.ant-tabs-content-holder]:motion-safe:duration-[240ms] [&_.ant-tabs-content-holder]:motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0"
                     activeKey={activeId}
                     onChange={setActiveSession}
                     renderTabBar={() => (

@@ -1848,9 +1848,25 @@ const AgentConversation = ({
                 {filesWindowHost}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
-                <RightPanelSplit open={inspectorOpen} panel={<Inspector sessionId={sessionId} />}>
+                <RightPanelSplit
+                    open={inspectorOpen}
+                    // Same bar inset as the transcript column: the Inspector is a separate split pane,
+                    // so it needs its own top padding to clear the absolute session bar in build mode
+                    // (the context rail deliberately does NOT get it, so it never rides the transition).
+                    panel={
+                        <div className="box-border h-full pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                            <Inspector sessionId={sessionId} />
+                        </div>
+                    }
+                >
                     <div className="flex h-full min-h-0 w-full min-w-0">
-                        <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3">
+                        {/* Top padding tracks the session bar (--agent-bar-inset, published by
+                            AgentChatPanel and inherited here): the transcript eases down under the
+                            absolute bar in build and reclaims the space in chat. It lives on the
+                            TRANSCRIPT COLUMN alone — not a shared ancestor — so the context rail
+                            beside it keeps a fixed top and doesn't ride the transition upward.
+                            box-border so the padding fits inside h-full (preflight is off). */}
+                        <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
                             {isDragging && (
                                 <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
                                     <UploadSimple size={26} className="text-colorPrimary" />
