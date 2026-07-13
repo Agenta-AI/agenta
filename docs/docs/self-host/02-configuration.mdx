@@ -161,6 +161,7 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 |---|---|---|
 | `AGENTA_RUNNER_INTERNAL_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
 | `AGENTA_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
+| `AGENTA_RUNNER_TOKEN` | Services API, `runner` | `agentRunner.token` |
 | `AGENTA_AGENT_MCPS_ENABLED` | Services API | `agentRunner.enableMcp` |
 | `AGENTA_SANDBOX_LOCAL_ALLOWED` | Services API, SDK | `agenta.sandboxLocalAllowed` |
 | `SANDBOX_AGENT_PROVIDER` | `runner` | `agentRunner.provider` |
@@ -195,6 +196,21 @@ to harden a shared/multi-tenant deployment: requests for the `local` sandbox are
 refused with an HTTP 403, and the web UI hides the `local` option
 (`NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED`, derived automatically). The `daytona`
 sandbox is unaffected either way.
+:::
+
+:::warning Runner authentication
+`AGENTA_RUNNER_TOKEN` is the runner's only authentication. It is **unset by default, which
+means no authentication check at all**: the `runner` service accepts any request that can
+reach it, and its `/run` body carries plaintext provider keys. Zero-config self-hosting
+relies on network isolation alone — keep the runner on a private network and never publish
+its port.
+
+Set it to require a shared bearer token on the runner's `/run` and `/kill` endpoints;
+requests without a matching `Authorization: Bearer <token>` (or `X-Agenta-Runner-Token`)
+header are refused with an HTTP 401. Set the **same value** on the runner and on the
+Services API that calls it, or the Services API locks itself out. In Helm, `agentRunner.token`
+does both: it stores the value in the release Secret and injects it into both pods. A static
+shared secret is defense in depth on top of network isolation, not a substitute for it.
 :::
 
 ## Store (durable object store) {#store-durable-object-store}

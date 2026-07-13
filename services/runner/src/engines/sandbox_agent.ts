@@ -220,6 +220,8 @@ const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
 // signal can never reach (SIGKILL/OOM) self-reap via the lifecycle reapers in `provider.ts`.
 const inFlightSandboxes = new Set<{
   destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
+  sessionId: string;
+  mountProjectId?: string;
 }>();
 
 /**
@@ -233,6 +235,35 @@ export async function destroyInFlightSandboxes(
   reason: TeardownReason = "shutdown-in-flight",
 ): Promise<void> {
   const pending = [...inFlightSandboxes];
+  if (pending.length === 0) return;
+  const sweep = Promise.allSettled(
+    pending.map((environment) =>
+      Promise.resolve(environment.destroy({ reason })).catch(() => {}),
+    ),
+  );
+  await Promise.race([
+    sweep,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+/**
+ * Same drain as `destroyInFlightSandboxes`, scoped to one session (and, when supplied, its
+ * owning project). Backs the HTTP `/kill` route so a caller can only tear down its own
+ * session's in-flight sandbox(es) — the unscoped sweep above stays an in-process-only call
+ * (the shutdown handler).
+ */
+export async function destroyInFlightSandboxesForSession(
+  sessionId: string,
+  projectId: string | undefined,
+  timeoutMs = 5000,
+  reason: TeardownReason = "kill",
+): Promise<void> {
+  const pending = [...inFlightSandboxes].filter(
+    (environment) =>
+      environment.sessionId === sessionId &&
+      (!projectId || environment.mountProjectId === projectId),
+  );
   if (pending.length === 0) return;
   const sweep = Promise.allSettled(
     pending.map((environment) =>
@@ -736,6 +767,8 @@ export async function acquireEnvironment(
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
+    provider: request.provider,
+    deployment: request.deployment,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);

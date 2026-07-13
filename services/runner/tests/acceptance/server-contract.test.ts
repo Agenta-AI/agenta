@@ -282,14 +282,30 @@ describe("POST /stream alias contract", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /kill contract", () => {
-  it("returns 200 {ok:true} when no token configured", async () => {
+  it("returns 200 {ok:true} for a scoped sessionId when no token configured", async () => {
     delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/kill`, { method: "POST" });
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
       assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("returns 400 when no sessionId is given (unscoped kill is rejected)", async () => {
+    delete process.env[TOKEN_ENV];
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, { method: "POST", body: "{}" });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean };
+      assert.equal(body.ok, false);
     } finally {
       await s.close();
     }
@@ -299,7 +315,10 @@ describe("POST /kill contract", () => {
     process.env[TOKEN_ENV] = "kill-tok";
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/kill`, { method: "POST" });
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
       assert.equal(res.status, 401);
     } finally {
       await s.close();

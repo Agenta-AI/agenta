@@ -62,7 +62,9 @@ interface FakeOptions {
 function fakeHarness(options: FakeOptions = {}) {
   const calls = {
     daemonAgent: "",
-    daemonOptions: undefined as { clearProviderEnv?: boolean } | undefined,
+    daemonOptions: undefined as
+      | { clearProviderEnv?: boolean; provider?: string; deployment?: string }
+      | undefined,
     providerArgs: [] as unknown[],
     startOptions: undefined as any,
     createSessionOptions: undefined as any,
@@ -1265,7 +1267,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     // Managed run -> clear-then-apply: buildDaemonEnv is asked to clear the inherited provider env.
-    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: true });
+    assert.equal(calls.daemonOptions?.clearProviderEnv, true);
     // The env handed to buildSandboxProvider carries only the resolved key + the custom base url.
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_API_KEY, "resolved");
@@ -1399,9 +1401,30 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     // runtime_provided -> keep the harness's own inherited env (do not clear).
-    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: false });
+    assert.equal(calls.daemonOptions?.clearProviderEnv, false);
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_BASE_URL, undefined);
+  });
+
+  it("passes the run's declared provider/deployment so the inherited keys narrow (RUN-SEC-1)", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+        provider: "anthropic",
+        deployment: "bedrock",
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.daemonOptions?.provider, "anthropic");
+    assert.equal(calls.daemonOptions?.deployment, "bedrock");
   });
 });
 

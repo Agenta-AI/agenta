@@ -272,6 +272,7 @@ services:
         environment:
             AGENTA_RUNNER_PORT: "8765"
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
+            AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             SANDBOX_AGENT_PROVIDER: ${SANDBOX_AGENT_PROVIDER:-local}

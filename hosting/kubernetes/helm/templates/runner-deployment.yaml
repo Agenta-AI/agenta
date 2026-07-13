@@ -48,6 +48,15 @@ spec:
           env:
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
+            {{- /* Shared-token gate on /run + /kill. Unset = off (network isolation only). */}}
+            {{- if $runner.token }}
+            - name: AGENTA_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_RUNNER_TOKEN
+                  optional: true
+            {{- end }}
             - name: SANDBOX_AGENT_PROVIDER
               value: {{ default "local" $runner.provider | quote }}
             {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}

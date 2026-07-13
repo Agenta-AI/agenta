@@ -291,6 +291,7 @@ services:
         environment:
             AGENTA_RUNNER_PORT: "8765"
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
+            AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:-}
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
