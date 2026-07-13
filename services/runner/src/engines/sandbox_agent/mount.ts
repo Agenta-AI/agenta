@@ -462,9 +462,18 @@ export async function unmountStorage(
   return false;
 }
 
-// `mountpoint -q` exits 0 = still mounted, 1 = not a mountpoint (confirmed gone). Any other
-// failure (missing binary, unexpected error) is NOT confirmation, so the caller never deletes
-// through a possibly-live mount.
+// util-linux `mountpoint -q` exits 0 = mounted and 32 = not a mountpoint. Some implementations
+// use 1 for the latter. Node may surface child-process exit codes as numbers or strings. Every
+// other failure remains inconclusive, so callers never delete through a possibly-live mount.
+export function mountpointFailureState(
+  error: unknown,
+): "gone" | "inconclusive" {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return code === 1 || code === 32 || code === "1" || code === "32"
+    ? "gone"
+    : "inconclusive";
+}
+
 async function defaultCheckMountpoint(
   cwd: string,
 ): Promise<"gone" | "mounted" | "inconclusive"> {
@@ -472,7 +481,7 @@ async function defaultCheckMountpoint(
     await pExecFile("mountpoint", ["-q", cwd]);
     return "mounted";
   } catch (err) {
-    return (err as { code?: number }).code === 1 ? "gone" : "inconclusive";
+    return mountpointFailureState(err);
   }
 }
 

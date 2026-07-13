@@ -15,6 +15,7 @@ import {
   signSessionMountCredentials,
   mountStorage,
   unmountStorage,
+  mountpointFailureState,
   discoverTunnelEndpoint,
   mountStorageRemote,
   harnessSessionMounts,
@@ -408,6 +409,20 @@ describe("unmountStorage", () => {
     // No throw == pass, but callers must not treat this as safe to delete the cwd.
     assert.equal(ok, false);
   });
+});
+
+describe("mountpointFailureState", () => {
+  for (const code of [1, 32, "1", "32"]) {
+    it("treats not-a-mountpoint exit code " + code + " as gone", () => {
+      assert.equal(mountpointFailureState({ code }), "gone");
+    });
+  }
+
+  for (const code of [0, 2, 127, "ENOENT", undefined]) {
+    it("keeps unexpected exit code " + String(code) + " inconclusive", () => {
+      assert.equal(mountpointFailureState({ code }), "inconclusive");
+    });
+  }
 });
 
 describe("unmountStorage confirmation", () => {
