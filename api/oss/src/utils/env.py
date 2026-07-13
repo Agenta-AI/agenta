@@ -668,7 +668,10 @@ class CrispConfig(BaseModel):
 class DaytonaConfig(BaseModel):
     api_key: str | None = os.getenv("DAYTONA_API_KEY")
     api_url: str | None = os.getenv("DAYTONA_API_URL")
-    snapshot: str | None = os.getenv("DAYTONA_SNAPSHOT")
+    # Code-evaluator override first, then the snapshot shared with the agent runner.
+    snapshot: str | None = os.getenv("DAYTONA_SNAPSHOT_CODE") or os.getenv(
+        "DAYTONA_SNAPSHOT"
+    )
     target: str | None = os.getenv("DAYTONA_TARGET")
 
     model_config = ConfigDict(extra="ignore")

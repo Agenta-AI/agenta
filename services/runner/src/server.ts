@@ -923,8 +923,9 @@ async function runAndStreamWithApiBaseResolved(
     // all queued persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
-    const message =
-      err instanceof Error ? (err.stack ?? err.message) : String(err);
+    const message = err instanceof Error ? err.message : String(err);
+    // Stack stays server-side; the message alone goes on the wire and into the transcript.
+    if (err instanceof Error && err.stack) console.error(err.stack);
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
@@ -1013,7 +1014,7 @@ export function createRequestListener(
           } catch (err) {
             return send(res, 400, {
               ok: false,
-              error: `Invalid JSON: ${String(err)}`,
+              error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
             });
           }
 
@@ -1041,8 +1042,9 @@ export function createRequestListener(
 
       return send(res, 404, { ok: false, error: "Not found" });
     } catch (err) {
-      const message =
-        err instanceof Error ? (err.stack ?? err.message) : String(err);
+      const message = err instanceof Error ? err.message : String(err);
+      // Stack stays server-side; only the message goes on the wire.
+      if (err instanceof Error && err.stack) console.error(err.stack);
       return send(res, 500, { ok: false, error: message });
     }
   };

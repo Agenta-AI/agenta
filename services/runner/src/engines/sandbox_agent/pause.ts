@@ -12,10 +12,13 @@ export class PendingApprovalPauseController {
   private pendingApproval = false;
   private readonly pausedToolCallIds = new Set<string>();
   private resolvePause: (() => void) | undefined;
+  private eventDrain: Promise<void> = Promise.resolve();
 
   readonly signal: Promise<void>;
 
-  constructor(private readonly destroySession: () => Promise<void> | void | undefined) {
+  constructor(
+    private readonly destroySession: () => Promise<void> | void | undefined,
+  ) {
     this.signal = new Promise<void>((resolve) => {
       this.resolvePause = resolve;
     });
@@ -24,8 +27,23 @@ export class PendingApprovalPauseController {
   pause(): void {
     if (this.pendingApproval) return;
     this.pendingApproval = true;
+    let destroyResult: Promise<void> | void | undefined;
+    try {
+      destroyResult = this.destroySession();
+    } catch {
+      destroyResult = undefined;
+    }
+    this.eventDrain = Promise.resolve(destroyResult)
+      .catch(() => {})
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)));
+    // The turn races this immediate signal; terminalization separately awaits eventDrain so the
+    // permission callback never holds the human pause open while queued ACP updates still settle.
     this.resolvePause?.();
-    void Promise.resolve(this.destroySession()).catch(() => {});
+  }
+
+  /** Wait until managed cancellation and already-queued ACP updates have drained. */
+  waitForEventDrain(): Promise<void> {
+    return this.eventDrain;
   }
 
   /**

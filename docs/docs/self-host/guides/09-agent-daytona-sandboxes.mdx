@@ -44,6 +44,10 @@ DAYTONA_SNAPSHOT=agenta-sandbox-pi
 AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
 ```
 
+`DAYTONA_SNAPSHOT` is shared with the [custom-code evaluators](/self-host/configuration#daytona);
+the recipe bakes `python3` and `ts-node` so one snapshot serves both. Use the
+`DAYTONA_SNAPSHOT_AGENT` / `DAYTONA_SNAPSHOT_CODE` overrides when they must diverge.
+
 For Helm:
 
 ```yaml

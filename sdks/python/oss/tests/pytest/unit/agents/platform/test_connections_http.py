@@ -216,6 +216,48 @@ async def test_bare_model_matching_a_candidate_infers_the_provider(
     assert resolved.credential_mode == "env"
 
 
+@pytest.mark.parametrize(
+    ("provider", "environment_name"),
+    [
+        ("openai", "OPENAI_API_KEY"),
+        ("anthropic", "ANTHROPIC_API_KEY"),
+        ("openrouter", "OPENROUTER_API_KEY"),
+    ],
+)
+async def test_known_direct_custom_provider_uses_direct_deployment(
+    fake_http, connection, provider, environment_name
+):
+    endpoint = "https://93.184.216.34/v1"
+    model_id = "vendor/model-v1"
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "custom-direct",
+                provider,
+                key="provider-key",
+                url=endpoint,
+                models=[model_id],
+            )
+        ],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("custom-direct", provider=provider, model=model_id),
+        context=_context(),
+    )
+
+    assert resolved.provider == provider
+    assert resolved.deployment == "direct"
+    assert resolved.model == model_id
+    assert resolved.endpoint.base_url == endpoint
+    if hasattr(resolved, "plaintext_environment"):
+        environment = resolved.plaintext_environment()
+    else:
+        environment = resolved.env
+    assert environment == {environment_name: "provider-key"}
+
+
 async def test_missing_named_connection_fails_loud(fake_http, connection):
     fake_http(connections, payload=[_provider_key("openai-prod", "openai", "sk-prod")])
     with pytest.raises(ConnectionNotFoundError):

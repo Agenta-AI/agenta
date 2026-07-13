@@ -18,7 +18,8 @@ export interface TemplateSegment {
 }
 
 // `{{ path }}` tokens. The inner path is a JSONPath/Pointer or a dot path (→ `$.path`).
-const TOKEN_RE = /\{\{\s*([^{}]+?)\s*\}\}/g
+// No \s* around the capture (ReDoS-ambiguous with [^{}]); `tokenToSelector` trims instead.
+const TOKEN_RE = /\{\{([^{}]+)\}\}/g
 
 function tokenToSelector(token: string): string {
     const t = token.trim()

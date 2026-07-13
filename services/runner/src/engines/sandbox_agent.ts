@@ -89,6 +89,8 @@ import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   prepareLocalPiAssets,
+  uploadSystemPromptToSandbox,
+  writeSystemPromptLocal,
   writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
 import {
@@ -153,6 +155,12 @@ import {
   seedAgentReadmeRemote,
   signAgentMountCredentials,
 } from "./sandbox_agent/agent-mount.ts";
+import {
+  AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
+  claudeMountSystemPromptMeta,
+  combineAppendSystemPrompt,
+  type ClaudeSystemPromptMeta,
+} from "./sandbox_agent/agent-mount-guidance.ts";
 import {
   hydrateHarnessSessionFromDurable,
   syncHarnessSessionDurable,
@@ -758,11 +766,6 @@ export async function acquireEnvironment(
         skills: plan.skillDirs.map((s) => s.name),
       })
     : {};
-  if (agentMountDir) {
-    // Daytona fixes daemon env at sandbox-create, before the best-effort remote mount. Exposing
-    // the signed mount's stable path is safe; discovery files are seeded only after mount success.
-    piExtEnv[AGENT_MOUNT_ENV_VAR] = agentMountDir;
-  }
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
@@ -780,7 +783,7 @@ export async function acquireEnvironment(
   }
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
-  const runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+  let runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
@@ -938,24 +941,70 @@ export async function acquireEnvironment(
     plan.skillsCleanup();
   };
 
+  let agentMountGuidanceActive = false;
+  const activateAgentMountGuidance = async (): Promise<void> => {
+    const mountedPath = environment.agentMountedPath;
+    if (!mountedPath || agentMountGuidanceActive) return;
+    agentMountGuidanceActive = true;
+
+    // Only advertise durable storage after the mount is confirmed active. Local daemon env is
+    // still mutable here because local mounts run before SandboxAgent.start below. Daytona cannot
+    // change daemon env after sandbox creation, so its harness discovers the mount through the
+    // post-mount system-prompt channel and the cwd-local agent-files symlink instead.
+    if (!plan.isDaytona) {
+      env[AGENT_MOUNT_ENV_VAR] = mountedPath;
+      piExtEnv[AGENT_MOUNT_ENV_VAR] = mountedPath;
+    }
+    if (!plan.isPi) return;
+
+    plan.appendSystemPrompt = combineAppendSystemPrompt(
+      plan.appendSystemPrompt,
+      AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
+    );
+    plan.hasSystemPrompt = true;
+    if (plan.isDaytona) {
+      await uploadSystemPromptToSandbox(
+        environment.sandbox,
+        DAYTONA_PI_DIR,
+        plan.systemPrompt,
+        plan.appendSystemPrompt,
+        logger,
+      );
+      return;
+    }
+    if (environment.runAgentDir) {
+      writeSystemPromptLocal(
+        environment.runAgentDir,
+        plan.systemPrompt,
+        plan.appendSystemPrompt,
+        logger,
+      );
+      return;
+    }
+    runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+    environment.runAgentDir = runAgentDir;
+  };
+
   // --- local durable cwd mount helpers (session-scoped, close over environment) ------ //
   const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
     if (!environment.mountCreds || plan.isDaytona) return false;
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
-    if (
-      await (deps.mountStorage ?? mountStorage)(
-        plan.cwd,
-        environment.mountCreds,
-        {
-          log: logger,
-        },
-      )
-    ) {
+    environment.durableCwdSafeToDelete = false;
+    const mounted = await (deps.mountStorage ?? mountStorage)(
+      plan.cwd,
+      environment.mountCreds,
+      {
+        log: logger,
+      },
+    );
+    if (mounted) {
       environment.mountedCwd = plan.cwd;
       return true;
     }
+    // A false result means mountStorage stopped the attempt and confirmed the path detached.
+    environment.durableCwdSafeToDelete = true;
     return false;
   };
   const mountLocalAgentCwd = async (): Promise<boolean> => {
@@ -971,12 +1020,15 @@ export async function acquireEnvironment(
           { log: logger },
         ))
       ) {
+        // false means mountStorage confirmed detach is safe. This path is a sibling of the
+        // session cwd, so workspace cleanup cannot remove the failed mountpoint stub.
+        rmSync(mountPath, { recursive: true, force: true });
         return false;
       }
       environment.agentMountedPath = mountPath;
       await seedAgentReadme(mountPath, { log: logger });
       await linkAgentFiles(plan.cwd, mountPath, { log: logger });
-      env[AGENT_MOUNT_ENV_VAR] = mountPath;
+      await activateAgentMountGuidance();
       return true;
     } catch (err) {
       logger(
@@ -984,6 +1036,38 @@ export async function acquireEnvironment(
       );
       return false;
     }
+  };
+  let localAgentMountEnotconnRemounts = 0;
+  const reSignAndRemountLocalAgentMount = async (): Promise<boolean> => {
+    if (!artifactId || !runCred || plan.isDaytona) return false;
+    if (
+      localAgentMountEnotconnRemounts >=
+      LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT
+    ) {
+      logger(
+        `local agent mount ENOTCONN remount limit reached artifact=${artifactId} path=${agentMountPath(plan.cwd)}`,
+      );
+      return false;
+    }
+    localAgentMountEnotconnRemounts += 1;
+    logger(
+      `local agent mount ENOTCONN artifact=${artifactId}; re-signing and remounting`,
+    );
+    const fresh = await signAgentMount(artifactId, {
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+    if (!fresh) {
+      logger(
+        `local agent mount re-sign returned no credentials artifact=${artifactId}`,
+      );
+      return false;
+    }
+    environment.agentMountCreds = fresh;
+    // Clear the marker so mountLocalAgentCwd remounts instead of short-circuiting.
+    environment.agentMountedPath = undefined;
+    return mountLocalAgentCwd();
   };
   let localDurableCwdEnotconnRemounts = 0;
   const reSignAndRemountLocalCwd = async (): Promise<boolean> => {
@@ -1016,37 +1100,35 @@ export async function acquireEnvironment(
     return mountLocalDurableCwd("enotconn-retry");
   };
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown): void => {
-    if (plan.isDaytona || !environment.mountCreds || !environment.mountedCwd)
-      return;
+    if (plan.isDaytona) return;
+    // The event cannot say which mount broke; remount every eligible one (alive mounts no-op).
+    const cwdEligible = !!environment.mountCreds && !!environment.mountedCwd;
+    const agentEligible =
+      !!environment.agentMountCreds && !!environment.agentMountedPath;
+    if (!cwdEligible && !agentEligible) return;
     if (
       environment.runtimeRemount ||
       !containsTransportEndpointDisconnected(event)
     )
       return;
     logger(
-      `local durable cwd ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
+      `local durable mount ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
     );
-    environment.runtimeRemount = reSignAndRemountLocalCwd().catch((err) => {
+    environment.runtimeRemount = (async () => {
+      const cwdOk = cwdEligible ? await reSignAndRemountLocalCwd() : true;
+      const agentOk = agentEligible
+        ? await reSignAndRemountLocalAgentMount()
+        : true;
+      return cwdOk && agentOk;
+    })().catch((err) => {
       logger(
-        `local durable cwd runtime remount failed session=${sessionForMount}: ${conciseError(err, plan.harness)}`,
+        `local durable mount runtime remount failed session=${sessionForMount}: ${conciseError(err, plan.harness)}`,
       );
       return false;
     });
   };
 
   try {
-    // Local mounts must be active before the provider starts the daemon so its inherited env
-    // includes AGENTA_AGENT_MOUNT_DIR (the patch moved the initial cwd mount up here from the
-    // pre-createSession block). Daytona mounts below, once the live sandbox handle exists.
-    // NOTE: the PR also calls validateUserMcpServers here — that helper only exists on its
-    // base branch, so it is intentionally omitted from this preview.
-    if (environment.mountCreds && !plan.isDaytona) {
-      await mountLocalDurableCwd("initial");
-    }
-    if (environment.agentMountCreds && !plan.isDaytona) {
-      await mountLocalAgentCwd();
-    }
-
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
       deps.createPersist?.() ?? new InMemorySessionPersistDriver();
@@ -1054,6 +1136,15 @@ export async function acquireEnvironment(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
+    // Local geesefs runs on the host, so mount before spawning the daemon. This lets the
+    // mount-success path add guidance/env atomically, while a failed mount starts a normal
+    // scratch-only harness with no false durable-storage signal.
+    if (environment.mountCreds && !plan.isDaytona) {
+      await mountLocalDurableCwd("initial");
+    }
+    if (environment.agentMountCreds && !plan.isDaytona) {
+      await mountLocalAgentCwd();
+    }
     const sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
       plan.sandboxId,
       env,
@@ -1265,6 +1356,7 @@ export async function acquireEnvironment(
             mountPath,
             { log: logger },
           );
+          await activateAgentMountGuidance();
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
       } catch (err) {
@@ -1272,8 +1364,7 @@ export async function acquireEnvironment(
           `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
         );
       } finally {
-        // Their base's timingLog instrumentation isn't on this branch — plain log for the preview.
-        logger(`timing agent_mount ${Date.now() - agentMountStartedAt}ms`);
+        timingLog("agent_mount", agentMountStartedAt);
       }
     }
 
@@ -1361,6 +1452,22 @@ export async function acquireEnvironment(
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
 
+    // Shared session-init payload for both the createSession and continuity-resume paths below.
+    // Built as a plain variable (not an inline object literal at the call site) so the extra
+    // `_meta` key survives the daemon SDK's narrow `Omit<NewSessionRequest, "_meta">` types —
+    // the daemon's own runtime forwards `_meta` unconditionally (`normalizeSessionInit` /
+    // `buildLoadSessionParams` in the vendored `sandbox-agent` patch), only the published types
+    // are stricter than the wire protocol they describe.
+    const claudeSystemPromptMeta: ClaudeSystemPromptMeta | undefined =
+      environment.agentMountedPath && plan.acpAgent === "claude"
+        ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
+        : undefined;
+    const sessionInit = {
+      cwd: plan.cwd,
+      mcpServers: sessionMcp.servers,
+      ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
+    };
+
     // If this harness authored the conversation's most recent turn (staleness-guarded) and we
     // still remember its native `agentSessionId`, seed the fresh persist driver with a synthetic
     // record and resume-by-id so the patched `resumeSession` reaches `session/load` instead of
@@ -1424,7 +1531,7 @@ export async function acquireEnvironment(
         agentSessionId: priorAgentSessionId,
         lastConnectionId: "",
         createdAt: Date.now(),
-        sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+        sessionInit,
       });
       const createSessionStartedAt = Date.now();
       try {
@@ -1453,7 +1560,7 @@ export async function acquireEnvironment(
           ...(localSessionId ? { id: localSessionId } : {}),
           agent: plan.acpAgent,
           cwd: plan.cwd,
-          sessionInit: { cwd: plan.cwd, mcpServers: sessionMcp.servers },
+          sessionInit,
         });
       } finally {
         timingLog("create_session", createSessionStartedAt, " mode=create");
@@ -1965,6 +2072,16 @@ export async function runTurn(
     }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+    // Pause notification is immediate, but terminalization must wait for managed cancellation
+    // and already-queued ACP updates. Re-sweep after the drain so a sibling announced during
+    // cancellation receives exactly one deterministic terminal result before `done`.
+    if (stopReason === "paused") {
+      await pause.waitForEventDrain();
+      run.settleOpenToolCalls(
+        (id) => pause.isPausedToolCall(id),
+        TOOL_NOT_EXECUTED_PAUSED,
+      );
+    }
     const result = raced === PAUSED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to the parked record so a
     // later resume can await the same continuation. (Set after the race so `promptPromise` exists.

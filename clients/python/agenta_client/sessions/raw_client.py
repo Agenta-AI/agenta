@@ -1091,7 +1091,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
+    def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, sandbox_turn_index: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
@@ -1102,6 +1102,9 @@ class RawSessionsClient:
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the continuity state.
+        
+        sandbox_turn_index : typing.Optional[int]
+            the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1118,6 +1121,7 @@ class RawSessionsClient:
             json={
                 "data": convert_and_respect_annotation_metadata(object_=data, annotation=typing.Optional[SessionStateData], direction="write"),
                 "sandbox_id": sandbox_id,
+                "sandbox_turn_index": sandbox_turn_index,
             }
             ,
             headers={"content-type": "application/json", }
@@ -2200,7 +2204,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
+    async def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, sandbox_turn_index: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
         """
         Parameters
         ----------
@@ -2211,6 +2215,9 @@ class AsyncRawSessionsClient:
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the continuity state.
+        
+        sandbox_turn_index : typing.Optional[int]
+            the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2227,6 +2234,7 @@ class AsyncRawSessionsClient:
             json={
                 "data": convert_and_respect_annotation_metadata(object_=data, annotation=typing.Optional[SessionStateData], direction="write"),
                 "sandbox_id": sandbox_id,
+                "sandbox_turn_index": sandbox_turn_index,
             }
             ,
             headers={"content-type": "application/json", }

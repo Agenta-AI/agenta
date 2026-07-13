@@ -52,6 +52,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
+    SessionStreamAlreadyExists,
     SessionTurnInUse,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
@@ -319,16 +320,21 @@ class SessionStreamsService:
         )
 
         if stream is None:
-            stream = await self._dao.create(
-                project_id=project_id,
-                user_id=None,
-                stream=SessionStreamCreate(
-                    session_id=request.session_id,
-                    flags=flags,
-                    turn_id=request.turn_id,
-                ),
-            )
-        else:
+            try:
+                stream = await self._dao.create(
+                    project_id=project_id,
+                    user_id=None,
+                    stream=SessionStreamCreate(
+                        session_id=request.session_id,
+                        flags=flags,
+                        turn_id=request.turn_id,
+                    ),
+                )
+            except SessionStreamAlreadyExists:
+                # `_start_turn` won the first-touch race; fall through and update its row.
+                stream = None
+
+        if stream is None:
             stream = await self._dao.update(
                 project_id=project_id,
                 user_id=None,
@@ -414,17 +420,23 @@ class SessionStreamsService:
             project_id=project_id,
             session_id=session_id,
         )
+        created = False
         if stream is None:
-            await self._dao.create(
-                project_id=project_id,
-                user_id=user_id,
-                stream=SessionStreamCreate(
-                    session_id=session_id,
-                    flags=flags,
-                    turn_id=turn_id,
-                ),
-            )
-        else:
+            try:
+                await self._dao.create(
+                    project_id=project_id,
+                    user_id=user_id,
+                    stream=SessionStreamCreate(
+                        session_id=session_id,
+                        flags=flags,
+                        turn_id=turn_id,
+                    ),
+                )
+                created = True
+            except SessionStreamAlreadyExists:
+                # A concurrent first touch won; its row is the one we wanted.
+                pass
+        if not created:
             await self._dao.update(
                 project_id=project_id,
                 user_id=user_id,

@@ -789,10 +789,11 @@ describe("localRelayActivitySource", () => {
 
     const target = dir;
     const wait = source.wait({ timeoutMs: 5_000 });
-    setTimeout(() => {
+    const poke = setTimeout(() => {
       writeFileSync(join(target, "call-1.req.json"), "{}");
     }, 30);
     assert.equal(await wait, "activity");
+    clearTimeout(poke);
     source.close();
   });
 
@@ -800,6 +801,8 @@ describe("localRelayActivitySource", () => {
     dir = mkdtempSync(join(tmpdir(), "agenta-relay-local-"));
     const source = localRelayActivitySource(dir);
     assert.ok(source);
+    // macOS fsevents replays the mkdtemp after arming; drain it first.
+    while ((await source.wait({ timeoutMs: 50 })) === "activity") {}
     assert.equal(await source.wait({ timeoutMs: 30 }), "timeout");
     source.close();
   });

@@ -39,6 +39,12 @@ class MountArtifactIdInvalid(MountError):
         self.artifact_id = artifact_id
 
 
+class MountArtifactNotFound(MountError):
+    def __init__(self, artifact_id: str = "artifact_id"):
+        super().__init__(f"Artifact '{artifact_id}' was not found in this project.")
+        self.artifact_id = artifact_id
+
+
 class MountImmutableField(MountError):
     def __init__(self, field: str = "field"):
         super().__init__(f"Mount field '{field}' is immutable after creation.")

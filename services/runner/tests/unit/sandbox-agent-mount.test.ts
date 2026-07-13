@@ -15,6 +15,7 @@ import {
   signSessionMountCredentials,
   mountStorage,
   unmountStorage,
+  mountpointFailureState,
   discoverTunnelEndpoint,
   mountStorageRemote,
   harnessSessionMounts,
@@ -252,6 +253,10 @@ describe("mountStorage", () => {
         seenArgs = args;
         seenEnv = env;
       },
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
       log: SILENT,
     });
 
@@ -285,6 +290,10 @@ describe("mountStorage", () => {
         runGeesefs: async (args) => {
           seenArgs = args;
         },
+        unmountDeps: {
+          runUnmount: async () => {},
+          checkMountpoint: async () => "gone",
+        },
         log: SILENT,
       },
     );
@@ -304,16 +313,85 @@ describe("mountStorage", () => {
     assert.equal(ran, false);
   });
 
-  it("returns false (does not throw) when geesefs fails", async () => {
+  it("falls back after stop when fusermount errors but the production probe confirms gone", async () => {
+    const calls: string[] = [];
     const ok = await mountStorage("/work/cwd", CREDS, {
       checkMounted: async () => false,
       runGeesefs: async () => {
-        throw new Error("fuse: device not found");
+        calls.push("mount");
+        return {
+          stop: async () => {
+            calls.push("stop");
+          },
+        };
+      },
+      unmountDeps: {
+        runUnmount: async () => {
+          calls.push("fusermount-error");
+          throw new Error("not mounted");
+        },
+        checkMountpoint: async () => (calls.push("probe-gone"), "gone"),
       },
       log: SILENT,
     });
     assert.equal(ok, false);
+    assert.deepEqual(calls, [
+      "fusermount-error",
+      "probe-gone",
+      "mount",
+      "stop",
+      "fusermount-error",
+      "probe-gone",
+    ]);
   });
+
+  it("refuses fallback when the failed geesefs process does not stop", async () => {
+    const calls: string[] = [];
+    await assert.rejects(
+      mountStorage("/work/cwd", CREDS, {
+        checkMounted: async () => false,
+        runGeesefs: async () => ({
+          stop: async () => {
+            calls.push("stop-unconfirmed");
+            throw new Error("geesefs process did not exit after SIGTERM and SIGKILL");
+          },
+        }),
+        unmountDeps: {
+          runUnmount: async () => {
+            calls.push("unmount");
+          },
+          checkMountpoint: async () => (calls.push("probe"), "gone"),
+        },
+        log: SILENT,
+      }),
+      /geesefs process did not exit after SIGTERM and SIGKILL/,
+    );
+    assert.deepEqual(calls, ["unmount", "probe", "stop-unconfirmed"]);
+  });
+
+  for (const detachState of ["mounted", "inconclusive"] as const) {
+    it("fails clearly when the failed mount remains " + detachState, async () => {
+      let probes = 0;
+      await assert.rejects(
+        mountStorage("/work/cwd", CREDS, {
+          checkMounted: async () => false,
+          runGeesefs: async () => {
+            throw new Error("fuse: device not found");
+          },
+          unmountDeps: {
+            runUnmount: async () => {},
+            checkMountpoint: async () => {
+              probes += 1;
+              return probes === 1 ? "gone" : detachState;
+            },
+          },
+          log: SILENT,
+        }),
+        /detach could not be confirmed.*refusing ephemeral cwd fallback.*fuse: device not found/,
+      );
+      assert.equal(probes, 2);
+    });
+  }
 });
 
 describe("unmountStorage", () => {
@@ -333,11 +411,26 @@ describe("unmountStorage", () => {
       runUnmount: async () => {
         throw new Error("not mounted");
       },
+      checkMountpoint: async () => "inconclusive",
       log: SILENT,
     });
     // No throw == pass, but callers must not treat this as safe to delete the cwd.
     assert.equal(ok, false);
   });
+});
+
+describe("mountpointFailureState", () => {
+  for (const code of [1, 32, "1", "32"]) {
+    it("treats not-a-mountpoint exit code " + code + " as gone", () => {
+      assert.equal(mountpointFailureState({ code }), "gone");
+    });
+  }
+
+  for (const code of [0, 2, 127, "ENOENT", undefined]) {
+    it("keeps unexpected exit code " + String(code) + " inconclusive", () => {
+      assert.equal(mountpointFailureState({ code }), "inconclusive");
+    });
+  }
 });
 
 describe("unmountStorage confirmation", () => {
