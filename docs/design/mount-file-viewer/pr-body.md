@@ -81,6 +81,7 @@ that writes a few files into its cwd, including a subfolder, a text file, an ima
 file over 2 MB.
 
 **Steps:**
+
 1. Open the playground, run or pick a session with that mount, and open the
    SessionInspector drawer.
 2. Go to the Mounts tab and expand the mount panel.
@@ -92,6 +93,7 @@ file over 2 MB.
 8. Toggle dark mode and repeat steps 2-4.
 
 **Expected result:**
+
 - Step 2: the panel shows folders first, then files, each file with a human-readable size.
 - Step 3: the folder's children show; the breadcrumb takes you back to the same root view.
 - Step 4: the file's text content renders inline in a scrollable panel.
@@ -103,9 +105,11 @@ file over 2 MB.
 - Step 8: the tab and preview panel look correct in dark mode too.
 
 **Automated tests:**
-```
+
+```shell
 npx --yes vitest@4.1.10 run src/components/SessionInspector/assets/mountBrowser.test.ts
 ```
+
 (run from `web/oss`)
 
 **Edge cases:** a mount with an explicit empty-folder marker must show a folder row, not a

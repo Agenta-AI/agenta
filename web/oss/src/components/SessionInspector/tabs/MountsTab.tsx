@@ -210,21 +210,23 @@ const MountFilesPanel = ({mountId, projectId}: {mountId: string; projectId?: str
     return (
         <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-1 text-xs text-colorTextSecondary">
-                <span
-                    className="cursor-pointer hover:text-colorPrimary"
+                <button
+                    type="button"
+                    className="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-colorPrimary focus-visible:outline"
                     onClick={() => navigateTo(0)}
                 >
                     root
-                </span>
+                </button>
                 {segments.map((segment, i) => (
                     <span key={i} className="flex items-center gap-1">
                         <span>/</span>
-                        <span
-                            className="cursor-pointer hover:text-colorPrimary"
+                        <button
+                            type="button"
+                            className="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-colorPrimary focus-visible:outline"
                             onClick={() => navigateTo(i + 1)}
                         >
                             {segment}
-                        </span>
+                        </button>
                     </span>
                 ))}
             </div>
@@ -237,12 +239,20 @@ const MountFilesPanel = ({mountId, projectId}: {mountId: string; projectId?: str
                     renderItem={(row) => (
                         <List.Item
                             className="cursor-pointer"
+                            role="button"
+                            tabIndex={0}
                             onClick={() => {
                                 if (row.kind === "folder") {
                                     setPreviewEntry(null)
                                     setPath(row.path)
                                 } else {
                                     setPreviewEntry(row.entry)
+                                }
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault()
+                                    event.currentTarget.click()
                                 }
                             }}
                         >

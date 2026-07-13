@@ -37,7 +37,7 @@ describe("deriveRows", () => {
         expect(rows[0].kind).toBe("folder")
     })
 
-    it("skips the current path's own marker entry and lists its children relative to it", () => {
+    it("lists current path children while excluding its unprefixed marker", () => {
         const files = [folder("workspace"), file("workspace/data.bin")]
         const rows = deriveRows(files, "workspace")
 
