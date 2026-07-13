@@ -1835,6 +1835,16 @@ export async function runTurn(
     }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+    // Pause notification is immediate, but terminalization must wait for managed cancellation
+    // and already-queued ACP updates. Re-sweep after the drain so a sibling announced during
+    // cancellation receives exactly one deterministic terminal result before `done`.
+    if (stopReason === "paused") {
+      await pause.waitForEventDrain();
+      run.settleOpenToolCalls(
+        (id) => pause.isPausedToolCall(id),
+        TOOL_NOT_EXECUTED_PAUSED,
+      );
+    }
     const result = raced === PAUSED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to the parked record so a
     // later resume can await the same continuation. (Set after the race so `promptPromise` exists.
