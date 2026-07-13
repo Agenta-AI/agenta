@@ -24,8 +24,9 @@ def get_runner() -> CodeRunner:
 
     Reads AGENTA_SERVICES_CODE_SANDBOX_RUNNER (canonical, v0.100.3+) with a
     fallback to the legacy AGENTA_SERVICES_SANDBOX_RUNNER.
-    - "restricted" (default): In-process RestrictedPython sandbox (allowlisted imports).
-    - "local": Raw exec in the current process — no sandbox. Trusted deployments only.
+    - "local" (default): Raw exec in the current process — no sandbox. The permissive
+      zero-config self-host default; a warning is logged while it's active.
+    - "restricted": In-process RestrictedPython sandbox (allowlisted imports).
     - "daytona": Remote Daytona sandbox (strongest isolation).
 
     Returns:
@@ -38,17 +39,17 @@ def get_runner() -> CodeRunner:
     runner_type = (
         os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
         or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-        or "restricted"
+        or "local"
     ).lower()
 
     if runner_type == "restricted":
         return RestrictedRunner()
     elif runner_type == "local":
         log.warning(
-            "Custom-code evaluators are using the 'local' runner: user code runs with "
-            "raw exec() and no sandbox in this process. Use it only for trusted/"
-            "single-tenant deployments. Set AGENTA_SERVICES_CODE_SANDBOX_RUNNER=restricted "
-            "(default) or =daytona for untrusted evaluator authors."
+            "Custom-code evaluators are using the 'local' runner (default): user code "
+            "runs with raw exec() and no sandbox in this process. Set "
+            "AGENTA_SERVICES_CODE_SANDBOX_RUNNER=restricted or =daytona to harden a "
+            "shared/multi-tenant deployment."
         )
         return LocalRunner()
     elif runner_type == "daytona":
