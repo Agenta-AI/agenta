@@ -94,6 +94,66 @@ class MountsClient:
         _response = self._raw_client.query_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
+    def sign_agent_mount_credentials(self, *, artifact_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountCredentialsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.mounts.sign_agent_mount_credentials(
+            artifact_id="artifact_id",
+        )
+        """
+        _response = self._raw_client.sign_agent_mount_credentials(artifact_id=artifact_id, name=name, request_options=request_options)
+        return _response.data
+    
+    def query_agent_mount(self, *, artifact_id: str, name: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.mounts.query_agent_mount(
+            artifact_id="artifact_id",
+        )
+        """
+        _response = self._raw_client.query_agent_mount(artifact_id=artifact_id, name=name, request_options=request_options)
+        return _response.data
+    
     def fetch_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
         """
         Parameters
@@ -514,6 +574,82 @@ class AsyncMountsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.query_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    async def sign_agent_mount_credentials(self, *, artifact_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountCredentialsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.mounts.sign_agent_mount_credentials(
+                artifact_id="artifact_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.sign_agent_mount_credentials(artifact_id=artifact_id, name=name, request_options=request_options)
+        return _response.data
+    
+    async def query_agent_mount(self, *, artifact_id: str, name: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
+        """
+        Parameters
+        ----------
+        artifact_id : str
+        
+        name : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        MountsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.mounts.query_agent_mount(
+                artifact_id="artifact_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.query_agent_mount(artifact_id=artifact_id, name=name, request_options=request_options)
         return _response.data
     
     async def fetch_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:

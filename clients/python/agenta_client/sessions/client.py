@@ -707,7 +707,7 @@ class SessionsClient:
         _response = self._raw_client.get_state(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, sandbox_turn_index: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -718,6 +718,9 @@ class SessionsClient:
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the continuity state.
+        
+        sandbox_turn_index : typing.Optional[int]
+            the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -738,7 +741,7 @@ class SessionsClient:
             session_id="session_id",
         )
         """
-        _response = self._raw_client.set_state(session_id=session_id, data=data, sandbox_id=sandbox_id, request_options=request_options)
+        _response = self._raw_client.set_state(session_id=session_id, data=data, sandbox_id=sandbox_id, sandbox_turn_index=sandbox_turn_index, request_options=request_options)
         return _response.data
 class AsyncSessionsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -1585,7 +1588,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.get_state(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    async def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, sandbox_turn_index: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
         """
         Parameters
         ----------
@@ -1596,6 +1599,9 @@ class AsyncSessionsClient:
         
         sandbox_id : typing.Optional[str]
             Remote sandbox id to record alongside the continuity state.
+        
+        sandbox_turn_index : typing.Optional[int]
+            the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1624,5 +1630,5 @@ class AsyncSessionsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.set_state(session_id=session_id, data=data, sandbox_id=sandbox_id, request_options=request_options)
+        _response = await self._raw_client.set_state(session_id=session_id, data=data, sandbox_id=sandbox_id, sandbox_turn_index=sandbox_turn_index, request_options=request_options)
         return _response.data

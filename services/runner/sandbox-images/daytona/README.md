@@ -17,6 +17,10 @@ DAYTONA_SNAPSHOT=agenta-sandbox-pi
 AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
 ```
 
+`DAYTONA_SNAPSHOT` is shared with the SDK custom-code evaluator runner, so the recipe also
+bakes its runtimes (python3, typescript/ts-node). Per-consumer overrides when the two must
+diverge: `DAYTONA_SNAPSHOT_CODE` / `DAYTONA_SNAPSHOT_AGENT`.
+
 ## What is baked
 
 The recipe bases on `rivetdev/sandbox-agent:*-full`. That base image already installs the
@@ -33,8 +37,9 @@ The snapshot recipe therefore:
   would not resolve;
 - fails the build unless the private launcher exists and its installed package reports
   version `0.0.29`;
-- verifies that the Claude, Codex, and OpenCode binaries are still present; and
-- installs the FUSE and geesefs dependencies used for durable remote working directories.
+- verifies that the Claude, Codex, and OpenCode binaries are still present;
+- installs the FUSE and geesefs dependencies used for durable remote working directories; and
+- installs `python3` and `typescript`/`ts-node` for the shared custom-code evaluator runtimes.
 
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the

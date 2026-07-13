@@ -7,4 +7,6 @@ export interface SessionStateUpsertRequest {
     data?: (AgentaApi.SessionStateData | null) | undefined;
     /** Remote sandbox id to record alongside the continuity state. */
     sandbox_id?: (string | null) | undefined;
+    /** the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index. */
+    sandbox_turn_index?: (number | null) | undefined;
 }
