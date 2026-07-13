@@ -260,10 +260,12 @@ const SelectVariant = ({
                     variantName={c.variantName ?? c.name ?? ""}
                     version={c.version ?? 0}
                     variant={c}
-                    isDisabled={disabledIds.has(c.id)}
+                    isDisabled={!isLinearVersioning && disabledIds.has(c.id)}
                     showLatestTag={showLatestTag}
                     showAsCompare={showAsCompare}
                     showBadges={!isLinearVersioning}
+                    linear={isLinearVersioning}
+                    isCurrent={isLinearVersioning && selectedValueForControl === c.id}
                     onCreateLocalCopy={handleCreateLocalCopy}
                     latestRevisionId={latestRevisionId}
                 />
@@ -276,6 +278,7 @@ const SelectVariant = ({
             disabledIds,
             latestRevisionId,
             isLinearVersioning,
+            selectedValueForControl,
         ],
     )
 
@@ -471,7 +474,7 @@ const SelectVariant = ({
                                     adapter={browseAdapter}
                                     onSelect={handleBrowseSelect}
                                     selectedValue={selectedValueForControl}
-                                    disabledChildIds={disabledIds}
+                                    disabledChildIds={isLinearVersioning ? undefined : disabledIds}
                                     renderChildTitle={renderChildTitle}
                                     renderSelectedLabel={renderSelectedLabel}
                                     defaultExpandAll={false}
@@ -515,7 +518,7 @@ const SelectVariant = ({
                                 adapter={scopedAdapter}
                                 onSelect={handleSingleSelect}
                                 selectedValue={selectedValueForControl}
-                                disabledChildIds={disabledIds}
+                                disabledChildIds={isLinearVersioning ? undefined : disabledIds}
                                 renderParentTitle={
                                     isLinearVersioning ? undefined : renderParentTitle
                                 }
@@ -523,6 +526,7 @@ const SelectVariant = ({
                                 renderSelectedLabel={renderSelectedLabel}
                                 popupMinWidth={280}
                                 maxHeight={400}
+                                width={280}
                                 showSearch={!isLinearVersioning}
                                 flattenSingleParent={isLinearVersioning}
                             />
