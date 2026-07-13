@@ -68,10 +68,10 @@ const childrenToText = (children: ReactNode): string => {
 }
 
 /**
- * Inline code chip. When the active conversation has published a file-link resolver and this
- * span's text names a real drive file, it renders as the in-thread FILE CARD (the same component
- * as a detected write — icon · name · size · download, click to open), so a filename the agent
- * mentions in prose reads exactly like the artifact cards above it. Otherwise it's a plain chip.
+ * Inline code chip. When the active conversation has published a file-link resolver and this span's
+ * text names a real drive file, it renders as a compact inline file reference (icon + name, opens
+ * Quick Look) that flows within the sentence — the heavy block file card is reserved for the tool
+ * step that wrote the file. Otherwise it's a plain code chip.
  */
 const InlineCode = ({className, children}: {className?: string; children?: ReactNode}) => {
     // Resolve against THIS conversation's session (from the ambient drive context), so a
@@ -81,8 +81,8 @@ const InlineCode = ({className, children}: {className?: string; children?: React
     const text = childrenToText(children).trim()
     const path = link && text ? link.resolve(text) : null
     if (!path || !link) return <code className={className}>{children}</code>
-    // The card's root is an inline-flex <span>, valid inside the markdown paragraph.
-    return <>{link.renderCard(path)}</>
+    // A compact inline chip (not the heavy block card), valid + flowing inside the paragraph.
+    return <>{link.renderInline(path)}</>
 }
 
 /**

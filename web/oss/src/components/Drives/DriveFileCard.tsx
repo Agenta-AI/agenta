@@ -28,6 +28,31 @@ const OP_META: Record<FileActivityOp, {label: string; color?: string}> = {
     delete: {label: "Deleted"},
 }
 
+/**
+ * Compact INLINE reference to a drive file — for a filename the agent names in prose. Reads as a
+ * subtle inline chip (icon + name) that flows within the sentence and opens Quick Look on click.
+ * The heavy block {@link DriveFileCard} is reserved for the tool step that actually wrote the file,
+ * so a mention in the reply never breaks the paragraph with a full card.
+ */
+export function DriveFileInlineRef({path}: {path: string}) {
+    const sessionId = useDriveSessionId()
+    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
+    const name = path.split("/").pop() ?? path
+    return (
+        <button
+            type="button"
+            onClick={() => openQuickLook({path})}
+            title={path}
+            className="mx-px inline-flex max-w-full cursor-pointer items-center gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary px-1 py-0 align-baseline font-mono text-[0.9em] leading-[1.4] text-colorText transition-colors hover:border-colorBorder hover:bg-colorFillSecondary"
+        >
+            <span className="flex shrink-0 items-center">
+                {driveFileIcon(path, 11, "text-current")}
+            </span>
+            <span className="min-w-0 truncate">{name}</span>
+        </button>
+    )
+}
+
 export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
     const projectId = useAtomValue(projectIdAtom)
     const sessionId = useDriveSessionId()

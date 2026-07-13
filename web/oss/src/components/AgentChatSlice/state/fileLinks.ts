@@ -5,8 +5,8 @@
  * listing + the Quick Look opener) publishes a resolver here; Markdown just consumes it.
  *
  * `resolve(text)` returns the drive-relative path to open (or null if the span isn't a known
- * file); `renderCard(path)` renders the in-thread file card. Null value → no active drive → code
- * spans render plain.
+ * file); `renderInline(path)` renders a compact inline file reference. Null value → no active
+ * drive → code spans render plain.
  *
  * Keyed by SESSION ID (not a single slot): antd Tabs keeps every visited session pane mounted at
  * once, so each pane publishes its own resolver against its own drive listing. A backgrounded
@@ -21,9 +21,10 @@ import {atomFamily} from "jotai/utils"
 export interface ChatFileLinkResolver {
     /** Map an inline-code string to a drive file path, or null when it names no known file. */
     resolve: (text: string) => string | null
-    /** Render the resolved file as the in-thread file CARD (same component as a detected write) —
-     * so a filename the agent mentions in prose reads exactly like the artifact cards above it. */
-    renderCard: (path: string) => ReactNode
+    /** Render the resolved file as a compact INLINE reference (icon + name, opens Quick Look) that
+     * flows within the prose — NOT the heavy block card, which is anchored to the tool step that
+     * wrote the file. */
+    renderInline: (path: string) => ReactNode
 }
 
 export const chatFileLinkAtomFamily = atomFamily((_sessionId: string) =>

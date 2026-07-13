@@ -1,7 +1,7 @@
 /**
  * Publishes a file-link resolver for the active conversation so the chat's Markdown renderer can
- * turn inline `` `filename` `` spans that name a real drive file into the in-thread file CARD
- * (see `state/fileLinks`). Renders nothing; mounted once per conversation. The resolver matches by
+ * turn inline `` `filename` `` spans that name a real drive file into a compact inline file
+ * reference (see `state/fileLinks`). Renders nothing; mounted once per conversation. Matches by
  * exact drive path OR by basename tail, so both `notes/todo.md` and a bare `todo.md` in the
  * agent's reply resolve to the same file.
  */
@@ -12,7 +12,7 @@ import {useSetAtom} from "jotai"
 import {chatFileLinkAtomFamily} from "@/oss/components/AgentChatSlice/state/fileLinks"
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
-import {DriveFileCard} from "./DriveFileCard"
+import {DriveFileInlineRef} from "./DriveFileCard"
 import {useSessionDrive} from "./useSessionDrive"
 
 export function DriveFileLinkProvider({
@@ -58,7 +58,7 @@ export function DriveFileLinkProvider({
         }
         setLink({
             resolve,
-            renderCard: (path) => <DriveFileCard path={path} />,
+            renderInline: (path) => <DriveFileInlineRef path={path} />,
         })
         return () => setLink(null)
     }, [byPath, byName, setLink])

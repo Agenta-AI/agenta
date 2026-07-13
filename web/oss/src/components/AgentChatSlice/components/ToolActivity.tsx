@@ -1,5 +1,6 @@
 import {memo} from "react"
 
+import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
 import {HeightCollapse} from "@agenta/ui"
 import {
     ArrowSquareOut,
@@ -15,6 +16,8 @@ import {
 import type {ToolUIPart} from "ai"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {DriveFileCard} from "@/oss/components/Drives/DriveFileCard"
 
 import {partToolName, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 import {formatToolValue, stripFence} from "../assets/toolFormat"
@@ -289,10 +292,19 @@ const ToolActivity = ({
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
 
-    // A file the agent writes surfaces as ONE in-thread card — the in-body prose card the agent's
-    // reply renders when it names the file (via the markdown file-link resolver). We deliberately
-    // do NOT also emit an artifact card per write here: that duplicated the same file within the
-    // turn (once under the tool step, once in the reply). Chat and Build now read the same.
+    // Chat-mode in-thread file cards: one artifact card per file this group wrote/updated
+    // (successful calls only), deduped by path with the LAST op winning. The card is anchored to
+    // the TOOL step that produced it; a bare filename the reply mentions renders as a compact
+    // inline reference instead (see the markdown file-link resolver), never a second block card.
+    // Not rendered in the Build step log — there the raw tool rows already show the writes.
+    const fileCards = detailed
+        ? []
+        : dedupeByPath(
+              parts
+                  .filter((p) => (p.state as string) === "output-available")
+                  .map((p) => detectFileActivity(partToolName(p), (p as {input?: unknown}).input))
+                  .filter((a): a is FileActivity => Boolean(a)),
+          )
 
     // Persisted by the group's first tool-call id so the expanded list survives a Virtuoso unmount.
     const groupKey = toolGroupKey(parts[0]?.toolCallId ?? "grp")
@@ -314,6 +326,13 @@ const ToolActivity = ({
                         detailed={detailed}
                     />
                 ))}
+                {fileCards.length ? (
+                    <div className="flex flex-wrap gap-1.5 pt-1.5">
+                        {fileCards.map((a) => (
+                            <DriveFileCard key={a.path} path={a.path} op={a.op} />
+                        ))}
+                    </div>
+                ) : null}
                 {detailed && onViewTrace ? (
                     <button
                         type="button"
@@ -343,6 +362,13 @@ const ToolActivity = ({
 
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
+            {fileCards.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                    {fileCards.map((a) => (
+                        <DriveFileCard key={a.path} path={a.path} op={a.op} />
+                    ))}
+                </div>
+            ) : null}
             <button
                 type="button"
                 onClick={() => setExpanded({key: groupKey, value: !open})}
@@ -390,6 +416,13 @@ const ToolActivity = ({
             </HeightCollapse>
         </div>
     )
+}
+
+/** Last activity per path wins (a write followed by an edit renders one "Updated" card). */
+const dedupeByPath = (activities: FileActivity[]): FileActivity[] => {
+    const byPath = new Map<string, FileActivity>()
+    for (const a of activities) byPath.set(a.path, a)
+    return [...byPath.values()]
 }
 
 export default memo(ToolActivity)
