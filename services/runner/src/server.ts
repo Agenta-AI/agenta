@@ -923,8 +923,9 @@ async function runAndStreamWithApiBaseResolved(
     // all queued persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
-    const message =
-      err instanceof Error ? (err.stack ?? err.message) : String(err);
+    const message = err instanceof Error ? err.message : String(err);
+    // Stack stays server-side; the message alone goes on the wire and into the transcript.
+    if (err instanceof Error && err.stack) console.error(err.stack);
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
