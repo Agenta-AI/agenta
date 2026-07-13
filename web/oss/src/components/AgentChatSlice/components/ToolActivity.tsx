@@ -292,17 +292,16 @@ const ToolActivity = ({
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
 
-    // Chat-mode in-thread file cards: one artifact card per file this group wrote/updated
-    // (successful calls only), deduped by path with the LAST op winning. Not rendered in the
-    // Build step log — there the raw tool rows already show the writes.
-    const fileCards = detailed
-        ? []
-        : dedupeByPath(
-              parts
-                  .filter((p) => (p.state as string) === "output-available")
-                  .map((p) => detectFileActivity(partToolName(p), (p as {input?: unknown}).input))
-                  .filter((a): a is FileActivity => Boolean(a)),
-          )
+    // In-thread file cards: one artifact card per file this group wrote/updated (successful calls
+    // only), deduped by path with the LAST op winning. Shown in EVERY mode so Build and Chat read
+    // the same — in the Build step log the friendly card sits alongside the (collapsed) raw tool
+    // rows, which otherwise hide the write behind a chevron.
+    const fileCards = dedupeByPath(
+        parts
+            .filter((p) => (p.state as string) === "output-available")
+            .map((p) => detectFileActivity(partToolName(p), (p as {input?: unknown}).input))
+            .filter((a): a is FileActivity => Boolean(a)),
+    )
 
     // Persisted by the group's first tool-call id so the expanded list survives a Virtuoso unmount.
     const groupKey = toolGroupKey(parts[0]?.toolCallId ?? "grp")
