@@ -51,6 +51,9 @@ const SessionInspectorDrawer = () => {
             queryClient.invalidateQueries({
                 queryKey: ["session-inspector", "agent-mount", projectId, artifactId],
             }),
+            queryClient.invalidateQueries({
+                queryKey: ["session-inspector", "mount-files", projectId],
+            }),
         ])
 
     const onDump = async () => {
