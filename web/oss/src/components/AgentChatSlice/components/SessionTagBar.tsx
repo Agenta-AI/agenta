@@ -160,7 +160,10 @@ const SessionTag = ({
                     }
                 }}
                 className={clsx(
-                    "group relative flex h-7 max-w-[180px] min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                    // Floor the width so short labels ("hi") still leave a clickable label zone to the
+                    // left of the hover actions (rename/close overlay the right ~58px) — otherwise a
+                    // tiny chip is fully covered on hover and the click lands on a button, not select.
+                    "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
                     // White pill on the recessed chat canvas (raised); the active tab keeps the
                     // primary text + a 2px accent underline so it's unmistakable against neighbours.
                     active
