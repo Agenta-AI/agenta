@@ -78,6 +78,7 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
+import {useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
@@ -286,6 +287,10 @@ export function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+
+    // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
+    // the sibling AgentOperationsSections; this shares the same deduped query).
+    const {count: triggerCount} = useAgentTriggers(revisionId)
 
     // ── Agent self-commit: surface WHAT the agent just changed ──────────────────────────
     // The chat raises the signal (with the outgoing revision's parameters) when the agent
