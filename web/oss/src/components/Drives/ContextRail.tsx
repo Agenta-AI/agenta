@@ -163,17 +163,23 @@ const ExpandedRail = ({
                     </Tooltip>
                 </div>
             </div>
-            <div className="flex flex-col px-2 pb-2 pt-1">
+            <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1">
                 {drive.fileCount === 0 ? (
                     <Text type="secondary" className="px-1 pb-1 !text-[11px]">
                         {drive.isLoading ? "Loading…" : "No files yet."}
                     </Text>
                 ) : (
                     <>
-                        {drive.recents.slice(0, 6).map((file) => (
+                        {/* The recent files as friendly thumbnail cards (a preview a user recognises
+                            at a glance) — the rail has room for it; older files live behind "View
+                            all files". */}
+                        {drive.recents.slice(0, 5).map((file) => (
                             <DriveFileRow
                                 key={file.path}
+                                variant="card"
                                 path={file.path}
+                                file={file}
+                                mount={drive.mount}
                                 recent={isRecentlyChanged(file.touchedAt, now)}
                                 trailing={
                                     file.touchedAt
@@ -183,7 +189,7 @@ const ExpandedRail = ({
                                 onOpen={() => onQuickLook(file.path)}
                             />
                         ))}
-                        {drive.fileCount > 6 ? (
+                        {drive.fileCount > 5 ? (
                             <button
                                 type="button"
                                 onClick={onOpenFiles}

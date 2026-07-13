@@ -6,58 +6,20 @@
  */
 import {useMemo, useState} from "react"
 
-import {type Mount} from "@agenta/entities/session"
 import {FolderSimple, ListBullets, MagnifyingGlass, SquaresFour, Tray} from "@phosphor-icons/react"
 import {Input, Segmented, Select, Skeleton, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import {DriveExplorer} from "./DriveDrawer"
+import {DriveFileRow} from "./DriveFileRow"
 import {humanSize} from "./driveTree"
-import {FileThumb} from "./FileThumb"
 import {driveQuickLookAtom} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
+import {useSessionDrive} from "./useSessionDrive"
 
 const {Text} = Typography
 
 type SortKey = "recent" | "name" | "size"
-
-// Agent-teal, matching the config self-commit indicator, for a file that just changed.
-const AGENT_ACCENT = "var(--ag-c-13C2C2, #13c2c2)"
-
-const FileTile = ({
-    file,
-    mount,
-    recent,
-    onOpen,
-}: {
-    file: DriveRecentFile
-    mount: Mount | null
-    recent?: boolean
-    onOpen: () => void
-}) => {
-    const name = file.path.split("/").pop() ?? file.path
-    const folder = file.path.includes("/") ? file.path.split("/").slice(0, -1).join("/") : null
-    return (
-        <button
-            type="button"
-            onClick={onOpen}
-            className="flex cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
-            style={
-                recent
-                    ? {borderColor: AGENT_ACCENT, boxShadow: `0 0 0 1px ${AGENT_ACCENT}`}
-                    : undefined
-            }
-        >
-            <FileThumb file={file} mount={mount} />
-            <span className="w-full truncate text-center font-mono text-xs">{name}</span>
-            <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
-                {folder ? <>{folder} · </> : null}
-                {humanSize(file.size)}
-            </span>
-        </button>
-    )
-}
 
 export default function FilesWindow({
     sessionId,
@@ -162,10 +124,13 @@ export default function FilesWindow({
                 <>
                     <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto p-3">
                         {shown.map((file) => (
-                            <FileTile
+                            <DriveFileRow
                                 key={file.path}
+                                variant="tile"
+                                path={file.path}
                                 file={file}
                                 mount={drive.mount}
+                                trailing={humanSize(file.size)}
                                 recent={isRecentlyChanged(file.touchedAt, now)}
                                 onOpen={() => openQuickLook({path: file.path})}
                             />
