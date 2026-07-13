@@ -16,9 +16,31 @@ export interface DriveTreeNode {
     children: DriveTreeNode[]
 }
 
-/** Non-folder entries only — the "n files" everywhere counts these. */
-export const driveFiles = (files: MountFile[] | null | undefined): MountFile[] =>
-    (files ?? []).filter((f) => !f.is_folder)
+const cleanPath = (p: string): string => p.replace(/^\/+|\/+$/g, "")
+const hasExtension = (name: string): boolean => /\.[^./]+$/.test(name)
+
+/**
+ * Is this listing entry a FOLDER rather than a file? True when the backend flags it (`is_folder`),
+ * when another entry nests under it (`<path>/…`), or when it's a zero-byte, extension-less entry —
+ * the shape an agent's convention directory (e.g. `agent-files`) takes when the object store lists
+ * it as a bare 0-byte key with no trailing-slash folder marker (so the backend can't flag it). We
+ * infer it here so folders never leak into the flat file/recents lists (which show files, descending
+ * INTO folders) and render as folders in the tree instead of a spurious 0 B "file".
+ */
+export const isFolderEntry = (file: MountFile, all: MountFile[]): boolean => {
+    if (file.is_folder) return true
+    const self = cleanPath(file.path)
+    if (!self) return false
+    if (all.some((o) => o !== file && cleanPath(o.path).startsWith(`${self}/`))) return true
+    return (file.size ?? 0) === 0 && !hasExtension(self.split("/").pop() ?? self)
+}
+
+/** Non-folder entries only — the "n files" everywhere counts these. Folders (flagged or inferred)
+ * are excluded so the flat lists show files, descending into folders. */
+export const driveFiles = (files: MountFile[] | null | undefined): MountFile[] => {
+    const list = files ?? []
+    return list.filter((f) => !isFolderEntry(f, list))
+}
 
 export const driveTotalSize = (files: MountFile[] | null | undefined): number =>
     driveFiles(files).reduce((sum, f) => sum + (f.size ?? 0), 0)
@@ -67,10 +89,11 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
         return node
     }
 
-    for (const file of files ?? []) {
+    const list = files ?? []
+    for (const file of list) {
         const path = file.path.replace(/^\/+|\/+$/g, "")
         if (!path) continue
-        if (file.is_folder) {
+        if (isFolderEntry(file, list)) {
             ensureFolder(path)
             continue
         }
