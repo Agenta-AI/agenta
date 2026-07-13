@@ -60,6 +60,25 @@ function isSafeSkillName(name: unknown): name is string {
   );
 }
 
+// Same reasoning as the name check above: pydantic (SkillTemplate/SkillFile in
+// sdks/python/agenta/sdk/agents/skills/models.py) enforces these caps, but the wire is untrusted
+// so a non-SDK client can POST past them. Mirror the SDK's exact values so the two sides cannot
+// drift.
+const SKILL_DESCRIPTION_MAX = 1024;
+const SKILL_BODY_MAX = 50_000;
+const SKILL_FILE_PATH_MAX = 255;
+const SKILL_FILE_CONTENT_MAX = 200_000;
+
+/** True when `skill.description`/`skill.body` are within the SDK's pydantic caps. */
+function isSafeSkillSize(skill: WireSkill): boolean {
+  return (
+    typeof skill.description === "string" &&
+    skill.description.length <= SKILL_DESCRIPTION_MAX &&
+    typeof skill.body === "string" &&
+    skill.body.length <= SKILL_BODY_MAX
+  );
+}
+
 /**
  * A bundled-file path is safe when it stays under the skill dir (no absolute, no `..` escape) and
  * does not resolve to the skill's own `SKILL.md` at the dir root, which would clobber the
@@ -69,6 +88,7 @@ function safeSkillFilePath(skillDir: string, relPath: unknown): string | null {
   if (
     typeof relPath !== "string" ||
     !relPath ||
+    relPath.length > SKILL_FILE_PATH_MAX ||
     relPath.startsWith("/") ||
     relPath.startsWith("\\")
   )
@@ -135,6 +155,13 @@ export function resolveSkillDirs(
       log(`skipping skill with unsafe name ${JSON.stringify(skill?.name)}`);
       continue;
     }
+    if (!isSafeSkillSize(skill)) {
+      log(
+        `skipping skill "${skill.name}": description/body exceeds the wire cap ` +
+          `(description<=${SKILL_DESCRIPTION_MAX}, body<=${SKILL_BODY_MAX})`,
+      );
+      continue;
+    }
     // `dir` is keyed only by `skill.name`; a duplicate would overwrite the earlier skill's
     // SKILL.md while leaving its bundled files behind, so skip the later entry.
     if (seenNames.has(skill.name)) {
@@ -152,6 +179,13 @@ export function resolveSkillDirs(
         if (!target) {
           log(
             `skipping unsafe skill file ${JSON.stringify(file?.path)} in skill "${skill.name}"`,
+          );
+          continue;
+        }
+        if ((file.content ?? "").length > SKILL_FILE_CONTENT_MAX) {
+          log(
+            `skipping oversized skill file ${JSON.stringify(file.path)} in skill "${skill.name}" ` +
+              `(content<=${SKILL_FILE_CONTENT_MAX})`,
           );
           continue;
         }

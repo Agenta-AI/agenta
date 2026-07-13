@@ -254,3 +254,75 @@ describe("resolveSkillDirs (materializer)", () => {
     assert.equal(existsSync(root), false);
   });
 });
+
+// RUN-SKILL-CAP-1: the SDK's pydantic models cap skill sizes, but the wire is untrusted (a
+// non-SDK client can POST anything), so the runner must re-enforce them — the same reasoning
+// that already drives the skill-name re-validation above. Values mirror
+// sdks/python/agenta/sdk/agents/skills/models.py exactly.
+describe("resolveSkillDirs size caps (untrusted wire)", () => {
+  it("rejects an over-cap body (SDK: body <= 50_000)", () => {
+    const logs: string[] = [];
+    const out = materialize(
+      [
+        { ...SKILL, name: "too-big", body: "x".repeat(50_001) },
+        SKILL, // a valid one survives alongside the rejected one
+      ],
+      (m: string) => logs.push(m),
+    );
+    assert.deepEqual(
+      out.map((s) => s.name),
+      ["release-notes"],
+    );
+    assert.equal(logs.filter((m) => /exceeds the wire cap/.test(m)).length, 1);
+  });
+
+  it("accepts a body exactly at the cap (boundary is inclusive, like pydantic max_length)", () => {
+    const out = materialize([
+      { ...SKILL, name: "at-cap", body: "x".repeat(50_000) },
+    ]);
+    assert.deepEqual(
+      out.map((s) => s.name),
+      ["at-cap"],
+    );
+  });
+
+  it("rejects an over-cap description (SDK: description <= 1024)", () => {
+    const logs: string[] = [];
+    const out = materialize(
+      [{ ...SKILL, description: "d".repeat(1025) }],
+      (m: string) => logs.push(m),
+    );
+    assert.deepEqual(out, []);
+    assert.equal(logs.filter((m) => /exceeds the wire cap/.test(m)).length, 1);
+  });
+
+  it("skips an over-cap bundled file but keeps the skill and its in-cap files (SDK: content <= 200_000)", () => {
+    const logs: string[] = [];
+    const [skill] = materialize(
+      [
+        {
+          ...SKILL,
+          files: [
+            { path: "huge.txt", content: "y".repeat(200_001) },
+            { path: "ok.txt", content: "ok" },
+          ],
+        },
+      ],
+      (m: string) => logs.push(m),
+    );
+    assert.equal(existsSync(join(skill.dir, "huge.txt")), false);
+    assert.equal(readFileSync(join(skill.dir, "ok.txt"), "utf-8"), "ok");
+    assert.equal(logs.filter((m) => /oversized skill file/.test(m)).length, 1);
+  });
+
+  it("rejects an over-cap bundled file path (SDK: path <= 255)", () => {
+    const logs: string[] = [];
+    const [skill] = materialize(
+      [{ ...SKILL, files: [{ path: `${"p".repeat(256)}.txt`, content: "x" }] }],
+      (m: string) => logs.push(m),
+    );
+    // Rejected through the existing unsafe-path gate, so the skill still materializes.
+    assert.equal(skill.name, "release-notes");
+    assert.equal(logs.filter((m) => /unsafe skill file/.test(m)).length, 1);
+  });
+});

@@ -38,7 +38,7 @@ import {
 import type { AddressInfo } from "node:net";
 
 import type { ResolvedToolSpec } from "../protocol.ts";
-import { EMPTY_OBJECT_SCHEMA } from "./callback.ts";
+import { EMPTY_OBJECT_SCHEMA, MAX_BODY_BYTES } from "./callback.ts";
 import { runResolvedTool } from "./dispatch.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { assertRequiredArguments, specInputSchema } from "./spec-schema.ts";
@@ -48,8 +48,6 @@ type Log = (message: string) => void;
 const DEFAULT_PROTOCOL = "2025-06-18";
 /** Loopback only: never reachable off-host. Access also requires a per-server bearer token. */
 const HOST = "127.0.0.1";
-/** Bound the request body so a malformed/oversized POST cannot exhaust runner memory. */
-const MAX_BODY_BYTES = 1_000_000;
 
 /**
  * A paused client tool. The handler returns this sentinel INSTEAD of a JSON-RPC response so the

@@ -23,6 +23,19 @@ export const EMPTY_OBJECT_SCHEMA = {
   additionalProperties: true,
 };
 
+/** Bound a tool result body so a malformed/oversized upstream response cannot exhaust runner
+ *  memory or blow out the model's context. Same cap and mechanism as tool-mcp-http.ts. */
+export const MAX_BODY_BYTES = 1_000_000;
+
+/** Truncate `text` to `maxBytes` (UTF-8), signaling the cut the same way the replay transcript
+ *  does (`transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS) so the model can tell it was truncated. */
+export function capToolResultText(text: string, maxBytes: number = MAX_BODY_BYTES): string {
+  const bytes = Buffer.byteLength(text, "utf-8");
+  if (bytes <= maxBytes) return text;
+  const truncated = Buffer.from(text, "utf-8").subarray(0, maxBytes).toString("utf-8");
+  return `${truncated} [... ${bytes - Buffer.byteLength(truncated, "utf-8")} bytes omitted]`;
+}
+
 export interface CallAgentaToolOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -92,20 +105,42 @@ export async function callAgentaTool(
   const bodyText = await response.text();
   dbg?.(`[tool-call] <- ${callRef} HTTP ${response.status} body=${bodyText.slice(0, 300)}`);
   if (!response.ok) {
-    throw new Error(
+    // Keep the upstream response body server-side; the model gets only the status code
+    // (mirrors tools/direct.ts). A non-2xx here is an infrastructure/config fault — a
+    // correctable tool failure arrives as 200 + STATUS_CODE_ERROR and is surfaced below.
+    console.error(
       `tool call ${callRef} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
     );
+    throw new Error(`tool call ${callRef} failed: HTTP ${response.status}`);
   }
 
   // ToolCallResponse -> { call: { data: { content }, status } }. `content` is the
-  // execution result serialized as a JSON string; hand it to the model verbatim.
+  // execution result serialized as a JSON string; hand it to the model, capped (an
+  // uncapped result — e.g. a discover_tools dump — is otherwise handed back verbatim).
   try {
     const parsed = JSON.parse(bodyText);
     const content = parsed?.call?.data?.content;
-    if (typeof content === "string") return content;
-    if (content != null) return JSON.stringify(content);
-    return bodyText;
+    // A business-level tool failure rides a 200 as STATUS_CODE_ERROR with the upstream
+    // message in `status.message` (api .../tools/router.py `call_tool`). It is gateway-shaped,
+    // not an opaque upstream body, and it is what lets the model fix a bad argument — so
+    // surface it BY DESIGN rather than relying on it happening to ride `content`.
+    const status = parsed?.call?.status;
+    const statusMessage =
+      status?.code === "STATUS_CODE_ERROR" && typeof status?.message === "string"
+        ? status.message
+        : undefined;
+    if (statusMessage) {
+      const detail = typeof content === "string" ? content : "";
+      return capToolResultText(
+        detail
+          ? `tool call ${callRef} failed: ${statusMessage}\n${detail}`
+          : `tool call ${callRef} failed: ${statusMessage}`,
+      );
+    }
+    if (typeof content === "string") return capToolResultText(content);
+    if (content != null) return capToolResultText(JSON.stringify(content));
+    return capToolResultText(bodyText);
   } catch {
-    return bodyText;
+    return capToolResultText(bodyText);
   }
 }

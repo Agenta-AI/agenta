@@ -21,6 +21,7 @@ import {
   harnessSessionMounts,
   mountHarnessSessionDirs,
   storeReachableFromSandbox,
+  shellQuote,
   type MountCredentials,
 } from "../../src/engines/sandbox_agent/mount.ts";
 
@@ -554,7 +555,7 @@ describe("mountStorageRemote", () => {
     assert.ok(geesefs);
     const shellCmd = geesefs.args![1];
     // Tunnel endpoint overrides the in-network one.
-    assert.ok(shellCmd.includes("--endpoint https://abc.ngrok.io"));
+    assert.ok(shellCmd.includes("--endpoint' 'https://abc.ngrok.io"));
     assert.ok(shellCmd.includes("agenta-store:mounts/proj-1/mount-9"));
     assert.ok(shellCmd.includes("/home/sandbox/work"));
     // Backgrounded so the RPC returns instead of blocking on a foreground mount.
@@ -670,8 +671,8 @@ describe("mountStorageRemote", () => {
       2,
       "cleans before mounting and again after the alive check fails",
     );
-    assert.ok(unmountCalls[1].includes("fusermount -u /home/sandbox/work"));
-    assert.ok(unmountCalls[1].includes("umount -l /home/sandbox/work"));
+    assert.ok(unmountCalls[1].includes("fusermount -u '/home/sandbox/work'"));
+    assert.ok(unmountCalls[1].includes("umount -l '/home/sandbox/work'"));
   });
 
   it("uses the store's own endpoint when no tunnel is passed", async () => {
@@ -688,7 +689,7 @@ describe("mountStorageRemote", () => {
       log: SILENT,
     });
     assert.ok(
-      shellCmd.includes(`--endpoint ${CREDS.endpoint}`),
+      shellCmd.includes(`--endpoint' '${CREDS.endpoint}`),
       "falls back to the store's own endpoint",
     );
   });
@@ -714,5 +715,60 @@ describe("storeReachableFromSandbox", () => {
     assert.equal(storeReachableFromSandbox("http://127.0.0.1:8333"), false);
     assert.equal(storeReachableFromSandbox("http://10.0.0.5:8333"), false);
     assert.equal(storeReachableFromSandbox("http://192.168.1.5:8333"), false);
+  });
+});
+
+describe("shell injection hardening (RUN-SHELL-1)", () => {
+  it("shellQuote neutralizes a single quote break-out", () => {
+    const hostile = "x' ; rm -rf / #";
+    const quoted = shellQuote(hostile);
+    // Wrapped in single quotes with any embedded quote escaped — never a bare, unquoted `;`.
+    assert.ok(quoted.startsWith("'") && quoted.endsWith("'"));
+    assert.equal(quoted, `'x'"'"' ; rm -rf / #'`);
+  });
+
+  it("mountStorageRemote quotes a cwd containing shell metacharacters", async () => {
+    const calls: string[] = [];
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        if (opts.command === "sh") calls.push(opts.args?.[1] ?? "");
+        return { exitCode: 0 };
+      },
+    };
+    const hostileCwd = "/tmp/work'; touch /tmp/pwned; echo '";
+
+    await mountStorageRemote(sandbox, hostileCwd, CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      aliveAttempts: 1,
+      log: SILENT,
+    });
+
+    // Every shell string touching cwd must carry the exact shellQuote() escaping — proof the
+    // embedded `'` never breaks out to run `touch /tmp/pwned` as a separate command.
+    const touched = calls.filter((cmd) => cmd.includes("pwned"));
+    assert.ok(touched.length > 0);
+    for (const cmd of touched) {
+      assert.ok(
+        cmd.includes(shellQuote(hostileCwd)),
+        `hostile cwd was not fully quoted: ${cmd}`,
+      );
+    }
+  });
+
+  it("mountStorageRemote quotes the geesefs argv (bucket:prefix and cwd)", async () => {
+    let shellCmd = "";
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        if (opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs"))
+          shellCmd = opts.args![1];
+        return { exitCode: 0 };
+      },
+    };
+    await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      log: SILENT,
+    });
+    assert.ok(shellCmd.includes("'agenta-store:mounts/proj-1/mount-9'"));
+    assert.ok(shellCmd.includes("'/home/sandbox/work'"));
   });
 });
