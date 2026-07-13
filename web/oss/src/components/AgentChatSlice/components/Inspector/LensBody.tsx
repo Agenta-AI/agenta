@@ -11,31 +11,25 @@ import {useAtomValue} from "jotai"
 import {ContextLens} from "./lenses/ContextLens"
 import {RuntimeLens} from "./lenses/RuntimeLens"
 import {TimelineLens} from "./lenses/TimelineLens"
-import type {InspectorLens, InspectorScope} from "./state"
+import type {InspectorLens} from "./state"
 import {buildTimeline} from "./timeline"
 
-/** Raw JSON of the current scope's records (Timeline/Context source; Runtime raw = same stream). */
-const RawView = ({
-    sessionId,
-    scope,
-    targetTurn,
-}: {
-    sessionId: string
-    scope: InspectorScope
-    targetTurn?: number | null
-}) => {
+/** Raw JSON of the records — narrowed to the focused turn when one is focused. */
+const RawView = ({sessionId, focusedTurn}: {sessionId: string; focusedTurn?: number | null}) => {
     const query = useAtomValue(sessionRecordsQueryFamily(sessionId))
     const json = useMemo(() => {
         const records = query.data ?? []
-        if (scope !== "turn" || targetTurn == null) return JSON.stringify(records, null, 2)
+        if (focusedTurn == null) return JSON.stringify(records, null, 2)
         const {turns} = buildTimeline(records)
-        const ids = new Set(turns.find((t) => t.turn === targetTurn)?.events.map((e) => e.id) ?? [])
+        const ids = new Set(
+            turns.find((t) => t.turn === focusedTurn)?.events.map((e) => e.id) ?? [],
+        )
         return JSON.stringify(
             records.filter((r) => ids.has(r.id)),
             null,
             2,
         )
-    }, [query.data, scope, targetTurn])
+    }, [query.data, focusedTurn])
     return (
         <div className="relative min-h-0 flex-1 overflow-auto p-3">
             <div className="absolute right-4 top-4 z-[1]">
@@ -50,30 +44,26 @@ const RawView = ({
 
 export function LensBody({
     sessionId,
-    scope,
-    targetTurn,
+    focusedTurn,
     lens,
     rawOpen,
     onDrillTurn,
 }: {
     sessionId: string
-    scope: InspectorScope
-    targetTurn?: number | null
+    focusedTurn?: number | null
     lens: InspectorLens
     rawOpen: boolean
     onDrillTurn?: (turn: number) => void
 }) {
-    if (rawOpen) return <RawView sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
+    if (rawOpen) return <RawView sessionId={sessionId} focusedTurn={focusedTurn} />
     if (lens === "timeline")
         return (
             <TimelineLens
                 sessionId={sessionId}
-                scope={scope}
-                targetTurn={targetTurn}
+                focusedTurn={focusedTurn}
                 onDrillTurn={onDrillTurn}
             />
         )
-    if (lens === "context")
-        return <ContextLens sessionId={sessionId} scope={scope} targetTurn={targetTurn} />
-    return <RuntimeLens sessionId={sessionId} scope={scope} />
+    if (lens === "context") return <ContextLens sessionId={sessionId} focusedTurn={focusedTurn} />
+    return <RuntimeLens sessionId={sessionId} />
 }

@@ -4,12 +4,12 @@
  * (Timeline / Context / Runtime) + a Raw `{}` header toggle. Records-backed (cross-device);
  * scope only parameterises what the lenses query, never the chrome. Docks via RightPanelSplit.
  */
-import {useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {revalidateSessionRecordsAtom, sessionRecordsQueryFamily} from "@agenta/entities/session"
 import {ArrowClockwise, BracketsCurly, DownloadSimple, X} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Segmented, Tooltip} from "antd"
+import {Button, Select, Tooltip} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {downloadText} from "@/oss/lib/helpers/fileManipulations"
@@ -23,9 +23,38 @@ import {
     inspectorLensAtom,
     inspectorRawOpenAtom,
     inspectorTargetAtom,
-    type InspectorScope,
 } from "./state"
 import {buildTimeline} from "./timeline"
+
+// Hold the data-heavy body off until the dock's open slide (RightPanelSplit, 240ms) settles:
+// mounting the Timeline — parse every record + render every row — DURING the flex-basis animation
+// starves frames, so the panel staggers and snaps to width at the end. A skeleton holds the space
+// until then. (An empty session was always smooth: nothing heavy to mount.) 300ms = slide + buffer.
+const BODY_READY_MS = 300
+
+/** Light placeholder shown in the body while the panel slides open — matches the timeline shape
+ * (filter bar + rows) so nothing shifts when the real content swaps in. Pure divs: zero record
+ * work during the animation. */
+const InspectorBodySkeleton = () => (
+    <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-[#2a2c30] px-2 py-1.5">
+            <div className="h-6 w-40 rounded bg-[#212327]" />
+            <div className="ml-auto h-6 w-28 rounded bg-[#212327]" />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-pulse">
+            {Array.from({length: 9}).map((_, i) => (
+                <div key={i} className="flex items-center gap-2 px-2 py-[9px]">
+                    <div className="h-2 w-2 shrink-0 rounded-full bg-[#2a2c30]" />
+                    <div
+                        className="h-3 rounded bg-[#212327]"
+                        style={{width: `${42 + ((i * 17) % 44)}%`}}
+                    />
+                    <div className="ml-auto h-3 w-10 rounded bg-[#212327]" />
+                </div>
+            ))}
+        </div>
+    </div>
+)
 
 /** alive/running/attached chips on the session identity line (build-spec §3). */
 const LivenessChips = ({sessionId}: {sessionId: string}) => {
@@ -61,21 +90,37 @@ export function Inspector({sessionId}: {sessionId: string}) {
     const records = useAtomValue(sessionRecordsQueryFamily(sessionId))
 
     const active = target?.sessionId === sessionId ? target : null
-    const scope: InspectorScope = active?.scope ?? "session"
-    const targetTurn = active?.targetTurn ?? null
+    const focusedTurn = active?.focusedTurn ?? null
 
-    const turnCount = useMemo(() => buildTimeline(records.data).turns.length, [records.data])
+    // Gate all record-heavy work behind the open-slide settle (see BODY_READY_MS). Mount-scoped, so
+    // a scope switch / drill (panel already open, no width animation) never re-flashes the skeleton.
+    const [bodyReady, setBodyReady] = useState(false)
+    useEffect(() => {
+        const t = setTimeout(() => setBodyReady(true), BODY_READY_MS)
+        return () => clearTimeout(t)
+    }, [])
+
+    // buildTimeline sorts + groups every record — deferred too, so it doesn't run mid-animation.
+    const turnCount = useMemo(
+        () => (bodyReady ? buildTimeline(records.data).turns.length : 0),
+        [bodyReady, records.data],
+    )
 
     if (!active) return null
 
-    const setScope = (next: InspectorScope) => {
-        if (next === "turn") {
-            // Switching to Turn with nothing targeted focuses the latest turn.
-            setTarget({sessionId, scope: "turn", targetTurn: targetTurn ?? (turnCount || 1)})
-        } else {
-            setTarget({sessionId, scope: "session"})
-        }
-    }
+    // Panel-level scope selector next to the title: Session, or a specific turn. Everything (all
+    // lenses) reacts to it via `focusedTurn`. Options run 1..N; include the current focus even
+    // before the turn count settles so the value always has a matching option.
+    const maxTurn = Math.max(turnCount, focusedTurn ?? 0)
+    const scopeOptions = [
+        {value: "session", label: "Session"},
+        ...Array.from({length: maxTurn}, (_, i) => ({
+            value: String(i + 1),
+            label: `Turn ${i + 1}`,
+        })),
+    ]
+    const onScopeChange = (v: string) =>
+        setTarget({sessionId, focusedTurn: v === "session" ? null : Number(v)})
 
     const refresh = () => {
         revalidateRecords(sessionId)
@@ -86,12 +131,12 @@ export function Inspector({sessionId}: {sessionId: string}) {
         const records2 = records.data ?? []
         downloadText(
             JSON.stringify(records2, null, 2),
-            `session-${sessionId.slice(0, 8)}-${scope}.json`,
+            `session-${sessionId.slice(0, 8)}${focusedTurn != null ? `-turn${focusedTurn}` : ""}.json`,
         )
     }
 
     return (
-        <div className="ag-inspector-panel flex h-full min-h-0 flex-col bg-[#17181b]">
+        <div className="ag-inspector-panel flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#17181b]">
             {/* Header (build-spec §2): close · title · ScopeSwitch · identity · {} · refresh · export */}
             <div className="flex shrink-0 flex-col gap-1.5 border-0 border-b border-solid border-[#2a2c30] px-2 py-2">
                 <div className="flex items-center gap-2">
@@ -103,15 +148,21 @@ export function Inspector({sessionId}: {sessionId: string}) {
                         aria-label="Close inspector"
                     />
                     <span className="text-[13px] font-semibold">Inspector</span>
-                    <Segmented
-                        size="small"
-                        value={scope}
-                        onChange={(v) => setScope(v as InspectorScope)}
-                        options={[
-                            {label: "Turn", value: "turn"},
-                            {label: "Session", value: "session"},
-                        ]}
-                    />
+                    {/* One scope control for the whole panel: Session or a specific turn. */}
+                    <Tooltip
+                        title="Focus the whole inspector on one turn, or the whole session."
+                        placement="bottom"
+                        mouseEnterDelay={0.4}
+                    >
+                        <Select
+                            size="small"
+                            value={focusedTurn != null ? String(focusedTurn) : "session"}
+                            onChange={onScopeChange}
+                            options={scopeOptions}
+                            popupMatchSelectWidth={false}
+                            className="min-w-[96px]"
+                        />
+                    </Tooltip>
                     <div className="ml-auto flex items-center">
                         <Tooltip title={rawOpen ? "Hide raw JSON" : "Raw JSON"}>
                             <Button
@@ -142,40 +193,25 @@ export function Inspector({sessionId}: {sessionId: string}) {
                         </Tooltip>
                     </div>
                 </div>
-                {/* Identity line (build-spec §3). */}
+                {/* Identity line: the session is always the scope; a focused turn is the chip above. */}
                 <div className="flex items-center gap-2 pl-1 text-[11px] text-colorTextTertiary">
-                    {scope === "session" ? (
-                        <>
-                            <span className="min-w-0 truncate font-mono">{sessionId}</span>
-                            <LivenessChips sessionId={sessionId} />
-                        </>
-                    ) : (
-                        <>
-                            <span className="font-medium text-colorText">
-                                Turn {targetTurn ?? "—"}
-                            </span>
-                            <span className="text-colorTextQuaternary">of {turnCount}</span>
-                            <button
-                                type="button"
-                                onClick={() => setScope("session")}
-                                className="ml-auto cursor-pointer border-0 bg-transparent p-0 text-[var(--ag-colorInfo)] hover:underline"
-                            >
-                                View whole session
-                            </button>
-                        </>
-                    )}
+                    <span className="min-w-0 truncate font-mono">{sessionId}</span>
+                    <LivenessChips sessionId={sessionId} />
                 </div>
             </div>
 
             <LensRail lens={lens} onChange={setLens} />
-            <LensBody
-                sessionId={sessionId}
-                scope={scope}
-                targetTurn={targetTurn}
-                lens={lens}
-                rawOpen={rawOpen}
-                onDrillTurn={(turn) => setTarget({sessionId, scope: "turn", targetTurn: turn})}
-            />
+            {bodyReady ? (
+                <LensBody
+                    sessionId={sessionId}
+                    focusedTurn={focusedTurn}
+                    lens={lens}
+                    rawOpen={rawOpen}
+                    onDrillTurn={(turn) => setTarget({sessionId, focusedTurn: turn})}
+                />
+            ) : (
+                <InspectorBodySkeleton />
+            )}
         </div>
     )
 }

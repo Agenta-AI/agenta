@@ -4,8 +4,11 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {XMarkdown} from "@ant-design/x-markdown"
 import Latex from "@ant-design/x-markdown/plugins/Latex"
 import {Tooltip} from "antd"
+import {useAtomValue} from "jotai"
 import {PrismAsync as SyntaxHighlighter} from "react-syntax-highlighter"
 import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism"
+
+import {chatFileLinkAtom} from "../state/fileLinks"
 
 // Dark-mode-aware markdown styling. `min-w-0` + `max-w-full` + the per-element width guards
 // keep long lines / code blocks from widening their container; code blocks scroll within their
@@ -63,9 +66,25 @@ const childrenToText = (children: ReactNode): string => {
 }
 
 /**
- * Code renderer: inline `code` keeps the styled chip; a fenced block gets Prism syntax
- * highlighting (language-on-demand via PrismAsync, oneDark theme). XMarkdown supplies `block`
- * and `lang` (the fence info string) so we don't have to parse `className`.
+ * Inline code chip. When the active conversation has published a file-link resolver and this
+ * span's text names a real drive file, it renders as the in-thread FILE CARD (the same component
+ * as a detected write — icon · name · size · download, click to open), so a filename the agent
+ * mentions in prose reads exactly like the artifact cards above it. Otherwise it's a plain chip.
+ */
+const InlineCode = ({className, children}: {className?: string; children?: ReactNode}) => {
+    const link = useAtomValue(chatFileLinkAtom)
+    const text = childrenToText(children).trim()
+    const path = link && text ? link.resolve(text) : null
+    if (!path || !link) return <code className={className}>{children}</code>
+    // The card's root is an inline-flex <span>, valid inside the markdown paragraph.
+    return <>{link.renderCard(path)}</>
+}
+
+/**
+ * Code renderer: inline `code` keeps the styled chip (file-aware, see {@link InlineCode}); a
+ * fenced block gets Prism syntax highlighting (language-on-demand via PrismAsync, oneDark theme).
+ * XMarkdown supplies `block` and `lang` (the fence info string) so we don't have to parse
+ * `className`.
  */
 const CodeBlock = ({
     block,
@@ -78,7 +97,7 @@ const CodeBlock = ({
     className?: string
     children?: ReactNode
 }) => {
-    if (!block) return <code className={className}>{children}</code>
+    if (!block) return <InlineCode className={className}>{children}</InlineCode>
 
     const code = childrenToText(children).replace(/\n$/, "")
 

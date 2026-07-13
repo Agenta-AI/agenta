@@ -53,6 +53,13 @@ export function EventRow({
     const meta = EVENT_META[event.type]
     const isError = event.type === "error" || (event.type === "tool_result" && hasError(event))
     const isInteraction = event.type === "interaction_request"
+    // A user-sent message: the human's own turn. Differentiate at a glance without a new palette
+    // hue — a "you" chip + a brighter tone (their input reads as highlighted vs the muted agent
+    // grey). `record_source` rides on `event.source`.
+    const isUser = event.type === "message" && event.source === "user"
+    const USER_TONE = "#e8eaed"
+    const dotColor = isError ? EVENT_META.error.dot : isUser ? USER_TONE : meta.dot
+    const chipText = isUser ? "you" : meta.chip
     const json = JSON.stringify(event.payload ?? {}, null, 2)
     // Errors/interactions read as typed events IN PLACE (spec §4.1) — a left accent bar, not a
     // detached banner.
@@ -81,26 +88,20 @@ export function EventRow({
                     weight="bold"
                     className={`shrink-0 text-colorTextQuaternary transition-transform ${open ? "rotate-90" : ""}`}
                 />
-                <span
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{background: isError ? EVENT_META.error.dot : meta.dot}}
-                />
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{background: dotColor}} />
                 <span className="w-6 shrink-0 text-right font-mono text-[11px] text-colorTextQuaternary">
                     {event.index}
                 </span>
                 <span
-                    className={`min-w-0 flex-1 truncate text-xs ${event.type === "thought" ? "italic text-colorTextSecondary" : ""}`}
+                    className={`min-w-0 flex-1 truncate text-xs ${event.type === "thought" ? "italic text-colorTextSecondary" : ""} ${isUser ? "font-medium text-colorText" : ""}`}
                 >
                     {eventLabel(event)}
                 </span>
                 <Tag
                     className="m-0 shrink-0 border-0 font-mono !text-[10px] leading-[16px]"
-                    style={{
-                        background: "#212327",
-                        color: isError ? EVENT_META.error.dot : meta.dot,
-                    }}
+                    style={{background: "#212327", color: dotColor}}
                 >
-                    {meta.chip}
+                    {chipText}
                 </Tag>
                 {durationLabel ? (
                     <span className="shrink-0 font-mono text-[10px] text-colorTextQuaternary">
@@ -139,7 +140,7 @@ function hasError(event: TimelineEvent): boolean {
     return p.status === "error" || p.state === "output-error" || Boolean(p.error)
 }
 
-/** A flat event list (Turn scope, or Indexed density). */
+/** A flat event list (the Session view, or one turn group's expanded events). */
 export function EventList({
     events,
     turnStart,

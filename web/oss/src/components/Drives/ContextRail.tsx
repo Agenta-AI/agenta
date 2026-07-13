@@ -1,32 +1,33 @@
 /**
- * ContextRail — the chat-mode right context rail (build-spec v2, view E1): the one structural
- * change to Chat. Collapsible (~300px ↔ slim strip, persisted); Files pinned at the top —
- * 4 most-recent files + count + "View all files" — above the lighter Context and Progress
- * sections. Jargon-free (never mount/cwd/drive). Reuses the Build recents via the shared
- * drive atoms — no new fetch; a file row opens Quick Look, "View all files" opens the Files
- * window (the right panel's Files tab).
+ * ContextRail — the chat-mode right context rail (build-spec v2, view E1). Collapsible
+ * (~300px ↔ slim strip, persisted). Shows the conversation's Files — recents + count +
+ * "View all files". Jargon-free (never mount/cwd/drive); reuses the shared drive atoms (no new
+ * fetch). Uses the same elevated dark surface as the build-mode Inspector so the right dock reads
+ * as one panel across modes. A file row opens Quick Look; "View all files" opens the Files drawer.
  */
-import {ArrowSquareOut, CaretRight, FolderSimple, Sidebar} from "@phosphor-icons/react"
+import {ArrowSquareOut, FolderSimple, Sidebar} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
-import {driveFileIcon} from "./DriveDrawer"
+import {DriveFileRow} from "./DriveFileRow"
 import {relativeTime} from "./driveTree"
 import {driveQuickLookAtom} from "./quickLook"
+import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {useSessionDrive} from "./useSessionDrive"
 
 const {Text} = Typography
 
+// Shared elevated dark surface with the Inspector (build-spec §elevation) — the right dock reads
+// the same in chat (this rail) and build (Inspector).
+const SURFACE = "#17181b"
+const BORDER = "#2a2c30"
+
 /** Rail visibility — a global UI preference (survives session switches and reloads).
  * Starts CLOSED; opening it once is the opt-in. */
 export const contextRailOpenAtom = atomWithStorage<boolean>("agenta:agent-chat:context-rail", false)
-
-const SectionLabel = ({children}: {children: React.ReactNode}) => (
-    <div className="px-3 pb-1 pt-3 text-xs font-medium text-colorTextSecondary">{children}</div>
-)
 
 // The playground's canonical pane ease (globals.css `.playground-splitter-animated`) — the
 // rail, the right panel, and the config pane must all move on ONE curve or the transcript
@@ -42,12 +43,12 @@ export function ContextRail({
     onOpenFiles,
 }: {
     sessionId: string
-    /** The conversation is currently running a turn (drives the Progress line). */
+    /** The conversation is currently running a turn (drives the running indicator). */
     busy?: boolean
-    /** Slide the rail away entirely (build mode / the Turn-Session panel owns the right edge).
-     * The component stays MOUNTED so the width change animates instead of popping. */
+    /** Slide the rail away entirely (build mode / the Inspector owns the right edge). The
+     * component stays MOUNTED so the width change animates instead of popping. */
     hidden?: boolean
-    /** Open the Files window (the right panel's Files tab). */
+    /** Open the Files drawer. */
     onOpenFiles: () => void
 }) {
     const [open, setOpen] = useAtom(contextRailOpenAtom)
@@ -60,27 +61,56 @@ export function ContextRail({
     return (
         <div
             className={`shrink-0 overflow-hidden ${SLIDE_CLASS}`}
-            style={{width}}
+            style={{width, background: SURFACE}}
             aria-hidden={hidden}
         >
             {!open ? (
+                // The whole strip is one hover-able click target; per-icon tooltips + the file
+                // COUNT badge announce there's content behind it (discoverability).
                 <div
-                    className="flex h-full flex-col items-center border-0 border-l border-solid border-[var(--ag-surface-divider)] px-0.5 pt-2"
-                    style={{width: STRIP_WIDTH}}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setOpen(true)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            setOpen(true)
+                        }
+                    }}
+                    aria-label="Show files"
+                    className="group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[#212327]"
+                    style={{width: STRIP_WIDTH, borderColor: BORDER}}
                 >
-                    <Tooltip title="Show files & context" placement="left">
-                        <Button
-                            type="text"
-                            icon={<Sidebar size={15} />}
-                            onClick={() => setOpen(true)}
-                            aria-label="Show files and context"
-                        />
+                    <Tooltip title="Show files" placement="left">
+                        <span className="flex h-7 w-7 items-center justify-center rounded text-colorTextSecondary transition-colors group-hover:text-colorText">
+                            <Sidebar size={15} />
+                        </span>
                     </Tooltip>
+                    {drive.fileCount > 0 ? (
+                        <Tooltip
+                            title={`${drive.fileCount} file${drive.fileCount === 1 ? "" : "s"} in this conversation`}
+                            placement="left"
+                        >
+                            <span className="relative flex h-7 w-7 items-center justify-center text-colorTextSecondary">
+                                <FolderSimple size={15} />
+                                <span className="absolute right-0 top-0 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[var(--ag-colorPrimary)] px-1 text-[9px] font-semibold leading-none text-[var(--ag-colorBgContainer)]">
+                                    {drive.fileCount}
+                                </span>
+                            </span>
+                        </Tooltip>
+                    ) : null}
+                    {busy ? (
+                        <Tooltip title="Agent is running" placement="left">
+                            <span className="relative flex h-2 w-2">
+                                <span className="absolute inline-flex h-full w-full rounded-full bg-colorInfo opacity-60 motion-safe:animate-ping" />
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-colorInfo" />
+                            </span>
+                        </Tooltip>
+                    ) : null}
                 </div>
             ) : (
                 <ExpandedRail
                     drive={drive}
-                    busy={busy}
                     onOpenFiles={onOpenFiles}
                     onCollapse={() => setOpen(false)}
                     onQuickLook={(path) => openQuickLook({path})}
@@ -92,23 +122,21 @@ export function ContextRail({
 
 const ExpandedRail = ({
     drive,
-    busy,
     onOpenFiles,
     onCollapse,
     onQuickLook,
 }: {
     drive: ReturnType<typeof useSessionDrive>
-    busy?: boolean
     onOpenFiles: () => void
     onCollapse: () => void
     onQuickLook: (path: string) => void
 }) => {
+    const now = useRecentChangeClock(drive.lastTouchedAt)
     return (
         <aside
-            className="flex h-full flex-col overflow-y-auto border-0 border-l border-solid border-[var(--ag-surface-divider)]"
-            style={{width: RAIL_WIDTH}}
+            className="flex h-full flex-col overflow-y-auto border-0 border-l border-solid"
+            style={{width: RAIL_WIDTH, borderColor: BORDER}}
         >
-            {/* Files — pinned at the top. */}
             <div className="flex items-center gap-1.5 px-3 pt-3">
                 <span className="text-xs font-medium">Files</span>
                 {drive.fileCount > 0 ? (
@@ -117,78 +145,55 @@ const ExpandedRail = ({
                     </Tag>
                 ) : null}
                 <div className="ml-auto flex items-center">
-                    <Tooltip title="Open all files">
+                    <Tooltip title="Open the Files drawer" placement="bottom">
                         <Button
                             type="text"
                             icon={<ArrowSquareOut size={13} />}
                             onClick={onOpenFiles}
-                            aria-label="Open all files"
+                            aria-label="Open the files drawer"
                         />
                     </Tooltip>
-                    <Tooltip title="Hide files & context">
+                    <Tooltip title="Collapse panel" placement="bottom">
                         <Button
                             type="text"
                             icon={<Sidebar size={13} />}
                             onClick={onCollapse}
-                            aria-label="Hide files and context"
+                            aria-label="Collapse panel"
                         />
                     </Tooltip>
                 </div>
             </div>
-            <div className="flex flex-col px-2 pb-1">
+            <div className="flex flex-col px-2 pb-2 pt-1">
                 {drive.fileCount === 0 ? (
                     <Text type="secondary" className="px-1 pb-1 !text-[11px]">
                         {drive.isLoading ? "Loading…" : "No files yet."}
                     </Text>
                 ) : (
                     <>
-                        {drive.recents.slice(0, 4).map((file) => (
-                            <button
+                        {drive.recents.slice(0, 6).map((file) => (
+                            <DriveFileRow
                                 key={file.path}
-                                type="button"
-                                onClick={() => onQuickLook(file.path)}
-                                className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary"
-                            >
-                                <span className="shrink-0">{driveFileIcon(file.path)}</span>
-                                <span className="min-w-0 truncate font-mono text-xs">
-                                    {file.path.split("/").pop()}
-                                </span>
-                                {file.touchedAt ? (
-                                    <span className="ml-auto shrink-0 text-[11px] text-colorTextQuaternary">
-                                        {relativeTime(file.touchedAt).replace(" ago", "")}
-                                    </span>
-                                ) : null}
-                            </button>
+                                path={file.path}
+                                recent={isRecentlyChanged(file.touchedAt, now)}
+                                trailing={
+                                    file.touchedAt
+                                        ? relativeTime(file.touchedAt).replace(" ago", "")
+                                        : undefined
+                                }
+                                onOpen={() => onQuickLook(file.path)}
+                            />
                         ))}
-                        <button
-                            type="button"
-                            onClick={onOpenFiles}
-                            className="mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline"
-                        >
-                            View all files
-                        </button>
+                        {drive.fileCount > 6 ? (
+                            <button
+                                type="button"
+                                onClick={onOpenFiles}
+                                className="mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline"
+                            >
+                                View all files
+                            </button>
+                        ) : null}
                     </>
                 )}
-            </div>
-
-            {/* Context — lighter section (static in phase 1). */}
-            <div className="mx-3 border-0 border-t border-solid border-[var(--ag-surface-divider)]" />
-            <SectionLabel>Context</SectionLabel>
-            <div className="flex items-center gap-2 px-4 pb-2">
-                <FolderSimple size={13} className="shrink-0 text-colorWarning" />
-                <Text type="secondary" className="!text-xs">
-                    This conversation
-                </Text>
-            </div>
-
-            {/* Progress — placeholder line tied to the live run state. */}
-            <div className="mx-3 border-0 border-t border-solid border-[var(--ag-surface-divider)]" />
-            <div className="flex items-center gap-1.5 px-3 pb-3 pt-3">
-                <span className="text-xs font-medium">Progress</span>
-                <Text type="secondary" className="!text-[11px]">
-                    {busy ? "running…" : "idle"}
-                </Text>
-                <CaretRight size={11} className="ml-auto shrink-0 text-colorTextQuaternary" />
             </div>
         </aside>
     )

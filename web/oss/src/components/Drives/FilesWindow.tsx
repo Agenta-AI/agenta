@@ -9,63 +9,47 @@ import {useMemo, useState} from "react"
 import {type Mount} from "@agenta/entities/session"
 import {FolderSimple, ListBullets, MagnifyingGlass, SquaresFour, Tray} from "@phosphor-icons/react"
 import {Input, Segmented, Select, Skeleton, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
-import {projectIdAtom} from "@/oss/state/project"
-
-import {DriveExplorer, driveFileIcon} from "./DriveDrawer"
-import {mountFileDownloadUrl} from "./driveMedia"
+import {DriveExplorer} from "./DriveDrawer"
 import {humanSize} from "./driveTree"
+import {FileThumb} from "./FileThumb"
 import {driveQuickLookAtom} from "./quickLook"
-import {resolveDriveFileKind} from "./renderers"
+import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
 
 type SortKey = "recent" | "name" | "size"
 
-// Image tiles show a real thumbnail when cheap: native lazy <img> straight at the bytes URL
-// (browser cache + decode, zero JS heap), capped so a huge image never loads for a LIST; any
-// error (auth, cross-origin) falls back to the type icon. Non-image kinds always get the icon.
-const THUMB_CAP = 2 * 1024 * 1024
+// Agent-teal, matching the config self-commit indicator, for a file that just changed.
+const AGENT_ACCENT = "var(--ag-c-13C2C2, #13c2c2)"
 
 const FileTile = ({
     file,
     mount,
+    recent,
     onOpen,
 }: {
     file: DriveRecentFile
     mount: Mount | null
+    recent?: boolean
     onOpen: () => void
 }) => {
-    const projectId = useAtomValue(projectIdAtom)
-    const [thumbFailed, setThumbFailed] = useState(false)
     const name = file.path.split("/").pop() ?? file.path
     const folder = file.path.includes("/") ? file.path.split("/").slice(0, -1).join("/") : null
-    const thumbUrl =
-        !thumbFailed && resolveDriveFileKind(file.path) === "image" && (file.size ?? 0) <= THUMB_CAP
-            ? mountFileDownloadUrl(mount, file.path, projectId)
-            : null
     return (
         <button
             type="button"
             onClick={onOpen}
-            className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 py-3 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
+            className="flex cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
+            style={
+                recent
+                    ? {borderColor: AGENT_ACCENT, boxShadow: `0 0 0 1px ${AGENT_ACCENT}`}
+                    : undefined
+            }
         >
-            <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
-                {thumbUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- authed dynamic bytes URL; next/image can't optimize it
-                    <img
-                        src={thumbUrl}
-                        alt=""
-                        loading="lazy"
-                        onError={() => setThumbFailed(true)}
-                        className="h-10 w-10 object-cover"
-                    />
-                ) : (
-                    driveFileIcon(file.path, 20)
-                )}
-            </span>
+            <FileThumb file={file} mount={mount} />
             <span className="w-full truncate text-center font-mono text-xs">{name}</span>
             <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
                 {folder ? <>{folder} · </> : null}
@@ -85,6 +69,7 @@ export default function FilesWindow({
 }) {
     const drive = useSessionDrive(sessionId)
     const openQuickLook = useSetAtom(driveQuickLookAtom)
+    const now = useRecentChangeClock(drive.lastTouchedAt)
 
     const [view, setView] = useState<"grid" | "list">("grid")
     const [search, setSearch] = useState("")
@@ -181,6 +166,7 @@ export default function FilesWindow({
                                 key={file.path}
                                 file={file}
                                 mount={drive.mount}
+                                recent={isRecentlyChanged(file.touchedAt, now)}
                                 onOpen={() => openQuickLook({path: file.path})}
                             />
                         ))}

@@ -868,3 +868,13 @@ body {
     background-color: #1f1f1f;
     border-color: #424242;
 }
+
+/* @lexical/code-shiki stamps the shiki theme's PAGE background onto the code node (and tints some
+   tokens) as inline styles. Layered over our own container surface — and because the code element
+   shrink-wraps each line — that reads as per-line grey bands. Strip the injected backgrounds so
+   the code sits flat on the one container surface; token FOREGROUND colours (the actual syntax
+   highlighting) are untouched. */
+.agenta-dynamic-code-block,
+.agenta-dynamic-code-block span {
+    background-color: transparent !important;
+}

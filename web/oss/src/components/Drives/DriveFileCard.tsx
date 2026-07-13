@@ -12,11 +12,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {driveFileIcon, fileTypeLabel} from "./DriveDrawer"
+import {driveFileIcon} from "./DriveDrawer"
 import {downloadMountFile} from "./driveMedia"
 import {useDriveSessionId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtom} from "./quickLook"
+import {fileTypeLabel} from "./renderers"
 import {useSessionDrive} from "./useSessionDrive"
 
 const {Text} = Typography
@@ -27,7 +28,7 @@ const OP_META: Record<FileActivityOp, {label: string; color?: string}> = {
     delete: {label: "Deleted"},
 }
 
-export function DriveFileCard({path, op}: {path: string; op: FileActivityOp}) {
+export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
     const openQuickLook = useSetAtom(driveQuickLookAtom)
     const projectId = useAtomValue(projectIdAtom)
     const sessionId = useDriveSessionId()
@@ -36,16 +37,19 @@ export function DriveFileCard({path, op}: {path: string; op: FileActivityOp}) {
     const resolved = drive.files.find((f) => mountPathMatchesToolPath(f.path, path)) ?? null
     const name = path.split("/").pop() ?? path
     const deleted = op === "delete"
-    const meta = OP_META[op]
+    // No op (a prose mention rather than a detected write) → no status tag; just the file card.
+    const meta = op ? OP_META[op] : null
 
     const download = () => {
         if (!resolved) return
         void downloadMountFile({mount: drive.mount, path: resolved.path, projectId})
     }
 
+    // A <span> root (inline-flex) so the card is valid inline — it's rendered both standalone in a
+    // flex row (tool activity) AND inside a markdown paragraph (a prose file mention).
     return (
-        <div
-            className={`flex w-fit max-w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1.5 pl-2 pr-1 ${
+        <span
+            className={`my-0.5 inline-flex w-fit max-w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1.5 pl-2 pr-1 align-middle ${
                 deleted ? "opacity-70" : ""
             }`}
         >
@@ -69,12 +73,14 @@ export function DriveFileCard({path, op}: {path: string; op: FileActivityOp}) {
                         >
                             {name}
                         </span>
-                        <Tag
-                            color={meta.color}
-                            className="m-0 shrink-0 !text-[10px] leading-[16px]"
-                        >
-                            {meta.label}
-                        </Tag>
+                        {meta ? (
+                            <Tag
+                                color={meta.color}
+                                className="m-0 shrink-0 !text-[10px] leading-[16px]"
+                            >
+                                {meta.label}
+                            </Tag>
+                        ) : null}
                     </span>
                     <Text type="secondary" className="!text-[11px]">
                         {fileTypeLabel(path)}
@@ -92,6 +98,6 @@ export function DriveFileCard({path, op}: {path: string; op: FileActivityOp}) {
                     />
                 </Tooltip>
             ) : null}
-        </div>
+        </span>
     )
 }

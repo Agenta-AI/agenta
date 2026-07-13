@@ -21,7 +21,7 @@ import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {downloadMountFile, useMountFileMediaSrc, useMountFileObjectUrl} from "./driveMedia"
-import {humanSize} from "./driveTree"
+import {humanSize, isMarkdownPath} from "./driveTree"
 
 export type DriveFileKind =
     | "markdown"
@@ -94,6 +94,13 @@ export function resolveDriveFileKind(path: string): DriveFileKind {
     for (const [test, kind] of EXT_KINDS) if (test.test(path)) return kind
     if (CODE_EXT.test(path)) return "code"
     return "other"
+}
+
+/** Human type label for a file (drawer/quick-look header + metadata). */
+export const fileTypeLabel = (path: string): string => {
+    if (isMarkdownPath(path)) return "Markdown"
+    const ext = path.split(".").pop()
+    return ext && ext !== path ? ext.toUpperCase() : "File"
 }
 
 // Lexical + lazy-Shiki code block (theme-paired highlighting). Loaded only when a code body

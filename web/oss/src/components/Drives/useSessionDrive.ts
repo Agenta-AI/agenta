@@ -5,6 +5,7 @@ import {
     mountPathMatchesToolPath,
     sessionFileActivityAtomFamily,
     sessionMountsQueryFamily,
+    sessionRecordFileRecencyAtomFamily,
     type Mount,
     type MountFile,
 } from "@agenta/entities/session"
@@ -47,20 +48,28 @@ export function useSessionDrive(sessionId: string): SessionDriveData {
 
     const filesQuery = useAtomValue(mountFilesQueryFamily(mount?.id ?? ""))
     const activity = useAtomValue(sessionFileActivityAtomFamily(sessionId))
+    // Durable, cross-device recency from the record log — the base layer under the live browser
+    // activity below (which only sees THIS tab's turns). Without it, files created before this tab
+    // opened (or on another device) have no timestamp and fall back to alpha order.
+    const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
 
     return useMemo(() => {
         const listing = filesQuery.data ?? null
         const files = driveFiles(listing)
 
         // Newest signal wins per file; matching is tail-based (tool paths are absolute/relative).
+        // Seed from the durable record log first, then let the live browser activity (fresher, same
+        // turn) raise it — Math.max folds both without double-counting.
         const touchedAt = new Map<string, number>()
-        for (const entry of activity) {
+        const stamp = (toolPath: string, at: number) => {
             for (const file of files) {
-                if (mountPathMatchesToolPath(file.path, entry.path)) {
-                    touchedAt.set(file.path, Math.max(touchedAt.get(file.path) ?? 0, entry.at))
+                if (mountPathMatchesToolPath(file.path, toolPath)) {
+                    touchedAt.set(file.path, Math.max(touchedAt.get(file.path) ?? 0, at))
                 }
             }
         }
+        for (const [toolPath, at] of recordRecency) stamp(toolPath, at)
+        for (const entry of activity) stamp(entry.path, entry.at)
         const recents: DriveRecentFile[] = [...files]
             .map((f) => ({...f, touchedAt: touchedAt.get(f.path)}))
             .sort((a, b) =>
@@ -112,5 +121,6 @@ export function useSessionDrive(sessionId: string): SessionDriveData {
         mountsQuery.isPending,
         mountsQuery.isError,
         activity,
+        recordRecency,
     ])
 }

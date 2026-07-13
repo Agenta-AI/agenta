@@ -1,5 +1,5 @@
 import {useQuery} from "@tanstack/react-query"
-import {Alert, Descriptions, Skeleton, Typography} from "antd"
+import {Alert, Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -24,20 +24,29 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
     if (!data) return <Text type="secondary">No durable state for this session yet.</Text>
 
     return (
-        <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="state_id">
-                <span className="font-mono text-xs">{data.id ?? "—"}</span>
-            </Descriptions.Item>
-            <Descriptions.Item label="sandbox_id">
-                <span className="font-mono text-xs">{data.sandbox_id ?? "—"}</span>
-            </Descriptions.Item>
-            <Descriptions.Item label="updated_at">{data.updated_at ?? "—"}</Descriptions.Item>
-            <Descriptions.Item label="data">
-                <pre className="m-0 max-h-[40vh] overflow-auto text-xs">
+        <div className="flex flex-col gap-2">
+            {/* Wrapping key/value (long UUIDs must break, never widen the panel). */}
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+                <dt className="text-colorTextTertiary">state_id</dt>
+                <dd className="m-0 min-w-0 break-all font-mono text-colorTextSecondary">
+                    {data.id ?? "—"}
+                </dd>
+                <dt className="text-colorTextTertiary">sandbox_id</dt>
+                <dd className="m-0 min-w-0 break-all font-mono text-colorTextSecondary">
+                    {data.sandbox_id ?? "—"}
+                </dd>
+                <dt className="text-colorTextTertiary">updated_at</dt>
+                <dd className="m-0 min-w-0 break-all text-colorTextSecondary">
+                    {data.updated_at ?? "—"}
+                </dd>
+            </dl>
+            <div>
+                <div className="mb-1 text-[10px] font-medium text-colorTextTertiary">data</div>
+                <pre className="m-0 max-h-[40vh] overflow-auto whitespace-pre-wrap break-all rounded bg-colorFillQuaternary p-2 text-xs text-colorTextSecondary">
                     {JSON.stringify(data.data ?? {}, null, 2)}
                 </pre>
-            </Descriptions.Item>
-        </Descriptions>
+            </div>
+        </div>
     )
 }
 

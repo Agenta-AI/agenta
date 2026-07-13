@@ -83,7 +83,7 @@ export function InspectorDrawer({
                     </div>
                 </div>
                 <LensRail lens={lens} onChange={setLens} />
-                <LensBody sessionId={sessionId} scope="session" lens={lens} rawOpen={rawOpen} />
+                <LensBody sessionId={sessionId} lens={lens} rawOpen={rawOpen} />
             </div>
         </EnhancedDrawer>
     )

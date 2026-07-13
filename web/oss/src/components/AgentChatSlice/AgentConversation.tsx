@@ -45,9 +45,9 @@ import {useRouter} from "next/router"
 import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
+import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
 import {FilesDrawer, filesDrawerOpenAtom} from "@/oss/components/Drives/FilesDrawer"
-import {DriveQuickLook} from "@/oss/components/Drives/quickLook"
 import {
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
@@ -354,10 +354,10 @@ const AgentConversation = ({
     // The Inspector is a BUILD-mode tool (both scopes) — mode-gated, not env-gated. Chat mode has
     // no inspector (the context rail owns the right dock there).
     const inspectorOpen = buildMode && inspectorTarget?.sessionId === sessionId
-    const turnInspectorOpen = inspectorOpen && inspectorTarget?.scope === "turn"
-    // The assistant turn the panel is inspecting (turn scope only). Turn ids are 1-based indices
-    // (records group by `done`); the inspected assistant message is the Nth assistant message.
-    const inspectedTurn = turnInspectorOpen ? (inspectorTarget?.targetTurn ?? null) : null
+    const turnInspectorOpen = inspectorOpen && inspectorTarget?.focusedTurn != null
+    // The assistant turn the panel is focused on. Turn ids are 1-based indices (records group by
+    // `done`); the inspected assistant message is the Nth assistant message.
+    const inspectedTurn = turnInspectorOpen ? (inspectorTarget?.focusedTurn ?? null) : null
     // Leaving Build for Chat closes the Inspector entirely.
     useEffect(() => {
         if (!buildMode && inspectorTarget?.sessionId === sessionId) closeInspector()
@@ -590,8 +590,9 @@ const AgentConversation = ({
     useFileActivityDetector({sessionId, messages})
 
     // Quick Look + Files-window hosts: cards/tiles/rail request via atoms; these resolve against
-    // THIS conversation's drive and render the centered surfaces (no drawer, no route change).
-    const quickLookHost = <DriveQuickLook sessionId={sessionId} />
+    // THIS conversation's drive: the link provider makes filename mentions clickable, and the
+    // Files drawer (below) hosts both the grid and the single-file preview in one surface.
+    const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} />
     const filesWindowHost = <FilesDrawer sessionId={sessionId} />
     const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtom)
 

@@ -1,36 +1,31 @@
 /**
- * Inspector panel state (build-spec §2). Scope + target are ephemeral (the open target); lens,
- * raw, filter, density, width are persisted chrome prefs that survive open/close and scope
- * switches. Phase 1 persists to localStorage; URL deep-link (scope + target) is phase 2.
+ * Inspector panel state. The panel is ALWAYS session-scoped (one docked surface, turns grouped in
+ * the Timeline); there is no Turn/Session toggle. `focusedTurn` is a lens FOCUS within that one
+ * session — it scrolls/highlights the turn and narrows Context to that turn's window, but the
+ * chrome never changes. lens/raw/filter/view/width are persisted prefs. URL deep-link is phase 2.
  */
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-export type InspectorScope = "turn" | "session"
 export type InspectorLens = "timeline" | "context" | "runtime"
 export type TimelineFilter = "all" | "tools" | "interactions"
-export type TimelineDensity = "readable" | "indexed"
 
-/** The open target. `null` = collapsed. `targetTurn` (1-based) set only in turn scope. */
+/** The open target. `null` = collapsed. `focusedTurn` (1-based) narrows the lenses to one turn;
+ * null/undefined = the whole session. */
 export interface InspectorTarget {
     sessionId: string
-    scope: InspectorScope
     /** 1-based turn index (records are grouped by `done`; no turn_id exists). */
-    targetTurn?: number | null
+    focusedTurn?: number | null
 }
 
 export const inspectorTargetAtom = atom<InspectorTarget | null>(null)
 
-// Chrome prefs — persist across open/close and scope switches (build-spec §2/§3).
+// Chrome prefs — persist across open/close and turn focus.
 export const inspectorLensAtom = atomWithStorage<InspectorLens>("agenta:inspector:lens", "timeline")
 export const inspectorRawOpenAtom = atomWithStorage<boolean>("agenta:inspector:raw", false)
 export const inspectorFilterAtom = atomWithStorage<TimelineFilter>(
     "agenta:inspector:tl-filter",
     "all",
-)
-export const inspectorDensityAtom = atomWithStorage<TimelineDensity>(
-    "agenta:inspector:tl-density",
-    "readable",
 )
 export const inspectorWidthAtom = atomWithStorage<number>("agenta:inspector:width", 460)
 
@@ -40,18 +35,18 @@ export const INSPECTOR_MIN_WIDTH = 340
 export const INSPECTOR_MAX_WIDTH = 900
 export const INSPECTOR_CHAT_FLOOR = 460
 
-/** Open at session scope (the "Inspect session" trigger). */
+/** Open on the whole session (the "Inspect session" trigger). */
 export const openInspectorSessionAtom = atom(null, (_get, set, sessionId: string) => {
     if (!sessionId) return
-    set(inspectorTargetAtom, {sessionId, scope: "session"})
+    set(inspectorTargetAtom, {sessionId, focusedTurn: null})
 })
 
-/** Open at turn scope on a specific turn (the "Inspect turn" trigger). */
+/** Open focused on a specific turn (the "Inspect turn" trigger) — scrolls/highlights it. */
 export const openInspectorTurnAtom = atom(
     null,
     (_get, set, {sessionId, turn}: {sessionId: string; turn: number}) => {
         if (!sessionId) return
-        set(inspectorTargetAtom, {sessionId, scope: "turn", targetTurn: turn})
+        set(inspectorTargetAtom, {sessionId, focusedTurn: turn})
     },
 )
 

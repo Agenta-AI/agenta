@@ -43,10 +43,9 @@ import {
     buildDriveTree,
     filterDriveTree,
     humanSize,
-    isMarkdownPath,
-    relativeTime,
     type DriveTreeNode,
 } from "./driveTree"
+import {DriveFileMetaList} from "./fileMeta"
 import {DriveFileBody, resolveDriveFileKind} from "./renderers"
 import {type SessionDriveData} from "./useSessionDrive"
 
@@ -61,33 +60,31 @@ const SCOPE_META = {
 
 export type DriveScope = keyof typeof SCOPE_META
 
-export const driveFileIcon = (path: string, size = 14) => {
+/** The kind glyph. Pass `colorClassName` (e.g. "text-current") to override the per-kind tint so
+ * the icon inherits its container's colour — used by the inline file pill so the glyph reads in
+ * the link accent. */
+export const driveFileIcon = (path: string, size = 14, colorClassName?: string) => {
+    const c = (semantic: string) => colorClassName ?? semantic
     switch (resolveDriveFileKind(path)) {
         case "markdown":
-            return <FileText size={size} className="text-[#4fd1b5]" />
+            return <FileText size={size} className={c("text-[#4fd1b5]")} />
         case "json":
-            return <BracketsCurly size={size} className="text-colorWarning" />
+            return <BracketsCurly size={size} className={c("text-colorWarning")} />
         case "code":
-            return <FileCode size={size} className="text-colorInfo" />
+            return <FileCode size={size} className={c("text-colorInfo")} />
         case "csv":
-            return <Table size={size} className="text-colorInfo" />
+            return <Table size={size} className={c("text-colorInfo")} />
         case "image":
-            return <ImageSquare size={size} className="text-[#7fb0ff]" />
+            return <ImageSquare size={size} className={c("text-[#7fb0ff]")} />
         case "pdf":
-            return <FilePdf size={size} className="text-colorError" />
+            return <FilePdf size={size} className={c("text-colorError")} />
         case "audio":
-            return <MusicNotes size={size} className="text-[#4fd1b5]" />
+            return <MusicNotes size={size} className={c("text-[#4fd1b5]")} />
         case "video":
-            return <VideoCamera size={size} className="text-colorWarning" />
+            return <VideoCamera size={size} className={c("text-colorWarning")} />
         default:
-            return <File size={size} className="text-colorTextTertiary" />
+            return <File size={size} className={c("text-colorTextTertiary")} />
     }
-}
-
-export const fileTypeLabel = (path: string): string => {
-    if (isMarkdownPath(path)) return "Markdown"
-    const ext = path.split(".").pop()
-    return ext && ext !== path ? ext.toUpperCase() : "File"
 }
 
 /** Breadcrumb root label. Mount slugs are the RESERVED form (`__ag__<uuid5>__cwd`) — surface
@@ -227,16 +224,11 @@ const DriveFilePreview = ({
             </div>
 
             <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                    <div className="truncate font-mono text-[13px] font-semibold">{name}</div>
-                    <div className="text-[11px] text-colorTextTertiary">
-                        {fileTypeLabel(path)}
-                        {size != null ? <> · {humanSize(size)}</> : null}
-                        {touchedAt ? <> · modified {relativeTime(touchedAt)}</> : null}
-                    </div>
-                </div>
+                <div className="truncate font-mono text-[13px] font-semibold">{name}</div>
                 <DriveFileDownloadButton mount={mount} path={path} />
             </div>
+
+            <DriveFileMetaList mount={mount} path={path} size={size} touchedAt={touchedAt} />
 
             <DriveFileContentViewer mount={mount} path={path} size={size} />
         </div>
@@ -417,7 +409,9 @@ export function DriveDrawer({
             open={open}
             onClose={onClose}
             placement="right"
-            width={720}
+            // Two-pane (240px file tree + preview). Widen by the tree width so the preview column
+            // matches the standalone chat Files drawer's ~720px single-pane content.
+            width={960}
             destroyOnClose
             closeOnLayoutClick={false}
             title={

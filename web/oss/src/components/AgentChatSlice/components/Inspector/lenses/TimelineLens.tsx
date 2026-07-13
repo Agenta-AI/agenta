@@ -1,23 +1,18 @@
 /**
  * TimelineLens (build-spec §4.1) — the default lens; absorbs the old Timeline + Records +
- * Interactions tabs. Records-backed (cross-device). Session scope: turns as collapsible groups;
- * Turn scope: one turn, flat + expanded. Density Readable (labelled events) / Indexed (flat list).
- * Filter All / Tools / Interactions (badge = interaction count).
+ * Interactions tabs. Records-backed (cross-device). Reacts to the panel scope selector: Session =
+ * all turns as collapsible groups; a focused turn = that turn's events, flat + expanded. Filter
+ * All / Tools / Interactions (badge = count in the current scope).
  */
 import {useMemo, useState} from "react"
 
 import {sessionRecordsQueryFamily} from "@agenta/entities/session"
 import {CaretRight} from "@phosphor-icons/react"
-import {Badge, Segmented, Skeleton} from "antd"
+import {Badge, Segmented, Skeleton, Tooltip} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {EventList} from "../EventRow"
-import {
-    inspectorDensityAtom,
-    inspectorFilterAtom,
-    type InspectorScope,
-    type TimelineFilter,
-} from "../state"
+import {inspectorFilterAtom, type TimelineFilter} from "../state"
 import {
     buildTimeline,
     formatWallClock,
@@ -40,18 +35,18 @@ const turnTotal = (group: TurnGroup): string =>
 const TurnGroupCard = ({
     group,
     defaultOpen,
-    onDrill,
+    onFocus,
 }: {
     group: TurnGroup
     defaultOpen: boolean
-    onDrill?: (turn: number) => void
+    onFocus?: (turn: number) => void
 }) => {
     const [open, setOpen] = useState(defaultOpen)
     const statusColor =
         group.status === "error" ? "#f0857c" : group.status === "running" ? "#e0b050" : "#8fd07a"
     return (
         <div className="border-0 border-b border-solid border-[#24262b]">
-            {/* Caret toggles expand; the header body drills into Turn scope (build-spec §3). */}
+            {/* Caret toggles expand; the header body FOCUSES the turn (scopes the whole panel to it). */}
             <div className="flex w-full items-center gap-2 px-2 py-2 hover:bg-[#212327]">
                 <button
                     type="button"
@@ -67,9 +62,9 @@ const TurnGroupCard = ({
                 </button>
                 <button
                     type="button"
-                    onClick={() => (onDrill ? onDrill(group.turn) : setOpen((v) => !v))}
+                    onClick={() => (onFocus ? onFocus(group.turn) : setOpen((v) => !v))}
                     className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
-                    title={onDrill ? "Inspect this turn" : undefined}
+                    title={onFocus ? "Focus this turn" : undefined}
                 >
                     <span className="text-xs font-medium">Turn {group.turn}</span>
                     <span
@@ -96,32 +91,28 @@ const TurnGroupCard = ({
 
 export function TimelineLens({
     sessionId,
-    scope,
-    targetTurn,
+    focusedTurn,
     onDrillTurn,
 }: {
     sessionId: string
-    scope: InspectorScope
-    targetTurn?: number | null
+    focusedTurn?: number | null
     onDrillTurn?: (turn: number) => void
 }) {
     const query = useAtomValue(sessionRecordsQueryFamily(sessionId))
     const [filter, setFilter] = useAtom(inspectorFilterAtom)
-    const [density, setDensity] = useAtom(inspectorDensityAtom)
 
     const {turns, filteredFlat, interactionCount} = useMemo(() => {
-        const {events, turns} = buildTimeline(query.data)
-        const scoped =
-            scope === "turn" && targetTurn != null
-                ? turns.filter((t) => t.turn === targetTurn)
-                : turns
-        const flat = scoped.flatMap((t) => t.events).filter((e) => matchesFilter(e, filter))
-        const interactions = events.filter((e) => e.type === "interaction_request").length
+        const {turns} = buildTimeline(query.data)
+        // Scope to the focused turn (if any), then filter within it.
+        const scoped = focusedTurn != null ? turns.filter((t) => t.turn === focusedTurn) : turns
+        const scopedEvents = scoped.flatMap((t) => t.events)
+        const flat = scopedEvents.filter((e) => matchesFilter(e, filter))
+        const interactions = scopedEvents.filter((e) => e.type === "interaction_request").length
         const filteredTurns = scoped
             .map((t) => ({...t, events: t.events.filter((e) => matchesFilter(e, filter))}))
             .filter((t) => t.events.length > 0)
         return {turns: filteredTurns, filteredFlat: flat, interactionCount: interactions}
-    }, [query.data, scope, targetTurn, filter])
+    }, [query.data, filter, focusedTurn])
 
     if (query.isPending)
         return (
@@ -135,52 +126,48 @@ export function TimelineLens({
         )
 
     const empty = filteredFlat.length === 0
-    // Turn scope OR Indexed density = one flat list; Readable + Session = grouped turns.
-    const flatMode = scope === "turn" || density === "indexed"
+    // A focused turn shows its events flat + expanded; the whole session shows turns as groups.
+    const flatMode = focusedTurn != null
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-[#2a2c30] px-2 py-1.5">
-                <Segmented
-                    value={filter}
-                    onChange={(v) => setFilter(v as TimelineFilter)}
-                    options={[
-                        {label: "All", value: "all"},
-                        {label: "Tools", value: "tools"},
-                        {
-                            label: (
-                                <span className="flex items-center gap-1.5">
-                                    Interactions
-                                    {interactionCount > 0 ? (
-                                        <Badge
-                                            count={interactionCount}
-                                            size="small"
-                                            style={{background: "#e0b050", color: "#0f1012"}}
-                                        />
-                                    ) : null}
-                                </span>
-                            ),
-                            value: "interactions",
-                        },
-                    ]}
-                />
-                <div className="ml-auto">
+                <Tooltip
+                    title="Filter events — all, only tool calls & results, or only interactions (approvals & inputs)."
+                    placement="bottom"
+                    mouseEnterDelay={0.4}
+                >
                     <Segmented
-                        value={density}
-                        onChange={(v) => setDensity(v as typeof density)}
+                        value={filter}
+                        onChange={(v) => setFilter(v as TimelineFilter)}
                         options={[
-                            {label: "Readable", value: "readable"},
-                            {label: "Indexed", value: "indexed"},
+                            {label: "All", value: "all"},
+                            {label: "Tools", value: "tools"},
+                            {
+                                label: (
+                                    <span className="flex items-center gap-1.5">
+                                        Interactions
+                                        {interactionCount > 0 ? (
+                                            <Badge
+                                                count={interactionCount}
+                                                size="small"
+                                                style={{background: "#e0b050", color: "#0f1012"}}
+                                            />
+                                        ) : null}
+                                    </span>
+                                ),
+                                value: "interactions",
+                            },
                         ]}
                     />
-                </div>
+                </Tooltip>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
                 {empty ? (
                     <div className="p-6 text-center text-xs text-colorTextTertiary">
                         {filter === "interactions"
-                            ? "No interactions in this " + (scope === "turn" ? "turn." : "session.")
+                            ? `No interactions in this ${focusedTurn != null ? "turn" : "session"}.`
                             : "No events yet."}
                     </div>
                 ) : flatMode ? (
@@ -191,7 +178,7 @@ export function TimelineLens({
                             key={group.turn}
                             group={group}
                             defaultOpen={turns.length <= 2 || group.status === "running"}
-                            onDrill={onDrillTurn}
+                            onFocus={onDrillTurn}
                         />
                     ))
                 )}

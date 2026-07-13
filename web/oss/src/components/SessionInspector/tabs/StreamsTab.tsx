@@ -3,7 +3,7 @@ import {useState} from "react"
 import {deriveStreamNest} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
-import {Alert, Button, Descriptions, Popconfirm, Skeleton, Space, Tag} from "antd"
+import {Alert, Button, Popconfirm, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {isSessionStreamingAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
@@ -17,7 +17,9 @@ import {
 } from "../store"
 
 const NestBadge = ({on, label}: {on: boolean; label: string}) => (
-    <Tag color={on ? "green" : "default"}>{label}</Tag>
+    <Tag color={on ? "green" : "default"} className="m-0">
+        {label}
+    </Tag>
 )
 
 const StreamsTab = ({sessionId}: {sessionId: string}) => {
@@ -98,31 +100,44 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
     const nest = deriveStreamNest(data)
 
     return (
-        <Space direction="vertical" size="middle" className="w-full">
-            <Space wrap>
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-1.5">
                 <NestBadge on={nest.isAlive} label="alive" />
                 <NestBadge on={nest.isRunning} label="running" />
                 <NestBadge on={nest.isAttached || localStreaming} label="attached" />
-            </Space>
-            <Space wrap size={4}>
-                {nest.resumable && <Tag color="blue">resumable</Tag>}
-                {nest.reattachable && <Tag color="gold">reattachable</Tag>}
-            </Space>
+                {nest.resumable ? (
+                    <Tag color="blue" className="m-0">
+                        resumable
+                    </Tag>
+                ) : null}
+                {nest.reattachable ? (
+                    <Tag color="gold" className="m-0">
+                        reattachable
+                    </Tag>
+                ) : null}
+            </div>
 
-            <Descriptions column={1} size="small" bordered>
-                <Descriptions.Item label="stream_id">
-                    <span className="font-mono text-xs">{data?.id ?? "—"}</span>
-                </Descriptions.Item>
-                <Descriptions.Item label="turn_id">
-                    <span className="font-mono text-xs">{data?.turn_id ?? "—"}</span>
-                </Descriptions.Item>
-                <Descriptions.Item label="status">{data?.status?.code ?? "—"}</Descriptions.Item>
-                <Descriptions.Item label="watcher_id (this client)">
-                    <span className="font-mono text-xs">{watcherId ?? "—"}</span>
-                </Descriptions.Item>
-            </Descriptions>
+            {/* Wrapping key/value (long UUIDs must break, never widen the panel). */}
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+                <dt className="text-colorTextTertiary">stream_id</dt>
+                <dd className="m-0 min-w-0 break-all font-mono text-colorTextSecondary">
+                    {data?.id ?? "—"}
+                </dd>
+                <dt className="text-colorTextTertiary">turn_id</dt>
+                <dd className="m-0 min-w-0 break-all font-mono text-colorTextSecondary">
+                    {data?.turn_id ?? "—"}
+                </dd>
+                <dt className="text-colorTextTertiary">status</dt>
+                <dd className="m-0 min-w-0 break-all text-colorTextSecondary">
+                    {data?.status?.code ?? "—"}
+                </dd>
+                <dt className="text-colorTextTertiary">watcher_id</dt>
+                <dd className="m-0 min-w-0 break-all font-mono text-colorTextSecondary">
+                    {watcherId ?? "—"}
+                </dd>
+            </dl>
 
-            <Space wrap>
+            <div className="flex flex-wrap gap-2">
                 <Button
                     onClick={onAttach}
                     loading={busy}
@@ -142,8 +157,8 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
                         Kill
                     </Button>
                 </Popconfirm>
-            </Space>
-        </Space>
+            </div>
+        </div>
     )
 }
 

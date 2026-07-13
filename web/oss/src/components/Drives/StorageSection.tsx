@@ -24,24 +24,34 @@ import {
 
 import {useAgentDrive} from "./agentDrive"
 import {DriveDrawer} from "./DriveDrawer"
+import {DriveFileRow} from "./DriveFileRow"
 import {humanSize, relativeTime} from "./driveTree"
+import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {useSessionDrive, type DriveRecentFile, type SessionDriveData} from "./useSessionDrive"
 
 const {Text} = Typography
 
-const RecentFileRow = ({file, onOpen}: {file: DriveRecentFile; onOpen: () => void}) => (
-    <button
-        type="button"
-        onClick={onOpen}
-        className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary"
-    >
-        <span className="min-w-0 truncate font-mono text-xs">{file.path}</span>
-        <span className="ml-auto shrink-0 text-[11px] text-colorTextTertiary">
-            {humanSize(file.size)}
-            {file.touchedAt ? <> · {relativeTime(file.touchedAt)}</> : null}
-        </span>
-        <CaretRight size={11} className="shrink-0 text-colorTextQuaternary" />
-    </button>
+const RecentFileRow = ({
+    file,
+    recent,
+    onOpen,
+}: {
+    file: DriveRecentFile
+    recent?: boolean
+    onOpen: () => void
+}) => (
+    <DriveFileRow
+        path={file.path}
+        label={file.path}
+        recent={recent}
+        trailing={
+            <>
+                {humanSize(file.size)}
+                {file.touchedAt ? <> · {relativeTime(file.touchedAt)}</> : null}
+            </>
+        }
+        onOpen={onOpen}
+    />
 )
 
 const SessionDriveBody = ({
@@ -52,6 +62,7 @@ const SessionDriveBody = ({
     onOpenDrawer: (initialPath: string | null) => void
 }) => {
     const drive = useSessionDrive(sessionId)
+    const now = useRecentChangeClock(drive.lastTouchedAt)
 
     if (drive.errored) {
         return (
@@ -73,6 +84,7 @@ const SessionDriveBody = ({
                         <RecentFileRow
                             key={file.path}
                             file={file}
+                            recent={isRecentlyChanged(file.touchedAt, now)}
                             onOpen={() => onOpenDrawer(file.path)}
                         />
                     ))}
@@ -181,11 +193,14 @@ const DriveRow = ({
     onOpenDrawer: (initialPath: string | null) => void
 }) => {
     const [open, setOpen] = useState(false)
+    const now = useRecentChangeClock(drive.lastTouchedAt)
+    const anyRecent = drive.recents.some((f) => isRecentlyChanged(f.touchedAt, now))
     return (
         <ConfigAccordionSection
             icon={icon}
             title={title}
             summary={drive.summary}
+            indicator={anyRecent ? {tone: "agent", tooltip: "Files updated just now"} : undefined}
             open={open}
             onOpenChange={setOpen}
         >
@@ -200,6 +215,7 @@ const DriveRow = ({
                                 <RecentFileRow
                                     key={file.path}
                                     file={file}
+                                    recent={isRecentlyChanged(file.touchedAt, now)}
                                     onOpen={() => onOpenDrawer(file.path)}
                                 />
                             ))}
@@ -235,12 +251,15 @@ const SessionDriveRow = ({
     // The summary requires the listing, so the row's queries are live whenever an active
     // session exists — they're low-priority + shared with every other drive surface.
     const drive = useSessionDrive(sessionId)
+    const now = useRecentChangeClock(drive.lastTouchedAt)
+    const anyRecent = drive.recents.some((f) => isRecentlyChanged(f.touchedAt, now))
 
     return (
         <ConfigAccordionSection
             icon={<ChatCircle size={16} style={{color: "#4fd1b5"}} />}
             title="Session drive"
             summary={sessionId ? drive.summary : "Per conversation"}
+            indicator={anyRecent ? {tone: "agent", tooltip: "Files updated just now"} : undefined}
             open={open}
             onOpenChange={setOpen}
             noDivider

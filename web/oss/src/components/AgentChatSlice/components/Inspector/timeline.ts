@@ -2,8 +2,8 @@
  * Records → timeline model (build-spec §5). Pure: turns the backend event log into typed events
  * grouped by turn. Turn boundaries come from `done` events (records carry no turn_id — verified
  * at the backend DTO; the runner writes a flat log delimited by `done`), so "Turn N" is the Nth
- * done-delimited group in record_index order. Cross-device: reads the durable records, never live
- * useChat state.
+ * done-delimited group in ingest (`created_at`) order — NOT record_index, which resets per turn.
+ * Cross-device: reads the durable records, never live useChat state.
  */
 import type {SessionRecord} from "@agenta/entities/session"
 
@@ -87,7 +87,16 @@ export function buildTimeline(records: SessionRecord[] | null | undefined): {
     events: TimelineEvent[]
     turns: TurnGroup[]
 } {
-    const sorted = [...(records ?? [])].sort((a, b) => (a.event_index ?? 0) - (b.event_index ?? 0))
+    // Mirror the backend read order (dao: `created_at asc, record_index asc`). `record_index`
+    // (= event_index) RESETS per turn (runner counter, persist.ts), so sorting on it alone
+    // interleaves turns (turn1.idx1, turn2.idx1, turn1.idx2, …) and breaks done-delimiting.
+    // created_at (ingest time) is the true global order; event_index only tiebreaks within a turn.
+    const sorted = [...(records ?? [])].sort((a, b) => {
+        const ta = toMs(a.created_at)
+        const tb = toMs(b.created_at)
+        if (ta != null && tb != null && ta !== tb) return ta - tb
+        return (a.event_index ?? 0) - (b.event_index ?? 0)
+    })
     const events: TimelineEvent[] = []
     let turn = 1
     for (const record of sorted) {
