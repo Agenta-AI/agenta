@@ -10,6 +10,7 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {querySessionRecords} from "../api/api"
+import {fileRecencyFromRecords} from "../core/fileActivity"
 import type {SessionRecord} from "../core/schema"
 
 export const sessionRecordsQueryKey = (projectId: string, sessionId: string) =>
@@ -28,6 +29,17 @@ export const sessionRecordsQueryFamily = atomFamily((sessionId: string) =>
             refetchOnWindowFocus: false,
         }
     }),
+)
+
+/** Durable per-file recency (newest write/edit timestamp per tool path) derived from the record
+ * log — the cross-device, reload-safe source of "which file is newest". Drive surfaces merge this
+ * with the live browser file-activity log (which only sees this tab's turns) so ordering is
+ * correct even for files created before this tab opened or on another device. Shares the records
+ * cache entry — no extra fetch beyond the one the query already makes. */
+export const sessionRecordFileRecencyAtomFamily = atomFamily((sessionId: string) =>
+    atom<Map<string, number>>((get) =>
+        fileRecencyFromRecords(get(sessionRecordsQueryFamily(sessionId)).data),
+    ),
 )
 
 /** Mark a session's records stale (a finished turn appends events). Active Inspector refetches

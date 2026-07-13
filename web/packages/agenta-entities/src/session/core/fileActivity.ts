@@ -88,3 +88,38 @@ export function mountPathMatchesToolPath(mountPath: string, toolPath: string): b
     if (tool === mount || tool.endsWith(`/${mount}`)) return true
     return false
 }
+
+/**
+ * Durable per-file recency from the session RECORD log (write/edit tool events), keyed by the
+ * tool path with its newest timestamp. Unlike the live browser file-activity log (this tab's
+ * observations only), records are the backend's durable stream — so this survives reload and is
+ * consistent across devices, which is what makes "newest file first" correct everywhere.
+ *
+ * Records are the entities `SessionRecord` shape (post-transform): a tool call carries
+ * `session_update === "tool_call"` and `payload` = the ACP event `{name, input}`; `created_at`
+ * is the ingest timestamp. Deletes are ignored (a deleted file won't be in the listing anyway).
+ */
+export function fileRecencyFromRecords(
+    records:
+        | Array<{
+              session_update?: string | null
+              payload?: unknown
+              created_at?: string | null
+          }>
+        | null
+        | undefined,
+): Map<string, number> {
+    const recency = new Map<string, number>()
+    for (const record of records ?? []) {
+        if (record.session_update !== "tool_call") continue
+        const payload = isRecord(record.payload) ? record.payload : null
+        const name = typeof payload?.name === "string" ? payload.name : ""
+        const activity = detectFileActivity(name, payload?.input)
+        if (!activity || activity.op === "delete") continue
+        const at = record.created_at ? Date.parse(record.created_at) : NaN
+        if (Number.isNaN(at)) continue
+        const prev = recency.get(activity.path) ?? 0
+        if (at > prev) recency.set(activity.path, at)
+    }
+    return recency
+}

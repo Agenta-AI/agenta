@@ -64,6 +64,7 @@ export {
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {
     sessionRecordsQueryFamily,
+    sessionRecordFileRecencyAtomFamily,
     revalidateSessionRecordsAtom,
     sessionRecordsQueryKey,
 } from "./state/records"
@@ -78,6 +79,7 @@ export {
 } from "./state/mounts"
 export {
     detectFileActivity,
+    fileRecencyFromRecords,
     mountPathMatchesToolPath,
     type FileActivity,
     type FileActivityOp,
