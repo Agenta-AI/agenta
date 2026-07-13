@@ -13,6 +13,26 @@ from agenta.sdk.agents import RunContextTrace, RunContextWorkflow
 from agenta.sdk.agents import tracing
 
 
+def test_trace_context_keeps_authorization_without_traceparent(monkeypatch):
+    monkeypatch.setattr(
+        tracing,
+        "inject",
+        lambda _headers: {"Authorization": "ApiKey invoke-credential"},
+    )
+
+    context = tracing.trace_context()
+
+    assert context is not None
+    assert context.traceparent is None
+    assert context.authorization == "ApiKey invoke-credential"
+
+
+def test_trace_context_none_without_traceparent_or_authorization(monkeypatch):
+    monkeypatch.setattr(tracing, "inject", lambda _headers: {})
+
+    assert tracing.trace_context() is None
+
+
 def test_run_context_keeps_trace_when_workflow_capture_fails(monkeypatch):
     # A failure reading the workflow references must not drop an otherwise-valid trace: a
     # trace-only run still ships `runContext.trace`.
