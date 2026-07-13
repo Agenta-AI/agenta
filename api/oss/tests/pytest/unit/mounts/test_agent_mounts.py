@@ -5,7 +5,11 @@ import pytest
 
 from oss.src.core.mounts.dtos import Mount, MountCreate
 from oss.src.core.mounts.service import MountsService, mint_agent_slug
-from oss.src.core.mounts.types import MountArtifactIdInvalid, MountSlugReserved
+from oss.src.core.mounts.types import (
+    MountArtifactIdInvalid,
+    MountArtifactNotFound,
+    MountSlugReserved,
+)
 
 
 class InMemoryMountsDAO:
@@ -179,3 +183,74 @@ async def test_create_rejects_forged_agent_slug(mount_context):
                 slug=f"__ag__agent__{uuid4()}__default", name="forged"
             ),
         )
+
+
+# --- Artifact verification (workflows_service wired) ------------------------ #
+
+
+class FakeStaticCatalog:
+    def __init__(self, static_ids):
+        self.static_ids = set(static_ids)
+
+    def is_static_id(self, entity_id):
+        return entity_id in self.static_ids
+
+
+class FakeWorkflowsService:
+    def __init__(self, *, known_ids=(), static_ids=()):
+        self.known_ids = {UUID(str(k)) for k in known_ids}
+        self.static_catalog = (
+            FakeStaticCatalog({UUID(str(s)) for s in static_ids})
+            if static_ids
+            else None
+        )
+        self.fetch_calls = 0
+
+    async def fetch_workflow(self, *, project_id, workflow_ref, include_archived=True):
+        self.fetch_calls += 1
+        return object() if workflow_ref.id in self.known_ids else None
+
+
+@pytest.mark.asyncio
+async def test_sign_verifies_artifact_exists():
+    dao = InMemoryMountsDAO()
+    artifact_id = str(uuid4())
+    workflows = FakeWorkflowsService(known_ids=[artifact_id])
+    service = MountsService(mounts_dao=dao, workflows_service=workflows)
+
+    mount = await service.get_or_create_agent_mount(
+        project_id=uuid4(), user_id=uuid4(), artifact_id=artifact_id
+    )
+
+    assert mount is not None
+    assert workflows.fetch_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_sign_rejects_unknown_artifact_without_creating():
+    dao = InMemoryMountsDAO()
+    workflows = FakeWorkflowsService()
+    service = MountsService(mounts_dao=dao, workflows_service=workflows)
+
+    with pytest.raises(MountArtifactNotFound):
+        await service.get_or_create_agent_mount(
+            project_id=uuid4(), user_id=uuid4(), artifact_id=str(uuid4())
+        )
+
+    assert dao.upsert_calls == 0
+    assert dao.mounts == {}
+
+
+@pytest.mark.asyncio
+async def test_sign_accepts_static_catalog_artifact_without_db_lookup():
+    dao = InMemoryMountsDAO()
+    artifact_id = str(uuid4())
+    workflows = FakeWorkflowsService(static_ids=[artifact_id])
+    service = MountsService(mounts_dao=dao, workflows_service=workflows)
+
+    mount = await service.get_or_create_agent_mount(
+        project_id=uuid4(), user_id=uuid4(), artifact_id=artifact_id
+    )
+
+    assert mount is not None
+    assert workflows.fetch_calls == 0

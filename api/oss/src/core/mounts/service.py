@@ -1,6 +1,9 @@
 from re import fullmatch, sub
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID, uuid5, NAMESPACE_DNS
+
+if TYPE_CHECKING:
+    from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.core.mounts.dtos import (
     Mount,
@@ -19,6 +22,7 @@ from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
+    MountArtifactNotFound,
     MountFileNotFound,
     MountNameInvalid,
     MountNotFound,
@@ -26,7 +30,7 @@ from oss.src.core.mounts.types import (
     MountSlugReserved,
     MountStorageUnavailable,
 )
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Reference, Windowing
 
 # Folder/file path segments: word chars, dots, spaces, hyphens — no path traversal.
 _SEGMENT_RE = r"[\w. -]+"
@@ -65,13 +69,13 @@ def slugify_mount_name(name: str) -> str:
 
 
 def mint_session_slug(*, session_id: str, name: str) -> str:
-    """Stored slug for a session mount: __ag__<uuid5(session)>__<slugified-name>.
+    """Stored slug for a session mount: __ag__session__<uuid5(session)>__<slugified-name>.
 
-    The full dashed uuid5 keeps it deterministic (re-attach the same files) and
-    project-unique without truncation, so the existing unique(project_id, slug)
-    constraint holds for both session and non-session mounts.
+    The uuid5 keeps it deterministic (re-attach the same files) and project-unique
+    without truncation, so the existing unique(project_id, slug) constraint holds
+    for both session and non-session mounts.
     """
-    return f"{_RESERVED_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+    return f"{_RESERVED_SLUG_PREFIX}session__{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
 
 
 def mint_agent_slug(*, artifact_id: str, name: str) -> str:
@@ -121,11 +125,13 @@ class MountsService:
         mounts_store: Optional[ObjectStore] = None,
         bucket: Optional[str] = None,
         namespace: Optional[str] = None,
+        workflows_service: Optional["WorkflowsService"] = None,
     ):
         self.mounts_dao = mounts_dao
         self.mounts_store = mounts_store
         self.bucket = bucket
         self.namespace = namespace
+        self.workflows_service = workflows_service
 
     def _storage_key(self, *, project_id: UUID, mount: Mount, path: str = "") -> str:
         """Object-key prefix for a mount: [<namespace>/]mounts/<project_id>/<mount_id>/<path>.
@@ -204,6 +210,33 @@ class MountsService:
             mount_create=mount_create,
         )
 
+    async def _verify_agent_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: str,
+    ) -> None:
+        """The bound artifact must exist in the project; static-catalog ids resolve in code, not the DB."""
+        if self.workflows_service is None:
+            return
+
+        try:
+            artifact_uuid = UUID(str(artifact_id))
+        except (ValueError, TypeError, AttributeError) as e:
+            raise MountArtifactIdInvalid(str(artifact_id)) from e
+
+        static_catalog = self.workflows_service.static_catalog
+        if static_catalog is not None and static_catalog.is_static_id(artifact_uuid):
+            return
+
+        workflow = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=artifact_uuid),
+            include_archived=False,
+        )
+        if workflow is None:
+            raise MountArtifactNotFound(str(artifact_id))
+
     async def get_or_create_agent_mount(
         self,
         *,
@@ -213,6 +246,11 @@ class MountsService:
         name: str = "default",
     ) -> Mount:
         """Bind idempotently one durable mount for an artifact, keyed by name."""
+        await self._verify_agent_artifact(
+            project_id=project_id,
+            artifact_id=artifact_id,
+        )
+
         slug_name = slugify_mount_name(name)
         mount_create = MountCreate(
             slug=mint_agent_slug(artifact_id=artifact_id, name=name),
