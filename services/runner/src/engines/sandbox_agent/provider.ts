@@ -38,6 +38,16 @@ export function daytonaNetworkFields(
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
 export const DEFAULT_DAYTONA_AUTODELETE_MINUTES = 30;
 
+/**
+ * Treat empty or whitespace-only env values as absent. Compose renders unset variables as
+ * `${VAR:-}` -> "" inside the container, and `??` keeps that empty string, which would
+ * silently discard the fallback variable.
+ */
+function nonEmpty(rawValue: string | undefined): string | undefined {
+  const trimmed = rawValue?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 function positiveMinutes(rawValue: string | undefined, fallback: number): number {
   const parsed = Number(rawValue);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
@@ -73,7 +83,8 @@ export function buildDaytonaCreate(
 ): Record<string, unknown> {
   // Agent override first, then the snapshot shared with the code evaluators.
   const snapshot =
-    process.env.DAYTONA_SNAPSHOT_AGENT ?? process.env.DAYTONA_SNAPSHOT;
+    nonEmpty(process.env.DAYTONA_SNAPSHOT_AGENT) ??
+    nonEmpty(process.env.DAYTONA_SNAPSHOT);
   const target = process.env.DAYTONA_TARGET;
   return {
     // The sandbox-agent provider always sets a default `image`, which Daytona turns into a

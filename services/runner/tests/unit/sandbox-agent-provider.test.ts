@@ -126,6 +126,24 @@ describe("buildDaytonaCreate (lifecycle on the create object)", () => {
     delete process.env["DAYTONA_SNAPSHOT_AGENT"];
   });
 
+  it("falls back to the shared snapshot when the agent var is empty (Compose ${VAR:-} renders unset as \"\")", () => {
+    process.env["DAYTONA_SNAPSHOT_AGENT"] = "";
+    process.env["DAYTONA_SNAPSHOT"] = "daytona-small";
+    const create = buildDaytonaCreate({}, {}, undefined);
+    assert.equal(create.snapshot, "daytona-small");
+    delete process.env["DAYTONA_SNAPSHOT"];
+    delete process.env["DAYTONA_SNAPSHOT_AGENT"];
+  });
+
+  it("omits the snapshot when both vars are empty strings", () => {
+    process.env["DAYTONA_SNAPSHOT_AGENT"] = "";
+    process.env["DAYTONA_SNAPSHOT"] = "";
+    const create = buildDaytonaCreate({}, {}, undefined);
+    assert.equal("snapshot" in create, false);
+    delete process.env["DAYTONA_SNAPSHOT"];
+    delete process.env["DAYTONA_SNAPSHOT_AGENT"];
+  });
+
   it("carries the env-configured intervals", () => {
     process.env["DAYTONA_AUTOSTOP"] = "5";
     process.env["DAYTONA_AUTODELETE"] = "120";
