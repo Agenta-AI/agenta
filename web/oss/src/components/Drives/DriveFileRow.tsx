@@ -72,10 +72,16 @@ export const DriveFileRow = ({
                 style={recent ? {boxShadow: `inset 2px 0 0 ${AGENT_ACCENT}`} : undefined}
             >
                 <span className="shrink-0">{driveFileIcon(path)}</span>
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
-                {origin === "agent" ? <OriginTag /> : null}
+                {/* Name + tag are one left-aligned group so the tag hugs the filename and the size
+                    stays in its own right-aligned column (tagged and untagged rows line up). */}
+                <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span className="min-w-0 truncate font-mono text-xs">{name}</span>
+                    {origin === "agent" ? <OriginTag /> : null}
+                </span>
                 {trailing != null ? (
-                    <span className="shrink-0 text-[11px] text-colorTextTertiary">{trailing}</span>
+                    <span className="shrink-0 text-right text-[11px] tabular-nums text-colorTextTertiary">
+                        {trailing}
+                    </span>
                 ) : null}
             </button>
         )
