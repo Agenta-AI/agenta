@@ -21,6 +21,15 @@ export const AGENT_FILES_DIR = "agent-files"
 
 const cleanPath = (p: string): string => p.replace(/^\/+|\/+$/g, "")
 
+/** Where a presented drive path comes from: the durable per-agent mount (`agent-files/…`, shared
+ * across the agent's sessions) or the ephemeral session cwd. Drives it visually + the grid filter. */
+export type FileOrigin = "session" | "agent"
+
+export const fileOrigin = (path: string): FileOrigin => {
+    const rel = cleanPath(path)
+    return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`) ? "agent" : "session"
+}
+
 export interface DriveRecentFile extends MountFile {
     /** Best-effort last-touched timestamp — from the file-activity signal log. The listing
      * carries NO mtime (backend ask: thread S3 LastModified through `MountFile`), so recency

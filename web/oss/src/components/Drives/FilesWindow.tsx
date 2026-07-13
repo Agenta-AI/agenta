@@ -16,11 +16,12 @@ import {useDriveArtifactId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {useSessionDrive} from "./useSessionDrive"
+import {fileOrigin, useSessionDrive, type FileOrigin} from "./useSessionDrive"
 
 const {Text} = Typography
 
 type SortKey = "recent" | "name" | "size"
+type OriginFilter = "all" | FileOrigin
 
 export default function FilesWindow({
     sessionId,
@@ -38,19 +39,27 @@ export default function FilesWindow({
     const [view, setView] = useState<"grid" | "list">("grid")
     const [search, setSearch] = useState("")
     const [sort, setSort] = useState<SortKey>("recent")
+    const [origin, setOrigin] = useState<OriginFilter>("all")
+
+    // Offer the agent/session filter only when the drive actually holds both kinds.
+    const mixed = useMemo(() => {
+        const kinds = new Set(drive.recents.map((f) => fileOrigin(f.path)))
+        return kinds.has("agent") && kinds.has("session")
+    }, [drive.recents])
 
     const shown = useMemo(() => {
         const q = search.trim().toLowerCase()
-        const filtered = q
-            ? drive.recents.filter((f) => f.path.toLowerCase().includes(q))
-            : drive.recents
+        let filtered = drive.recents
+        if (mixed && origin !== "all")
+            filtered = filtered.filter((f) => fileOrigin(f.path) === origin)
+        if (q) filtered = filtered.filter((f) => f.path.toLowerCase().includes(q))
         if (sort === "recent") return filtered // recents are already recency-ordered
         return [...filtered].sort((a, b) =>
             sort === "name"
                 ? (a.path.split("/").pop() ?? "").localeCompare(b.path.split("/").pop() ?? "")
                 : (b.size ?? 0) - (a.size ?? 0),
         )
-    }, [drive.recents, search, sort])
+    }, [drive.recents, search, sort, origin, mixed])
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -64,6 +73,17 @@ export default function FilesWindow({
                 <div className="ml-auto flex items-center gap-2">
                     {view === "grid" ? (
                         <>
+                            {mixed ? (
+                                <Segmented
+                                    value={origin}
+                                    onChange={(v) => setOrigin(v as OriginFilter)}
+                                    options={[
+                                        {value: "all", label: "All"},
+                                        {value: "agent", label: "Agent"},
+                                        {value: "session", label: "Session"},
+                                    ]}
+                                />
+                            ) : null}
                             <Input
                                 allowClear
                                 value={search}

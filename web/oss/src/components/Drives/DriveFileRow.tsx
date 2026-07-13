@@ -18,12 +18,23 @@ import {type Mount} from "@agenta/entities/session"
 
 import {driveFileIcon} from "./DriveDrawer"
 import {FileThumb} from "./FileThumb"
-import {type DriveRecentFile} from "./useSessionDrive"
+import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
 
 // Agent-teal, matching the config self-commit indicator, for a file that just changed.
 const AGENT_ACCENT = "var(--ag-c-13C2C2, #13c2c2)"
 
 export type DriveFileVariant = "row" | "card" | "tile"
+
+/** A small teal pill marking a file that lives in the agent's durable mount (shared across the
+ * agent's sessions), distinguishing it from ephemeral session-cwd files. */
+const OriginTag = () => (
+    <span
+        className="inline-flex shrink-0 items-center rounded px-1 align-middle text-[10px] font-medium leading-[15px]"
+        style={{color: AGENT_ACCENT, border: `1px solid ${AGENT_ACCENT}`}}
+    >
+        Agent
+    </span>
+)
 
 export const DriveFileRow = ({
     path,
@@ -50,6 +61,7 @@ export const DriveFileRow = ({
     mount?: Mount | null
 }) => {
     const name = label ?? path.split("/").pop() ?? path
+    const origin = fileOrigin(path)
 
     if (variant === "row") {
         return (
@@ -61,17 +73,23 @@ export const DriveFileRow = ({
             >
                 <span className="shrink-0">{driveFileIcon(path)}</span>
                 <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
+                {origin === "agent" ? <OriginTag /> : null}
                 {trailing != null ? (
-                    <span className="ml-auto shrink-0 text-[11px] text-colorTextTertiary">
-                        {trailing}
-                    </span>
+                    <span className="shrink-0 text-[11px] text-colorTextTertiary">{trailing}</span>
                 ) : null}
             </button>
         )
     }
 
-    // card / tile — thumbnail-forward, "avg user friendly".
-    const folder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null
+    // card / tile — thumbnail-forward, "avg user friendly". Agent files show their path relative to
+    // `agent-files/` (the tag already conveys the origin); session files show their raw folder.
+    const rawFolder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null
+    const folder =
+        origin === "agent"
+            ? rawFolder === AGENT_FILES_DIR
+                ? null
+                : (rawFolder?.slice(AGENT_FILES_DIR.length + 1) ?? null)
+            : rawFolder
     const thumb = file ? (
         <FileThumb file={file} mount={mount ?? null} />
     ) : (
@@ -83,8 +101,13 @@ export const DriveFileRow = ({
         ? {borderColor: AGENT_ACCENT, boxShadow: `0 0 0 1px ${AGENT_ACCENT}`}
         : undefined
     const meta =
-        folder || trailing != null ? (
+        origin === "agent" || folder || trailing != null ? (
             <>
+                {origin === "agent" ? (
+                    <>
+                        <OriginTag />{" "}
+                    </>
+                ) : null}
                 {folder ? <>{folder} · </> : null}
                 {trailing}
             </>
