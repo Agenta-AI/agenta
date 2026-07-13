@@ -131,6 +131,7 @@ import {
 } from "./sandbox_agent/teardown.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
 import { DaytonaReconnectTerminalError } from "./sandbox_agent/daytona-provider.ts";
+import { materializeDaytonaMcpServers } from "./sandbox_agent/daytona-secret-provider.ts";
 import {
   buildRunPlan,
   type BuildRunPlanDeps,
@@ -696,9 +697,7 @@ export async function acquireEnvironment(
     } catch (err) {
       return {
         ok: false,
-        error: redactor.redactError(
-          conciseError(err, request.harness ?? ""),
-        ),
+        error: redactor.redactError(conciseError(err, request.harness ?? "")),
       };
     }
   }
@@ -761,7 +760,8 @@ export async function acquireEnvironment(
   // inherits NONE of the sidecar's own provider keys, so only the resolved model environment is
   // present and an inherited key for another provider cannot leak. For runtime_provided/none/
   // un-migrated runs the harness uses its own login, so the inherited keys stay.
-  const clearProviderEnv = plan.credentialMode === "env";
+  const clearProviderEnv =
+    plan.credentialMode === "env" || plan.credentialMode === "none";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
   });
@@ -939,13 +939,13 @@ export async function acquireEnvironment(
     if (!parked && !plan.isDaytona && environment.agentMountedPath) {
       const agentMountSafeToDelete = await (
         environment.deps.unmountStorage ?? unmountStorage
-      )(
-        environment.agentMountedPath,
-        { log },
-      ).catch(() => false);
+      )(environment.agentMountedPath, { log }).catch(() => false);
       if (agentMountSafeToDelete) {
         try {
-          rmSync(environment.agentMountedPath, { recursive: true, force: true });
+          rmSync(environment.agentMountedPath, {
+            recursive: true,
+            force: true,
+          });
         } catch (err) {
           logger(
             `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
@@ -1141,6 +1141,7 @@ export async function acquireEnvironment(
       piExtEnv,
       plan.modelEnvironment,
       plan.sandboxPermission,
+      plan.daytonaSecretPlan,
     );
     const startOptions = {
       sandbox: sandboxProvider,
@@ -1235,6 +1236,7 @@ export async function acquireEnvironment(
     if (plan.isDaytona) {
       await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
         sandbox: environment.sandbox,
+        extensionEnv: piExtEnv,
         plan,
         log: logger,
       });
@@ -1339,12 +1341,9 @@ export async function acquireEnvironment(
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
-          await linkAgentFilesRemote(
-            environment.sandbox,
-            plan.cwd,
-            mountPath,
-            { log: logger },
-          );
+          await linkAgentFilesRemote(environment.sandbox, plan.cwd, mountPath, {
+            log: logger,
+          });
           await activateAgentMountGuidance();
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
@@ -1427,7 +1426,10 @@ export async function acquireEnvironment(
       harness: plan.harness,
       isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
-      userMcpServers: request.mcpServers,
+      userMcpServers: materializeDaytonaMcpServers(
+        sandboxProvider,
+        request.mcpServers,
+      ),
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
@@ -1685,6 +1687,19 @@ export async function runTurn(
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
+  // A parked environment can resume with freshly minted caller, callback, telemetry, model, and
+  // MCP credentials. Extend the same mutable redactor before any per-turn log/event/trace sink.
+  env.redactor.withKnownSecrets([
+    ...(request.modelConnection?.credentials ?? []).map(
+      (credential) => credential.value,
+    ),
+    ...(request.mcpServers ?? []).flatMap((server) =>
+      (server.credentials ?? []).map((credential) => credential.value),
+    ),
+    runCredential(request),
+    request.toolCallback?.authorization,
+    request.telemetry?.exporters?.otlp?.headers?.authorization,
+  ]);
   const sessionId = env.sessionId;
   // Reset the per-turn tool-call id record (the park folds the completed turn's ids into the
   // expected next-history fingerprint).

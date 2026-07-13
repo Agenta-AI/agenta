@@ -27,6 +27,7 @@ import factory, {
   readOtlpAuthFile,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
 
 const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
@@ -38,6 +39,7 @@ const TOOL_ENV = [
   "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
   "AGENTA_AGENT_BUILTIN_GATING",
   "AGENTA_AGENT_BUILTIN_GRANTS",
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
 ];
 
 /** A fake extension UI context whose `confirm` records its calls and returns a scripted answer. */
@@ -60,13 +62,18 @@ function fakeDialogCtx(answer: boolean | (() => Promise<boolean>)) {
 
 function fakePi(opts: { activeTools?: string[]; allTools?: string[] } = {}) {
   const registered: any[] = [];
+  const registeredProviders: Array<{ name: string; config: unknown }> = [];
   const handlers: Record<string, any[]> = {};
   let activeTools = opts.activeTools ?? [];
   return {
     registered,
+    registeredProviders,
     handlers,
     registerTool(spec: any) {
       registered.push(spec);
+    },
+    registerProvider(name: string, config: unknown) {
+      registeredProviders.push({ name, config });
     },
     on(event: string, handler: any) {
       (handlers[event] ??= []).push(handler);
@@ -88,6 +95,44 @@ function clearEnv() {
 }
 
 afterEach(clearEnv);
+
+describe("agenta extension model provider override", () => {
+  it("overrides the built-in provider during extension initialization", () => {
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
+    const pi = fakePi();
+
+    factory(pi as any);
+
+    assert.deepEqual(pi.registeredProviders, [
+      {
+        name: "anthropic",
+        config: { baseUrl: "https://proxy.example.test/anthropic" },
+      },
+    ]);
+    assert.equal(pi.registered.length, 0);
+    assert.deepEqual(pi.handlers, {});
+  });
+
+  it("rejects malformed public override config before registration", () => {
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "http://proxy.example.test",
+    });
+    const pi = fakePi();
+
+    assert.throws(() => factory(pi as any), /must be an HTTPS URL/);
+    assert.deepEqual(pi.registeredProviders, []);
+
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = "";
+    assert.throws(() => factory(pi as any), /must be valid JSON/);
+    assert.deepEqual(pi.registeredProviders, []);
+  });
+});
 
 describe("agenta extension tool registration", () => {
   it("registers one tool per public spec, schema passed through", () => {

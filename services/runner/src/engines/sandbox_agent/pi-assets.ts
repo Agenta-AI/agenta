@@ -13,6 +13,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
+import {
+  encodePiModelProviderOverride,
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+} from "../../extensions/model-provider-override.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
@@ -64,6 +68,14 @@ export function buildPiExtensionEnv(
   if (telemetry && opts.skills && opts.skills.length > 0)
     env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
 
+  const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
+  if (modelBaseUrl !== undefined) {
+    env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
+      provider: request.modelConnection?.provider,
+      baseUrl: modelBaseUrl,
+    });
+  }
+
   const specs = advertisedToolSpecs(
     (request.customTools as ResolvedToolSpec[]) ?? [],
   );
@@ -108,15 +120,20 @@ export function writeOtlpAuthFile(
   }
 }
 
-/** Install the extension bundle into a local Pi agent dir's extensions/. Best-effort. */
+/** Install the extension bundle into a local Pi agent dir's extensions/. */
 export function installPiExtensionLocal(
   agentDir: string,
   log: Log = () => {},
+  required = false,
 ): void {
   if (!existsSync(EXTENSION_BUNDLE)) {
-    log(
-      `pi extension bundle missing at ${EXTENSION_BUNDLE} (run build:extension)`,
-    );
+    const message = `pi extension bundle missing at ${EXTENSION_BUNDLE} (run build:extension)`;
+    if (required) {
+      throw new Error(
+        `Pi model endpoint override requires the Agenta extension: ${message}`,
+      );
+    }
+    log(message);
     return;
   }
   try {
@@ -124,7 +141,13 @@ export function installPiExtensionLocal(
     mkdirSync(dir, { recursive: true });
     copyFileSync(EXTENSION_BUNDLE, join(dir, "agenta.js"));
   } catch (err) {
-    log(`pi extension install skipped: ${(err as Error).message}`);
+    const message = `pi extension install skipped: ${(err as Error).message}`;
+    if (required) {
+      throw new Error(
+        `Pi model endpoint override requires the Agenta extension: ${message}`,
+      );
+    }
+    log(message);
   }
 }
 
@@ -181,13 +204,22 @@ export async function uploadSystemPromptToSandbox(
   }
 }
 
-/** Upload the extension bundle into a Daytona sandbox's Pi extensions dir. Best-effort. */
+/** Upload the extension bundle into a Daytona sandbox's Pi extensions dir. */
 export async function uploadPiExtensionToSandbox(
   sandbox: any,
   agentDir: string,
   log: Log = () => {},
+  required = false,
 ): Promise<void> {
-  if (!existsSync(EXTENSION_BUNDLE)) return;
+  if (!existsSync(EXTENSION_BUNDLE)) {
+    const message = `pi extension bundle missing at ${EXTENSION_BUNDLE} (run build:extension)`;
+    if (required) {
+      throw new Error(
+        `Pi model endpoint override requires the Agenta extension: ${message}`,
+      );
+    }
+    return;
+  }
   try {
     const dir = `${agentDir}/extensions`;
     await sandbox.mkdirFs({ path: dir });
@@ -196,7 +228,13 @@ export async function uploadPiExtensionToSandbox(
       readFileSync(EXTENSION_BUNDLE, "utf-8"),
     );
   } catch (err) {
-    log(`pi extension upload skipped: ${(err as Error).message}`);
+    const message = `pi extension upload skipped: ${(err as Error).message}`;
+    if (required) {
+      throw new Error(
+        `Pi model endpoint override requires the Agenta extension: ${message}`,
+      );
+    }
+    log(message);
   }
 }
 
@@ -225,6 +263,7 @@ export function prepareLocalAgentDir(
   sourceAgentDir: string,
   skillDirs: MaterializedSkill[],
   log: Log = () => {},
+  requireExtension = false,
 ): string {
   const dir = mkdtempSync(join(tmpdir(), "agenta-pi-agentdir-"));
   for (const name of ["auth.json", "settings.json"]) {
@@ -235,7 +274,7 @@ export function prepareLocalAgentDir(
       log(`agent-dir seed skipped for ${name}: ${(err as Error).message}`);
     }
   }
-  installPiExtensionLocal(dir, log);
+  installPiExtensionLocal(dir, log, requireExtension);
   installSkillsLocal(dir, skillDirs, log);
   return dir;
 }
@@ -266,12 +305,14 @@ export function prepareLocalPiAssets({
   log = () => {},
 }: PrepareLocalPiAssetsInput): string | undefined {
   if (!plan.isPi || plan.isDaytona) return undefined;
+  const requireExtension = env[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined;
 
   if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
     const runAgentDir = prepareLocalAgentDir(
       plan.sourcePiAgentDir,
       plan.skillDirs,
       log,
+      requireExtension,
     );
     if (plan.hasSystemPrompt) {
       writeSystemPromptLocal(
@@ -286,8 +327,17 @@ export function prepareLocalPiAssets({
   }
 
   if (process.env.PI_CODING_AGENT_DIR) {
-    installPiExtensionLocal(process.env.PI_CODING_AGENT_DIR, log);
+    installPiExtensionLocal(
+      process.env.PI_CODING_AGENT_DIR,
+      log,
+      requireExtension,
+    );
   } else {
+    if (requireExtension) {
+      throw new Error(
+        "Pi model endpoint override requires the Agenta extension, but PI_CODING_AGENT_DIR is unset",
+      );
+    }
     // unset here means this run has no Agenta extension (tracing + tools); warn so it's visible.
     log(
       "PI_CODING_AGENT_DIR is unset; plain local Pi run has no Agenta extension installed",

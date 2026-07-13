@@ -17,13 +17,17 @@ import {
   DEFAULT_DAYTONA_AUTODELETE_MINUTES,
   buildDaytonaCreate,
   buildSandboxProvider,
+  daytonaCreateFingerprint,
   daytonaAutoStopMinutes,
   daytonaAutoDeleteMinutes,
   daytonaNetworkFields,
 } from "../../src/engines/sandbox_agent/provider.ts";
+import { buildDaytonaSecretPlan } from "../../src/engines/sandbox_agent/daytona-secret-plan.ts";
 
 const LIFECYCLE_ENVS = ["DAYTONA_AUTOSTOP", "DAYTONA_AUTODELETE"];
-const previous = Object.fromEntries(LIFECYCLE_ENVS.map((k) => [k, process.env[k]]));
+const previous = Object.fromEntries(
+  LIFECYCLE_ENVS.map((k) => [k, process.env[k]]),
+);
 
 afterEach(() => {
   for (const k of LIFECYCLE_ENVS) {
@@ -74,6 +78,48 @@ describe("daytonaNetworkFields", () => {
   });
 });
 
+describe("daytonaCreateFingerprint", () => {
+  const secretPlan = {
+    environment: {},
+    candidates: [],
+  };
+
+  it("changes for local_use values and Pi custom endpoint routing", () => {
+    const fingerprint = (
+      piExtEnv: Record<string, string>,
+      environment: Record<string, string>,
+    ) =>
+      daytonaCreateFingerprint({
+        image: "runner-image",
+        create: buildDaytonaCreate(piExtEnv, environment, undefined),
+        secretPlan,
+      });
+
+    const base = fingerprint(
+      { AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE: '{"baseUrl":"https://a.test"}' },
+      { AWS_PROFILE: "profile-a" },
+    );
+    assert.notEqual(
+      base,
+      fingerprint(
+        {
+          AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE: '{"baseUrl":"https://a.test"}',
+        },
+        { AWS_PROFILE: "profile-b" },
+      ),
+    );
+    assert.notEqual(
+      base,
+      fingerprint(
+        {
+          AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE: '{"baseUrl":"https://b.test"}',
+        },
+        { AWS_PROFILE: "profile-a" },
+      ),
+    );
+  });
+});
+
 describe("daytona lifecycle interval parsers", () => {
   it("use the env value when it is a positive integer", () => {
     assert.equal(daytonaAutoStopMinutes("30"), 30);
@@ -85,26 +131,75 @@ describe("daytona lifecycle interval parsers", () => {
   });
 
   it("fall back to their defaults when the env is unset", () => {
-    assert.equal(daytonaAutoStopMinutes(undefined), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
-    assert.equal(daytonaAutoDeleteMinutes(undefined), DEFAULT_DAYTONA_AUTODELETE_MINUTES);
+    assert.equal(
+      daytonaAutoStopMinutes(undefined),
+      DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
+    );
+    assert.equal(
+      daytonaAutoDeleteMinutes(undefined),
+      DEFAULT_DAYTONA_AUTODELETE_MINUTES,
+    );
   });
 
   it("fall back to the default for a non-numeric env value", () => {
-    assert.equal(daytonaAutoStopMinutes("soon"), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
+    assert.equal(
+      daytonaAutoStopMinutes("soon"),
+      DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
+    );
   });
 
   it("clamp 0 and negatives to the default (a disabled reaper would leak)", () => {
     assert.equal(daytonaAutoStopMinutes("0"), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
-    assert.equal(daytonaAutoDeleteMinutes("-5"), DEFAULT_DAYTONA_AUTODELETE_MINUTES);
+    assert.equal(
+      daytonaAutoDeleteMinutes("-5"),
+      DEFAULT_DAYTONA_AUTODELETE_MINUTES,
+    );
   });
 
   it("orders the defaults stop before delete", () => {
     assert.ok(DEFAULT_DAYTONA_AUTOSTOP_MINUTES >= 1);
-    assert.ok(DEFAULT_DAYTONA_AUTOSTOP_MINUTES < DEFAULT_DAYTONA_AUTODELETE_MINUTES);
+    assert.ok(
+      DEFAULT_DAYTONA_AUTOSTOP_MINUTES < DEFAULT_DAYTONA_AUTODELETE_MINUTES,
+    );
   });
 });
 
 describe("buildDaytonaCreate (lifecycle on the create object)", () => {
+  it("carries Secret names separately and never puts opaque plaintext in env/config", () => {
+    const opaque = "marker-opaque-plaintext";
+    const plan = buildDaytonaSecretPlan({
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: opaque,
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
+    const create = buildDaytonaCreate(
+      { PUBLIC_EXTENSION_CONFIG: "enabled" },
+      { ...plan.environment, AWS_REGION: "us-east-1" },
+      undefined,
+      { ANTHROPIC_API_KEY: "agenta_random_secret_name" },
+    );
+    assert.deepEqual(create.secrets, {
+      ANTHROPIC_API_KEY: "agenta_random_secret_name",
+    });
+    assert.deepEqual(create.envVars, {
+      PI_CODING_AGENT_DIR: "/home/sandbox/.pi/agent",
+      PUBLIC_EXTENSION_CONFIG: "enabled",
+      AWS_REGION: "us-east-1",
+      PI_ACP_PI_COMMAND: "/home/sandbox/.agenta-pi/node_modules/.bin/pi",
+    });
+    assert.equal(JSON.stringify(create).includes(opaque), false);
+  });
+
   it("carries stop and delete intervals without auto-archive by default", () => {
     for (const k of LIFECYCLE_ENVS) delete process.env[k];
     const create = buildDaytonaCreate({}, {}, undefined);

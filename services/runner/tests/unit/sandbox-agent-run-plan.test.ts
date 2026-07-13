@@ -660,7 +660,10 @@ describe("buildRunPlan", () => {
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on this remote sandbox provider/);
+      assert.match(
+        result.error,
+        /non-Pi harness on this remote sandbox provider/,
+      );
       assert.match(result.error, /proven for Daytona only/);
       assert.match(
         result.error,
@@ -984,6 +987,7 @@ describe("buildRunPlan", () => {
   });
 
   it("normalizes a Daytona Claude run without Pi-only state", () => {
+    process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
     const result = buildRunPlan(
       {
         harness: "claude",
@@ -1017,7 +1021,8 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
     assert.equal(result.plan.usageOutPath, undefined);
     assert.equal(result.plan.harnessApiKeyVar, "ANTHROPIC_API_KEY");
-    assert.equal(result.plan.hasApiKey, true);
+    assert.equal(result.plan.hasApiKey, false);
+    assert.equal(result.plan.modelEnvironment.ANTHROPIC_API_KEY, undefined);
     // The resolved credentialMode is carried onto the plan (drives clear-then-apply + the
     // OAuth-upload gate).
     assert.equal(result.plan.credentialMode, "env");
@@ -1299,5 +1304,61 @@ describe("modelConnection validation", () => {
       AWS_REGION: "us-east-1",
       AWS_ACCESS_KEY_ID: "AKIA",
     });
+  });
+
+  it("does not require an HTTP endpoint for local_use credentials", () => {
+    const result = buildRunPlan({
+      ...base,
+      modelConnection: connection({
+        provider: "anthropic",
+        deployment: "vertex_ai",
+        endpoint: undefined,
+        credentials: [
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: "/tmp/adc.json",
+            usage: "local_use",
+          },
+        ],
+      }),
+    } as AgentRunRequest);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(
+      result.plan.modelEnvironment.GOOGLE_APPLICATION_CREDENTIALS,
+      "/tmp/adc.json",
+    );
+  });
+
+  it("fails legacy top-level credential fields instead of treating the run as unmanaged", () => {
+    for (const field of [
+      "secrets",
+      "provider",
+      "deployment",
+      "credentialMode",
+      "endpoint",
+      "connection",
+    ]) {
+      let created = false;
+      const result = buildRunPlan(
+        {
+          ...base,
+          [field]:
+            field === "secrets" ? { OPENAI_API_KEY: "legacy" } : "legacy",
+        } as AgentRunRequest,
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/unused";
+          },
+        },
+      );
+      assert.equal(result.ok, false, field);
+      if (!result.ok) assert.match(result.error, /modelConnection object/);
+      assert.equal(created, false, field);
+    }
   });
 });

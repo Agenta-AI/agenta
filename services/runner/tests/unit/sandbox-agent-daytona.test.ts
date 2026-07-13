@@ -17,8 +17,10 @@ import {
   createCookieFetch,
   daytonaEnvVars,
   installPiInSandbox,
+  prepareDaytonaPiAssets,
   uploadPiAuthToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
 
 const envKeys = ["PI_CODING_AGENT_DIR", "AGENTA_AGENT_SANDBOX_PI_INSTALLED"];
 const previousEnv = new Map<string, string | undefined>();
@@ -107,6 +109,59 @@ describe("installPiInSandbox", () => {
         timeoutMs: 180_000,
       },
     ]);
+  });
+});
+
+describe("prepareDaytonaPiAssets", () => {
+  const piPlan = {
+    isPi: true,
+    hasApiKey: true,
+    credentialMode: "env" as const,
+    skillDirs: [],
+    hasSystemPrompt: false,
+    systemPrompt: undefined,
+    appendSystemPrompt: undefined,
+  };
+
+  function brokenExtensionUploadSandbox() {
+    return {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        throw new Error("remote write denied");
+      },
+      runProcess: async () => ({ exitCode: 0 }),
+    };
+  }
+
+  it("fails instead of falling back to the provider default when override upload fails", async () => {
+    await assert.rejects(
+      () =>
+        prepareDaytonaPiAssets({
+          sandbox: brokenExtensionUploadSandbox(),
+          extensionEnv: {
+            [PI_MODEL_PROVIDER_OVERRIDE_ENV]: JSON.stringify({
+              provider: "anthropic",
+              baseUrl: "https://proxy.example.test/anthropic",
+            }),
+          },
+          plan: piPlan,
+        }),
+      /model endpoint override requires the Agenta extension.*remote write denied/,
+    );
+  });
+
+  it("keeps Daytona extension upload best-effort without an endpoint override", async () => {
+    const logs: string[] = [];
+
+    await assert.doesNotReject(() =>
+      prepareDaytonaPiAssets({
+        sandbox: brokenExtensionUploadSandbox(),
+        extensionEnv: {},
+        plan: piPlan,
+        log: (message) => logs.push(message),
+      }),
+    );
+    assert.ok(logs.some((message) => message.includes("upload skipped")));
   });
 });
 

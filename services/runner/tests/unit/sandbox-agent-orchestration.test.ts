@@ -444,8 +444,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     assert.equal(
-      (calls.providerArgs[1] as Record<string, string>)
-        .AGENTA_AGENT_MOUNT_DIR,
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       `${cwd}-agent`,
     );
     assert.match(
@@ -488,8 +487,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     assert.equal(
-      (calls.providerArgs[1] as Record<string, string>)
-        .AGENTA_AGENT_MOUNT_DIR,
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
     assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
@@ -1419,7 +1417,12 @@ describe("runSandboxAgent orchestration", () => {
       {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1431,6 +1434,27 @@ describe("runSandboxAgent orchestration", () => {
     assert.deepEqual(calls.daemonOptions, { clearProviderEnv: false });
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_BASE_URL, undefined);
+  });
+
+  it("clears inherited provider env when the resolved credential mode is none", async () => {
+    const { calls, deps } = fakeHarness();
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+        },
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: true });
   });
 });
 

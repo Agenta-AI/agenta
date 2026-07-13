@@ -32,6 +32,11 @@ import {
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
 import { buildTurnText } from "./transcript.ts";
+import {
+  assertDaytonaOpaqueSecretsEnabled,
+  buildDaytonaSecretPlan,
+  type DaytonaSecretPlan,
+} from "./daytona-secret-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -80,6 +85,8 @@ export interface RunPlan {
   agentsMd?: string;
   /** Final plaintext model environment, after validating modelConnection. */
   modelEnvironment: Record<string, string>;
+  /** Process-local opaque credential plan. Present only for Daytona runs. */
+  daytonaSecretPlan?: DaytonaSecretPlan;
   /**
    * Harness key name used only to decide whether the harness has an API key after the typed
    * connection is materialized. It never selects a provider.
@@ -137,7 +144,25 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  { ok: true; plan: RunPlan } | { ok: false; error: string };
+  | { ok: true; plan: RunPlan }
+  | { ok: false; error: string };
+
+const LEGACY_MODEL_CREDENTIAL_FIELDS = [
+  "secrets",
+  "provider",
+  "deployment",
+  "credentialMode",
+  "endpoint",
+  "connection",
+] as const;
+
+function legacyModelCredentialFields(request: AgentRunRequest): string[] {
+  if (request.modelConnection) return [];
+  const raw = request as unknown as Record<string, unknown>;
+  return LEGACY_MODEL_CREDENTIAL_FIELDS.filter(
+    (field) => Object.hasOwn(raw, field) && raw[field] !== undefined,
+  );
+}
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
@@ -308,19 +333,19 @@ export function materializeModelEnvironment(
         error: "modelConnection credential usage is invalid",
       };
     }
-    try {
-      const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
-      if (endpoint.protocol !== "https:" || !endpoint.hostname) {
-        throw new Error("invalid endpoint");
+    if (credential.usage === "opaque_http") {
+      try {
+        const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
+        if (endpoint.protocol !== "https:" || !endpoint.hostname) {
+          throw new Error("invalid endpoint");
+        }
+      } catch {
+        return {
+          ok: false,
+          error:
+            "opaque_http model credentials require an effective HTTPS endpoint",
+        };
       }
-    } catch {
-      return {
-        ok: false,
-        error:
-          credential.usage === "opaque_http"
-            ? "opaque_http model credentials require an effective HTTPS endpoint"
-            : "local_use model credentials require an effective HTTPS endpoint",
-      };
     }
     if (Object.hasOwn(environment, name)) {
       return {
@@ -351,6 +376,15 @@ export function buildRunPlan(
 ): BuildRunPlanResult {
   const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || sandboxProvider || "local";
+  const legacyFields = legacyModelCredentialFields(request);
+  if (legacyFields.length > 0) {
+    return {
+      ok: false,
+      error:
+        `Legacy top-level model credential fields are not supported (${legacyFields.join(", ")}); ` +
+        "send the resolved modelConnection object.",
+    };
+  }
 
   // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
   // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both
@@ -385,7 +419,25 @@ export function buildRunPlan(
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
-  const modelEnvironment = materializedModel.environment;
+  let daytonaSecretPlan: DaytonaSecretPlan | undefined;
+  if (isDaytona) {
+    try {
+      daytonaSecretPlan = buildDaytonaSecretPlan({
+        modelConnection: request.modelConnection,
+        mcpServers: request.mcpServers,
+      });
+      assertDaytonaOpaqueSecretsEnabled(daytonaSecretPlan);
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+  // Local keeps its existing direct environment. Daytona removes every opaque_http value and
+  // passes only non-secret config plus explicitly local_use credentials to sandbox create.
+  const modelEnvironment =
+    daytonaSecretPlan?.environment ?? materializedModel.environment;
   const harnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
@@ -564,6 +616,7 @@ export function buildRunPlan(
       turnText: buildTurnText(request, log),
       agentsMd: request.agentsMd?.trim() || undefined,
       modelEnvironment,
+      daytonaSecretPlan,
       harnessApiKeyVar,
       hasApiKey: !!modelEnvironment[harnessApiKeyVar],
       credentialMode: materializedModel.credentialMode,
