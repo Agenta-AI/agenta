@@ -17,8 +17,9 @@ TypeScript, so any field change has to move both sides and their tests at once.
 - [Runner to harness](runner-to-harness.md): how the runner drives Pi or Claude over ACP.
 - [Runner to tool callback](runner-to-tool-callback.md): how runner tools call back into
   Agenta so secrets stay server-side.
-- [Runner to MCP server](runner-to-mcp-server.md): the stdio bridge and file relay for
-  non-Pi tool delivery.
+- [Runner to MCP server](runner-to-mcp-server.md): the internal gateway-tool channel
+  (loopback HTTP locally, an in-sandbox stdio shim on Daytona), user MCP delivery, and the
+  file relay for non-Pi tool delivery.
 - [Service to vault and tool providers](service-to-vault-and-tool-providers.md): credential
   and tool resolution before the run.
 - [Service and runner trace export](service-and-runner-trace-export.md): trace context in,

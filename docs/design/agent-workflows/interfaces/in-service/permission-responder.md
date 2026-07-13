@@ -65,8 +65,14 @@ slice, for Pi's own builtins too: the bundled Pi extension's `tool_call` hook re
 builtin call over the relay directory as a permission record, and the relay decides it
 through this same `decide()` before answering. Both gates call the same
 `effectivePermission`/`decide` pair from `permission-plan.ts`, so they can never disagree
-about a tool's permission. The relay only needs to enforce on Pi, since Claude's Gate 1 and
-Gate 2 already decide before a call reaches the relay.
+about a tool's permission. The relay's DIALOG enforcement is only needed on Pi, since
+Claude's Gate 1 and Gate 2 already decide before a call reaches the relay. Separately, the
+relay re-checks every execute record with a runner-side execution guard on EVERY harness
+(`buildRelayExecutionGuard`, `services/runner/src/engines/sandbox_agent/relay-guard.ts`): the
+relay dir is sandbox-writable, so a forged request file must never run a denied tool. `ask`
+splits by harness there — Pi consumes a dialog-recorded execution grant; a non-Pi MCP harness
+passes `ask` because its own dialog gated the call before the shim. See the relay-guard notes
+in [runner-to-mcp-server](../cross-service/runner-to-mcp-server.md).
 
 ## Owned by
 

@@ -1,4 +1,4 @@
-import {useState, type ReactNode} from "react"
+import {useRef, useState, type ReactNode} from "react"
 
 import {ClockCountdown, Lightning} from "@phosphor-icons/react"
 import {Empty, Popover, Spin} from "antd"
@@ -37,6 +37,7 @@ export function EventSourcePicker({
     placement = "bottomRight",
     waitLabel = "Wait for a new event",
     waitHint,
+    autoWaitOnOpen,
 }: {
     /** The element that opens the popover (a button). */
     trigger: ReactNode
@@ -49,30 +50,46 @@ export function EventSourcePicker({
     placement?: "bottomRight" | "topRight" | "bottomLeft" | "topLeft"
     waitLabel?: string
     waitHint?: string
+    /** Start the live capture immediately when the popover opens (single-click test). */
+    autoWaitOnOpen?: boolean
 }) {
     const [open, setOpen] = useState(false)
     const [waiting, setWaiting] = useState(false)
-    const handleOpenChange = (next: boolean) => {
-        setOpen(next)
-        onOpenChange?.(next)
-    }
+    const settledRef = useRef(false)
 
     const pick = (event: SampledEvent) => {
+        settledRef.current = true
         setOpen(false)
         onPick(event)
     }
 
     const wait = async () => {
-        if (!onWaitForEvent) return
+        if (!onWaitForEvent || waiting) return
         setWaiting(true)
         try {
             const event = await onWaitForEvent()
-            if (event) {
+            if (event && !settledRef.current) {
+                settledRef.current = true
                 setOpen(false)
                 onPick(event)
             }
+        } catch {
+            // Callers surface their own error before rejecting; swallow so the fire-and-forget
+            // `void wait()` never becomes an unhandled rejection.
         } finally {
             setWaiting(false)
+        }
+    }
+
+    const handleOpenChange = (next: boolean) => {
+        setOpen(next)
+        onOpenChange?.(next)
+        if (next) {
+            settledRef.current = false
+            if (autoWaitOnOpen && onWaitForEvent) void wait()
+        } else {
+            // A wait resolving after the popover closed must not fire onPick.
+            settledRef.current = true
         }
     }
 

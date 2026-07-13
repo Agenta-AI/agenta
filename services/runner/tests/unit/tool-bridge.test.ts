@@ -6,11 +6,11 @@
  * Claude + gateway tools. This restores it: the runner stands up a loopback HTTP MCP endpoint
  * (no runner-host child process) advertising the run's executable tools, and returns a
  * `type: "http"` MCP server entry pointing at it. Execution relays back to the runner where the
- * private spec / callback auth are applied — the channel itself carries only public metadata.
+ * private spec / callback auth are applied. The advertisement carries only public tool metadata
+ * plus a per-server bearer token for the loopback endpoint.
  *
- * These tests assert: an executable run yields one internal http server (no secrets in the
- * advertisement), the no-tools / client-only path stays a no-op, and the served MCP endpoint
- * advertises the public spec and routes a `tools/call` through the relay dir.
+ * These tests assert the authenticated endpoint lifecycle, request validation, batch behavior,
+ * public tool advertisement, and server-side `tools/call` relay.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/tool-bridge.test.ts)
  */
@@ -41,33 +41,52 @@ const relayDir = "/tmp/agenta-tools";
 
 /** Track every started server so we always release its port. */
 const started: ToolMcpServersResult[] = [];
+const authorizationByUrl = new Map<string, string>();
 async function build(...args: Parameters<typeof buildToolMcpServers>) {
   const result = await buildToolMcpServers(...args);
   started.push(result);
+  for (const server of result.servers) {
+    const authorization = server.headers.find(
+      (header) => header.name.toLowerCase() === "authorization",
+    )?.value;
+    if (authorization) authorizationByUrl.set(server.url, authorization);
+  }
   return result;
 }
 
 afterEach(async () => {
   await Promise.all(started.map((s) => s.close()));
   started.length = 0;
+  authorizationByUrl.clear();
 });
 
-/** One JSON-RPC POST to the internal MCP server, returning the parsed JSON response. */
-async function rpc(url: string, body: unknown): Promise<any> {
-  const res = await fetch(url, {
+function authorizationFor(url: string): string {
+  const authorization = authorizationByUrl.get(url);
+  assert.ok(authorization, `missing advertised Authorization header for ${url}`);
+  return authorization;
+}
+
+async function postRaw(url: string, body: string): Promise<Response> {
+  return fetch(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
+      authorization: authorizationFor(url),
     },
-    body: JSON.stringify(body),
+    body,
   });
+}
+
+/** One authenticated JSON-RPC POST, returning the parsed JSON response. */
+async function rpc(url: string, body: unknown): Promise<any> {
+  const res = await postRaw(url, JSON.stringify(body));
   if (res.status === 202) return undefined;
   return res.json();
 }
 
 describe("buildToolMcpServers (internal gateway-tool channel)", () => {
-  it("starts one internal http server for an executable callback run, with NO credentials", async () => {
+  it("starts one internal http server with a per-server bearer credential", async () => {
     const specs: ResolvedToolSpec[] = [
       {
         name: "search",
@@ -91,16 +110,36 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       /^http:\/\/127\.0\.0\.1:\d+\/mcp$/,
       "loopback url",
     );
-    assert.deepEqual(
-      server.headers,
-      [],
-      "no secret header — the channel carries no credential",
-    );
+    assert.equal(server.headers.length, 1);
+    assert.equal(server.headers[0].name, "Authorization");
+    assert.match(server.headers[0].value, /^Bearer [A-Za-z0-9_-]{43}$/);
     // The advertisement must not leak the private callRef anywhere.
     assert.ok(
       !JSON.stringify(server).includes("composio.search"),
       "the server entry never carries the private callRef",
     );
+  });
+
+  it("rotates the bearer token for each server instance", async () => {
+    const specs: ResolvedToolSpec[] = [
+      { name: "search", kind: "callback", callRef: "composio.search" },
+    ];
+    const first = await build(specs, relayDir);
+    const second = await build(specs, relayDir);
+
+    const firstAuthorization = authorizationFor(first.servers[0].url);
+    const secondAuthorization = authorizationFor(second.servers[0].url);
+    assert.notEqual(firstAuthorization, secondAuthorization);
+
+    const response = await fetch(first.servers[0].url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: secondAuthorization,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    assert.equal(response.status, 401, "a different server's token is rejected");
   });
 
   it("starts the server for a callback run too (executable)", async () => {
@@ -146,6 +185,64 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
   });
 
   describe("the served MCP endpoint", () => {
+    it("authenticates every method and token shape before either executor can run", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "agenta-tool-auth-"));
+      let clientDispatchCount = 0;
+      const clientToolRelay: ClientToolRelay = {
+        onClientTool: async () => {
+          clientDispatchCount += 1;
+          return "deny";
+        },
+      };
+      try {
+        const { servers } = await build(
+          [
+            { name: "search", kind: "callback", callRef: "composio.search" },
+            { name: "confirm", kind: "client" },
+          ],
+          dir,
+          { clientToolRelay },
+        );
+        const url = servers[0].url;
+        const token = authorizationFor(url).slice("Bearer ".length);
+
+        for (const method of ["GET", "DELETE"]) {
+          const response = await fetch(url, { method });
+          assert.equal(response.status, 401, `unauthenticated ${method}`);
+          assert.equal(((await response.json()) as any).error.code, -32001);
+        }
+
+        const request = JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "search", arguments: { q: "hi" } },
+        });
+        for (const authorization of [
+          "Basic " + token,
+          "Bearer",
+          "Bearer  " + token,
+          "Bearer\t" + token,
+        ]) {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization,
+            },
+            body: request,
+          });
+          assert.equal(response.status, 401, authorization);
+          assert.equal(((await response.json()) as any).error.code, -32001);
+        }
+
+        assert.deepEqual(readdirSync(dir), [], "the callback executor never publishes a request");
+        assert.equal(clientDispatchCount, 0, "the client relay is never invoked");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
     it("answers initialize / tools/list (public spec only, client filtered)", async () => {
       const specs: ResolvedToolSpec[] = [
         {
@@ -302,6 +399,75 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       assert.match(out.error.message, /unknown tool/);
     });
 
+    it("keeps non-client batch behavior unchanged", async () => {
+      const specs: ResolvedToolSpec[] = [
+        { name: "search", kind: "callback", callRef: "composio.search" },
+      ];
+      const { servers } = await build(specs, relayDir);
+      const out = await rpc(servers[0].url, [
+        { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+        { jsonrpc: "2.0", id: 2, method: "tools/list" },
+      ]);
+
+      assert.ok(Array.isArray(out));
+      assert.equal(out.length, 2);
+      assert.equal(out[0].result.serverInfo.name, "agenta-tools");
+      assert.equal(out[1].result.tools[0].name, "search");
+    });
+
+    it("returns a JSON-RPC parse error for malformed JSON", async () => {
+      const specs: ResolvedToolSpec[] = [
+        { name: "search", kind: "callback", callRef: "composio.search" },
+      ];
+      const { servers } = await build(specs, relayDir);
+      const response = await postRaw(servers[0].url, "{not-json");
+      const body = (await response.json()) as any;
+
+      assert.equal(response.status, 400);
+      assert.equal(body.error.code, -32700);
+      assert.equal(body.id, null);
+    });
+
+    it("rejects a request body larger than one megabyte", async () => {
+      const specs: ResolvedToolSpec[] = [
+        { name: "search", kind: "callback", callRef: "composio.search" },
+      ];
+      const { servers } = await build(specs, relayDir);
+      let response: Response | undefined;
+      let transportRejected = false;
+      try {
+        response = await postRaw(servers[0].url, "x".repeat(1_000_001));
+      } catch {
+        transportRejected = true;
+      }
+
+      assert.ok(
+        transportRejected || (response !== undefined && !response.ok),
+        "the oversized request must not be accepted",
+      );
+    });
+
+    it("closes the listening socket normally", async () => {
+      const specs: ResolvedToolSpec[] = [
+        { name: "search", kind: "callback", callRef: "composio.search" },
+      ];
+      const result = await build(specs, relayDir);
+      const url = result.servers[0].url;
+      const authorization = authorizationFor(url);
+
+      await result.close();
+      started.splice(started.indexOf(result), 1);
+      authorizationByUrl.delete(url);
+
+      await assert.rejects(() =>
+        fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+        }),
+      );
+    });
+
     it("accepts a notification with no response (202)", async () => {
       const specs: ResolvedToolSpec[] = [
         { name: "search", kind: "callback", callRef: "composio.search" },
@@ -325,6 +491,98 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         properties: { integration: { type: "string" } },
       },
     } as unknown as ResolvedToolSpec;
+
+    it("rejects missing and wrong bearer tokens before dispatch", async () => {
+      let dispatchCount = 0;
+      const relay: ClientToolRelay = {
+        onClientTool: async () => {
+          dispatchCount += 1;
+          return "deny";
+        },
+      };
+      const { servers } = await build([clientSpec], relayDir, {
+        clientToolRelay: relay,
+      });
+      const request = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "request_connection",
+          arguments: { integration: "slack" },
+        },
+      });
+
+      const missing = await fetch(servers[0].url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: request,
+      });
+      assert.equal(missing.status, 401);
+      assert.equal(((await missing.json()) as any).error.code, -32001);
+
+      const wrong = await fetch(servers[0].url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer wrong",
+        },
+        body: request,
+      });
+      assert.equal(wrong.status, 401);
+      assert.equal(((await wrong.json()) as any).error.code, -32001);
+      assert.equal(dispatchCount, 0, "unauthenticated requests dispatch nothing");
+    });
+
+    it("rejects a batch containing a client tool before executing any item", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "agenta-tool-batch-"));
+      let clientDispatchCount = 0;
+      const relay: ClientToolRelay = {
+        onClientTool: async () => {
+          clientDispatchCount += 1;
+          return "deny";
+        },
+      };
+      try {
+        const { servers } = await build(
+          [
+            { name: "search", kind: "callback", callRef: "composio.search" },
+            clientSpec,
+          ],
+          dir,
+          { clientToolRelay: relay },
+        );
+        const response = await postRaw(
+          servers[0].url,
+          JSON.stringify([
+            {
+              jsonrpc: "2.0",
+              id: 1,
+              method: "tools/call",
+              params: { name: "search", arguments: { q: "hi" } },
+            },
+            {
+              jsonrpc: "2.0",
+              id: 2,
+              method: "tools/call",
+              params: {
+                name: "request_connection",
+                arguments: { integration: "slack" },
+              },
+            },
+          ]),
+        );
+        const body = (await response.json()) as any;
+
+        assert.equal(response.status, 400);
+        assert.equal(body.error.code, -32600);
+        assert.ok(!Array.isArray(body), "the batch gets one JSON-RPC error");
+        assert.equal(clientDispatchCount, 0, "the client relay is never called");
+        assert.deepEqual(readdirSync(dir), [], "the executable sibling is never dispatched");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
 
     it("advertises client tools in tools/list when a relay is wired", async () => {
       const relay: ClientToolRelay = {
@@ -371,6 +629,7 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
             headers: {
               "content-type": "application/json",
               accept: "application/json, text/event-stream",
+              authorization: authorizationFor(servers[0].url),
             },
             body: JSON.stringify({
               jsonrpc: "2.0",
@@ -416,6 +675,7 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
           headers: {
             "content-type": "application/json",
             accept: "application/json, text/event-stream",
+            authorization: authorizationFor(servers[0].url),
           },
           body: JSON.stringify({
             jsonrpc: "2.0",

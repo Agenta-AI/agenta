@@ -60,6 +60,7 @@ import {useAtom, useAtomValue, useStore} from "jotai"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
+import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
@@ -117,6 +118,10 @@ const ModelHarnessSectionDrawerBody = ({
     const mh = useModelHarness(params)
     return <>{section === "advanced" ? mh.advancedDrawerBody : mh.modelHarnessDrawerBody}</>
 }
+
+// The four list sections whose open-state is controlled so the accordion can auto-expand when
+// the agent populates them (see `useAutoExpandOnPopulate`).
+const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
 
 export function AgentTemplateControl({
     schema,
@@ -380,6 +385,30 @@ export function AgentTemplateControl({
         () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
         [openCreate],
     )
+
+    // Controlled open-state for the four list sections so the accordion can react to the agent
+    // populating a section. Seeded once from the initial counts; the edge hook below flips it.
+    const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
+        tools: tools.length > 0,
+        mcp: mcpServers.length > 0,
+        skills: skills.length > 0,
+        triggers: triggerCount > 0,
+    }))
+    const setSectionOpenByKey = useCallback(
+        (key: string, open: boolean) =>
+            setSectionOpen((m) => (m[key] === open ? m : {...m, [key]: open})),
+        [],
+    )
+    const sectionCounts = useMemo(
+        () => ({
+            tools: tools.length,
+            mcp: mcpServers.length,
+            skills: skills.length,
+            triggers: triggerCount,
+        }),
+        [tools.length, mcpServers.length, skills.length, triggerCount],
+    )
+    useAutoExpandOnPopulate(sectionCounts, setSectionOpenByKey)
 
     // ``instructions.agents_md`` is the one instruction document (flat on the template).
     const instructions =
@@ -923,25 +952,33 @@ export function AgentTemplateControl({
                     ))}
                 </div>
             ) : (
-                sections.map((s, index) => (
-                    <ConfigAccordionSection
-                        key={s.key}
-                        icon={s.icon}
-                        title={s.title}
-                        titleBadge={sectionBadge(s.key)}
-                        summary={s.summary}
-                        extra={s.extra}
-                        indicator={s.indicator ?? agentChangeIndicator(s.key)}
-                        onOpen={s.onOpen}
-                        defaultOpen={s.defaultOpen}
-                        noDivider={index === sections.length - 1}
-                        // Mount collapsed, then unfold via the normal collapse transition — first
-                        // paint matches the skeleton's collapsed rows instead of shifting the layout.
-                        animateInitialOpen
-                    >
-                        {s.content}
-                    </ConfigAccordionSection>
-                ))
+                sections.map((s, index) => {
+                    // Controlled keys drive `open`/`onOpenChange` so the agent can auto-expand them;
+                    // everything else keeps the mount-collapsed-then-unfold `defaultOpen` behaviour.
+                    const controlled = CONTROLLED_SECTION_KEYS.has(s.key)
+                    return (
+                        <ConfigAccordionSection
+                            key={s.key}
+                            icon={s.icon}
+                            title={s.title}
+                            titleBadge={sectionBadge(s.key)}
+                            summary={s.summary}
+                            extra={s.extra}
+                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
+                            onOpen={s.onOpen}
+                            noDivider={index === sections.length - 1}
+                            {...(controlled
+                                ? {
+                                      open: sectionOpen[s.key] ?? s.defaultOpen ?? false,
+                                      onOpenChange: (open: boolean) =>
+                                          setSectionOpenByKey(s.key, open),
+                                  }
+                                : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
+                        >
+                            {s.content}
+                        </ConfigAccordionSection>
+                    )
+                })
             )}
 
             {shownEditing

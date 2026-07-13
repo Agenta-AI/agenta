@@ -99,10 +99,10 @@ servers. See `docs/design/agent-workflows/projects/sidecar-trust-and-sandbox-enf
 
 ## The extension bundle
 
-`scripts/build-extension.mjs` esbuild-bundles `src/extensions/agenta.ts` into one
-self-contained `dist/extensions/agenta.js` that Pi can load anywhere (host, the sidecar, a
-Daytona snapshot). The dev image bakes it; rebuild after editing the extension or the
-tracer:
+`scripts/build-extension.mjs` esbuild-bundles the Pi extension into
+`dist/extensions/agenta.js` and the in-sandbox tool MCP shim into
+`dist/tools/tool-mcp-stdio.js`. The dev image bakes both bundles; rebuild after editing the
+extension, tracer, or shim:
 
 ```bash
 pnpm run build:extension

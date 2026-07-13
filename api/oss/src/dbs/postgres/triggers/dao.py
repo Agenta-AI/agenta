@@ -4,8 +4,10 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
@@ -70,12 +72,31 @@ class TriggersDAO(TriggersDAOInterface):
             trigger_id=trigger_id,
         )
 
-        async with self.engine.session() as session:
-            session.add(subscription_dbe)
+        try:
+            async with self.engine.session() as session:
+                session.add(subscription_dbe)
 
-            await session.commit()
+                await session.commit()
 
-            await session.refresh(subscription_dbe)
+                await session.refresh(subscription_dbe)
+        except IntegrityError as e:
+            # A live subscription already occupies this provider trigger; the partial-unique
+            # index forbids a second active row. Classify by the driver's constraint-name
+            # metadata, falling back to the message so a duplicate never slips through to a 500.
+            index_name = "ix_trigger_subscriptions_trigger_id"
+            orig = getattr(e, "orig", None)
+            constraint = getattr(
+                getattr(orig, "__cause__", None), "constraint_name", None
+            )
+            if constraint == index_name or index_name in (
+                str(orig) if orig else str(e)
+            ):
+                raise EntityCreationConflict(
+                    entity="Trigger subscription",
+                    message="A subscription for this connection and event already exists.",
+                    conflict={"trigger_id": trigger_id},
+                ) from e
+            raise
 
         return map_subscription_dbe_to_dto(
             subscription_dbe=subscription_dbe,
@@ -215,6 +236,32 @@ class TriggersDAO(TriggersDAOInterface):
                 map_subscription_dbe_to_dto(subscription_dbe=dbe)
                 for dbe in result.scalars().all()
             ]
+
+    async def fetch_subscription_by_trigger_id(
+        self,
+        *,
+        project_id: UUID,
+        trigger_id: str,
+    ) -> Optional[TriggerSubscription]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(TriggerSubscriptionDBE)
+                .filter(
+                    TriggerSubscriptionDBE.project_id == project_id,
+                    TriggerSubscriptionDBE.trigger_id == trigger_id,
+                    TriggerSubscriptionDBE.deleted_at.is_(None),
+                )
+                .limit(1)
+            )
+
+            result = await session.execute(stmt)
+
+            subscription_dbe = result.scalars().first()
+
+            if not subscription_dbe:
+                return None
+
+            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def get_project_and_subscription_by_trigger_id(
         self,

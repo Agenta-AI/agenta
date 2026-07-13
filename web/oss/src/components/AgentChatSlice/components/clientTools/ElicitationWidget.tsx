@@ -8,19 +8,27 @@
  */
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
+import {
+    SchemaForm,
+    type SchemaFormHandle,
+    type StepInfo,
+    formatReviewValue,
+} from "@agenta/entity-ui/gatewayTool"
 import {
     type ElicitationResult,
     buildAcceptResult,
     buildCancelResult,
     buildDeclineResult,
     buildDegradationErrorText,
+    buildFormFieldsFromSchema,
     deriveElicitationPartState,
     parseElicitationPayload,
     partitionElicitationDraft,
     serializeElicitationContent,
 } from "@agenta/shared/utils"
-import {CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
+import {HeightCollapse} from "@agenta/ui"
+import {ShortcutHint} from "@agenta/ui/rich-chat-input"
+import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
 import {Button, Form, Typography} from "antd"
 import dayjs from "dayjs"
 
@@ -54,10 +62,65 @@ const Chip = ({
     </div>
 )
 
+/** Settled accept state — collapsible chip that reveals the submitted answers on click. */
+const SubmittedAnswers = ({
+    schema,
+    content,
+    message,
+}: {
+    schema: Record<string, unknown>
+    content: Record<string, unknown>
+    message: string
+}) => {
+    const [open, setOpen] = useState(false)
+    const fields = useMemo(
+        () => buildFormFieldsFromSchema(schema, "", {formats: true, openEnums: true}),
+        [schema],
+    )
+    const answered = fields.filter((f) => content[f.name] !== undefined && content[f.name] !== "")
+    return (
+        <div className="flex min-w-0 flex-col py-1">
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                aria-expanded={open}
+                className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
+            >
+                <CaretRight
+                    size={11}
+                    weight="bold"
+                    className={`shrink-0 text-colorTextTertiary transition-transform ${open ? "rotate-90" : ""}`}
+                />
+                <CheckCircle size={13} weight="fill" className="shrink-0 text-colorSuccess" />
+                <Text type="secondary" className="!text-xs truncate">
+                    {message}
+                </Text>
+            </button>
+            {answered.length > 0 ? (
+                <HeightCollapse open={open}>
+                    <div className="mt-1 flex min-w-0 flex-col gap-1 pl-[21px]">
+                        {answered.map((f) => (
+                            <div key={f.name} className="flex items-baseline justify-between gap-3">
+                                <Text type="secondary" className="!text-[11px] shrink-0">
+                                    {f.label}
+                                </Text>
+                                <Text className="!text-xs max-w-[70%] truncate text-right">
+                                    {formatReviewValue(f, content[f.name])}
+                                </Text>
+                            </div>
+                        ))}
+                    </div>
+                </HeightCollapse>
+            ) : null}
+        </div>
+    )
+}
+
 const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHandlerProps) => {
     const [form] = Form.useForm()
     const formRef = useRef<SchemaFormHandle>(null)
     const [submitting, setSubmitting] = useState(false)
+    const [stepInfo, setStepInfo] = useState<StepInfo | null>(null)
 
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
 
@@ -137,8 +200,19 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 "string"
                 ? ((meta.output as {humanFriendlyMessage: string}).humanFriendlyMessage as string)
                 : undefined
-        if (partState === "submitted")
-            return (
+        if (partState === "submitted") {
+            const content =
+                meta.output && typeof meta.output === "object"
+                    ? ((meta.output as {content?: Record<string, unknown>}).content ?? {})
+                    : {}
+            const message = envelopeMessage ?? "Provided the requested input."
+            return parsed.ok && Object.keys(content).length > 0 ? (
+                <SubmittedAnswers
+                    schema={parsed.payload.requestedSchema as unknown as Record<string, unknown>}
+                    content={content}
+                    message={message}
+                />
+            ) : (
                 <Chip
                     icon={
                         <CheckCircle
@@ -148,9 +222,10 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                         />
                     }
                 >
-                    {envelopeMessage ?? "Provided the requested input."}
+                    {message}
                 </Chip>
             )
+        }
         if (partState === "declined")
             return (
                 <Chip
@@ -214,6 +289,8 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
         }
     }
 
+    const inStepper = stepInfo?.isStepper === true && stepInfo.isReview === false
+
     return (
         <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-2xl">
             <div className="flex items-start gap-2">
@@ -238,22 +315,38 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 openEnums
                 stepper={stepperHint}
                 onValuesChange={persistDraft}
+                onStepChange={setStepInfo}
             />
 
+            {stepInfo?.isStepper &&
+            (stepInfo.canGoBack || stepInfo.canGoNext || stepInfo.pickable) ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-0.5">
+                    {stepInfo.canGoBack ? <ShortcutHint keys="⌘ ←" label="back" /> : null}
+                    {stepInfo.canGoNext ? <ShortcutHint keys="⌘ →" label="next" /> : null}
+                    {stepInfo.pickable ? <ShortcutHint keys="1–9" label="pick" /> : null}
+                </div>
+            ) : null}
+
             <div className="flex items-center gap-2">
-                <Button
-                    type="primary"
-                    loading={submitting}
-                    disabled={!requiredReady}
-                    title={
-                        requiredReady
-                            ? undefined
-                            : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
-                    }
-                    onClick={handleAccept}
-                >
-                    Accept
-                </Button>
+                {inStepper ? (
+                    <Button type="primary" onClick={() => formRef.current?.next?.()}>
+                        Next
+                    </Button>
+                ) : (
+                    <Button
+                        type="primary"
+                        loading={submitting}
+                        disabled={!requiredReady}
+                        title={
+                            requiredReady
+                                ? undefined
+                                : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
+                        }
+                        onClick={handleAccept}
+                    >
+                        Accept
+                    </Button>
+                )}
                 <Button
                     type="text"
                     onClick={() =>
