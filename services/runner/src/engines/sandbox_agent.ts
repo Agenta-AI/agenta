@@ -203,8 +203,8 @@ function serverPermissionsFromRequest(
 ): ReadonlyMap<string, ToolPermission> {
   const permissions = new Map<string, ToolPermission>();
   for (const server of request.mcpServers ?? []) {
-    if (server.permission !== undefined) {
-      permissions.set(server.name, server.permission);
+    if (server.policy?.permission !== undefined) {
+      permissions.set(server.name, server.policy.permission);
     }
   }
   return permissions;

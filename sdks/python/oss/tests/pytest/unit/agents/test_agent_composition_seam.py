@@ -21,7 +21,6 @@ from agenta.sdk.agents.connections import (
 )
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
-from agenta.sdk.agents.mcp import MCPDisabledError
 from agenta.sdk.agents.streaming import AgentStream
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
@@ -274,57 +273,6 @@ async def test_composition_override_replaces_default_gating():
     )
 
     assert len(calls) == 1
-
-
-# --------------------------------------------------------------------------- #
-# Drift 3: MCP gating is the seam DEFAULT now (previously ungated in handler.py).
-# --------------------------------------------------------------------------- #
-async def test_default_composition_mcp_disabled_with_no_servers_is_empty(monkeypatch):
-    from agenta.sdk.agents import handler as handler_module
-
-    monkeypatch.delenv("AGENTA_AGENT_MCPS_ENABLED", raising=False)
-    backend = _FakeBackend()
-    comp = AgentComposition(
-        select_backend=lambda template: backend,
-        resolve_connection=_no_connection,
-    )
-    handler = make_agent_handler(comp)
-
-    result = await handler(
-        request=_request(),
-        messages=[{"role": "user", "content": "hi"}],
-        parameters=_params(),
-    )
-    assert isinstance(result, dict)
-    assert handler_module._mcp_enabled() is False
-
-
-async def test_default_composition_mcp_disabled_with_servers_fails_loud(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_MCPS_ENABLED", raising=False)
-    backend = _FakeBackend()
-    comp = AgentComposition(
-        select_backend=lambda template: backend,
-        resolve_connection=_no_connection,
-    )
-    handler = make_agent_handler(comp)
-
-    params = _params()
-    params["agent"]["mcps"] = [{"name": "github", "command": "npx"}]
-
-    with pytest.raises(MCPDisabledError) as excinfo:
-        await handler(
-            request=_request(),
-            messages=[{"role": "user", "content": "hi"}],
-            parameters=params,
-        )
-    assert "github" in str(excinfo.value)
-
-
-async def test_default_composition_mcp_enabled_resolves_servers(monkeypatch):
-    from agenta.sdk.agents import handler as handler_module
-
-    monkeypatch.setenv("AGENTA_AGENT_MCPS_ENABLED", "true")
-    assert handler_module._mcp_enabled() is True
 
 
 # --------------------------------------------------------------------------- #

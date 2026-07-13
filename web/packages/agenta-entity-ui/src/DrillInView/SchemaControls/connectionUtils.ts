@@ -163,6 +163,14 @@ function capsFor(
     return capabilities[harness] ?? null
 }
 
+/** External MCP authoring is available only when the selected harness publishes it. */
+export function harnessSupportsUserMcp(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+): boolean {
+    return Boolean(capsFor(capabilities, harness)?.mcp?.user_servers)
+}
+
 /**
  * The provider families the harness can reach. A missing harness/capability is permissive
  * (returns `["*"]`, so the form shows a free-text provider field).

@@ -327,8 +327,6 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 - name: AGENTA_RUNNER_INTERNAL_URL
   value: {{ $url | quote }}
 {{- end }}
-- name: AGENTA_AGENT_MCPS_ENABLED
-  value: {{ default false $runner.enableMcp | quote }}
 {{- end }}
 
 {{/* ================================================================

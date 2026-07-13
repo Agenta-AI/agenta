@@ -2,18 +2,30 @@
 
 from .errors import (
     MCPConfigurationError,
-    MCPDisabledError,
     MCPError,
     MissingMCPSecretError,
 )
 from .interfaces import MCPSecretProvider
-from .models import MCPServerConfig, ResolvedMCPServer
+from .models import (
+    MCPConnection,
+    MCPHeaderSecretRefs,
+    MCPPolicy,
+    MCPServerConfig,
+    MCPToolPolicy,
+    NoMCPCredentials,
+    ResolvedMCPServer,
+)
 from .parsing import parse_mcp_server_config, parse_mcp_server_configs
 from .resolver import MCPResolver
 from .wire import mcp_server_to_wire, mcp_servers_to_wire
 
 __all__ = [
     "MCPServerConfig",
+    "MCPConnection",
+    "MCPHeaderSecretRefs",
+    "MCPPolicy",
+    "MCPToolPolicy",
+    "NoMCPCredentials",
     "ResolvedMCPServer",
     "MCPSecretProvider",
     "MCPResolver",
@@ -23,6 +35,5 @@ __all__ = [
     "mcp_servers_to_wire",
     "MCPError",
     "MCPConfigurationError",
-    "MCPDisabledError",
     "MissingMCPSecretError",
 ]

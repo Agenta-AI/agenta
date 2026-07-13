@@ -1,14 +1,5 @@
 /**
- * McpServerFormView
- *
- * Structured form view for an MCP server, the Form side of {@link ConfigItemDrawer}. Mirrors
- * the MCPServerConfig shape (sdks/python/agenta/sdk/agents/mcp/models.py): name, transport
- * (stdio command/args/env, or http url), vault secret-name map, and an optional exposed-tool
- * allowlist. It edits only those known keys so the object stays valid (the backend model is
- * `extra="forbid"`).
- *
- * Re-mount it per server (key on the open item) so the local key/value text state seeds
- * cleanly.
+ * Structured editor for one external HTTP MCP server.
  */
 import {useState} from "react"
 
@@ -16,19 +7,25 @@ import {Input, Select} from "antd"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
-import {CodeEditor} from "./CodeEditor"
-
 type Dict = Record<string, string>
+type CredentialType = "none" | "header_secret_refs"
+
+interface McpCredentials {
+    type?: CredentialType
+    headers?: Dict
+}
+
+interface McpConnection {
+    type?: "http"
+    url?: string
+    headers?: Dict
+    credentials?: McpCredentials
+}
 
 interface McpServer {
     name?: string
-    transport?: "stdio" | "http"
-    command?: string
-    args?: string[]
-    env?: Dict
-    url?: string
-    secrets?: Dict
-    tools?: string[]
+    connection?: McpConnection
+    policy?: Record<string, unknown>
 }
 
 export interface McpServerFormViewProps {
@@ -37,7 +34,6 @@ export interface McpServerFormViewProps {
     disabled?: boolean
 }
 
-/** `KEY=value` per line ↔ a string map. Local text state avoids cursor jumps on edit. */
 function KeyValueLines({
     value,
     onChange,
@@ -51,27 +47,26 @@ function KeyValueLines({
 }) {
     const [text, setText] = useState(() =>
         Object.entries(value ?? {})
-            .map(([k, v]) => `${k}=${v}`)
+            .map(([key, entryValue]) => `${key}=${entryValue}`)
             .join("\n"),
     )
 
     const handle = (next: string) => {
         setText(next)
-        const obj: Dict = {}
+        const entries: Dict = {}
         next.split("\n").forEach((line) => {
-            const i = line.indexOf("=")
-            if (i > 0) {
-                const k = line.slice(0, i).trim()
-                if (k) obj[k] = line.slice(i + 1).trim()
-            }
+            const separator = line.indexOf("=")
+            if (separator <= 0) return
+            const key = line.slice(0, separator).trim()
+            if (key) entries[key] = line.slice(separator + 1).trim()
         })
-        onChange(obj)
+        onChange(entries)
     }
 
     return (
         <Input.TextArea
             value={text}
-            onChange={(e) => handle(e.target.value)}
+            onChange={(event) => handle(event.target.value)}
             placeholder={placeholder}
             disabled={disabled}
             autoSize={{minRows: 2, maxRows: 6}}
@@ -81,17 +76,36 @@ function KeyValueLines({
 }
 
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
-    const server = (value ?? {}) as McpServer
-    const transport = server.transport ?? "stdio"
+    const server = value as McpServer
+    const connection = server.connection ?? {
+        type: "http" as const,
+        url: "",
+        credentials: {type: "none" as const},
+    }
+    const credentials = connection.credentials ?? {type: "none" as const}
+    const credentialType = credentials.type ?? "none"
 
-    const set = (key: keyof McpServer, fieldValue: unknown) => {
-        const next = {...(value ?? {})}
-        if (fieldValue === undefined || fieldValue === null || fieldValue === "") {
-            delete (next as Record<string, unknown>)[key]
-        } else {
-            ;(next as Record<string, unknown>)[key] = fieldValue
-        }
-        onChange(next)
+    const setServer = (patch: Partial<McpServer>) => {
+        onChange({...value, ...patch})
+    }
+
+    const setConnection = (patch: Partial<McpConnection>) => {
+        setServer({
+            connection: {
+                ...connection,
+                type: "http",
+                ...patch,
+            },
+        })
+    }
+
+    const setCredentialType = (type: CredentialType) => {
+        setConnection({
+            credentials:
+                type === "none"
+                    ? {type: "none"}
+                    : {type: "header_secret_refs", headers: credentials.headers ?? {}},
+        })
     }
 
     return (
@@ -99,102 +113,64 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
             <RailField label="Server name" align="center">
                 <Input
                     value={server.name ?? ""}
-                    onChange={(e) => set("name", e.target.value)}
-                    placeholder="my-mcp-server"
+                    onChange={(event) => setServer({name: event.target.value})}
+                    placeholder="memory"
                     disabled={disabled}
                 />
             </RailField>
 
-            <RailField label="Transport" align="center">
-                <Select
+            <RailField label="MCP URL" align="center">
+                <Input
+                    value={connection.url ?? ""}
+                    onChange={(event) => setConnection({url: event.target.value})}
+                    placeholder="https://example.com/mcp"
+                    disabled={disabled}
+                />
+            </RailField>
+
+            <RailField label={railInfoLabel("Public headers", "Non-secret HTTP headers only")}>
+                <KeyValueLines
+                    value={connection.headers}
+                    onChange={(headers) =>
+                        setConnection({headers: Object.keys(headers).length ? headers : undefined})
+                    }
+                    placeholder="X-Workspace=my-workspace"
+                    disabled={disabled}
+                />
+            </RailField>
+
+            <RailField label="Authentication" align="center">
+                <Select<CredentialType>
                     className="w-full"
-                    value={transport}
-                    onChange={(v) => set("transport", v)}
+                    value={credentialType}
+                    onChange={setCredentialType}
                     disabled={disabled}
                     options={[
-                        {label: "stdio (local command)", value: "stdio"},
-                        {label: "http (remote URL)", value: "http"},
+                        {label: "None", value: "none"},
+                        {label: "Secret headers", value: "header_secret_refs"},
                     ]}
                 />
             </RailField>
 
-            {transport === "stdio" ? (
-                <>
-                    <RailField label="Command">
-                        <CodeEditor
-                            value={server.command ?? ""}
-                            onChange={(v) => set("command", v)}
-                            placeholder="npx"
-                            disabled={disabled}
-                        />
-                    </RailField>
-                    <RailField label="Arguments" align="center">
-                        <Select
-                            mode="tags"
-                            className="w-full"
-                            value={server.args ?? []}
-                            onChange={(v) => set("args", v)}
-                            placeholder="one argument per token"
-                            disabled={disabled}
-                            open={false}
-                            suffixIcon={null}
-                        />
-                    </RailField>
-                </>
-            ) : (
-                <RailField label="Server URL" align="center">
-                    <Input
-                        value={server.url ?? ""}
-                        onChange={(e) => set("url", e.target.value)}
-                        placeholder="https://example.com/mcp"
+            {credentialType === "header_secret_refs" ? (
+                <RailField
+                    label={railInfoLabel(
+                        "Secret headers",
+                        "Map an HTTP header to a project secret name",
+                    )}
+                >
+                    <KeyValueLines
+                        value={credentials.headers}
+                        onChange={(headers) =>
+                            setConnection({
+                                credentials: {type: "header_secret_refs", headers},
+                            })
+                        }
+                        placeholder="Authorization=memory_token"
                         disabled={disabled}
                     />
                 </RailField>
-            )}
-
-            <RailField label={railInfoLabel("Environment", "KEY=value per line")}>
-                <KeyValueLines
-                    value={server.env}
-                    onChange={(env) => set("env", Object.keys(env).length ? env : undefined)}
-                    placeholder={"NODE_ENV=production"}
-                    disabled={disabled}
-                />
-            </RailField>
-
-            <RailField
-                label={railInfoLabel(
-                    "Secrets",
-                    "Map an env var to a vault secret name: ENV_VAR=secret_name",
-                )}
-            >
-                <KeyValueLines
-                    value={server.secrets}
-                    onChange={(secrets) =>
-                        set("secrets", Object.keys(secrets).length ? secrets : undefined)
-                    }
-                    placeholder={"API_KEY=my_api_key"}
-                    disabled={disabled}
-                />
-            </RailField>
-
-            <RailField
-                label={railInfoLabel(
-                    "Exposed tools",
-                    "Optional allowlist — leave empty to expose all of the server's tools",
-                )}
-                align="center"
-            >
-                <Select
-                    mode="tags"
-                    className="w-full"
-                    value={server.tools ?? []}
-                    onChange={(v) => set("tools", v.length ? v : undefined)}
-                    placeholder="tool names"
-                    disabled={disabled}
-                    open={false}
-                    suffixIcon={null}
-                />
-            </RailField>
+            ) : null}
         </div>
     )
 }

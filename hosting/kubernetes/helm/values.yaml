@@ -131,13 +131,11 @@ redisDurable:
 #       size: 20Gi
 
 # ================================================================== #
-# agentRunner — agent runner sidecar. enableMcp controls
-# AGENTA_AGENT_MCPS_ENABLED (off by default). See values.schema.json for
-# the full agentRunner shape.
+# agentRunner configures the agent runner sidecar. See values.schema.json for
+# the full shape.
 # ================================================================== #
 # agentRunner:
 #   enabled: true
-#   enableMcp: true
 #   daytona:
 #     sessionIdleTtlMs: ""
 #     sessionMaxWarm: ""

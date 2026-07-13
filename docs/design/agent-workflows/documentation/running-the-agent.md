@@ -113,8 +113,7 @@ In the EE dev compose, the relevant services are:
 - `services`. Runs uvicorn on port `8080` inside the container
   (`hosting/docker-compose/ee/docker-compose.dev.yml:519`). It hosts the Python agent
   service. Traefik routes `/services/` to it. It sets `AGENTA_RUNNER_INTERNAL_URL` to
-  `http://runner:8765` and `AGENTA_AGENT_MCPS_ENABLED` to `false` by default (lines 564 to
-  565). It depends on `runner` being healthy (lines 573 to 574).
+  `http://runner:8765`. It depends on `runner` being healthy.
 
 - `runner`. The Node runner (line 588 onward). In dev it runs `tsx src/server.ts` after
   rebuilding the Pi extension. It listens on `8765`. Its health check hits
@@ -167,7 +166,6 @@ sections).
   `http://runner:8765`. When unset, the Python service spawns the runner CLI locally instead
   (see `runner_url` in `services/oss/src/agent/config.py` and `select_backend` in
   `services/oss/src/agent/app.py`).
-- `AGENTA_AGENT_MCPS_ENABLED`. Gates MCP server resolution. Default `false`.
 - `SANDBOX_AGENT_PROVIDER`. `local` or `daytona`. Default `local`.
 - `SANDBOX_AGENT_DAYTONA_API_KEY`, `_API_URL`, `_TARGET`, `_SNAPSHOT`, `_IMAGE`,
   `_INSTALL_PI`. Daytona credentials the runner reads for the `daytona` sandbox provider.

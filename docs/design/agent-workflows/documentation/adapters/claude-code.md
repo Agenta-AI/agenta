@@ -64,10 +64,10 @@ restored over loopback HTTP by the gateway-tool-mcp project, and extended to Day
 in-sandbox-tool-mcp project. It is independent of the user MCP capability below — the two
 toggle separately.)
 
-User-declared `mcp_servers` are a separate thing and effectively off today. They would reach
-Claude through `toAcpMcpServers` as additional ACP stdio servers, but only when
-`AGENTA_AGENT_MCPS_ENABLED` is set (off by default), so in practice no user MCP server is
-attached. See [tools.md](../tools.md#status-and-known-gaps).
+User-declared `mcp_servers` are separate from `agenta-tools`. Claude accepts external HTTP MCP
+servers through ACP session initialization. The service resolves named header-secret references
+before the runner builds the ACP HTTP entries. Public stdio configuration is not accepted. See
+[tools.md](../tools.md#status-and-known-gaps).
 
 ## Permissions
 
