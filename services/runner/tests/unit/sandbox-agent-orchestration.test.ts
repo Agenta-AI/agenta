@@ -6,6 +6,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
@@ -14,6 +15,7 @@ import {
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
+import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
@@ -406,6 +408,76 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("preserves the durable cwd when failed mount detach is unsafe", async () => {
+    const prefix = "unsafe-mount-" + process.pid + "-" + Date.now();
+    const cwd = join(tmpdir(), "agenta", prefix);
+    const sentinel = join(cwd, "must-not-delete.txt");
+    mkdirSync(cwd, { recursive: true });
+    writeFileSync(sentinel, "durable data");
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix,
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    let mountpointProbes = 0;
+    deps.mountStorage = ((cwd: string, creds: any, options: any) =>
+      mountStorage(cwd, creds, {
+        ...options,
+        checkMounted: async () => false,
+        runGeesefs: async () => {
+          throw new Error("fuse: device not found");
+        },
+        unmountDeps: {
+          runUnmount: async () => {},
+          checkMountpoint: async () => {
+            mountpointProbes += 1;
+            return mountpointProbes === 1 ? "gone" : "mounted";
+          },
+        },
+      })) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(
+      result.error ?? "",
+      /detach could not be confirmed.*refusing ephemeral cwd fallback/,
+    );
+    assert.equal(
+      calls.workspacePlan,
+      undefined,
+      "unsafe detach fails before workspace preparation",
+    );
+    assert.equal(
+      calls.workspaceCleanup,
+      0,
+      "prepareWorkspace cleanup never starts after unsafe mount acquisition",
+    );
+    assert.equal(
+      existsSync(sentinel),
+      true,
+      "environment teardown must preserve the possibly-live durable cwd",
+    );
+    rmSync(cwd, { recursive: true, force: true });
   });
 
   it("re-signs, remounts, and retries local workspace prep on durable cwd ENOTCONN", async () => {

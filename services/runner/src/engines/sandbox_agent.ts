@@ -987,18 +987,20 @@ export async function acquireEnvironment(
     logger(
       `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
     );
-    if (
-      await (deps.mountStorage ?? mountStorage)(
-        plan.cwd,
-        environment.mountCreds,
-        {
-          log: logger,
-        },
-      )
-    ) {
+    environment.durableCwdSafeToDelete = false;
+    const mounted = await (deps.mountStorage ?? mountStorage)(
+      plan.cwd,
+      environment.mountCreds,
+      {
+        log: logger,
+      },
+    );
+    if (mounted) {
       environment.mountedCwd = plan.cwd;
       return true;
     }
+    // A false result means mountStorage stopped the attempt and confirmed the path detached.
+    environment.durableCwdSafeToDelete = true;
     return false;
   };
   const mountLocalAgentCwd = async (): Promise<boolean> => {

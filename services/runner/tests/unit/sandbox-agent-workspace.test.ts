@@ -32,6 +32,35 @@ afterEach(() => {
 });
 
 describe("prepareWorkspace", () => {
+  it("creates a missing ephemeral cwd after a local mount fallback", async () => {
+    // mountStorage intentionally returns false when FUSE is unavailable. Model that fail-open
+    // path by entering workspace preparation with no mountpoint directory at all.
+    const root = tempDir();
+    const cwd = join(root, "mounts", "session", "run");
+
+    const workspace = await prepareWorkspace({
+      sandbox: {},
+      plan: {
+        isDaytona: false,
+        cwd,
+        relayDir: join(cwd, ".agenta-tools"),
+        useToolRelay: false,
+        agentsMd: "agent instructions",
+        acpAgent: "claude",
+        isPi: false,
+        skillDirs: [],
+      },
+    });
+
+    assert.equal(
+      readFileSync(join(cwd, "CLAUDE.md"), "utf-8"),
+      "agent instructions",
+    );
+
+    await workspace.cleanup();
+    assert.equal(existsSync(cwd), false);
+  });
+
   it("prepares and cleans a local cwd", async () => {
     const cwd = tempDir();
 
