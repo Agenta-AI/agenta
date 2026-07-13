@@ -45,7 +45,7 @@ class TestSessionMountSign:
 
         # The bound mount is the session's cwd (name) and a reserved, session-derived slug.
         assert mount["name"] == "cwd"
-        assert mount["slug"].startswith("__ag__")
+        assert mount["slug"].startswith("__ag__session__")
         assert mount["session_id"] == session_id
 
         # Credentials are prefix-scoped to THIS mount, never the bucket root.

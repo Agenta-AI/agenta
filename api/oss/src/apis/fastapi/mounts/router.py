@@ -13,6 +13,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
+    MountArtifactNotFound,
     MountDataInvalid,
     MountFileNotFound,
     MountImmutableField,
@@ -70,6 +71,11 @@ def handle_mount_exceptions():
             except MountArtifactIdInvalid as e:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=e.message,
+                ) from e
+            except MountArtifactNotFound as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
                 ) from e
             except MountSlugConflict as e:
@@ -274,7 +280,7 @@ class MountsRouter:
         *,
         body: MountCreateRequest,
     ) -> MountResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         mount = await self.mounts_service.create_mount(
             project_id=UUID(request.state.project_id),
@@ -294,7 +300,7 @@ class MountsRouter:
         session_id: Optional[str] = Query(default=None),
         include_archived: bool = Query(default=False),
     ) -> MountsResponse:
-        await self._check(request, Permission.VIEW_SESSIONS)
+        await self._check(request, Permission.VIEW_MOUNTS)
 
         mount_query = merge_mount_query(
             session_id=session_id,
@@ -319,7 +325,7 @@ class MountsRouter:
         artifact_id: str = Query(...),
         name: str = Query(default="default"),
     ) -> MountCredentialsResponse:
-        await self._check(request, Permission.RUN_SESSIONS)
+        await self._check(request, Permission.USE_MOUNTS)
 
         mount = await self.mounts_service.get_or_create_agent_mount(
             project_id=UUID(request.state.project_id),
@@ -342,7 +348,7 @@ class MountsRouter:
         *,
         body: AgentMountQueryRequest,
     ) -> MountsResponse:
-        await self._check(request, Permission.VIEW_SESSIONS)
+        await self._check(request, Permission.VIEW_MOUNTS)
 
         mount = await self.mounts_service.fetch_agent_mount(
             project_id=UUID(request.state.project_id),
@@ -358,7 +364,7 @@ class MountsRouter:
         request: Request,
         mount_id: UUID,
     ) -> MountResponse:
-        await self._check(request, Permission.VIEW_SESSIONS)
+        await self._check(request, Permission.VIEW_MOUNTS)
 
         mount = await self.mounts_service.fetch_mount(
             project_id=UUID(request.state.project_id),
@@ -381,7 +387,7 @@ class MountsRouter:
         *,
         body: MountEditRequest,
     ) -> MountResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         if str(mount_id) != str(body.mount.id):
             raise HTTPException(
@@ -404,7 +410,7 @@ class MountsRouter:
         request: Request,
         mount_id: UUID,
     ) -> MountResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         mount = await self.mounts_service.archive_mount(
             project_id=UUID(request.state.project_id),
@@ -426,7 +432,7 @@ class MountsRouter:
         request: Request,
         mount_id: UUID,
     ) -> MountResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         mount = await self.mounts_service.unarchive_mount(
             project_id=UUID(request.state.project_id),
@@ -449,7 +455,7 @@ class MountsRouter:
         request: Request,
         mount_id: UUID,
     ) -> MountCredentialsResponse:
-        await self._check(request, Permission.RUN_SESSIONS)
+        await self._check(request, Permission.USE_MOUNTS)
 
         mount = await self.mounts_service.fetch_mount(
             project_id=UUID(request.state.project_id),
@@ -482,7 +488,7 @@ class MountsRouter:
         path: Optional[str] = Query(default=None),
         read: Optional[str] = Query(default=None),
     ):
-        await self._check(request, Permission.VIEW_SESSIONS)
+        await self._check(request, Permission.VIEW_MOUNTS)
 
         if read is not None:
             content = await self.mounts_service.read_file(
@@ -514,7 +520,7 @@ class MountsRouter:
         *,
         path: str = Query(...),
     ) -> MountFileWrittenResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         content = await request.body()
 
@@ -535,7 +541,7 @@ class MountsRouter:
         *,
         path: str = Query(...),
     ) -> MountFolderCreatedResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         created = await self.mounts_service.create_folder(
             project_id=UUID(request.state.project_id),
@@ -554,7 +560,7 @@ class MountsRouter:
         file: UploadFile,
         path: Optional[str] = Query(default=None),
     ) -> MountFileWrittenResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         written = await upload_mount_file(
             mounts_service=self.mounts_service,
@@ -574,7 +580,7 @@ class MountsRouter:
         *,
         path: str = Query(...),
     ):
-        await self._check(request, Permission.VIEW_SESSIONS)
+        await self._check(request, Permission.VIEW_MOUNTS)
 
         return await download_mount_file(
             mounts_service=self.mounts_service,
@@ -592,7 +598,7 @@ class MountsRouter:
         *,
         path: str = Query(...),
     ) -> MountFileDeletedResponse:
-        await self._check(request, Permission.EDIT_SESSIONS)
+        await self._check(request, Permission.EDIT_MOUNTS)
 
         deleted = await self.mounts_service.delete_path(
             project_id=UUID(request.state.project_id),

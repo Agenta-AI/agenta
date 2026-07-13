@@ -169,6 +169,7 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 | `DAYTONA_API_URL` | `runner` | `agentRunner.daytona.apiUrl` |
 | `DAYTONA_TARGET` | `runner` | `agentRunner.daytona.target` |
 | `DAYTONA_SNAPSHOT` | `runner` | `agentRunner.daytona.snapshot` |
+| `DAYTONA_SNAPSHOT_AGENT` | `runner` | n/a (compose-only override of `DAYTONA_SNAPSHOT`; Helm scopes per pod) |
 | `DAYTONA_IMAGE` | `runner` | `agentRunner.daytona.image` |
 | `DAYTONA_AUTOSTOP` | `runner` | `agentRunner.daytona.autostopDelay` |
 | `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | `runner` | `agentRunner.daytona.sessionIdleTtlMs` |
@@ -341,7 +342,13 @@ deprecated aliases and still work, but new configuration should use the canonica
 | `DAYTONA_API_KEY` | `daytona.api_key` | `daytona.apiKey` |
 | `DAYTONA_API_URL` | `daytona.api_url` | `daytona.apiUrl` |
 | `DAYTONA_SNAPSHOT` | `daytona.snapshot` | `daytona.snapshot` |
+| `DAYTONA_SNAPSHOT_CODE` | `daytona.snapshot` (takes precedence) | n/a |
 | `DAYTONA_TARGET` | `daytona.target` | `daytona.target` |
+
+`DAYTONA_SNAPSHOT` is shared between the custom-code evaluators and the agent runner; the
+[snapshot recipe](/self-host/guides/agent-daytona-sandboxes#optional-snapshot) equips one
+snapshot for both. Set `DAYTONA_SNAPSHOT_CODE` (evaluators) or `DAYTONA_SNAPSHOT_AGENT`
+(runner) only when the two must diverge.
 
 ## docker
 
