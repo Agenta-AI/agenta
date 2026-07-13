@@ -768,6 +768,8 @@ export async function acquireEnvironment(
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
+    provider: request.provider,
+    deployment: request.deployment,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
