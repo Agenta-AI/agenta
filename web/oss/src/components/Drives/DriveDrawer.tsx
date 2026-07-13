@@ -51,8 +51,8 @@ import {type SessionDriveData} from "./useSessionDrive"
 
 const {Text} = Typography
 
-// Scope accents from the spec: session = teal, app = blue (icon tint only; everything else
-// rides the semantic tokens so light mode stays coherent).
+// Scope accents from the spec: session = teal, agent = blue (icon tint only; everything else
+// rides the semantic tokens so light mode stays coherent). The `app` key is the agent-drive scope.
 const SCOPE_META = {
     session: {icon: ChatCircle, accent: "#4fd1b5", tag: "per conversation"},
     app: {icon: HardDrives, accent: "#7fb0ff", tag: "shared across conversations"},
@@ -420,7 +420,7 @@ export function DriveDrawer({
                     <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
                             <span className="truncate text-sm font-medium">
-                                {scope === "session" ? "Session drive" : "App drive"}
+                                {scope === "session" ? "Session drive" : "Agent drive"}
                             </span>
                             <Tag className="m-0 shrink-0 text-[11px] font-normal">{meta.tag}</Tag>
                         </div>

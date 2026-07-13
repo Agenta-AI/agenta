@@ -34,7 +34,7 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
-// Storage region body (App drive + Session drive rows) — lazy: it pulls in the drive drawer.
+// Files region body (flat file listing) — lazy: it pulls in the drive drawer.
 const StorageSection = dynamic(() => import("@/oss/components/Drives/StorageSection"), {
     ssr: false,
 })
