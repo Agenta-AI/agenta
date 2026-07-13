@@ -29,6 +29,8 @@ interface DraftMessage {
     tools: Map<string, Part>
     /** The turn's observability trace id, if the durable record carries one (see below). */
     traceId?: string
+    /** Token/cost totals from the turn's persisted `usage` event, in the raw stream shape. */
+    usage?: {input?: number; output?: number; total?: number; cost?: number}
 }
 
 const roleOf = (sender?: string | null): "user" | "assistant" =>
@@ -185,7 +187,24 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
             draft.parts.push({type: "text", text: str(payload.message)})
             return
         }
-        // usage / done / data / render-hints carry no renderable message part — drop.
+        case "usage": {
+            // No renderable part, but the token/cost totals feed the turn's metrics bar. The
+            // runner may persist a partial `usage_update` then a final full-split `usage`; merge
+            // field-by-field so the last defined value wins (final setUsage carries input/output).
+            const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined)
+            const next = draft.usage ?? {}
+            const input = num(payload.input)
+            const output = num(payload.output)
+            const total = num(payload.total)
+            const cost = num(payload.cost)
+            if (input !== undefined) next.input = input
+            if (output !== undefined) next.output = output
+            if (total !== undefined) next.total = total
+            if (cost !== undefined) next.cost = cost
+            draft.usage = next
+            return
+        }
+        // done / data / render-hints carry no renderable message part — drop.
         default:
             return
     }
@@ -226,18 +245,20 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
 
     const messages = drafts
         .filter((d) => d.parts.length > 0)
-        .map(
-            (d) =>
-                ({
-                    id: d.id,
-                    role: d.role,
-                    parts: d.parts,
-                    // Only present once a record actually carries a trace id; `getMessageTraceId`
-                    // reads exactly this, so the hover trace actions light up on reload with no
-                    // other change.
-                    ...(d.traceId ? {metadata: {traceId: d.traceId}} : {}),
-                }) as unknown as UIMessage,
-        )
+        .map((d) => {
+            // `getMessageTraceId`/`getMessageUsage` read exactly these, so the hover trace actions
+            // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
+            // usage is present whenever the turn persisted a `usage` event.
+            const metadata: Record<string, unknown> = {}
+            if (d.traceId) metadata.traceId = d.traceId
+            if (d.usage) metadata.usage = d.usage
+            return {
+                id: d.id,
+                role: d.role,
+                parts: d.parts,
+                ...(Object.keys(metadata).length > 0 ? {metadata} : {}),
+            } as unknown as UIMessage
+        })
 
     return messages.length > 0 ? messages : null
 }
