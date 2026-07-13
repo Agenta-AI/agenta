@@ -192,14 +192,43 @@ describe("createAgentServer", () => {
     }
   });
 
-  it("POST /kill drains the pool + sandboxes and returns 200 (idempotent)", async () => {
+  it("POST /kill with a sessionId drains that session's pool entry + sandboxes (idempotent)", async () => {
     // With keep-alive off (default) the pool is empty, so the drain is a no-op that still 200s.
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/kill`, { method: "POST" });
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
       assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill without a sessionId is rejected as unscoped (400)", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, { method: "POST", body: "{}" });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /sessionId/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with invalid JSON returns 400", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: "{not json",
+      });
+      assert.equal(res.status, 400);
     } finally {
       await s.close();
     }

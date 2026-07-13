@@ -1074,4 +1074,22 @@ describe("SessionPool", () => {
     assert.deepEqual(idle.env.state.reasons, ["kill"]);
     assert.deepEqual(busy.env.state.reasons, ["kill"]);
   });
+
+  it("destroy(key, 'kill') tears down only the named tenant's session — a scoped /kill", async () => {
+    // Regression for RUN-SEC-3: a scoped /kill must destroy exactly the caller's own
+    // `<projectId>:<sessionId>` pool entry and leave every other tenant's parked session alone.
+    const pool = new SessionPool({ poolMax: 8 }, () => {});
+    const tenantA = parkInput("proj-a:sess-1");
+    const tenantB = parkInput("proj-b:sess-1");
+    pool.park(tenantA.input, 10_000);
+    pool.park(tenantB.input, 10_000);
+    assert.equal(pool.size(), 2);
+
+    await pool.destroy("proj-a:sess-1", "kill");
+
+    assert.equal(pool.size(), 1, "only tenant A's entry was removed");
+    assert.deepEqual(tenantA.env.state.reasons, ["kill"]);
+    assert.equal(tenantB.env.state.destroyed, 0, "tenant B is untouched");
+    assert.equal(pool.get("proj-b:sess-1")?.environment, tenantB.env);
+  });
 });

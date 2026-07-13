@@ -32,6 +32,7 @@ import { resolvePromptText } from "./protocol.ts";
 import {
   acquireEnvironment,
   destroyInFlightSandboxes,
+  destroyInFlightSandboxesForSession,
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
@@ -971,17 +972,44 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
-        // Idempotent, best-effort: the API collapses the alive lock (the runner's
-        // per-run finally then destroys its own sandbox); this endpoint lets the
-        // orphan sweeper force a process-wide teardown out-of-band. Drain the keep-alive
-        // pool first (its complete per-session destroy), then the sandbox registry as a
-        // second line of defense. Always ok.
+        // Scoped, idempotent, best-effort: a caller must name the session it owns — an
+        // unscoped call would tear down every tenant's sandbox(es) on this box and is
+        // rejected outright. Drain that session's keep-alive pool entry (its complete
+        // per-session destroy), then its in-flight sandbox as a second line of defense.
+        let killBody: { sessionId?: unknown; projectId?: unknown };
+        try {
+          const raw = await readBody(req);
+          killBody = raw.trim() ? JSON.parse(raw) : {};
+        } catch (err) {
+          return send(res, 400, {
+            ok: false,
+            error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+        const sessionId =
+          typeof killBody.sessionId === "string"
+            ? killBody.sessionId.trim()
+            : "";
+        const projectId =
+          typeof killBody.projectId === "string"
+            ? killBody.projectId.trim()
+            : undefined;
+        if (!sessionId) {
+          return send(res, 400, {
+            ok: false,
+            error: "sessionId is required: /kill cannot target every session",
+          });
+        }
+        const scope = poolKeyFor(
+          { sessionId, runContext: projectId ? { project: { id: projectId } } : undefined },
+          projectId,
+        );
         await Promise.all(
           Object.values(keepalivePools).map((pool) =>
-            pool.destroyAll(5000, "kill", "kill"),
+            scope ? pool.destroy(scope.key, "kill") : Promise.resolve(),
           ),
         );
-        await destroyInFlightSandboxes(5000, "kill");
+        await destroyInFlightSandboxesForSession(sessionId, projectId, 5000, "kill");
         return send(res, 200, { ok: true });
       }
 
