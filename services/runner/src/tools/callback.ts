@@ -23,6 +23,19 @@ export const EMPTY_OBJECT_SCHEMA = {
   additionalProperties: true,
 };
 
+/** Bound a tool result body so a malformed/oversized upstream response cannot exhaust runner
+ *  memory or blow out the model's context. Same cap and mechanism as tool-mcp-http.ts. */
+export const MAX_BODY_BYTES = 1_000_000;
+
+/** Truncate `text` to `maxBytes` (UTF-8), signaling the cut the same way the replay transcript
+ *  does (`transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS) so the model can tell it was truncated. */
+export function capToolResultText(text: string, maxBytes: number = MAX_BODY_BYTES): string {
+  const bytes = Buffer.byteLength(text, "utf-8");
+  if (bytes <= maxBytes) return text;
+  const truncated = Buffer.from(text, "utf-8").subarray(0, maxBytes).toString("utf-8");
+  return `${truncated} [... ${bytes - Buffer.byteLength(truncated, "utf-8")} bytes omitted]`;
+}
+
 export interface CallAgentaToolOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -98,14 +111,15 @@ export async function callAgentaTool(
   }
 
   // ToolCallResponse -> { call: { data: { content }, status } }. `content` is the
-  // execution result serialized as a JSON string; hand it to the model verbatim.
+  // execution result serialized as a JSON string; hand it to the model, capped (an
+  // uncapped result — e.g. a discover_tools dump — is otherwise handed back verbatim).
   try {
     const parsed = JSON.parse(bodyText);
     const content = parsed?.call?.data?.content;
-    if (typeof content === "string") return content;
-    if (content != null) return JSON.stringify(content);
-    return bodyText;
+    if (typeof content === "string") return capToolResultText(content);
+    if (content != null) return capToolResultText(JSON.stringify(content));
+    return capToolResultText(bodyText);
   } catch {
-    return bodyText;
+    return capToolResultText(bodyText);
   }
 }
