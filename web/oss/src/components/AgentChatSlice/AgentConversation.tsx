@@ -10,7 +10,11 @@ import {
     type MutableRefObject,
 } from "react"
 
-import {revalidateSessionMountsAtom, revalidateSessionRecordsAtom} from "@agenta/entities/session"
+import {
+    killSession,
+    revalidateSessionMountsAtom,
+    revalidateSessionRecordsAtom,
+} from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
     invalidateAgentCommittedRevisionCache,
@@ -37,6 +41,7 @@ import {
     TreeStructure,
     UploadSimple,
 } from "@phosphor-icons/react"
+import {useQueryClient} from "@tanstack/react-query"
 import {type UIMessage} from "ai"
 import {App, Button, Modal, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
@@ -69,6 +74,7 @@ import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentI
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
@@ -76,6 +82,7 @@ import {
     DEFAULT_ATTACHMENT_LIMITS,
     validateIncoming,
 } from "./assets/attachments"
+import {doesAgentChatStopKillSession} from "./assets/constants"
 import {filesToParts} from "./assets/files"
 import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
@@ -1168,10 +1175,28 @@ const AgentConversation = ({
         if (last && last.role === "assistant") setStopped(true)
     }, [messages])
 
+    const projectId = useAtomValue(projectIdAtom)
+    const queryClient = useQueryClient()
+
     const handleStop = useCallback(() => {
         markStopped()
         stop()
-    }, [markStopped, stop])
+        // Default Stop only aborts the client stream; the runner survives and keeps billing. When the
+        // NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION flag is set, also kill the session so the sandbox
+        // tears down and server-side compute halts. Kill ends the whole session (resume is #5197).
+        if (doesAgentChatStopKillSession() && projectId && sessionId) {
+            killSession({sessionId, projectId})
+                .then((ok) => {
+                    if (ok) {
+                        queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+                        // Refresh an open Inspector's Runtime lens so its Lifecycle/State reflect the
+                        // kill immediately (mirrors the panel's own Kill button).
+                        queryClient.invalidateQueries({queryKey: ["session-inspector"]})
+                    }
+                })
+                .catch(() => {})
+        }
+    }, [markStopped, stop, projectId, sessionId, queryClient])
 
     // ── D9 teardown: abort the in-flight stream on unmount (tab close / revision swap) ──
     // Keyed on sessionId: closing a tab or swapping the revision unmounts this conversation
