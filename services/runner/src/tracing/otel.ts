@@ -34,6 +34,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   context,
+  createContextKey,
   ROOT_CONTEXT,
   trace,
   TraceFlags,
@@ -73,8 +74,60 @@ interface ExportTarget {
   authorization?: string;
 }
 
-/** traceId (hex) -> where that trace's spans should be exported. Set on agent_start. */
-const traceTargets = new Map<string, ExportTarget>();
+/** Monotonic id identifying one run's spans within a (possibly shared) trace. */
+let nextRunId = 0;
+function mintRunId(): string {
+  return `run-${nextRunId++}`;
+}
+
+/** Context key carrying the owning run's id onto every span it starts (root and descendants). */
+const RUN_ID_CONTEXT_KEY = createContextKey("agenta.otel.run_id");
+
+function withRunId(ctx: Context, runId: string): Context {
+  return ctx.setValue(RUN_ID_CONTEXT_KEY, runId);
+}
+
+function runIdOf(ctx: Context): string | undefined {
+  return ctx.getValue(RUN_ID_CONTEXT_KEY) as string | undefined;
+}
+
+/**
+ * traceId (hex) -> runId -> where that run's spans should be exported. A distributed trace can be
+ * shared by concurrent runs (the caller's traceparent nests them all under the same trace id), and
+ * two runs sharing a trace may legitimately export to DIFFERENT targets (different caller
+ * endpoint/auth) — the target is a property of the RUN, not the trace. `registerRunTarget` adds a
+ * run's target on start, `releaseRunTarget` removes it once that run's spans are flushed. Mirrors
+ * `traceRedactors` below exactly, so the two per-trace accumulators never disagree about when a
+ * trace's state is dead.
+ */
+const traceTargets = new Map<string, Map<string, ExportTarget>>();
+
+function registerRunTarget(
+  traceId: string,
+  runId: string,
+  target: ExportTarget,
+): void {
+  let byRun = traceTargets.get(traceId);
+  if (!byRun) {
+    byRun = new Map();
+    traceTargets.set(traceId, byRun);
+  }
+  byRun.set(runId, target);
+}
+
+/** Drop one run's target from the trace's accumulator; the trace entry itself is only removed
+ * once no run remains registered (a later batch from another run may still export). */
+function releaseRunTarget(traceId: string, runId: string): void {
+  const byRun = traceTargets.get(traceId);
+  if (!byRun) return;
+  byRun.delete(runId);
+  if (byRun.size === 0) traceTargets.delete(traceId);
+}
+
+/** spanId (hex) -> the runId that started it, so a flushed batch can be split per run and each
+ * sub-batch shipped to the target of the run that actually produced it. Entries are removed as
+ * spans are consumed by flush() so this never grows unbounded. */
+const spanRunIds = new Map<string, string>();
 
 /**
  * traceId (hex) -> the deny-set of every RUN currently registered on that trace. A distributed
@@ -187,7 +240,14 @@ function defaultTarget(): ExportTarget {
 class TraceBatchProcessor implements SpanProcessor {
   private readonly buffers = new Map<string, ReadableSpan[]>();
 
-  onStart(): void {}
+  // Tag every span with the run id ambient in its start context (see `withRunId`), so a later
+  // flush can tell which run produced it — concurrent runs sharing a trace id may have DIFFERENT
+  // export targets, and a batch must go to the target of the run that produced it, not to
+  // whichever run happens to still be registered on the trace.
+  onStart(span: Span, parentContext: Context): void {
+    const runId = runIdOf(parentContext);
+    if (runId) spanRunIds.set(span.spanContext().spanId, runId);
+  }
 
   onEnd(span: ReadableSpan): void {
     const traceId = span.spanContext().traceId;
@@ -200,35 +260,60 @@ class TraceBatchProcessor implements SpanProcessor {
     }
   }
 
-  /** Export and drop one trace's buffered spans. Resolves once the export returns. Does NOT
-   * clear the trace's registered redactors — those live until every registered run releases
-   * (see `releaseRunRedactor`), since a later batch on the same trace id can still be emitted
-   * by another still-running run sharing the distributed trace. */
+  /** Export and drop one trace's buffered spans, split into one sub-batch PER RUN and shipped to
+   * that run's own target (two runs sharing a trace id may have different endpoint/auth). Resolves
+   * once every sub-batch's export returns. Does NOT clear the trace's registered redactors or
+   * per-run targets for runs other than the ones this batch just exported — those live until each
+   * registered run releases (see `releaseRunRedactor`/`releaseRunTarget`), since a later batch on
+   * the same trace id can still be emitted by another still-running run sharing the trace. */
   flush(traceId: string): Promise<void> {
     const spans = this.buffers.get(traceId);
     if (!spans || spans.length === 0) return Promise.resolve();
     this.buffers.delete(traceId);
-    const target = traceTargets.get(traceId) ?? defaultTarget();
-    traceTargets.delete(traceId);
+
     // Redact at the sink: the last point before the spans leave the process. Apply every
     // redactor currently registered for this trace (concurrent runs sharing a trace id).
     const redactors = traceRedactors.get(traceId);
     if (redactors && redactors.size > 0)
       for (const span of spans) redactSpan(span, redactors);
-    return new Promise((resolve) => {
-      try {
-        getExporter(target).export(orderParentFirst(spans), (result) => {
-          if (result.code === ExportResultCode.FAILED)
-            console.error("otel: trace export failed", traceId, result.error);
-          resolve();
+
+    const byRun = traceTargets.get(traceId);
+    const groups = new Map<string | undefined, ReadableSpan[]>();
+    for (const span of spans) {
+      const spanId = span.spanContext().spanId;
+      const runId = spanRunIds.get(spanId);
+      spanRunIds.delete(spanId);
+      const group = groups.get(runId) ?? [];
+      group.push(span);
+      groups.set(runId, group);
+    }
+
+    return Promise.all(
+      [...groups.entries()].map(([runId, group]) => {
+        // Fall back to the env default only for a span whose OWN run's target is unknown
+        // (untagged span, or the run already released) — never to another run's target, or a
+        // batch could still land on an unintended endpoint/auth.
+        const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+        return new Promise<void>((resolve) => {
+          try {
+            getExporter(target).export(orderParentFirst(group), (result) => {
+              if (result.code === ExportResultCode.FAILED)
+                console.error(
+                  "otel: trace export failed",
+                  traceId,
+                  result.error,
+                );
+              resolve();
+            });
+          } catch (err) {
+            // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
+            // flush() is awaited without a catch, so a reject here would break the run.
+            console.error("otel: trace export threw", traceId, err);
+            resolve();
+          }
         });
-      } catch (err) {
-        // A synchronous export throw (e.g. misconfigured exporter) must stay best-effort:
-        // flush() is awaited without a catch, so a reject here would break the run.
-        console.error("otel: trace export threw", traceId, err);
-        resolve();
-      }
-    });
+      }),
+    ).then(() => undefined);
   }
 
   forceFlush(): Promise<void> {
@@ -262,20 +347,22 @@ function ensureProvider(): void {
 }
 
 /**
- * Flush one trace's spans to Agenta. Call after a run whose root has a remote parent. When
- * `redactor` is passed, it is released from the trace's accumulator AFTER the export resolves —
- * this run is done contributing spans, but other runs still registered on the same trace id
- * (a shared distributed trace) keep their redactors live for later batches.
+ * Flush one trace's spans to Agenta. Call after a run whose root has a remote parent. `redactor`
+ * and `runId` are released from the trace's accumulators AFTER the export resolves — this run is
+ * done contributing spans, but other runs still registered on the same trace id (a shared
+ * distributed trace) keep their redactor/target live for later batches.
  */
 export async function flushTrace(
   traceId?: string,
   redactor?: Redactor,
+  runId?: string,
 ): Promise<void> {
   if (!processor || !traceId) return;
   try {
     await processor.flush(traceId);
   } finally {
     if (redactor) releaseRunRedactor(traceId, redactor);
+    if (runId) releaseRunTarget(traceId, runId);
   }
 }
 
@@ -550,6 +637,7 @@ export function createAgentaOtel(
   };
 
   const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
+  const runId = mintRunId();
 
   // Per-run span state — closure-scoped so concurrent runs never collide.
   let agentSpan: Span | undefined;
@@ -584,7 +672,12 @@ export function createAgentaOtel(
     pi.on("agent_start", async () => {
       // Nest under the caller's workflow span when a traceparent was supplied,
       // so the whole run joins the /invoke trace; otherwise start a fresh root.
-      const parent = parentContext(config.traceparent);
+      // Tag the run id onto the start context BEFORE creating the root span, so onStart
+      // attributes invoke_agent itself (and every descendant) to this run.
+      const parent = withRunId(
+        parentContext(config.traceparent) ?? context.active(),
+        runId,
+      );
       agentSpan = tracer.startSpan("invoke_agent", undefined, parent);
       agentSpan.setAttribute("openinference.span.kind", "AGENT");
       agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
@@ -610,12 +703,12 @@ export function createAgentaOtel(
 
       const traceId = agentSpan.spanContext().traceId;
       config.traceId = traceId;
-      traceTargets.set(traceId, {
+      registerRunTarget(traceId, runId, {
         endpoint: config.endpoint ?? defaultTarget().endpoint,
         authorization: config.authorization ?? defaultTarget().authorization,
       });
       if (config.redactor) registerRunRedactor(traceId, config.redactor);
-      agentCtx = trace.setSpan(parent ?? context.active(), agentSpan);
+      agentCtx = trace.setSpan(parent, agentSpan);
     });
 
     // The messages handed to the next LLM call — the chat span's input.
@@ -746,7 +839,7 @@ export function createAgentaOtel(
   return {
     register,
     config,
-    flush: () => flushTrace(config.traceId, config.redactor),
+    flush: () => flushTrace(config.traceId, config.redactor, runId),
     usage: () => ({ ...runUsage }),
   };
 }
@@ -1009,6 +1102,7 @@ export function createSandboxAgentOtel(
   const authorization = init.authorization ?? defaultTarget().authorization;
   const { provider, id: modelId } = splitModel(init.model);
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
+  const runId = mintRunId();
 
   let agentSpan: Span | undefined;
   let agentCtx: Context | undefined;
@@ -1166,7 +1260,12 @@ export function createSandboxAgentOtel(
       runTraceId = m ? m[1] : undefined;
       return;
     }
-    const parent = parentContext(init.traceparent);
+    // Tag the run id onto the start context BEFORE creating the root span, so onStart
+    // attributes invoke_agent itself (and every descendant) to this run.
+    const parent = withRunId(
+      parentContext(init.traceparent) ?? context.active(),
+      runId,
+    );
     agentSpan = tracer.startSpan("invoke_agent", undefined, parent);
     agentSpan.setAttribute("openinference.span.kind", "AGENT");
     agentSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
@@ -1188,9 +1287,9 @@ export function createSandboxAgentOtel(
     setInputs(agentSpan, { prompt: input.prompt ?? "" }, capture);
 
     runTraceId = agentSpan.spanContext().traceId;
-    traceTargets.set(runTraceId, { endpoint, authorization });
+    registerRunTarget(runTraceId, runId, { endpoint, authorization });
     if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
-    agentCtx = trace.setSpan(parent ?? context.active(), agentSpan);
+    agentCtx = trace.setSpan(parent, agentSpan);
 
     turnSpan = tracer.startSpan("turn 0", undefined, agentCtx);
     turnSpan.setAttribute("openinference.span.kind", "CHAIN");
@@ -1401,8 +1500,13 @@ export function createSandboxAgentOtel(
         return;
       }
       // No owned span (harness self-instruments). Emit a standalone error span under the
-      // caller's traceparent so the failure is visible in the /invoke trace.
-      const parent = parentContext(init.traceparent);
+      // caller's traceparent so the failure is visible in the /invoke trace. Tag the run id
+      // onto the start context first, same as the emitSpans=true root, so onStart attributes
+      // this span to THIS run (concurrent runs sharing the trace id may have different targets).
+      const parent = withRunId(
+        parentContext(init.traceparent) ?? context.active(),
+        runId,
+      );
       const errSpan = tracer.startSpan("agent_error", undefined, parent);
       errSpan.setAttribute("openinference.span.kind", "AGENT");
       errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
@@ -1412,9 +1516,10 @@ export function createSandboxAgentOtel(
       // engine flushes this trace (a self-instrumenting run otherwise only tracked it from the
       // traceparent, which is the same id — but set it defensively if it was never resolved).
       runTraceId = runTraceId ?? errSpan.spanContext().traceId;
-      traceTargets.set(runTraceId, { endpoint, authorization });
+      registerRunTarget(runTraceId, runId, { endpoint, authorization });
       // Register BEFORE end(): a root span with no in-process parent flushes synchronously
-      // on end(), so the redactor must already be in the accumulator or this batch escapes raw.
+      // on end(), so the redactor/target must already be in their accumulators or this batch
+      // escapes raw / falls back to the wrong target.
       if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
       errSpan.end();
     } catch {
@@ -1481,7 +1586,7 @@ export function createSandboxAgentOtel(
     finish,
     recordError,
     setUsage,
-    flush: () => flushTrace(runTraceId, init.redactor),
+    flush: () => flushTrace(runTraceId, init.redactor, runId),
     traceId: () => runTraceId,
     output: () => accumulated,
     events: () => events,
