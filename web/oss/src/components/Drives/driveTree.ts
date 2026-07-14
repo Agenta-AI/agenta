@@ -20,6 +20,19 @@ const cleanPath = (p: string): string => p.replace(/^\/+|\/+$/g, "")
 const hasExtension = (name: string): boolean => /\.[^./]+$/.test(name)
 
 /**
+ * Runner/harness runtime artifacts written INTO the durable session cwd — not user files, so they're
+ * hidden from every drive surface. Covers Pi's native transcript workspace (`agents/sessions/…`) and
+ * the runner's dot-markers (`.agenta-skill-set.json`, `.agenta-usage.json`, `.agenta-pi`, …). The
+ * agent's own folder (`agent-files/`) is intentional and NOT matched (no dot, not under agents/).
+ */
+export const isInternalDrivePath = (path: string): boolean => {
+    const rel = cleanPath(path)
+    if (!rel) return false
+    if (rel === "agents/sessions" || rel.startsWith("agents/sessions/")) return true
+    return rel.split("/").some((seg) => seg.startsWith(".agenta-"))
+}
+
+/**
  * Is this listing entry a FOLDER rather than a file? True when the backend flags it (`is_folder`),
  * when another entry nests under it (`<path>/…`), or when it's a zero-byte, extension-less entry —
  * the shape an agent's convention directory (e.g. `agent-files`) takes when the object store lists
@@ -36,10 +49,10 @@ export const isFolderEntry = (file: MountFile, all: MountFile[]): boolean => {
 }
 
 /** Non-folder entries only — the "n files" everywhere counts these. Folders (flagged or inferred)
- * are excluded so the flat lists show files, descending into folders. */
+ * and runner-internal runtime artifacts are excluded so the flat lists show only real user files. */
 export const driveFiles = (files: MountFile[] | null | undefined): MountFile[] => {
     const list = files ?? []
-    return list.filter((f) => !isFolderEntry(f, list))
+    return list.filter((f) => !isFolderEntry(f, list) && !isInternalDrivePath(f.path))
 }
 
 export const driveTotalSize = (files: MountFile[] | null | undefined): number =>
@@ -92,7 +105,7 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
     const list = files ?? []
     for (const file of list) {
         const path = file.path.replace(/^\/+|\/+$/g, "")
-        if (!path) continue
+        if (!path || isInternalDrivePath(path)) continue
         if (isFolderEntry(file, list)) {
             ensureFolder(path)
             continue
