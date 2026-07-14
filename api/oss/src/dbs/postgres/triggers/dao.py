@@ -91,10 +91,17 @@ class TriggersDAO(TriggersDAOInterface):
             if constraint == index_name or index_name in (
                 str(orig) if orig else str(e)
             ):
+                winner = await self.fetch_subscription_by_trigger_id(
+                    project_id=project_id,
+                    trigger_id=trigger_id,
+                )
+                conflict = {"trigger_id": trigger_id}
+                if winner:
+                    conflict["subscription_id"] = str(winner.id)
                 raise EntityCreationConflict(
                     entity="Trigger subscription",
                     message="A subscription for this connection and event already exists.",
-                    conflict={"trigger_id": trigger_id},
+                    conflict=conflict,
                 ) from e
             raise
 

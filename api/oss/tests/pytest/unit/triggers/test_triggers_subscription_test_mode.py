@@ -67,6 +67,7 @@ def _make_service():
         )
     )
     dao.query_deliveries = AsyncMock(return_value=[])
+    dao.query_subscriptions = AsyncMock(return_value=[])
 
     connections = MagicMock()
     connections.get_connection = AsyncMock(return_value=connection)

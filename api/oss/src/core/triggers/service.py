@@ -929,6 +929,27 @@ class TriggersService:
             connection_id=subscription.connection_id,
         )
 
+        # The provider call below is an upsert, so a duplicate create would silently
+        # rewrite the live trigger's config before the unique index rejects the row.
+        # Conflict on (connection, event) locally first to keep the provider untouched.
+        existing = await self.dao.query_subscriptions(
+            project_id=project_id,
+            subscription=TriggerSubscriptionQuery(
+                connection_id=subscription.connection_id,
+                event_key=subscription.data.event_key,
+            ),
+            windowing=Windowing(limit=1),
+        )
+        if existing:
+            raise EntityCreationConflict(
+                entity="Trigger subscription",
+                message="A subscription for this connection and event already exists.",
+                conflict={
+                    "subscription_id": str(existing[0].id),
+                    "trigger_id": existing[0].trigger_id,
+                },
+            )
+
         adapter = self.adapter_registry.get(connection.provider_key.value)
 
         trigger_id = await adapter.create_subscription(

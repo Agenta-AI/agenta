@@ -148,9 +148,11 @@ class SessionInteractionTransitionRequest(BaseModel):
 
 
 class SessionInteractionCancelStaleRequest(BaseModel):
-    # Cancels prior turns' pending gates, sparing this turn's own.
+    # Cancels prior turns' pending gates, sparing this turn's own (`turn_id`) and any gates
+    # the current turn answers in-band (`tokens` — a resume must resolve them, not cancel).
     session_id: str
     turn_id: str
+    tokens: Optional[List[str]] = None
 
 
 class SessionInteractionQueryRequest(BaseModel):
