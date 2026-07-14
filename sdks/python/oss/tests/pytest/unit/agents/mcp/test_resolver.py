@@ -26,10 +26,14 @@ class DictSecretProvider:
         return {name: self.values[name] for name in names if name in self.values}
 
 
+# Literal public IP (example.com's) so the SSRF guard's range check runs with no live DNS.
+PUBLIC_MCP_URL = "https://93.184.216.34/mcp"
+
+
 def server(**overrides) -> MCPServerConfig:
     values = {
         "name": "memory",
-        "connection": {"type": "http", "url": "https://memory.example.com/mcp"},
+        "connection": {"type": "http", "url": PUBLIC_MCP_URL},
     }
     values.update(overrides)
     return MCPServerConfig.model_validate(values)
@@ -63,7 +67,7 @@ async def test_resolves_public_and_secret_headers():
             server(
                 connection=MCPConnection(
                     type="http",
-                    url="https://memory.example.com/mcp",
+                    url=PUBLIC_MCP_URL,
                     headers={"X-Workspace": "demo"},
                     credentials=MCPHeaderSecretRefs(
                         headers={"Authorization": "memory_token"}
@@ -74,7 +78,7 @@ async def test_resolves_public_and_secret_headers():
     )
     assert resolved[0].to_wire()["connection"] == {
         "type": "http",
-        "url": "https://memory.example.com/mcp",
+        "url": PUBLIC_MCP_URL,
         "headers": {
             "X-Workspace": "demo",
             "Authorization": "secret-value",
@@ -89,7 +93,7 @@ async def test_missing_mcp_secret_is_explicit():
                 server(
                     connection=MCPConnection(
                         type="http",
-                        url="https://memory.example.com/mcp",
+                        url=PUBLIC_MCP_URL,
                         credentials=MCPHeaderSecretRefs(
                             headers={"Authorization": "missing"}
                         ),
@@ -153,7 +157,7 @@ async def test_omit_missing_secret_keeps_public_headers_only():
             server(
                 connection=MCPConnection(
                     type="http",
-                    url="https://memory.example.com/mcp",
+                    url=PUBLIC_MCP_URL,
                     headers={"X-Workspace": "demo"},
                     credentials=MCPHeaderSecretRefs(
                         headers={"Authorization": "missing"}
