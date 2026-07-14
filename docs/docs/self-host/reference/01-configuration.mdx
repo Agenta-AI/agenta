@@ -41,6 +41,11 @@ This key has no env-var or `env.py` equivalent.
 | `AGENTA_API_INTERNAL_URL` | `agenta.api_internal_url` | `agenta.apiInternalUrl` |
 | `AGENTA_AUTH_KEY` | `agenta.auth_key` | `agenta.authKey` |
 | `AGENTA_CRYPT_KEY` | `agenta.crypt_key` | `agenta.cryptKey` |
+| `AGENTA_RUNNER_TOKEN` | n/a (read by the runner and its caller) | `agenta.runnerToken` |
+
+`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, and `AGENTA_RUNNER_TOKEN` are required secrets: the examples
+ship them as `replace-me` and you must set a real value for each. See
+[Agent runner](#routing-and-authentication) for the runner token.
 
 ## Agenta access
 
@@ -210,8 +215,24 @@ API and its SDK read them, not the runner.
 | Variable | Role | Read by | Default | Secret | Helm |
 |---|---|---|---|---|---|
 | `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API (caller-side) | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
-| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services sends it; runner verifies it | Unset | yes | `agentRunner.auth.tokenSecretRef` |
-| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `180` | no | n/a |
+| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services sends it; runner verifies it | **Required — no default** | yes | `agenta.runnerToken`, or `agentRunner.auth.tokenSecretRef` to source it from your own Secret |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `360` | no | n/a |
+
+`AGENTA_RUNNER_TOKEN` is **required**, like `AGENTA_AUTH_KEY`. The runner refuses to start without
+it and rejects an un-tokened request with `401`, so there is no unauthenticated mode. It carries a
+run's plaintext provider keys, so set the **same** value on the runner and on the service that calls
+it:
+
+```bash
+openssl rand -hex 32
+```
+
+The bundled examples ship `AGENTA_RUNNER_TOKEN=replace-me`; replace it before you deploy. On
+Kubernetes, set `agenta.runnerToken` (the chart fails to render without it), or set
+`agentRunner.auth.tokenSecretRef` to read the value from a Secret your own vault populates.
+
+The token is defense in depth on top of network isolation, not a replacement for it: keep the runner
+on a private network and never publish its port.
 
 `AGENTA_RUNNER_TOKEN` is the same credential at both ends. It does not belong to a sandbox or a
 harness. The runner enforces the check only when the value is set, so leaving it unset (the bundled
@@ -388,6 +409,7 @@ The runner fails to start when configuration is invalid, before it listens. The 
 
 | Cause | Error |
 |---|---|
+| Token not set | `AGENTA_RUNNER_TOKEN is required. Generate a secret (e.g. \`openssl rand -hex 32\`) and set the SAME value on the runner and on the service that calls it.` |
 | Enabled list is set but empty | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is set but empty; unset it for the default 'local', or list at least one provider.` |
 | Empty entry in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS has an empty entry in '<list>'.` |
 | Unknown provider id in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider '<id>'; known providers: local, daytona.` |

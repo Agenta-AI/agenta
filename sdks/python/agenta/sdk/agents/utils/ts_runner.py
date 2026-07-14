@@ -28,17 +28,21 @@ log = get_module_logger(__name__)
 
 
 def _runner_auth_headers() -> Dict[str, str]:
-    """The ``Authorization`` header for the runner's optional shared-token gate, if configured.
+    """The ``Authorization`` header for the runner's shared-token gate.
 
-    The runner enables a ``/run`` token check only when ``AGENTA_RUNNER_TOKEN`` is set on
-    its side (default OFF; see ``server.ts``). When the gate is on, an un-tokened POST is rejected
-    with 401, which would lock the co-located Python service out. Set the SAME env var here and we
-    present it as ``Authorization: Bearer <token>`` (the runner also accepts this header). Unset =
-    no header, matching the runner's default-off behavior, so loopback deployments are unaffected.
-    Read per-call (not cached) so a test or runtime env change takes effect without a re-import.
+    ``AGENTA_RUNNER_TOKEN`` is REQUIRED and must hold the SAME value on both sides: the runner
+    refuses to boot without it (``runner-config.ts``) and rejects an un-tokened request with 401.
+    Raise here instead of sending no header, so a missing config surfaces as one clear message
+    rather than an opaque 401 from the sidecar. Read per-call (not cached) so a test or runtime
+    env change takes effect without a re-import.
     """
     token = os.getenv("AGENTA_RUNNER_TOKEN")
-    return {"Authorization": f"Bearer {token}"} if token else {}
+    if not (token and token.strip()):
+        raise RuntimeError(
+            "AGENTA_RUNNER_TOKEN is required to call the agent runner. Set the SAME value here "
+            "and on the runner (it refuses to start without one)."
+        )
+    return {"Authorization": f"Bearer {token.strip()}"}
 
 
 def _transport_error(user_message: str, *, detail: str) -> RuntimeError:

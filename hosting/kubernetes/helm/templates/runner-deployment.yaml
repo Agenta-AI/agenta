@@ -115,18 +115,23 @@ spec:
                   key: {{ $daytona.apiKeySecretRef.key | quote }}
                   optional: true
             {{- end }}
-            {{- /* Shared runner protocol credential (interface.md section 2): the runner verifies
-                   it and Services sends the same value (see agentRunner.servicesEnv). Rendered only
-                   when a secret ref is set, so an unauthenticated single-operator deployment stays
-                   valid. */ -}}
-            {{- if $auth.tokenSecretRef }}
+            {{- /* Shared runner protocol credential (interface.md section 2): the runner verifies it
+                   and Services sends the same value (see agentRunner.servicesEnv). REQUIRED — the
+                   runner refuses to boot without it, so this is always rendered and never
+                   `optional`. An explicit `auth.tokenSecretRef` overrides the platform Secret for
+                   operators who keep the runner credential in their own vault. Note this mounts a
+                   SINGLE key, not the whole Secret: the runner's env must stay narrow, because a
+                   local harness shares its container and can read /proc (tests/test_runner_secret_absence.py). */}}
             - name: AGENTA_RUNNER_TOKEN
               valueFrom:
                 secretKeyRef:
+                  {{- if $auth.tokenSecretRef }}
                   name: {{ $auth.tokenSecretRef.name | quote }}
                   key: {{ $auth.tokenSecretRef.key | quote }}
-                  optional: true
-            {{- end }}
+                  {{- else }}
+                  name: {{ include "agenta.fullname" . | quote }}
+                  key: AGENTA_RUNNER_TOKEN
+                  {{- end }}
             {{- range $key, $val := $runner.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}

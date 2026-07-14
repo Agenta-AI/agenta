@@ -96,6 +96,25 @@ function parsePositiveInt(
 }
 
 /**
+ * Assert the `/run` shared token is set. Called ONCE at the serving boundary (the HTTP entry
+ * point), never from the per-request config reads — those only want provider config and must not
+ * acquire a dependency on an auth secret they don't use.
+ *
+ * Required, not optional: the `/run` body carries plaintext provider keys and reusable bearer
+ * tokens, and `/kill` tears down every in-flight sandbox. An unauthenticated runner is not a valid
+ * deployment, so boot fails rather than serving one — the contract `AGENTA_AUTH_KEY` already has.
+ */
+export function assertRunnerToken(token: string | undefined): string {
+  if (token === undefined) {
+    throw new RunnerConfigError(
+      "AGENTA_RUNNER_TOKEN is required. Generate a secret (e.g. `openssl rand -hex 32`) and set " +
+        "the SAME value on the runner and on the service that calls it.",
+    );
+  }
+  return token;
+}
+
+/**
  * Parse the enabled-provider registry. Rules (interface.md section 2):
  *  - unset means exactly `local`;
  *  - an explicitly empty list is invalid;
@@ -174,7 +193,10 @@ function parseProviders(env: Env): RunnerProvidersConfig {
   return { enabled, default: defaultProvider };
 }
 
-function parseDaytona(env: Env, enabled: readonly SandboxProviderId[]): RunnerDaytonaConfig {
+function parseDaytona(
+  env: Env,
+  enabled: readonly SandboxProviderId[],
+): RunnerDaytonaConfig {
   const apiKey = nonEmpty(env.AGENTA_RUNNER_DAYTONA_API_KEY);
   const snapshot = nonEmpty(env.AGENTA_RUNNER_DAYTONA_SNAPSHOT);
   const image = nonEmpty(env.AGENTA_RUNNER_DAYTONA_IMAGE);

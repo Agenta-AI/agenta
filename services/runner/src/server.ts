@@ -62,6 +62,7 @@ import {
 } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import {
+  assertRunnerToken,
   loadRunnerConfig,
   runnerConfigSummary,
 } from "./config/runner-config.ts";
@@ -79,12 +80,12 @@ import { seedForRun } from "./redaction.ts";
 // In Kubernetes/Compose, set `AGENTA_RUNNER_HOST` to the private pod/internal-network interface;
 // never publish the port to the host.
 
-// Optional shared `/run` token (sidecar-trust step 2): default OFF. When
-// `AGENTA_RUNNER_TOKEN` is set, every `/run` request must present the same secret (in
-// `Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`); otherwise it is
-// rejected with 401. Cheap defense-in-depth against accidental exposure on top of network
-// isolation; a static shared secret is not a substitute for TLS (deferred). Unset = no check,
-// so co-located/loopback deployments are unaffected.
+// Required shared `/run` token (sidecar-trust step 2). Every request must present the same secret
+// (in `Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`) or it is rejected with
+// 401. There is no unauthenticated mode: `assertRunnerToken` refuses to boot the HTTP surface
+// without the token, so by the time a request reaches here the secret always exists. Defense-in-depth
+// ON TOP OF network isolation, not a replacement; a static shared secret is not a substitute for TLS
+// (deferred).
 const RUNNER_TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 
 // Per-box in-flight counter: gates `/stream` and the `/run` back-compat alias at the process,
@@ -132,7 +133,9 @@ function presentedToken(req: IncomingMessage): string {
  */
 function isAuthorized(req: IncomingMessage): boolean {
   const expected = process.env[RUNNER_TOKEN_ENV];
-  if (!expected) return true; // default-off: no token configured, accept (network isolation only)
+  // Fail closed. `loadRunnerConfig` already refused to boot without a token, so a missing value
+  // here means the environment was mutated out from under a running process — deny, never accept.
+  if (!expected) return false;
   return tokensMatch(presentedToken(req), expected);
 }
 
@@ -806,8 +809,9 @@ function inBandAnswerToken(request: AgentRunRequest): string | undefined {
   if (!sessionId) return undefined;
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
   if (!provider) return undefined;
-  const parked = keepalivePools[provider].awaitingApproval(sessionId)
-    ?.environment.parkedApproval;
+  const parked =
+    keepalivePools[provider].awaitingApproval(sessionId)?.environment
+      .parkedApproval;
   if (!parked) return undefined;
   return approvalDecisionForToolCall(request, parked.toolCallId) !== undefined
     ? parked.interactionToken
@@ -1234,7 +1238,13 @@ if (isEntrypoint(import.meta.url)) {
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
   const runnerConfig = loadRunnerConfig();
-  process.stderr.write(`[sandbox-agent] ${runnerConfigSummary(runnerConfig)}\n`);
+  // The shared token is required to SERVE, but not to parse config: the per-request config reads
+  // (provider defaults) must not depend on an auth secret. So it is asserted here, at the one
+  // boundary that exposes the HTTP surface, and nowhere else.
+  assertRunnerToken(runnerConfig.server.token);
+  process.stderr.write(
+    `[sandbox-agent] ${runnerConfigSummary(runnerConfig)}\n`,
+  );
   if (runnerConfig.providers.enabled.includes("daytona")) {
     applyDaytonaSdkEnv(runnerConfig.daytona);
   }

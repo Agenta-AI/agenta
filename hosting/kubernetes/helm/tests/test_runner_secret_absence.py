@@ -104,7 +104,7 @@ def runner_container_env_names(docs: list[dict]) -> list[str]:
     raise AssertionError("no runner Deployment found in the rendered chart")
 
 
-def check(names: list[str], *, expect_token: bool) -> list[str]:
+def check(names: list[str]) -> list[str]:
     failures: list[str] = []
     present = set(names)
 
@@ -121,14 +121,11 @@ def check(names: list[str], *, expect_token: bool) -> list[str]:
         if required not in present:
             failures.append(f"runner env must contain {required}")
 
-    if expect_token and "AGENTA_RUNNER_TOKEN" not in present:
-        failures.append(
-            "runner env must contain AGENTA_RUNNER_TOKEN when auth.tokenSecretRef is set"
-        )
-    if not expect_token and "AGENTA_RUNNER_TOKEN" in present:
-        failures.append(
-            "runner env must not contain AGENTA_RUNNER_TOKEN when auth.tokenSecretRef is unset"
-        )
+    # The runner's own credential is REQUIRED, not opt-in: it refuses to boot without one, so it
+    # must be present in BOTH shapes (platform Secret by default, or an operator's own secret ref).
+    # It is a single key, which is exactly why the narrow-env rule above still holds.
+    if "AGENTA_RUNNER_TOKEN" not in present:
+        failures.append("runner env must contain AGENTA_RUNNER_TOKEN")
 
     return failures
 
@@ -136,13 +133,13 @@ def check(names: list[str], *, expect_token: bool) -> list[str]:
 def main() -> int:
     failures: list[str] = []
 
-    # Default deployment (no token ref): the narrow env, no runner token.
+    # Default deployment: the token comes from the platform Secret, env still narrow.
     names = runner_container_env_names(render([]))
-    failures += check(names, expect_token=False)
+    failures += check(names)
 
-    # Token configured: AGENTA_RUNNER_TOKEN appears, everything else stays narrow.
+    # Operator supplies their own secret ref: same narrow env, token sourced from their Secret.
     names_with_token = runner_container_env_names(render(TOKEN_ARGS))
-    failures += check(names_with_token, expect_token=True)
+    failures += check(names_with_token)
 
     if failures:
         print("FAIL: runner environment is not narrow:", file=sys.stderr)
