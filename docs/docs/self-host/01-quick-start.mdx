@@ -9,11 +9,13 @@ sidebar_position: 1
 This guide explains how to set up Agenta on your local machine using Docker Compose, either using the default port 80 or a custom port.
 
 :::tip Self-host with your coding agent
-Paste this prompt into your coding agent (Claude Code, Cursor, and similar) and it will set up and test a self-hosted Agenta with you.
+Paste this into Claude Code, Cursor, or another coding agent and it will walk you through setup and testing:
 
 ```
-I want to self-host Agenta
+Help me self-host Agenta (the open-source LLM agent platform, https://github.com/Agenta-AI/agenta). Follow the self-hosting docs at https://agenta.ai/docs/self-host/overview: ask me the key decisions, set it up, and confirm an agent runs.
 ```
+
+For a guided, questionnaire-style flow, install the Agenta self-host skill first: `npx skills add Agenta-AI/agenta-skills` (Cursor, Codex, and others), or in Claude Code run `/plugin marketplace add Agenta-AI/agenta-skills`.
 :::
 
 :::tip
@@ -22,14 +24,7 @@ Looking to deploy on Kubernetes instead? See the [Deploy on Kubernetes](/self-ho
 
 ## Prerequisites
 
-- Docker installed on your machine ([Download Docker](https://docs.docker.com/get-docker/))
-- Permission to reach the Docker daemon socket, `/var/run/docker.sock`. It is owned by `root` and the `docker` group. Run the commands below as `root`, prefix them with `sudo`, or add your user to the `docker` group:
-
-  ```bash
-  sudo usermod -aG docker $USER
-  ```
-
-  Then open a new login shell so the group applies. A member of the `docker` group can start a container that mounts the host filesystem, which makes the group equivalent to root on that machine.
+- Docker and Docker Compose installed ([Download Docker](https://docs.docker.com/get-docker/))
 
 ## Quick Setup (Port 80)
 
@@ -99,6 +94,7 @@ If Agenta doesn't start properly, check these common issues:
 5. Docker network layout: The Docker networks are defined in the compose files. See `hosting/docker-compose/oss/docker-compose.gh.yml` (OSS) or `hosting/docker-compose/ee/docker-compose.dev.yml` (EE) for the network names and service attachments.
 6. Lack of memory provided to docker: If you are experiencing the web container restarting and dying unexpectedly, the most likely cause is that you are running out of memory. You may need to increase the memory allocated to docker (desktop).
 7. The runner container does not start and Docker reports `error gathering device information while adding custom device "/dev/fuse"`: the host has no FUSE device. See [Run agents locally](/self-host/agent-execution/run-agents-locally#troubleshooting).
+8. Docker reports `permission denied` while trying to connect to `/var/run/docker.sock`: your user cannot reach the Docker daemon. Run the commands as `root`, prefix them with `sudo`, or add your user to the `docker` group (`sudo usermod -aG docker $USER`, then open a new login shell). A member of the `docker` group can start a container that mounts the host filesystem, which makes the group equivalent to root on that machine.
 
 :::info
 To set up a development environment with features like hot-reloading, refer to our [Development Guide](/contributing/guides/development-mode).
