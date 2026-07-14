@@ -14,6 +14,7 @@ from miniopy_async.deleteobjects import DeleteObject
 from miniopy_async.error import S3Error
 
 from oss.src.core.store import webidentity
+from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import MountFileNotFound, MountStorageUnavailable
 
 # STS responses are SOAP-ish XML under the 2011-06-15 namespace; strip it for tag lookups.
@@ -316,11 +317,11 @@ class ObjectStore:
         *,
         bucket: str,
         prefix: str,
-    ) -> List[Tuple[str, int, Optional[int]]]:
-        """Return (key, size, last_modified_ms) for every object under `prefix`. `last_modified_ms`
-        is the object store's LastModified as epoch milliseconds, or None when the store omits it."""
+    ) -> List[StoreObject]:
+        """Return a StoreObject (key, size, mtime) for every object under `prefix`. `mtime` is the
+        object store's LastModified as epoch milliseconds, or None when the store omits it."""
         client = self._client()
-        results: List[Tuple[str, int, Optional[int]]] = []
+        results: List[StoreObject] = []
         # list_objects returns an async iterator directly (not a coroutine) and manages its
         # own http session; iterate it, do not `await` or `async with` the client. It can yield
         # a trailing None on an empty/last page, so skip falsy entries.
@@ -329,7 +330,9 @@ class ObjectStore:
                 continue
             last_modified = getattr(obj, "last_modified", None)
             mtime = int(last_modified.timestamp() * 1000) if last_modified else None
-            results.append((obj.object_name, obj.size or 0, mtime))
+            results.append(
+                StoreObject(key=obj.object_name, size=obj.size or 0, mtime=mtime)
+            )
         return results
 
     async def get_object(
@@ -391,5 +394,5 @@ class ObjectStore:
     ) -> int:
         """Delete every key under `prefix` (cascades a folder). Returns count."""
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
-        keys = [key for key, *_ in objects]
+        keys = [obj.key for obj in objects]
         return await self.delete_keys(bucket=bucket, keys=keys)
