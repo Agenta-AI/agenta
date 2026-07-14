@@ -88,7 +88,10 @@ import { applyModel } from "./sandbox_agent/model.ts";
 import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
+  configurePiSessionWorkspace,
+  configurePiSkillSnapshot,
   prepareLocalPiAssets,
+  resolvePiSkillSnapshot,
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
   writeOtlpAuthFile,
@@ -728,6 +731,7 @@ export async function acquireEnvironment(
   });
   if (!planResult.ok) return { ok: false, error: planResult.error };
   const plan = planResult.plan;
+  const piSkillSnapshot = resolvePiSkillSnapshot(plan);
   const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
@@ -740,6 +744,8 @@ export async function acquireEnvironment(
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
+  const piSessionDir = configurePiSessionWorkspace(plan, env);
+  configurePiSkillSnapshot(piSkillSnapshot, env);
   const strictModel = modelResolutionStrict();
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
@@ -766,6 +772,11 @@ export async function acquireEnvironment(
         skills: plan.skillDirs.map((s) => s.name),
       })
     : {};
+  // Daytona's provider is built from `piExtEnv` rather than the local daemon env. Keep the
+  // transcript location in both environment slices so Pi and pi-acp see the same durable path
+  // regardless of provider.
+  if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
+  configurePiSkillSnapshot(piSkillSnapshot, piExtEnv);
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
@@ -1246,7 +1257,7 @@ export async function acquireEnvironment(
     if (plan.isDaytona) {
       await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
         sandbox: environment.sandbox,
-        plan,
+        plan: { ...plan, skillDirs: [] },
         log: logger,
       });
       if (!plan.isPi && plan.executableToolSpecs.length > 0) {
@@ -1374,6 +1385,7 @@ export async function acquireEnvironment(
         {
           sandbox: environment.sandbox,
           plan,
+          piSkillSnapshot,
           log: logger,
         },
       );
@@ -1392,6 +1404,7 @@ export async function acquireEnvironment(
         )({
           sandbox: environment.sandbox,
           plan,
+          piSkillSnapshot,
           log: logger,
         });
       } else {
@@ -1399,6 +1412,17 @@ export async function acquireEnvironment(
       }
     } finally {
       timingLog("prepare_workspace", prepareWorkspaceStartedAt);
+    }
+
+    // Pi native transcripts belong to the conversation workspace, not the temporary agent
+    // directory that holds credentials, settings, extensions, skills, and system prompts.
+    // The cwd mount is already active here on local and Daytona before Pi starts.
+    if (piSessionDir) {
+      if (plan.isDaytona) {
+        await environment.sandbox.mkdirFs({ path: piSessionDir });
+      } else {
+        mkdirSync(piSessionDir, { recursive: true });
+      }
     }
 
     // Sandbox-start invariant: `startSandboxAgent` must hand back a usable handle.

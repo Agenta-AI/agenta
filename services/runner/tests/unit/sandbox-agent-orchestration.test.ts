@@ -63,12 +63,14 @@ function fakeHarness(options: FakeOptions = {}) {
     daemonAgent: "",
     daemonOptions: undefined as { clearProviderEnv?: boolean } | undefined,
     providerArgs: [] as unknown[],
+    mkdirFsPaths: [] as string[],
     startOptions: undefined as any,
     createSessionOptions: undefined as any,
     promptBlocks: undefined as any,
     runStart: undefined as any,
     otelOptions: undefined as any,
     workspacePlan: undefined as any,
+    workspacePiSkillSnapshot: undefined as any,
     workspaceCleanup: 0,
     sandboxDestroyed: 0,
     sandboxDisposed: 0,
@@ -147,6 +149,9 @@ function fakeHarness(options: FakeOptions = {}) {
   };
 
   const sandbox = {
+    async mkdirFs({ path }: { path: string }) {
+      calls.mkdirFsPaths.push(path);
+    },
     async createSession(opts: any) {
       calls.createSessionOptions = opts;
       return session;
@@ -235,8 +240,9 @@ function fakeHarness(options: FakeOptions = {}) {
       }
       return sandbox;
     }) as any,
-    prepareWorkspace: (async ({ plan }: any) => {
+    prepareWorkspace: (async ({ plan, piSkillSnapshot }: any) => {
       calls.workspacePlan = plan;
+      calls.workspacePiSkillSnapshot = piSkillSnapshot;
       return {
         cleanup: async () => {
           calls.workspaceCleanup += 1;
@@ -343,6 +349,148 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("points local Pi and pi-acp at the conversation workspace transcript directory", async () => {
+    const cwd = join(
+      tmpdir(),
+      "agenta-pi-session-dir-" + process.pid + "-" + Date.now(),
+    );
+    const { calls, deps } = fakeHarness({ cwd });
+
+    const result = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const expected = join(cwd, "agents", "sessions", "pi");
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(existsSync(expected), true);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => {}) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const expected = "/home/sandbox/agenta-fake-cwd/agents/sessions/pi";
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.ok(calls.mkdirFsPaths.includes(expected));
+  });
+
+  it("passes the same Pi skill snapshot to local Pi and workspace preparation", async () => {
+    const cwd = join(
+      tmpdir(),
+      `agenta-pi-skill-dir-${process.pid}-${Date.now()}`,
+    );
+    const skill = join(
+      tmpdir(),
+      `agenta-pi-skill-source-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(skill, { recursive: true });
+    writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.resolveSkillDirs = () => ({
+      skills: [{ name: "release-notes", dir: skill }],
+      cleanup: () => {},
+    });
+
+    const result = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const selected = calls.workspacePiSkillSnapshot;
+    assert.ok(selected);
+    assert.match(
+      selected.dir,
+      new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`),
+    );
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SKILL_DIR,
+      selected.dir,
+    );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
+        .PI_CODING_AGENT_SKILL_DIR,
+      selected.dir,
+    );
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(skill, { recursive: true, force: true });
+  });
+
+  it("keeps configured skills out of the Daytona Pi agent directory", async () => {
+    const skill = join(
+      tmpdir(),
+      `agenta-pi-daytona-skill-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(skill, { recursive: true });
+    writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
+    const { calls, deps } = fakeHarness();
+    deps.resolveSkillDirs = () => ({
+      skills: [{ name: "release-notes", dir: skill }],
+      cleanup: () => {},
+    });
+    let agentDirSkillCount = -1;
+    deps.prepareDaytonaPiAssets = (async ({ plan }: any) => {
+      agentDirSkillCount = plan.skillDirs.length;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(agentDirSkillCount, 0);
+    assert.match(
+      calls.workspacePiSkillSnapshot.dir,
+      /^\/home\/sandbox\/agenta-fake-cwd\/agents\/skills\/[a-f0-9]{64}$/,
+    );
+    rmSync(skill, { recursive: true, force: true });
   });
 
   it("advertises durable agent storage only after a confirmed local mount", async () => {
