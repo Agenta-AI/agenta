@@ -1,143 +1,109 @@
 # Plan
 
-Five slices, each mapped to one gap. Two slices (1 and 5) are new to this project. Three
-(2, 3, and part of 4) implement or extend designs the `model-config` sibling already wrote. The
-recommended order front-loads the fastest unblock and keeps each slice independently shippable.
+The goal is a named OpenAI-compatible model running through a Pi agent, with the connection slug as
+its identity end to end. Three of the first plan's slices already landed. The rest is three slices in
+dependency order, each independently shippable, each with tests. The banner-leak appendix stays a
+separate lane.
 
-## Slice-to-gap map
+## Landed already
 
-| Slice | Gap | New or from a sibling | Where |
-| --- | --- | --- | --- |
-| 0 | 5 (Together env var) | new one-liner | `platform/secrets.py`, `platform/connections.py`, `connections/resolver.py` |
-| 1 | 1 (deployment gate) | new | `platform/connections.py` |
-| 2 | 2 (runner teaches Pi) | `model-config` Part 1 | `services/runner/src/engines/sandbox_agent/` |
-| 3 | 3 (silent model drop) | `model-config` Part 2 | `services/runner/src/engines/sandbox_agent/model.ts`, `sandbox_agent.ts` |
-| 4 | 4 (picker) | extends `model-config` Part 3 | `web/packages/agenta-entity-ui/...`, `capabilities.py` |
+- **Env-var map (old Slice 0).** One canonical `PROVIDER_ENV_VARS`
+  (`sdks/python/agenta/sdk/agents/capabilities.py:111-125`) with `together_ai -> TOGETHER_API_KEY`
+  and `minimax`. Parity test: `sdks/python/oss/tests/pytest/unit/agents/test_provider_env_vars_parity.py`.
+- **Known-family deployment gate (old Slice 1).** `_custom_provider_candidate`
+  (`sdks/python/agenta/sdk/agents/platform/connections.py:330-335`) resolves a known-family custom
+  connection to `deployment="direct"`, which passes Pi's `["direct"]` gate.
+- **Fail-loud model (old Slice 3a).** `allowedModels` reads `c.value ?? c.id`
+  (`services/runner/src/engines/sandbox_agent/model.ts:72`); `applyModel` raises a typed
+  `ModelNotSettableError` (`model.ts:9`); `AGENTA_AGENT_MODEL_STRICT` is wired for every harness and
+  defaults to true (`sandbox_agent.ts:374`, applied at `:1692-1696`). This shipped strict-by-default
+  directly, so the first plan's staged "flip to strict later" step (old Slice 3b) is moot.
 
-## Slice 0: fix the Together env var (Gap 5)
+## Slice 1: connection identity and gate (service)
 
-The independent quick win. Change `together_ai -> TOGETHER_API_KEY` in all three provider-to-env
-maps (`platform/secrets.py:100`, `platform/connections.py:49`, `connections/resolver.py:38`). Add
-the missing `minimax -> MINIMAX_API_KEY` to the two maps that omit it (`secrets.py`,
-`resolver.py`), since `PI_VAULT_PROVIDERS` advertises `minimax` and a `minimax` key silently
-produces no env var today. Audit every remaining entry against Pi's `getApiKeyEnvVars`.
+Give a named OpenAI-compatible connection an identity and let it through Pi's gate.
 
-This is behavior-preserving except for the two providers it repairs. It has no ordering
-dependency, so it can land first or in parallel.
+- Add `slug` to `ResolvedConnection` (`connections/models.py:162-183`) and its wire form `to_wire()`
+  (`:190-207`). Update the docstring, which currently states the adapter never sees a slug. The slug
+  is the connection's identity, not a secret.
+- Resolve a provider-less or unknown-kind custom connection to the OpenAI-compatible family with
+  `deployment="custom"`, defaulting the family after the trusted vault record resolves. No stored
+  schema change.
+- Add the `custom` deployment to Pi's capability row, paired with the OpenAI-compatible protocol, so
+  `harness_allows_deployment` (`capabilities.py:299-310`) and the pre-resolve provider check
+  (`capabilities.py:281-284`) let a named connection through instead of raising
+  `UnsupportedProviderError` / `UnsupportedDeploymentError` (`handler.py:117-119`, `:135-137`).
 
-Tests: a unit assertion that the three maps agree (a cross-copy equality test, noted but not
-written by the siblings), and that `together_ai` and `minimax` resolve to the Pi-correct env var.
+The role analysis is in [design.md](design.md) Sections 1 and 3.
 
-## Slice 1: normalize the deployment of a known-direct custom provider (Gap 1)
+Tests:
 
-The fastest unblock, and the whole reason this project exists. In `_custom_provider_candidate`
-(`connections.py:274-309`), when the vault kind is in `_PROVIDER_ENV_VARS`, set
-`deployment="direct"` instead of echoing the kind. Keep `azure`/`bedrock`/`vertex` as their cloud
-surface (they stay fail-loud on Pi). Tighten `ResolvedConnection.deployment` to the closed
-access-surface set (`direct`/`azure`/`bedrock`/`vertex`); drop the free `"custom"` echo (a custom
-endpoint is `direct` plus an `endpoint`). The role analysis is in [design.md](design.md) Section 1.
+- Resolver unit tests: the slug rides the wire; an Ollama-style record (unknown kind, base URL, key)
+  resolves to `deployment="custom"` and the OpenAI-compatible family and passes the Pi gate; a
+  known-family record still resolves `direct` and is unchanged.
+- A wire golden test for `ResolvedConnection` if one exists (the runner mirrors the wire in
+  `protocol.ts` with a shared golden; update both sides and the golden together).
 
-After this, a custom OpenRouter or OpenAI connection passes Pi's `["direct"]` gate. Because
-`resolved_env` already emits the provider's `*_API_KEY` (`connections.py:238-245`) and the runner
-already forwards `request.secrets` into the Pi daemon env, a model id that is already in Pi's
-built-in catalog (all 253 OpenRouter ids, the `openai/*` ids) becomes settable with no runner
-change. This slice alone closes the headline "OpenRouter works as a provider_key but not as a
-custom provider" complaint for any built-in id.
+## Slice 2: teach Pi the connection (runner)
 
-Custom base URLs and genuinely custom (non-built-in) ids still need Slice 2.
+Write the Pi config and set the exact model.
 
-Tests: unit on `_custom_provider_candidate` (a known-direct kind resolves `deployment="direct"`,
-provider set, endpoint and env intact; a cloud kind keeps its surface). Integration
-(httpx-mocked resolver, fake runner): a custom OpenRouter connection with a built-in id no longer
-raises `UnsupportedDeploymentError` and reaches the runner with `OPENROUTER_API_KEY` in `secrets`.
+- A pure model-config builder returns `{ files, exactModelId }`. `files` holds `models.json` keyed by
+  `providers[<slug>]`, dialect `openai-completions`, `apiKey` as a `"$ENV"` reference, and the one
+  selected model. `exactModelId` is `<slug>/<model>`. The shape and its role analysis are in
+  [design.md](design.md) Section 2.
+- Write `models.json` into the per-run Pi agent dir, local and Daytona alike. Make "the run carries a
+  resolved provider connection" a reason to create and point at that dir, alongside skills and a
+  system prompt.
+- Build an isolated managed Pi directory for a managed run (`credentialMode="env"`): non-credential
+  settings plus `models.json` only, never the operator's `auth.json`. This fixes the local path
+  (`pi-assets.ts:475-490` copies it today) to match the Daytona path (`daytona.ts:168-171`).
+- Pass `exactModelId` to `setModel`, bypassing the suffix-match fallback in `pickModel`
+  (`model.ts:49-59`) that can pick the wrong provider.
 
-## Slice 2: teach Pi the custom provider in the runner (Gap 2, model-config Part 1)
+All new inputs ride the slug added in Slice 1 plus the existing `resolved_connection` and `secrets`.
 
-Write, into the per-run agent dir the runner controls, and into `DAYTONA_PI_DIR` for the remote
-path:
+Tests:
 
-- `auth.json` from the resolved provider keys, each value a `"$ENV"` reference, merged with the
-  login's copied `auth.json` so OAuth still works.
-- `models.json` only when `resolved_connection.endpoint.baseUrl` is set or the selected model id is
-  not a Pi built-in: one `providers.<provider>` block with `baseUrl`, `api`, `apiKey` (`"$ENV"`),
-  and the one selected model id. The shape and its role analysis are in [design.md](design.md)
-  Section 2.
+- Builder unit tests: the content keys by slug, uses `openai-completions`, references `"$ENV"` and
+  never writes a raw secret to disk, and returns the exact `<slug>/<model>` id.
+- Managed-dir isolation test: a managed run's Pi dir has no operator `auth.json`.
+- Daytona parity: the same `models.json` reaches the sandbox and the key reaches the sandbox env.
+- Live acceptance (llm_required): a connection with a custom base URL and a custom model id runs.
 
-Prerequisites inside this slice:
+## Slice 3: rename the UI type label (frontend)
 
-- Make "the run carries a resolved provider connection" a third reason to create and point at the
-  per-run agent dir, alongside skills and system prompt (`pi-assets.ts:224`). Otherwise the write
-  lands nowhere the daemon reads for the exact failing case (a plain model override).
-- Local and Daytona parity: mirror `uploadPiAuthToSandbox` (`daytona.ts:77-94`) with a
-  `models.json` uploader, and confirm the key reaches the sandbox env via `daytonaEnvVars`
-  (`daytona.ts:31-46`).
+Rename the visible type "Custom provider" to "OpenAI-compatible endpoint" at three locations:
 
-All inputs already ride the wire (`resolved_connection` plus `secrets`); no wire change. This is
-the runner half of the fix and it stays in `services/runner/src/engines/sandbox_agent/`.
+- `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ProviderCredentialsSection.tsx:87`
+  and `:416`.
+- `web/packages/agenta-entities/src/secret/core/types.ts:98`.
+- `web/oss/src/components/pages/settings/Secrets/SecretProviderTable/index.tsx:206`.
 
-Tests: unit that given `resolved_connection` with a base URL and a key, the runner writes an
-`auth.json` referencing `"$OPENROUTER_API_KEY"` and a `models.json` with the base URL and the
-selected id, and never a raw secret. Integration: a custom-base-URL run resolves the model rather
-than falling back. Live acceptance (llm_required): a custom OpenRouter connection with a genuinely
-custom id runs.
+Nothing else in the picker changes. The picker expansion moves to `model-config` Part 3. See
+[design.md](design.md) Section 5.
 
-## Slice 3: fail loud on an unsettable model (Gap 3, model-config Part 2)
+Tests: the settings secrets table and the provider-credentials section render the new label; no other
+picker behavior changes.
 
-Fix `allowedModels` to read `c.value ?? c.id` (`model.ts:19-30`) so the allowed set is real. Raise
-a typed `ModelNotSettableError` carrying the requested model and the allowed set when a requested
-model cannot be set after the retry. Gate it behind `AGENTA_AGENT_MODEL_STRICT`, default `false`
-first (warn and fall back, today's behavior), then flip to `true` once the QA matrix confirms the
-common models are settable and the advertised default is reconciled. A no-model-requested run still
-uses the harness default and is never an error. Keep the in-process Pi path consistent
-(`engines/pi.ts` `pickModel` should raise the same error rather than silently substituting). The
-role analysis is in [design.md](design.md) Section 4.
+## Order
 
-Tests: a requested model with no key raises and the concise error renders the available set; no
-model requested still runs the default; strict off preserves today's fallback.
-
-## Slice 4: surface custom-provider models in the picker (Gap 4)
-
-Add `models?: string[]` to `VaultConnectionEntry` (`connectionUtils.ts:302-312`). Thread the vault
-entries into `buildModelOptionGroups` (`:239-256`) or its `useModelHarness` caller, and merge each
-reachable custom provider's models into the harness-filtered group, tagging provenance so the UI
-labels a project-specific model. Apply the same harness reachability filter
-`namedConnectionOptions` already uses. Land the static grouped-choice baseline first
-(`model-config` Part 3 layer 1: give the agent `model` field real grouped choices from
-`supported_llm_models`), which is independent and cheap. The picker-choices contract and its role
-split are in [design.md](design.md) Section 5.
-
-Tests: helper unit that a custom provider's models appear in the group for a harness that reaches
-that provider and are absent for one that does not; a built-in-only picker is unchanged.
-
-## Recommended order
-
-1. **Slice 0** (Together env var). Independent, trivial, unblocks Together and Minimax now.
-2. **Slice 1** (deployment gate). The fastest unblock: one resolver change makes a custom
-   known-direct provider work on Pi for any built-in id, with no runner or frontend work.
-3. **Slice 2** (runner write). Extends the reach to custom base URLs and genuinely custom ids.
-   Contained to the runner.
-4. **Slice 3a** (louder error, `allowedModels` fix, `AGENTA_AGENT_MODEL_STRICT` defaulting false).
-   The safe half of the fail-loud fix.
-5. **Slice 4** (picker), with the static grouped-choice baseline first.
-6. **Slice 3b** (flip `AGENTA_AGENT_MODEL_STRICT` to strict) once the QA matrix is green.
-
-Slice 1 is the single highest-value change and should ship first after Slice 0. Slices 0, 1, and 4
-are new to this project; Slices 2 and 3 build the `model-config` design.
+1. **Slice 1** (service). The slug and the gate. Slice 2 depends on the slug on the wire.
+2. **Slice 2** (runner). The `models.json` write, the isolated managed dir, and the exact id.
+3. **Slice 3** (frontend). Independent of the other two; can land any time.
 
 ## Non-goals
 
-- Bedrock, Vertex, and Azure consumption on Pi stays fail-loud. This project does not wire
-  multi-var cloud credential delivery into Pi.
+- Bedrock, Vertex, and Azure consumption on Pi stays fail-loud.
 - No vault storage change: no new secret kind, no migration, no `/secrets` write path.
-- No new `/run` wire field.
+- Exactly one new `/run` wire field: the connection slug. No others.
+- The model picker expansion stays with `model-config` Part 3.
 - The prompt/completion path is untouched.
 
 ## Appendix: the Pi startup-banner leak (separately shippable, not a slice)
 
-`isBannerLine` (`services/runner/src/tracing/otel.ts:699-713`) does not match pi-acp's newer
-`## Extensions` section or its `.js` extension paths, and `stripStartupBanner` (`:719-728`) strips
-only a leading contiguous run, so the Extensions block and the trailing "New version available"
-notice leak into replies. Fix `isBannerLine` to match the `Extensions` heading and a `.js` path
-(or strip the whole banner block). Ship on its own lane; it does not block the five gaps. Full
-detail in [research.md](research.md).
-</content>
+`isBannerLine` (`services/runner/src/tracing/otel.ts`) does not match pi-acp's newer `## Extensions`
+section or its `.js` extension paths, and `stripStartupBanner` strips only a leading contiguous run,
+so the Extensions block and the trailing "New version available" notice leak into replies. Fix
+`isBannerLine` to match the `Extensions` heading and a `.js` path (or strip the whole banner block).
+Ship on its own lane. Full detail in [research.md](research.md).
