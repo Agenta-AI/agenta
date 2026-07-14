@@ -349,6 +349,10 @@ const config: Config = {
             to: "/self-host/agent-execution/daytona",
           },
           {
+            from: "/self-host/agent-execution/runner-configuration",
+            to: "/self-host/configuration",
+          },
+          {
             from: "/reference/sdk/quick_start",
             to: "/reference/sdk/configuration-management",
           },

@@ -3,7 +3,7 @@ title: "Run agents in a cloud sandbox (Daytona)"
 sidebar_label: "Cloud sandbox (Daytona)"
 description: "Enable the Daytona sandbox provider on the runner: credentials, the sandbox snapshot, store reachability, and a smoke test."
 slug: /self-host/agent-execution/daytona
-sidebar_position: 3
+sidebar_position: 2
 ---
 
 Daytona runs each agent in an isolated cloud sandbox instead of the runner container. This page
@@ -11,7 +11,7 @@ sets it up on an existing deployment. For what the sandbox isolates, see
 [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
 
 Every variable on this page is set on the `runner` service. Defaults and validation rules are in
-the [runner reference](/self-host/agent-execution/runner-configuration).
+the [runner reference](/self-host/configuration#agent-runner).
 
 ## Before you start
 
@@ -159,7 +159,7 @@ runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
 
 The first run creates a sandbox in your Daytona account. Later turns reuse a warm sandbox until it
 stops or is deleted. See
-[warm sessions and scale](/self-host/agent-execution/runner-configuration#warm-sessions-and-scale).
+[warm sessions and scale](/self-host/configuration#warm-sessions-and-scale).
 
 :::info Personal subscriptions are local-only
 A personal Pi, Claude, or ChatGPT login authenticates a harness through a directory mounted into

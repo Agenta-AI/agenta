@@ -3,7 +3,7 @@ title: "Sandbox isolation and security"
 sidebar_label: "Sandbox isolation and security"
 description: "What a Daytona sandbox isolates, what a local run in the runner container does not isolate, and which provider to enable for your deployment."
 slug: /self-host/agent-execution/sandbox-isolation-and-security
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 Agenta runs agent code in a sandbox. A self-hosted deployment picks the sandbox provider: a
@@ -13,7 +13,7 @@ deployment.
 
 Daytona isolates every run. Local runs do not isolate agents from each other or from the runner.
 Enable providers with `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`; see
-[Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) for the syntax
+[Runner and sandbox configuration](/self-host/configuration#agent-runner) for the syntax
 and [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the Daytona
 setup.
 
@@ -89,4 +89,4 @@ an agent may do inside the container with the agent's own tool permissions. See
 
 - [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) enables Daytona.
 - [Run agents locally](/self-host/agent-execution/run-agents-locally) configures local runs.
-- [Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) lists every variable.
+- [Runner and sandbox configuration](/self-host/configuration#agent-runner) lists every variable.

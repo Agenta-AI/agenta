@@ -3,7 +3,7 @@ title: "How agents run"
 sidebar_label: "How agents run"
 description: "The runner topology: how Services reaches the runner, how harness and sandbox provider are independent axes, and how a run gets its credentials and persistence."
 slug: /self-host/agent-execution/how-agents-run
-sidebar_position: 1
+sidebar_position: 2
 ---
 
 This page explains where agent code runs in a self-hosted Agenta deployment, and the pieces that
@@ -41,7 +41,7 @@ The sandbox providers are:
   [Run agents locally](/self-host/agent-execution/run-agents-locally).
 
 A deployment enables the providers it wants and picks a default with
-[`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`](/self-host/agent-execution/runner-configuration).
+[`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`](/self-host/configuration#sandbox-providers).
 
 ## Credentials
 
@@ -79,4 +79,4 @@ and the table above no longer applies. See
 - [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) for the trust model.
 - [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) to enable isolated cloud sandboxes.
 - [Run agents locally](/self-host/agent-execution/run-agents-locally) to configure local runs.
-- [Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) for every variable.
+- [Runner and sandbox configuration](/self-host/configuration#agent-runner) for every variable.

@@ -3,7 +3,7 @@ title: "Run agents locally"
 sidebar_label: "Local runs"
 description: "Run agents inside the runner container: enable the provider, give the harness a credential, and smoke test the deployment."
 slug: /self-host/agent-execution/run-agents-locally
-sidebar_position: 4
+sidebar_position: 3
 ---
 
 A local run executes the agent inside the runner container, on the machine that runs your
@@ -14,7 +14,7 @@ you open the deployment to other people.
 
 This page sets local runs up on an existing deployment. Every variable is set on the `runner`
 service. Defaults and validation rules are in the
-[runner reference](/self-host/agent-execution/runner-configuration).
+[runner reference](/self-host/configuration#agent-runner).
 
 ## Before you start
 
@@ -58,7 +58,7 @@ runner providers enabled=[local] default=local
 
 The harness process starts inside the runner container. Later turns reuse the pooled session until
 it expires; see
-[warm sessions and scale](/self-host/agent-execution/runner-configuration#warm-sessions-and-scale).
+[warm sessions and scale](/self-host/configuration#warm-sessions-and-scale).
 
 ## Troubleshooting
 
