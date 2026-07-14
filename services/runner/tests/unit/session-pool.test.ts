@@ -522,6 +522,40 @@ describe("poolKeyFor", () => {
       null,
     );
   });
+  it("the same sessionId under different projects produces different keys (kill scoping)", () => {
+    // Backs the /kill contract: a same-session-id-different-project entry must not collide.
+    const a = poolKeyFor(
+      { sessionId: "s1", runContext: { project: { id: "proj-a" } } },
+      undefined,
+    );
+    const b = poolKeyFor(
+      { sessionId: "s1", runContext: { project: { id: "proj-b" } } },
+      undefined,
+    );
+    assert.notEqual(a?.key, b?.key);
+  });
+});
+
+describe("SessionPool destroy scoping (backs the /kill contract)", () => {
+  it("destroying one project's key leaves a same-session-id different-project key parked", async () => {
+    const pool = new SessionPool({ poolMax: 4 }, () => {});
+    const a = parkInput("proj-a:s1");
+    const b = parkInput("proj-b:s1");
+    await pool.park(a.input, 10_000);
+    await pool.park(b.input, 10_000);
+    assert.equal(pool.size(), 2);
+
+    await pool.destroy("proj-a:s1", "kill");
+
+    assert.equal(a.env.state.destroyed, 1, "the scoped key was destroyed");
+    assert.equal(
+      b.env.state.destroyed,
+      0,
+      "a same-session-id different-project key survives",
+    );
+    assert.equal(pool.get("proj-a:s1"), undefined);
+    assert.ok(pool.get("proj-b:s1"));
+  });
 });
 
 describe("SessionPool", () => {
