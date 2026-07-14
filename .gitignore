@@ -84,6 +84,7 @@ services/runner/tests/results/
 .agents/*
 !.agents/skills/
 .agents/skills/*
+!.agents/skills/self-host-agenta/
 !.agents/skills/write-template-playbooks/
 !.claude/
 .claude/*
