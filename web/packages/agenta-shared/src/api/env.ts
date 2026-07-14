@@ -37,6 +37,8 @@ export const processEnv = {
     NEXT_PUBLIC_LOG_APP_ATOMS: process.env.NEXT_PUBLIC_LOG_APP_ATOMS,
     NEXT_PUBLIC_ENABLE_ATOM_LOGS: process.env.NEXT_PUBLIC_ENABLE_ATOM_LOGS,
     NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
+    NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS:
+        process.env.NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS,
 }
 
 /**
@@ -80,4 +82,14 @@ const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enabl
 export const isSandboxLocalEnabled = (): boolean => {
     const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
     return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
+}
+
+/** The sandbox providers this deployment enabled, normalized to lowercase ids. Unset/empty
+ * falls back to `["local"]` so the picker never hides every option. */
+export const getEnabledSandboxProviders = (): string[] => {
+    const providers = getEnv("NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS")
+        .split(",")
+        .map((provider) => provider.trim().toLowerCase())
+        .filter(Boolean)
+    return providers.length > 0 ? providers : ["local"]
 }
