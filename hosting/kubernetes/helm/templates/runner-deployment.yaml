@@ -53,7 +53,7 @@ spec:
                    this container, so anything here is readable from /proc. Only the runner's own
                    config and the API URL it needs to reach the platform — never the full
                    commonEnv (DB/auth/crypt/license/redis/store secrets). See
-                   tests/test_runner_secret_absence.py. */ -}}
+                   tests/test_runner_secret_absence.py. */}}
             - name: AGENTA_API_URL
               value: {{ include "agenta.apiUrlEffective" . | quote }}
             {{- $agentaVals := include "agenta.values" . | fromYaml -}}

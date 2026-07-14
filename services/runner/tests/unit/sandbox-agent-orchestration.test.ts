@@ -1551,18 +1551,29 @@ describe("runSandboxAgent orchestration", () => {
   it("passes the run's declared provider/deployment so the inherited keys narrow (RUN-SEC-1)", async () => {
     const { calls, deps } = fakeHarness();
 
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
-        provider: "anthropic",
-        deployment: "bedrock",
-      } as AgentRunRequest,
-      undefined,
-      undefined,
-      deps,
-    );
+    // A local runtime_provided run authenticates from a mounted subscription, so buildRunPlan
+    // requires the harness config var (here CLAUDE_CONFIG_DIR) to name a mount.
+    const previousClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = "/agenta/harness/claude";
+    let result;
+    try {
+      result = await runSandboxAgent(
+        {
+          harness: "claude",
+          messages: [{ role: "user", content: "hello" }],
+          credentialMode: "runtime_provided",
+          provider: "anthropic",
+          deployment: "bedrock",
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+    } finally {
+      if (previousClaudeConfigDir === undefined)
+        delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previousClaudeConfigDir;
+    }
 
     assert.equal(result.ok, true);
     assert.equal(calls.daemonOptions?.provider, "anthropic");
