@@ -1,7 +1,7 @@
 ---
 title: "Runner and sandbox configuration"
 sidebar_label: "Runner and sandbox configuration"
-description: "Reference for every runner environment variable: routing, server, sandbox providers, Daytona, warm sessions, callbacks, and internal settings, with defaults, Helm paths, and validation."
+description: "Reference for every runner environment variable: service, routing, sandbox providers, Daytona, warm sessions, run limits, and callbacks, with defaults, Helm paths, and validation."
 slug: /self-host/agent-execution/runner-configuration
 sidebar_position: 5
 ---
@@ -15,33 +15,23 @@ For the general platform variables, see the [configuration reference](/self-host
 The local subscription mount variables (`PI_CODING_AGENT_DIR` and `CLAUDE_CONFIG_DIR`) are covered
 by [Use your own subscription](/self-host/use-your-own-subscription).
 
-## Services-to-runner routing
+The bundled Compose env examples group these variables under `Agenta - Agent runner` in the same
+order as the sections below, so the file and this page mirror each other.
 
-Set on the Services API. They locate the runner and authenticate the call.
-
-| Variable | Role | Read by | Default | Secret | Helm |
-|---|---|---|---|---|---|
-| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
-| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services sends it; runner verifies it | Unset | yes | `agentRunner.env.AGENTA_RUNNER_TOKEN` |
-| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout on the run request | Services API and SDK | `180` | no | n/a |
-
-`AGENTA_RUNNER_TOKEN` is the same credential at both ends. It does not belong to a sandbox or a
-harness. The runner enforces the check only when the value is set, so leaving it unset (the bundled
-Compose and Helm default) disables it. To turn it on, set the same value on the runner and on the
-Services API. `AGENTA_RUNNER_TIMEOUT_SECONDS` bounds idle time on the streaming transport, not the
-total run duration.
-
-## Runner server
+## Service
 
 Set on the `runner` service.
 
-| Variable | Role | Default | Empty allowed | Helm |
+| Variable | Role | Default | Secret | Helm |
 |---|---|---|---|---|
-| `AGENTA_RUNNER_HOST` | Bind interface | `127.0.0.1` | Yes | `agentRunner.env.AGENTA_RUNNER_HOST` |
-| `AGENTA_RUNNER_PORT` | Bind port | `8765` | Yes | Chart-managed (`8765`) |
-| `AGENTA_RUNNER_CONCURRENCY_LIMIT` | Maximum concurrent runs | `1000` | Yes | `agentRunner.env.AGENTA_RUNNER_CONCURRENCY_LIMIT` |
-| `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | Yes | `agentRunner.logLevel` |
-| `AGENTA_RUNNER_REPLICA_ID` | Replica identity for logs | Generated when unset | Yes | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
+| `AGENTA_RUNNER_HOST` | Bind interface | `127.0.0.1` | no | `agentRunner.env.AGENTA_RUNNER_HOST` |
+| `AGENTA_RUNNER_PORT` | Bind port | `8765` | no | Chart-managed (`8765`) |
+| `AGENTA_RUNNER_CONCURRENCY_LIMIT` | Maximum concurrent runs | `1000` | no | `agentRunner.env.AGENTA_RUNNER_CONCURRENCY_LIMIT` |
+| `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | no | `agentRunner.logLevel` |
+| `AGENTA_RUNNER_REPLICA_ID` | Replica identity for logs | Generated when unset | no | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
+
+Every variable on this page treats an empty value as unset, so leaving a line blank selects the
+default rather than an empty string.
 
 The code default host is `127.0.0.1`. The bundled Compose files set `AGENTA_RUNNER_HOST=0.0.0.0`
 so the Services container can reach the runner across the Compose network. `AGENTA_RUNNER_PORT` and
@@ -49,6 +39,27 @@ so the Services container can reach the runner across the Compose network. `AGEN
 
 The runner does not take a static API key. Session coordination, mount signing, and trace export
 use the per-run caller credential.
+
+## Routing and authentication
+
+These locate the runner and authenticate the call. Two of the three are caller-side: the Services
+API and its SDK read them, not the runner.
+
+| Variable | Role | Read by | Default | Secret | Helm |
+|---|---|---|---|---|---|
+| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API (caller-side) | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
+| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services sends it; runner verifies it | Unset | yes | `agentRunner.env.AGENTA_RUNNER_TOKEN` |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `180` | no | n/a |
+
+`AGENTA_RUNNER_TOKEN` is the same credential at both ends. It does not belong to a sandbox or a
+harness. The runner enforces the check only when the value is set, so leaving it unset (the bundled
+Compose and Helm default) disables it. To turn it on, set the same value on the runner and on the
+Services API.
+
+`AGENTA_RUNNER_TIMEOUT_SECONDS` bounds idle time on the caller's streaming transport, not the total
+run duration, and the runner never reads it. The runner enforces its own deadlines through
+[Run limits](#run-limits). Set the caller timeout above the runner's idle timeout, or the caller
+gives up on a run the runner still considers healthy.
 
 ## Sandbox providers
 
@@ -83,30 +94,72 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
 | `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
 | `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
-| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-sandbox-pi` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v1` | no | `...daytona.snapshot` |
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
-starts from its pinned default snapshot `agenta-sandbox-pi`. The two variables are mutually
+starts from its pinned default snapshot `agenta-agent-sandbox-v1`. The two variables are mutually
 exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow.
 
-## Session lifecycle and warm sessions
+:::warning[The bare `DAYTONA_*` variables are a different sandbox, and the snapshot is not shareable]
+`DAYTONA_API_KEY`, `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DAYTONA_SNAPSHOT`, and
+`DAYTONA_SNAPSHOT_CODE` configure the **code evaluator's** sandbox, which runs custom evaluator
+code. The agent runner never reads them. Only the `AGENTA_RUNNER_DAYTONA_*` variables in the table
+above reach it, so setting the bare names does not give agents a Daytona sandbox, and the runner
+still fails to start with a missing-key error.
 
-A Daytona sandbox stays warm between turns so a follow-up turn skips a cold start. Both variables
-are read by the `runner` service. The bundled Compose and Helm templates leave them empty, which
-means "use the default".
+The **account** is shareable: `AGENTA_RUNNER_DAYTONA_API_KEY`, `_API_URL`, and `_TARGET` may hold
+the same values as their bare counterparts. The **snapshot is not**. The evaluator's snapshot (for
+example `daytona-small`) is a plain runtime image with no agent harness installed. Copying
+`DAYTONA_SNAPSHOT` into `AGENTA_RUNNER_DAYTONA_SNAPSHOT` boots agents into an image that cannot run
+them. The agent runner needs its own snapshot, `agenta-agent-sandbox-v1`, built by the recipe in
+[Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona).
+:::
 
-| Variable | Role | Default | Helm |
-|---|---|---|---|
-| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | How long a sandbox stays running with its live session after a clean turn | `120000` (2 minutes) | `...daytona.sessionIdleTtlMs` |
-| `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` | How many idle sandboxes may stay running between turns | `20` | `...daytona.sessionMaxWarm` |
+## Warm sessions and scale
+
+A session stays warm between turns so a follow-up turn skips a cold start. Both providers pool
+sessions, but they budget different things: the Daytona pool budgets billed compute, and the local
+pool budgets host memory inside the runner container. All of these are read by the `runner` service,
+and all are safe to leave unset.
+
+Daytona, one warm sandbox per parked session:
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | How long a sandbox stays running with its live session after a clean turn | `120000` (2 minutes) | no | `...daytona.sessionIdleTtlMs` |
+| `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` | How many idle sandboxes may stay running between turns | `20` | no | `...daytona.sessionMaxWarm` |
 
 Set `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` to `0` to stop a sandbox after each turn. There is
 no separate enable flag. `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` bounds idle spend only; it never
 blocks an active turn. Overflow sandboxes park in the stopped state.
+
+:::warning[Keep the idle TTL below the autostop window]
+`AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` must stay below
+`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`. Autostop is Daytona's own idle timer, and it does not
+know about the runner's warm pool. If the TTL is the longer of the two, Daytona stops a sandbox the
+runner still believes is warm: the next turn takes the cold path anyway, and you paid for the warm
+window without getting it. The defaults (2 minutes against 15) satisfy this. Raise autostop first
+whenever you raise the TTL.
+:::
+
+Local, one pooled harness process per parked session inside the runner container:
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_SESSION_POOL_MAX` | How many local sessions may stay pooled | `8` | no | `agentRunner.env.AGENTA_RUNNER_SESSION_POOL_MAX` |
+| `AGENTA_RUNNER_SESSION_TTL_MS` | Idle lifetime of a pooled local session | `60000` (1 minute) | no | `agentRunner.env.AGENTA_RUNNER_SESSION_TTL_MS` |
+| `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` | Idle lifetime while a run waits for a human approval | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` |
+| `AGENTA_RUNNER_SESSION_KEEPALIVE` | Whether local sessions are reused at all | Enabled | no | `agentRunner.env.AGENTA_RUNNER_SESSION_KEEPALIVE` |
+
+Local keep-alive is on by default. Set `AGENTA_RUNNER_SESSION_KEEPALIVE=off` (`0`, `false`, and `no`
+also work) to make every local turn take the cold path, which trades latency for a lower and more
+predictable memory ceiling. The approval TTL is longer than the plain TTL on purpose: a run parked
+on a human approval is waiting on a person, not wedged. These four apply to the `local` provider
+only; Daytona ignores them and uses the two variables above.
 
 A Daytona sandbox moves through three states:
 
@@ -115,6 +168,37 @@ A Daytona sandbox moves through three states:
 | Running | While a turn executes, and during the warm window after a clean turn | Compute and disk |
 | Stopped | After `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` idle minutes | Disk only; restart is cheap and the session reloads on the same instance |
 | Deleted | After `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` idle minutes | None; the next turn creates a fresh sandbox and reloads the working directory from the store |
+
+## Run limits
+
+Four deadlines bound a single run. They exist because a wedged run holds its sandbox, its mount, and
+its socket while the platform still reports the session healthy, so without a deadline a stuck run
+bills forever. Whichever limit trips first aborts the run and releases everything the run held. All
+four are read by the `runner` service and apply to every provider.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` | Hard deadline for one run, measured from the first message | `2700000` (45 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` |
+| `AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` | Longest gap between two progress events before the run is abandoned | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` |
+| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
+| `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
+
+The defaults are deliberately wide, so a long, healthy agent run never trips them. Lower the total
+deadline to cap the cost of one run. Lower the idle and TTFB timeouts to fail a broken harness fast.
+
+Three rules govern how they interact:
+
+- A run paused for a human approval is exempt from all four. The pause freezes every timer, because
+  a person taking an hour to answer is a legitimate wait, not a wedge.
+- The idle timeout must stay below the total deadline, or it could never fire first. A value at or
+  above the total is clamped to half the total, and the runner logs the clamp rather than failing to
+  start.
+- The TTFB timer only covers the wait for the first response. The first progress event of any kind
+  cancels it and arms the idle timer instead.
+
+An invalid value (not a number, or negative) falls back to the default for that variable. These are
+the runner's own deadlines and are unrelated to `AGENTA_RUNNER_TIMEOUT_SECONDS`, which is the
+caller's idle timeout on the streaming transport.
 
 ## Callback API
 
@@ -132,15 +216,15 @@ base inferred from each request.
 
 ## Internal settings
 
-The runner reads a few variables that exist for debugging and internal tuning. They are not part
-of the supported configuration surface. Leave them unset on a normal deployment.
+The runner reads two more variables that exist for debugging and for custom sandbox images. They
+are not part of the supported configuration surface and may change without notice. Leave them unset
+on a normal deployment. Every other variable the runner reads is documented above.
 
 - `AGENTA_RUNNER_DEBUG_TOOLS`: when set to any value, the runner logs verbose tool-callback
   diagnostics to standard error. Unset by default.
-- The runner also reads internal local-session-pool tuning variables
-  (`AGENTA_RUNNER_SESSION_KEEPALIVE`, `AGENTA_RUNNER_SESSION_TTL_MS`,
-  `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS`, and `AGENTA_RUNNER_SESSION_POOL_MAX`). These size the
-  in-container warm pool for `local` runs and change without notice. Do not set them.
+- `AGENTA_AGENT_SANDBOX_PI_DIR`: where the Pi agent directory lives *inside* a Daytona sandbox,
+  defaulting to `/home/sandbox/.pi/agent`. This describes the sandbox image's own layout, not the
+  deployment. Change it only if you build a custom snapshot that puts Pi somewhere else.
 
 ## Startup validation
 
@@ -166,12 +250,12 @@ logged.
 
 ```text
 runner providers enabled=[local,daytona] default=local
-runner daytona target=eu artifact=snapshot:agenta-sandbox-pi
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
 ```
 
 The first line always prints. The second line appears only when `daytona` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
-`snapshot:agenta-sandbox-pi` (the pinned default), `snapshot:<name>`, or `image:<name>`
+`snapshot:agenta-agent-sandbox-v1` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
 
 ## Troubleshooting

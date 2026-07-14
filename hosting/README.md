@@ -47,7 +47,7 @@ Agent runs use two separate images. Do not confuse them.
 - **Sandbox image** (`services/runner/images/sandbox/<provider>/`) is the environment an agent
   runs inside. For Daytona, `services/runner/images/sandbox/daytona/build_snapshot.py` is the
   snapshot build recipe. Agenta ships the recipe, not a prebuilt snapshot: run it against your
-  own Daytona account to build a snapshot named `agenta-sandbox-pi`, then point the runner at it
+  own Daytona account to build a snapshot named `agenta-agent-sandbox-v1`, then point the runner at it
   with `AGENTA_RUNNER_DAYTONA_SNAPSHOT`. For local runs, the runner service image is also the
   sandbox.
 

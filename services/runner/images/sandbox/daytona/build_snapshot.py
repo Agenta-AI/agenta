@@ -10,7 +10,7 @@ pinned version, adds the pinned standalone `pi` CLI that adapter launches, and v
 the other baked harnesses so Daytona runs do not pay their installation cost for every
 fresh sandbox. Set the runner service to use it:
 
-    AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-sandbox-pi
+    AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1
 
 The runner probes for its pinned Pi before each session; because this recipe bakes it, the
 probe hits and no session-time install runs. The SDK code-evaluator runner can share the
@@ -44,7 +44,7 @@ from daytona import (
 )
 from daytona.common.errors import DaytonaNotFoundError
 
-SNAPSHOT_NAME = "agenta-sandbox-pi"
+SNAPSHOT_NAME = "agenta-agent-sandbox-v1"
 SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
 PI_VERSION = "0.80.6"
 PI_PACKAGE = f"@earendil-works/pi-coding-agent@{PI_VERSION}"

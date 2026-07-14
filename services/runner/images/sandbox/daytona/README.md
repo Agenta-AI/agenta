@@ -15,7 +15,7 @@ Configure the runner service with:
 AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local,daytona
 AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=daytona
 AGENTA_RUNNER_DAYTONA_API_KEY=...
-AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-sandbox-pi
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1
 ```
 
 The SDK custom-code evaluator runner can share the built snapshot (it reads the separate

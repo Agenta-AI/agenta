@@ -72,10 +72,10 @@ cd services/runner/images/sandbox/daytona
 DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run build_snapshot.py --force
 ```
 
-The recipe builds a snapshot named `agenta-sandbox-pi`. Point the runner at it:
+The recipe builds a snapshot named `agenta-agent-sandbox-v1`. Point the runner at it:
 
 ```bash
-AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-sandbox-pi
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1
 ```
 
 For Helm:
@@ -84,7 +84,7 @@ For Helm:
 agentRunner:
   providers:
     daytona:
-      snapshot: agenta-sandbox-pi
+      snapshot: agenta-agent-sandbox-v1
 ```
 
 `AGENTA_RUNNER_DAYTONA_SNAPSHOT` and `AGENTA_RUNNER_DAYTONA_IMAGE` are mutually exclusive. Set a
@@ -97,6 +97,15 @@ install cost.
 The recipe here builds the runner's sandbox. It does not build the runner service image and it
 does not build the custom-code evaluator sandbox. To add your own binaries or dependencies to
 agent runs, see [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime).
+
+:::warning[Do not reuse the code evaluator's snapshot]
+If your deployment already runs the custom-code evaluator on Daytona, it has a `DAYTONA_SNAPSHOT`
+(or `DAYTONA_SNAPSHOT_CODE`) of its own, often a plain runtime image such as `daytona-small`. The
+two sandboxes may share the Daytona **account**, meaning the same api key, url, and target, but they
+cannot share the **snapshot**. The evaluator's image has no agent harness installed, so an agent
+booted into it cannot run. Give the agent runner its own `agenta-agent-sandbox-v1` snapshot from the
+recipe above, and never copy `DAYTONA_SNAPSHOT` into `AGENTA_RUNNER_DAYTONA_SNAPSHOT`.
+:::
 
 ## 4. Make the store reachable
 
@@ -118,7 +127,7 @@ startup summary confirms the resolved configuration:
 
 ```text
 runner providers enabled=[local,daytona] default=daytona
-runner daytona target=eu artifact=snapshot:agenta-sandbox-pi
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
 ```
 
 A first run creates a sandbox in your Daytona account. Later turns reuse a warm sandbox until it
