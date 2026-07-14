@@ -259,4 +259,83 @@ describe("exported span sink (WP1.5)", () => {
 
     expect(exported.length).toBeGreaterThan(0);
   });
+
+  it("a secret recorded via recordException/setStatus (the error path) is scrubbed from span EVENTS and the STATUS message, not just attributes", async () => {
+    const exported = captureExportedSpans();
+
+    const otel = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint: "http://127.0.0.1:1/v1/traces",
+      redactor: seedForRun(runRequest),
+    });
+
+    otel.start({ prompt: "hi" });
+    // recordError() both records an OTel exception EVENT (message lands in
+    // event.attributes["exception.message"]) and calls setStatus({ message }) — the two extra
+    // copies a redactor scoped to span.attributes alone would miss.
+    otel.recordError(`auth failed for key ${PER_RUN_KEY}`, "anthropic");
+    otel.finish();
+    await otel.flush();
+
+    expect(exported.length).toBeGreaterThan(0);
+    const agentSpan = exported.find((s) => s.name === "invoke_agent");
+    expect(agentSpan).toBeTruthy();
+
+    const eventAttrs = JSON.stringify(agentSpan!.events.map((e) => e.attributes));
+    expect(eventAttrs).not.toContain(PER_RUN_KEY);
+    expect(eventAttrs).toContain("[ag:redacted");
+
+    expect(agentSpan!.status.message ?? "").not.toContain(PER_RUN_KEY);
+    expect(agentSpan!.status.message ?? "").toContain("[ag:redacted");
+  });
+
+  it("two overlapping runs sharing one trace id: both runs' secrets stay redacted across every flushed batch, even after the first run's flushTrace call", async () => {
+    const exported = captureExportedSpans();
+    // A distributed trace shared by two concurrent runs (e.g. a workflow that fans out two
+    // agent calls under the same caller traceparent).
+    const sharedTraceparent = `00-${"c".repeat(32)}-${"1".repeat(16)}-01`;
+
+    const SECRET_A = "sk-run-a-fake-secret-1111111111111111";
+    const SECRET_B = "sk-run-b-fake-secret-2222222222222222";
+
+    const runA = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: false, // span-less: only recordError's standalone-span path emits here
+      endpoint: "http://127.0.0.1:1/v1/traces",
+      traceparent: sharedTraceparent,
+      redactor: seedForRun({ secrets: { A_KEY: SECRET_A } }),
+    });
+    const runB = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: false,
+      endpoint: "http://127.0.0.1:1/v1/traces",
+      traceparent: sharedTraceparent,
+      redactor: seedForRun({ secrets: { B_KEY: SECRET_B } }),
+    });
+
+    runA.start({ prompt: "a" });
+    runB.start({ prompt: "b" });
+
+    // Run A ends and flushes FIRST. Its standalone error span (a local root, no in-process
+    // parent under this shared trace id) triggers an immediate flush of THIS batch.
+    runA.recordError(`run a leaked ${SECRET_A}`, "anthropic");
+    await runA.flush();
+
+    // Run B ends and flushes SECOND, on the SAME trace id. Before the fix, run A's flush
+    // deleted the trace's single redactor slot, so this batch would export B's secret raw.
+    runB.recordError(`run b leaked ${SECRET_B}`, "anthropic");
+    await runB.flush();
+
+    expect(exported.length).toBeGreaterThanOrEqual(2);
+    const allText = JSON.stringify(
+      exported.map((s) => ({ attrs: s.attributes, events: s.events, status: s.status })),
+    );
+    expect(allText).not.toContain(SECRET_A);
+    expect(allText).not.toContain(SECRET_B);
+    expect(allText).toContain("[ag:redacted");
+  });
 });

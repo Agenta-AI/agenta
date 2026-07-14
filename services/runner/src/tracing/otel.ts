@@ -76,14 +76,54 @@ interface ExportTarget {
 /** traceId (hex) -> where that trace's spans should be exported. Set on agent_start. */
 const traceTargets = new Map<string, ExportTarget>();
 
-/** traceId (hex) -> this run's seeded Redactor. Set alongside traceTargets; read at flush
- * time (Slice 1, WP1.5) so a known live secret never reaches the exported span attributes. */
-const traceRedactors = new Map<string, Redactor>();
+/**
+ * traceId (hex) -> the deny-set of every RUN currently registered on that trace. A distributed
+ * trace can be shared by concurrent runs (the caller's traceparent nests them all under the same
+ * trace id), so this is an accumulator, not a single slot: `registerRunRedactor` adds a run's
+ * redactor on start, `releaseRunRedactor` removes it once that run's spans are flushed. A flush
+ * applies every redactor still registered for the trace, and the trace entry is only dropped once
+ * the registered set is empty — never on the first flush.
+ */
+const traceRedactors = new Map<string, Set<Redactor>>();
 
-/** Redact every string-valued span attribute in place (known-value pass; sink-level, right
- * before export — same rationale as the persist.ts sink). Fail-safe: redactJson never throws. */
-function redactSpanAttributes(span: ReadableSpan, redactor: Redactor): void {
-  const attrs = span.attributes as Record<string, unknown>;
+function registerRunRedactor(traceId: string, redactor: Redactor): void {
+  let set = traceRedactors.get(traceId);
+  if (!set) {
+    set = new Set();
+    traceRedactors.set(traceId, set);
+  }
+  set.add(redactor);
+}
+
+/** Drop one run's redactor from the trace's accumulator; the trace entry itself is only
+ * removed once no run remains registered (a later batch from another run may still export). */
+function releaseRunRedactor(traceId: string, redactor: Redactor): void {
+  const set = traceRedactors.get(traceId);
+  if (!set) return;
+  set.delete(redactor);
+  if (set.size === 0) traceRedactors.delete(traceId);
+}
+
+/** Redact every string-valued span attribute, event attribute, and the status message in place
+ * (known-value pass; sink-level, right before export — same rationale as the persist.ts sink).
+ * Applies EVERY redactor registered for the trace, so overlapping runs' secrets are all caught.
+ * Fail-safe: redactString/redactJson never throw. */
+function redactSpan(span: ReadableSpan, redactors: Iterable<Redactor>): void {
+  for (const redactor of redactors) {
+    redactAttributes(span.attributes as Record<string, unknown>, redactor);
+    for (const event of span.events) {
+      if (event.attributes) {
+        redactAttributes(event.attributes as Record<string, unknown>, redactor);
+      }
+    }
+    const status = span.status as { message?: string };
+    if (typeof status.message === "string") {
+      status.message = redactor.redactString(status.message, "spans") ?? status.message;
+    }
+  }
+}
+
+function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (typeof value === "string") {
       attrs[key] = redactor.redactString(value, "spans");
@@ -160,18 +200,21 @@ class TraceBatchProcessor implements SpanProcessor {
     }
   }
 
-  /** Export and drop one trace's buffered spans. Resolves once the export returns. */
+  /** Export and drop one trace's buffered spans. Resolves once the export returns. Does NOT
+   * clear the trace's registered redactors — those live until every registered run releases
+   * (see `releaseRunRedactor`), since a later batch on the same trace id can still be emitted
+   * by another still-running run sharing the distributed trace. */
   flush(traceId: string): Promise<void> {
     const spans = this.buffers.get(traceId);
     if (!spans || spans.length === 0) return Promise.resolve();
     this.buffers.delete(traceId);
     const target = traceTargets.get(traceId) ?? defaultTarget();
     traceTargets.delete(traceId);
-    // Redact at the sink: the last point before the spans leave the process.
-    const redactor = traceRedactors.get(traceId);
-    traceRedactors.delete(traceId);
-    if (redactor)
-      for (const span of spans) redactSpanAttributes(span, redactor);
+    // Redact at the sink: the last point before the spans leave the process. Apply every
+    // redactor currently registered for this trace (concurrent runs sharing a trace id).
+    const redactors = traceRedactors.get(traceId);
+    if (redactors && redactors.size > 0)
+      for (const span of spans) redactSpan(span, redactors);
     return new Promise((resolve) => {
       try {
         getExporter(target).export(orderParentFirst(spans), (result) => {
@@ -218,10 +261,22 @@ function ensureProvider(): void {
   provider.register();
 }
 
-/** Flush one trace's spans to Agenta. Call after a run whose root has a remote parent. */
-export async function flushTrace(traceId?: string): Promise<void> {
+/**
+ * Flush one trace's spans to Agenta. Call after a run whose root has a remote parent. When
+ * `redactor` is passed, it is released from the trace's accumulator AFTER the export resolves —
+ * this run is done contributing spans, but other runs still registered on the same trace id
+ * (a shared distributed trace) keep their redactors live for later batches.
+ */
+export async function flushTrace(
+  traceId?: string,
+  redactor?: Redactor,
+): Promise<void> {
   if (!processor || !traceId) return;
-  await processor.flush(traceId);
+  try {
+    await processor.flush(traceId);
+  } finally {
+    if (redactor) releaseRunRedactor(traceId, redactor);
+  }
 }
 
 /**
@@ -559,7 +614,7 @@ export function createAgentaOtel(
         endpoint: config.endpoint ?? defaultTarget().endpoint,
         authorization: config.authorization ?? defaultTarget().authorization,
       });
-      if (config.redactor) traceRedactors.set(traceId, config.redactor);
+      if (config.redactor) registerRunRedactor(traceId, config.redactor);
       agentCtx = trace.setSpan(parent ?? context.active(), agentSpan);
     });
 
@@ -691,7 +746,7 @@ export function createAgentaOtel(
   return {
     register,
     config,
-    flush: () => flushTrace(config.traceId),
+    flush: () => flushTrace(config.traceId, config.redactor),
     usage: () => ({ ...runUsage }),
   };
 }
@@ -1134,7 +1189,7 @@ export function createSandboxAgentOtel(
 
     runTraceId = agentSpan.spanContext().traceId;
     traceTargets.set(runTraceId, { endpoint, authorization });
-    if (init.redactor) traceRedactors.set(runTraceId, init.redactor);
+    if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
     agentCtx = trace.setSpan(parent ?? context.active(), agentSpan);
 
     turnSpan = tracer.startSpan("turn 0", undefined, agentCtx);
@@ -1353,13 +1408,15 @@ export function createSandboxAgentOtel(
       errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       errSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
       stamp(errSpan);
-      errSpan.end();
       // The standalone span shares the caller's trace id; make sure the run reports it so the
       // engine flushes this trace (a self-instrumenting run otherwise only tracked it from the
       // traceparent, which is the same id — but set it defensively if it was never resolved).
       runTraceId = runTraceId ?? errSpan.spanContext().traceId;
       traceTargets.set(runTraceId, { endpoint, authorization });
-      if (init.redactor) traceRedactors.set(runTraceId, init.redactor);
+      // Register BEFORE end(): a root span with no in-process parent flushes synchronously
+      // on end(), so the redactor must already be in the accumulator or this batch escapes raw.
+      if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
+      errSpan.end();
     } catch {
       // tracing must never break the run
     }
@@ -1424,7 +1481,7 @@ export function createSandboxAgentOtel(
     finish,
     recordError,
     setUsage,
-    flush: () => flushTrace(runTraceId),
+    flush: () => flushTrace(runTraceId, init.redactor),
     traceId: () => runTraceId,
     output: () => accumulated,
     events: () => events,
