@@ -1,5 +1,20 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List, Dict
+from typing import Optional
+
+from oss.src.core.auth.dtos import (
+    DiscoverResponse,
+    SSOProviderInfo,
+    SSOProviders,
+)
+
+__all__ = [
+    "DiscoverRequest",
+    "DiscoverResponse",
+    "SSOProviderInfo",
+    "SSOProviders",
+    "OIDCAuthorizeRequest",
+    "OIDCCallbackRequest",
+]
 
 
 # ============================================================================
@@ -9,21 +24,6 @@ from typing import Optional, List, Dict
 
 class DiscoverRequest(BaseModel):
     email: EmailStr
-
-
-class SSOProviderInfo(BaseModel):
-    id: str
-    slug: str
-    third_party_id: str
-
-
-class SSOProviders(BaseModel):
-    providers: List[SSOProviderInfo]
-
-
-class DiscoverResponse(BaseModel):
-    exists: bool
-    methods: Dict[str, bool | SSOProviders]
 
 
 # ============================================================================
