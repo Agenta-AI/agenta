@@ -1,0 +1,13 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1206,5 +1206,9 @@ function readSessionDirFromSettings(agentDir) {
+ }
+ function getPiSessionsDir() {
++  const envSessionDir = process.env.PI_CODING_AGENT_SESSION_DIR;
++  if (typeof envSessionDir === "string" && envSessionDir.trim()) {
++    return resolve2(envSessionDir);
++  }
+   const agentDir = getPiAgentDir();
+   return readSessionDirFromSettings(agentDir) ?? join3(agentDir, "sessions");
+ }

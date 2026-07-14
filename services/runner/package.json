@@ -53,8 +53,9 @@
       "esbuild"
     ],
     "patchedDependencies": {
-      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch",
-      "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch"
+      "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
+      "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
+      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
     }
   }
 }

@@ -20,6 +20,8 @@ import { join } from "node:path";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildPiExtensionEnv,
+  configurePiSessionWorkspace,
+  piSessionWorkspaceDir,
   prepareLocalAgentDir,
   prepareLocalPiAssets,
   uploadDirToSandbox,
@@ -27,6 +29,40 @@ import {
   writeOtlpAuthFile,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
+
+describe("Pi session workspace", () => {
+  it("uses one stable transcript directory inside the conversation cwd", () => {
+    assert.equal(
+      piSessionWorkspaceDir("/work/session-1"),
+      "/work/session-1/agents/sessions/pi",
+    );
+
+    const env: Record<string, string> = {};
+    const sessionDir = configurePiSessionWorkspace(
+      { isPi: true, cwd: "/work/session-1" },
+      env,
+    );
+
+    assert.equal(sessionDir, "/work/session-1/agents/sessions/pi");
+    assert.equal(
+      env.PI_CODING_AGENT_SESSION_DIR,
+      "/work/session-1/agents/sessions/pi",
+    );
+  });
+
+  it("does not add Pi configuration to another harness", () => {
+    const env: Record<string, string> = {};
+
+    assert.equal(
+      configurePiSessionWorkspace(
+        { isPi: false, cwd: "/work/session-1" },
+        env,
+      ),
+      undefined,
+    );
+    assert.equal(env.PI_CODING_AGENT_SESSION_DIR, undefined);
+  });
+});
 
 const dirs: string[] = [];
 
