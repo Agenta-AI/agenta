@@ -61,7 +61,7 @@ worktree, a subscription login) puts it inside that boundary and inside reach of
 |---|---|
 | The model key for the run | Yes. The harness needs it to call the model. |
 | The run's own working directory | Yes. |
-| The runner container's environment | Yes, including `AGENTA_RUNNER_DAYTONA_API_KEY` and `AGENTA_RUNNER_TOKEN` when they are set. |
+| The runner container's environment | Yes, including `AGENTA_RUNNER_TOKEN` and, when it is set, `AGENTA_RUNNER_DAYTONA_API_KEY`. |
 | Anything you mounted into the runner container | Yes, including a personal subscription login. |
 | Anything on the host you did not mount | No. |
 

@@ -19,7 +19,7 @@ recipe additionally installs python3 and typescript/ts-node.
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 
-Licensing (see services/runner/images/service/README.md):
+Licensing (see services/runner/docker/README.md):
     This script is the build recipe we ship, NOT a snapshot we distribute. Whoever
     runs it builds the snapshot in their own Daytona account: Agenta Cloud builds
     its own for internal use; self-hosters build their own. We never hand anyone a
