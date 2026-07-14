@@ -7,6 +7,7 @@ if str(_OSS_TEST_ROOT) not in sys.path:
     sys.path.insert(0, str(_OSS_TEST_ROOT))
 
 from utils.env import ag_env  # noqa: E402,F401
+from utils.egress import secure_egress_by_default  # noqa: E402,F401
 from utils.api import (  # noqa: E402,F401
     admin_api,
     authed_api,

@@ -224,7 +224,7 @@ function computeLineDiff(
 /**
  * Basic diff line type
  */
-interface DiffLine {
+export interface DiffLine {
     type: "context" | "added" | "removed"
     content: string
     oldLineNumber?: number
@@ -234,7 +234,7 @@ interface DiffLine {
 /**
  * Extended diff line type with folding support
  */
-interface ExtendedDiffLine {
+export interface ExtendedDiffLine {
     type: "context" | "added" | "removed" | "fold"
     content: string
     oldLineNumber?: number
@@ -472,6 +472,36 @@ export function computeDiff(
 }
 
 /**
+ * Line-by-line diff of two raw text blocks (NOT JSON-serialized).
+ *
+ * Unlike `computeDiff`, which JSON-stringifies its inputs, this diffs the text
+ * as-is — correct for prose like a system prompt or a tool description. Reuses
+ * the same LCS engine (incl. the large-diff safety cap) and optional folding.
+ */
+export function computeTextDiffLines(
+    original: string | null | undefined,
+    modified: string | null | undefined,
+    options: {
+        contextLines?: number
+        enableFolding?: boolean
+        foldThreshold?: number
+        showFoldedLineCount?: boolean
+    } = {},
+): ExtendedDiffLine[] {
+    const {
+        contextLines = 3,
+        enableFolding = false,
+        foldThreshold = 10,
+        showFoldedLineCount = true,
+    } = options
+    const oldLines = (original ?? "").split("\n")
+    const newLines = (modified ?? "").split("\n")
+    const base = computeLineDiff(oldLines, newLines, contextLines)
+    if (!enableFolding) return base as ExtendedDiffLine[]
+    return applyFolding(base, {contextLines, foldThreshold, showFoldedLineCount})
+}
+
+/**
  * Helper function to detect if content is likely incomplete while typing
  * Note: For diff purposes, non-yaml languages are treated as JSON-like
  */
@@ -506,13 +536,13 @@ export function isContentIncomplete(content: string, language: CodeLanguage): bo
 
         const hasMultilineKeyError =
             content.includes("testKey\ndependencies:") ||
-            /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\n\s*[a-zA-Z_][a-zA-Z0-9_]*:/m.test(content)
+            // Horizontal-whitespace-only before the newline to avoid polynomial ReDoS (\s*\n\s* is ambiguous)
+            /^[ \t]*[a-zA-Z_][a-zA-Z0-9_]*[ \t]*\n\s*[a-zA-Z_][a-zA-Z0-9_]*:/m.test(content)
 
         return (
             trimmed.endsWith(":") ||
             trimmed.endsWith("-") ||
             /:\s*$/.test(content) ||
-            /:\s*\n\s*$/.test(content) ||
             hasIncompleteKey ||
             hasMultilineKeyError
         )

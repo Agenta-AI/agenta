@@ -20,183 +20,6 @@ class RawWorkspacesClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
     
-    def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[Permission]]:
-        """
-        Get all workspace permissions.
-        
-        Returns a list of all available workspace permissions.
-        
-        Returns:
-            List[Permission]: A list of Permission objects representing the available workspace permissions.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the workspace permissions.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.List[Permission]]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "workspaces/permissions",method="GET",
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.List[Permission],
-                    parse_obj_as(
-                        type_ =typing.List[Permission],  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Assigns a role to a user in a workspace.
-        
-        Args:
-            payload (UserRole): The payload containing the organization id, user email, and role to assign.
-            workspace_id (str): The ID of the workspace.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role was successfully assigned, False otherwise.
-        
-        Raises:
-            HTTPException: If the user does not have permission to perform this action.
-            HTTPException: If there is an error assigning the role to the user.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="POST",
-            json={
-                "email": email,
-                "role": role,
-                "organization_id": organization_id,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
-        """
-        Delete a role assignment from a user in a workspace.
-        
-        Args:
-            workspace_id (str): The ID of the workspace.
-            email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
-            role (str): The role to remove from the user.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role assignment was successfully deleted.
-        
-        Raises:
-            HTTPException: If there is an error in the request or the user does not have permission to perform the action.
-            HTTPException: If there is an error in updating the user's roles.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="DELETE",
-            params={"email": email, "organization_id": organization_id, "role": role, }
-            ,
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
     def get_workspace(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[Workspace]]:
         """
         Get workspace details.
@@ -277,6 +100,159 @@ class RawWorkspacesClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.List[Permission]]:
+        """
+        Get all available workspace permissions.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.List[Permission]]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "workspaces/permissions",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.List[Permission],
+                    parse_obj_as(
+                        type_ =typing.List[Permission],  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Assign a role to a user in a workspace.
+        
+        Args:
+            payload (UserRole): The organization id, user email, and role to assign.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="POST",
+            json={
+                "email": email,
+                "role": role,
+                "organization_id": organization_id,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Remove a role assignment from a user in a workspace.
+        
+        Args:
+            email (str): The email of the user.
+            organization_id (str): The ID of the organization.
+            role (str): The role to remove.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="DELETE",
+            params={"email": email, "organization_id": organization_id, "role": role, }
+            ,
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def remove_user_from_workspace(self, workspace_id: str, *, email: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Remove a user from a workspace.
@@ -331,183 +307,6 @@ class RawWorkspacesClient:
 class AsyncRawWorkspacesClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
-    
-    async def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[Permission]]:
-        """
-        Get all workspace permissions.
-        
-        Returns a list of all available workspace permissions.
-        
-        Returns:
-            List[Permission]: A list of Permission objects representing the available workspace permissions.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the workspace permissions.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.List[Permission]]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "workspaces/permissions",method="GET",
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.List[Permission],
-                    parse_obj_as(
-                        type_ =typing.List[Permission],  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Assigns a role to a user in a workspace.
-        
-        Args:
-            payload (UserRole): The payload containing the organization id, user email, and role to assign.
-            workspace_id (str): The ID of the workspace.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role was successfully assigned, False otherwise.
-        
-        Raises:
-            HTTPException: If the user does not have permission to perform this action.
-            HTTPException: If there is an error assigning the role to the user.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="POST",
-            json={
-                "email": email,
-                "role": role,
-                "organization_id": organization_id,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
-        """
-        Delete a role assignment from a user in a workspace.
-        
-        Args:
-            workspace_id (str): The ID of the workspace.
-            email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
-            role (str): The role to remove from the user.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role assignment was successfully deleted.
-        
-        Raises:
-            HTTPException: If there is an error in the request or the user does not have permission to perform the action.
-            HTTPException: If there is an error in updating the user's roles.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[typing.Any]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="DELETE",
-            params={"email": email, "organization_id": organization_id, "role": role, }
-            ,
-            request_options=request_options,)
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Any,
-                    parse_obj_as(
-                        type_ =typing.Any,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
     async def get_workspace(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[Workspace]]:
         """
@@ -584,6 +383,159 @@ class AsyncRawWorkspacesClient:
                     )
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.List[Permission]]:
+        """
+        Get all available workspace permissions.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.List[Permission]]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "workspaces/permissions",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.List[Permission],
+                    parse_obj_as(
+                        type_ =typing.List[Permission],  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+        """
+        Assign a role to a user in a workspace.
+        
+        Args:
+            payload (UserRole): The organization id, user email, and role to assign.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="POST",
+            json={
+                "email": email,
+                "role": role,
+                "organization_id": organization_id,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+        """
+        Remove a role assignment from a user in a workspace.
+        
+        Args:
+            email (str): The email of the user.
+            organization_id (str): The ID of the organization.
+            role (str): The role to remove.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"workspaces/{jsonable_encoder(workspace_id)}/roles",method="DELETE",
+            params={"email": email, "organization_id": organization_id, "role": role, }
+            ,
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)

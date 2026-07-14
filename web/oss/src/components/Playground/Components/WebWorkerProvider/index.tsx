@@ -16,7 +16,7 @@ import {useSetAtom} from "jotai"
 import useWebWorker from "../../hooks/useWebWorker"
 
 interface WebWorkerProviderProps {
-    children: React.ReactNode
+    children?: React.ReactNode
 }
 
 export const WebWorkerProvider = ({children}: WebWorkerProviderProps) => {

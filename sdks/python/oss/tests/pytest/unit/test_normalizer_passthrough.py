@@ -13,6 +13,7 @@ Tests verify that:
 
 import pytest
 
+from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
 from agenta.sdk.models.workflows import (
     WorkflowRequestData,
@@ -78,6 +79,87 @@ class TestRequestNormalization:
         kwargs = await mw._normalize_request(request, handler)
 
         assert kwargs["parameters"] == {"correct_answer_key": "answer"}
+
+    @pytest.mark.asyncio
+    async def test_session_id_is_passed_to_explicit_handler_argument(self):
+        def handler(session_id):
+            return session_id
+
+        request = WorkflowServiceRequest(
+            session_id="sess_request",
+            data=WorkflowRequestData(),
+        )
+
+        mw = NormalizerMiddleware()
+        kwargs = await mw._normalize_request(request, handler)
+
+        assert kwargs["session_id"] == "sess_request"
+
+    @pytest.mark.asyncio
+    async def test_session_id_is_not_added_to_var_kwargs(self):
+        def handler(**kwargs):
+            return kwargs
+
+        request = WorkflowServiceRequest(
+            session_id="sess_request",
+            data=WorkflowRequestData(inputs={"prompt": "hi"}),
+        )
+
+        mw = NormalizerMiddleware()
+        kwargs = await mw._normalize_request(request, handler)
+
+        assert "session_id" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_call_resolves_provided_session_id_before_handler(self, monkeypatch):
+        import agenta as ag
+
+        monkeypatch.setattr(ag, "tracing", None)
+        seen = {}
+
+        def handler(request):
+            seen["session_id"] = request.session_id
+            return {"ok": True}
+
+        request = WorkflowServiceRequest(
+            session_id="sess_request",
+            data=WorkflowRequestData(),
+        )
+
+        token = RunningContext.set(RunningContext(handler=handler))
+        try:
+            response = await NormalizerMiddleware()(request, lambda req: None)
+        finally:
+            RunningContext.reset(token)
+
+        assert seen["session_id"] == "sess_request"
+        assert response.session_id == "sess_request"
+
+    @pytest.mark.asyncio
+    async def test_call_mints_session_id_before_handler_when_omitted(self, monkeypatch):
+        import agenta as ag
+
+        monkeypatch.setattr(ag, "tracing", None)
+        seen = {}
+
+        def handler(session_id):
+            seen["session_id"] = session_id
+            return {"ok": True}
+
+        request = WorkflowServiceRequest(data=WorkflowRequestData())
+
+        token = RunningContext.set(RunningContext(handler=handler))
+        try:
+            response = await NormalizerMiddleware()(request, lambda req: None)
+        finally:
+            RunningContext.reset(token)
+
+        sid = seen["session_id"]
+        assert isinstance(sid, str)
+        assert len(sid) == 32
+        assert all(c in "0123456789abcdef" for c in sid)
+        assert request.session_id == sid
+        assert response.session_id == sid
 
 
 class TestAsyncGenerator:

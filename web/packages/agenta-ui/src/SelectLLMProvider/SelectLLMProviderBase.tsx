@@ -1,15 +1,20 @@
 import React, {useMemo, useRef, useState, useEffect} from "react"
 
 import {CaretRight, X} from "@phosphor-icons/react"
-import {Input, InputRef, Popover, Select, Tooltip, Typography} from "antd"
+import {Input, InputRef, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import {LLMIconMap} from "../LLMIcons"
+import {bgColors, borderColors} from "../utils/styles"
 
 import type {SelectLLMProviderBaseProps, ProviderGroup, ProviderOption} from "./types"
 import {getProviderIcon, getProviderDisplayName} from "./utils"
 
 const {Option, OptGroup} = Select
+
+const DEFAULT_PROVIDER_DROPDOWN_WIDTH = 400
+
+const toCssSize = (value: number | string) => (typeof value === "number" ? `${value}px` : value)
 
 /**
  * Base LLM provider select component.
@@ -35,6 +40,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     className,
     footerContent,
     onSelectValue,
+    providerDropdownWidth = DEFAULT_PROVIDER_DROPDOWN_WIDTH,
+    modelListWidth,
     ...props
 }) => {
     const [open, setOpen] = useState(false)
@@ -53,8 +60,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     }, [open])
 
     // Check if we have model options (for cascading menu mode)
-    const hasModelOptions =
-        options && options.length > 0 && options.some((g) => g.options?.length > 0)
+    const hasModelOptions = Boolean(
+        options && options.length > 0 && options.some((g) => g.options?.length > 0),
+    )
 
     const filteredProviders = useMemo(() => {
         if (!options) return []
@@ -106,13 +114,24 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     }, [options, searchTerm])
 
     const isSearching = searchTerm.trim().length > 0
+    const shouldUseProviderPanels = hasModelOptions && showGroup
+    const hoveredGroup = useMemo(
+        () => filteredProviders.find((group) => group.label === hoveredProvider) ?? null,
+        [filteredProviders, hoveredProvider],
+    )
+    const providerDropdownWidthCss = toCssSize(providerDropdownWidth)
+    const resolvedModelListWidth =
+        modelListWidth ??
+        (typeof providerDropdownWidth === "number" ? providerDropdownWidth / 2 : "50%")
+    const modelListWidthCss = toCssSize(resolvedModelListWidth)
+    const providerPanelWidth = hoveredGroup ? `calc(100% - ${modelListWidthCss})` : "100%"
 
-    const handleSelect = (value: string) => {
+    const handleSelect = (value: string, metadata?: Record<string, unknown>) => {
         if (onSelectValue) {
             onSelectValue(value)
         }
         if (props.onChange) {
-            props.onChange(value, {value} as unknown as Parameters<
+            props.onChange(value, {value, metadata} as unknown as Parameters<
                 NonNullable<typeof props.onChange>
             >[1])
         }
@@ -129,6 +148,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
     const renderTooltipContent = (metadata: Record<string, unknown>) => (
         <div className="flex flex-col gap-0.5">
+            {typeof metadata.description === "string" && metadata.description && (
+                <Typography.Text className="text-[10px] max-w-[220px] inline-block mb-0.5">
+                    {metadata.description}
+                </Typography.Text>
+            )}
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
@@ -206,9 +230,17 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 className,
             ])}
             popupRender={(menu) => (
-                <div className="flex flex-col gap-1">
+                <div
+                    className="flex flex-col gap-1"
+                    style={shouldUseProviderPanels ? {width: providerDropdownWidthCss} : undefined}
+                >
                     {showSearch && (
-                        <div className="relative border-0 border-b border-solid border-[var(--ag-c-F0F0F0)]">
+                        <div
+                            className={clsx(
+                                "relative border-0 border-b border-solid",
+                                borderColors.default,
+                            )}
+                        >
                             <Input
                                 ref={inputRef}
                                 placeholder="Search"
@@ -223,7 +255,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         setSearchTerm("")
                                         inputRef.current?.focus()
                                     }}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded cursor-pointer border-none bg-transparent"
+                                    className={clsx(
+                                        "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded cursor-pointer border-none bg-transparent",
+                                        bgColors.hoverState,
+                                    )}
                                 >
                                     <X size={12} className="text-gray-400" />
                                 </button>
@@ -232,70 +267,96 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     )}
 
                     {/* When searching or no model options: show standard menu */}
-                    {(isSearching || !hasModelOptions || !showGroup) && menu}
-
-                    {/* When not searching and has model options with showGroup: show cascading menu */}
-                    {!isSearching && hasModelOptions && showGroup && (
-                        <div className="py-1">
-                            {filteredProviders.map((group, idx) => {
-                                const Icon = getProviderIcon(group.label || "")
-                                const isHovered = hoveredProvider === group.label
-                                const displayName = getProviderDisplayName(group.label || "")
-
-                                return (
-                                    <Popover
-                                        key={`provider-${group.label}-${idx}`}
-                                        placement="rightTop"
-                                        open={isHovered}
-                                        onOpenChange={(visible) =>
-                                            setHoveredProvider(visible ? group.label || null : null)
-                                        }
-                                        arrow={false}
-                                        styles={{container: {padding: 0}}}
-                                        content={
-                                            <div className="max-h-[300px] overflow-y-auto min-w-[200px] py-1">
-                                                {group.options.map((option) => (
-                                                    <div
-                                                        key={option.key ?? option.value}
-                                                        className="px-3 py-[5px] cursor-pointer hover:bg-[var(--ag-c-F5F5F5)] flex items-center gap-2"
-                                                        onMouseDown={(e) => {
-                                                            e.preventDefault()
-                                                            e.stopPropagation()
-                                                            handleSelect(option.value)
-                                                        }}
-                                                    >
-                                                        {renderOption(option)}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        }
-                                        trigger="hover"
-                                    >
-                                        <div
-                                            className={clsx([
-                                                "px-3 py-[5px] cursor-pointer flex items-center gap-2 hover:bg-[var(--ag-c-F5F5F5)]",
-                                                isHovered && "bg-[var(--ag-c-F5F5F5)]",
-                                            ])}
-                                        >
-                                            {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                                            <span className="flex-1">{displayName}</span>
-                                            <span className="text-[var(--ag-rgba-000-45)] text-xs">
-                                                {group.options.length}
-                                            </span>
-                                            <CaretRight
-                                                size={12}
-                                                className="text-[var(--ag-rgba-000-45)]"
-                                            />
-                                        </div>
-                                    </Popover>
-                                )
-                            })}
-                        </div>
+                    {(isSearching || !hasModelOptions || !showGroup) && (
+                        <>
+                            {menu}
+                            {footerContent}
+                        </>
                     )}
 
-                    {footerContent}
+                    {/* When not searching and has model options with showGroup: show provider/model panels */}
+                    {!isSearching && hasModelOptions && showGroup && (
+                        <div className="relative flex min-h-[220px] min-w-0">
+                            <div
+                                className="flex min-w-0 flex-col"
+                                style={{width: providerPanelWidth}}
+                            >
+                                <div className="py-1">
+                                    {filteredProviders.map((group, idx) => {
+                                        const Icon = getProviderIcon(group.label || "")
+                                        const isHovered = hoveredProvider === group.label
+                                        const displayName = getProviderDisplayName(
+                                            group.label || "",
+                                        )
+
+                                        return (
+                                            <div
+                                                key={`provider-${group.label}-${idx}`}
+                                                onMouseEnter={() =>
+                                                    setHoveredProvider(group.label || null)
+                                                }
+                                                className={clsx([
+                                                    "px-3 py-[5px] cursor-pointer flex items-center gap-2",
+                                                    bgColors.hoverState,
+                                                    isHovered && bgColors.hover,
+                                                ])}
+                                            >
+                                                {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+                                                <span className="flex-1 truncate">
+                                                    {displayName}
+                                                </span>
+                                                <span className="text-[var(--ag-rgba-000-45)] text-xs">
+                                                    {group.options.length}
+                                                </span>
+                                                <CaretRight
+                                                    size={12}
+                                                    className="text-[var(--ag-rgba-000-45)] flex-shrink-0"
+                                                />
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                {footerContent && (
+                                    <div className="mt-auto w-full">{footerContent}</div>
+                                )}
+                            </div>
+
+                            {hoveredGroup && (
+                                <div
+                                    className={clsx(
+                                        "absolute inset-y-0 right-0 border-0 border-l border-solid py-1 overflow-y-auto",
+                                        borderColors.default,
+                                    )}
+                                    style={{width: modelListWidthCss}}
+                                >
+                                    {hoveredGroup.options.map((option) => (
+                                        <div
+                                            key={option.key ?? option.value}
+                                            className={clsx(
+                                                "px-3 py-[5px] cursor-pointer flex items-center gap-2",
+                                                bgColors.hoverState,
+                                            )}
+                                            onMouseDown={(e) => {
+                                                e.preventDefault()
+                                                e.stopPropagation()
+                                                handleSelect(option.value, option.metadata)
+                                            }}
+                                        >
+                                            {renderOption(option)}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
+            popupMatchSelectWidth={
+                shouldUseProviderPanels
+                    ? (props.popupMatchSelectWidth ?? false)
+                    : props.popupMatchSelectWidth
+            }
         >
             {/* Map out filtered groups and their options */}
             {filteredProviders.map((group, idx) => {
@@ -316,6 +377,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     key={option.key ?? option.value}
                                     value={option.value}
                                     label={renderOptionContent(option)}
+                                    metadata={option.metadata}
                                 >
                                     {renderOption(option)}
                                 </Option>
@@ -329,6 +391,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 key={option.key ?? option.value}
                                 value={option.value}
                                 label={renderOptionContent(option)}
+                                metadata={option.metadata}
                             >
                                 {renderOption(option)}
                             </Option>

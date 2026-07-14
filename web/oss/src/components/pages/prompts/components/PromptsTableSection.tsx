@@ -56,12 +56,15 @@ export const PromptsTableSection = ({
             {
                 key: "new_prompt",
                 icon: <SquaresFourIcon size={16} />,
-                label: "New prompt",
+                label: <span data-testid="prompts-new-prompt-menu-item">New prompt</span>,
                 children: [
                     {
                         key: "new_prompt_chat",
                         label: (
-                            <span className="inline-flex items-center gap-2">
+                            <span
+                                className="inline-flex items-center gap-2"
+                                data-testid="prompts-new-prompt-chat"
+                            >
                                 {getAppTypeIcon("chat")}
                                 <span>Chat</span>
                             </span>
@@ -78,7 +81,10 @@ export const PromptsTableSection = ({
                     {
                         key: "new_prompt_completion",
                         label: (
-                            <span className="inline-flex items-center gap-2">
+                            <span
+                                className="inline-flex items-center gap-2"
+                                data-testid="prompts-new-prompt-completion"
+                            >
                                 {getAppTypeIcon("completion")}
                                 <span>Completion</span>
                             </span>
@@ -90,6 +96,23 @@ export const PromptsTableSection = ({
                         }) => {
                             domEvent.stopPropagation()
                             onOpenNewPrompt("completion")
+                        },
+                    },
+                    {
+                        key: "new_prompt_agent",
+                        label: (
+                            <span className="inline-flex items-center gap-2">
+                                {getAppTypeIcon("agent")}
+                                <span>Agent</span>
+                            </span>
+                        ),
+                        onClick: ({
+                            domEvent,
+                        }: {
+                            domEvent: React.MouseEvent | React.KeyboardEvent
+                        }) => {
+                            domEvent.stopPropagation()
+                            onOpenNewPrompt("agent")
                         },
                     },
                 ],
@@ -151,7 +174,11 @@ export const PromptsTableSection = ({
                     placement="bottomLeft"
                     menu={{items: menuItems}}
                 >
-                    <Button icon={<PlusIcon />} type="primary">
+                    <Button
+                        icon={<PlusIcon />}
+                        type="primary"
+                        data-testid="prompts-create-new-trigger"
+                    >
                         Create new
                     </Button>
                 </Dropdown>

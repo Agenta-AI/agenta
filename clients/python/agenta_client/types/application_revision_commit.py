@@ -8,6 +8,7 @@ import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
 from .application_flags import ApplicationFlags
 from .application_revision_data_input import ApplicationRevisionDataInput
+from .workflow_revision_delta import WorkflowRevisionDelta
 
 
 class ApplicationRevisionCommit(UniversalBaseModel):
@@ -26,6 +27,7 @@ class ApplicationRevisionCommit(UniversalBaseModel):
     data: typing.Optional[ApplicationRevisionDataInput] = None
     message: typing.Optional[str] = None
     revision_id: typing.Optional[str] = None
+    delta: typing.Optional[WorkflowRevisionDelta] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

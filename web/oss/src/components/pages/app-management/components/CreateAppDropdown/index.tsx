@@ -34,6 +34,12 @@ const ITEMS: CreateAppDropdownItem[] = [
         description: "Single-shot prompt completion.",
         testId: "create-app-dropdown-completion",
     },
+    {
+        type: "agent",
+        label: "Agent",
+        description: "Agent that uses tools over multiple turns.",
+        testId: "create-app-dropdown-agent",
+    },
 ]
 
 interface CreateAppDropdownProps {

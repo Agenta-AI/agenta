@@ -1,0 +1,220 @@
+"""The Agenta gateway tool resolver against a mocked ``POST /tools/resolve``."""
+
+from __future__ import annotations
+
+import httpx
+import pytest
+
+from agenta.sdk.agents import (
+    GatewayToolConfig,
+    GatewayToolResolutionError,
+    ToolCallback,
+)
+from agenta.sdk.agents.platform import AgentaGatewayToolResolver, PlatformConnection
+from agenta.sdk.agents.platform import gateway
+
+
+def _resolver(connection):
+    return AgentaGatewayToolResolver(connection=connection)
+
+
+def _gateway(**overrides) -> GatewayToolConfig:
+    base = dict(integration="github", action="GET_USER", connection="c1")
+    base.update(overrides)
+    return GatewayToolConfig(**base)
+
+
+async def test_missing_api_base_raises_typed_error():
+    resolver = _resolver(PlatformConnection())  # no base URL configured
+    with pytest.raises(GatewayToolResolutionError, match="API base URL"):
+        await resolver.resolve([_gateway()])
+
+
+async def test_gateway_metadata_and_description_fallback_are_preserved(
+    fake_http, connection
+):
+    capture = fake_http(
+        gateway,
+        payload={
+            "custom": [
+                {
+                    "name": "get_user",
+                    "description": None,
+                    "input_schema": {"type": "object"},
+                    "call_ref": "tools.composio.github.GET_USER.c1",
+                    "read_only": True,
+                }
+            ]
+        },
+    )
+    resolved = await _resolver(connection).resolve(
+        [
+            _gateway(
+                render={"kind": "component", "component": "User"},
+            )
+        ]
+    )
+    spec = resolved.tool_specs[0]
+    assert spec.description == "get_user"  # falls back to name when null
+    assert spec.render == {"kind": "component", "component": "User"}
+    assert spec.read_only is True  # the catalog read-only hint reaches the spec
+    assert spec.to_wire()["readOnly"] is True
+    assert "needsApproval" not in spec.to_wire()
+    assert "permission" not in spec.to_wire()
+    assert isinstance(resolved.tool_callback, ToolCallback)
+    assert resolved.tool_callback.endpoint == "https://api.x/api/tools/call"
+    assert resolved.tool_callback.authorization == "Access tok"
+    assert capture["url"] == "https://api.x/api/tools/resolve"
+    assert capture["json"]["tools"][0]["type"] == "gateway"
+    assert capture["headers"]["Authorization"] == "Access tok"
+
+
+async def test_gateway_specs_are_joined_by_call_ref_not_position(fake_http, connection):
+    fake_http(
+        gateway,
+        payload={
+            "custom": [
+                {
+                    "name": "second",
+                    "description": "Second",
+                    "input_schema": {},
+                    "call_ref": "tools.composio.github.SECOND.c2",
+                },
+                {
+                    "name": "first",
+                    "description": "First",
+                    "input_schema": {},
+                    "call_ref": "tools.composio.github.FIRST.c1",
+                },
+            ]
+        },
+    )
+    resolved = await _resolver(connection).resolve(
+        [
+            _gateway(action="FIRST", connection="c1"),
+            _gateway(
+                action="SECOND",
+                connection="c2",
+                render={"kind": "component", "component": "Second"},
+            ),
+        ]
+    )
+    first, second = resolved.tool_specs
+    assert first.name == "first"
+    assert first.render is None
+    assert second.name == "second"
+    assert second.render == {"kind": "component", "component": "Second"}
+
+
+async def test_transport_failure_is_logged_and_normalized(
+    fake_http, connection, monkeypatch
+):
+    warnings: list = []
+    monkeypatch.setattr(
+        gateway,
+        "log",
+        type(
+            "Log",
+            (),
+            {"warning": lambda self, *args, **kwargs: warnings.append(args)},
+        )(),
+    )
+    request = httpx.Request("POST", "https://api.x/api/tools/resolve")
+    fake_http(gateway, raises=httpx.ConnectError("offline", request=request))
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([_gateway()])
+    assert isinstance(caught.value.__cause__, httpx.ConnectError)
+    assert warnings
+    assert "gateway tool resolution request failed" in warnings[0][0].lower()
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"custom": []}, "expected one per ref"),
+        (
+            {"custom": [{"name": "get_user", "description": "x", "input_schema": {}}]},
+            "incomplete spec",
+        ),
+    ],
+)
+async def test_invalid_gateway_response_fails_fast(
+    fake_http, connection, payload, message
+):
+    fake_http(gateway, payload=payload)
+    with pytest.raises(GatewayToolResolutionError, match=message):
+        await _resolver(connection).resolve([_gateway()])
+
+
+async def test_http_status_failure_is_typed(fake_http, connection):
+    fake_http(gateway, status=400, text="bad request")
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([_gateway()])
+    assert caught.value.status == 400
+
+
+async def test_stale_action_404_surfaces_backend_detail(fake_http, connection):
+    """F-019: the resolver body naming the dead action reaches the run error."""
+    fake_http(
+        gateway,
+        status=404,
+        payload={"detail": "Action not found: composio/github/COMMIT_MULTIPLE_FILES"},
+    )
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([_gateway(action="COMMIT_MULTIPLE_FILES")])
+    error = caught.value
+    assert error.status == 404
+    # The structured field carries the raw backend reason verbatim.
+    assert error.detail == "Action not found: composio/github/COMMIT_MULTIPLE_FILES"
+    message = str(error)
+    # The message names the tool, the reason, and the actionable remedy.
+    assert "composio/github/COMMIT_MULTIPLE_FILES" in message
+    assert "(HTTP 404)" in message
+    assert "no longer in the catalog" in message
+
+
+async def test_non_json_error_body_falls_back_to_bounded_text(fake_http, connection):
+    """A non-JSON 500 body still yields a non-empty detail without a secondary error."""
+    fake_http(
+        gateway,
+        status=500,
+        payload={},  # no "detail" key -> fall through to text
+        text="Internal Server Error: upstream boom",
+    )
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([_gateway()])
+    error = caught.value
+    assert error.status == 500
+    assert error.detail == "Internal Server Error: upstream boom"
+    assert "upstream boom" in str(error)
+    # No stale-action remedy for a non-action failure.
+    assert "no longer in the catalog" not in str(error)
+
+
+def test_extract_detail_prefers_json_detail_field():
+    response = httpx.Response(
+        status_code=404,
+        json={"detail": "Action not found: composio/github/GONE"},
+    )
+    assert (
+        gateway._extract_resolution_detail(response)
+        == "Action not found: composio/github/GONE"
+    )
+
+
+def test_extract_detail_falls_back_to_text_for_non_json_body():
+    response = httpx.Response(status_code=502, text="<html>Bad Gateway</html>")
+    assert gateway._extract_resolution_detail(response) == "<html>Bad Gateway</html>"
+
+
+def test_extract_detail_truncates_a_long_body():
+    response = httpx.Response(status_code=500, text="x" * 5000)
+    detail = gateway._extract_resolution_detail(response)
+    assert detail is not None
+    assert detail.endswith(" ... (truncated)")
+    assert len(detail) <= gateway._MAX_DETAIL_LENGTH + len(" ... (truncated)")
+
+
+def test_extract_detail_returns_none_for_empty_body():
+    response = httpx.Response(status_code=500, text="")
+    assert gateway._extract_resolution_detail(response) is None

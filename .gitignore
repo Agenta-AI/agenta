@@ -12,6 +12,10 @@
 **/*dont_commit_me*
 web/packages/agenta-api-client/dist/
 web/tsconfig.tsbuildinfo
+# Agent Pi extension bundle, built by `pnpm run build:extension` and in the Docker image.
+services/runner/dist/
+# Agent runner test/coverage artifacts (vitest writes these on `pnpm test` / coverage runs).
+services/runner/coverage/
 
 __pycache__/
 **/__pycache__/
@@ -63,6 +67,7 @@ sdks/python/oss/tests/results/
 sdks/python/ee/tests/results/
 services/oss/tests/results/
 services/ee/tests/results/
+services/runner/tests/results/
 .*
 !**/.gitkeep
 !.github/
@@ -75,6 +80,16 @@ services/ee/tests/results/
 !.env.example
 !web/.prettierignore
 !web/.syncpackrc
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/write-template-playbooks/
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/write-template-playbooks
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
@@ -91,3 +106,6 @@ hosting/kubernetes/**/values.*.yaml
 # IDE/LSP config (local tooling)
 pyrightconfig.json
 .gstack/
+
+# Agent skills lockfile (npx skills add)
+skills-lock.json

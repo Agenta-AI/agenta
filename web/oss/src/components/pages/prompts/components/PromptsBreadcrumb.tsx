@@ -148,6 +148,16 @@ const PromptsBreadcrumb = ({
                         ),
                         onClick: () => onNewPrompt?.("completion"),
                     },
+                    {
+                        key: "new_prompt_agent",
+                        label: (
+                            <span className="inline-flex items-center gap-2">
+                                {getAppTypeIcon("agent")}
+                                <span>Agent</span>
+                            </span>
+                        ),
+                        onClick: () => onNewPrompt?.("agent"),
+                    },
                 ],
             },
             {

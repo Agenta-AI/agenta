@@ -5,7 +5,10 @@ import {Inter} from "next/font/google"
 import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {DARK_TOKEN_OVERRIDES, darkComponents} from "@/oss/styles/theme/antd-overrides.generated"
 import antdTokens from "@/oss/styles/tokens/antd-themeConfig.json"
+// GENERATED from the theme source of truth (styles/theme/palette.ts) by
+// scripts/generate-tailwind-tokens.ts. Edit palette.ts + regenerate, not this.
 
 const inter = Inter({
     subsets: ["latin"],
@@ -65,109 +68,11 @@ const stripComponentColors = <T extends Record<string, Record<string, unknown>>>
         Object.entries(components).map(([name, tokens]) => [name, stripColors(tokens)]),
     )
 
-// ============================================================================
-// DARK THEME TUNING — single source of truth for the dark color schema.
-//
-// antd's `darkAlgorithm` computes the full dark token set; we only override the
-// tokens below. Because cssVar mode is on (see themeConfig) and our Tailwind/CSS
-// layer aliases antd's `--ant-*` tokens (see styles/theme-variables.css), editing
-// a value here flows app-wide — antd components AND Tailwind/CSS/JSS colors.
-//
-// To fine-tune the dark palette, change or uncomment a token below. Light mode is
-// unaffected (it uses antd-themeConfig.json + defaultAlgorithm).
-// ============================================================================
-const DARK_TOKEN_OVERRIDES = {
-    // Brand accent — the light navy primary (#1c2c3d) is invisible on dark, so the
-    // accent becomes the Agenta brand yellow (logo color).
-    colorPrimary: "#f2f25c",
-    colorSuccess: "#52c41a",
-    colorWarning: "#faad14",
-    colorError: "#ff4d4f",
-    // Links: light uses the navy primary, but in dark the seed is stripped and
-    // darkAlgorithm falls back to a harsh default blue. Pin a softer, dark-tuned
-    // link blue (GitHub-style) so every antd link (Typography.Link, type="link",
-    // anchors) reads as a clickable affordance without the jarring tone.
-    colorLink: "#58a6ff",
-    colorLinkHover: "#79b8ff",
-    colorLinkActive: "#3b8eea",
-    // Overlay elevation. antd's default drop-shadows are invisible on a dark
-    // surface, so popovers/dropdowns/selects/tooltips/modals blended into the
-    // page with no depth. Lead every elevation shadow with a 1px light ring
-    // (the visible "edge" on dark) plus deeper drops for depth. These tokens are
-    // the shared root for ALL antd overlays: boxShadowSecondary drives
-    // Popover/Dropdown/Select/Tooltip/Cascader/DatePicker/Menu popups, boxShadow
-    // drives Modal/Drawer, boxShadowTertiary drives smaller raised surfaces.
-    // The 1px light ring is the visible "edge" on dark (black drops alone are
-    // imperceptible against #141414). 8% white was too faint to register against
-    // the barely-elevated overlay surface, so overlays read as flat/blended —
-    // lead with a stronger hairline ring so every popup has a defined floating edge.
-    boxShadow:
-        "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
-    boxShadowSecondary:
-        "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
-    boxShadowTertiary:
-        "0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 6px -1px rgba(0, 0, 0, 0.20), 0 2px 4px 0 rgba(0, 0, 0, 0.20)",
-    // The drawer EDGE shadow uses the directional boxShadowDrawer* tokens, NOT the
-    // boxShadow token above — darkAlgorithm leaves these as a white diffuse glow, which
-    // reads as a faint light halo down the drawer's page-facing edge on the dark surface.
-    // Match the curated overlay style: a crisp 1px ring on the page-facing edge for
-    // separation + dark diffuse for depth (the same recipe as boxShadow, made directional).
-    boxShadowDrawerRight:
-        "-1px 0 0 0 rgba(255, 255, 255, 0.16), -6px 0 16px 0 rgba(0, 0, 0, 0.44), -3px 0 6px -4px rgba(0, 0, 0, 0.52), -9px 0 28px 8px rgba(0, 0, 0, 0.28)",
-    boxShadowDrawerLeft:
-        "1px 0 0 0 rgba(255, 255, 255, 0.16), 6px 0 16px 0 rgba(0, 0, 0, 0.44), 3px 0 6px -4px rgba(0, 0, 0, 0.52), 9px 0 28px 8px rgba(0, 0, 0, 0.28)",
-    boxShadowDrawerTop:
-        "0 1px 0 0 rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
-    boxShadowDrawerBottom:
-        "0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44), 0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28)",
-    // Lift the overlay surface a touch more above the page so popups read as a
-    // distinct layer, not just a ring (container is ~#141414; default elevated
-    // ~#1f1f1f is only marginally lighter).
-    colorBgElevated: "#242424",
-    // Placeholder text. darkAlgorithm derives colorTextPlaceholder at 25% white,
-    // which is barely legible against the dark input surface. Lift it to 38% so
-    // placeholders read clearly everywhere (Input/Select/TextArea/DatePicker/
-    // AutoComplete) while staying dimmer than real text (85%). Root token — fixes
-    // all placeholders in one place instead of per-input patches.
-    colorTextPlaceholder: "rgba(255, 255, 255, 0.38)",
-    // Surfaces / text / border come from darkAlgorithm by default. Uncomment to tune:
-    // colorBgContainer: "#141414",
-    // colorBgElevated: "#1f1f1f",
-    // colorBgLayout: "#000000",
-    // colorText: "rgba(255, 255, 255, 0.85)",
-    // colorBorder: "#424242",
-}
-// On a bright yellow primary, antd's default light-solid (#fff) label is unreadable —
-// force dark text on primary-colored buttons in dark mode.
-const darkComponents = {
-    Button: {
-        primaryColor: "#141414",
-        // Default (and dashed) button surface. antd derives defaultBg from
-        // colorBgContainer (#141414), which is DARKER than most card/elevated
-        // surfaces in dark, so default buttons read as heavy recessed boxes
-        // wherever they sit on a raised surface (cards, popovers, modals). In
-        // light it works because the button bg equals the surface (#fff), so the
-        // button is flush and defined by its border. Make the dark default button
-        // flush too — transparent fill so it shows the surface behind it + border,
-        // with subtle white-alpha hover/active feedback. Foundational fix for the
-        // whole default-button variant; replaces per-component bg overrides.
-        defaultBg: "transparent",
-        defaultHoverBg: "rgba(255, 255, 255, 0.04)",
-        defaultActiveBg: "rgba(255, 255, 255, 0.08)",
-    },
-    // Drawer body surface. In LIGHT mode colorBgContainer and colorBgElevated are both
-    // #fff, so a drawer body matches the base surface its content (e.g. the drill-in's
-    // flat field headers, which use colorBgContainer) is authored against. darkAlgorithm
-    // splits those tokens (#141414 vs our #242424 elevated), so by default the drawer
-    // chrome renders LIGHTER than its own content — the flat #141414 headers read as
-    // dark sunken strips on a lighter drawer. A full-height side drawer is a page-like
-    // panel, not a floating overlay, so pin its body back to the container surface to
-    // restore the light-mode relationship. True overlays (Modal/Popover/Dropdown/Select)
-    // keep the lighter #242424 elevated surface.
-    Drawer: {
-        colorBgElevated: "#141414",
-    },
-}
+// DARK_TOKEN_OVERRIDES + darkComponents are GENERATED from styles/theme/palette.ts
+// (imported above). They are the seed/override inputs to antd's darkAlgorithm; the
+// algorithm derives the rest and the --ag-* CSS layer aliases the output. To tune the
+// dark palette, edit palette.ts and run `pnpm generate:tailwind-tokens`. The per-token
+// rationale for each override lives in git history for this file (pre-wiring).
 
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>("agenta-theme", ThemeMode.System)

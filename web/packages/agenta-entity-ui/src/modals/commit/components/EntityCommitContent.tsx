@@ -7,6 +7,7 @@
 
 import {useState, useEffect, useRef} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {
     formatCount,
     generateSlugWithExistingSuffix,
@@ -23,7 +24,9 @@ import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {Input, Alert, Typography, Radio, Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {
+    commitModalEntityAtom,
     commitModalEntityNameAtom,
     commitModalOriginalEntityNameAtom,
     commitModalEntitySlugAtom,
@@ -40,6 +43,8 @@ import {
     setCommitSlugEditingAtom,
     setCommitSlugFieldErrorAtom,
 } from "../state"
+
+import AgentChangesSummary from "./changes/AgentChangesSummary"
 
 // Lazy load DiffView to avoid bundling Lexical editor in _app chunk
 // const DiffView = dynamic(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
@@ -62,6 +67,8 @@ export interface EntityCommitContentProps {
     entityNameEditable?: boolean
     /** Label for the editable entity name field. Defaults to "Name". */
     entityNameLabel?: string
+    /** Footer rendered inside the right pane (agent two-pane layout). */
+    footerSlot?: React.ReactNode
 }
 
 /**
@@ -87,6 +94,7 @@ export function EntityCommitContent({
     modeLabel,
     entityNameEditable = false,
     entityNameLabel = "Name",
+    footerSlot,
 }: EntityCommitContentProps) {
     const entityName = useAtomValue(commitModalEntityNameAtom)
     const originalEntityName = useAtomValue(commitModalOriginalEntityNameAtom)
@@ -96,6 +104,9 @@ export function EntityCommitContent({
     const canCommit = useAtomValue(commitModalCanCommitAtom)
     const context = useAtomValue(commitModalContextAtom)
     const actionLabel = useAtomValue(commitModalActionLabelAtom)
+    const commitEntity = useAtomValue(commitModalEntityAtom)
+    // App/artifact name (e.g. "sunday-agent") — clearer than the variant name in the agent title.
+    const appName = useAtomValue(workflowMolecule.selectors.artifactName(commitEntity?.id ?? ""))
     const slugEditing = useAtomValue(commitModalSlugEditingAtom)
     const slugFieldError = useAtomValue(commitModalSlugFieldErrorAtom)
     const setMessage = useSetAtom(setCommitMessageAtom)
@@ -198,6 +209,17 @@ export function EntityCommitContent({
         return () => cancelAnimationFrame(id)
     }, [context?.diffData?.original, context?.diffData?.modified])
 
+    // Pre-fill the commit message with the auto-generated summary (agent workflows),
+    // without ever clobbering what the user typed.
+    const suggestedMessage = context?.suggestedMessage
+    const suggestionAppliedRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (!suggestedMessage || message.trim().length > 0) return
+        if (suggestionAppliedRef.current === suggestedMessage) return
+        suggestionAppliedRef.current = suggestedMessage
+        setMessage(suggestedMessage)
+    }, [suggestedMessage, message, setMessage])
+
     // Build changes description from context
     const changesDescription: string[] = []
     if (context?.changesSummary) {
@@ -228,6 +250,10 @@ export function EntityCommitContent({
     // Check if diff data is available
     const hasDiffData = context?.diffData?.original && context?.diffData?.modified
 
+    // Agent/LLM commits get the calm "Statement" left column + section summary.
+    const isAgentCommit = !!context?.sections?.length
+    const hasVariantMode = !!commitModes?.some((m) => m.id === "variant")
+
     // Calculate total changes for diff header (testcases + columns)
     const totalChanges =
         (context?.changesSummary?.modifiedCount ?? 0) +
@@ -237,58 +263,191 @@ export function EntityCommitContent({
         (context?.changesSummary?.renamedColumns ?? 0) +
         (context?.changesSummary?.deletedColumns ?? 0)
 
+    const isAgentTwoPane = isAgentCommit && !!hasDiffData
+
+    // Agent commits render the variant name/slug input inside the rail's "variant"
+    // content so the "necessary info" sits with the selected action, not far below it.
+    const nameEditorInRail =
+        entityNameEditable &&
+        isAgentCommit &&
+        actionLabel === "Commit" &&
+        hasVariantMode &&
+        (selectedMode ?? "version") === "variant"
+
+    const nameSlugEditor = (
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+                <label htmlFor="entity-name" className="font-medium text-gray-700">
+                    {entityNameLabel}
+                </label>
+                <Input
+                    id="entity-name"
+                    value={entityName}
+                    onChange={(e) => setEntityName(e.target.value)}
+                    placeholder="Enter a name..."
+                    autoFocus
+                    className={isAgentCommit ? "!bg-[var(--ag-colorFillQuaternary)]" : undefined}
+                />
+            </div>
+
+            {entitySlug !== null && (
+                <div className="flex flex-col gap-1">
+                    {slugEditing ? (
+                        <>
+                            <label htmlFor="entity-slug" className="font-medium mb-1">
+                                Slug
+                            </label>
+                            <Input
+                                id="entity-slug"
+                                value={entitySlug}
+                                onChange={(e) => handleSlugInputChange(e.target.value)}
+                                status={slugFieldError || slugValidationError ? "error" : undefined}
+                                autoFocus
+                                className={
+                                    isAgentCommit
+                                        ? "!bg-[var(--ag-colorFillQuaternary)] [&_.ant-input]:!bg-transparent"
+                                        : undefined
+                                }
+                                suffix={
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<ArrowClockwise size={14} />}
+                                        onClick={handleRegenerate}
+                                        title="Regenerate random suffix"
+                                    />
+                                }
+                            />
+                            {(slugFieldError || slugValidationError) && (
+                                <div className="mt-0.5 flex items-start gap-1 text-[var(--ag-c-FF4D4F)]">
+                                    <WarningCircle size={16} className="mt-0.5 shrink-0" />
+                                    <span>{slugFieldError ?? slugValidationError}</span>
+                                </div>
+                            )}
+                            {!slugFieldError && !slugValidationError && (
+                                <Text className={cn(textColors.tertiary)}>
+                                    Edit freely - use the regenerate button to add a random suffix
+                                    back.
+                                </Text>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex min-w-0 items-center gap-2">
+                            <Text className="shrink-0 font-medium">Slug:</Text>
+                            <Tag
+                                className="min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
+                                title={entitySlug}
+                            >
+                                {entitySlug}
+                            </Tag>
+                            <Button
+                                type="link"
+                                size="small"
+                                className="shrink-0"
+                                onClick={handleEditClick}
+                            >
+                                Edit
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+
     return (
         <div
             className={cn(
-                "flex gap-4 overflow-hidden",
-                hasDiffData ? "flex-row h-full" : "flex-col",
+                "flex overflow-hidden",
+                hasDiffData ? "flex-row" : "flex-col gap-4",
+                hasDiffData && !isAgentCommit && "h-full gap-4",
+                isAgentTwoPane && "h-[min(450px,72vh)]",
             )}
         >
-            {/* Form section */}
+            {/* Form section — agent two-pane: sits on the RIGHT and holds the action footer. */}
             <div
                 className={cn(
                     "flex flex-col gap-4",
-                    hasDiffData ? "w-[320px] shrink-0 overflow-y-auto" : "w-full",
+                    hasDiffData
+                        ? isAgentCommit
+                            ? "order-2 w-[400px] shrink-0 overflow-hidden border-l border-[var(--ag-colorBorderSecondary)] px-6 py-5 min-h-0"
+                            : "w-[320px] shrink-0 overflow-y-auto"
+                        : "w-full",
                 )}
             >
-                {/* Version info panel — hidden when actionLabel is not "Commit" (e.g., "Create")
-                    since there's no existing entity to show version transitions for */}
-                {context?.versionInfo && actionLabel === "Commit" && (
-                    <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
-                        <Text className={textColors.secondary}>
-                            {selectedMode === "variant"
-                                ? "This will create a new variant from "
-                                : "This will create a new revision of "}
-                            <span className="font-medium">{originalEntityName}</span>.
-                        </Text>
-                        <div className="mt-2 flex items-center gap-2 min-w-0">
-                            <span className="flex items-center gap-1 min-w-0">
-                                <span
-                                    className={cn("truncate", textColors.secondary)}
-                                    title={originalEntityName}
-                                >
-                                    {originalEntityName}
-                                </span>
-                                <VersionBadge
-                                    version={context.versionInfo.currentVersion}
-                                    variant="chip"
-                                    className="shrink-0"
-                                />
-                            </span>
-                            <span className={cn("shrink-0", textColors.tertiary)}>→</span>
-                            {selectedMode === "variant" ? (
-                                <span className="flex items-center gap-1 min-w-0">
-                                    <span
-                                        className="truncate text-blue-7"
-                                        title={modeLabel || entityName || "new variant"}
+                {isAgentCommit ? (
+                    <Text className="shrink-0 text-base font-semibold">
+                        {actionLabel} {appName || originalEntityName}
+                    </Text>
+                ) : null}
+
+                {/* Body scrolls so a tall variant form can't squeeze the message textarea;
+                    the title above and footer below stay pinned. */}
+                <div
+                    className={cn(
+                        "flex flex-col gap-4",
+                        isAgentCommit && "min-h-0 flex-1 overflow-y-auto",
+                    )}
+                >
+                    {/* Agent commits: pick where the save lands (rail) + that action's summary (content). */}
+                    {context?.versionInfo && actionLabel === "Commit" && isAgentCommit && (
+                        <SectionRail
+                            items={[
+                                {value: "version", label: "New version"},
+                                ...(hasVariantMode
+                                    ? [{value: "variant", label: "New variant"}]
+                                    : []),
+                            ]}
+                            value={selectedMode ?? "version"}
+                            onChange={(v) => onModeChange?.(v)}
+                            railWidth="w-[108px]"
+                        >
+                            {(selectedMode ?? "version") === "variant" ? (
+                                <div className="flex flex-col gap-3">
+                                    <Text
+                                        className={cn(
+                                            "text-xs leading-relaxed",
+                                            textColors.secondary,
+                                        )}
                                     >
-                                        {modeLabel || entityName || "new variant"}
-                                    </span>
-                                    <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
-                                        v1
-                                    </span>
-                                </span>
+                                        Creates a separate variant.{" "}
+                                        <span className="font-medium text-[var(--ag-colorText)]">
+                                            {appName || originalEntityName}
+                                        </span>{" "}
+                                        stays on v{context.versionInfo.currentVersion}.
+                                    </Text>
+                                    {nameEditorInRail ? (
+                                        <div className="border-t border-[var(--ag-colorBorderSecondary)] pt-3">
+                                            {nameSlugEditor}
+                                        </div>
+                                    ) : null}
+                                </div>
                             ) : (
+                                <Text
+                                    className={cn("text-xs leading-relaxed", textColors.secondary)}
+                                >
+                                    Saves as{" "}
+                                    <span className="font-medium text-[var(--ag-colorText)]">
+                                        version {context.versionInfo.targetVersion}
+                                    </span>
+                                    . Everyone using {appName || originalEntityName} gets your
+                                    changes.
+                                </Text>
+                            )}
+                        </SectionRail>
+                    )}
+
+                    {/* Version info panel — hidden when actionLabel is not "Commit" (e.g., "Create")
+                    since there's no existing entity to show version transitions for */}
+                    {context?.versionInfo && actionLabel === "Commit" && !isAgentCommit && (
+                        <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
+                            <Text className={textColors.secondary}>
+                                {selectedMode === "variant"
+                                    ? "This will create a new variant from "
+                                    : "This will create a new revision of "}
+                                <span className="font-medium">{originalEntityName}</span>.
+                            </Text>
+                            <div className="mt-2 flex items-center gap-2 min-w-0">
                                 <span className="flex items-center gap-1 min-w-0">
                                     <span
                                         className={cn("truncate", textColors.secondary)}
@@ -296,162 +455,146 @@ export function EntityCommitContent({
                                     >
                                         {originalEntityName}
                                     </span>
-                                    <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
-                                        v{context.versionInfo.targetVersion}
-                                    </span>
+                                    <VersionBadge
+                                        version={context.versionInfo.currentVersion}
+                                        variant="chip"
+                                        className="shrink-0"
+                                    />
                                 </span>
-                            )}
-                        </div>
-                        {changesDescription.length > 0 && (
-                            <div className={cn("mt-2 text-xs", textColors.tertiary)}>
-                                Changes: {changesDescription.join(", ")}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Cannot commit warning */}
-                {!canCommit && (
-                    <Alert
-                        type="warning"
-                        title="This entity cannot be committed"
-                        description="Check that there are changes to commit and the entity is in a valid state."
-                        showIcon
-                    />
-                )}
-
-                {/* Commit mode selector (optional) */}
-                {commitModes && commitModes.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                        <label htmlFor="commit-mode" className="font-medium text-gray-700">
-                            Save mode
-                        </label>
-                        <Radio.Group
-                            id="commit-mode"
-                            value={selectedMode}
-                            onChange={(e) => onModeChange?.(e.target.value)}
-                        >
-                            {commitModes.map((mode) => (
-                                <Radio key={mode.id} value={mode.id}>
-                                    {mode.label}
-                                </Radio>
-                            ))}
-                        </Radio.Group>
-                    </div>
-                )}
-
-                {/* Entity name — editable input for Create flows */}
-                {entityNameEditable && (
-                    <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-2">
-                            <label htmlFor="entity-name" className="font-medium text-gray-700">
-                                {entityNameLabel}
-                            </label>
-                            <Input
-                                id="entity-name"
-                                value={entityName}
-                                onChange={(e) => setEntityName(e.target.value)}
-                                placeholder="Enter a name..."
-                                autoFocus
-                            />
-                        </div>
-
-                        {entitySlug !== null && (
-                            <div className="flex flex-col gap-1">
-                                {slugEditing ? (
-                                    <>
-                                        <label htmlFor="entity-slug" className="font-medium mb-1">
-                                            Slug
-                                        </label>
-                                        <Input
-                                            id="entity-slug"
-                                            value={entitySlug}
-                                            onChange={(e) => handleSlugInputChange(e.target.value)}
-                                            status={
-                                                slugFieldError || slugValidationError
-                                                    ? "error"
-                                                    : undefined
-                                            }
-                                            autoFocus
-                                            suffix={
-                                                <Button
-                                                    type="text"
-                                                    size="small"
-                                                    icon={<ArrowClockwise size={14} />}
-                                                    onClick={handleRegenerate}
-                                                    title="Regenerate random suffix"
-                                                />
-                                            }
-                                        />
-                                        {(slugFieldError || slugValidationError) && (
-                                            <div className="mt-0.5 flex items-start gap-1 text-[var(--ag-c-FF4D4F)]">
-                                                <WarningCircle
-                                                    size={16}
-                                                    className="mt-0.5 shrink-0"
-                                                />
-                                                <span>{slugFieldError ?? slugValidationError}</span>
-                                            </div>
-                                        )}
-                                        {!slugFieldError && !slugValidationError && (
-                                            <Text className={cn(textColors.tertiary)}>
-                                                Edit freely - use the regenerate button to add a
-                                                random suffix back.
-                                            </Text>
-                                        )}
-                                    </>
+                                <span className={cn("shrink-0", textColors.tertiary)}>→</span>
+                                {selectedMode === "variant" ? (
+                                    <span className="flex items-center gap-1 min-w-0">
+                                        <span
+                                            className="truncate text-blue-7"
+                                            title={modeLabel || entityName || "new variant"}
+                                        >
+                                            {modeLabel || entityName || "new variant"}
+                                        </span>
+                                        <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
+                                            v1
+                                        </span>
+                                    </span>
                                 ) : (
-                                    <div className="flex min-w-0 items-center gap-2">
-                                        <Text className="shrink-0 font-medium">Slug:</Text>
-                                        <Tag
-                                            className="min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
-                                            title={entitySlug}
+                                    <span className="flex items-center gap-1 min-w-0">
+                                        <span
+                                            className={cn("truncate", textColors.secondary)}
+                                            title={originalEntityName}
                                         >
-                                            {entitySlug}
-                                        </Tag>
-                                        <Button
-                                            type="link"
-                                            size="small"
-                                            className="shrink-0"
-                                            onClick={handleEditClick}
-                                        >
-                                            Edit
-                                        </Button>
-                                    </div>
+                                            {originalEntityName}
+                                        </span>
+                                        <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
+                                            v{context.versionInfo.targetVersion}
+                                        </span>
+                                    </span>
                                 )}
                             </div>
+                            {changesDescription.length > 0 && (
+                                <div className={cn("mt-2 text-xs", textColors.tertiary)}>
+                                    Changes: {changesDescription.join(", ")}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Cannot commit warning */}
+                    {!canCommit && (
+                        <Alert
+                            type="warning"
+                            title="This entity cannot be committed"
+                            description="Check that there are changes to commit and the entity is in a valid state."
+                            showIcon
+                        />
+                    )}
+
+                    {/* Commit mode selector (optional) — agent commits use the statement toggle. */}
+                    {!isAgentCommit && commitModes && commitModes.length > 0 && (
+                        <div className="flex flex-col gap-2">
+                            <label htmlFor="commit-mode" className="font-medium text-gray-700">
+                                Save mode
+                            </label>
+                            <Radio.Group
+                                id="commit-mode"
+                                value={selectedMode}
+                                onChange={(e) => onModeChange?.(e.target.value)}
+                            >
+                                {commitModes.map((mode) => (
+                                    <Radio key={mode.id} value={mode.id}>
+                                        {mode.label}
+                                    </Radio>
+                                ))}
+                            </Radio.Group>
+                        </div>
+                    )}
+
+                    {/* Entity name — editable input for Create flows. Agent variant commits
+                    render this inside the rail (nameEditorInRail) instead. */}
+                    {entityNameEditable && !nameEditorInRail && nameSlugEditor}
+
+                    {/* Additional mode-specific UI injected by consumers — agent commits get a
+                    hairline zone divider so Save target / Deploy / Message read as groups. */}
+                    {extraContent ? (
+                        <div className={cn(isAgentCommit && "border-t border-zinc-2 pt-4")}>
+                            {extraContent}
+                        </div>
+                    ) : null}
+
+                    {/* Commit/Create message — agent: fills spare room but holds a usable
+                        floor so it scrolls (not squeezes) when the form above is tall. */}
+                    <div
+                        className={cn(
+                            isAgentCommit &&
+                                "flex min-h-[132px] flex-1 flex-col border-t border-zinc-2 pt-4",
                         )}
+                    >
+                        <CommitMessageInput
+                            value={message}
+                            onChange={setMessage}
+                            label={`${actionLabel} message`}
+                            showOptional={false}
+                            placeholder="Describe your changes..."
+                            minRows={isAgentCommit ? 2 : 3}
+                            maxRows={6}
+                            disabled={!canCommit}
+                            fill={isAgentCommit}
+                            className={
+                                isAgentCommit
+                                    ? "[&_.ant-input-textarea-affix-wrapper]:!bg-[var(--ag-colorFillQuaternary)] [&_textarea]:!bg-transparent"
+                                    : undefined
+                            }
+                        />
                     </div>
-                )}
 
-                {/* Additional mode-specific UI injected by consumers */}
-                {extraContent}
+                    {/* Error display */}
+                    {error && (
+                        <Alert
+                            type="error"
+                            title={`${actionLabel} failed`}
+                            description={error.message}
+                            className="[&_.ant-alert]:!py-5"
+                            showIcon
+                        />
+                    )}
+                </div>
 
-                {/* Commit/Create message */}
-                <CommitMessageInput
-                    value={message}
-                    onChange={setMessage}
-                    label={`${actionLabel} message`}
-                    showOptional={false}
-                    placeholder="Describe your changes..."
-                    minRows={3}
-                    maxRows={6}
-                    disabled={!canCommit}
-                />
-
-                {/* Error display */}
-                {error && (
-                    <Alert
-                        type="error"
-                        title={`${actionLabel} failed`}
-                        description={error.message}
-                        className="[&_.ant-alert]:!py-5"
-                        showIcon
-                    />
-                )}
+                {/* Action footer lives with the form (agent two-pane). */}
+                {footerSlot ? (
+                    <div className="-mx-6 -mb-5 mt-auto border-t border-[var(--ag-colorBorderSecondary)] px-6 py-3">
+                        {footerSlot}
+                    </div>
+                ) : null}
             </div>
 
-            {/* Diff view section — deferred until after first paint to avoid blocking the modal */}
-            {hasDiffData && (
+            {/* Agent workflows: plain-language section summary (JSON stays one click away). */}
+            {hasDiffData && context?.sections?.length ? (
+                <div className="order-1 flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--ag-colorFillQuaternary)]">
+                    <AgentChangesSummary
+                        sections={context.sections}
+                        original={context.diffData?.original ?? ""}
+                        modified={context.diffData?.modified ?? ""}
+                        language={context.diffData?.language === "yaml" ? "yaml" : "json"}
+                    />
+                </div>
+            ) : hasDiffData ? (
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
                     <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
                         <Text
@@ -493,7 +636,7 @@ export function EntityCommitContent({
                         )} */}
                     </div>
                 </div>
-            )}
+            ) : null}
         </div>
     )
 }

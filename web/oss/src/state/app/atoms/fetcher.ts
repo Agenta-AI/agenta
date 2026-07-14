@@ -1,13 +1,12 @@
 import {
     appWorkflowsListQueryAtom,
     nonArchivedAppWorkflowsAtom,
-    queryWorkflows,
+    workflowDetailQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
-import {projectIdAtom, sessionAtom, stringStorage} from "@agenta/shared/state"
+import {stringStorage} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
 
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 
@@ -43,6 +42,28 @@ export const routerAppIdAtom = atom(
     },
 )
 
+// Builds the href an app switch would navigate to. Shared by the imperative
+// navigation atom below and by anchors that expose the same target as a real
+// link (middle-click / open-in-new-tab in the workflow switcher).
+export const appSwitchHrefAtom = atom((get) => {
+    const {workspaceId, projectId} = get(appIdentifiersAtom)
+    const snapshot = get(appStateSnapshotAtom)
+
+    return (next: string): string | null => {
+        if (!workspaceId || !projectId) return null
+
+        const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(next)}`
+        const rest = snapshot.routeLayer === "app" ? snapshot.restPath : []
+        const nextRest = shouldResetEvaluationContextOnAppSwitch({
+            restPath: rest,
+            pathname: snapshot.pathname,
+        })
+            ? ["evaluations"]
+            : rest
+        return nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/overview`
+    }
+})
+
 export const routerAppNavigationAtom = atom(null, (get, set, next: string | null) => {
     const identifiers = get(appIdentifiersAtom)
     const {workspaceId, projectId, appId: current} = identifiers
@@ -56,45 +77,21 @@ export const routerAppNavigationAtom = atom(null, (get, set, next: string | null
 
     if (next === current) return
 
-    const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(next)}`
-    const snapshot = get(appStateSnapshotAtom)
-    const rest = snapshot.routeLayer === "app" ? snapshot.restPath : []
-    const nextRest = shouldResetEvaluationContextOnAppSwitch({
-        restPath: rest,
-        pathname: snapshot.pathname,
-    })
-        ? ["evaluations"]
-        : rest
-    const href = nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/overview`
+    const href = get(appSwitchHrefAtom)(next)
+    if (!href) return
     set(requestNavigationAtom, {type: "href", href, method: "push"})
 })
 
 export const recentAppIdAtom = atomWithStorage<string | null>(LS_APP_KEY, null, stringStorage)
 
-export const currentAppQueryAtom = atomWithQuery<Workflow | null>((get) => {
-    const projectId = get(projectIdAtom)
+export const currentAppQueryAtom = atom((get) => {
     const appId = get(routerAppIdAtom) || get(recentAppIdAtom)
-    const liveApps = get(nonArchivedAppWorkflowsAtom)
-    const liveApp = appId ? (liveApps.find((app) => app.id === appId) ?? null) : null
-
-    return {
-        queryKey: ["currentApp", projectId, appId],
-        queryFn: async () => {
-            if (!projectId || !appId) return null
-
-            const response = await queryWorkflows({
-                projectId,
-                workflowRefs: [{id: appId}],
-                includeArchived: true,
-            })
-
-            return response.workflows.find((workflow) => workflow.id === appId) ?? null
-        },
-        enabled: get(sessionAtom) && !!projectId && !!appId && !liveApp,
-        initialData: liveApp ?? undefined,
-        staleTime: 30_000,
-        refetchOnWindowFocus: false,
-    }
+    // Resolve via the SHARED by-id workflow query (`workflowDetailQueryAtomFamily`)
+    // so app-state dedupes with workflow-state (`currentWorkflowContextAtom`),
+    // which reads the same family for the same id. Previously this was a separate
+    // `atomWithQuery` with its own key + `include_archived`, so the current
+    // workflow was fetched TWICE on every app page (once per state tree).
+    return get(workflowDetailQueryAtomFamily(appId))
 })
 
 interface WorkflowListQueryState {

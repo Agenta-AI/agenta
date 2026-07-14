@@ -1,0 +1,82 @@
+---
+title: "How agents run"
+sidebar_label: "How agents run"
+description: "The runner topology: how Services reaches the runner, how harness and sandbox provider are independent axes, and how a run gets its credentials and persistence."
+slug: /self-host/agent-execution/how-agents-run
+sidebar_position: 2
+---
+
+This page explains where agent code runs in a self-hosted Agenta deployment, and the pieces that
+decide how a single run behaves. It is the model behind the configuration pages that follow.
+
+## The runner service
+
+Services does not run agent code. It sends each agent run to one runner service over an internal
+URL and a shared token:
+
+```text
+Services  --(AGENTA_RUNNER_INTERNAL_URL, AGENTA_RUNNER_TOKEN)-->  Runner
+```
+
+The runner owns sandbox execution. It receives a run request, starts a harness process inside a
+sandbox, streams results back, and relays server-side tools. A deployment has one logical runner.
+Its replicas all share the same provider configuration.
+
+## Harness and sandbox
+
+Two separate choices shape a run:
+
+- **The harness** is the agent program that runs: Pi, or Claude Code.
+- **The sandbox provider** is where that program runs: the local runner container, or a Daytona
+  cloud sandbox.
+
+The two are independent. One runner can serve local runs and Daytona runs at the same time, and
+changing one does not change the other.
+
+The sandbox providers are:
+
+- **daytona** runs the harness in a Daytona cloud sandbox, isolated from the runner and from other
+  runs. See [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona).
+- **local** runs the harness inside the runner container. It is the default. See
+  [Run agents locally](/self-host/agent-execution/run-agents-locally).
+
+A deployment enables the providers it wants and picks a default with
+[`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`](/self-host/configuration#sandbox-providers).
+
+## Credentials
+
+Two kinds of credential meet at the runner:
+
+- **Model keys are per-run data.** Agenta resolves the model key for each run and passes it with
+  the run request. It is not part of the runner's configuration.
+- **Provider credentials are deployment infrastructure.** The runner's Daytona API key belongs to
+  the deployment. It is configured once on the runner and never travels to a sandbox.
+
+A run can also carry no managed key at all and authenticate the harness from a mounted personal
+subscription. See [Use your own subscription](/self-host/use-your-own-subscription).
+
+## Persistence depends on the run
+
+What a run keeps depends on what the run is:
+
+| The run has | What it keeps |
+|---|---|
+| No session and no workflow artifact | Nothing. Its working directory is ephemeral. |
+| A session | A session working directory, restored on the next turn. |
+| A workflow artifact | An agent working directory tied to that artifact. |
+| A resumable harness session | The harness transcript, so the session continues. |
+
+Durable working directories are backed by the [store](/self-host/infrastructure/architecture).
+Only a run with no session and no workflow artifact is fully ephemeral.
+
+The store is optional. A deployment that configures no `AGENTA_STORE_*` credentials runs agents
+normally, with mounts disabled: every run gets an ephemeral working directory inside its sandbox,
+and the table above no longer applies. See
+[Enable the agent runner and durable store](/self-host/upgrades/runner-and-store).
+
+## Next
+
+- [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) for the trust model.
+- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) to enable isolated cloud sandboxes.
+- [Run agents locally](/self-host/agent-execution/run-agents-locally) to configure local runs.
+- [Runner and sandbox configuration](/self-host/configuration#agent-runner) for every variable.

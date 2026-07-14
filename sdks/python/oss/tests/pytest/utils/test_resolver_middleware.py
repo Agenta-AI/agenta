@@ -249,6 +249,166 @@ class TestResolverMiddlewareEmbedGate:
         )
 
     @pytest.mark.asyncio
+    async def test_resolves_embeds_in_inline_parameters(self):
+        """
+        When the caller runs an UNSAVED config (parameters inline on
+        request.data.parameters, no data.revision), embeds in those inline
+        parameters must still resolve. This is the playground path the old
+        middleware skipped, because resolution was attached only to the
+        revision object. It is the regression the skills-config fix targets:
+        an @ag.embed inside `parameters.skills[i]` resolves on this path too.
+        """
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        params_with_embed = {
+            "skills": [
+                {
+                    "@ag.embed": {
+                        "@ag.references": {"workflow_revision": {"slug": "my-skill"}},
+                        "@ag.selector": {"path": "parameters.skill"},
+                    }
+                }
+            ]
+        }
+        resolved_params = {
+            "skills": [
+                {
+                    "name": "my-skill",
+                    "description": "A resolved skill.",
+                    "body": "Do the thing.",
+                }
+            ]
+        }
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            flags={"resolve": True},
+            data=WorkflowRequestData(parameters=params_with_embed),
+        )
+
+        with (
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                new_callable=AsyncMock,
+                return_value=MagicMock(),
+            ),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_embeds",
+                new_callable=AsyncMock,
+                return_value=resolved_params,
+            ) as mock_resolve_embeds,
+            tracing_context_manager(TracingContext()),
+        ):
+            mw = ResolverMiddleware()
+            call_next = AsyncMock(return_value="result")
+            await mw(request, call_next)
+
+        # Resolution ran on the inline parameters (no revision involved)...
+        mock_resolve_embeds.assert_called_once_with(
+            parameters=params_with_embed,
+            credentials="test-creds",
+        )
+        # ...and the resolved parameters are written back so the handler sees concrete skills.
+        assert request.data.parameters == resolved_params
+
+    @pytest.mark.asyncio
+    async def test_inline_embed_resolves_end_to_end_via_mocked_endpoint(self):
+        """
+        Prove a REAL no-revision request resolves embeds end-to-end. Instead of patching the
+        `resolve_embeds` SDK helper, this mocks the `/workflows/revisions/resolve` HTTP endpoint
+        it calls, so the actual resolver code runs: the middleware detects the inline `@ag.embed`
+        in `parameters.skills[0]`, calls `resolve_embeds`, and inlines the returned skill package.
+
+        This is the playground path (parameters inline on `request.data.parameters`, no
+        `data.revision`) that the old middleware skipped.
+        """
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        params_with_embed = {
+            "skills": [
+                {
+                    "@ag.embed": {
+                        "@ag.references": {"workflow_revision": {"slug": "my-skill"}},
+                        "@ag.selector": {"path": "parameters.skill"},
+                    }
+                }
+            ]
+        }
+        resolved_params = {
+            "skills": [
+                {
+                    "name": "my-skill",
+                    "description": "A resolved skill.",
+                    "body": "Do the thing.",
+                }
+            ]
+        }
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            flags={"resolve": True},
+            data=WorkflowRequestData(parameters=params_with_embed),
+        )
+
+        # The /workflows/revisions/resolve endpoint returns the inlined parameters under
+        # workflow_revision.data.parameters (the shape `resolve_embeds` unwraps).
+        endpoint_response = MagicMock()
+        endpoint_response.raise_for_status = MagicMock()
+        endpoint_response.json = MagicMock(
+            return_value={
+                "workflow_revision": {"data": {"parameters": resolved_params}}
+            }
+        )
+
+        post_mock = AsyncMock(return_value=endpoint_response)
+
+        class _FakeAsyncClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, *args, **kwargs):
+                return await post_mock(*args, **kwargs)
+
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(),
+            ),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                new_callable=AsyncMock,
+                return_value=MagicMock(),
+            ),
+            tracing_context_manager(TracingContext()),
+        ):
+            mw = ResolverMiddleware()
+            call_next = AsyncMock(return_value="result")
+            await mw(request, call_next)
+
+        # The real resolver hit the resolve endpoint once...
+        post_mock.assert_awaited_once()
+        url = post_mock.await_args.args[0]
+        assert url.endswith("/workflows/revisions/resolve")
+        # ...and the embed was inlined into a concrete skill package on the inline params.
+        assert request.data.parameters == resolved_params
+        assert request.data.parameters["skills"][0]["name"] == "my-skill"
+
+    @pytest.mark.asyncio
     async def test_skips_resolve_when_flag_is_false(self):
         """
         When resolve flag is explicitly False, resolve_embeds must NOT be called

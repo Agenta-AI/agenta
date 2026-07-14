@@ -48,7 +48,7 @@ class VaultRouter:
             response_model=List[SecretResponseDTO],
         )
         self.router.add_api_route(
-            "/secrets/{secret_id}",
+            "/secrets/{secret_id_or_slug}",
             self.read_secret,
             methods=["GET"],
             operation_id="read_secret",
@@ -137,7 +137,7 @@ class VaultRouter:
         return secrets_dtos
 
     @intercept_exceptions()
-    async def read_secret(self, request: Request, secret_id: str):
+    async def read_secret(self, request: Request, secret_id_or_slug: str):
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -151,10 +151,25 @@ class VaultRouter:
                 status_code=403,
             )
 
-        secrets_dto = await self.service.get_secret(
-            project_id=UUID(request.state.project_id),
-            secret_id=UUID(secret_id),
-        )
+        # A valid UUID means it's an id; anything else is a slug.
+        secret_id = None
+        secret_slug = None
+        try:
+            secret_id = UUID(secret_id_or_slug).hex
+        except ValueError:
+            secret_slug = secret_id_or_slug
+
+        if secret_id is not None:
+            secrets_dto = await self.service.get_secret_by_id(
+                project_id=UUID(request.state.project_id),
+                secret_id=UUID(secret_id),
+            )
+        else:
+            secrets_dto = await self.service.get_secret_by_slug(
+                project_id=UUID(request.state.project_id),
+                secret_slug=str(secret_slug),
+            )
+
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"

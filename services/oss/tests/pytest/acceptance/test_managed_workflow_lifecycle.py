@@ -600,7 +600,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     # 2. Fetch first preset (optional)
     # ------------------------------------------------------------------
     preset_parameters: Dict[str, Any] = {}
-    resp = mod_api("GET", f"{catalog_root}/{template_key}/presets")
+    resp = mod_api("GET", f"{catalog_root}/{template_key}/presets/")
     if resp.status_code == 200:
         presets = resp.json().get("presets", [])
         if presets:
@@ -841,7 +841,7 @@ def test_inspect_direct_returns_canonical_revision(case, mod_api, mod_services_a
     )
     assert resp.status_code == 200, resp.text
     payload = resp.json()
-    assert payload["data"]["revision"]["data"]["uri"] == ctx["uri"]
+    assert payload["revision"]["data"]["uri"] == ctx["uri"]
 
 
 # ---------------------------------------------------------------------------

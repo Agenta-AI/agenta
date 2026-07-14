@@ -72,4 +72,55 @@ export class StatusClient {
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/health");
     }
+
+    /**
+     * Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens.
+     *
+     * @param {StatusClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.status.storeJwks()
+     */
+    public storeJwks(requestOptions?: StatusClient.RequestOptions): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__storeJwks(requestOptions));
+    }
+
+    private async __storeJwks(requestOptions?: StatusClient.RequestOptions): Promise<core.WithRawResponse<unknown>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                ".well-known/jwks.json",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/.well-known/jwks.json");
+    }
 }

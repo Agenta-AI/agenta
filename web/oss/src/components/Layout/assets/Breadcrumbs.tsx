@@ -81,7 +81,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
         <section
             className={clsx(
                 classes.breadcrumbContainer,
-                "sticky top-0 z-[100] bg-[var(--ag-c-FFFFFF)] max-w-full overflow-hidden gap-4 !px-3",
+                "sticky top-0 z-[100] bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-surface-divider)] max-w-full overflow-hidden gap-4 !px-3",
             )}
         >
             <div className="flex flex-nowrap items-center shrink-1 min-w-0">

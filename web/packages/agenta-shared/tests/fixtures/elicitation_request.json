@@ -1,0 +1,71 @@
+{
+    "render": {"kind": "elicitation"},
+    "message": "When should this agent run? I need a schedule before I can set it up.",
+    "requestedSchema": {
+        "type": "object",
+        "properties": {
+            "frequency": {
+                "type": "string",
+                "title": "How often",
+                "oneOf": [
+                    {
+                        "const": "hourly",
+                        "title": "Hourly",
+                        "description": "Runs every hour, on the hour."
+                    },
+                    {
+                        "const": "daily",
+                        "title": "Daily",
+                        "description": "Runs once a day at the chosen time."
+                    },
+                    {
+                        "const": "weekdays",
+                        "title": "Weekdays",
+                        "description": "Monday through Friday only."
+                    },
+                    {
+                        "const": "weekly",
+                        "title": "Weekly",
+                        "description": "Runs once a week at the chosen time."
+                    }
+                ]
+            },
+            "run_schedule": {
+                "type": "string",
+                "title": "Run schedule",
+                "format": "cron",
+                "default": "0 9 * * *"
+            },
+            "time_of_day": {
+                "type": "string",
+                "title": "At what time",
+                "format": "date-time",
+                "description": "Local time; the server converts to UTC cron."
+            },
+            "timezone": {
+                "type": "string",
+                "title": "Timezone",
+                "enum": ["Europe/Berlin", "Europe/Istanbul", "UTC", "America/New_York"],
+                "default": "UTC"
+            },
+            "delivery_message": {
+                "type": "string",
+                "title": "Message to send on each run",
+                "format": "multiline",
+                "x-ag-placeholder": "Summarize new #support threads…"
+            },
+            "active": {
+                "type": "boolean",
+                "title": "Start active",
+                "default": true
+            },
+            "notify_on": {
+                "type": "array",
+                "title": "Notify on",
+                "items": {"type": "string", "enum": ["success", "failure", "skipped"]},
+                "default": ["failure"]
+            }
+        },
+        "required": ["frequency", "time_of_day", "timezone"]
+    }
+}

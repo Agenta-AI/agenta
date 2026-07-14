@@ -15,8 +15,10 @@
  */
 
 import {getAgentaSdkClient} from "@agenta/sdk"
-import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {getLowPriorityWorkflowsClient, getWorkflowsClient} from "@agenta/sdk/resources"
+import {getAgentaApiUrl, axios, lowPriorityWhenCached} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
+import {z} from "zod"
 
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
 import {extractAllEndpointSchemas, type OpenAPISpec} from "../../shared/openapi"
@@ -96,7 +98,8 @@ export async function queryWorkflows({
     folderId,
     includeArchived = false,
     windowing,
-}: WorkflowListParams): Promise<WorkflowsResponse> {
+    lowPriority,
+}: WorkflowListParams & {lowPriority?: boolean}): Promise<WorkflowsResponse> {
     if (!projectId) {
         return {count: 0, workflows: []}
     }
@@ -122,7 +125,7 @@ export async function queryWorkflows({
             include_archived: includeArchived,
             windowing: windowing ?? undefined,
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(lowPriority)},
     )
 
     const validated = safeParseWithLogging(
@@ -154,6 +157,7 @@ export async function queryWorkflowVariants(
     workflowId: string,
     projectId: string,
     flags?: WorkflowQueryFlags,
+    opts?: {lowPriority?: boolean},
 ): Promise<WorkflowVariantsResponse> {
     if (!projectId || !workflowId) {
         return {count: 0, workflow_variants: []}
@@ -165,7 +169,7 @@ export async function queryWorkflowVariants(
             workflow_refs: [{id: workflowId}],
             workflow_variant: flags ? {flags} : undefined,
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
 
     const validated = safeParseWithLogging(
@@ -297,11 +301,14 @@ export async function retrieveWorkflowRevision({
     workflowRef,
     workflowVariantRef,
     workflowRevisionRef,
+    lowPriority,
 }: {
     projectId: string
     workflowRef?: {id?: string; slug?: string; version?: string}
     workflowVariantRef?: {id?: string; slug?: string; version?: string}
     workflowRevisionRef?: {id?: string; slug?: string; version?: string}
+    /** Send with the `priority: "low"` fetch hint (secondary/background load). */
+    lowPriority?: boolean
 }): Promise<Workflow | null> {
     if (!projectId) return null
     // The backend needs at least one identifying ref (id or slug at any
@@ -316,8 +323,8 @@ export async function retrieveWorkflowRevision({
 
     // Use the Fern-generated client (single source of truth for the
     // request/response shape, kept in sync with the backend OpenAPI spec).
-    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
-    const data = await client.workflows.retrieveWorkflowRevision(
+    const client = lowPriority ? getLowPriorityWorkflowsClient() : getWorkflowsClient()
+    const data = await client.retrieveWorkflowRevision(
         {
             ...(workflowRef ? {workflow_ref: workflowRef} : {}),
             ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
@@ -335,6 +342,47 @@ export async function retrieveWorkflowRevision({
         "[retrieveWorkflowRevision]",
     )
     return validated?.workflow_revision ?? null
+}
+
+// ============================================================================
+// AGENT BUILD-KIT OVERLAY (reserved static workflow)
+// ============================================================================
+
+export const AGENT_BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
+
+const agentBuildKitOverlaySchema = z
+    .object({
+        tools: z.array(z.unknown()).optional(),
+        skills: z.array(z.unknown()).optional(),
+        sandbox: z.record(z.string(), z.unknown()).optional(),
+    })
+    .passthrough()
+
+export type AgentBuildKitOverlay = z.infer<typeof agentBuildKitOverlaySchema>
+
+export async function fetchAgentBuildKitOverlay(
+    projectId: string,
+): Promise<AgentBuildKitOverlay | null> {
+    if (!projectId) return null
+
+    const revision = await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {slug: AGENT_BUILD_KIT_WORKFLOW_SLUG},
+        // Secondary: only feeds the optional Advanced "build kit" sub-block, so it must yield to the
+        // config/chat critical path on playground load.
+        lowPriority: true,
+    })
+    const overlay = revision?.data?.parameters?.agent
+    if (overlay == null) return null
+
+    const validated = safeParseWithLogging(
+        agentBuildKitOverlaySchema,
+        overlay,
+        "[fetchAgentBuildKitOverlay]",
+    )
+    if (!validated || Object.keys(validated).length === 0) return null
+
+    return validated
 }
 
 /**
@@ -415,39 +463,36 @@ export async function fetchWorkflowRevisionById(
 // ============================================================================
 
 /**
- * Response shape from the inspect endpoint.
- * Returns a WorkflowServiceRequest with resolved interface.
+ * Response shape from the `/inspect` endpoint.
+ *
+ * The backend model is `WorkflowInspectResponse` (sdks/python/agenta/sdk/models/workflows.py):
+ * `revision` is a `WorkflowRevision` (UNMODIFIED), so the resolved interface lives at
+ * `revision.data.schemas` and the resolved parameters at `revision.data.parameters` — never
+ * lifted out of `data`. `request` carries the ready-made `WorkflowInvokeRequest` (what the
+ * endpoint used to return as the whole response), demoted to a field. There is no
+ * `configuration`.
+ *
+ * `outputs` is a plain JSON Schema (the agent's is an object with a `messages` field), never
+ * keyed by output surface.
  */
 export interface InspectWorkflowResponse {
     version?: string
-    /** New shape (feat/extend-runnables): revision contains the resolved data */
     revision?: {
-        uri?: string
-        url?: string
-        headers?: Record<string, unknown>
-        schemas?: {
+        // The WorkflowRevision shape: schemas/parameters live under `data`.
+        data?: {
+            uri?: string
+            url?: string
+            headers?: Record<string, unknown>
+            schemas?: {
+                parameters?: Record<string, unknown>
+                inputs?: Record<string, unknown>
+                outputs?: Record<string, unknown>
+            }
             parameters?: Record<string, unknown>
-            inputs?: Record<string, unknown>
-            outputs?: Record<string, unknown>
-        }
-        parameters?: Record<string, unknown>
-    }
-    /** @deprecated Old shape — kept for backward compat during migration */
-    interface?: {
-        version?: string
-        uri?: string
-        url?: string
-        headers?: Record<string, unknown>
-        schemas?: {
-            parameters?: Record<string, unknown>
-            inputs?: Record<string, unknown>
-            outputs?: Record<string, unknown>
         }
     }
-    configuration?: {
-        script?: Record<string, unknown>
-        parameters?: Record<string, unknown>
-    }
+    request?: Record<string, unknown>
+    meta?: Record<string, unknown>
 }
 
 /**
@@ -468,6 +513,7 @@ export async function inspectWorkflow(
     uri: string,
     projectId: string,
     serviceUrl?: string | null,
+    opts?: {lowPriority?: boolean},
 ): Promise<InspectWorkflowResponse> {
     if (!projectId || !uri) {
         return {}
@@ -483,10 +529,86 @@ export async function inspectWorkflow(
         {
             revision: {uri},
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
 
     return response.data ?? {}
+}
+
+// ============================================================================
+// SIMPLE APPLICATION FETCH (carries the read-only playground build-kit overlay)
+// ============================================================================
+
+/**
+ * Response shape from `GET /simple/applications/{application_id}`.
+ *
+ * The playground build kit's `agent_template_overlay` rides here, on
+ * `additional_context` — the backend's read-only, platform-derived container on
+ * `SimpleApplicationResponse`. The agent-service `/inspect` response carries no
+ * behavior-changing meta, so the overlay is read from this app fetch instead.
+ */
+export interface SimpleApplicationFetchResponse {
+    count?: number
+    application?: Record<string, unknown> | null
+    additional_context?: {
+        playground_build_kit?: {
+            agent_template_overlay?: Record<string, unknown> | null
+        } | null
+    } | null
+}
+
+// Boundary validation for the inspect/fetch overlay. Kept permissive — the overlay is a free-form
+// `parameters.agent` subset (platform ops + `@ag.embed` refs) — but it gates the shape that reaches
+// `workflowAgentTemplateOverlayAtomFamily`, so a non-object overlay is rejected here, not downstream.
+const simpleApplicationFetchResponseSchema = z.object({
+    count: z.number().optional(),
+    application: z.record(z.string(), z.unknown()).nullable().optional(),
+    additional_context: z
+        .object({
+            playground_build_kit: z
+                .object({
+                    agent_template_overlay: z.record(z.string(), z.unknown()).nullable().optional(),
+                })
+                .nullable()
+                .optional(),
+        })
+        .nullable()
+        .optional(),
+})
+
+/**
+ * Fetch a single simple application by id.
+ *
+ * Endpoint: `GET /simple/applications/{application_id}`. Returns the app with
+ * its current variant/revision `data` merged, plus `additional_context` holding
+ * the playground-only build-kit overlay.
+ *
+ * @param applicationId - The application (workflow artifact) id
+ * @param projectId - Project ID
+ */
+export async function fetchSimpleApplication(
+    applicationId: string,
+    projectId: string,
+): Promise<SimpleApplicationFetchResponse | null> {
+    if (!projectId || !applicationId) return null
+
+    // Fern-generated client (single source of truth for the request/response
+    // shape). Its types under-declare the backend's `extra="allow"`
+    // `additional_context`, so it is read defensively below.
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
+    const data = await client.applications.fetchSimpleApplication(
+        {application_id: applicationId},
+        {queryParams: {project_id: projectId}},
+    )
+
+    // Validate at the boundary before the overlay reaches the atom family. Fern under-declares the
+    // backend's `extra="allow"` `additional_context`, so the local schema is the drift check.
+    const validated = safeParseWithLogging(
+        simpleApplicationFetchResponseSchema,
+        data,
+        "[fetchSimpleApplication]",
+    )
+    return (validated ?? null) as SimpleApplicationFetchResponse | null
 }
 
 // ============================================================================
@@ -1155,6 +1277,7 @@ export async function unarchiveWorkflow(
 export async function fetchWorkflowsBatch(
     projectId: string,
     workflowIds: string[],
+    opts?: {lowPriority?: boolean},
 ): Promise<Map<string, Workflow>> {
     const results = new Map<string, Workflow>()
     const groupedByWorkflowId = new Map<string, Workflow[]>()
@@ -1169,7 +1292,7 @@ export async function fetchWorkflowsBatch(
             // With multiple workflows the global limit would cut across all, so skip it.
             ...(workflowIds.length === 1 ? {windowing: {limit: 1, order: "descending"}} : {}),
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
 
     const validated = safeParseWithLogging(
@@ -1266,9 +1389,13 @@ export async function fetchWorkflowRevisionsByIdsBatch(
  * @param agType - The referenced ag-type key, e.g. "prompt-template"
  * @returns The dereferenced JSON Schema for the ag-type
  */
-export async function fetchAgTypeSchema(agType: string): Promise<Record<string, unknown>> {
+export async function fetchAgTypeSchema(
+    agType: string,
+    opts?: {lowPriority?: boolean},
+): Promise<Record<string, unknown>> {
     const response = await axios.get(
         `${getAgentaApiUrl()}/workflows/catalog/types/${encodeURIComponent(agType)}`,
+        lowPriorityWhenCached(opts?.lowPriority),
     )
     const jsonSchema = response.data?.type?.json_schema
 
@@ -1277,6 +1404,34 @@ export async function fetchAgTypeSchema(agType: string): Promise<Record<string, 
     }
 
     return jsonSchema as Record<string, unknown>
+}
+
+/**
+ * Fetch the harness catalog (`GET /workflows/catalog/harnesses/`) as a map keyed by harness id.
+ *
+ * Each record carries its `capabilities` (providers / deployments / connection_modes /
+ * model_selection / models). The agent-config harness field declares `x-ag-harness-ref`, and the
+ * playground resolves the selected harness's capabilities from this map to drive the
+ * provider/model picker — instead of reading an inlined inspect `meta` field.
+ */
+export async function fetchHarnessCapabilities(opts?: {
+    lowPriority?: boolean
+}): Promise<Record<string, Record<string, unknown>>> {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/workflows/catalog/harnesses/`,
+        lowPriorityWhenCached(opts?.lowPriority),
+    )
+    const harnesses = (response.data?.harnesses ?? []) as {
+        key?: string
+        capabilities?: Record<string, unknown>
+    }[]
+    const byHarness: Record<string, Record<string, unknown>> = {}
+    for (const record of harnesses) {
+        if (record?.key && record.capabilities) {
+            byHarness[record.key] = record.capabilities
+        }
+    }
+    return byHarness
 }
 
 // ============================================================================
@@ -1293,6 +1448,9 @@ export interface WorkflowCatalogFlags {
 
 export interface WorkflowCatalogTemplate {
     key: string
+    // present only for static entries (a reserved `__ag__*` slug); its presence is the
+    // catalog-layer staticness signal.
+    slug?: string | null
     name?: string | null
     description?: string | null
     categories?: string[] | null

@@ -2,11 +2,11 @@ import {useCallback, useState} from "react"
 
 import {
     connectionDrawerAtom,
-    executionDrawerAtom,
     isConnectionActive,
     isConnectionValid,
-    useConnectionActions,
-    useConnectionQuery,
+    toolExecutionDrawerAtom,
+    useToolConnectionActions,
+    useToolConnectionQuery,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
@@ -26,11 +26,11 @@ function formatCreatedAt(value: string | null | undefined): string {
 
 export default function ConnectionManagerDrawer() {
     const [state, setState] = useAtom(connectionDrawerAtom)
-    const setExecution = useSetAtom(executionDrawerAtom)
+    const setExecution = useSetAtom(toolExecutionDrawerAtom)
     const open = !!state
-    const {handleDelete, handleRefresh, handleRevoke} = useConnectionActions()
+    const {handleDelete, handleRefresh, handleRevoke} = useToolConnectionActions()
     const connectionId = state?.connectionId
-    const {connection, isLoading, refetch} = useConnectionQuery(connectionId)
+    const {connection, isLoading, refetch} = useToolConnectionQuery(connectionId)
 
     const [actionLoading, setActionLoading] = useState<string | null>(null)
 

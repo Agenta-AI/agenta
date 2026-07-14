@@ -1,10 +1,12 @@
 import os
 import hashlib
+import warnings
+from typing import List, Optional
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
@@ -319,6 +321,15 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # EMF metric lines (`log.tick(...)`) to stdout — the CloudWatch agent already
+    # ships container stdout, so this needs no new port/infra to light up.
+    metrics_enabled: bool = (
+        os.getenv("AGENTA_LOGGING_METRICS_ENABLED") or "true"
+    ).lower() in _TRUTHY
+    metrics_namespace: str = (
+        os.getenv("AGENTA_LOGGING_METRICS_NAMESPACE") or "Agenta/Workers"
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -342,24 +353,30 @@ class OTLPConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_SANDBOX_RUNNER_LOCAL_WARNED = False
+
+
 class ServicesCodeConfig(BaseModel):
     sandbox_runner: str = (
         os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
         or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-        or "restricted"
+        or "local"
     )
 
     model_config = ConfigDict(extra="ignore")
 
-
-class ServicesHookConfig(BaseModel):
-    allow_insecure: bool = (
-        os.getenv("AGENTA_SERVICES_HOOK_ALLOW_INSECURE")
-        or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
-        or "true"
-    ).lower() in _TRUTHY
-
-    model_config = ConfigDict(extra="ignore")
+    @model_validator(mode="after")
+    def _warn_sandbox_runner_mode(self) -> "ServicesCodeConfig":
+        global _SANDBOX_RUNNER_LOCAL_WARNED
+        if self.sandbox_runner == "local" and not _SANDBOX_RUNNER_LOCAL_WARNED:
+            _SANDBOX_RUNNER_LOCAL_WARNED = True
+            warnings.warn(
+                "AGENTA_SERVICES_CODE_SANDBOX_RUNNER is 'local' (default): code execution "
+                "is not sandboxed from the host. Set it to 'restricted' to harden a "
+                "shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
 
 
 class ServicesMiddlewareConfig(BaseModel):
@@ -374,8 +391,31 @@ class ServicesMiddlewareConfig(BaseModel):
 
 class ServicesConfig(BaseModel):
     code: ServicesCodeConfig = ServicesCodeConfig()
-    hook: ServicesHookConfig = ServicesHookConfig()
     middleware: ServicesMiddlewareConfig = ServicesMiddlewareConfig()
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# agenta.workers
+# ---------------------------------------------------------------------------
+
+
+def _load_csv_env_list(name: str) -> list[str]:
+    """Parse `name` as a comma-separated list, trimming blanks. Empty/unset -> []."""
+    raw = os.getenv(name) or ""
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+class WorkersConfig(BaseModel):
+    """Topology selectors for the merged `worker-streams`/`worker-queues` entrypoints.
+
+    Empty list means "all loops in that family" — see
+    docs/designs/workers-sprawl/specs.md.
+    """
+
+    streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
+    queues: list[str] = _load_csv_env_list("AGENTA_WORKER_QUEUES")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -385,14 +425,74 @@ class ServicesConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_EGRESS_INSECURE_WARNED = False
+
+
 class WebhooksConfig(BaseModel):
+    # AGENTA_WEBHOOKS_ALLOW_INSECURE / AGENTA_WEBHOOK_ALLOW_INSECURE are deprecated aliases; prefer AGENTA_INSECURE_EGRESS_ALLOWED.
     allow_insecure: bool = (
-        os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
+        os.getenv("AGENTA_INSECURE_EGRESS_ALLOWED")
+        or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
         or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
         or "true"
     ).lower() in _TRUTHY
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _warn_egress_mode(self) -> "WebhooksConfig":
+        global _EGRESS_INSECURE_WARNED
+        if self.allow_insecure and not _EGRESS_INSECURE_WARNED:
+            _EGRESS_INSECURE_WARNED = True
+            warnings.warn(
+                "AGENTA_INSECURE_EGRESS_ALLOWED is on (default): webhook/egress targets may "
+                "include http and private/loopback/metadata hosts. Set it to false to harden "
+                "a shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# agenta.redaction
+# ---------------------------------------------------------------------------
+
+_REDACTION_LIVE_MODES = {"off", "known"}
+_REDACTION_INERT_MODES = {"pattern", "full"}
+
+
+class RedactionConfig(BaseModel):
+    """Online redaction filter mode. Only `off`/`known` are live in Slice 1; `pattern`/`full`
+    are declared-but-inert (Slice 2) and behave as `known` with a warning."""
+
+    mode: str = os.getenv("AGENTA_REDACTION_MODE") or "known"
+
+    # Operator additions to the SDK's name/value matchers; the SDK (seed.py) owns the
+    # defaults and the merge-onto-default semantics — these are the raw overrides only.
+    prefixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_PREFIXES")
+    suffixes: list[str] = _load_csv_env_list("AGENTA_REDACTED_SUFFIXES")
+    blocklist: list[str] = _load_csv_env_list("AGENTA_REDACTED_BLOCKLIST")
+    allowlist: list[str] = _load_csv_env_list("AGENTA_REDACTED_ALLOWLIST")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _validate_mode(self) -> "RedactionConfig":
+        mode = (self.mode or "known").strip().lower()
+        if mode in _REDACTION_INERT_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode} is declared but inert (Slice 2 not shipped); behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        elif mode not in _REDACTION_LIVE_MODES:
+            warnings.warn(
+                f"AGENTA_REDACTION_MODE={mode!r} is not recognized; behaving as 'known'.",
+                stacklevel=2,
+            )
+            mode = "known"
+        self.mode = mode
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -420,8 +520,10 @@ class AgentaConfig(BaseModel):
     extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
+    redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
+    workers: WorkersConfig = WorkersConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -514,6 +616,24 @@ class ComposioConfig(BaseModel):
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
     api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
+    webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
+    # Override the registered webhook URL. Composio requires public HTTPS; in dev
+    # (http://localhost) the tunnel delivers over WebSocket, so this only needs to
+    # be a valid public HTTPS placeholder to mint the subscription's secret.
+    webhook_url: str | None = os.getenv("COMPOSIO_WEBHOOK_URL")
+    # Bounded replay/freshness window (seconds) for inbound webhook-timestamp; also
+    # the TTL for the webhook-id dedup entry.
+    webhook_replay_window_seconds: int = int(
+        os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
+    )
+    # Full trigger-types catalog: project-agnostic cache TTL + whole-fetch deadline.
+    catalog_cache_ttl_seconds: int = int(
+        os.getenv("COMPOSIO_CATALOG_CACHE_TTL_SECONDS") or 24 * 60 * 60
+    )
+    catalog_fetch_deadline_seconds: float = float(
+        os.getenv("COMPOSIO_CATALOG_FETCH_DEADLINE_SECONDS") or 30
+    )
 
     @property
     def enabled(self) -> bool:
@@ -549,7 +669,10 @@ class CrispConfig(BaseModel):
 class DaytonaConfig(BaseModel):
     api_key: str | None = os.getenv("DAYTONA_API_KEY")
     api_url: str | None = os.getenv("DAYTONA_API_URL")
-    snapshot: str | None = os.getenv("DAYTONA_SNAPSHOT")
+    # Code-evaluator override first, then the snapshot shared with the agent runner.
+    snapshot: str | None = os.getenv("DAYTONA_SNAPSHOT_CODE") or os.getenv(
+        "DAYTONA_SNAPSHOT"
+    )
     target: str | None = os.getenv("DAYTONA_TARGET")
 
     model_config = ConfigDict(extra="ignore")
@@ -839,6 +962,174 @@ class LoopsConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# runner — agent runner sidecar (services/runner). Node-process config; documented
+# here for the canonical env-var mapping even though the runner reads process.env
+# directly (it is a separate Node process, not this Python process).
+# ---------------------------------------------------------------------------
+
+
+_SANDBOX_LOCAL_WARNED = False
+
+# Sandbox providers this runner can provision. Kept in lockstep with the runner's
+# KNOWN_SANDBOX_PROVIDER_IDS and the SDK's KNOWN_SANDBOX_PROVIDERS so all three readers agree.
+_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona")
+
+
+def _parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
+    """Parse ``AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`` with the runner's rules.
+
+    Unset -> ``["local"]``; explicit empty invalid; ids normalized lowercase; unknown and
+    duplicate ids invalid. Reimplements the TypeScript runner parser so the API's provider
+    pre-filter matches the runner's final authority (runner-selfhosting-cleanup/interface.md
+    sections 2 and 4).
+    """
+    if raw is None:
+        return ["local"]
+    trimmed = raw.strip()
+    if trimmed == "":
+        raise ValueError(
+            "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is set but empty; unset it for the "
+            "default 'local', or list at least one provider."
+        )
+    ids = [part.strip().lower() for part in trimmed.split(",")]
+    seen: set = set()
+    for provider_id in ids:
+        if provider_id == "":
+            raise ValueError(
+                f"AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS has an empty entry in '{trimmed}'."
+            )
+        if provider_id not in _KNOWN_SANDBOX_PROVIDERS:
+            raise ValueError(
+                f"AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider "
+                f"'{provider_id}'; known: {', '.join(_KNOWN_SANDBOX_PROVIDERS)}."
+            )
+        if provider_id in seen:
+            raise ValueError(
+                f"AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists provider '{provider_id}' "
+                f"more than once."
+            )
+        seen.add(provider_id)
+    return ids
+
+
+def _parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> str:
+    """Parse ``AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER``; unset -> ``local``; must be enabled."""
+    value = (raw or "").strip().lower() or "local"
+    if value not in _KNOWN_SANDBOX_PROVIDERS:
+        raise ValueError(
+            f"AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '{value}'; "
+            f"known: {', '.join(_KNOWN_SANDBOX_PROVIDERS)}."
+        )
+    if value not in enabled:
+        raise ValueError(
+            f"AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER '{value}' is not in the enabled set "
+            f"[{', '.join(enabled)}]."
+        )
+    return value
+
+
+def _enabled_sandbox_providers_default() -> List[str]:
+    return _parse_enabled_sandbox_providers(
+        os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+    )
+
+
+def _default_sandbox_provider_default() -> str:
+    return _parse_default_sandbox_provider(
+        os.getenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER"),
+        _enabled_sandbox_providers_default(),
+    )
+
+
+class RunnerConfig(BaseModel):
+    """Agent runner (services/runner) sidecar configuration."""
+
+    concurrency_limit: int = int(os.getenv("AGENTA_RUNNER_CONCURRENCY_LIMIT") or "1000")
+
+    # The sandbox-provider registry the runner and API share. `local` is unconfined host bash —
+    # not a tenant boundary; enabled by default for zero-config self-host. Canonical declaration;
+    # services/oss and the SDK read the same variables directly with the same rules.
+    enabled_sandbox_providers: List[str] = Field(
+        default_factory=_enabled_sandbox_providers_default
+    )
+    default_sandbox_provider: str = Field(
+        default_factory=_default_sandbox_provider_default
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _warn_local_sandbox(self) -> "RunnerConfig":
+        global _SANDBOX_LOCAL_WARNED
+        if "local" in self.enabled_sandbox_providers and not _SANDBOX_LOCAL_WARNED:
+            _SANDBOX_LOCAL_WARNED = True
+            warnings.warn(
+                "local sandbox is enabled (default): it is unconfined host bash, not a "
+                "tenant boundary. Set AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona to "
+                "harden a shared/multi-tenant deployment.",
+                stacklevel=2,
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# store — shared S3-compatible object store
+# ---------------------------------------------------------------------------
+
+
+class StoreConfig(BaseModel):
+    """Shared S3-compatible object store credentials.
+
+    Dev points at SeaweedFS; prod points at real S3 / R2 — same code path.
+    """
+
+    # Everything except the keys/secrets carries a dev default in code (mirrors RedisConfig):
+    # the bundled SeaweedFS store works zero-config, and a self-hosted deploy that uses it
+    # inherits the same values; only ACCESS_KEY / SECRET_KEY must be supplied.
+    endpoint_url: str | None = (
+        os.getenv("AGENTA_STORE_ENDPOINT_URL") or "http://seaweedfs:8333"
+    )
+    access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
+    secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
+    region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
+    bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
+    namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
+
+    # STS endpoint for the GetFederationToken path (non-SeaweedFS stores). Defaults to the S3
+    # endpoint (MinIO co-locates STS there); override only when the store splits STS onto
+    # another host (AWS: https://sts.<region>.amazonaws.com).
+    sts_endpoint_url: str | None = os.getenv("AGENTA_STORE_STS_ENDPOINT_URL") or None
+
+    # Backend selector: SIGNING_KEY present => bundled SeaweedFS (STS via OIDC/web-identity);
+    # absent => remote S3-compatible store (STS via GetFederationToken). Also passed to the
+    # bundled SeaweedFS as its STS HMAC key; the API only reads it to pick the signing path.
+    signing_key: str | None = os.getenv("AGENTA_STORE_SIGNING_KEY") or None
+
+    # AssumeRoleWithWebIdentity issuer (SeaweedFS only): the in-network API URL the store's OIDC
+    # IAM uses to fetch our JWKS, and the RSA key signing the web-identity token. The key falls
+    # back to a baked-in local-dev key when unset (see core/store/webidentity.py).
+    jwt_private_key: str | None = os.getenv("AGENTA_STORE_JWT_PRIVATE_KEY")
+    jwt_issuer: str = os.getenv("AGENTA_STORE_JWT_ISSUER") or "http://api:8000"
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.access_key and self.secret_key)
+
+
+# ---------------------------------------------------------------------------
+# mounts
+# ---------------------------------------------------------------------------
+
+
+class MountsConfig(BaseModel):
+    """Mounts-domain config. Store credentials live in StoreConfig."""
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # newrelic
 # ---------------------------------------------------------------------------
 
@@ -978,6 +1269,55 @@ class RedisConfig(BaseModel):
     def enabled(self) -> bool:
         """Redis enabled if URIs are configured"""
         return bool(self.uri_volatile or self.uri_durable)
+
+
+# ---------------------------------------------------------------------------
+# sessions — coordination-plane Redis contract (api/oss/src/dbs/redis/sessions/contract.py)
+# ---------------------------------------------------------------------------
+
+
+class SessionsRedisConfig(BaseModel):
+    """TTLs and caps for the session coordination-plane Redis keys.
+
+    Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
+    redis_contract.json) shared with the TypeScript runner. Do not change a default
+    without updating that fixture and the TS side in lockstep.
+    """
+
+    alive_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
+        or 3600
+    )
+    running_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_RUNNING_TTL_SECONDS")
+        or 3600
+    )
+    attached_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ATTACHED_TTL_SECONDS")
+        or 60
+    )
+    owner_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS")
+        or 120
+    )
+    heartbeat_interval_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_REDIS_HEARTBEAT_INTERVAL_SECONDS"
+        )
+        or 30
+    )
+    heartbeat_write_threshold_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_REDIS_HEARTBEAT_WRITE_THRESHOLD_SECONDS"
+        )
+        or 60
+    )
+    concurrency_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
+        or 1000
+    )
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -1179,12 +1519,16 @@ class EnvironSettings(BaseModel):
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
+    mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
+    runner: RunnerConfig = RunnerConfig()
+    sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
 

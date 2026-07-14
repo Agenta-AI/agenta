@@ -8,16 +8,17 @@ import {
     useEnrichedEvaluatorOnlyAdapter,
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
-import {playgroundController} from "@agenta/playground"
+import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
+import {MoreOutlined} from "@ant-design/icons"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
-import {currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -27,7 +28,12 @@ import {PlaygroundVariantConfigHeaderProps} from "./types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
-    {ssr: false},
+    {
+        ssr: false,
+        // Reserve the kebab's 32px footprint while the chunk loads so it doesn't pop in and
+        // shift Commit/Deploy leftward on the (skeletonized) agent config header.
+        loading: () => <Button type="text" icon={<MoreOutlined size={14} />} disabled />,
+    },
 )
 
 const PlaygroundVariantConfigHeader = ({
@@ -64,8 +70,14 @@ const PlaygroundVariantConfigHeader = ({
               (entityData as {flags?: {is_evaluator?: boolean} | null} | null)?.flags?.is_evaluator,
           )
 
-    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human)
-    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter()
+    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human).
+    // The evaluator adapter is only USED when this is an evaluator entity (see
+    // `browseAdapter` below); on an app playground it's built but unused, so keep
+    // its evaluator-enrichment fan-out dormant (`lazy`) there. For evaluator
+    // entities it's needed, so activate eagerly.
+    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter(undefined, {
+        lazy: !isEvaluatorEntity,
+    })
     const appOnlyAdapter = useMemo(
         () =>
             createWorkflowRevisionAdapter({
@@ -88,6 +100,20 @@ const PlaygroundVariantConfigHeader = ({
 
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
+
+    // Agent workflows dropped the top-level "Agent" section header, so the config bar carries the
+    // only "this is an agent" signal — a small badge next to the variant details.
+    const isAgent = useAtomValue(isAgentModeAtomFamily(variantId || ""))
+    // `isAgentModeAtomFamily` is false until the revision's is_agent flag loads, so on load this bar
+    // would flash the heavy prompt header (SelectVariant + variant details) for an agent. Use the
+    // agent-style "Configuration" header when it's an agent, the early app-id signal says agent, OR
+    // agent-ness is still unknown (variant not settled); the prompt header waits for a confirmed prompt.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const isAgentEffective = isAgent || earlyAgentState === "agent"
+    const variantQueryPending = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(variantId || ""), [variantId]),
+    ).isPending
+    const showAgentHeader = isAgentEffective || variantQueryPending
 
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments
@@ -160,64 +186,85 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] ${className ?? ""}`}
+            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 ${
+                // Agent config below is a borderless summary, so the bar needs to read as a header.
+                // Give it a subtly tinted surface (vs the plain content): an opaque container base
+                // (background-color) with the translucent fill layered on top (background-image), so
+                // this sticky header stays opaque and scrolled content can't bleed through it.
+                showAgentHeader && !embedded
+                    ? "bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]"
+                    : "bg-[var(--ag-c-FFFFFF)]"
+            } ${className ?? ""}`}
             {...divProps}
         >
             <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
-                {!embedded && !isLocalDraftVariant && (
-                    <SelectVariant
-                        mode={isProjectScoped ? "browse" : "scoped"}
-                        customBrowseAdapter={isProjectScoped ? browseAdapter : undefined}
-                        showCreateNew={!isEvaluatorEntity}
-                        onChange={(value) => handleSwitchVariant?.(value)}
-                        value={_variantId ?? undefined}
-                    />
-                )}
-                {/* Local draft: show Draft tag then source revision info */}
-                {isLocalDraftVariant && (
-                    <div className="flex items-center gap-2 min-w-0">
-                        <DraftTag />
-                        {variantRevision !== null && variantRevision !== undefined && (
-                            <span className="text-gray-500 whitespace-nowrap truncate min-w-0">
-                                from {rawVariantName} v{variantRevision}
-                            </span>
-                        )}
-                    </div>
-                )}
-                {/* Don't show VariantDetailsWithStatus for local drafts — source info is shown above */}
-                {!isLocalDraftVariant && (
+                {showAgentHeader && !embedded ? (
+                    // Agent playground: the revision selector moved up to the page header (next to the
+                    // agent name), so this bar reads as the config panel's "Configuration" header.
+                    // Also the neutral header while agent-ness is unknown, so the prompt chrome below
+                    // never flashes on load for an agent.
+                    <span className="text-[13px] font-semibold text-[var(--ant-color-text)]">
+                        Configuration
+                    </span>
+                ) : (
                     <>
-                        {embedded && !runnableData ? (
-                            <div className="flex items-center gap-2 grow mr-4">
-                                <span className="text-sm text-gray-700 truncate">
-                                    {rawVariantName as any}
-                                </span>
+                        {!embedded && !isLocalDraftVariant && (
+                            <SelectVariant
+                                mode={isProjectScoped ? "browse" : "scoped"}
+                                customBrowseAdapter={isProjectScoped ? browseAdapter : undefined}
+                                showCreateNew={!isEvaluatorEntity}
+                                onChange={(value) => handleSwitchVariant?.(value)}
+                                value={_variantId ?? undefined}
+                            />
+                        )}
+                        {/* Local draft: show Draft tag then source revision info */}
+                        {isLocalDraftVariant && (
+                            <div className="flex items-center gap-2 min-w-0">
+                                <DraftTag />
                                 {variantRevision !== null && variantRevision !== undefined && (
-                                    <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                                        rev {String(variantRevision)}
+                                    <span className="text-gray-500 whitespace-nowrap truncate min-w-0">
+                                        from {rawVariantName} v{variantRevision}
                                     </span>
                                 )}
                             </div>
-                        ) : (
-                            <VariantDetailsWithStatus
-                                className="mr-4 gap-2"
-                                revision={variantRevision ?? null}
-                                variant={variantMin}
-                                showBadges
-                                hideName={!embedded}
-                                variantName={rawVariantName as any}
-                                showRevisionAsTag={true}
-                                hasChanges={hasChanges}
-                                isLatest={isLatestRevision}
-                                onDiscardDraft={handleRevisionDiscardDraft}
-                            />
+                        )}
+                        {/* Don't show VariantDetailsWithStatus for local drafts — source info above */}
+                        {!isLocalDraftVariant && (
+                            <>
+                                {embedded && !runnableData ? (
+                                    <div className="flex items-center gap-2 grow mr-4">
+                                        <span className="text-sm text-gray-700 truncate">
+                                            {rawVariantName as any}
+                                        </span>
+                                        {variantRevision !== null &&
+                                            variantRevision !== undefined && (
+                                                <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                                    rev {String(variantRevision)}
+                                                </span>
+                                            )}
+                                    </div>
+                                ) : (
+                                    <VariantDetailsWithStatus
+                                        className="mr-4 gap-2"
+                                        revision={variantRevision ?? null}
+                                        variant={variantMin}
+                                        showBadges
+                                        hideName={!embedded}
+                                        variantName={rawVariantName as any}
+                                        showRevisionAsTag={true}
+                                        hasChanges={hasChanges}
+                                        isLatest={isLatestRevision}
+                                        onDiscardDraft={handleRevisionDiscardDraft}
+                                    />
+                                )}
+                            </>
+                        )}
+                        {evaluatorLabel && !embedded && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
+                                {evaluatorLabel}
+                            </span>
                         )}
                     </>
-                )}
-                {evaluatorLabel && !embedded && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
-                        {evaluatorLabel}
-                    </span>
                 )}
             </div>
             <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
@@ -250,7 +297,15 @@ const PlaygroundVariantConfigHeader = ({
                 ) : (
                     <>
                         {!embedded && !isEvaluatorEntity && (
-                            <DeployVariantButton revisionId={variantId} />
+                            // Agents get a labeled secondary "Deploy" so the action row reads as a
+                            // hierarchy (primary Commit, secondary Deploy, ghost kebab); other
+                            // surfaces keep the icon-only deploy.
+                            <DeployVariantButton
+                                revisionId={variantId}
+                                {...(isAgentEffective
+                                    ? ({label: "Deploy", type: "default", size: "small"} as const)
+                                    : {})}
+                            />
                         )}
 
                         <CommitVariantChangesButton

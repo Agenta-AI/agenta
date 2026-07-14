@@ -375,6 +375,18 @@ function hasRenderableConfigSections(data: unknown): boolean {
     return SIBLING_GROUP_KEYS.some((group) => record[group] !== undefined)
 }
 
+// Best-available data for render/loading decisions: draft-merged data, else server data.
+function pickActiveData<T extends {parameters?: Record<string, unknown>}>(
+    useServerData: boolean,
+    data: T | null,
+    serverData: T | null,
+): T | null {
+    if (useServerData) return serverData
+    if (hasParameters(data)) return data
+    if (hasParameters(serverData)) return serverData
+    return data ?? serverData
+}
+
 // Route tagged `__siblingData` payloads to `actions.update`; otherwise treat as parameter updates.
 const configUpdateRouterAtom = atom(
     null,
@@ -617,10 +629,16 @@ export interface PlaygroundConfigSectionProps {
      * of floating 48px down into the editor content.
      */
     stickyHeaderTop?: number
+    /**
+     * Rendered instead of the generic pulse boxes while the config/schema is
+     * loading. Lets the caller show a layout-matched skeleton (e.g. the agent
+     * section-row list) when it knows the entity's shape before the data lands.
+     */
+    loadingFallback?: React.ReactNode
 }
 
 function PlaygroundConfigSection({
-    revisionId,
+    revisionId: targetRevisionId,
     disabled = false,
     useServerData = false,
     className,
@@ -628,14 +646,42 @@ function PlaygroundConfigSection({
     onRefinePrompt,
     viewMode: externalViewMode,
     stickyHeaderTop = 48,
+    loadingFallback,
 }: PlaygroundConfigSectionProps) {
     const {llmProviderConfig} = useDrillInUI()
+
+    const mol = moleculeAdapter ?? defaultAdapter
+    const dispatchUpdate = useSetAtom(mol.reducers.update)
+
+    // ── Revision-switch latch (id, not data) ──
+    // The playground keeps this component mounted and swaps `revisionId` in place (e.g. the
+    // agent committing itself). Everything below — including the drill-in view, which resolves
+    // data/schema BY ID — must stay on one consistent revision, so rendering the target id
+    // before its data lands drops the drill-in to an empty state and remounts every section.
+    // Keep rendering the PREVIOUS id until the target is renderable (or its query settles),
+    // then swap in one commit so the sections update their values in place.
+    const targetSchemaQuery = useAtomValue(
+        useMemo(() => mol.atoms.schemaQuery(targetRevisionId), [mol, targetRevisionId]),
+    )
+    const targetActiveData = pickActiveData(
+        useServerData,
+        useAtomValue(useMemo(() => mol.atoms.data(targetRevisionId), [mol, targetRevisionId])),
+        useAtomValue(
+            useMemo(() => mol.atoms.serverData(targetRevisionId), [mol, targetRevisionId]),
+        ),
+    )
+    const renderIdRef = useRef(targetRevisionId)
+    if (
+        renderIdRef.current !== targetRevisionId &&
+        (hasRenderableConfigSections(targetActiveData) || !targetSchemaQuery.isPending)
+    ) {
+        renderIdRef.current = targetRevisionId
+    }
+    const revisionId = renderIdRef.current
 
     // Feedback config mode (shared with FeedbackConfigurationControl via atom)
     const feedbackModeAtom = useMemo(() => feedbackConfigModeAtomFamily(revisionId), [revisionId])
     const [feedbackMode, setFeedbackMode] = useAtom(feedbackModeAtom)
-    const mol = moleculeAdapter ?? defaultAdapter
-    const dispatchUpdate = useSetAtom(mol.reducers.update)
 
     // ========== DATA ==========
     const dataAtom = useMemo(() => mol.atoms.data(revisionId), [mol, revisionId])
@@ -654,12 +700,7 @@ function PlaygroundConfigSection({
     const schema = useAtomValue(schemaAtom)
 
     // Choose the best available data for loading checks
-    const activeData = useMemo(() => {
-        if (useServerData) return serverData
-        if (hasParameters(data)) return data
-        if (hasParameters(serverData)) return serverData
-        return data ?? serverData
-    }, [useServerData, data, serverData])
+    const activeData = pickActiveData(useServerData, data, serverData)
 
     const parameters = (activeData?.parameters ?? {}) as Record<string, unknown>
 
@@ -750,15 +791,26 @@ function PlaygroundConfigSection({
     // Derive a stable flag so the effect fires when draft is discarded (becomes null)
     const isDraftEmpty = draft === null || draft === undefined
 
-    // Track discard events to force re-mount of Form/YAML editors whose internal
+    // Track DISCARD events to force re-mount of Form/YAML editors whose internal
     // state (Lexical editor, local control state) may not fully reset via prop
     // changes alone. Computed during render to avoid useEffect/setState loops.
+    //
+    // Revision-scoped on purpose: this component can now survive a revision SWITCH
+    // (the agent playground's stable config host swaps `revisionId` in place), and a
+    // switch from a drafted revision to a clean one flips `isDraftEmpty` false→true
+    // exactly like a discard — bumping the version there remounted the whole form
+    // (replaying the sections' entrance) for a plain switch. Only a draft emptying
+    // on the SAME revision is a discard; a revision change just re-seeds the tracker.
     const discardVersionRef = useRef(0)
-    const prevIsDraftEmptyRef = useRef(isDraftEmpty)
-    if (isDraftEmpty && !prevIsDraftEmptyRef.current) {
+    const draftTrackerRef = useRef({revisionId, isDraftEmpty})
+    if (
+        draftTrackerRef.current.revisionId === revisionId &&
+        isDraftEmpty &&
+        !draftTrackerRef.current.isDraftEmpty
+    ) {
         discardVersionRef.current += 1
     }
-    prevIsDraftEmptyRef.current = isDraftEmpty
+    draftTrackerRef.current = {revisionId, isDraftEmpty}
 
     // Eagerly sync rawEditorValue during render when entering a raw mode.
     // Without this, switching Form → YAML/JSON after a revision change renders
@@ -1557,6 +1609,20 @@ function PlaygroundConfigSection({
                 ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
                 : null
             const schemaTitle = fieldSchema?.title as string | undefined
+
+            // Agent workflows render the whole agent block as the panel body (its own sections each
+            // have headers and drawers), so the redundant top-level "Agent" collapse header is
+            // suppressed. Detected via the same schema marker AgentTemplateControl dispatches on —
+            // both the new `agent-template` and the legacy `agent_config` name, so it holds across
+            // the rename / un-migrated data.
+            const isAgentMarker = (v: unknown) => v === "agent-template" || v === "agent_config"
+            if (
+                isAgentMarker(fieldSchema?.["x-ag-type-ref"]) ||
+                isAgentMarker(fieldSchema?.["x-ag-type"])
+            ) {
+                return null
+            }
+
             const displayLabel = schemaTitle
                 ? schemaTitle.includes(" ")
                     ? schemaTitle
@@ -1758,6 +1824,18 @@ function PlaygroundConfigSection({
                 return <div className="px-4 py-1.5">{props.defaultRender()}</div>
             }
 
+            // The agent_config body is always expanded (its header is suppressed above), so it renders
+            // without the HeightCollapse toggle.
+            const fieldSchema = schema?.properties
+                ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
+                : null
+            if (
+                fieldSchema?.["x-ag-type-ref"] === "agent_config" ||
+                fieldSchema?.["x-ag-type"] === "agent_config"
+            ) {
+                return <div className="px-4 py-3">{props.defaultRender()}</div>
+            }
+
             return (
                 <HeightCollapse open={!isCollapsed}>
                     <div className="px-4 py-3">{props.defaultRender()}</div>
@@ -1767,6 +1845,7 @@ function PlaygroundConfigSection({
         [
             collapsedSections,
             parameters,
+            schema,
             siblingGroups,
             isPresentSiblingGroup,
             disabled,
@@ -1778,6 +1857,12 @@ function PlaygroundConfigSection({
     const isConfigLoading = schemaQuery.isPending && !hasRenderableConfigSections(activeData)
 
     if (isConfigLoading) {
+        if (loadingFallback) {
+            // px-4 py-3 mirrors the field-content wrapper the real sections (and the lazy
+            // control's Suspense fallback) render inside — without it the fallback skeleton
+            // sits 16px wider / 12px higher and visibly shifts when the schema lands.
+            return <div className={clsx("px-4 py-3", className)}>{loadingFallback}</div>
+        }
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
                 <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />

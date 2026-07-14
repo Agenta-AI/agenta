@@ -14,7 +14,11 @@ const ConfigureProviderDrawerTitle = dynamic(
     {ssr: false},
 )
 
-const ConfigureProviderDrawer = ({selectedProvider, ...props}: ConfigureProviderDrawerProps) => {
+const ConfigureProviderDrawer = ({
+    selectedProvider,
+    initialProviderKind,
+    ...props
+}: ConfigureProviderDrawerProps) => {
     const [form] = Form.useForm()
 
     const onClose = () => {
@@ -40,6 +44,7 @@ const ConfigureProviderDrawer = ({selectedProvider, ...props}: ConfigureProvider
             <ConfigureProviderDrawerContent
                 form={form}
                 selectedProvider={selectedProvider}
+                initialProviderKind={initialProviderKind}
                 onClose={onClose}
             />
         </EnhancedDrawer>

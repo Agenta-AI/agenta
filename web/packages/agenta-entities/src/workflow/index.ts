@@ -44,7 +44,29 @@ import "./snapshotAdapter"
 
 export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
-export {deriveWorkflowTypeFromRevision} from "./state/helpers"
+export {
+    deriveWorkflowTypeFromRevision,
+    fetchAndClassifyWorkflows,
+    filterAgentWorkflows,
+    filterNonAgentWorkflows,
+} from "./state/helpers"
+
+// Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
+export {
+    harnessCapabilitiesAtomFamily,
+    type HarnessCapabilities,
+    type HarnessCapabilitiesMap,
+    type ModelCatalogEntry,
+    type ModelPricing,
+    type ModelRatings,
+} from "./state/inspectMeta"
+
+export {
+    workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitOverlayReadyAtomFamily,
+    type AgentTemplate,
+} from "./state"
 
 // ============================================================================
 // SCHEMAS & TYPES
@@ -196,6 +218,10 @@ export {
     appWorkflowsListDataAtom,
     nonArchivedAppWorkflowsAtom,
     appWorkflowsListQueryStateAtom,
+    promptWorkflowsListQueryStateAtom,
+    agentWorkflowsListQueryStateAtom,
+    // Single workflow artifact by id (current-workflow resolution without listing all)
+    workflowDetailQueryAtomFamily,
     // Union atoms (app + evaluator combined)
     workflowsListDataAtom,
     nonArchivedWorkflowsAtom,
@@ -223,6 +249,7 @@ export {
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateAgentCommittedRevisionCache,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
@@ -240,6 +267,8 @@ export {
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
+    agTypeSchemaAtomFamily,
+    readPersistedAgentType,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
     workflowArtifactScopedQueryAtomFamily,
@@ -293,8 +322,13 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    llmEvaluatorsAtom,
     fullPagePlaygroundEvaluatorsAtom,
     nonHumanEvaluatorsAtom,
+    nonDeterministicEvaluatorsAtom,
+    // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
+    evaluatorEnrichmentActivatedAtom,
+    activateEvaluatorEnrichmentAtom,
     // Templates
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
@@ -343,6 +377,10 @@ export {
     createEphemeralAppFromTemplate,
     type AppType,
     type CreateEphemeralAppFromTemplateParams,
+    // Agent creation preferences (last-used harness/model/connection default)
+    agentCreationPrefsAtom,
+    applyAgentCreationPrefs,
+    type AgentCreationPrefs,
 } from "./state"
 
 // ============================================================================

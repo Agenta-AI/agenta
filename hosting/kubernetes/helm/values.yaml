@@ -38,6 +38,7 @@ agenta:
   # ================================================================ #
   authKey: "replace-me"
   cryptKey: "replace-me"
+  runnerToken: "replace-me"
 
 # ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so the
@@ -103,3 +104,67 @@ global:
 redisDurable:
   persistence:
     size: "5Gi"
+
+# ================================================================== #
+# store — object store (AGENTA_STORE_*).
+# Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
+# ================================================================== #
+# store:
+#   endpointUrl:
+#   stsEndpointUrl:
+#   accessKey:
+#   secretKey:
+#   region:
+#   bucket:
+#   namespace:  # optional key prefix ("database") to share one bucket across ephemeral envs; unset for a dedicated bucket
+#   signingKey:
+#   jwtIssuer:
+#   jwtPrivateKey:
+#   seaweedfs:
+#     enabled: false
+#     port: 8333
+#     image:
+#       repository: chrislusf/seaweedfs
+#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
+#       pullPolicy: IfNotPresent
+#     persistence:
+#       enabled: true
+#       size: 20Gi
+
+# ================================================================== #
+# agentRunner — agent runner sidecar. See values.schema.json for
+# the full agentRunner shape.
+# ================================================================== #
+# agentRunner:
+#   enabled: true
+#   providers:
+#     enabled: [local]        # AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS (rendered comma-joined)
+#     default: local          # AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER (must be one of enabled)
+#     daytona:
+#       apiKeySecretRef:       # injected as AGENTA_RUNNER_DAYTONA_API_KEY
+#         name: agenta-runner-daytona
+#         key: api-key
+#       apiUrl: https://app.daytona.io/api
+#       target: eu
+#       snapshot: agenta-agent-sandbox-v1
+#       autostopMinutes: 15
+#       autodeleteMinutes: 30
+#       sessionIdleTtlMs: ""
+#       sessionMaxWarm: ""
+#   auth:
+#     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
+#       name: agenta-runner
+#       key: token
+
+# ================================================================== #
+# workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
+# `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
+# ================================================================== #
+workerStreams:
+  enabled: true
+  replicas: 1
+  # streams: "tracing"
+workerQueues:
+  enabled: true
+  replicas: 1
+  # queues: "evaluations"

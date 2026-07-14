@@ -1,0 +1,68 @@
+# Agent runner, dev image.
+#
+# Runs the TypeScript runner as an HTTP server. The Python agent service calls
+# it in-network. Source is bind-mounted in dev so `tsx watch` hot-reloads; node_modules
+# stays baked into the image. Build context is services/runner.
+
+FROM node:24-slim
+
+WORKDIR /app
+
+# CA certificates: the sandbox-agent daemon downloads harness CLIs (e.g. Claude Code) over
+# HTTPS using the system trust store, which node:*-slim omits — without this the daemon's
+# `install-agent claude` fails TLS verification. git lets npm/installers fetch git deps.
+# python3 runs `code` tools whose runtime is "python": the runner relays the call and
+# spawns `python3` (src/tools/code.ts), so without it those tools fail `spawn python3 ENOENT`.
+# fuse + geesefs: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store
+# prefix; `fuse` provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates git python3 fuse curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "user_allow_other" >> /etc/fuse.conf
+
+# geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
+ARG GEESEFS_VERSION=v0.43.0
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) gee="geesefs-linux-amd64" ;; \
+      arm64) gee="geesefs-linux-arm64" ;; \
+      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/yandex-cloud/geesefs/releases/download/${GEESEFS_VERSION}/${gee}" \
+      -o /usr/local/bin/geesefs; \
+    chmod +x /usr/local/bin/geesefs
+
+RUN corepack enable
+
+# Install deps as a cached layer (manifest + lockfile + the patches they reference).
+COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
+RUN pnpm install --frozen-lockfile
+
+# Fallback copy for non-mounted runs; in dev these are bind-mounted over.
+COPY tsconfig.json ./
+COPY scripts ./scripts
+COPY src ./src
+# The Agenta harness's forced skills (resolved from /app/skills per run). Baked like the
+# prod image; the dev compose also bind-mounts skills/ over this for live edits.
+COPY skills ./skills
+
+# Bundle the Agenta Pi extension (tracing + tools) into dist/ as a baked fallback. dist/ is
+# NOT bind-mounted in dev, but the CMD below rebuilds the bundle from the mounted src on
+# container start, so a container restart picks up edits to src/extensions/agenta.ts or the
+# tracer without a full image rebuild. (tsx watch hot-reloads the runner but not this bundle.)
+RUN pnpm run build:extension
+
+ENV NODE_ENV=development \
+    AGENTA_RUNNER_PORT=8765
+
+EXPOSE 8765
+
+# No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
+# at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).
+
+# Rebuild the Pi extension from the mounted src on start (cheap, ~120ms) so a restart picks
+# up extension edits, then run the watcher. Call node + the local tsx binary directly to
+# avoid pnpm/corepack HOME writes when the container runs as a non-root host uid.
+CMD ["sh", "-c", "node scripts/build-extension.mjs && exec node_modules/.bin/tsx watch src/server.ts"]

@@ -208,13 +208,16 @@ const waitForMatchingResponses = async (
 }
 
 const confirmCreateEntityModal = async (page: Page) => {
+    // The commit-confirmation modal no longer wraps its buttons in a
+    // `.ant-modal-footer` div (migrated off the raw antd Modal footer), so
+    // filter by the "Create" button itself rather than the footer wrapper.
     const confirmModal = page
         .locator(".ant-modal-wrap")
         .filter({
-            has: page.locator(".ant-modal-footer"),
+            has: page.getByRole("button", {name: "Create", exact: true}),
         })
         .last()
-    const confirmButton = confirmModal.locator(".ant-modal-footer").getByRole("button", {
+    const confirmButton = confirmModal.getByRole("button", {
         name: "Create",
         exact: true,
     })
@@ -225,56 +228,43 @@ const confirmCreateEntityModal = async (page: Page) => {
     await confirmButton.click({force: true})
 }
 
-// Dropdown testIds for the CreateAppDropdown popover (apps table header / empty state)
-const TYPE_DROPDOWN_TESTIDS: Record<CREATABLE_APP_TYPE, string> = {
-    completion: "create-app-dropdown-completion",
-    chat: "create-app-dropdown-chat",
-}
-
-// Modal testIds for the CreateAppTypeModal (welcome card "Create a prompt" entry)
-const TYPE_MODAL_TESTIDS: Record<CREATABLE_APP_TYPE, string> = {
-    completion: "create-app-type-modal-completion",
-    chat: "create-app-type-modal-chat",
+// Leaf testIds for the Chat/Completion entries in the "New prompt" submenu,
+// under the "Create new" dropdown trigger on /prompts.
+const TYPE_MENU_ITEM_TESTIDS: Record<CREATABLE_APP_TYPE, string> = {
+    completion: "prompts-new-prompt-completion",
+    chat: "prompts-new-prompt-chat",
 }
 
 const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) => {
-    const dropdownTypeTestId = TYPE_DROPDOWN_TESTIDS[type]
-    const modalTypeTestId = TYPE_MODAL_TESTIDS[type]
-    const createEntryPoints = [
-        page.getByTestId("create-app-dropdown-trigger").first(),
-        page.getByText("Create a prompt", {exact: true}).first(),
-    ]
-
-    await expect
-        .poll(
-            async () => {
-                for (const ep of createEntryPoints) {
-                    if (await ep.isVisible().catch(() => false)) return true
-                }
-                return false
-            },
-            {timeout: 15000},
-        )
-        .toBe(true)
-
-    const typeSelector = page
-        .getByTestId(dropdownTypeTestId)
-        .or(page.getByTestId(modalTypeTestId))
-        .first()
+    const typeMenuItemTestId = TYPE_MENU_ITEM_TESTIDS[type]
+    const createTrigger = page.getByTestId("prompts-create-new-trigger").first()
+    const newPromptMenuItem = page.getByTestId("prompts-new-prompt-menu-item").first()
+    const typeSelector = page.getByTestId(typeMenuItemTestId).first()
 
     const drawer = page
         .getByRole("dialog")
         .filter({has: page.getByTestId("app-create-name-input")})
         .last()
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        for (const ep of createEntryPoints) {
-            if (!(await ep.isVisible().catch(() => false))) continue
+    await expect(createTrigger).toBeVisible({timeout: 15000})
 
-            await ep.scrollIntoViewIfNeeded().catch(() => undefined)
-            await ep.click({force: attempt > 0})
-            break
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        await createTrigger.click({force: attempt > 0})
+
+        // The "New prompt" entry opens a Chat/Completion/Agent submenu on
+        // hover (antd Menu's default triggerSubMenuAction) — click alone
+        // won't reveal it.
+        const menuItemVisible = await newPromptMenuItem
+            .waitFor({state: "visible", timeout: 4000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (!menuItemVisible) {
+            await page.keyboard.press("Escape").catch(() => undefined)
+            continue
         }
+
+        await newPromptMenuItem.hover()
 
         const typeSelectorVisible = await typeSelector
             .waitFor({state: "visible", timeout: 4000})
@@ -286,16 +276,8 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
             continue
         }
 
-        // dispatchEvent('click') fires a synthetic DOM event that bypasses both
-        // Playwright's stability/actionability checks AND the newer Playwright
-        // viewport-position check (force:true no longer skips viewport errors).
-        // Needed because the Popover re-renders when appTemplatesQueryAtom
-        // resolves, briefly making the item unstable or off-screen.
-        await typeSelector.dispatchEvent("click")
+        await typeSelector.click()
 
-        // Check whether the drawer opened. If the synthetic click missed (e.g.
-        // event handler not yet wired on first render), catch and retry the
-        // full open sequence rather than propagating the error.
         const drawerOpened = await drawer
             .waitFor({state: "visible", timeout: 8000})
             .then(() => true)
@@ -309,8 +291,10 @@ const openCreateAppDrawerForType = async (page: Page, type: CREATABLE_APP_TYPE) 
         await page.waitForTimeout(200)
     }
 
+    await createTrigger.click()
+    await newPromptMenuItem.hover()
     await expect(typeSelector).toBeVisible({timeout: 15000})
-    await typeSelector.dispatchEvent("click")
+    await typeSelector.click()
     await expect(drawer).toBeVisible({timeout: 15000})
     return drawer
 }
@@ -321,8 +305,8 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     }
 
     const projectBasePath = getProjectScopedBasePath(page)
-    await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
-    await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+    await page.goto(`${projectBasePath}/prompts`, {waitUntil: "domcontentloaded"})
+    await page.waitForURL("**/prompts", {waitUntil: "domcontentloaded"})
 
     const appName = `e2e-${type}-${Date.now()}`
     const drawer = await openCreateAppDrawerForType(page, type)
@@ -433,8 +417,8 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     })
 
     const projectBasePath = getProjectScopedBasePath(page)
-    await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
-    await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+    await page.goto(`${projectBasePath}/prompts`, {waitUntil: "domcontentloaded"})
+    await page.waitForURL("**/prompts", {waitUntil: "domcontentloaded"})
 
     const data = await appsResponse
     const apps = data.workflows ?? []
@@ -477,12 +461,12 @@ export const getAppById = async (page: Page, appId: string) => {
         method: "POST",
     })
 
-    // Trigger the API call by going to apps page if not already there
+    // Trigger the API call by going to the prompts list page if not already there
     const currentUrl = page.url()
-    if (!currentUrl.includes("/apps")) {
+    if (!currentUrl.includes("/prompts")) {
         const projectBasePath = getProjectScopedBasePath(page)
-        await page.goto(`${projectBasePath}/apps`, {waitUntil: "domcontentloaded"})
-        await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+        await page.goto(`${projectBasePath}/prompts`, {waitUntil: "domcontentloaded"})
+        await page.waitForURL("**/prompts", {waitUntil: "domcontentloaded"})
     }
 
     const data = await appsResponse

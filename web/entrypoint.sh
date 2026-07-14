@@ -63,6 +63,17 @@ else
   export AGENTA_BILLING_ENABLED="false"
 fi
 
+# Derive the local-sandbox picker flag from the shared provider registry
+# (AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS; unset -> "local"): enabled iff "local" is listed.
+case ",$(printf '%s' "${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," in
+  *,local,*) export AGENTA_SANDBOX_LOCAL_ENABLED="true" ;;
+  *) export AGENTA_SANDBOX_LOCAL_ENABLED="false" ;;
+esac
+
+# Expose the full enabled-provider set (normalized to a lowercase, whitespace-free comma
+# list) so the picker can restrict its options to exactly what this deployment enabled.
+export AGENTA_ENABLED_SANDBOX_PROVIDERS="$(printf '%s' "${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+
 mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
 
 # Derive frontend auth feature flags
@@ -198,6 +209,12 @@ window.__env = {
   NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY: "${EFFECTIVE_TURNSTILE_SITE_KEY}",
   NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: "${AGENTA_TOOLS_ENABLED}",
   NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "${AGENTA_BILLING_ENABLED}",
+  NEXT_PUBLIC_SUPERTOKENS_PASSWORD_POLICY: "${SUPERTOKENS_PASSWORD_POLICY}",
+  NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH: "${SUPERTOKENS_PASSWORD_MIN_LENGTH}",
+  NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH: "${SUPERTOKENS_PASSWORD_MAX_LENGTH}",
+  NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX: "${SUPERTOKENS_PASSWORD_REGEX}",
+  NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: "${AGENTA_SANDBOX_LOCAL_ENABLED}",
+  NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS: "${AGENTA_ENABLED_SANDBOX_PROVIDERS}",
 };
 EOF
 

@@ -191,6 +191,13 @@ const uriAtomFamily = atomFamily((workflowId: string) =>
     }),
 )
 
+const workflowIdAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return entity?.workflow_id ?? null
+    }),
+)
+
 /**
  * Workflow key selector.
  * Parses the key segment from the URI (e.g., "auto_exact_match").
@@ -300,6 +307,11 @@ const isChatAtomFamily = atomFamily((workflowId: string) =>
     atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_chat ?? false),
 )
 
+/** Is an agent workflow (WP-6, backend-owned). */
+const isAgentAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_agent ?? false),
+)
+
 /** Has a webhook/service URL. */
 const hasUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.has_url ?? false),
@@ -356,6 +368,7 @@ export type WorkflowType =
     | "hook"
     | "match"
     | "custom"
+    | "agent"
     | "chat"
     | "completion"
 
@@ -367,6 +380,9 @@ const workflowTypeAtomFamily = atomFamily((workflowId: string) =>
         if (flags?.is_code) return "code"
         if (flags?.is_hook) return "hook"
         if (flags?.is_match) return "match"
+        // Agent wins over `is_custom`/`is_chat`: an agent may also carry is_chat
+        // (messages-in), so is_agent takes precedence to pick the agent lane.
+        if (flags?.is_agent) return "agent"
         if (flags?.is_custom) return "custom"
         if (flags?.is_chat) return "chat"
         return "completion"
@@ -1348,6 +1364,8 @@ export const workflowMolecule = {
         isEphemeral: workflowIsEphemeralAtomFamily,
         /** Workflow URI (e.g., "agenta:builtin:auto_exact_match:v0") */
         uri: uriAtomFamily,
+        /** Workflow artifact ID */
+        workflowId: workflowIdAtomFamily,
         /** Workflow key parsed from URI (e.g., "auto_exact_match") */
         workflowKey: workflowKeyAtomFamily,
         /** Raw parameters from entity data */
@@ -1389,6 +1407,8 @@ export const workflowMolecule = {
         // Interface-derived
         /** Has chat/message semantics */
         isChat: isChatAtomFamily,
+        /** Is an agent workflow (WP-6) */
+        isAgent: isAgentAtomFamily,
         /** Has a webhook/service URL */
         hasUrl: hasUrlAtomFamily,
         /** Has embedded script content */
@@ -1532,6 +1552,8 @@ export const workflowMolecule = {
             getStore(options).get(isHumanAtomFamily(workflowId)),
         isChat: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(isChatAtomFamily(workflowId)),
+        isAgent: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isAgentAtomFamily(workflowId)),
         hasUrl: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(hasUrlAtomFamily(workflowId)),
         hasScript: (workflowId: string, options?: StoreOptions) =>

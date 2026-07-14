@@ -1,0 +1,70 @@
+{
+  "id": "code_tool_pi",
+  "group": "core",
+  "capability": "code tool",
+  "env_label": "E3",
+  "sandbox": "daytona",
+  "harness": "pi",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T11:02:22.498876+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call secret_math with x=6 and reply with exactly the tool's output, nothing else."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi",
+          "sandbox": "daytona",
+          "model": "gpt-4o-mini",
+          "agents_md": "When asked to compute, call secret_math and report exactly its output.",
+          "tools": [
+            {
+              "type": "code",
+              "name": "secret_math",
+              "description": "Compute the QA code for an integer.",
+              "runtime": "python",
+              "script": "def main(x=0):\n    return 'QA-CODE-OK-' + str(int(x) * 7 + 1)\n",
+              "input_schema": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "f6d7729eab0c6e05",
+    "trace_id": "4612bb23026c3afe58c6773e23a55db2",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "QA-CODE-OK-43"
+      }
+    }
+  },
+  "reply": "QA-CODE-OK-43",
+  "status_message": "Success",
+  "passed": true,
+  "expect": "contains QA-CODE-OK-43 (7*6+1)"
+}

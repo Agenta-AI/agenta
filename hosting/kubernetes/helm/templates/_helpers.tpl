@@ -61,6 +61,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.services).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
+{{- define "agenta.agentRunner.enabled" -}}
+{{- $v := (default dict .Values.agentRunner).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.supertokens.enabled" -}}
 {{- $v := (default dict (include "agenta.values" . | fromYaml).supertokens).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -85,20 +89,31 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.redisDurable).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- define "agenta.workerEvaluations.enabled" -}}
-{{- $v := (default dict .Values.workerEvaluations).enabled -}}
+{{- /* Store (durable object store). Opt-in: off unless store.enabled=true. */ -}}
+{{- define "agenta.store.enabled" -}}
+{{- $v := (default dict .Values.store).enabled -}}
+{{- if kindIs "invalid" $v }}false{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+{{- /* Bundle SeaweedFS as the store backend (only when store is on AND not external). */ -}}
+{{- define "agenta.seaweedfs.enabled" -}}
+{{- $mounts := default dict .Values.store -}}
+{{- if eq (include "agenta.store.enabled" .) "true" -}}
+{{- $v := (default dict $mounts.seaweedfs).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- else }}false{{- end }}
+{{- end }}
+{{- define "agenta.seaweedfs.image" -}}
+{{- $img := default dict (default dict (default dict .Values.store).seaweedfs).image -}}
+{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.37" $img.tag) -}}
+{{- end }}
+{{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
+{{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
+{{- define "agenta.workerStreams.enabled" -}}
+{{- $v := (default dict .Values.workerStreams).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- define "agenta.workerTracing.enabled" -}}
-{{- $v := (default dict .Values.workerTracing).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerWebhooks.enabled" -}}
-{{- $v := (default dict .Values.workerWebhooks).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
-{{- define "agenta.workerEvents.enabled" -}}
-{{- $v := (default dict .Values.workerEvents).enabled -}}
+{{- define "agenta.workerQueues.enabled" -}}
+{{- $v := (default dict .Values.workerQueues).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
 {{- define "agenta.ingress.enabled" -}}
@@ -112,15 +127,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.replicas" -}}{{ default 1 (default dict .Values.api).replicas }}{{- end }}
 {{- define "agenta.web.replicas" -}}{{ default 1 (default dict .Values.web).replicas }}{{- end }}
 {{- define "agenta.services.replicas" -}}{{ default 1 (default dict .Values.services).replicas }}{{- end }}
+{{- define "agenta.agentRunner.replicas" -}}{{ default 1 (default dict .Values.agentRunner).replicas }}{{- end }}
 {{- define "agenta.supertokens.replicas" -}}{{ default 1 (default dict (include "agenta.values" . | fromYaml).supertokens).replicas }}{{- end }}
 {{- /* cron runs supercronic, which doesn't coordinate across replicas:
        N replicas = every scheduled job fires N times. Hard-set to 1.
        The values key is kept as documentation; we ignore user overrides. */ -}}
 {{- define "agenta.cron.replicas" -}}1{{- end }}
-{{- define "agenta.workerEvaluations.replicas" -}}{{ default 1 (default dict .Values.workerEvaluations).replicas }}{{- end }}
-{{- define "agenta.workerTracing.replicas" -}}{{ default 1 (default dict .Values.workerTracing).replicas }}{{- end }}
-{{- define "agenta.workerWebhooks.replicas" -}}{{ default 1 (default dict .Values.workerWebhooks).replicas }}{{- end }}
-{{- define "agenta.workerEvents.replicas" -}}{{ default 1 (default dict .Values.workerEvents).replicas }}{{- end }}
+{{- define "agenta.workerStreams.replicas" -}}{{ default 1 (default dict .Values.workerStreams).replicas }}{{- end }}
+{{- define "agenta.workerQueues.replicas" -}}{{ default 1 (default dict .Values.workerQueues).replicas }}{{- end }}
 
 {{/* ================================================================
    Workers (gunicorn worker count, default 2).
@@ -134,6 +148,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.port" -}}{{ default 8000 (default dict .Values.api).port }}{{- end }}
 {{- define "agenta.web.port" -}}{{ default 3000 (default dict .Values.web).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
+{{- define "agenta.agentRunner.port" -}}{{ default 8765 (default dict .Values.agentRunner).port }}{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}
@@ -144,6 +159,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.api.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.api).image).pullPolicy }}{{- end }}
 {{- define "agenta.web.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.web).image).pullPolicy }}{{- end }}
 {{- define "agenta.services.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.services).image).pullPolicy }}{{- end }}
+{{- define "agenta.agentRunner.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.agentRunner).image).pullPolicy }}{{- end }}
 {{- define "agenta.supertokens.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (include "agenta.values" . | fromYaml).supertokens).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisVolatile.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisVolatile).image).pullPolicy }}{{- end }}
 {{- define "agenta.redisDurable.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.redisDurable).image).pullPolicy }}{{- end }}
@@ -277,6 +293,57 @@ ghcr.io/agenta-ai/agenta-services
 {{ include "agenta.servicesImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
 {{- end }}
 
+{{- define "agenta.agentRunnerImageRepository" -}}
+{{- $img := default dict (default dict .Values.agentRunner).image -}}
+{{- if $img.repository -}}
+{{- $img.repository -}}
+{{- else -}}
+ghcr.io/agenta-ai/agenta-runner
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.agentRunnerImage" -}}
+{{- $img := default dict (default dict .Values.agentRunner).image -}}
+{{ include "agenta.agentRunnerImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.agentRunner.serviceName" -}}
+{{ include "agenta.fullname" . }}-runner
+{{- end }}
+
+{{- define "agenta.agentRunner.url" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if $runner.externalUrl -}}
+{{- $runner.externalUrl -}}
+{{- else if eq (include "agenta.agentRunner.enabled" .) "true" -}}
+http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agentRunner.port" . }}
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.agentRunner.servicesEnv" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- $auth := default dict $runner.auth -}}
+{{- $url := include "agenta.agentRunner.url" . -}}
+{{- if $url }}
+- name: AGENTA_RUNNER_INTERNAL_URL
+  value: {{ $url | quote }}
+{{- end }}
+{{- /* Services sends the shared runner protocol credential the runner verifies (interface.md
+       section 2). REQUIRED and always rendered — the runner rejects an un-tokened request with 401
+       and refuses to boot without the secret, so a Services pod without it could never call it.
+       Mirrors runner-deployment.yaml: an explicit auth.tokenSecretRef wins, else the platform Secret. */}}
+- name: AGENTA_RUNNER_TOKEN
+  valueFrom:
+    secretKeyRef:
+      {{- if $auth.tokenSecretRef }}
+      name: {{ $auth.tokenSecretRef.name | quote }}
+      key: {{ $auth.tokenSecretRef.key | quote }}
+      {{- else }}
+      name: {{ include "agenta.fullname" . | quote }}
+      key: AGENTA_RUNNER_TOKEN
+      {{- end }}
+{{- end }}
+
 {{/* ================================================================
    Supertokens image (default repo and tag).
    ================================================================ */}}
@@ -312,6 +379,8 @@ ghcr.io/agenta-ai/agenta-services
 {{- define "agenta.redisVolatile.maxmemoryPolicy" -}}{{ default "volatile-lru" (default dict .Values.redisVolatile).maxmemoryPolicy }}{{- end }}
 {{- define "agenta.redisDurable.maxmemory" -}}{{ default "512mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
 {{- define "agenta.redisDurable.maxmemoryPolicy" -}}{{ default "noeviction" (default dict .Values.redisDurable).maxmemoryPolicy }}{{- end }}
+{{/* Bytes of corrupt AOF tail redis may auto-truncate at load instead of refusing to start. */}}
+{{- define "agenta.redisDurable.aofLoadCorruptTailMaxSize" -}}{{ default 1048576 (default dict .Values.redisDurable).aofLoadCorruptTailMaxSize }}{{- end }}
 
 {{/* ================================================================
    Alembic job defaults.
@@ -786,6 +855,55 @@ imagePullSecrets:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: AGENTA_CRYPT_KEY
+{{- if eq (include "agenta.store.enabled" .) "true" }}
+{{- $store := default dict .Values.store }}
+- name: AGENTA_STORE_ENDPOINT_URL
+  {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+  value: {{ printf "http://%s-seaweedfs:%v" (include "agenta.fullname" .) (include "agenta.seaweedfs.port" .) | quote }}
+  {{- else }}
+  value: {{ default "" $store.endpointUrl | quote }}
+  {{- end }}
+{{- if $store.stsEndpointUrl }}
+- name: AGENTA_STORE_STS_ENDPOINT_URL
+  value: {{ $store.stsEndpointUrl | quote }}
+{{- end }}
+- name: AGENTA_STORE_REGION
+  value: {{ default "us-east-1" $store.region | quote }}
+- name: AGENTA_STORE_BUCKET
+  value: {{ default "agenta-store" $store.bucket | quote }}
+{{- if $store.namespace }}
+- name: AGENTA_STORE_NAMESPACE
+  value: {{ $store.namespace | quote }}
+{{- end }}
+- name: AGENTA_STORE_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_ACCESS_KEY
+- name: AGENTA_STORE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_SECRET_KEY
+{{- if $store.signingKey }}
+- name: AGENTA_STORE_SIGNING_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_SIGNING_KEY
+{{- end }}
+{{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+- name: AGENTA_STORE_JWT_ISSUER
+  value: {{ default (printf "http://%s-api:%v" (include "agenta.fullname" .) (include "agenta.api.port" .)) $store.jwtIssuer | quote }}
+{{- if $store.jwtPrivateKey }}
+- name: AGENTA_STORE_JWT_PRIVATE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: AGENTA_STORE_JWT_PRIVATE_KEY
+{{- end }}
+{{- end }}
+{{- end }}
 {{- if $rv.password }}
 - name: REDIS_VOLATILE_PASSWORD
   valueFrom:
@@ -974,14 +1092,17 @@ imagePullSecrets:
 - name: AGENTA_OTLP_MAX_BATCH_BYTES
   value: {{ $otlp.maxBatchBytes | quote }}
 {{- end }}
-{{- /* agenta.webhooks — outbound webhook flags */}}
-{{- if hasKey $webhooksCfg "allowInsecure" }}
-- name: AGENTA_WEBHOOKS_ALLOW_INSECURE
+{{- /* agenta.insecureEgressAllowed — SSRF guard override for webhooks/hooks/custom-provider egress.
+     Canonical key wins; falls back to the deprecated agenta.webhooks.allowInsecure /
+     agenta.services.hook.allowInsecure keys so values.yaml files predating the rename keep working. */}}
+{{- if hasKey $agenta "insecureEgressAllowed" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
+  value: {{ $agenta.insecureEgressAllowed | quote }}
+{{- else if hasKey $webhooksCfg "allowInsecure" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $webhooksCfg.allowInsecure | quote }}
-{{- end }}
-{{- /* agenta.services.hook — surfaced to user-code runners via SDK */}}
-{{- if hasKey $svcHook "allowInsecure" }}
-- name: AGENTA_SERVICES_HOOK_ALLOW_INSECURE
+{{- else if hasKey $svcHook "allowInsecure" }}
+- name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $svcHook.allowInsecure | quote }}
 {{- end }}
 {{- /* agenta.services.code — SDK sandbox runner selector */}}
@@ -989,6 +1110,12 @@ imagePullSecrets:
 - name: AGENTA_SERVICES_CODE_SANDBOX_RUNNER
   value: {{ $svcCode.sandboxRunner | quote }}
 {{- end }}
+{{- /* agent runner sandbox provider registry — one operator entry, read by api/web/services and the runner */}}
+{{- $runnerProviders := default dict (default dict .Values.agentRunner).providers }}
+- name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+  value: {{ join "," (default (list "local") $runnerProviders.enabled) | quote }}
+- name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
+  value: {{ default "local" $runnerProviders.default | quote }}
 {{- /* agenta.services.middleware — SDK middleware toggles */}}
 {{- if hasKey $svcMiddleware "authEnabled" }}
 - name: AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED

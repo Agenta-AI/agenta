@@ -137,8 +137,8 @@ logAtom(orgsQueryAtom, "orgsQueryAtom", logOrgs)
 export const orgsAtom = atom<Org[]>((get) => {
     const res = (get(orgsQueryAtom) as any)?.data
     const orgs = res ?? []
-    // Sort organizations to ensure demo orgs are always last
-    return sortOrgsWithDemoLast(orgs)
+    // Hide demo orgs from the UI unless they are the user's only orgs
+    return filterOutDemoOrgs(orgs)
 })
 
 export const selectedOrgIdAtom = atom((get) => {
@@ -246,13 +246,13 @@ const isDemoOrg = (org?: Partial<Org>): boolean => {
 }
 
 /**
- * Sorts organizations to ensure demo orgs are always last
- * Non-demo orgs maintain their original order, demo orgs are moved to the end
+ * Filters demo orgs out of the list. Falls back to the full list when the
+ * user has only demo orgs, so they are not left with an empty workspace UI.
+ * Exported for unit-test access (orgsDemoFilter.test.ts).
  */
-const sortOrgsWithDemoLast = (orgs: Org[]): Org[] => {
+export const filterOutDemoOrgs = (orgs: Org[]): Org[] => {
     const nonDemoOrgs = orgs.filter((org) => !isDemoOrg(org))
-    const demoOrgs = orgs.filter((org) => isDemoOrg(org))
-    return [...nonDemoOrgs, ...demoOrgs]
+    return nonDemoOrgs.length ? nonDemoOrgs : orgs
 }
 
 const pickFirstNonDemoOrg = (orgs?: Org[]) => {
@@ -346,8 +346,19 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
             if (!id) return null
             const {orgId} = await normalizeOrgIdentifier(id, get)
             const org = await fetchSingleOrg({organizationId: orgId})
-            if (org?.default_workspace?.id && org?.id) {
-                cacheWorkspaceOrgPair(org.default_workspace.id, org.id)
+            if (org?.id) {
+                // Dedup: on a cold load with no cached workspace→org mapping this atom keys by the
+                // workspace id, then re-keys to ["selectedOrg", orgId] once cacheWorkspaceOrgPair
+                // below lets selectedOrgIdAtom resolve the org id — which would refetch the same org.
+                // Seed the org-id-keyed cache with this response so the re-keyed query
+                // (refetchOnMount:false) and resolveWorkspaceIdForOrg's getQueryData fast-path serve
+                // from cache instead of a second round-trip.
+                if (org.id !== id) {
+                    queryClient.setQueryData(["selectedOrg", org.id], org)
+                }
+                if (org?.default_workspace?.id) {
+                    cacheWorkspaceOrgPair(org.default_workspace.id, org.id)
+                }
             }
             return org
         },

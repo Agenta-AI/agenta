@@ -41,3 +41,23 @@ COMPOSE_PROJECT_NAME=agenta-ee-dev-instance2 ./hosting/docker-compose/run.sh \
 
 This separation prevents Docker Compose conflicts between the main-branch and worktree
 instances.
+
+### Recreating only `web` — always pass the env file (F-037)
+
+`web` runs `next dev` and reads its env at container-create time, so an env or config change
+needs a **recreate**, not a `restart`. The footgun: recreating it by hand with a raw
+`docker compose ... up -d --no-deps web` and forgetting the env file. Compose then falls back to
+the committed default `${ENV_FILE:-./.env.<license>.dev}`, which has **port-80 / no-port URLs**,
+so the recreated web container 404s every `/api` call with no obvious cause (same class as F-020).
+
+Use the helper, which always passes the env file on both planes (the shell `ENV_FILE` var and the
+`--env-file` CLI flag) so the trap cannot recur:
+
+```bash
+hosting/docker-compose/recreate-web.sh                              # ee / dev / .env.ee.dev.local
+PROJECT=agenta-ee-dev-wp-b2-rendering hosting/docker-compose/recreate-web.sh
+```
+
+If you must run `docker compose` directly, pass `ENV_FILE=<file>` **and**
+`--env-file <path>` — both, every time. `run.sh` now also fails loud when its resolved env file
+is missing instead of silently using the port-80 default.
