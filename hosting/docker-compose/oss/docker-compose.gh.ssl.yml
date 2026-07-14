@@ -71,6 +71,8 @@ services:
                 condition: service_healthy
             redis-durable:
                 condition: service_healthy
+            seaweedfs:
+                condition: service_healthy
         # === LABELS =============================================== #
         labels:
             - "traefik.http.routers.api.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/api/`)"
@@ -418,6 +420,65 @@ services:
             retries: 5
             start_period: 5s
 
+    seaweedfs:
+        # === IMAGE ================================================ #
+        # The bundled durable object store for session/agent mounts. Without it, runner mount
+        # signing returns 503 and agent file writes are silently lost. Pinned (not :latest) so the
+        # IAM/STS subsystem stays on a known-good build — it has regressed across releases.
+        image: chrislusf/seaweedfs:4.37
+        # === EXECUTION ============================================ #
+        # ONLY FOR SEAWEEDFS (the bundled store). Real S3/R2/MinIO ship their own STS/IAM and ignore
+        # all of this. Two configs, both generated from env (no committed files):
+        #  - s3.json: the master identity only (admin; the API holds these creds, never the runner).
+        #  - iam.json: the ADVANCED IAM config — the only path SeaweedFS authorizes STS credentials.
+        #    An OIDC provider points at the API's self-served JWKS; the API mints a short-lived
+        #    RS256 web-identity token and calls AssumeRoleWithWebIdentity to assume `agenta-store`.
+        entrypoint:
+            - sh
+            - -c
+            - |
+              cat > /etc/seaweedfs/s3.json <<EOF
+              {"identities":[{"name":"agenta","credentials":[{"accessKey":"$${AGENTA_STORE_ACCESS_KEY}","secretKey":"$${AGENTA_STORE_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+              EOF
+              cat > /etc/seaweedfs/iam.json <<EOF
+              {"sts":{"tokenDuration":"1h","maxSessionLength":"12h","issuer":"seaweedfs-sts","signingKey":"$${AGENTA_STORE_SIGNING_KEY}"},"providers":[{"name":"agenta","type":"oidc","enabled":true,"config":{"issuer":"$${AGENTA_STORE_JWT_ISSUER}","clientId":"agenta-store","jwksUri":"$${AGENTA_STORE_JWT_ISSUER}/.well-known/jwks.json"}}],"policies":[{"name":"store-rw","document":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::$${AGENTA_STORE_BUCKET}","arn:aws:s3:::$${AGENTA_STORE_BUCKET}/*"]}]}}],"roles":[{"roleName":"agenta-store","roleArn":"arn:aws:iam::role/agenta-store","attachedPolicies":["store-rw"],"trustPolicy":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Federated":"agenta"},"Action":["sts:AssumeRoleWithWebIdentity"]}]}}]}
+              EOF
+              exec weed server -dir=/data -ip=seaweedfs -volume.max=64 -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -s3.iam.config=/etc/seaweedfs/iam.json
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so they must
+            # be present in this service's env (defaults here are for the bundled store, the same way
+            # supertokens carries its own connection URI). Keys come from the env file — secrets never
+            # get a baked-in default. Override the whole trio via the env file to use S3/R2/MinIO.
+            AGENTA_STORE_ACCESS_KEY: ${AGENTA_STORE_ACCESS_KEY}
+            AGENTA_STORE_SECRET_KEY: ${AGENTA_STORE_SECRET_KEY}
+            AGENTA_STORE_BUCKET: ${AGENTA_STORE_BUCKET:-agenta-store}
+            AGENTA_STORE_SIGNING_KEY: ${AGENTA_STORE_SIGNING_KEY}
+            AGENTA_STORE_JWT_ISSUER: ${AGENTA_STORE_JWT_ISSUER:-http://api:8000}
+        # === STORAGE ============================================== #
+        volumes:
+            - seaweed-data:/data
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-gh-ssl-network
+        # Loopback-only by default (never expose the store to a public IP); override AGENTA_STORE_PORT
+        # to change. In-network services reach it directly at seaweedfs:8333, no publish needed.
+        ports:
+            - "${AGENTA_STORE_PORT:-127.0.0.1:8333}:8333"
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.enable=false"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD-SHELL", "curl -sf http://localhost:9333/cluster/healthz >/dev/null || exit 1"]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+            start_period: 5s
+
     traefik:
         # === IMAGE ================================================ #
         image: traefik:2
@@ -498,3 +559,4 @@ volumes:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:
+    seaweed-data:
