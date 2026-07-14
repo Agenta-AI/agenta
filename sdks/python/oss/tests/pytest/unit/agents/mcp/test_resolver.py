@@ -48,6 +48,12 @@ def test_connection_is_required_and_legacy_flat_shape_is_rejected():
         )
 
 
+@pytest.mark.parametrize("name", ["has spaces", "slash/name", ""])
+def test_server_name_must_be_a_runtime_safe_identifier(name):
+    with pytest.raises(ValidationError, match="name"):
+        server(name=name)
+
+
 async def test_resolves_public_and_secret_headers():
     resolved = await MCPResolver(
         secret_provider=DictSecretProvider({"memory_token": "secret-value"})
