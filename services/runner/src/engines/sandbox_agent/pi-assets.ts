@@ -444,11 +444,34 @@ export function prepareLocalAgentDir(
   return dir;
 }
 
+/**
+ * Seed a throwaway local Claude config dir from a read-only source (`CLAUDE_CONFIG_DIR`) and
+ * return its path. A local `runtime_provided` Claude run authenticates from the operator's mounted
+ * subscription; copying it into a per-run dir keeps the harness's own writes (session state,
+ * refreshed tokens) off the read-only source mount (interface.md section 6). Returns `undefined`
+ * when the source is unset or absent, so the caller leaves the daemon env untouched.
+ */
+export function prepareLocalClaudeConfigDir(
+  sourceConfigDir: string | undefined,
+  log: Log = () => {},
+): string | undefined {
+  if (!sourceConfigDir || !existsSync(sourceConfigDir)) return undefined;
+  const dir = mkdtempSync(join(tmpdir(), "agenta-claude-config-"));
+  try {
+    cpSync(sourceConfigDir, dir, { recursive: true });
+  } catch (err) {
+    log(`claude config copy skipped: ${(err as Error).message}`);
+    return undefined;
+  }
+  return dir;
+}
+
 export interface PrepareLocalPiAssetsInput {
   plan: Pick<
     RunPlan,
     | "isPi"
     | "isDaytona"
+    | "credentialMode"
     | "skillDirs"
     | "hasSystemPrompt"
     | "systemPrompt"
@@ -461,8 +484,9 @@ export interface PrepareLocalPiAssetsInput {
 
 /**
  * Prepare local Pi's agent dir assets and return the throwaway per-run dir when one was
- * created. Skills and system prompts always use an isolated dir; plain Pi runs only install
- * the inert Agenta extension into the configured shared dir.
+ * created. Skills, system prompts, and subscription (`runtime_provided`) runs always use an
+ * isolated per-run copy so harness writes never touch the operator's source login; a plain
+ * managed/none Pi run only installs the inert Agenta extension into the configured shared dir.
  */
 export function prepareLocalPiAssets({
   plan,
@@ -471,7 +495,12 @@ export function prepareLocalPiAssets({
 }: PrepareLocalPiAssetsInput): string | undefined {
   if (!plan.isPi || plan.isDaytona) return undefined;
 
-  if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
+  // A `runtime_provided` run reads the operator's mounted subscription (read-only). Copy it into
+  // an isolated per-run dir even with no skills/prompt, so the harness's own writes stay off the
+  // read-only source mount (interface.md section 6). buildRunPlan already rejected the case where
+  // the source mount is unconfigured, so `sourcePiAgentDir` here is the mount.
+  const isSubscriptionRun = plan.credentialMode === "runtime_provided";
+  if (plan.skillDirs.length > 0 || plan.hasSystemPrompt || isSubscriptionRun) {
     const runAgentDir = prepareLocalAgentDir(plan.sourcePiAgentDir, log);
     if (plan.hasSystemPrompt) {
       writeSystemPromptLocal(

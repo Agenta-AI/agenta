@@ -342,6 +342,23 @@
               }
             }
           }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Runner protocol credential. Rendered as AGENTA_RUNNER_TOKEN on both the runner (verifier) and the Services API (sender).",
+          "properties": {
+            "tokenSecretRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Secret holding the shared runner token, injected as AGENTA_RUNNER_TOKEN.",
+              "properties": {
+                "name": { "type": "string" },
+                "key":  { "type": "string" }
+              },
+              "required": ["name", "key"]
+            }
+          }
         }
       }
     },

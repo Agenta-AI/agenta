@@ -150,6 +150,10 @@ redisDurable:
 #       autodeleteMinutes: 30
 #       sessionIdleTtlMs: ""
 #       sessionMaxWarm: ""
+#   auth:
+#     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
+#       name: agenta-runner
+#       key: token
 
 # ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md

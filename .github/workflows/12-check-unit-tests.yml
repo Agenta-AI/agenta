@@ -7,6 +7,7 @@ on:
       - 'sdks/python/**'
       - 'api/**'
       - 'services/**'
+      - 'hosting/kubernetes/helm/**'
       - '.github/workflows/12-check-unit-tests.yml'
   workflow_dispatch:
     inputs:
@@ -387,6 +388,48 @@ jobs:
           files: services/runner/tests/results/junit-unit.xml
           check_name: Agent Runner Unit Test Results
           comment_mode: off
+
+  run-helm-render-tests:
+    # Rendered-chart regression guard: the agent runner Deployment must render with a narrow
+    # environment (no platform DB/auth/crypt/license/Redis/store secrets, no unrelated provider
+    # keys, no static AGENTA_API_KEY). A self-hosted local harness shares the runner container, so
+    # a widened env is a credential-exposure regression. Renders with `helm template` and asserts.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Helm
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.18.4
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Lint the Helm chart
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: helm lint hosting/kubernetes/helm
+
+      - name: Assert the runner Deployment renders a narrow environment
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: uv run hosting/kubernetes/helm/tests/test_runner_secret_absence.py
 
   run-runner-integration-tests:
     if: |

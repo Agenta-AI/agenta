@@ -90,6 +90,7 @@ import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
+  prepareLocalClaudeConfigDir,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
   uploadSystemPromptToSandbox,
@@ -253,8 +254,7 @@ function shouldSuppressPausedToolCallUpdate(
   pause: PendingApprovalPauseController,
 ): boolean {
   const frame = update as
-    | { sessionUpdate?: unknown; toolCallId?: unknown }
-    | undefined;
+    { sessionUpdate?: unknown; toolCallId?: unknown } | undefined;
   const kind = frame?.sessionUpdate;
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
   const toolCallId =
@@ -597,8 +597,7 @@ export interface SessionEnvironment {
 }
 
 export type AcquireEnvironmentResult =
-  | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
 
 /**
  * Sign the session's durable mount up front so keep-alive can build a pool key (the mount's
@@ -697,6 +696,14 @@ export async function acquireEnvironment(
             log: logger,
           })
         : null;
+  // A session-owned run expects a durable session cwd mount. When signing returns nothing the run
+  // still proceeds on an ephemeral cwd (behavior unchanged, RSH-11); emit one structured warning
+  // keyed by mount kind so durable-to-ephemeral degradation is measurable, not silent.
+  if (sessionForMount && !mountCreds) {
+    logger(
+      `mount degraded kind=session_cwd cause=sign_returned_no_mount session=${sessionForMount}`,
+    );
+  }
 
   const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
   const signAgentMount =
@@ -709,6 +716,12 @@ export async function acquireEnvironment(
           log: logger,
         })
       : null;
+  // A workflow-artifact run expects an agent mount; same structured degrade signal when unsigned.
+  if (artifactId && !agentMountCreds) {
+    logger(
+      `mount degraded kind=agent_mount cause=sign_returned_no_mount artifact=${artifactId}`,
+    );
+  }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
   // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
@@ -795,6 +808,22 @@ export async function acquireEnvironment(
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   let runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+
+  // Local Claude subscription run: copy the mounted CLAUDE_CONFIG_DIR into a per-run dir and point
+  // the daemon at the copy, so the harness's own writes stay off the read-only source mount
+  // (interface.md section 6). buildRunPlan already rejected a runtime_provided Claude run with no
+  // configured CLAUDE_CONFIG_DIR, so the source here is the mount.
+  if (
+    !plan.isDaytona &&
+    plan.acpAgent === "claude" &&
+    plan.credentialMode === "runtime_provided"
+  ) {
+    const runClaudeConfigDir = prepareLocalClaudeConfigDir(
+      process.env.CLAUDE_CONFIG_DIR,
+      logger,
+    );
+    if (runClaudeConfigDir) env.CLAUDE_CONFIG_DIR = runClaudeConfigDir;
+  }
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
@@ -920,13 +949,13 @@ export async function acquireEnvironment(
     if (!parked && !plan.isDaytona && environment.agentMountedPath) {
       const agentMountSafeToDelete = await (
         environment.deps.unmountStorage ?? unmountStorage
-      )(
-        environment.agentMountedPath,
-        { log },
-      ).catch(() => false);
+      )(environment.agentMountedPath, { log }).catch(() => false);
       if (agentMountSafeToDelete) {
         try {
-          rmSync(environment.agentMountedPath, { recursive: true, force: true });
+          rmSync(environment.agentMountedPath, {
+            recursive: true,
+            force: true,
+          });
         } catch (err) {
           logger(
             `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
@@ -1356,12 +1385,9 @@ export async function acquireEnvironment(
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
-          await linkAgentFilesRemote(
-            environment.sandbox,
-            plan.cwd,
-            mountPath,
-            { log: logger },
-          );
+          await linkAgentFilesRemote(environment.sandbox, plan.cwd, mountPath, {
+            log: logger,
+          });
           await activateAgentMountGuidance();
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
