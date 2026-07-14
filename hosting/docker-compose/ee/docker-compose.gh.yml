@@ -341,7 +341,7 @@ services:
         networks:
             - agenta-ee-gh-network
         ports:
-            - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"
+            - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
@@ -456,7 +456,7 @@ services:
         # Loopback-only by default (never expose the store to a public IP); override AGENTA_STORE_PORT
         # to change. In-network services reach it directly at seaweedfs:8333, no publish needed.
         ports:
-            - "${AGENTA_STORE_PORT:-127.0.0.1:8333}:8333"
+            - "127.0.0.1:${AGENTA_STORE_PORT:-8333}:8333"
         # === LABELS =============================================== #
         labels:
             - "traefik.enable=false"
