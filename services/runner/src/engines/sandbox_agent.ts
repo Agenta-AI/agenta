@@ -89,7 +89,9 @@ import { findSwallowedPiError } from "./sandbox_agent/pi-error.ts";
 import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
+  configurePiSkillSnapshot,
   prepareLocalPiAssets,
+  resolvePiSkillSnapshot,
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
   writeOtlpAuthFile,
@@ -729,6 +731,7 @@ export async function acquireEnvironment(
   });
   if (!planResult.ok) return { ok: false, error: planResult.error };
   const plan = planResult.plan;
+  const piSkillSnapshot = resolvePiSkillSnapshot(plan);
   const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
@@ -742,6 +745,7 @@ export async function acquireEnvironment(
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
   const piSessionDir = configurePiSessionWorkspace(plan, env);
+  configurePiSkillSnapshot(piSkillSnapshot, env);
   const strictModel = modelResolutionStrict();
   // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
   // via the Agenta extension. Tool execution always relays back to this runner, which keeps
@@ -772,6 +776,7 @@ export async function acquireEnvironment(
   // transcript location in both environment slices so Pi and pi-acp see the same durable path
   // regardless of provider.
   if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
+  configurePiSkillSnapshot(piSkillSnapshot, piExtEnv);
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
@@ -1252,7 +1257,7 @@ export async function acquireEnvironment(
     if (plan.isDaytona) {
       await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
         sandbox: environment.sandbox,
-        plan,
+        plan: { ...plan, skillDirs: [] },
         log: logger,
       });
       if (!plan.isPi && plan.executableToolSpecs.length > 0) {
@@ -1380,6 +1385,7 @@ export async function acquireEnvironment(
         {
           sandbox: environment.sandbox,
           plan,
+          piSkillSnapshot,
           log: logger,
         },
       );
@@ -1398,6 +1404,7 @@ export async function acquireEnvironment(
         )({
           sandbox: environment.sandbox,
           plan,
+          piSkillSnapshot,
           log: logger,
         });
       } else {
