@@ -26,7 +26,8 @@ import yaml
 
 CHART_DIR = Path(__file__).resolve().parents[1]
 
-# Minimum values needed for the chart to render (URLs are required by the chart's own guard).
+# Minimum values needed for the chart to render (URLs and secrets are required by the
+# chart's own guards; agenta.validateRequiredSecrets rejects the "replace-me" default).
 BASE_ARGS = [
     "--set",
     "agenta.webUrl=https://agenta.example.com",
@@ -36,6 +37,18 @@ BASE_ARGS = [
     "agenta.servicesUrl=https://agenta.example.com/services",
     "--set",
     "agentRunner.enabled=true",
+    "--set",
+    "agenta.authKey=test-auth-key",
+    "--set",
+    "agenta.cryptKey=test-crypt-key",
+    "--set",
+    "postgres.password=test-postgres-password",
+]
+
+# agenta.runnerToken is required unless agentRunner.auth.tokenSecretRef is set (below).
+DEFAULT_TOKEN_ARGS = [
+    "--set",
+    "agenta.runnerToken=test-runner-token",
 ]
 
 TOKEN_ARGS = [
@@ -134,7 +147,7 @@ def main() -> int:
     failures: list[str] = []
 
     # Default deployment: the token comes from the platform Secret, env still narrow.
-    names = runner_container_env_names(render([]))
+    names = runner_container_env_names(render(DEFAULT_TOKEN_ARGS))
     failures += check(names)
 
     # Operator supplies their own secret ref: same narrow env, token sourced from their Secret.

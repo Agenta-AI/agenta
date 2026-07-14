@@ -235,10 +235,10 @@ The token is defense in depth on top of network isolation, not a replacement for
 on a private network and never publish its port.
 
 `AGENTA_RUNNER_TOKEN` is the same credential at both ends. It does not belong to a sandbox or a
-harness. The runner enforces the check only when the value is set, so leaving it unset (the bundled
-Compose and Helm default) disables it. To turn it on, set the same value on the runner and on the
-Services API; in Helm, point `agentRunner.auth.tokenSecretRef` at a Secret holding it — the chart
-injects the same value into both the runner and the Services deployment.
+harness. The runner refuses to start without it and rejects any un-tokened request with `401`; there
+is no unauthenticated mode. Set the same value on the runner and on the Services API; in Helm, point
+`agentRunner.auth.tokenSecretRef` at a Secret holding it — the chart injects the same value into both
+the runner and the Services deployment.
 
 `AGENTA_RUNNER_TIMEOUT_SECONDS` bounds idle time on the caller's streaming transport, not the total
 run duration, and the runner never reads it. The runner enforces its own deadlines through

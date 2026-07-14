@@ -178,16 +178,14 @@ hardening](#later--deferred-hardening) subsection below — it is NOT part of th
    (default `127.0.0.1`, never `0.0.0.0`); set it to the private pod/internal interface in
    Kubernetes/Compose and never map the port to the host.
 2. **Add a shared auth token on `/run`**, reusing the existing `X-Agenta-Internal-Token`
-   precedent (a new `AGENTA_RUNNER_TOKEN`), default-off so co-located/loopback
-   deployments are unaffected, on when set. Cheap defense-in-depth against accidental
-   exposure. **IMPLEMENTED:** when `AGENTA_RUNNER_TOKEN` is set, `server.ts` requires it
-   on `/run` (`Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`,
-   constant-time compare) and returns 401 otherwise; `/health` stays open for liveness probes.
-   **Both sides now read the same env var** (Codex LOW-5): the SDK transport
+   precedent (a new `AGENTA_RUNNER_TOKEN`). Cheap defense-in-depth against accidental
+   exposure. **IMPLEMENTED, since made REQUIRED:** `server.ts` requires it on `/run`
+   (`Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`, constant-time compare)
+   and returns 401 otherwise; the runner refuses to start without it, so there is no
+   unauthenticated mode; `/health` stays open for liveness probes.
+   **Both sides read the same env var** (Codex LOW-5): the SDK transport
    (`sdks/.../utils/ts_runner.py` `_runner_auth_headers`) reads `AGENTA_RUNNER_TOKEN`
-   and presents `Authorization: Bearer <token>` on the HTTP `/run` POST + NDJSON stream when
-   set, so turning the gate on no longer locks the Python service out; unset = no header
-   (loopback default unchanged).
+   and presents `Authorization: Bearer <token>` on the HTTP `/run` POST + NDJSON stream.
 
 Rationale: steps 1–2 are config-only, make the implicit assumption real and auditable, and
 need no wire-contract change or cert/key machinery. They are the whole near-term ask.

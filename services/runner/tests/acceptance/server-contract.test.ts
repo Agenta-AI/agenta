@@ -28,9 +28,21 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
+const savedToken = process.env[TOKEN_ENV];
+
+afterEach(() => {
+  if (savedToken === undefined) delete process.env[TOKEN_ENV];
+  else process.env[TOKEN_ENV] = savedToken;
+});
+
+const TEST_TOKEN = "test-runner-token";
+const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
+
 async function listen(
   run: RunAgent,
 ): Promise<{ url: string; close: () => Promise<void> }> {
+  if (!process.env[TOKEN_ENV]) process.env[TOKEN_ENV] = TEST_TOKEN;
   const server = createAgentServer(run);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -40,14 +52,6 @@ async function listen(
       new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }
-
-const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
-const savedToken = process.env[TOKEN_ENV];
-
-afterEach(() => {
-  if (savedToken === undefined) delete process.env[TOKEN_ENV];
-  else process.env[TOKEN_ENV] = savedToken;
-});
 
 const okRun: RunAgent = async () => ({ ok: true, output: "accepted", events: [] });
 const failRun: RunAgent = async () => ({ ok: false, error: "engine failure" });
@@ -95,12 +99,12 @@ describe("GET /health contract", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /run auth contract", () => {
-  it("no token configured → 200 (default-off gate)", async () => {
-    delete process.env[TOKEN_ENV];
+  it("POST /run is REJECTED when no token is configured (fails closed; there is no unauthenticated mode)", async () => {
     const s = await listen(okRun);
+    delete process.env[TOKEN_ENV];
     try {
       const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
-      assert.equal(res.status, 200);
+      assert.equal(res.status, 401);
     } finally {
       await s.close();
     }
@@ -172,10 +176,13 @@ describe("POST /run auth contract", () => {
 
 describe("POST /run response schema contract", () => {
   it("success → 200 {ok:true, output:string}", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(res.status, 200);
       assert.equal(res.headers.get("content-type"), "application/json");
       const body = (await res.json()) as { ok: boolean; output: string };
@@ -187,10 +194,13 @@ describe("POST /run response schema contract", () => {
   });
 
   it("engine failure → 500 {ok:false, error:string}", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(failRun);
     try {
-      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(res.status, 500);
       const body = (await res.json()) as { ok: boolean; error: string };
       assert.equal(body.ok, false);
@@ -201,11 +211,11 @@ describe("POST /run response schema contract", () => {
   });
 
   it("invalid JSON body → 400 {ok:false, error:/Invalid JSON/}", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
+        headers: AUTH,
         body: "{bad json",
       });
       assert.equal(res.status, 400);
@@ -218,12 +228,11 @@ describe("POST /run response schema contract", () => {
   });
 
   it("NDJSON stream: content-type is application/x-ndjson", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: "{}",
       });
       assert.equal(res.status, 200);
@@ -236,12 +245,11 @@ describe("POST /run response schema contract", () => {
   });
 
   it("NDJSON stream: last record is {kind:'result'}", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: "{}",
       });
       const lines = (await res.text())
@@ -262,12 +270,11 @@ describe("POST /run response schema contract", () => {
 
 describe("POST /stream alias contract", () => {
   it("POST /stream accepts the same body shape as /run", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/stream`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: "{}",
       });
       assert.equal(res.status, 200);
@@ -282,27 +289,28 @@ describe("POST /stream alias contract", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /kill contract", () => {
-  it("returns 200 {ok:true} for a fully scoped kill when no token configured", async () => {
-    delete process.env[TOKEN_ENV];
+  it("POST /kill is REJECTED when no token is configured (fails closed; there is no unauthenticated mode)", async () => {
     const s = await listen(okRun);
+    delete process.env[TOKEN_ENV];
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",
         body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
       });
-      assert.equal(res.status, 200);
-      const body = (await res.json()) as { ok: boolean };
-      assert.equal(body.ok, true);
+      assert.equal(res.status, 401);
     } finally {
       await s.close();
     }
   });
 
   it("returns 400 when no sessionId is given (unscoped kill is rejected)", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/kill`, { method: "POST", body: "{}" });
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(res.status, 400);
       const body = (await res.json()) as { ok: boolean };
       assert.equal(body.ok, false);
@@ -312,11 +320,11 @@ describe("POST /kill contract", () => {
   });
 
   it("returns 400 when projectId is missing: both teardown halves must scope to one tenant", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",
+        headers: AUTH,
         body: JSON.stringify({ sessionId: "sess-1" }),
       });
       assert.equal(res.status, 400);
@@ -348,7 +356,6 @@ describe("POST /kill contract", () => {
 
 describe("unknown routes contract", () => {
   it("GET /nonexistent returns 404 {ok:false, error:'Not found'}", async () => {
-    delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/nonexistent`);

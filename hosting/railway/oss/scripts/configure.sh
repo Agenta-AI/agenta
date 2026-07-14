@@ -15,6 +15,7 @@ POSTGRES_REF_NS="${RAILWAY_POSTGRES_REF_NS:-Postgres}"
 REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
+AGENTA_RUNNER_TOKEN="${AGENTA_RUNNER_TOKEN:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
 AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
@@ -189,8 +190,8 @@ main() {
     require_cmd railway
     require_railway_auth
 
-    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ]; then
-        printf "WARNING: Using default placeholder auth/crypt keys. Set AGENTA_AUTH_KEY and AGENTA_CRYPT_KEY for production deployments.\n" >&2
+    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ] || [ "$AGENTA_RUNNER_TOKEN" = "replace-me" ]; then
+        printf "WARNING: Using default placeholder secrets. Set AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY and AGENTA_RUNNER_TOKEN for production deployments.\n" >&2
     fi
 
     railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
@@ -288,6 +289,7 @@ main() {
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
         AGENTA_RUNNER_INTERNAL_URL="$agent_runner_url" \
+        AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
         AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
         AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
         AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
@@ -301,6 +303,7 @@ main() {
 
     set_vars runner \
         AGENTA_RUNNER_PORT=8765 \
+        AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
         AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS="${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" \
         AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER="${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}" \
         AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \

@@ -127,10 +127,7 @@ function presentedToken(req: IncomingMessage): string {
   return "";
 }
 
-/**
- * Whether this `/run` request is authorized. The check is OFF unless the operator opts in by
- * setting `AGENTA_RUNNER_TOKEN`; when set, the presented token must match exactly.
- */
+/** Whether this `/run` request is authorized; the presented token must match `AGENTA_RUNNER_TOKEN` exactly. */
 function isAuthorized(req: IncomingMessage): boolean {
   const expected = process.env[RUNNER_TOKEN_ENV];
   // Fail closed. `loadRunnerConfig` already refused to boot without a token, so a missing value
