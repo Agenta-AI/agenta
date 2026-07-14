@@ -4,7 +4,7 @@ import {killSession} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
 import {ClockCounterClockwise, Power, Trash} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Empty, Popconfirm, Popover, Tag, Tooltip, Typography} from "antd"
+import {Button, Empty, Popconfirm, Popover, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -16,7 +16,6 @@ import {
     deleteSessionAtomFamily,
     firstUserText,
     openSessionAtomFamily,
-    openSessionIdsAtomFamily,
     sessionHistoryAtomFamily,
     sessionMessagesAtom,
     timeAgo,
@@ -34,13 +33,11 @@ const {Text} = Typography
 const SessionHistoryRow = ({
     session,
     label,
-    isOpen,
     onOpen,
     onDelete,
 }: {
     session: AgentChatSession
     label: string
-    isOpen: boolean
     onOpen: () => void
     onDelete: () => void
 }) => {
@@ -87,11 +84,6 @@ const SessionHistoryRow = ({
                     {timeAgo(session.createdAt)}
                 </Text>
             </div>
-            {isOpen && (
-                <Tag color="processing" className="!m-0 !text-[11px]">
-                    open
-                </Tag>
-            )}
             {nest.isAlive && (
                 <Popconfirm
                     title="End this session?"
@@ -138,7 +130,6 @@ const SessionHistoryRow = ({
 const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
     const scope = useChatScopeKey()
     const history = useAtomValue(sessionHistoryAtomFamily(scope))
-    const openIds = useAtomValue(openSessionIdsAtomFamily(scope))
     const allMessages = useAtomValue(sessionMessagesAtom)
     const openSession = useSetAtom(openSessionAtomFamily(scope))
     const deleteSession = useSetAtom(deleteSessionAtomFamily(scope))
@@ -162,7 +153,6 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                     label={
                         session.title || firstUserText(allMessages[session.id]) || "Untitled chat"
                     }
-                    isOpen={openIds.has(session.id)}
                     onOpen={() => {
                         openSession(session.id)
                         onPicked()
