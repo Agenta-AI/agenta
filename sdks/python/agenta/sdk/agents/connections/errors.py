@@ -118,6 +118,9 @@ class UnsupportedDeploymentError(ConnectionResolutionError):
     run resolving to an unconsumable deployment fails loud rather than running mis-credentialed.
     """
 
+    # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
+    status_code = 422
+
     def __init__(self, *, deployment: str, harness: Optional[str] = None) -> None:
         suffix = f" by harness '{harness}'" if harness else ""
         super().__init__(

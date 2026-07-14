@@ -122,6 +122,83 @@ export const KNOWN_SANDBOX_ENV_VARS = [
   "E2B_API_KEY",
 ] as const;
 
+/**
+ * Provider family -> the env vars a run against that family may inherit. Least privilege within a
+ * run (RUN-SEC-1): a run that declared an OpenAI model has no business seeing the sidecar's
+ * Anthropic key. Provider names and the direct `*_API_KEY` entries mirror the canonical Python map
+ * (`agenta.sdk.agents.capabilities.PROVIDER_ENV_VARS`); the extra Anthropic auth-token/OAuth vars
+ * are the ones the Claude harness itself reads for a self-managed login.
+ */
+const PROVIDER_ENV_VAR_GROUPS: Record<string, readonly string[]> = {
+  openai: ["OPENAI_API_KEY"],
+  anthropic: [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_OAUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION",
+    "ANTHROPIC_BASE_URL",
+  ],
+  gemini: ["GEMINI_API_KEY"],
+  mistral: ["MISTRAL_API_KEY"],
+  mistralai: ["MISTRAL_API_KEY"],
+  minimax: ["MINIMAX_API_KEY"],
+  groq: ["GROQ_API_KEY"],
+  together_ai: ["TOGETHER_API_KEY", "TOGETHERAI_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
+  // Pi's ChatGPT/Codex subscription authenticates via its own OAuth file, not an env key.
+  "openai-codex": [],
+};
+
+/**
+ * Deployment surface -> the cloud credential group it needs, on top of the provider group.
+ * Mirrors the SDK's `_ConnectionCandidate.resolved_env` deployment channels (bedrock rides
+ * `AWS_BEARER_TOKEN_BEDROCK`, azure rides `AZURE_OPENAI_API_KEY`), plus the ambient cloud
+ * credential vars each SDK falls back to.
+ */
+const DEPLOYMENT_ENV_VAR_GROUPS: Record<string, readonly string[]> = {
+  bedrock: [
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_PROFILE",
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "AWS_REGION",
+    "AWS_DEFAULT_REGION",
+    "CLAUDE_CODE_USE_BEDROCK",
+  ],
+  vertex: [
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_CLOUD_API_KEY",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_LOCATION",
+    "CLAUDE_CODE_USE_VERTEX",
+  ],
+  azure: ["AZURE_OPENAI_API_KEY"],
+};
+DEPLOYMENT_ENV_VAR_GROUPS.vertex_ai = DEPLOYMENT_ENV_VAR_GROUPS.vertex;
+
+/**
+ * The provider/auth env vars a run may inherit, given the provider + deployment it declared.
+ * Unknown/absent provider yields the whole `KNOWN_PROVIDER_ENV_VARS` set — an un-migrated caller
+ * that names no provider cannot be narrowed without breaking its run, so it keeps today's
+ * behavior.
+ */
+export function inheritableProviderEnvVars(
+  provider?: string,
+  deployment?: string,
+): readonly string[] {
+  const group = provider
+    ? PROVIDER_ENV_VAR_GROUPS[provider.toLowerCase()]
+    : undefined;
+  if (!group) return KNOWN_PROVIDER_ENV_VARS;
+  const cloud = deployment
+    ? (DEPLOYMENT_ENV_VAR_GROUPS[deployment.toLowerCase()] ?? [])
+    : [];
+  return [...group, ...cloud];
+}
+
 export interface BuildDaemonEnvOptions {
   /**
    * Clear-then-apply (Security rule 5): on a MANAGED run (`credentialMode === "env"`) the
@@ -131,6 +208,26 @@ export interface BuildDaemonEnvOptions {
    * provider/auth keys so the harness's own login still works.
    */
   clearProviderEnv?: boolean;
+  /** The run's resolved provider family (`request.provider`); narrows the inherited key set. */
+  provider?: string;
+  /** The run's resolved deployment surface (`request.deployment`); adds its cloud cred group. */
+  deployment?: string;
+  /**
+   * Escape hatch: inherit EVERY `KNOWN_PROVIDER_ENV_VARS` entry instead of just the declared
+   * provider's. Off by default (least privilege); set `AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS`
+   * for a harness that resolves a model outside its declared provider.
+   */
+  inheritAllProviderEnv?: boolean;
+}
+
+const INHERIT_ALL_PROVIDER_KEYS_ENV = "AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS";
+
+/** Whether the operator opted back into the old inherit-every-provider-key behavior. */
+export function inheritAllProviderKeys(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const raw = env[INHERIT_ALL_PROVIDER_KEYS_ENV]?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
 }
 
 /**
@@ -142,11 +239,17 @@ export interface BuildDaemonEnvOptions {
  * (`clearProviderEnv`) this copies NONE of `KNOWN_PROVIDER_ENV_VARS`, so the only provider env
  * the daemon ever sees is what the caller applies from `plan.secrets`. An inherited
  * `ANTHROPIC_API_KEY` can therefore not leak into a resolved OpenAI run. For a `runtime_provided`
- * / `none` run the harness uses its own login, so the inherited keys are kept.
+ * / `none` run the harness uses its own login, so the inherited keys are kept — but only the ones
+ * the run's DECLARED provider/deployment needs (RUN-SEC-1), not every configured provider key.
  */
 export function buildDaemonEnv(
   _harness: string,
-  { clearProviderEnv = false }: BuildDaemonEnvOptions = {},
+  {
+    clearProviderEnv = false,
+    provider,
+    deployment,
+    inheritAllProviderEnv = inheritAllProviderKeys(),
+  }: BuildDaemonEnvOptions = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
 
@@ -171,9 +274,13 @@ export function buildDaemonEnv(
   for (const key of KNOWN_SANDBOX_ENV_VARS) env[key] = "";
 
   // Managed run: clear (inherit no provider keys); the caller applies only the resolved
-  // `plan.secrets`. Non-managed run: keep the sidecar's own keys so its login works.
+  // `plan.secrets`. Non-managed run: keep only the DECLARED provider's own keys so its login
+  // works without handing the harness every other provider's credential.
   if (!clearProviderEnv) {
-    for (const key of KNOWN_PROVIDER_ENV_VARS) {
+    const inheritable = inheritAllProviderEnv
+      ? KNOWN_PROVIDER_ENV_VARS
+      : inheritableProviderEnvVars(provider, deployment);
+    for (const key of inheritable) {
       const value = process.env[key];
       if (value) env[key] = value;
     }

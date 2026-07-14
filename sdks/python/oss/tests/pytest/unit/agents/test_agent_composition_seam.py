@@ -405,5 +405,49 @@ async def test_default_select_backend_allows_daytona_sandbox_with_custom_backend
     assert isinstance(result, dict)
 
 
+# --------------------------------------------------------------------------- #
+# SVC-1: the backend gate must fire BEFORE the expensive resolves
+# --------------------------------------------------------------------------- #
+async def test_backend_gate_fires_before_tool_mcp_and_vault_resolution():
+    """A rejected run must not first pay for tools, MCP servers, and the vault round trip.
+
+    `select_backend` carries the local-sandbox gate. It used to run AFTER resolve_tools /
+    resolve_mcp_servers / resolve_connection, so a doomed request did all that work first.
+    """
+    ran: List[str] = []
+
+    async def _spy_tools(tools, **kwargs):
+        ran.append("tools")
+        raise AssertionError("resolve_tools ran despite a rejected backend")
+
+    async def _spy_mcp(servers, **kwargs):
+        ran.append("mcp")
+        raise AssertionError("resolve_mcp_servers ran despite a rejected backend")
+
+    async def _spy_connection(*, model, context):
+        ran.append("connection")
+        raise AssertionError("resolve_connection ran despite a rejected backend")
+
+    def _rejecting_backend(template):
+        raise RuntimeError("sandbox 'local' is not allowed")
+
+    comp = AgentComposition(
+        select_backend=_rejecting_backend,
+        resolve_tools=_spy_tools,
+        resolve_mcp_servers=_spy_mcp,
+        resolve_connection=_spy_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    with pytest.raises(RuntimeError, match="not allowed"):
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model="openai/gpt-5.5"),
+        )
+
+    assert ran == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])

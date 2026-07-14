@@ -33,6 +33,7 @@
 import { mkdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
+import { seedForRun } from "../redaction.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
 
@@ -90,6 +91,7 @@ import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
+  PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
   uploadSystemPromptToSandbox,
@@ -100,7 +102,7 @@ import {
   uploadToolMcpAssets,
   type ToolMcpAssets,
 } from "./sandbox_agent/tool-mcp-assets.ts";
-import { advertisedToolSpecs } from "../tools/public-spec.ts";
+import { advertisedToolSpecs, toolSpecsByName } from "../tools/public-spec.ts";
 import { buildRelayExecutionGuard } from "./sandbox_agent/relay-guard.ts";
 import {
   PendingApprovalLatch,
@@ -181,7 +183,10 @@ import {
   sessionContinuityStore,
   type SessionContinuityStore,
 } from "./sandbox_agent/session-continuity.ts";
-import { resolvesToLocalProvider } from "./sandbox_agent/session-pool.ts";
+import {
+  projectScopeFor,
+  resolvesToLocalProvider,
+} from "./sandbox_agent/session-pool.ts";
 
 export {
   buildTurnText,
@@ -223,6 +228,9 @@ const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
 // signal can never reach (SIGKILL/OOM) self-reap via the lifecycle reapers in `provider.ts`.
 const inFlightSandboxes = new Set<{
   destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
+  sessionId: string;
+  mountProjectId?: string;
+  projectScopeId?: string;
 }>();
 
 /**
@@ -236,6 +244,43 @@ export async function destroyInFlightSandboxes(
   reason: TeardownReason = "shutdown-in-flight",
 ): Promise<void> {
   const pending = [...inFlightSandboxes];
+  if (pending.length === 0) return;
+  const sweep = Promise.allSettled(
+    pending.map((environment) =>
+      Promise.resolve(environment.destroy({ reason })).catch(() => {}),
+    ),
+  );
+  await Promise.race([
+    sweep,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+/**
+ * Same drain as `destroyInFlightSandboxes`, scoped to one session (and, when supplied, its
+ * owning project). Backs the HTTP `/kill` route so a caller can only tear down its own
+ * session's in-flight sandbox(es) — the unscoped sweep above stays an in-process-only call
+ * (the shutdown handler).
+ *
+ * Filters on `projectScopeId` (same run-context-preferred, mount-fallback precedence as
+ * `poolKeyFor`/`projectScopeFor` — never `mountProjectId` alone, which is undefined for a
+ * mountless run and would make a scoped kill silently match nothing). A sandbox whose run had
+ * no project scope at all (`projectScopeId` undefined) never matches a scoped `projectId`
+ * filter: `/kill` requires a non-blank `projectId`, so there is no caller this in-flight entry
+ * could ever be proven to belong to — the same no-scope-no-park invariant the pool enforces,
+ * mirrored here as no-scope-no-scoped-kill. It still falls to the unscoped shutdown sweep.
+ */
+export async function destroyInFlightSandboxesForSession(
+  sessionId: string,
+  projectId: string | undefined,
+  timeoutMs = 5000,
+  reason: TeardownReason = "kill",
+): Promise<void> {
+  const pending = [...inFlightSandboxes].filter(
+    (environment) =>
+      environment.sessionId === sessionId &&
+      (!projectId || environment.projectScopeId === projectId),
+  );
   if (pending.length === 0) return;
   const sweep = Promise.allSettled(
     pending.map((environment) =>
@@ -556,6 +601,10 @@ export interface SessionEnvironment {
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
    * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
+  /** This run's resolved project scope (`projectScopeFor`: run-context preferred, mount
+   * fallback) — the same scope `poolKeyFor` keys on. Undefined when neither source yields
+   * one; a scoped `/kill` can then never claim this sandbox (see `destroyInFlightSandboxesForSession`). */
+  projectScopeId?: string;
   /** This acquire resumed the harness's native session via `session/load` (not cold). */
   loadedFromContinuity: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
@@ -697,6 +746,14 @@ export async function acquireEnvironment(
             log: logger,
           })
         : null;
+  // A session-owned run expects a durable session cwd mount. When signing returns nothing the run
+  // still proceeds on an ephemeral cwd (behavior unchanged, RSH-11); emit one structured warning
+  // keyed by mount kind so durable-to-ephemeral degradation is measurable, not silent.
+  if (sessionForMount && !mountCreds) {
+    logger(
+      `mount degraded kind=session_cwd cause=sign_returned_no_mount session=${sessionForMount}`,
+    );
+  }
 
   const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
   const signAgentMount =
@@ -709,6 +766,12 @@ export async function acquireEnvironment(
           log: logger,
         })
       : null;
+  // A workflow-artifact run expects an agent mount; same structured degrade signal when unsigned.
+  if (artifactId && !agentMountCreds) {
+    logger(
+      `mount degraded kind=agent_mount cause=sign_returned_no_mount artifact=${artifactId}`,
+    );
+  }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
   // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
@@ -741,6 +804,8 @@ export async function acquireEnvironment(
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
+    provider: request.provider,
+    deployment: request.deployment,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
@@ -794,7 +859,26 @@ export async function acquireEnvironment(
   }
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
-  let runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+  const localPiAssets = prepareLocalPiAssets({ plan, env, log: logger });
+  let runAgentDir = localPiAssets.dir;
+  // Fail closed (Decision 2): when the policy could gate a Pi built-in tool but the permission
+  // extension did not install, the run must stop rather than run those tools unprotected. Recorded
+  // here (the install ran above) and thrown inside the try below so the engine's own catch turns it
+  // into `{ ok: false, error }` and a visible error frame. `builtinGatingActive` false means
+  // allow-everything, where the extension is not needed and a failed install is harmless.
+  const localBuiltinGatingUnenforceable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    plan.builtinGatingActive &&
+    !localPiAssets.extensionInstalled;
+
+  // A local Claude subscription run reads and writes the operator's read-write mounted login
+  // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
+  // and there is deliberately no per-run copy. Claude refreshes its OAuth token mid-run and writes
+  // it back to its config dir; copying that dir per run would discard the refresh, so the next run
+  // would fail as soon as the provider rotated the refresh token. The harness owns its own token
+  // lifecycle, exactly like a normal local install (interface.md section 6). buildRunPlan already
+  // rejected a runtime_provided Claude run with no configured CLAUDE_CONFIG_DIR.
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
@@ -842,6 +926,7 @@ export async function acquireEnvironment(
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,
+    projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
     loadedFromContinuity: false,
     resumable: false,
     continuityTurnIndex: undefined,
@@ -920,13 +1005,13 @@ export async function acquireEnvironment(
     if (!parked && !plan.isDaytona && environment.agentMountedPath) {
       const agentMountSafeToDelete = await (
         environment.deps.unmountStorage ?? unmountStorage
-      )(
-        environment.agentMountedPath,
-        { log },
-      ).catch(() => false);
+      )(environment.agentMountedPath, { log }).catch(() => false);
       if (agentMountSafeToDelete) {
         try {
-          rmSync(environment.agentMountedPath, { recursive: true, force: true });
+          rmSync(environment.agentMountedPath, {
+            recursive: true,
+            force: true,
+          });
         } catch (err) {
           logger(
             `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
@@ -941,7 +1026,9 @@ export async function acquireEnvironment(
     } else {
       await environment.workspace?.cleanup().catch(() => {});
     }
-    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
+    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too. This is only
+    // ever a temp dir: a subscription run leaves `runAgentDir` undefined precisely so that the
+    // operator's mounted login (which the harness runs out of directly) is never deleted here.
     if (environment.runAgentDir)
       rmSync(environment.runAgentDir, { recursive: true, force: true });
     // Backstop: the extension deletes this on read; remove it here too in case the harness never
@@ -992,7 +1079,17 @@ export async function acquireEnvironment(
       );
       return;
     }
-    runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+    // Discarding `.extensionInstalled` here is safe, and a fail-closed throw here would be
+    // unsound anyway (both callers wrap this in a mount try/catch that logs and continues, so a
+    // throw could not stop the run). Reachability: managed/none local Pi runs always created a
+    // throwaway dir in the first prepareLocalPiAssets call, so `environment.runAgentDir` is set
+    // for them and they returned above — only the subscription (runtime_provided) path reaches
+    // this re-prep. That path installs into the SAME operator mount the first call already
+    // installed into, and the fail-closed gating check right after that first call stopped the
+    // run when the install was required but failed. So by the time this runs, either enforcement
+    // is not needed (policy allows everything) or the extension file is already on disk from the
+    // verified first install; a transient failure here cannot remove it.
+    runAgentDir = prepareLocalPiAssets({ plan, env, log: logger }).dir;
     environment.runAgentDir = runAgentDir;
   };
 
@@ -1140,6 +1237,11 @@ export async function acquireEnvironment(
   };
 
   try {
+    // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
+    // built-in tool cannot proceed without the permission extension installed (Decision 2).
+    if (localBuiltinGatingUnenforceable) {
+      throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+    }
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
       deps.createPersist?.() ?? new InMemorySessionPersistDriver();
@@ -1255,11 +1357,18 @@ export async function acquireEnvironment(
     // cannot be delivered (fail loud — this path requires it).
     let internalToolMcp: ToolMcpAssets | undefined;
     if (plan.isDaytona) {
-      await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
+      const daytonaExtensionInstalled = await (
+        deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets
+      )({
         sandbox: environment.sandbox,
         plan: { ...plan, skillDirs: [] },
         log: logger,
       });
+      // Fail closed (Decision 2): same guarantee as the local path. A genuine upload failure on the
+      // Daytona sandbox stops the run rather than running Pi's built-in tools unprotected.
+      if (plan.isPi && plan.builtinGatingActive && !daytonaExtensionInstalled) {
+        throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+      }
       if (!plan.isPi && plan.executableToolSpecs.length > 0) {
         internalToolMcp = await (
           deps.uploadToolMcpAssets ?? uploadToolMcpAssets
@@ -1356,12 +1465,9 @@ export async function acquireEnvironment(
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
-          await linkAgentFilesRemote(
-            environment.sandbox,
-            plan.cwd,
-            mountPath,
-            { log: logger },
-          );
+          await linkAgentFilesRemote(environment.sandbox, plan.cwd, mountPath, {
+            log: logger,
+          });
           await activateAgentMountGuidance();
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
@@ -1762,6 +1868,16 @@ export async function runTurn(
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
+      // Seed from the keys actually APPLIED to this run (`plan.secrets`) plus the mount's STS
+      // pair — neither lives in the sidecar's process env.
+      redactor: seedForRun(
+        { secrets: plan.secrets, telemetry: request.telemetry },
+        [
+          env.mountCreds?.accessKey,
+          env.mountCreds?.secretKey,
+          env.mountCreds?.sessionToken,
+        ],
+      ),
       emitSpans: !plan.isPi || plan.isDaytona,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
@@ -1900,9 +2016,11 @@ export async function runTurn(
     };
     // Transition the durable interaction row to resolved once its gate is answered. Used both by
     // the cold decision-map path (via attachPermissionResponder) and the live approval resume,
-    // which answers the parked gate directly. It mirrors the cold path's ordering against
-    // `cancelStaleInteractions` (server.ts): that sweep cancels only PENDING gates of OTHER turns,
-    // and by resume time the human already marked this gate responded, so it is spared here too.
+    // which answers the parked gate directly. The turn-start `cancelStaleInteractions` sweep
+    // (server.ts) cancels only PENDING gates of OTHER turns and spares this gate two ways: an
+    // interactions-plane answer already transitioned it to responded, and an in-band answer is
+    // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
+    // row stays pending until this resolve lands it as resolved, never cancelled.
     const resolveInteractionToken = (token: string): void => {
       const cred = runCredential(request);
       if (!cred) return;
@@ -1914,6 +2032,9 @@ export async function runTurn(
       void resolveInteraction(sessionId, token, () => cred);
     };
     const serverPermissions = serverPermissionsFromRequest(request);
+    // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
+    // the approval card and the guard cannot disagree about a tool's permission/readOnly.
+    const specsByName = toolSpecsByName(plan.toolSpecs);
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
     // `currentTurn`. A capturing shim reuses attachPermissionResponder unchanged; its
@@ -1935,6 +2056,7 @@ export async function runTurn(
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: resolveInteractionToken,
+      toolSpecsByName: specsByName,
       // Pi runs only: presence of the specs map turns Pi gate envelope detection on AND is how
       // the runner recovers specPermission/readOnlyHint (the envelope carries identity, never
       // policy). Absent for Claude, so a title collision there keeps the base path.
@@ -2127,10 +2249,9 @@ export async function runTurn(
       !plan.isDaytona &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
-        ? findSwallowedPiError(
-            env.runAgentDir ?? plan.sourcePiAgentDir,
-            plan.cwd,
-          )
+        ? // The helper derives the transcript location from `piSessionWorkspaceDir(plan.cwd)`,
+          // the same shared helper `configurePiSessionWorkspace` used to point Pi at it.
+          findSwallowedPiError(plan.cwd)
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {

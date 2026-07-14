@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.records.dtos import (
@@ -16,8 +16,16 @@ class RecordsService:
         self,
         *,
         event: SessionRecordEvent,
+        session: Optional[Any] = None,
     ) -> Optional[SessionRecord]:
-        return await self.records_dao.append(event=event)
+        return await self.records_dao.append(event=event, session=session)
+
+    async def append_many(
+        self,
+        *,
+        events: List[SessionRecordEvent],
+    ) -> List[SessionRecord]:
+        return await self.records_dao.append_many(events=events)
 
     async def get_records(
         self,

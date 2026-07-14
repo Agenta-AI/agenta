@@ -10,7 +10,7 @@ Pins the two service-layer invariants that test mode introduces:
 
 from uuid import uuid4
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -67,6 +67,8 @@ def _make_service():
         )
     )
     dao.query_deliveries = AsyncMock(return_value=[])
+    dao.query_subscriptions = AsyncMock(return_value=[])
+    dao.poll_delivery_after = AsyncMock(return_value=None)
 
     connections = MagicMock()
     connections.get_connection = AsyncMock(return_value=connection)
@@ -203,7 +205,7 @@ def _delivery():
 async def test_test_subscription_returns_captured_delivery_and_tears_down():
     service = _make_service()
     delivery = _delivery()
-    service.dao.query_deliveries = AsyncMock(return_value=[delivery])
+    service.dao.poll_delivery_after = AsyncMock(return_value=delivery)
 
     result = await service.test_subscription(
         project_id=uuid4(),
@@ -221,18 +223,15 @@ async def test_test_subscription_returns_captured_delivery_and_tears_down():
 
 async def test_test_subscription_times_out_and_tears_down():
     service = _make_service()
-    service.dao.query_deliveries = AsyncMock(return_value=[])  # nothing ever arrives
+    service.dao.poll_delivery_after = AsyncMock(
+        return_value=None
+    )  # nothing ever arrives
 
-    with (
-        patch("oss.src.core.triggers.service._TEST_TIMEOUT_SECONDS", 0),
-        patch("oss.src.core.triggers.service.asyncio.sleep", new=AsyncMock()),
-    ):
-        # deadline already passed → no poll
-        result = await service.test_subscription(
-            project_id=uuid4(),
-            user_id=uuid4(),
-            subscription=_create(is_test=True),
-        )
+    result = await service.test_subscription(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        subscription=_create(is_test=True),
+    )
 
     assert result is None
     service.dao.delete_subscription.assert_awaited_once()
@@ -240,7 +239,7 @@ async def test_test_subscription_times_out_and_tears_down():
 
 async def test_test_subscription_tears_down_on_error():
     service = _make_service()
-    service.dao.query_deliveries = AsyncMock(side_effect=RuntimeError("boom"))
+    service.dao.poll_delivery_after = AsyncMock(side_effect=RuntimeError("boom"))
 
     with pytest.raises(RuntimeError):
         await service.test_subscription(
@@ -269,9 +268,8 @@ async def test_test_subscription_reuses_existing_live_subscription_on_conflict()
 
     old_delivery = _delivery()  # pre-existing baseline delivery
     new_delivery = _delivery()  # the newly captured one (different id)
-    service.dao.query_deliveries = AsyncMock(
-        side_effect=[[old_delivery], [new_delivery]]
-    )
+    service.dao.query_deliveries = AsyncMock(return_value=[old_delivery])
+    service.dao.poll_delivery_after = AsyncMock(return_value=new_delivery)
 
     result = await service.test_subscription(
         project_id=uuid4(),
@@ -287,8 +285,12 @@ async def test_test_subscription_reuses_existing_live_subscription_on_conflict()
     service.dao.create_subscription.assert_awaited_once()
     # Reuse resolved via the exact colliding trigger_id, not a connection+event query.
     service.dao.fetch_subscription_by_trigger_id.assert_awaited_once()
-    # Deliveries were polled against the existing subscription's id.
+    # Baseline was taken against the existing subscription's id...
     assert (
         service.dao.query_deliveries.await_args.kwargs["delivery"].subscription_id
         == existing.id
     )
+    # ...and the poll was seeded with that baseline id, against the same subscription.
+    poll_kwargs = service.dao.poll_delivery_after.await_args.kwargs
+    assert poll_kwargs["subscription_id"] == existing.id
+    assert poll_kwargs["baseline_id"] == old_delivery.id

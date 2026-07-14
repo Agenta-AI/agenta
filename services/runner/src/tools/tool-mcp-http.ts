@@ -36,18 +36,17 @@ import {
 import type { AddressInfo } from "node:net";
 
 import type { ResolvedToolSpec } from "../protocol.ts";
-import { EMPTY_OBJECT_SCHEMA } from "./callback.ts";
+import { EMPTY_OBJECT_SCHEMA, MAX_BODY_BYTES } from "./callback.ts";
 import { runResolvedTool } from "./dispatch.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { assertRequiredArguments, specInputSchema } from "./spec-schema.ts";
+import { toolSpecsByName } from "./public-spec.ts";
 
 type Log = (message: string) => void;
 
 const DEFAULT_PROTOCOL = "2025-06-18";
 /** Loopback only: never reachable off-host. Access also requires a per-server bearer token. */
 const HOST = "127.0.0.1";
-/** Bound the request body so a malformed/oversized POST cannot exhaust runner memory. */
-const MAX_BODY_BYTES = 1_000_000;
 
 /**
  * A paused client tool. The handler returns this sentinel INSTEAD of a JSON-RPC response so the
@@ -86,7 +85,12 @@ function mcpToolError(id: unknown, err: unknown): unknown {
     jsonrpc: "2.0",
     id,
     result: {
-      content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }],
+      content: [
+        {
+          type: "text",
+          text: err instanceof Error ? err.message : String(err),
+        },
+      ],
       isError: true,
     },
   };
@@ -133,18 +137,17 @@ async function handle(
         // than executing it. (`buildToolMcpServers` already dropped `client` specs when no relay
         // is wired.) Only public metadata (name/description/inputSchema) crosses to the harness
         // — never the callRef, code, scoped env, or callback auth, which stay in runner memory.
-        tools: specs
-          .map((s) => ({
-            name: s.name,
-            description: s.description ?? s.name,
-            // Read via the shared accessor (camelCase `inputSchema` OR snake-case
-            // `input_schema`). Reading `s.inputSchema` alone advertised an EMPTY schema for every
-            // snake-case platform-catalog tool (`request_connection`, `commit_revision`), so
-            // Claude received no argument schema — a live bug, not just a client-tool one.
-            inputSchema:
-              (specInputSchema(s) as Record<string, unknown>) ??
-              EMPTY_OBJECT_SCHEMA,
-          })),
+        tools: specs.map((s) => ({
+          name: s.name,
+          description: s.description ?? s.name,
+          // Read via the shared accessor (camelCase `inputSchema` OR snake-case
+          // `input_schema`). Reading `s.inputSchema` alone advertised an EMPTY schema for every
+          // snake-case platform-catalog tool (`request_connection`, `commit_revision`), so
+          // Claude received no argument schema — a live bug, not just a client-tool one.
+          inputSchema:
+            (specInputSchema(s) as Record<string, unknown>) ??
+            EMPTY_OBJECT_SCHEMA,
+        })),
       },
     };
   }
@@ -173,7 +176,9 @@ async function handle(
       if (!clientToolRelay) {
         return mcpToolError(
           id,
-          new Error(`client tool '${spec.name}' cannot be delivered on this run`),
+          new Error(
+            `client tool '${spec.name}' cannot be delivered on this run`,
+          ),
         );
       }
       const callId = randomUUID();
@@ -191,14 +196,19 @@ async function handle(
         return MCP_PAUSED;
       }
       if (decision === "deny") {
-        return mcpToolError(id, new Error(`Client tool '${spec.name}' was denied.`));
+        return mcpToolError(
+          id,
+          new Error(`Client tool '${spec.name}' was denied.`),
+        );
       }
       // Resume: the browser already fulfilled the call; return its structured output as content.
       return {
         jsonrpc: "2.0",
         id,
         result: {
-          content: [{ type: "text", text: JSON.stringify(decision.output ?? {}) }],
+          content: [
+            { type: "text", text: JSON.stringify(decision.output ?? {}) },
+          ],
         },
       };
     }
@@ -277,7 +287,9 @@ function hasValidAuthorization(
   }
   const presented = Buffer.from(presentedToken);
   const expected = Buffer.from(expectedToken);
-  return presented.length === expected.length && timingSafeEqual(presented, expected);
+  return (
+    presented.length === expected.length && timingSafeEqual(presented, expected)
+  );
 }
 
 /**
@@ -294,7 +306,7 @@ export function startInternalToolMcpServer(
 ): Promise<InternalToolMcpServer> {
   const { clientToolRelay, signal, log = () => {} } = options;
   const authorizationToken = randomBytes(32).toString("base64url");
-  const specByName = new Map(specs.map((s) => [s.name, s]));
+  const specByName = toolSpecsByName(specs);
   // Track in-flight responses so the engine abort signal can destroy them deterministically (a
   // paused client tool destroys its OWN response below; the signal is the backstop for any other
   // request still open when the turn ends).

@@ -202,9 +202,9 @@ class AgentComposition:
     ``None``/no-op when a run has no such state, so a bare ``agent_v0`` behaves correctly in
     any process without composition.
 
-    ``resolve_session_connection`` / ``resolve_mcp_servers`` default to the SAFE behavior
-    (capability-gated + degrading connection resolve; MCP-gated server resolve) rather than
-    a bare fallback, so a composition-free ``agent_v0`` is not the permissive copy."""
+    ``resolve_session_connection`` defaults to the SAFE behavior (capability-gated + degrading
+    connection resolve) rather than a bare fallback, so a composition-free ``agent_v0`` is not
+    the permissive copy."""
 
     default_template: DefaultTemplateFn = field(default=_default_template)
     resolve_tools: ResolveToolsFn = field(default=_default_resolve_tools)
@@ -250,6 +250,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             params, defaults=comp.default_template()
         )
 
+        # SVC-1: select the backend BEFORE resolving. select_backend carries the sandbox gate
+        # (a `local` run on a shared deployment is refused), and it reads only agent_template,
+        # so a doomed request must not first pay for the tool/MCP/vault resolution below.
+        harness = make_harness(
+            agent_template.harness, Environment(comp.select_backend(agent_template))
+        )
+
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
         resolved_tools = await comp.resolve_tools(agent_template.tools)
         resolved_mcp = await comp.resolve_mcp_servers(agent_template.mcp_servers)
@@ -292,10 +299,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
             mcp_servers=resolved_mcp,
-        )
-
-        harness = make_harness(
-            agent_template.harness, Environment(comp.select_backend(agent_template))
         )
 
         if stream:

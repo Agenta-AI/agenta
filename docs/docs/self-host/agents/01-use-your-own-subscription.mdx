@@ -1,0 +1,140 @@
+---
+title: "Use your own subscription"
+sidebar_label: "Use your own subscription"
+description: "Run local agents with your own Pi, Claude Code, or ChatGPT/Codex login instead of a managed API key, on a trusted single-operator deployment."
+slug: /self-host/use-your-own-subscription
+sidebar_position: 1
+---
+
+By default, Agenta runs agents with a model API key it resolves for each run. You can instead run
+agents with your own harness subscription: a Pi login, a Claude Code login, or a ChatGPT/Codex
+login.
+
+A subscription authenticates the harness through a directory mounted into the runner container, so
+it works only with [local runs](/self-host/agent-execution/run-agents-locally). Agenta never
+uploads the login to a Daytona sandbox, and a Daytona run cannot use one.
+
+This tutorial mounts your login into the runner container and runs an agent that uses it.
+
+:::warning This is for a single trusted operator
+One personal subscription serves one operator, not every user of a shared deployment. Every local
+run can read the files mounted into the runner container, including this login. Use this only on a
+deployment you run for yourself. See
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+:::
+
+## Before you start
+
+- A running local OSS stack. See the [Quick start](/self-host/quick-start).
+- A harness you have logged into on your own machine:
+  - **Pi** stores its login at `~/.pi/agent/auth.json`. Log in with `pi`, then `/login`.
+  - **ChatGPT / Codex** uses the same Pi login file. Log in with `pi`, then `/login`, and pick
+    the ChatGPT sign-in.
+  - **Claude Code** stores its login at `~/.claude/.credentials.json`. Log in with `claude` and
+    pick the subscription login.
+
+## 1. Confirm the login on your machine
+
+Check that the login file exists before you mount it:
+
+```bash
+# Pi and ChatGPT/Codex
+ls ~/.pi/agent/auth.json
+
+# Claude Code
+ls ~/.claude/.credentials.json
+```
+
+## 2. Check that the runner can read it
+
+The runner container runs as the user `node`, uid 1000. A harness login file is mode `0600` and
+owned by you, so the container can read it through a bind mount only when your own uid is 1000.
+
+```bash
+id -u
+```
+
+If that prints `1000`, mount your login directly and continue with step 3.
+
+If it prints anything else, the container gets `Permission denied` on the file and the run fails as
+though you had never logged in. Copy the login into a directory owned by uid 1000 and mount the
+copy instead:
+
+```bash
+# Claude Code
+sudo mkdir -p /srv/agenta/harness
+sudo cp -r ~/.claude /srv/agenta/harness/claude
+sudo chown -R 1000:1000 /srv/agenta/harness/claude
+
+# Pi and ChatGPT/Codex
+sudo cp -r ~/.pi/agent /srv/agenta/harness/pi
+sudo chown -R 1000:1000 /srv/agenta/harness/pi
+```
+
+The harness refreshes its OAuth token inside the mount, so with a copy the refreshed token lands in
+the copy and not in your own login.
+
+## 3. Mount the login into the runner
+
+Edit the `runner` service in your Compose file
+(`hosting/docker-compose/oss/docker-compose.gh.yml`). Add a read-write volume for your login and
+point the harness at it. Use your own login directory, or the copy from step 2 if you made one.
+
+For **Pi** or **ChatGPT/Codex**:
+
+```yaml
+runner:
+  volumes:
+    - ~/.pi/agent:/agenta/harness/pi:rw
+  environment:
+    PI_CODING_AGENT_DIR: /agenta/harness/pi
+```
+
+For **Claude Code**:
+
+```yaml
+runner:
+  volumes:
+    - ~/.claude:/agenta/harness/claude:rw
+  environment:
+    CLAUDE_CONFIG_DIR: /agenta/harness/claude
+```
+
+:::warning Do not set a provider API key on the runner
+A self-managed run inherits the provider keys present in the runner's environment (for example
+`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`), and the harness then authenticates with the key instead of
+your login. The bundled Compose files set none of them on the `runner` service. Leave it that way.
+:::
+
+The mount is read-write, and the harness runs directly out of it. These are OAuth logins: the
+harness refreshes its access token during a run and writes the new one back. Because the mount is
+writable, the refreshed token lands in your login on the host, so runs keep working after the
+provider rotates a token and you never log in again by hand.
+
+The harness writes other things there too. A run that carries skills or a system prompt installs
+them into the same directory, and concurrent local runs share it, the same way two `pi` or `claude`
+sessions on your laptop do.
+
+Recreate the runner so it picks up the change:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh up -d runner
+```
+
+## 4. Run a self-managed agent
+
+In the studio, run an agent and choose the self-managed credential option (use your own login)
+for the matching harness. The run authenticates with your mounted subscription instead of a
+managed key.
+
+If the run fails because the harness has no login, the mount is missing, the runner cannot read it
+(step 2), or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` does not point at it. Recheck steps 2
+and 3.
+
+## Next
+
+- [Run agents locally](/self-host/agent-execution/run-agents-locally) configures the provider these
+  runs use.
+- [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) covers
+  what else can read the mounted login.

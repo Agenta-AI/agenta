@@ -325,13 +325,20 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
 
 /**
  * The credential epoch bounds how long a parked session may reuse its baked credentials. It is
- * a PROCESS-LOCAL hash over the actual resolved secret VALUES plus the tool-callback auth (held
- * only in runner memory — never logged, persisted, or emitted), combined with the mount
- * credential expiry. A rotated same-slug secret changes the hash; an elapsed expiry invalidates
- * the epoch. Either way the dispatch evicts and cold-starts with fresh credentials.
+ * a PROCESS-LOCAL hash over the actual resolved secret VALUES (held only in runner memory —
+ * never logged, persisted, or emitted), combined with the mount credential expiry. A rotated
+ * same-slug secret changes the hash; an elapsed expiry invalidates the epoch. Either way the
+ * dispatch evicts and cold-starts with fresh credentials.
+ *
+ * The tool-callback bearer is deliberately EXCLUDED: it is per-turn material the backend
+ * re-mints on its auth-cache cadence (~60s), and every turn — continuation included — starts
+ * its tool relay from the INCOMING request's `toolCallback`, so the parked copy is never used
+ * to execute anything. Hashing it made warm sessions evict as "credentials-rotated" on every
+ * cache rollover for no protective value. Only material actually BAKED into the parked
+ * environment (the sandbox env secrets) belongs in the hash; the mount expiry bounds the rest.
  */
 export interface CredentialEpoch {
-  /** sha256 over canonical(secrets) + tool-callback auth. In-memory only; never surfaced. */
+  /** sha256 over canonical(secrets). In-memory only; never surfaced. */
   secretsHash: string;
   /** Mount credential expiry as epoch millis, or undefined when the sign response had none. */
   mountExpiresAtMs?: number;
@@ -343,7 +350,6 @@ export function computeCredentialEpoch(
 ): CredentialEpoch {
   const material = canonicalJson({
     secrets: request.secrets ?? {},
-    toolCallbackAuth: request.toolCallback?.authorization ?? null,
   });
   const parsed = mountExpiresAt ? Date.parse(mountExpiresAt) : NaN;
   return {
@@ -372,8 +378,7 @@ export function mountCredentialsExpired(
  * Why a parked epoch is no longer usable for an incoming request's epoch, or undefined when it
  * still is. The two failure modes are distinguished so diagnosis works from logs:
  *  - `credentials-expired` — the mount credential's lifetime elapsed (time bound).
- *  - `credentials-rotated` — the resolved secret/tool-auth material changed (a rotated same-slug
- *    secret, a different tool-callback bearer).
+ *  - `credentials-rotated` — the resolved secret material changed (a rotated same-slug secret).
  */
 export function credentialEpochMismatch(
   parked: CredentialEpoch,
@@ -387,7 +392,7 @@ export function credentialEpochMismatch(
 
 /**
  * Whether a parked epoch is still valid for an incoming request's epoch. Invalid (evict, cold)
- * when the mount credential expired, or the resolved secret/tool-auth material changed. Thin
+ * when the mount credential expired, or the resolved secret material changed. Thin
  * wrapper over `credentialEpochMismatch` for callers that only need the boolean.
  */
 export function credentialEpochValid(
@@ -408,18 +413,35 @@ export interface PoolScope {
 }
 
 /**
- * The pool key: `<projectId>:<sessionId>`. The project scope is PREFERRED from the run context the
- * service stamps server-side (`runContext.project.id`), and FALLS BACK to the mount's owning
- * project id when the run context carries none. Provider separation does not need another key
- * segment: providers have separate pools, and `configFingerprint` includes `request.sandbox`.
- * The run-context id is the trustworthy source: the
- * service derives it from its own request state (never from a caller-supplied wire field), so it
- * does not depend on a durable mount existing. The mount scope stays as the fallback for the
- * transition and for runs without a stamped project.
+ * The project scope for a run: PREFERRED from the run context the service stamps server-side
+ * (`runContext.project.id`), FALLING BACK to the mount's owning project id when the run context
+ * carries none. The run-context id is the trustworthy source: the service derives it from its own
+ * request state (never from a caller-supplied wire field), so it does not depend on a durable
+ * mount existing. The mount scope stays as the fallback for the transition and for runs without a
+ * stamped project. Returns undefined when NEITHER source yields a scope.
  *
- * Returns null when there is no session id, or when NEITHER source yields a project scope — such a
- * request MUST NOT park (there is no safe key that separates callers), and the dispatch runs it
- * fully cold. This no-scope-no-park rule is the keep-alive safety invariant and is unchanged.
+ * This is the single precedence rule other project-scoped decisions (the pool key, the in-flight
+ * sandbox kill filter) must reuse rather than re-deriving, so they agree by construction.
+ */
+export function projectScopeFor(
+  request: Pick<AgentRunRequest, "runContext">,
+  mountProjectId: string | undefined,
+): { id: string; source: PoolScopeSource } | undefined {
+  const runContextProject = request.runContext?.project?.id?.trim();
+  if (runContextProject) return { id: runContextProject, source: "run-context" };
+  const mount = mountProjectId?.trim();
+  if (mount) return { id: mount, source: "mount" };
+  return undefined;
+}
+
+/**
+ * The pool key: `<projectId>:<sessionId>`. Provider separation does not need another key segment:
+ * providers have separate pools, and `configFingerprint` includes `request.sandbox`.
+ *
+ * Returns null when there is no session id, or when `projectScopeFor` yields no project scope —
+ * such a request MUST NOT park (there is no safe key that separates callers), and the dispatch
+ * runs it fully cold. This no-scope-no-park rule is the keep-alive safety invariant and is
+ * unchanged.
  */
 export function poolKeyFor(
   request: AgentRunRequest,
@@ -427,13 +449,9 @@ export function poolKeyFor(
 ): PoolScope | null {
   const sessionId = request.sessionId?.trim();
   if (!sessionId) return null;
-  const runContextProject = request.runContext?.project?.id?.trim();
-  if (runContextProject) {
-    return { key: `${runContextProject}:${sessionId}`, source: "run-context" };
-  }
-  const mount = mountProjectId?.trim();
-  if (mount) return { key: `${mount}:${sessionId}`, source: "mount" };
-  return null;
+  const scope = projectScopeFor(request, mountProjectId);
+  if (!scope) return null;
+  return { key: `${scope.id}:${sessionId}`, source: scope.source };
 }
 
 // --- The pool --------------------------------------------------------------- //
@@ -494,6 +512,20 @@ export class SessionPool<E = unknown> {
 
   keys(): string[] {
     return [...this.sessions.keys()];
+  }
+
+  /**
+   * The awaiting_approval session for a session id, whatever its project scope (keys are
+   * `<projectId>:<sessionId>`; transport-time callers know only the session id — the scope's
+   * project half needs the mount sign, which has not happened yet). Peek only, no mutation.
+   */
+  awaitingApproval(sessionId: string): LiveSession<E> | undefined {
+    const suffix = `:${sessionId}`;
+    for (const session of this.sessions.values()) {
+      if (session.state === "awaiting_approval" && session.key.endsWith(suffix))
+        return session;
+    }
+    return undefined;
   }
 
   /** Test/inspection snapshot: key -> state. */

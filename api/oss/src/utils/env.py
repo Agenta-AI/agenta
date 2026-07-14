@@ -1272,6 +1272,55 @@ class RedisConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# sessions — coordination-plane Redis contract (api/oss/src/dbs/redis/sessions/contract.py)
+# ---------------------------------------------------------------------------
+
+
+class SessionsRedisConfig(BaseModel):
+    """TTLs and caps for the session coordination-plane Redis keys.
+
+    Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
+    redis_contract.json) shared with the TypeScript runner. Do not change a default
+    without updating that fixture and the TS side in lockstep.
+    """
+
+    alive_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
+        or 3600
+    )
+    running_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_RUNNING_TTL_SECONDS")
+        or 3600
+    )
+    attached_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ATTACHED_TTL_SECONDS")
+        or 60
+    )
+    owner_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS")
+        or 120
+    )
+    heartbeat_interval_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_REDIS_HEARTBEAT_INTERVAL_SECONDS"
+        )
+        or 30
+    )
+    heartbeat_write_threshold_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_REDIS_HEARTBEAT_WRITE_THRESHOLD_SECONDS"
+        )
+        or 60
+    )
+    concurrency_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
+        or 1000
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # email delivery
 # ---------------------------------------------------------------------------
 
@@ -1476,6 +1525,7 @@ class EnvironSettings(BaseModel):
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
     runner: RunnerConfig = RunnerConfig()
+    sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
     store: StoreConfig = StoreConfig()

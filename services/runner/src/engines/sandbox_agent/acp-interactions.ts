@@ -1,4 +1,8 @@
-import type { AgentEvent, ToolPermission } from "../../protocol.ts";
+import type {
+  AgentEvent,
+  ResolvedToolSpec,
+  ToolPermission,
+} from "../../protocol.ts";
 import {
   decisionToReply,
   type ClientToolVerdict,
@@ -15,6 +19,7 @@ import {
   type PiGateEnvelope,
 } from "./pi-gate-envelope.ts";
 import { redactContextBoundArgs } from "../../tools/relay.ts";
+import { bareToolName } from "./client-tools.ts";
 
 /** The parkable gate types a paused turn can record (the Claude ACP and Pi ACP gates). */
 export type ParkedApprovalGateType =
@@ -83,6 +88,15 @@ export interface AttachPermissionResponderInput {
    * detection and metadata recovery are inseparable by construction.
    */
   piToolSpecsByName?: ReadonlyMap<string, PiToolSpecMeta>;
+  /**
+   * The run's REAL resolved tool specs, by bare spec name, for every harness (Claude and Pi
+   * alike). This is the only source of a tool's true `permission`/`readOnly`: the ACP tool-call
+   * object the harness hands back carries no spec field the runner ever populates (`spec`,
+   * `toolSpec`, `resolvedTool`, `tool` were a vestigial probe — nothing sets them), so without
+   * this map a harness gate's approval card silently fell back to the plan default instead of
+   * showing the tool's actual permission.
+   */
+  toolSpecsByName?: ReadonlyMap<string, ResolvedToolSpec>;
 }
 
 /** Wire ACP permission reverse-RPC into the runner's event stream and responder policy. */
@@ -100,6 +114,7 @@ export function attachPermissionResponder({
   onUserApprovalGate,
   onPiGateAllowed,
   piToolSpecsByName,
+  toolSpecsByName,
 }: AttachPermissionResponderInput): void {
   session.onPermissionRequest((req: any) => {
     void handleRequest(req).catch((err) => {
@@ -170,7 +185,7 @@ export function attachPermissionResponder({
     req: any,
     id: string,
     gate: GateDescriptor,
-    spec: ToolSpecLike,
+    spec: ResolvedToolSpec,
   ): void => {
     if (!latch.tryAcquire()) return;
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
@@ -353,8 +368,12 @@ export function attachPermissionResponder({
     }
 
     const toolCall = req?.toolCall;
-    const spec = resolvedSpecOf(toolCall);
-    const gate = buildGateDescriptor(toolCall, run, serverPermissions);
+    const { gate, spec } = buildGateDescriptor(
+      toolCall,
+      run,
+      serverPermissions,
+      toolSpecsByName,
+    );
     // Ground truth for HITL debugging: exactly what the harness handed us for this gate.
     // The stable anchor (gate.toolName) vs the drift-prone display fields is what a live
     // session needs to diagnose a resume-key mismatch; keep this greppable via `[HITL]`.
@@ -469,22 +488,33 @@ function recordedToolName(
   return name;
 }
 
+/**
+ * Resolve the gate AND the real spec it was resolved against (needed by the client-tool pause,
+ * which reads `spec.render`). The ACP tool-call carries no spec field the runner ever populates
+ * — resolve the harness's own display name first (same anchor priority as before), then look up
+ * the real spec by its bare name (a Claude MCP title arrives as `mcp__agenta-tools__<name>`;
+ * strip that prefix so the lookup hits). This is the ONLY source of a tool's true
+ * `permission`/`readOnly`, so both the approval card and this descriptor come from one lookup.
+ */
 function buildGateDescriptor(
   toolCall: any,
   run: { events?: () => AgentEvent[] },
   serverPermissions: ReadonlyMap<string, ToolPermission>,
-): GateDescriptor {
-  const spec = resolvedSpecOf(toolCall);
-  const toolName = firstString([
-    spec?.name,
+  toolSpecsByName: ReadonlyMap<string, ResolvedToolSpec> | undefined,
+): { gate: GateDescriptor; spec: ResolvedToolSpec | undefined } {
+  const displayName = firstString([
     recordedToolName(run, toolCall?.toolCallId),
     toolCall?.name,
     toolCall?.title,
     toolCall?.kind,
   ]);
+  const spec = displayName
+    ? toolSpecsByName?.get(bareToolName(displayName))
+    : undefined;
+  const toolName = spec?.name ?? displayName;
   const specPermission = toolPermission(spec?.permission);
   const args = toolCall?.rawInput ?? toolCall?.input;
-  return {
+  const gate: GateDescriptor = {
     executor: spec?.kind === "client" ? "client" : spec ? "relay" : "harness",
     toolName,
     specPermission,
@@ -495,6 +525,7 @@ function buildGateDescriptor(
       typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
     args,
   };
+  return { gate, spec };
 }
 
 function serverPermissionFor(
@@ -506,23 +537,6 @@ function serverPermissionFor(
   const separator = rest.indexOf("__");
   if (separator <= 0) return undefined;
   return serverPermissions.get(rest.slice(0, separator));
-}
-
-type ToolSpecLike = {
-  name?: unknown;
-  kind?: unknown;
-  permission?: unknown;
-  readOnly?: unknown;
-  render?: unknown;
-};
-
-function resolvedSpecOf(toolCall: any): ToolSpecLike | undefined {
-  const spec =
-    toolCall?.spec ??
-    toolCall?.toolSpec ??
-    toolCall?.resolvedTool ??
-    toolCall?.tool;
-  return spec && typeof spec === "object" ? (spec as ToolSpecLike) : undefined;
 }
 
 function firstString(values: unknown[]): string | undefined {

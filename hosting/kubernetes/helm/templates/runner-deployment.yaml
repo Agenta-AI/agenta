@@ -2,6 +2,7 @@
 {{- $providers := default dict $runner.providers -}}
 {{- $enabledProviders := default (list "local") $providers.enabled -}}
 {{- $daytona := default dict $providers.daytona -}}
+{{- $auth := default dict $runner.auth -}}
 {{- if eq (include "agenta.agentRunner.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -48,6 +49,18 @@ spec:
               containerPort: {{ include "agenta.agentRunner.port" . }}
               protocol: TCP
           env:
+            {{- /* Narrow by design (runner-selfhosting-cleanup): a local harness process shares
+                   this container, so anything here is readable from /proc. Only the runner's own
+                   config and the API URL it needs to reach the platform — never the full
+                   commonEnv (DB/auth/crypt/license/redis/store secrets). See
+                   tests/test_runner_secret_absence.py. */}}
+            - name: AGENTA_API_URL
+              value: {{ include "agenta.apiUrlEffective" . | quote }}
+            {{- $agentaVals := include "agenta.values" . | fromYaml -}}
+            {{- if (default dict $agentaVals.agenta).apiInternalUrl }}
+            - name: AGENTA_API_INTERNAL_URL
+              value: {{ $agentaVals.agenta.apiInternalUrl | quote }}
+            {{- end }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
             - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
@@ -102,6 +115,23 @@ spec:
                   key: {{ $daytona.apiKeySecretRef.key | quote }}
                   optional: true
             {{- end }}
+            {{- /* Shared runner protocol credential (interface.md section 2): the runner verifies it
+                   and Services sends the same value (see agentRunner.servicesEnv). REQUIRED — the
+                   runner refuses to boot without it, so this is always rendered and never
+                   `optional`. An explicit `auth.tokenSecretRef` overrides the platform Secret for
+                   operators who keep the runner credential in their own vault. Note this mounts a
+                   SINGLE key, not the whole Secret: the runner's env must stay narrow, because a
+                   local harness shares its container and can read /proc (tests/test_runner_secret_absence.py). */}}
+            - name: AGENTA_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  {{- if $auth.tokenSecretRef }}
+                  name: {{ $auth.tokenSecretRef.name | quote }}
+                  key: {{ $auth.tokenSecretRef.key | quote }}
+                  {{- else }}
+                  name: {{ include "agenta.fullname" . | quote }}
+                  key: AGENTA_RUNNER_TOKEN
+                  {{- end }}
             {{- range $key, $val := $runner.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}

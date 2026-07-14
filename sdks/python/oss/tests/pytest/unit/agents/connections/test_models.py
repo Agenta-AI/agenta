@@ -173,3 +173,34 @@ def test_resolved_connection_env_is_hidden_from_repr():
         env={"OPENAI_API_KEY": "do-not-print"},
     )
     assert "do-not-print" not in repr(resolved)
+
+
+def test_resolved_connection_env_is_masked_from_model_dump():
+    # F-SDK-DUMP: repr hiding is not enough — a dump must not carry the credential either.
+    resolved = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="env",
+        env={"OPENAI_API_KEY": "do-not-dump"},
+    )
+    assert "do-not-dump" not in str(resolved.model_dump())
+    assert "do-not-dump" not in resolved.model_dump_json()
+    assert resolved.model_dump()["env"] == {"OPENAI_API_KEY": "**********"}
+    # The credential is still readable through attribute access (the harness path).
+    assert resolved.env["OPENAI_API_KEY"] == "do-not-dump"
+
+
+def test_session_config_dump_does_not_leak_resolved_connection_env():
+    # The nested case: a SessionConfig dump must not surface the connection's credential.
+    from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig
+
+    config = SessionConfig(
+        agent=AgentTemplate(),
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.5",
+            credential_mode="env",
+            env={"OPENAI_API_KEY": "do-not-dump"},
+        ),
+    )
+    assert "do-not-dump" not in config.model_dump_json()

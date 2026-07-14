@@ -6,7 +6,7 @@
  *
  *   GET  /health -> runner identity ({ status, runner, protocol, engines, harnesses })
  *   POST /stream -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
- *   POST /kill   -> best-effort, idempotent teardown of in-flight sandboxes
+ *   POST /kill   -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
  *
  * Uses Node's built-in http server (no framework dependency).
  *
@@ -32,6 +32,7 @@ import { resolvePromptText } from "./protocol.ts";
 import {
   acquireEnvironment,
   destroyInFlightSandboxes,
+  destroyInFlightSandboxesForSession,
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
@@ -61,6 +62,7 @@ import {
 } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import {
+  assertRunnerToken,
   loadRunnerConfig,
   runnerConfigSummary,
 } from "./config/runner-config.ts";
@@ -70,6 +72,7 @@ import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
+import { seedForRun } from "./redaction.ts";
 
 // Server binding (host/port) comes from the typed `RunnerConfig` resolved at boot. The host
 // binds to loopback by default (sidecar-trust step 1): the `/run` body carries plaintext provider
@@ -77,12 +80,12 @@ import { buildPersistingEmitter } from "./sessions/persist.ts";
 // In Kubernetes/Compose, set `AGENTA_RUNNER_HOST` to the private pod/internal-network interface;
 // never publish the port to the host.
 
-// Optional shared `/run` token (sidecar-trust step 2): default OFF. When
-// `AGENTA_RUNNER_TOKEN` is set, every `/run` request must present the same secret (in
-// `Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`); otherwise it is
-// rejected with 401. Cheap defense-in-depth against accidental exposure on top of network
-// isolation; a static shared secret is not a substitute for TLS (deferred). Unset = no check,
-// so co-located/loopback deployments are unaffected.
+// Required shared `/run` token (sidecar-trust step 2). Every request must present the same secret
+// (in `Authorization: Bearer <token>` or `X-Agenta-Runner-Token: <token>`) or it is rejected with
+// 401. There is no unauthenticated mode: `assertRunnerToken` refuses to boot the HTTP surface
+// without the token, so by the time a request reaches here the secret always exists. Defense-in-depth
+// ON TOP OF network isolation, not a replacement; a static shared secret is not a substitute for TLS
+// (deferred).
 const RUNNER_TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 
 // Per-box in-flight counter: gates `/stream` and the `/run` back-compat alias at the process,
@@ -124,13 +127,12 @@ function presentedToken(req: IncomingMessage): string {
   return "";
 }
 
-/**
- * Whether this `/run` request is authorized. The check is OFF unless the operator opts in by
- * setting `AGENTA_RUNNER_TOKEN`; when set, the presented token must match exactly.
- */
+/** Whether this `/run` request is authorized; the presented token must match `AGENTA_RUNNER_TOKEN` exactly. */
 function isAuthorized(req: IncomingMessage): boolean {
   const expected = process.env[RUNNER_TOKEN_ENV];
-  if (!expected) return true; // default-off: no token configured, accept (network isolation only)
+  // Fail closed. `loadRunnerConfig` already refused to boot without a token, so a missing value
+  // here means the environment was mutated out from under a running process — deny, never accept.
+  if (!expected) return false;
   return tokensMatch(presentedToken(req), expected);
 }
 
@@ -576,11 +578,7 @@ export async function runWithKeepalive(
       klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
-      await pool.evict(
-        key,
-        `mismatch:${mismatch}`,
-        "compatibility-mismatch",
-      );
+      await pool.evict(key, `mismatch:${mismatch}`, "compatibility-mismatch");
       return coldAndPark();
     }
 
@@ -757,11 +755,7 @@ export async function runWithKeepalive(
     // environment can never be destroyed by this branch). Supersede — destroy the parked one and
     // cold-start — awaited so its teardown cannot overlap our acquire.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
-    await pool.evict(
-      key,
-      `supersede-${existing.state}`,
-      "failed-turn",
-    );
+    await pool.evict(key, `supersede-${existing.state}`, "failed-turn");
   } else {
     klog(`miss key=${key}; cold`);
   }
@@ -782,11 +776,9 @@ const keepalivePools: Record<
   SessionPool<SessionEnvironment>
 > = {
   local: new SessionPool<SessionEnvironment>(keepaliveConfigs.local),
-  daytona: new SessionPool<SessionEnvironment>(
-    keepaliveConfigs.daytona,
-    klog,
-    { strictCapacity: true },
-  ),
+  daytona: new SessionPool<SessionEnvironment>(keepaliveConfigs.daytona, klog, {
+    strictCapacity: true,
+  }),
 };
 
 const runAgent: RunAgent = (request, emit, signal, options) => {
@@ -800,6 +792,28 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
     clientGone: options?.clientGone,
   });
 };
+
+/**
+ * The durable interaction token of a parked approval gate this request answers in-band, if
+ * any. The turn-start cancel-stale sweep must spare it: the gate belongs to the PREVIOUS turn
+ * (so the sweep's own `turn_id` exemption misses it), an in-band answer never transitions the
+ * row off `pending` (only the interactions-plane respond endpoint does), and the resume
+ * resolves the token after consuming the decision. Swept first, the granted gate's record
+ * lands as `cancelled` and the resolve 404s.
+ */
+function inBandAnswerToken(request: AgentRunRequest): string | undefined {
+  const sessionId = request.sessionId?.trim();
+  if (!sessionId) return undefined;
+  const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
+  if (!provider) return undefined;
+  const parked =
+    keepalivePools[provider].awaitingApproval(sessionId)?.environment
+      .parkedApproval;
+  if (!parked) return undefined;
+  return approvalDecisionForToolCall(request, parked.toolCallId) !== undefined
+    ? parked.interactionToken
+    : undefined;
+}
 
 /**
  * Stream a run as NDJSON: one `{kind:"event"}` line per event the moment it is built, then
@@ -897,13 +911,27 @@ async function runAndStreamWithApiBaseResolved(
     );
     aliveWatchdog = watchdog;
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
-    // interactions (sparing this turn's own). Best-effort, never blocks the turn.
-    void cancelStaleInteractions(sessionId, turnId, watchdog.credential);
+    // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
+    // the resume resolves that one). Best-effort, never blocks the turn.
+    const answeredToken = inBandAnswerToken(request);
+    void cancelStaleInteractions(
+      sessionId,
+      turnId,
+      answeredToken ? [answeredToken] : undefined,
+      watchdog.credential,
+    );
+    // Deny-set from THIS run's resolved provider keys + run credential (not process env,
+    // which never holds them).
     const {
       emit: persistingEmit,
       persist,
       flush,
-    } = buildPersistingEmitter(sessionId, watchdog.credential, liveEmit);
+    } = buildPersistingEmitter(
+      sessionId,
+      watchdog.credential,
+      liveEmit,
+      seedForRun(request),
+    );
     // Record the inbound user turn first so the session record is the full conversation,
     // not just agent output. Interaction replies ride tool_result blocks (no text) and are
     // already recorded on the interaction, so an empty prompt persists nothing.
@@ -958,6 +986,48 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+/**
+ * Normalize `/kill`'s `projectId` to `undefined` for both absent and whitespace-only input. A
+ * blank string surviving as `""` would make `poolKeyFor` and `destroyInFlightSandboxesForSession`
+ * disagree on scope: the former forms no pool key from an empty project id (so keepalive pool
+ * entries are NOT destroyed), while the latter treats `""` as "no project filter" and still
+ * destroys every in-flight sandbox for the session regardless of project.
+ */
+export function normalizeKillProjectId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/** `/kill`'s payload is `{ sessionId, projectId }` — a few hundred bytes at most. */
+const KILL_BODY_MAX_BYTES = 16 * 1024;
+
+/** Thrown by `readBodyCapped` when the request exceeds `maxBytes`; the caller maps it to 413. */
+class BodyTooLargeError extends Error {}
+
+/** Same streaming byte-count-and-reject shape as tool-mcp-http.ts's `readBody`, so a caller
+ *  cannot force the runner to buffer an arbitrarily large body before JSON parsing. */
+function readBodyCapped(
+  req: IncomingMessage,
+  maxBytes: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new BodyTooLargeError("request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
 export function createRequestListener(
   run: RunAgent,
@@ -972,17 +1042,49 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
-        // Idempotent, best-effort: the API collapses the alive lock (the runner's
-        // per-run finally then destroys its own sandbox); this endpoint lets the
-        // orphan sweeper force a process-wide teardown out-of-band. Drain the keep-alive
-        // pool first (its complete per-session destroy), then the sandbox registry as a
-        // second line of defense. Always ok.
+        // Scoped, idempotent, best-effort: both sessionId and projectId are required so the
+        // pool-key drain and the in-flight sandbox sweep agree on exactly one tenant's session
+        // (pool keys are always project-scoped; see `poolKeyFor`).
+        let killBody: { sessionId?: unknown; projectId?: unknown };
+        try {
+          const raw = await readBodyCapped(req, KILL_BODY_MAX_BYTES);
+          killBody = raw.trim() ? JSON.parse(raw) : {};
+        } catch (err) {
+          if (err instanceof BodyTooLargeError) {
+            return send(res, 413, { ok: false, error: err.message });
+          }
+          return send(res, 400, {
+            ok: false,
+            error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+        const sessionId =
+          typeof killBody.sessionId === "string"
+            ? killBody.sessionId.trim()
+            : "";
+        const projectId = normalizeKillProjectId(killBody.projectId);
+        if (!sessionId || !projectId) {
+          return send(res, 400, {
+            ok: false,
+            error:
+              "sessionId and projectId are both required: /kill must be scoped to exactly one tenant's session",
+          });
+        }
+        const scope = poolKeyFor(
+          { sessionId, runContext: { project: { id: projectId } } },
+          projectId,
+        );
         await Promise.all(
           Object.values(keepalivePools).map((pool) =>
-            pool.destroyAll(5000, "kill", "kill"),
+            scope ? pool.destroy(scope.key, "kill") : Promise.resolve(),
           ),
         );
-        await destroyInFlightSandboxes(5000, "kill");
+        await destroyInFlightSandboxesForSession(
+          sessionId,
+          projectId,
+          5000,
+          "kill",
+        );
         return send(res, 200, { ok: true });
       }
 
@@ -1046,7 +1148,7 @@ export function createRequestListener(
       // Only .message goes on the wire: the raw thrown value (even via String()) is
       // stack-trace-tainted to CodeQL, and the stack itself stays server-side.
       const message = err instanceof Error ? err.message : "Internal error";
-      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
+      console.error(err instanceof Error ? err.stack ?? err.message : err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -1104,7 +1206,7 @@ if (isEntrypoint(import.meta.url)) {
   // run still returns its own error to its caller.
   process.on("unhandledRejection", (reason) => {
     process.stderr.write(
-      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
+      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`,
     );
   });
   process.on("uncaughtException", (err) => {
@@ -1120,11 +1222,7 @@ if (isEntrypoint(import.meta.url)) {
     onCleanup: async (timeoutMs?: number) => {
       await Promise.all(
         Object.values(keepalivePools).map((pool) =>
-          pool.destroyAll(
-            timeoutMs,
-            "shutdown-idle",
-            "shutdown-in-flight",
-          ),
+          pool.destroyAll(timeoutMs, "shutdown-idle", "shutdown-in-flight"),
         ),
       );
       await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
@@ -1137,7 +1235,13 @@ if (isEntrypoint(import.meta.url)) {
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
   const runnerConfig = loadRunnerConfig();
-  process.stderr.write(`[sandbox-agent] ${runnerConfigSummary(runnerConfig)}\n`);
+  // The shared token is required to SERVE, but not to parse config: the per-request config reads
+  // (provider defaults) must not depend on an auth secret. So it is asserted here, at the one
+  // boundary that exposes the HTTP surface, and nowhere else.
+  assertRunnerToken(runnerConfig.server.token);
+  process.stderr.write(
+    `[sandbox-agent] ${runnerConfigSummary(runnerConfig)}\n`,
+  );
   if (runnerConfig.providers.enabled.includes("daytona")) {
     applyDaytonaSdkEnv(runnerConfig.daytona);
   }

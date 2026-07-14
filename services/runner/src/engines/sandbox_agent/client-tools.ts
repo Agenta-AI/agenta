@@ -46,8 +46,11 @@ export interface ToolCallCorrelationIndex {
  * bare spec name `lookup()` receives. The lazy match ends the prefix at the FIRST `__` after
  * the server name, so a TOOL name that itself contains `__` survives intact (our server name,
  * `agenta-tools`, contains no `__`; a server name that did would truncate ambiguously).
+ *
+ * Exported: `acp-interactions.ts` reuses it to resolve the real `ResolvedToolSpec` for an ACP
+ * gate by the same bare name this index correlates on.
  */
-function bareToolName(title: string): string {
+export function bareToolName(title: string): string {
   return title.replace(/^mcp__.+?__/, "");
 }
 
@@ -88,13 +91,17 @@ export function createToolCallCorrelationIndex(): ToolCallCorrelationIndex {
         | undefined;
       if (!u || u.sessionUpdate !== "tool_call") return;
       const toolCallId =
-        typeof u.toolCallId === "string" && u.toolCallId ? u.toolCallId : undefined;
+        typeof u.toolCallId === "string" && u.toolCallId
+          ? u.toolCallId
+          : undefined;
       // Each ACP call is recorded once (a re-sent frame for the same id must not enqueue twice).
       if (!toolCallId || recordedIds.has(toolCallId)) return;
       // The name comes from the ACP `title` only. ACP `kind` is a CATEGORY (read/fetch/execute/
       // other), not a name — indexing under it could mis-correlate unrelated calls.
       const name =
-        typeof u.title === "string" && u.title ? bareToolName(u.title) : undefined;
+        typeof u.title === "string" && u.title
+          ? bareToolName(u.title)
+          : undefined;
       if (!name) return;
       recordedIds.add(toolCallId);
       const entry: Entry = { id: toolCallId, consumed: false };

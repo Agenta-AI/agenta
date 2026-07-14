@@ -38,6 +38,7 @@ agenta:
   # ================================================================ #
   authKey: "replace-me"
   cryptKey: "replace-me"
+  runnerToken: "replace-me"
 
 # ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so the
@@ -145,11 +146,15 @@ redisDurable:
 #         key: api-key
 #       apiUrl: https://app.daytona.io/api
 #       target: eu
-#       snapshot: agenta-agent-runner
+#       snapshot: agenta-agent-sandbox-v1
 #       autostopMinutes: 15
 #       autodeleteMinutes: 30
 #       sessionIdleTtlMs: ""
 #       sessionMaxWarm: ""
+#   auth:
+#     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
+#       name: agenta-runner
+#       key: token
 
 # ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md

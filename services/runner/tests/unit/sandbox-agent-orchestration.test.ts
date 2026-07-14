@@ -70,7 +70,9 @@ interface FakeOptions {
 function fakeHarness(options: FakeOptions = {}) {
   const calls = {
     daemonAgent: "",
-    daemonOptions: undefined as { clearProviderEnv?: boolean } | undefined,
+    daemonOptions: undefined as
+      | { clearProviderEnv?: boolean; provider?: string; deployment?: string }
+      | undefined,
     providerArgs: [] as unknown[],
     mkdirFsPaths: [] as string[],
     startOptions: undefined as any,
@@ -392,7 +394,7 @@ describe("runSandboxAgent orchestration", () => {
 
   it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
     const { calls, deps } = fakeHarness();
-    deps.prepareDaytonaPiAssets = (async () => {}) as any;
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
 
     const result = await runSandboxAgent(
       {
@@ -480,6 +482,7 @@ describe("runSandboxAgent orchestration", () => {
     let agentDirSkillCount = -1;
     deps.prepareDaytonaPiAssets = (async ({ plan }: any) => {
       agentDirSkillCount = plan.skillDirs.length;
+      return true;
     }) as any;
 
     const result = await runSandboxAgent(
@@ -536,8 +539,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     assert.equal(
-      (calls.providerArgs[1] as Record<string, string>)
-        .AGENTA_AGENT_MOUNT_DIR,
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       `${cwd}-agent`,
     );
     assert.match(
@@ -580,8 +582,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     assert.equal(
-      (calls.providerArgs[1] as Record<string, string>)
-        .AGENTA_AGENT_MOUNT_DIR,
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
     assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
@@ -1398,7 +1399,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     // Managed run -> clear-then-apply: buildDaemonEnv is asked to clear the inherited provider env.
-    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: true });
+    assert.equal(calls.daemonOptions?.clearProviderEnv, true);
     // The env handed to buildSandboxProvider carries only the resolved key + the custom base url.
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_API_KEY, "resolved");
@@ -1519,22 +1520,65 @@ describe("runSandboxAgent orchestration", () => {
   it("does not clear provider env or set a base url on a runtime_provided run", async () => {
     const { calls, deps } = fakeHarness();
 
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
-      } as AgentRunRequest,
-      undefined,
-      undefined,
-      deps,
-    );
+    // A local runtime_provided run authenticates from a mounted subscription, so buildRunPlan
+    // requires the harness config var (here CLAUDE_CONFIG_DIR) to name a mount.
+    const previousClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = "/agenta/harness/claude";
+    let result;
+    try {
+      result = await runSandboxAgent(
+        {
+          harness: "claude",
+          messages: [{ role: "user", content: "hello" }],
+          credentialMode: "runtime_provided",
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+    } finally {
+      if (previousClaudeConfigDir === undefined)
+        delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previousClaudeConfigDir;
+    }
 
     assert.equal(result.ok, true);
     // runtime_provided -> keep the harness's own inherited env (do not clear).
-    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: false });
+    assert.equal(calls.daemonOptions?.clearProviderEnv, false);
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_BASE_URL, undefined);
+  });
+
+  it("passes the run's declared provider/deployment so the inherited keys narrow (RUN-SEC-1)", async () => {
+    const { calls, deps } = fakeHarness();
+
+    // A local runtime_provided run authenticates from a mounted subscription, so buildRunPlan
+    // requires the harness config var (here CLAUDE_CONFIG_DIR) to name a mount.
+    const previousClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = "/agenta/harness/claude";
+    let result;
+    try {
+      result = await runSandboxAgent(
+        {
+          harness: "claude",
+          messages: [{ role: "user", content: "hello" }],
+          credentialMode: "runtime_provided",
+          provider: "anthropic",
+          deployment: "bedrock",
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+    } finally {
+      if (previousClaudeConfigDir === undefined)
+        delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previousClaudeConfigDir;
+    }
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.daemonOptions?.provider, "anthropic");
+    assert.equal(calls.daemonOptions?.deployment, "bedrock");
   });
 });
 

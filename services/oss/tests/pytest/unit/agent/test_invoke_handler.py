@@ -322,10 +322,16 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
 
 
 async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
-    monkeypatch,
+    monkeypatch, fake_backend
 ):
+    # SVC-1 moved the (cheap, I/O-free) select_backend call AHEAD of the resolves, so the
+    # sandbox gate can reject a doomed run before it pays for tools/MCP/vault. This test used
+    # to assert "backend must not be selected"; selection is not setup. The invariant that
+    # matters — a failed tool resolve provisions NO sandbox and starts NO session — still holds.
     async def _failure(tools, **_kw):
         raise GatewayToolResolutionError("gateway unavailable")
+
+    backend = fake_backend(result=AgentResult(output="unused"))
 
     monkeypatch.setattr(app, "resolve_tools", _failure)
     monkeypatch.setattr(
@@ -342,13 +348,7 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
             ]
         ),
     )
-    monkeypatch.setattr(
-        app,
-        "select_backend",
-        lambda _selection: (_ for _ in ()).throw(
-            AssertionError("backend must not be selected")
-        ),
-    )
+    monkeypatch.setattr(app, "select_backend", lambda _selection: backend)
 
     with pytest.raises(GatewayToolResolutionError, match="gateway unavailable"):
         await app._agent(
@@ -356,6 +356,9 @@ async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
             messages=[{"role": "user", "content": "hi"}],
             parameters={"agent": {"harness": {"kind": "pi_core"}}},
         )
+
+    assert backend.setup_calls == 0
+    assert backend.created_configs == []
 
 
 # Slice 3: the config-stored connection drives resolution

@@ -21,11 +21,11 @@
 
 import { apiBase } from "../apiBase.ts";
 import type { AgentEvent } from "../protocol.ts";
+import type { Redactor } from "../redaction.ts";
 import { stableRecordId } from "./record-id.ts";
 
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
-
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/persist] ${msg}\n`);
@@ -67,7 +67,9 @@ async function postEvent(
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      log(`ingest OK session=${sessionId} idx=${eventIndex} type=${event.type}`);
+      log(
+        `ingest OK session=${sessionId} idx=${eventIndex} type=${event.type}`,
+      );
       return;
     } catch (err) {
       lastErr = err;
@@ -91,9 +93,13 @@ export function persistEvent(
   eventIndex: number,
   sender: string = "agent",
   recordId?: string,
+  redactor?: Redactor,
 ): void {
+  // Redact at the sink: the durable copy is scrubbed; the live/in-memory event the harness
+  // and the client stream still hold is untouched.
+  const durable = redactor ? redactor.redactJson(event, "records") : event;
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
-    postEvent(sessionId, auth, event, eventIndex, sender, recordId),
+    postEvent(sessionId, auth, durable, eventIndex, sender, recordId),
   );
   persistChains.set(sessionId, tail);
 }
@@ -138,6 +144,7 @@ export function buildPersistingEmitter(
   sessionId: string,
   auth: () => string,
   liveEmit?: (event: AgentEvent) => void,
+  redactor?: Redactor,
 ): {
   emit: (event: AgentEvent) => void;
   /** Persist an out-of-band record (e.g. the inbound user turn) through the same
@@ -147,17 +154,17 @@ export function buildPersistingEmitter(
 } {
   let eventIndex = 0;
   // Coalescing state: accumulate delta families into a single durable event.
-  const coalescedMessages = new Map<
-    string,
-    { id: string; text: string }
-  >();
+  const coalescedMessages = new Map<string, { id: string; text: string }>();
 
   // At most one open tool call at a time: its index is claimed when the call first
   // appears (so it sorts ahead of whatever flushes it), args are overwritten in place
   // while snapshots for the same id keep arriving, and it is persisted exactly once.
-  let openTool:
-    | { id: string; index: number; event: AgentEvent; timer: NodeJS.Timeout }
-    | null = null;
+  let openTool: {
+    id: string;
+    index: number;
+    event: AgentEvent;
+    timer: NodeJS.Timeout;
+  } | null = null;
 
   const flushOpenTool = (): void => {
     if (!openTool) return;
@@ -171,6 +178,7 @@ export function buildPersistingEmitter(
       index,
       "agent",
       stableRecordId(sessionId, id, "tool_call"),
+      redactor,
     );
   };
 
@@ -223,6 +231,9 @@ export function buildPersistingEmitter(
           auth,
           { type: "message", text: acc.text },
           eventIndex++,
+          "agent",
+          undefined,
+          redactor,
         );
         return;
       }
@@ -248,6 +259,9 @@ export function buildPersistingEmitter(
           auth,
           { type: "thought", text: acc.text },
           eventIndex++,
+          "agent",
+          undefined,
+          redactor,
         );
         return;
       }
@@ -266,18 +280,35 @@ export function buildPersistingEmitter(
         eventIndex++,
         "agent",
         stableRecordId(sessionId, event.id, event.type),
+        redactor,
       );
       return;
     }
 
     // All other events persist as-is.
-    persistEvent(sessionId, auth, event, eventIndex++);
+    persistEvent(
+      sessionId,
+      auth,
+      event,
+      eventIndex++,
+      "agent",
+      undefined,
+      redactor,
+    );
   };
 
   const persist = (event: AgentEvent, sender: string): void => {
     // Out-of-band records (the inbound user turn) still respect open-tool ordering.
     flushOpenTool();
-    persistEvent(sessionId, auth, event, eventIndex++, sender);
+    persistEvent(
+      sessionId,
+      auth,
+      event,
+      eventIndex++,
+      sender,
+      undefined,
+      redactor,
+    );
   };
 
   const flush = (): Promise<void> => {
