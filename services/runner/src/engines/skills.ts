@@ -69,13 +69,18 @@ const SKILL_BODY_MAX = 50_000;
 const SKILL_FILE_PATH_MAX = 255;
 const SKILL_FILE_CONTENT_MAX = 200_000;
 
-/** True when `skill.description`/`skill.body` are within the SDK's pydantic caps. */
+// pydantic's max_length counts Unicode code points (Python len(str)), not UTF-16 units like `.length`.
+function codePointLength(value: string): number {
+  return [...value].length;
+}
+
+/** True when `skill.description`/`skill.body` are within the SDK's pydantic caps (code points). */
 function isSafeSkillSize(skill: WireSkill): boolean {
   return (
     typeof skill.description === "string" &&
-    skill.description.length <= SKILL_DESCRIPTION_MAX &&
+    codePointLength(skill.description) <= SKILL_DESCRIPTION_MAX &&
     typeof skill.body === "string" &&
-    skill.body.length <= SKILL_BODY_MAX
+    codePointLength(skill.body) <= SKILL_BODY_MAX
   );
 }
 
@@ -88,7 +93,7 @@ function safeSkillFilePath(skillDir: string, relPath: unknown): string | null {
   if (
     typeof relPath !== "string" ||
     !relPath ||
-    relPath.length > SKILL_FILE_PATH_MAX ||
+    codePointLength(relPath) > SKILL_FILE_PATH_MAX ||
     relPath.startsWith("/") ||
     relPath.startsWith("\\")
   )
@@ -182,7 +187,7 @@ export function resolveSkillDirs(
           );
           continue;
         }
-        if ((file.content ?? "").length > SKILL_FILE_CONTENT_MAX) {
+        if (codePointLength(file.content ?? "") > SKILL_FILE_CONTENT_MAX) {
           log(
             `skipping oversized skill file ${JSON.stringify(file.path)} in skill "${skill.name}" ` +
               `(content<=${SKILL_FILE_CONTENT_MAX})`,

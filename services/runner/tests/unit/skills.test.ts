@@ -326,3 +326,65 @@ describe("resolveSkillDirs size caps (untrusted wire)", () => {
     assert.equal(logs.filter((m) => /unsafe skill file/.test(m)).length, 1);
   });
 });
+
+// RUN-SKILL-CAP-2: pydantic's `max_length` counts Unicode CODE POINTS (Python `len(str)`), not
+// UTF-16 code units. An astral character (e.g. an emoji) is 1 code point but 2 JS `.length` units,
+// so a naive `.length` cap rejects wire content the SDK would accept. 😀 (U+1F600) is one such
+// astral code point, used here to build exact code-point-boundary fixtures.
+describe("resolveSkillDirs size caps count CODE POINTS, not UTF-16 units", () => {
+  it("accepts a body within the cap by code points despite exceeding it by UTF-16 units (emoji-heavy)", () => {
+    // 50_000 emoji = 50_000 code points (at the cap) but 100_000 UTF-16 units (over a naive cap).
+    const body = "\u{1F600}".repeat(50_000);
+    assert.equal([...body].length, 50_000);
+    assert.equal(body.length, 100_000);
+    const out = materialize([{ ...SKILL, name: "emoji-body", body }]);
+    assert.deepEqual(
+      out.map((s) => s.name),
+      ["emoji-body"],
+    );
+  });
+
+  it("rejects a body genuinely over the cap by code points (one emoji past it)", () => {
+    const logs: string[] = [];
+    const body = "\u{1F600}".repeat(50_001);
+    assert.equal([...body].length, 50_001);
+    const out = materialize(
+      [{ ...SKILL, name: "emoji-body-over", body }],
+      (m: string) => logs.push(m),
+    );
+    assert.deepEqual(out, []);
+    assert.equal(logs.filter((m) => /exceeds the wire cap/.test(m)).length, 1);
+  });
+
+  it("accepts a description within the cap by code points (emoji-heavy)", () => {
+    const description = "\u{1F600}".repeat(1024);
+    assert.equal([...description].length, 1024);
+    assert.equal(description.length, 2048);
+    const out = materialize([{ ...SKILL, description }]);
+    assert.deepEqual(
+      out.map((s) => s.name),
+      ["release-notes"],
+    );
+  });
+
+  it("rejects a bundled file's content within the UTF-16 count but over the code-point cap boundary, and accepts one at the exact code-point cap", () => {
+    const logs: string[] = [];
+    const atCap = "\u{1F600}".repeat(200_000); // 200_000 code points, 400_000 UTF-16 units
+    const overCap = "\u{1F600}".repeat(200_001);
+    const [skill] = materialize(
+      [
+        {
+          ...SKILL,
+          files: [
+            { path: "at-cap.txt", content: atCap },
+            { path: "over-cap.txt", content: overCap },
+          ],
+        },
+      ],
+      (m: string) => logs.push(m),
+    );
+    assert.equal(readFileSync(join(skill.dir, "at-cap.txt"), "utf-8"), atCap);
+    assert.equal(existsSync(join(skill.dir, "over-cap.txt")), false);
+    assert.equal(logs.filter((m) => /oversized skill file/.test(m)).length, 1);
+  });
+});
