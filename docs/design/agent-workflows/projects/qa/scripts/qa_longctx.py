@@ -113,12 +113,15 @@ def discover_tools() -> list:
 GATEWAY_TOOLS = discover_tools()
 
 
+# gpt-5.6-luna/openai currently returns "The agent produced no output" on this deployment (a
+# regression under separate investigation), so the long-context probe runs on OpenRouter, which is
+# healthy. The harness and session-pool path are identical.
 def cell(sandbox: str) -> dict:
     return {
         "harness": "pi_core",
         "sandbox": sandbox,
-        "model": "gpt-5.6-luna",
-        "provider": "openai",
+        "model": "openrouter/deepseek/deepseek-v4-flash",
+        "provider": "openrouter",
     }
 
 
@@ -132,14 +135,6 @@ def params(sandbox: str, tools: list) -> dict:
         ),
         permission_default="allow",
     )
-
-
-def assistant(text: str) -> dict:
-    return {
-        "id": str(uuid.uuid4()),
-        "role": "assistant",
-        "parts": [{"type": "text", "text": text}],
-    }
 
 
 def probe_gmail(sandbox: str) -> dict:
@@ -178,7 +173,7 @@ def probe_memory(sandbox: str, turns: int) -> dict:
         )
     ]
     t = qa.invoke(s, msgs, p, timeout=420.0)
-    msgs.append(assistant(t.reply))
+    msgs.append(t.assistant_message())
     if t.errors:
         return {"pass": False, "why": "turn 1 (plant) errored", "turn": t.summary()}
 
@@ -195,7 +190,7 @@ def probe_memory(sandbox: str, turns: int) -> dict:
         q = filler[i % len(filler)]
         msgs.append(qa.user_msg(q))
         t = qa.invoke(s, msgs, p, timeout=420.0)
-        msgs.append(assistant(t.reply))
+        msgs.append(t.assistant_message())
         trace.append(
             {"turn": i + 2, "ms": t.ms, "tools": len(t.tool_calls), "err": t.errors[:1]}
         )
@@ -231,14 +226,14 @@ def probe_concurrent(sandbox: str, n: int = 3) -> dict:
         tok = tokens[i]
         msgs = [qa.user_msg(f"Remember this token: {tok}. Reply only: OK")]
         t = qa.invoke(s, msgs, p, timeout=420.0)
-        msgs.append(assistant(t.reply))
+        msgs.append(t.assistant_message())
         msgs.append(
             qa.user_msg(
                 "Fetch my 3 most recent emails with the Gmail tool and summarize them."
             )
         )
         t = qa.invoke(s, msgs, p, timeout=420.0)
-        msgs.append(assistant(t.reply))
+        msgs.append(t.assistant_message())
         msgs.append(
             qa.user_msg(
                 "What token did I ask you to remember? Reply with only the token."

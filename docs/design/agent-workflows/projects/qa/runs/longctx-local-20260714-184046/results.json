@@ -1,0 +1,95 @@
+{
+  "memory": {
+    "pass": true,
+    "why": "the token planted in turn 1 survived 14 tool-heavy turns (token=QA-MEM-0EF553A2C1C1)",
+    "token": "QA-MEM-0EF553A2C1C1",
+    "recalled": "QA-MEM-0EF553A2C1C1",
+    "flood": [
+      {
+        "turn": 2,
+        "ms": 14498,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 3,
+        "ms": 14236,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 4,
+        "ms": 39451,
+        "tools": 6,
+        "err": []
+      },
+      {
+        "turn": 5,
+        "ms": 12036,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 6,
+        "ms": 21077,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 7,
+        "ms": 22453,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 8,
+        "ms": 18821,
+        "tools": 3,
+        "err": []
+      },
+      {
+        "turn": 9,
+        "ms": 8831,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 10,
+        "ms": 12379,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 11,
+        "ms": 6631,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 12,
+        "ms": 10672,
+        "tools": 2,
+        "err": []
+      },
+      {
+        "turn": 13,
+        "ms": 7331,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 14,
+        "ms": 9580,
+        "tools": 1,
+        "err": []
+      },
+      {
+        "turn": 15,
+        "ms": 7632,
+        "tools": 1,
+        "err": []
+      }
+    ],
+    "session_id": "199f7d87-6e87-4383-9f6d-6963b9911198"
+  }
+}

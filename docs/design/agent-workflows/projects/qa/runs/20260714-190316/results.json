@@ -1,0 +1,160 @@
+{
+  "C2": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "daytona",
+      "model": "sonnet",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "self_managed",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "chat": {
+        "pass": false,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 143,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "error",
+            "finish-step",
+            "error",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.\"}",
+            "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "mount": {
+        "pass": false,
+        "why": "turn 1 never executed the write",
+        "turn_write": {
+          "http": 200,
+          "ms": 146,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "error",
+            "finish-step",
+            "error",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.\"}",
+            "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "tool": {
+        "pass": false,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 200,
+          "ms": 136,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "error",
+            "finish-step",
+            "error",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.\"}",
+            "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "approve": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 200,
+          "ms": 129,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "error",
+            "finish-step",
+            "error",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.\"}",
+            "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "deny": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 200,
+          "ms": 128,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "error",
+            "finish-step",
+            "error",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.\"}",
+            "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "warm": {
+        "pass": false,
+        "why": "turn 1 errored",
+        "turn": {
+          "http": 200,
+          "ms": 109,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "error",
+            "finish-step",
+            "error",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.\"}",
+            "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+          ],
+          "reply": ""
+        }
+      }
+    }
+  }
+}

@@ -113,6 +113,25 @@ Warm/cold looks healthy where measured: C3 4444ms -> 1166/1130ms; C4 12189ms -> 
 **OpenRouter as a native provider (P1) is fully green.** That answers one of the two provider
 questions.
 
+## Triage: product bug vs deployment artifact
+
+The question that decides what blocks the release. "Deployment-independent" means the defect is in
+code that behaves the same everywhere; it cannot be configured away.
+
+| # | Finding | Class | Reasoning |
+|---|---|---|---|
+| F-5 | `tool-input-available` streams a PARTIAL command; toolName flips case | **BUG, deployment-independent** | Pure wire behavior from `stream.py`. Same on every stack. |
+| F-6 | Permission Policy control does not govern Claude's builtins | **BUG, deployment-independent** | `claude_settings.py:134` only emits rules for MCP-delivered tools, never for Claude's own Bash/Write/Edit. Not configurable. |
+| F-8 | `/tools/discover` output is rejected by the agent config | **BUG, deployment-independent** | Schema contradiction: discovery attaches `input_schema`/`description`; `GatewayToolConfig` forbids extra keys. |
+| F-3 | Pi permission layer fails OPEN (ask/deny become no-ops) | **BUG (fail-open) + image-specific TRIGGER** | The `try/catch` swallow in `pi-assets.ts:349` is on every deployment. The trigger here is the image (no `/pi-agent`, non-root). Expect NOT to reproduce on our root-ful dev image — which does not make it safe: a read-only rootfs, a k8s securityContext, or a custom `PI_CODING_AGENT_DIR` re-arms it. **It was live on the stack we are shipping from.** |
+| F-7 | Daytona durable mount silently skipped -> files never persist | **BUG — RELEASE BLOCKER, hits every self-hoster on Daytona** | CONFIRMED, see below. Our dev stack structurally cannot reproduce it. |
+| F-1 | Mounts 503 -> agent runs in a throwaway `/tmp` cwd | FIXED (config) + BUG (fail-open) | Store was simply not deployed. The fail-open half is the same defect as F-3/F-7. |
+| F-9 | **Claude harness NEVER resumes its native session** (`mode=create`, always) | **BUG, deployment-independent — CONFIRMED on BOTH stacks** | See below. Reproduced on our own dev stack across 72h of real traffic: **96 claude sessions, 96 `mode=create`, ZERO `mode=load`**, and the `[continuity]` line never once names claude. `pi_core` on the same stack: 50 loads / 21 creates. This is the strongest candidate for the "long conversations lose information" report. |
+| F-10 | Daytona sandbox destroyed ~2s after a 120s park | **UNKNOWN — not config** | Config is byte-identical across both stacks (all Daytona vars empty -> code defaults). The runner has **no code path that deletes a parked sandbox** (`deleteSandbox` is defined and never called). Local Daytona sandboxes park correctly (`state: stopped`, autostop 15m). So the 1.8s destruction on bighetzner is a platform anomaly or a create->park race — needs a live re-test with tighter logging. |
+| — | Claude + Daytona rejects subscription auth | **BY DESIGN, well surfaced** | `"Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key … or run this harness on the local sandbox."` Not a bug. It does mean C2 genuinely needs a funded Anthropic key. |
+| F-11 | **Every Pi provider error is swallowed into "The agent produced no output."** | **REGRESSION (2 days old), deployment-independent — CONFIRMED, one-line fix** | See below. Commit `42075a5e9f` disarmed `findSwallowedPiError`. Dead key, exhausted quota, rate limit, bad model — all surface to the user as "no output". |
+| — | The OpenAI account is OUT OF QUOTA | **EXTERNAL — needs a top-up** | Pi's transcript: `"You exceeded your current quota…"`, `stopReason:"error"`, `totalTokens:0`. Affects EVERY OpenAI model, not `gpt-5.6-luna`. **Our own QA burned it.** No runaway spend. |
+
 ## Findings
 
 **F-1 (CONFIRMED, blocker) — no object store => mounts 503 => the agent silently loses every file.**
@@ -185,6 +204,70 @@ install, the run must error, not proceed.
 NOTE: all C-cell results below were obtained WITH the manual `/pi-agent` workaround applied to the
 running container. That workaround is lost on container recreate.
 
+**F-11 (CONFIRMED, regression from `42075a5e9f`, one-line fix) — every Pi provider error is
+swallowed and shown to the user as "The agent produced no output."**
+
+The OpenAI account is out of quota (external, needs a top-up — our own QA burned it). Pi recorded
+the real cause on disk:
+```json
+{"stopReason":"error","provider":"openai","model":"gpt-5.6-luna","usage":{"totalTokens":0},
+ "errorMessage":"You exceeded your current quota, please check your plan and billing details. …"}
+```
+The user saw: **"The agent produced no output."** The runner log said only
+`[sandbox-agent] prompt stopReason=end_turn`.
+
+The runner HAS a helper for exactly this — `findSwallowedPiError`
+(`services/runner/src/engines/sandbox_agent/pi-error.ts`, wired at `sandbox_agent.ts:2151`). It
+reads `join(piAgentDir, "sessions")` (`pi-error.ts:103`). But commit **`42075a5e9f` "fix(agent):
+persist Pi transcripts in session workspaces" (2026-07-13)** moved Pi's transcripts to
+`<cwd>/agents/sessions/pi/` (`pi-assets.ts:31-33`, `piSessionWorkspaceDir`) and **never updated the
+callsite**. On the live runner:
+```
+$ docker exec … ls /pi-agent/sessions
+ls: cannot access '/pi-agent/sessions': No such file or directory
+```
+`readdirSync` throws -> the helper returns `undefined` -> the engine falls through to the empty-turn
+path. **The error-surfacing mechanism was silently disarmed two days ago.**
+
+Fix: pass the transcript root, not the agent dir — `join(plan.cwd, "agents")`, so the existing
+`join(piAgentDir, "sessions")` resolves. Add a regression test asserting the callsite's dir matches
+`piSessionWorkspaceDir`. Note the Daytona path was never covered by this helper by design
+(`pi-error.ts:18-19`), so C4 keeps swallowing until the error is surfaced over ACP.
+
+Consequence for users: a dead key, an exhausted quota, a rate limit, or a bad model id all present
+as "the agent produced no output" — the single least actionable message we could show.
+
+**F-9 (CONFIRMED on both stacks, likely THE long-conversation bug) — the Claude harness never
+resumes its native session. Every turn is rebuilt from a lossy hand-rendered transcript.**
+
+Evidence from our OWN dev stack (not bighetzner), over 72h of real dogfooding traffic:
+
+| harness | `create_session mode=create` | `mode=load` |
+|---|---|---|
+| claude | **96** | **0** |
+| pi_core | 21 | 50 |
+
+and the `[continuity] session/load attempted … harness=…` line **never once names claude** (48
+`loaded=true` events, all `pi_core`). So this is not a bighetzner artifact and not our driver's
+history bug — the claude path never even *attempts* to reload its session.
+
+**Why this matters more than it looks.** There are two different mechanisms:
+- the **keepalive pool** (an in-memory warm process, TTL 60s) — Claude DOES hit this, which is why
+  our C1 warm journey passes (3847ms -> 1772ms);
+- **session load from disk** (`mode=load`) — resuming the harness's OWN native session. Claude
+  **never** does this.
+
+So the moment the 60s pool TTL lapses — or the runner restarts, or the pool evicts under load — a
+Claude conversation does not resume. It is reconstructed from the runner's hand-rendered
+transcript (`transcript.ts buildTurnText`), which **hard-truncates every tool result at 4000 chars**
+and blind tail-slices the whole history at 100k. Lossy, verbatim character deletion, re-applied on
+every cold turn.
+
+That is a very strong candidate for the reported "long conversations with lots of tool output lose
+information" — and it predicts the loss is **worse on Claude than on Pi**, which matches a
+tool-heavy Claude session degrading over time. Worth confirming with a long Claude conversation
+that crosses the 60s pool TTL between turns.
+
 **F-8 (open, DX blocker) — `/api/tools/discover` returns a tool object that the agent config
 REJECTS. The discover -> configure round trip is broken.**
 
@@ -226,6 +309,36 @@ Confirmed at the log level on the settled stack (session `226c563d`):
 ```
 And separately: `reconnect failed sandbox=daytona/… from state 'destroyed', creating fresh` — the
 Daytona sandbox is being destroyed between turns, so there is no fallback either.
+
+### Why this hits EVERY self-hoster, and why we could never have seen it in dev
+
+The full chain, all verified in the repo:
+
+1. A **remote** sandbox can mount the store directly only if the store is **publicly reachable**
+   (`mount.ts:181`). Otherwise the runner needs a **tunnel** (`mount.ts:505-537`).
+2. The tunnel is **ngrok**, and ngrok is a service in **`docker-compose.dev.yml` ONLY** — both
+   `gh` composes (OSS and EE — the ones self-hosters actually run) have **no tunnel service**.
+3. PR **#5315** ("bundle SeaweedFS store in gh.local and gh.ssl") just added the store to `gh`,
+   bound to **loopback** with **`traefik.enable=false`**:
+   ```yaml
+   ports:  ["${AGENTA_STORE_PORT:-127.0.0.1:8333}:8333"]
+   labels: ["traefik.enable=false"]
+   # "In-network services reach it directly at seaweedfs:8333, no publish needed."
+   ```
+   Correct for the API and runner. **A Daytona sandbox is not in-network.**
+4. So on a `gh` deployment + Daytona + the bundled store: sandbox cannot reach the store ->
+   tunnel discovery finds nothing -> `mount.ts` **skips the mount, "not fatal"** -> the agent runs
+   in an unbacked directory -> **every file it writes is lost**, silently, with a normal-looking UI.
+
+**The fix for F-1 (bundling the store) is what makes F-7 universal.** And the reason it survived
+until now: **dev ships ngrok, `gh` does not** — our development environment contains a component
+our shipping environment lacks, so this class of bug is invisible to us by construction. That is
+the process finding, and it is worth more than the bug.
+
+Options: publish the store to the sandbox (route it through Traefik with auth), ship a tunnel in
+`gh`, document "Daytona requires a publicly reachable S3", or — at minimum, and regardless —
+**stop failing open**: a remote sandbox that cannot attach its durable mount must ERROR, not
+silently degrade to an ephemeral cwd.
 
 C4 (pi_core / **daytona**) failed the mount journey while C3 (pi_core / **local**) passed it, same
 driver, same model. Turn 1 wrote a token to `qa-mount.txt` and reported WROTE; turn 2's `cat` came

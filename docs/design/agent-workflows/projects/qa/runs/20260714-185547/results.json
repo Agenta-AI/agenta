@@ -1,0 +1,55 @@
+{
+  "P1": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    "journeys": {
+      "chat": {
+        "pass": true,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 4847,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [],
+          "reply": "PONG"
+        }
+      }
+    }
+  }
+}

@@ -43,6 +43,11 @@ regexes = [
   # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev
   # env examples. Decodes to "this-is-a-signing-key-for-mounts" — not a real secret.
   '''dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=''',
+  # ------------------------------------------------------ QA SYNTHETIC CANARIES
+  # Synthetic canary tokens the agent-runtime QA probes plant and recall to test
+  # memory/compaction (e.g. QA-MEM-0EF553A2C1C1, QA-CONC0-1A2B3C4D). They land in
+  # the runs/**/results.json evidence files — random-looking but NOT secrets.
+  '''QA-[A-Z]+[0-9]?-[0-9A-Fa-f]{8,}''',
   # ----------------------------------------------------------------------------
 ]
 

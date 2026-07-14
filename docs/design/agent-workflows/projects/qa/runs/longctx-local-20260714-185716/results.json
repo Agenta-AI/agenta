@@ -1,0 +1,24 @@
+{
+  "memory": {
+    "pass": false,
+    "why": "turn 1 (plant) errored",
+    "turn": {
+      "http": 200,
+      "ms": 7187,
+      "finish": "stop",
+      "frames": [
+        "start",
+        "start-step",
+        "finish-step",
+        "error",
+        "finish"
+      ],
+      "tools": [],
+      "approval": false,
+      "errors": [
+        "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+      ],
+      "reply": ""
+    }
+  }
+}

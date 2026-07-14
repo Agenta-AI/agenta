@@ -1,0 +1,234 @@
+{
+  "C1": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "local",
+      "model": "sonnet",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "self_managed",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "chat": {
+        "pass": true,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 3759,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [],
+          "reply": "PONG"
+        }
+      },
+      "mount": {
+        "pass": true,
+        "why": "turn 2 read the token back from the mounted cwd (token=QA-MOUNT-88c74f439e)",
+        "turn_write": {
+          "http": 200,
+          "ms": 7691,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        },
+        "turn_read": {
+          "http": 200,
+          "ms": 3005,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-MOUNT-88c74f439e"
+        }
+      },
+      "tool": {
+        "pass": true,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 200,
+          "ms": 6543,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-BASH-cf2938e7332e-x86_64"
+        }
+      },
+      "approve": {
+        "pass": true,
+        "why": "approved: the gated command executed after approval (outcome=available, paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 4445,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 1276,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        }
+      },
+      "deny": {
+        "pass": true,
+        "why": "denied: the gated command never executed (outcome=error)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 5429,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 1584,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-output-error",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "I wasn't able to run that \u2014 the tool call was refused."
+        }
+      },
+      "warm": {
+        "pass": true,
+        "why": "turn1=3847ms, turn2=3266ms, turn3=1772ms (warm gain 2075ms)",
+        "session_id": "4ad910a2-8ff2-410d-81da-5a171f711bb9",
+        "times_ms": [
+          3847,
+          3266,
+          1772
+        ]
+      }
+    }
+  }
+}

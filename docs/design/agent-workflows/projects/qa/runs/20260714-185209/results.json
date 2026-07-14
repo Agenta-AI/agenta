@@ -1,0 +1,39 @@
+{
+  "C1": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "local",
+      "model": "sonnet",
+      "provider": "anthropic"
+    },
+    "journeys": {
+      "chat": {
+        "pass": false,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 2516,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "text-start",
+            "text-delta",
+            "error",
+            "text-end",
+            "error",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"claude: the model provider account has insufficient credit (check the project's Anthropic key).\"}",
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: claude: the model provider account has insufficient credit (check the project's Anthropic key).\"}"
+          ],
+          "reply": "Credit balance is too low"
+        }
+      }
+    }
+  }
+}

@@ -57,12 +57,16 @@ CELLS = {
         "sandbox": "local",
         "model": "sonnet",
         "provider": "anthropic",
+        # SUBSCRIPTION (OAuth), not the vault key: the project's Anthropic key is out of credit,
+        # and "Use subscription" is what the playground defaults to anyway.
+        "connection": {"mode": "self_managed", "slug": None},
     },
     "C2": {
         "harness": "claude",
         "sandbox": "daytona",
         "model": "sonnet",
         "provider": "anthropic",
+        "connection": {"mode": "self_managed", "slug": None},
     },
     "C3": {
         "harness": "pi_core",
@@ -204,6 +208,16 @@ class Turn:
         # one), so "did the tool run?" MUST be asked of the specific gated call, never of the
         # turn as a whole.
         self.tool_outcomes: dict[str, str] = {}
+        # The PAYLOAD behind each outcome (output value or errorText), keyed by toolCallId.
+        # Needed to replay a byte-faithful assistant UIMessage: the AI SDK ships the tool's
+        # output back to the server on every subsequent turn's history, and the runner's
+        # history fingerprint (session-pool.ts historyFingerprint) hashes tool-call ids out of
+        # that history. A text-only replay drops them -> mismatch -> warm session evicted.
+        self.tool_payloads: dict[str, dict] = {}
+        # Parts in the ORDER the model actually produced them (mirrors AI SDK
+        # `UIMessage.parts` arrival order): a list of {"kind": "text", "text": str} |
+        # {"kind": "tool", "id": toolCallId}, consumed by assistant_message().
+        self._segments: list[dict] = []
         self.finish_reason: str | None = None
         self.errors: list[str] = []
         self.committed_revision: dict | None = None
@@ -213,6 +227,53 @@ class Turn:
     @property
     def reply(self) -> str:
         return "".join(self.text).strip()
+
+    def assistant_message(self) -> dict:
+        """Rebuild this turn's reply as a FULL Vercel UIMessage — text AND tool parts, in the
+        order the model produced them — so replaying it as history is byte-faithful to what the
+        real frontend (AI SDK `useChat`) sends back on the next turn (`agentRequest.ts:401`).
+
+        A text-only replay drops the assistant's tool parts, and the runner's history
+        fingerprint (`session-pool.ts` `historyFingerprint`) hashes the ordered, deduped
+        tool-call ids out of that history. Missing ids -> `mismatch (history)` on the next
+        turn -> the warm session is EVICTED and every following turn runs cold. See
+        `sdks/python/agenta/sdk/agents/adapters/vercel/messages.py` `_tool_part_blocks` for
+        the exact states the server accepts on ingest — this mirrors them precisely:
+        "output-available" + output, "output-error" + errorText, "output-denied" (no payload,
+        read by `_approval_decision`'s state fallback as an inline deny).
+        """
+        by_id = {c["toolCallId"]: c for c in self.tool_calls}
+        parts: list[dict] = []
+        for seg in self._segments:
+            if seg["kind"] == "text":
+                if seg["text"]:
+                    parts.append({"type": "text", "text": seg["text"]})
+                continue
+            call = by_id.get(seg["id"], {})
+            part = {
+                "type": f"tool-{call.get('toolName') or 'tool'}",
+                "toolCallId": seg["id"],
+                "input": call.get("input") or {},
+            }
+            outcome = self.tool_outcomes.get(seg["id"])
+            payload = self.tool_payloads.get(seg["id"], {})
+            if outcome == "available":
+                part["state"] = "output-available"
+                part["output"] = payload.get("output")
+            elif outcome == "error":
+                part["state"] = "output-error"
+                part["errorText"] = payload.get("errorText")
+            elif outcome == "denied":
+                part["state"] = "output-denied"
+            else:
+                # No outcome landed within this turn (e.g. a call still awaiting an approval
+                # decision) — mirror the AI SDK's in-flight tool-part state so the id still
+                # rides the history, without fabricating a result it never produced.
+                part["state"] = "input-available"
+            parts.append(part)
+        if not parts:
+            parts.append({"type": "text", "text": self.reply})
+        return {"id": str(uuid.uuid4()), "role": "assistant", "parts": parts}
 
     def summary(self) -> dict:
         return {
@@ -268,7 +329,15 @@ def invoke(
                 ftype = f.get("type", "?")
                 t.frames.append(ftype)
                 if ftype == "text-delta":
-                    t.text.append(f.get("delta", ""))
+                    delta = f.get("delta", "")
+                    t.text.append(delta)
+                    # Coalesce consecutive text-delta frames into ONE running text segment;
+                    # a tool call between two text runs starts a NEW segment (see below), so
+                    # this reproduces the AI SDK's interleaved part order.
+                    if t._segments and t._segments[-1]["kind"] == "text":
+                        t._segments[-1]["text"] += delta
+                    else:
+                        t._segments.append({"kind": "text", "text": delta})
                 elif ftype == "tool-input-available":
                     # CAREFUL: this frame is emitted REPEATEDLY for one tool call, carrying a
                     # progressively-built PARTIAL input, and `toolName` changes case along the way
@@ -281,9 +350,17 @@ def invoke(
                         "toolName": f.get("toolName"),
                         "input": f.get("input"),
                     }
+                    is_new_call = not any(
+                        c["toolCallId"] == call["toolCallId"] for c in t.tool_calls
+                    )
                     t.tool_calls = [
                         c for c in t.tool_calls if c["toolCallId"] != call["toolCallId"]
                     ] + [call]
+                    # Segment position is fixed at FIRST appearance (when the call starts),
+                    # never moved by later partial-input updates — that's when the AI SDK
+                    # would have inserted the tool part into UIMessage.parts.
+                    if is_new_call:
+                        t._segments.append({"kind": "tool", "id": call["toolCallId"]})
                 elif ftype == "tool-approval-request":
                     t.approval = {
                         "approvalId": f.get("approvalId"),
@@ -297,6 +374,10 @@ def invoke(
                     tcid = f.get("toolCallId")
                     if tcid:
                         t.tool_outcomes[tcid] = ftype.replace("tool-output-", "")
+                        if ftype == "tool-output-available":
+                            t.tool_payloads[tcid] = {"output": f.get("output")}
+                        elif ftype == "tool-output-error":
+                            t.tool_payloads[tcid] = {"errorText": f.get("errorText")}
                 elif ftype == "data-committed-revision":
                     t.committed_revision = f.get("data")
                 elif ftype == "error":
@@ -440,13 +521,7 @@ def j6_warm(cell: dict) -> dict:
         msgs = msgs + [user_msg(q)]
         t = invoke(s, msgs, params)
         times.append(t.ms)
-        msgs = msgs + [
-            {
-                "id": str(uuid.uuid4()),
-                "role": "assistant",
-                "parts": [{"type": "text", "text": t.reply}],
-            }
-        ]
+        msgs = msgs + [t.assistant_message()]
         if t.errors:
             return {"pass": False, "why": f"turn {i + 1} errored", "turn": t.summary()}
     warm_gain = times[0] - min(times[1], times[2])
@@ -488,11 +563,7 @@ def j2_mount(cell: dict) -> dict:
         }
 
     msgs = msgs + [
-        {
-            "id": str(uuid.uuid4()),
-            "role": "assistant",
-            "parts": [{"type": "text", "text": t1.reply}],
-        },
+        t1.assistant_message(),
         user_msg(
             "Use bash to run exactly: cat qa-mount.txt  and reply with only its stdout."
         ),
