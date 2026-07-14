@@ -796,7 +796,10 @@ function SubscriptionForm({
             .then((samples) => {
                 if (!cancelled) setRecentSamples(samples)
             })
-            .catch(() => {})
+            .catch(() => {
+                // A fetch failure must not render as "no events captured yet" (WEB-2).
+                if (!cancelled) message.error("Couldn't load recent events")
+            })
         return () => {
             cancelled = true
         }

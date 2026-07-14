@@ -71,12 +71,6 @@ class FolderDBE(
             "kind",
             postgresql_using="btree",
         ),
-        Index(
-            "ix_folders_project_path",
-            "project_id",
-            "path",
-            postgresql_using="btree",
-        ),
     )
 
     parent_id = Column(

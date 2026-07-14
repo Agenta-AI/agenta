@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List, Union, TYPE_CHECKING
+from typing import Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import httpx
@@ -432,6 +432,7 @@ class WorkflowsService:
         project_id: UUID,
         revision: WorkflowRevision,
         include_archived: Optional[bool] = True,
+        workflow: Optional[Workflow] = None,
     ) -> WorkflowRevision:
         if revision.data and not revision.data.url and revision.data.uri:
             path = infer_url_from_uri(revision.data.uri)
@@ -447,13 +448,16 @@ class WorkflowsService:
         if revision.version == "0":
             return revision
 
-        workflow = await self.fetch_workflow(
-            project_id=project_id,
-            #
-            workflow_ref=Reference(id=revision.workflow_id),
-            #
-            include_archived=include_archived,
-        )
+        # Callers fanning out over many revisions pass the workflow already
+        # resolved (deduped by workflow_id) to avoid a fetch per revision.
+        if workflow is None:
+            workflow = await self.fetch_workflow(
+                project_id=project_id,
+                #
+                workflow_ref=Reference(id=revision.workflow_id),
+                #
+                include_archived=include_archived,
+            )
 
         merged_flags = self._merge_workflow_flags(
             artifact_flags=workflow.flags if workflow else None,
@@ -1812,6 +1816,19 @@ class WorkflowsService:
 
         _workflow_revisions = []
 
+        # Fetch each distinct workflow once, not once per revision. `revisions` is the
+        # plain git Revision DTO here (artifact_id), not yet the WorkflowRevision alias.
+        workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
+        for revision in revisions:
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
+                    project_id=project_id,
+                    #
+                    workflow_ref=Reference(id=revision.artifact_id),
+                    #
+                    include_archived=include_archived,
+                )
+
         for revision in revisions:
             workflow_revision = await self._normalize_revision_for_read(
                 project_id=project_id,
@@ -1819,6 +1836,7 @@ class WorkflowsService:
                     **revision.model_dump(mode="json"),
                 ),
                 include_archived=include_archived,
+                workflow=workflows_by_id[revision.artifact_id],
             )
             if not self._matches_requested_flags(
                 actual_flags=workflow_revision.flags,
@@ -2020,6 +2038,19 @@ class WorkflowsService:
 
         _workflow_revisions = []
 
+        # Fetch each distinct workflow once, not once per revision. `revisions` is the
+        # plain git Revision DTO here (artifact_id), not yet the WorkflowRevision alias.
+        workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
+        for revision in revisions:
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
+                    project_id=project_id,
+                    #
+                    workflow_ref=Reference(id=revision.artifact_id),
+                    #
+                    include_archived=include_archived,
+                )
+
         for revision in revisions:
             _workflow_revisions.append(
                 await self._normalize_revision_for_read(
@@ -2028,6 +2059,7 @@ class WorkflowsService:
                         **revision.model_dump(mode="json"),
                     ),
                     include_archived=include_archived,
+                    workflow=workflows_by_id[revision.artifact_id],
                 )
             )
 

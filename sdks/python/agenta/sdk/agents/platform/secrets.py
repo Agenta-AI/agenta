@@ -112,9 +112,10 @@ async def resolve_provider_keys(
     ``custom_provider`` secrets). It is superseded by
     :func:`agenta.sdk.agents.platform.resolve_connection` /
     :class:`agenta.sdk.agents.platform.VaultConnectionResolver`, which resolve exactly one
-    least-privilege connection and fail loud. Kept callable here only because the running agent
-    service still calls it via ``resolve_secrets`` in ``services/oss/src/agent/app.py``; removing
-    that call site (and this function) is Slice 3, so each slice stays green.
+    least-privilege connection and fail loud. The agent ``/invoke`` path no longer calls it —
+    ``services/oss/src/agent/app.py`` resolves one connection via ``resolve_connection``. It is
+    kept callable only for the deprecated re-export in ``services/oss/src/agent/secrets.py`` and
+    its integration test; removing both (and this function) is Slice 3.
     """
     connection = connection or PlatformConnection()
     api_base = connection.base_url()

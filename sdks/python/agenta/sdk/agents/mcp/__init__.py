@@ -3,6 +3,7 @@
 from .errors import (
     MCPConfigurationError,
     MCPError,
+    MCPServerURLBlockedError,
     MissingMCPSecretError,
 )
 from .interfaces import MCPSecretProvider
@@ -35,5 +36,6 @@ __all__ = [
     "mcp_servers_to_wire",
     "MCPError",
     "MCPConfigurationError",
+    "MCPServerURLBlockedError",
     "MissingMCPSecretError",
 ]

@@ -413,18 +413,35 @@ export interface PoolScope {
 }
 
 /**
- * The pool key: `<projectId>:<sessionId>`. The project scope is PREFERRED from the run context the
- * service stamps server-side (`runContext.project.id`), and FALLS BACK to the mount's owning
- * project id when the run context carries none. Provider separation does not need another key
- * segment: providers have separate pools, and `configFingerprint` includes `request.sandbox`.
- * The run-context id is the trustworthy source: the
- * service derives it from its own request state (never from a caller-supplied wire field), so it
- * does not depend on a durable mount existing. The mount scope stays as the fallback for the
- * transition and for runs without a stamped project.
+ * The project scope for a run: PREFERRED from the run context the service stamps server-side
+ * (`runContext.project.id`), FALLING BACK to the mount's owning project id when the run context
+ * carries none. The run-context id is the trustworthy source: the service derives it from its own
+ * request state (never from a caller-supplied wire field), so it does not depend on a durable
+ * mount existing. The mount scope stays as the fallback for the transition and for runs without a
+ * stamped project. Returns undefined when NEITHER source yields a scope.
  *
- * Returns null when there is no session id, or when NEITHER source yields a project scope — such a
- * request MUST NOT park (there is no safe key that separates callers), and the dispatch runs it
- * fully cold. This no-scope-no-park rule is the keep-alive safety invariant and is unchanged.
+ * This is the single precedence rule other project-scoped decisions (the pool key, the in-flight
+ * sandbox kill filter) must reuse rather than re-deriving, so they agree by construction.
+ */
+export function projectScopeFor(
+  request: Pick<AgentRunRequest, "runContext">,
+  mountProjectId: string | undefined,
+): { id: string; source: PoolScopeSource } | undefined {
+  const runContextProject = request.runContext?.project?.id?.trim();
+  if (runContextProject) return { id: runContextProject, source: "run-context" };
+  const mount = mountProjectId?.trim();
+  if (mount) return { id: mount, source: "mount" };
+  return undefined;
+}
+
+/**
+ * The pool key: `<projectId>:<sessionId>`. Provider separation does not need another key segment:
+ * providers have separate pools, and `configFingerprint` includes `request.sandbox`.
+ *
+ * Returns null when there is no session id, or when `projectScopeFor` yields no project scope —
+ * such a request MUST NOT park (there is no safe key that separates callers), and the dispatch
+ * runs it fully cold. This no-scope-no-park rule is the keep-alive safety invariant and is
+ * unchanged.
  */
 export function poolKeyFor(
   request: AgentRunRequest,
@@ -432,13 +449,9 @@ export function poolKeyFor(
 ): PoolScope | null {
   const sessionId = request.sessionId?.trim();
   if (!sessionId) return null;
-  const runContextProject = request.runContext?.project?.id?.trim();
-  if (runContextProject) {
-    return { key: `${runContextProject}:${sessionId}`, source: "run-context" };
-  }
-  const mount = mountProjectId?.trim();
-  if (mount) return { key: `${mount}:${sessionId}`, source: "mount" };
-  return null;
+  const scope = projectScopeFor(request, mountProjectId);
+  if (!scope) return null;
+  return { key: `${scope.id}:${sessionId}`, source: scope.source };
 }
 
 // --- The pool --------------------------------------------------------------- //

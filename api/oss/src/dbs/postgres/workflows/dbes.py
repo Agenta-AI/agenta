@@ -37,11 +37,6 @@ class WorkflowArtifactDBE(Base, ProjectScopeDBA, ArtifactDBA):
             ondelete="SET NULL",
         ),
         Index(
-            "ix_workflow_artifacts_project_id_slug",
-            "project_id",
-            "slug",
-        ),
-        Index(
             "ix_workflow_artifacts_folder_id",
             "folder_id",
         ),
@@ -69,11 +64,6 @@ class WorkflowVariantDBE(Base, ProjectScopeDBA, VariantDBA):
             ["project_id", "artifact_id"],
             ["workflow_artifacts.project_id", "workflow_artifacts.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_workflow_variants_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_workflow_variants_project_id_artifact_id",
@@ -117,11 +107,6 @@ class WorkflowRevisionDBE(Base, ProjectScopeDBA, RevisionDBA):
             ["project_id", "variant_id"],
             ["workflow_variants.project_id", "workflow_variants.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_workflow_revisions_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_workflow_revisions_project_id_artifact_id",

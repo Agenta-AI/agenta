@@ -1,10 +1,10 @@
-"""The runner HTTP transport sends the optional shared-token header (Codex LOW-5).
+"""The runner HTTP transport sends the REQUIRED shared-token header.
 
-The runner's ``/run`` endpoint has an opt-in shared-token gate (``AGENTA_RUNNER_TOKEN``,
-default OFF; see ``services/runner/src/server.ts``). When the operator turns it on, an un-tokened
-POST from the co-located Python service is rejected with 401. These tests pin the Python side of
-that contract: ``deliver_http_result`` / ``deliver_http_stream`` attach ``Authorization: Bearer
-<token>`` when the same env var is set, and send no auth header when it is not (loopback default).
+``AGENTA_RUNNER_TOKEN`` is required on both sides: the runner refuses to start without it
+(``services/runner/src/config/runner-config.ts``) and rejects an un-tokened POST with 401. There is
+no unauthenticated mode. These tests pin the Python side: ``deliver_http_result`` /
+``deliver_http_stream`` attach ``Authorization: Bearer <token>`` when the env var is set, and RAISE
+when it is not — surfacing one clear message instead of an opaque 401 from the sidecar.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import json
 from typing import Any, Dict, List
 
 import httpx
+import pytest
 
 from agenta.sdk.agents.utils.ts_runner import (
     _runner_auth_headers,
@@ -87,9 +88,19 @@ def _fake_stream_client(capture: Dict[str, Any], *, lines: List[str]):
 # --- _runner_auth_headers (pure, env-driven) -------------------------------
 
 
-def test_auth_headers_absent_by_default(monkeypatch):
+def test_auth_headers_raise_when_token_unset(monkeypatch):
+    # The token is required, so a missing one is a configuration error we surface here — not a
+    # silent un-tokened request that the runner would answer with an opaque 401.
     monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
-    assert _runner_auth_headers() == {}
+    with pytest.raises(RuntimeError, match="AGENTA_RUNNER_TOKEN is required"):
+        _runner_auth_headers()
+
+
+def test_auth_headers_raise_when_token_blank(monkeypatch):
+    # An empty/whitespace value is "unset" at this boundary (compose renders an unset var as "").
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "   ")
+    with pytest.raises(RuntimeError, match="AGENTA_RUNNER_TOKEN is required"):
+        _runner_auth_headers()
 
 
 def test_auth_headers_present_when_token_set(monkeypatch):
@@ -99,8 +110,8 @@ def test_auth_headers_present_when_token_set(monkeypatch):
 
 def test_auth_headers_read_per_call(monkeypatch):
     # Read fresh each call (not cached at import), so a runtime env flip takes effect.
-    monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
-    assert _runner_auth_headers() == {}
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "first")
+    assert _runner_auth_headers() == {"Authorization": "Bearer first"}
     monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "later")
     assert _runner_auth_headers() == {"Authorization": "Bearer later"}
 
@@ -122,16 +133,19 @@ async def test_deliver_http_sends_bearer_when_token_set(monkeypatch):
     assert capture["url"] == "http://runner:8765/run"
 
 
-async def test_deliver_http_no_auth_header_when_unset(monkeypatch):
+async def test_deliver_http_raises_when_token_unset(monkeypatch):
+    # Fails before the request is issued: `capture` stays empty, so we never send an un-tokened
+    # POST the runner would only answer with 401.
     monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     capture: Dict[str, Any] = {}
     monkeypatch.setattr(
         httpx, "AsyncClient", _fake_post_client(capture, payload={"ok": True})
     )
 
-    await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
+    with pytest.raises(RuntimeError, match="AGENTA_RUNNER_TOKEN is required"):
+        await deliver_http_result("http://runner:8765", {"harness": "pi_core"})
 
-    assert "Authorization" not in capture["headers"]
+    assert capture == {}
 
 
 # --- deliver_http_stream (NDJSON) ------------------------------------------
@@ -156,18 +170,19 @@ async def test_deliver_http_stream_sends_bearer_and_keeps_accept(monkeypatch):
     assert capture["headers"].get("Accept") == "application/x-ndjson"
 
 
-async def test_deliver_http_stream_no_auth_header_when_unset(monkeypatch):
+async def test_deliver_http_stream_raises_when_token_unset(monkeypatch):
+    # Same contract on the streaming transport: raise before opening the stream.
     monkeypatch.delenv("AGENTA_RUNNER_TOKEN", raising=False)
     capture: Dict[str, Any] = {}
     lines = [json.dumps({"kind": "result", "result": {"ok": True}})]
     monkeypatch.setattr(httpx, "AsyncClient", _fake_stream_client(capture, lines=lines))
 
-    _ = [
-        record
-        async for record in deliver_http_stream(
-            "http://runner:8765", {"harness": "pi_core"}
-        )
-    ]
+    with pytest.raises(RuntimeError, match="AGENTA_RUNNER_TOKEN is required"):
+        _ = [
+            record
+            async for record in deliver_http_stream(
+                "http://runner:8765", {"harness": "pi_core"}
+            )
+        ]
 
-    assert "Authorization" not in capture["headers"]
-    assert capture["headers"].get("Accept") == "application/x-ndjson"
+    assert capture == {}

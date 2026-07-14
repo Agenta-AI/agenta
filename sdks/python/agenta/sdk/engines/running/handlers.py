@@ -16,6 +16,7 @@ import httpx
 
 from pydantic import BaseModel, Field
 
+from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.lazy import (
     _load_litellm,
@@ -79,7 +80,7 @@ _HOOK_ALLOW_INSECURE = (
     or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
     or "false"
-).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+).lower() in TRUTHY
 
 if not _HOOK_ALLOW_INSECURE:
     log.info(

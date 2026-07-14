@@ -24,9 +24,15 @@ afterEach(() => {
   else process.env[PUBLIC_ENV] = previousPublic;
 });
 
+/** The runner requires a token to serve, so configure one and present it: this suite is about the
+ * request-scoped api base, not about auth. */
+const TEST_TOKEN = "test-runner-token";
+const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
+
 async function listen(
   run: RunAgent,
 ): Promise<{ url: string; close: () => Promise<void> }> {
+  process.env.AGENTA_RUNNER_TOKEN = TEST_TOKEN;
   const server = createAgentServer(run);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -58,14 +64,14 @@ describe("apiBase (request-scoped, not a process-global first-write-wins pin)", 
     try {
       const first = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: JSON.stringify(requestWithOtlpBase("http://first.internal")),
       });
       await first.text();
 
       const second = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: JSON.stringify(requestWithOtlpBase("http://second.internal")),
       });
       await second.text();
@@ -95,7 +101,7 @@ describe("apiBase (request-scoped, not a process-global first-write-wins pin)", 
     try {
       const first = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: JSON.stringify(requestWithOtlpBase("http://first.internal")),
       });
       await first.text();
@@ -104,7 +110,7 @@ describe("apiBase (request-scoped, not a process-global first-write-wins pin)", 
       // first request's inferred base.
       const second = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: JSON.stringify({}),
       });
       await second.text();

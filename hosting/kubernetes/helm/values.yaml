@@ -38,6 +38,7 @@ agenta:
   # ================================================================ #
   authKey: "replace-me"
   cryptKey: "replace-me"
+  runnerToken: "replace-me"
 
 # ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so the

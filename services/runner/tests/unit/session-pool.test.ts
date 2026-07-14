@@ -537,6 +537,40 @@ describe("poolKeyFor", () => {
       null,
     );
   });
+  it("the same sessionId under different projects produces different keys (kill scoping)", () => {
+    // Backs the /kill contract: a same-session-id-different-project entry must not collide.
+    const a = poolKeyFor(
+      { sessionId: "s1", runContext: { project: { id: "proj-a" } } },
+      undefined,
+    );
+    const b = poolKeyFor(
+      { sessionId: "s1", runContext: { project: { id: "proj-b" } } },
+      undefined,
+    );
+    assert.notEqual(a?.key, b?.key);
+  });
+});
+
+describe("SessionPool destroy scoping (backs the /kill contract)", () => {
+  it("destroying one project's key leaves a same-session-id different-project key parked", async () => {
+    const pool = new SessionPool({ poolMax: 4 }, () => {});
+    const a = parkInput("proj-a:s1");
+    const b = parkInput("proj-b:s1");
+    await pool.park(a.input, 10_000);
+    await pool.park(b.input, 10_000);
+    assert.equal(pool.size(), 2);
+
+    await pool.destroy("proj-a:s1", "kill");
+
+    assert.equal(a.env.state.destroyed, 1, "the scoped key was destroyed");
+    assert.equal(
+      b.env.state.destroyed,
+      0,
+      "a same-session-id different-project key survives",
+    );
+    assert.equal(pool.get("proj-a:s1"), undefined);
+    assert.ok(pool.get("proj-b:s1"));
+  });
 });
 
 describe("SessionPool", () => {
@@ -1051,11 +1085,11 @@ describe("SessionPool", () => {
 
   it("destroyAll drains every parked session", async () => {
     const pool = new SessionPool({ poolMax: 8 }, () => {});
-    const envs = ["a", "b", "c"].map((k) => {
-      const p = parkInput(k);
-      pool.park(p.input, 10_000);
-      return p.env;
-    });
+    const inputs = ["a", "b", "c"].map((k) => parkInput(k));
+    for (const p of inputs) {
+      await pool.park(p.input, 10_000);
+    }
+    const envs = inputs.map((p) => p.env);
     assert.equal(pool.size(), 3);
     await pool.destroyAll(5000, "shutdown-idle", "shutdown-in-flight");
     assert.equal(pool.size(), 0);
@@ -1090,5 +1124,23 @@ describe("SessionPool", () => {
     await pool.destroyAll(5000, "kill", "kill");
     assert.deepEqual(idle.env.state.reasons, ["kill"]);
     assert.deepEqual(busy.env.state.reasons, ["kill"]);
+  });
+
+  it("destroy(key, 'kill') tears down only the named tenant's session — a scoped /kill", async () => {
+    // Regression for RUN-SEC-3: a scoped /kill must destroy exactly the caller's own
+    // `<projectId>:<sessionId>` pool entry and leave every other tenant's parked session alone.
+    const pool = new SessionPool({ poolMax: 8 }, () => {});
+    const tenantA = parkInput("proj-a:sess-1");
+    const tenantB = parkInput("proj-b:sess-1");
+    await pool.park(tenantA.input, 10_000);
+    await pool.park(tenantB.input, 10_000);
+    assert.equal(pool.size(), 2);
+
+    await pool.destroy("proj-a:sess-1", "kill");
+
+    assert.equal(pool.size(), 1, "only tenant A's entry was removed");
+    assert.deepEqual(tenantA.env.state.reasons, ["kill"]);
+    assert.equal(tenantB.env.state.destroyed, 0, "tenant B is untouched");
+    assert.equal(pool.get("proj-b:sess-1")?.environment, tenantB.env);
   });
 });

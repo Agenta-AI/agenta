@@ -1,16 +1,18 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
+    TriggerDeliveryData,
     TriggerDeliveryQuery,
     TriggerSchedule,
     TriggerScheduleCreate,
@@ -367,6 +369,104 @@ class TriggersDAO(TriggersDAOInterface):
             delivery_dbe=delivery_dbe,
         )
 
+    async def claim_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery: TriggerDeliveryCreate,
+    ) -> Optional[TriggerDelivery]:
+        delivery_dbe = map_delivery_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            delivery=delivery,
+        )
+
+        by_schedule = delivery.subscription_id is None
+
+        index_elements = (
+            ["project_id", "schedule_id", "event_id"]
+            if by_schedule
+            else ["project_id", "subscription_id", "event_id"]
+        )
+        index_where = (
+            TriggerDeliveryDBE.schedule_id.isnot(None)
+            if by_schedule
+            else TriggerDeliveryDBE.subscription_id.isnot(None)
+        )
+
+        async with self.engine.session() as session:
+            values = {
+                c.name: getattr(delivery_dbe, c.name)
+                for c in TriggerDeliveryDBE.__table__.columns
+                if not (
+                    c.name in ("id", "created_at", "updated_at", "deleted_at")
+                    and getattr(delivery_dbe, c.name) is None
+                )
+            }
+
+            # The atomic claim: only the caller whose INSERT actually lands wins the row and may
+            # invoke the workflow. ON CONFLICT DO NOTHING (not DO UPDATE) means a second
+            # concurrent claim for the same event affects zero rows and RETURNING yields nothing.
+            stmt = (
+                insert(TriggerDeliveryDBE)
+                .values(**values)
+                .on_conflict_do_nothing(
+                    index_elements=index_elements,
+                    index_where=index_where,
+                )
+                .returning(TriggerDeliveryDBE)
+            )
+            result = await session.execute(stmt)
+            delivery_dbe = result.scalar_one_or_none()
+            await session.commit()
+
+            if delivery_dbe is None:
+                return None
+
+        return map_delivery_dbe_to_dto(
+            delivery_dbe=delivery_dbe,
+        )
+
+    async def update_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+        #
+        status: Status,
+        data: Optional[TriggerDeliveryData] = None,
+    ) -> Optional[TriggerDelivery]:
+        async with self.engine.session() as session:
+            values = {
+                "status": status.model_dump(mode="json", exclude_none=True),
+                "updated_at": datetime.now(timezone.utc),
+            }
+            if data is not None:
+                values["data"] = data.model_dump(mode="json", exclude_none=True)
+
+            stmt = (
+                update(TriggerDeliveryDBE)
+                .where(
+                    TriggerDeliveryDBE.project_id == project_id,
+                    TriggerDeliveryDBE.id == delivery_id,
+                )
+                .values(**values)
+                .returning(TriggerDeliveryDBE)
+            )
+            result = await session.execute(stmt)
+            delivery_dbe = result.scalar_one_or_none()
+            await session.commit()
+
+            if delivery_dbe is None:
+                return None
+
+        return map_delivery_dbe_to_dto(
+            delivery_dbe=delivery_dbe,
+        )
+
     async def fetch_delivery(
         self,
         *,
@@ -442,6 +542,39 @@ class TriggersDAO(TriggersDAOInterface):
                 map_delivery_dbe_to_dto(delivery_dbe=dbe)
                 for dbe in result.scalars().all()
             ]
+
+    async def poll_delivery_after(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+        baseline_id: Optional[UUID],
+        timeout_seconds: float,
+        interval_seconds: float = 1.0,
+    ) -> Optional[TriggerDelivery]:
+        stmt = (
+            select(TriggerDeliveryDBE)
+            .filter(
+                TriggerDeliveryDBE.project_id == project_id,
+                TriggerDeliveryDBE.subscription_id == subscription_id,
+            )
+            .order_by(TriggerDeliveryDBE.created_at.desc())
+            .limit(1)
+        )
+
+        # One held connection for the whole wait, instead of a fresh checkout per tick.
+        async with self.engine.session() as session:
+            deadline = asyncio.get_event_loop().time() + timeout_seconds
+            while asyncio.get_event_loop().time() < deadline:
+                result = await session.execute(stmt)
+                dbe = result.scalars().first()
+
+                if dbe is not None and dbe.id != baseline_id:
+                    return map_delivery_dbe_to_dto(delivery_dbe=dbe)
+
+                await asyncio.sleep(interval_seconds)
+
+            return None
 
     async def dedup_seen(
         self,

@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Any, Dict, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_serializer, model_validator
 
 # How a credential connection is named in the agent config. A connection is a portable
 # reference into the vault, never a database id and never a raw secret value. Exactly two
@@ -167,10 +167,10 @@ class ResolvedConnection(BaseModel):
     The harness adapter applies ``env`` + ``endpoint`` + ``model`` and never sees a vault, a
     connection, or a slug.
 
-    Serialization safety: ``env`` is masked from ``repr``/``str`` but NOT from
-    ``model_dump()``/``model_dump_json()``. Use :meth:`to_wire` (which never emits ``env``) for
-    anything that reaches a trace, a log, or an echoed payload. Never log a raw dump of a
-    ``ResolvedConnection`` or a ``SessionConfig`` that carries one.
+    Serialization safety: ``env`` is masked from ``repr``/``str`` AND from
+    ``model_dump()``/``model_dump_json()`` by construction — the values never leave this model.
+    Read ``env`` directly (attribute access is unmasked) to hand the credential to a harness;
+    :meth:`to_wire` never emits ``env`` at all.
     """
 
     provider: str
@@ -181,6 +181,11 @@ class ResolvedConnection(BaseModel):
         default_factory=dict, repr=False
     )  # the ONLY secret channel
     endpoint: Optional[Endpoint] = None  # NON-secret connection config only
+
+    @field_serializer("env", when_used="always")
+    def _mask_env(self, env: Dict[str, str]) -> Dict[str, str]:
+        """Structural guard: a dump can never carry the credential (keys survive, values do not)."""
+        return {key: "**********" for key in env}
 
     def to_wire(self) -> Dict[str, Any]:
         """The NON-secret camelCase fields for the wire. Never emits ``env``.

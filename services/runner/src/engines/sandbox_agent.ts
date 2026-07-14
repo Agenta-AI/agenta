@@ -33,6 +33,7 @@
 import { mkdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
+import { seedForRun } from "../redaction.ts";
 
 import { SandboxAgent, InMemorySessionPersistDriver } from "sandbox-agent";
 
@@ -100,7 +101,7 @@ import {
   uploadToolMcpAssets,
   type ToolMcpAssets,
 } from "./sandbox_agent/tool-mcp-assets.ts";
-import { advertisedToolSpecs } from "../tools/public-spec.ts";
+import { advertisedToolSpecs, toolSpecsByName } from "../tools/public-spec.ts";
 import { buildRelayExecutionGuard } from "./sandbox_agent/relay-guard.ts";
 import {
   PendingApprovalLatch,
@@ -181,7 +182,10 @@ import {
   sessionContinuityStore,
   type SessionContinuityStore,
 } from "./sandbox_agent/session-continuity.ts";
-import { resolvesToLocalProvider } from "./sandbox_agent/session-pool.ts";
+import {
+  projectScopeFor,
+  resolvesToLocalProvider,
+} from "./sandbox_agent/session-pool.ts";
 
 export {
   buildTurnText,
@@ -223,6 +227,9 @@ const LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT = 1;
 // signal can never reach (SIGKILL/OOM) self-reap via the lifecycle reapers in `provider.ts`.
 const inFlightSandboxes = new Set<{
   destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
+  sessionId: string;
+  mountProjectId?: string;
+  projectScopeId?: string;
 }>();
 
 /**
@@ -236,6 +243,43 @@ export async function destroyInFlightSandboxes(
   reason: TeardownReason = "shutdown-in-flight",
 ): Promise<void> {
   const pending = [...inFlightSandboxes];
+  if (pending.length === 0) return;
+  const sweep = Promise.allSettled(
+    pending.map((environment) =>
+      Promise.resolve(environment.destroy({ reason })).catch(() => {}),
+    ),
+  );
+  await Promise.race([
+    sweep,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+/**
+ * Same drain as `destroyInFlightSandboxes`, scoped to one session (and, when supplied, its
+ * owning project). Backs the HTTP `/kill` route so a caller can only tear down its own
+ * session's in-flight sandbox(es) — the unscoped sweep above stays an in-process-only call
+ * (the shutdown handler).
+ *
+ * Filters on `projectScopeId` (same run-context-preferred, mount-fallback precedence as
+ * `poolKeyFor`/`projectScopeFor` — never `mountProjectId` alone, which is undefined for a
+ * mountless run and would make a scoped kill silently match nothing). A sandbox whose run had
+ * no project scope at all (`projectScopeId` undefined) never matches a scoped `projectId`
+ * filter: `/kill` requires a non-blank `projectId`, so there is no caller this in-flight entry
+ * could ever be proven to belong to — the same no-scope-no-park invariant the pool enforces,
+ * mirrored here as no-scope-no-scoped-kill. It still falls to the unscoped shutdown sweep.
+ */
+export async function destroyInFlightSandboxesForSession(
+  sessionId: string,
+  projectId: string | undefined,
+  timeoutMs = 5000,
+  reason: TeardownReason = "kill",
+): Promise<void> {
+  const pending = [...inFlightSandboxes].filter(
+    (environment) =>
+      environment.sessionId === sessionId &&
+      (!projectId || environment.projectScopeId === projectId),
+  );
   if (pending.length === 0) return;
   const sweep = Promise.allSettled(
     pending.map((environment) =>
@@ -555,6 +599,10 @@ export interface SessionEnvironment {
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
    * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
+  /** This run's resolved project scope (`projectScopeFor`: run-context preferred, mount
+   * fallback) — the same scope `poolKeyFor` keys on. Undefined when neither source yields
+   * one; a scoped `/kill` can then never claim this sandbox (see `destroyInFlightSandboxesForSession`). */
+  projectScopeId?: string;
   /** This acquire resumed the harness's native session via `session/load` (not cold). */
   loadedFromContinuity: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
@@ -753,6 +801,8 @@ export async function acquireEnvironment(
   const clearProviderEnv = plan.credentialMode === "env";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
+    provider: request.provider,
+    deployment: request.deployment,
   });
   Object.assign(env, plan.secrets); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
@@ -862,6 +912,7 @@ export async function acquireEnvironment(
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,
+    projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
     loadedFromContinuity: false,
     resumable: false,
     continuityTurnIndex: undefined,
@@ -1305,9 +1356,9 @@ export async function acquireEnvironment(
         const storeEndpoint = environment.mountCreds.endpoint;
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+          : (await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
-            })) ?? undefined);
+            })) ?? undefined;
         const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
         if (
           canMount &&
@@ -1360,9 +1411,9 @@ export async function acquireEnvironment(
         const storeEndpoint = environment.agentMountCreds.endpoint;
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+          : (await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
-            })) ?? undefined);
+            })) ?? undefined;
         const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
         const mountPath = agentMountDir;
         if (
@@ -1781,6 +1832,16 @@ export async function runTurn(
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
+      // Seed from the keys actually APPLIED to this run (`plan.secrets`) plus the mount's STS
+      // pair — neither lives in the sidecar's process env.
+      redactor: seedForRun(
+        { secrets: plan.secrets, telemetry: request.telemetry },
+        [
+          env.mountCreds?.accessKey,
+          env.mountCreds?.secretKey,
+          env.mountCreds?.sessionToken,
+        ],
+      ),
       emitSpans: !plan.isPi || plan.isDaytona,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
@@ -1935,6 +1996,9 @@ export async function runTurn(
       void resolveInteraction(sessionId, token, () => cred);
     };
     const serverPermissions = serverPermissionsFromRequest(request);
+    // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
+    // the approval card and the guard cannot disagree about a tool's permission/readOnly.
+    const specsByName = toolSpecsByName(plan.toolSpecs);
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
     // `currentTurn`. A capturing shim reuses attachPermissionResponder unchanged; its
@@ -1956,6 +2020,7 @@ export async function runTurn(
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onCreateInteraction: recordPendingInteraction,
       onResolveInteraction: resolveInteractionToken,
+      toolSpecsByName: specsByName,
       // Pi runs only: presence of the specs map turns Pi gate envelope detection on AND is how
       // the runner recovers specPermission/readOnlyHint (the envelope carries identity, never
       // policy). Absent for Claude, so a title collision there keeps the base path.

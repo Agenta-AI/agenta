@@ -66,6 +66,7 @@ import {
   type RelayActivitySource,
 } from "./relay-watch.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
+import { toolSpecsByName } from "./public-spec.ts";
 
 // Compatibility re-export: the type moved to `client-tool-relay.ts` (a pure type module);
 // importers that still reach it through this module keep working while they migrate.
@@ -421,7 +422,10 @@ function isRelayFileName(name: string): boolean {
 /** Bound one daemon removal so relay startup, polling, and shutdown cannot wedge on it. */
 const RELAY_REMOVE_TIMEOUT_MS = 10_000;
 
-async function removeRelayFile(host: RelayHost, path: string): Promise<boolean> {
+async function removeRelayFile(
+  host: RelayHost,
+  path: string,
+): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<false>((resolve) => {
     timer = setTimeout(() => resolve(false), RELAY_REMOVE_TIMEOUT_MS);
@@ -522,7 +526,7 @@ export function startToolRelay(
   // a lingering picked-up file cannot insta-wake watch windows forever.
   const removeFailed = new Set<string>();
   const inflight: Promise<void>[] = [];
-  const specsByName = new Map(specs.map((spec) => [spec.name, spec]));
+  const specsByName = toolSpecsByName(specs);
 
   const writeResponse = async (
     id: string,
