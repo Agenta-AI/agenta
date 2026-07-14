@@ -2,6 +2,7 @@
 {{- $providers := default dict $runner.providers -}}
 {{- $enabledProviders := default (list "local") $providers.enabled -}}
 {{- $daytona := default dict $providers.daytona -}}
+{{- $auth := default dict $runner.auth -}}
 {{- if eq (include "agenta.agentRunner.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -48,18 +49,20 @@ spec:
               containerPort: {{ include "agenta.agentRunner.port" . }}
               protocol: TCP
           env:
-            {{- include "agenta.commonEnv" . | nindent 12 }}
+            {{- /* Narrow by design (runner-selfhosting-cleanup): a local harness process shares
+                   this container, so anything here is readable from /proc. Only the runner's own
+                   config and the API URL it needs to reach the platform — never the full
+                   commonEnv (DB/auth/crypt/license/redis/store secrets). See
+                   tests/test_runner_secret_absence.py. */ -}}
+            - name: AGENTA_API_URL
+              value: {{ include "agenta.apiUrlEffective" . | quote }}
+            {{- $agentaVals := include "agenta.values" . | fromYaml -}}
+            {{- if (default dict $agentaVals.agenta).apiInternalUrl }}
+            - name: AGENTA_API_INTERNAL_URL
+              value: {{ $agentaVals.agenta.apiInternalUrl | quote }}
+            {{- end }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
-            {{- /* Shared-token gate on /run + /kill. Unset = off (network isolation only). */}}
-            {{- if $runner.token }}
-            - name: AGENTA_RUNNER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "agenta.secretName" . }}
-                  key: AGENTA_RUNNER_TOKEN
-                  optional: true
-            {{- end }}
             - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
               value: {{ join "," $enabledProviders | quote }}
             - name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
@@ -110,6 +113,18 @@ spec:
                 secretKeyRef:
                   name: {{ $daytona.apiKeySecretRef.name | quote }}
                   key: {{ $daytona.apiKeySecretRef.key | quote }}
+                  optional: true
+            {{- end }}
+            {{- /* Shared runner protocol credential (interface.md section 2): the runner verifies
+                   it and Services sends the same value (see agentRunner.servicesEnv). Rendered only
+                   when a secret ref is set, so an unauthenticated single-operator deployment stays
+                   valid. */ -}}
+            {{- if $auth.tokenSecretRef }}
+            - name: AGENTA_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $auth.tokenSecretRef.name | quote }}
+                  key: {{ $auth.tokenSecretRef.key | quote }}
                   optional: true
             {{- end }}
             {{- range $key, $val := $runner.env }}

@@ -131,15 +131,17 @@ instead of building from source.
 The dev compose overrides the image CMD with a shell command (around line 600):
 
 ```sh
-mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
 node scripts/build-extension.mjs &&
 exec node_modules/.bin/tsx src/server.ts
 ```
 
-It does three things. It copies the read-only mounted Pi login into a writable path so OAuth
-refresh stays in the container. It rebuilds the Pi extension from the mounted `src`, because
-`dist/` is not bind-mounted and a restart would otherwise keep a stale bundle and silently
-drop custom tools. It then starts the server with `tsx`.
+It does two things. It rebuilds the Pi extension from the mounted `src`, because `dist/` is not
+bind-mounted and a restart would otherwise keep a stale bundle and silently drop custom tools. It
+then starts the server with `tsx`.
+
+The Pi login itself is bind-mounted read-write at `/pi-agent` and the harness runs directly out of
+it, so an OAuth token the harness refreshes mid-run persists back to the host login instead of
+dying with the container.
 
 ## Ports
 

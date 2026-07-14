@@ -36,7 +36,7 @@ services:
         image: agenta-ee-dev-runner:latest
         build:
             context: ../../../services/runner
-            dockerfile: docker/Dockerfile.dev
+            dockerfile: images/service/Dockerfile.dev
         # === EXECUTION ============================================ #
         command: ["true"]
 
@@ -377,16 +377,16 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-runner:latest
         # === EXECUTION ============================================ #
-        # No file watcher (the box's inotify limit is shared across stacks). Copy the
-        # read-only mounted Pi login into a writable path so OAuth refresh stays
-        # in-container. This command replaces the image CMD, so the Pi extension rebuild
+        # No file watcher (the box's inotify limit is shared across stacks). The Pi login is
+        # bind-mounted read-write at /pi-agent and the harness runs directly out of it, so a
+        # refreshed OAuth token persists to the host login instead of dying with the container.
+        # This command replaces the image CMD, so the Pi extension rebuild
         # has to live here too: dist/ is not bind-mounted and src/extensions/agenta.ts is,
         # so without this a restart keeps a stale bundle and custom tools silently stop
         # being delivered on the runner path. Rebuild from the mounted
         # src on start; fail loud if it cannot build rather than run a stale bundle.
         command: >
-            sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
-            node scripts/build-extension.mjs &&
+            sh -c "node scripts/build-extension.mjs &&
             exec node_modules/.bin/tsx src/server.ts"
         # === CONFIGURATION ======================================== #
         # Deliberately no env_file: the harness sandbox must not inherit the stack's
@@ -426,7 +426,9 @@ services:
             # sandbox per run (resolved from /app/skills). Bind-mounted like src so edits are
             # live; the prod image bakes them with `COPY skills ./skills`.
             - ../../../services/runner/skills:/app/skills
-            - ${HOME}/.pi/agent:/pi-agent-ro:ro
+            # Read-write on purpose: the harness refreshes its own OAuth token here and the new
+            # token must persist back to the host login (a copy would discard it).
+            - ${HOME}/.pi/agent:/pi-agent:rw
         # === NETWORK ============================================== #
         networks:
             - agenta-network

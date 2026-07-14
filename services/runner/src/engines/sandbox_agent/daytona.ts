@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createAcpFetch } from "./acp-fetch.ts";
@@ -7,7 +6,7 @@ import {
   uploadSkillsToSandbox,
   uploadSystemPromptToSandbox,
 } from "./pi-assets.ts";
-import { shouldUploadOwnLogin, type RunPlan } from "./run-plan.ts";
+import { type RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -140,45 +139,11 @@ export async function ensurePiInSandbox(
   }
 }
 
-/**
- * Upload the local Pi login into a Daytona sandbox so the remote Pi authenticates with
- * the dev's ChatGPT/Codex OAuth. Best-effort: with no local login the remote run falls
- * back to any provider key in the sandbox env.
- */
-export async function uploadPiAuthToSandbox(
-  sandbox: any,
-  log: Log = () => {},
-): Promise<void> {
-  const localDir =
-    process.env.PI_CODING_AGENT_DIR ||
-    join(process.env.HOME ?? "", ".pi/agent");
-  const authPath = join(localDir, "auth.json");
-  if (!existsSync(authPath)) return;
-  try {
-    await sandbox.mkdirFs({ path: DAYTONA_PI_DIR });
-    await sandbox.writeFsFile(
-      { path: `${DAYTONA_PI_DIR}/auth.json` },
-      readFileSync(authPath, "utf-8"),
-    );
-    const settingsPath = join(localDir, "settings.json");
-    if (existsSync(settingsPath)) {
-      await sandbox.writeFsFile(
-        { path: `${DAYTONA_PI_DIR}/settings.json` },
-        readFileSync(settingsPath, "utf-8"),
-      );
-    }
-  } catch (err) {
-    log(`pi auth upload skipped: ${(err as Error).message}`);
-  }
-}
-
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
   plan: Pick<
     RunPlan,
     | "isPi"
-    | "hasApiKey"
-    | "credentialMode"
     | "skillDirs"
     | "hasSystemPrompt"
     | "systemPrompt"
@@ -198,11 +163,10 @@ export async function prepareDaytonaPiAssets({
 }: PrepareDaytonaPiAssetsInput): Promise<void> {
   if (!plan.isPi) return;
 
-  // Upload Pi's fallback `auth.json` only when the harness owns its login (Security rule 6):
-  // runtime_provided, or an un-migrated caller with no api key. A resolved key (credentialMode
-  // "env") NEVER triggers the fallback. The decision lives in `shouldUploadOwnLogin` so the rule
-  // is in one place and testable.
-  if (shouldUploadOwnLogin(plan)) await uploadPiAuthToSandbox(sandbox, log);
+  // A Daytona run never receives the runner's own Pi login: subscription (runtime_provided) auth
+  // is rejected for Daytona in buildRunPlan, and a managed run authenticates from the vault keys
+  // in `daytonaEnvVars`. The runner therefore uploads only the inert Agenta extension, forced
+  // skills, and system prompts — never a personal `auth.json` (interface.md section 6).
   await uploadPiExtensionToSandbox(sandbox, DAYTONA_PI_DIR, log);
   if (plan.skillDirs.length > 0) {
     await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, plan.skillDirs, log);

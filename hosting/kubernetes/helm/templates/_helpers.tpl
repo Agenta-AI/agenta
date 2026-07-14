@@ -322,20 +322,20 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 
 {{- define "agenta.agentRunner.servicesEnv" -}}
 {{- $runner := default dict .Values.agentRunner -}}
+{{- $auth := default dict $runner.auth -}}
 {{- $url := include "agenta.agentRunner.url" . -}}
 {{- if $url }}
 - name: AGENTA_RUNNER_INTERNAL_URL
   value: {{ $url | quote }}
 {{- end }}
-{{- /* agentRunner.token — the caller side of the runner's shared-token gate; the runner reads
-     the same var (see runner-deployment.yaml). Unset = gate off (default). */}}
-{{- if $runner.token }}
+{{- /* Services sends the shared runner protocol credential the runner verifies (interface.md
+       section 2). Same secret ref as runner-deployment.yaml, from the caller side. */ -}}
+{{- if $auth.tokenSecretRef }}
 - name: AGENTA_RUNNER_TOKEN
   valueFrom:
     secretKeyRef:
-      name: {{ include "agenta.secretName" . }}
-      key: AGENTA_RUNNER_TOKEN
-      optional: true
+      name: {{ $auth.tokenSecretRef.name | quote }}
+      key: {{ $auth.tokenSecretRef.key | quote }}
 {{- end }}
 {{- end }}
 

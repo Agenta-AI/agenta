@@ -30,7 +30,7 @@ printf "Building local images with tag '%s'\n" "$TAG"
 docker build -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR"
 docker build -t "$WEB_IMAGE" -f "$ROOT_DIR/web/oss/docker/Dockerfile.gh" "$ROOT_DIR/web"
 docker build -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/oss/docker/Dockerfile.gh" "$ROOT_DIR"
-docker build -t "$RUNNER_IMAGE" -f "$ROOT_DIR/services/runner/docker/Dockerfile.gh" "$ROOT_DIR/services/runner"
+docker build -t "$RUNNER_IMAGE" -f "$ROOT_DIR/services/runner/images/service/Dockerfile.gh" "$ROOT_DIR/services/runner"
 
 if [ "$PUSH_IMAGES" = "true" ]; then
     printf "Pushing images to %s/%s\n" "$REGISTRY" "$NAMESPACE"

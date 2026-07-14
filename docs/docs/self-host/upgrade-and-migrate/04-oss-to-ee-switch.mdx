@@ -1,0 +1,128 @@
+---
+title: Switch a Self-Hosted Deployment from OSS to EE (v0.104.0)
+slug: /self-host/upgrades/oss-to-ee-switch
+sidebar_label: OSS → EE
+description: 'How to switch an existing self-hosted Agenta OSS deployment to EE in place on v0.104.0, keeping all your data: stop the stack, point EE at your existing databases, and start it again. The EE migration creates the extra tables and backfills the EE-only data on first run.'
+---
+
+:::info When you need this guide
+You run a self-hosted **OSS** Agenta deployment on **v0.104.0** or later and want to move to **EE** without losing data. EE reuses the same core schema as OSS and adds a few tables of its own. Switching keeps your organizations, members, projects, and traces; the first EE start creates the extra tables and backfills the EE-only data.
+:::
+
+## How the switch works
+
+OSS and EE store data in databases whose names carry the edition: `agenta_oss_core` / `agenta_oss_tracing` for OSS, `agenta_ee_core` / `agenta_ee_tracing` for EE. Switching the license alone would make EE look for `agenta_ee_*`, find nothing, and start empty.
+
+So the switch is one idea: **run EE against your existing OSS databases.** When it starts, the EE migration runs against that data, creates the EE-only tables if they are missing, and backfills the EE-only data. Running it a second time changes nothing.
+
+The whole procedure is the same whether you run with Docker Compose or Kubernetes:
+
+1. Stop the deployment.
+2. Set the license to EE, point it at your existing databases, and add any EE-only settings you need.
+3. Start it again.
+
+Do this without removing any volumes, so your data is reused.
+
+## Before you start
+
+- **Back up your databases.** The switch creates and backfills tables; take a backup first, as with any upgrade.
+- **Run as OSS on v0.104.0 first.** This is required. Start your deployment once as OSS on v0.104.0 and let its migrations finish before switching. That run brings the database to the shared alignment point that the EE migrations expect. Switching from an older OSS database makes the EE run apply OSS-specific legacy steps it cannot complete, and it fails.
+- **Have EE image access.** EE images are private; make sure your registry credentials are configured.
+
+:::caution Align before you switch
+The EE migrations only pick up an OSS database at the alignment point. Always upgrade and run as OSS on v0.104.0 first, confirm it started cleanly, then do the switch. Skipping this step fails the EE migration partway through.
+:::
+
+## Docker Compose
+
+Reuse your **existing** OSS env file. Keeping the same Compose project name in it is what reuses the same database volume.
+
+There are two ways to point EE at your existing `agenta_oss_*` databases. Pick one for step 3:
+
+- **Database prefix (simplest).** One value covers all three: `POSTGRES_DB_PREFIX=agenta_oss`. EE resolves `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens` from it.
+- **Explicit connection URIs.** Set `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING`, and `POSTGRES_URI_SUPERTOKENS` to the full `agenta_oss_*` connection strings. Explicit URIs always win over the prefix.
+
+1. **Stop the stack** (keep your volumes):
+
+   ```bash
+   ./hosting/docker-compose/run.sh --oss --down
+   ```
+
+2. **Move your env file into the EE folder.** `run.sh --ee` looks for the env file under the EE folder, so move (or copy) the OSS one there:
+
+   ```bash
+   mv hosting/docker-compose/oss/.env.oss.gh hosting/docker-compose/ee/.env.ee.gh
+   ```
+
+3. **Edit that env file.** Change two things, and make sure the project name is pinned:
+
+   ```bash
+   AGENTA_LICENSE=ee
+   POSTGRES_DB_PREFIX=agenta_oss   # prefix option; or set the POSTGRES_URI_* values instead
+
+   # Keep the same Compose project as before so the existing volume is reused.
+   # If this line was commented out, set it to the name your stack ran under.
+   COMPOSE_PROJECT_NAME=agenta-oss-gh
+   ```
+
+   `COMPOSE_PROJECT_NAME` decides which database volume is used. Leaving it as your OSS value is what makes the switch happen in place; pointing it elsewhere starts against an empty database.
+
+   Add any EE-only variables you need in the same file.
+
+4. **Start EE with that env file:**
+
+   ```bash
+   ./hosting/docker-compose/run.sh --ee --env-file .env.ee.gh
+   ```
+
+The EE migration runs on start. When it finishes, your existing data is served by EE.
+
+If you use an external PostgreSQL instead of the bundled one, there is no volume to worry about: the database override alone is enough.
+
+## Kubernetes (Helm)
+
+Edit your values file: set the license to EE and point at your existing `agenta_oss_*` databases. There are two ways to point at them, depending on whether you use the bundled PostgreSQL or an external one. Pick one.
+
+**Option A: bundled PostgreSQL (set the database names).** Override the names so EE uses your existing databases instead of creating empty `agenta_ee_*` ones:
+
+```yaml
+agenta:
+  license: ee
+
+postgresql:
+  databases:
+    core: agenta_oss_core
+    tracing: agenta_oss_tracing
+    supertokens: agenta_oss_supertokens
+```
+
+**Option B: external PostgreSQL (set the connection URIs).** When the bundled PostgreSQL is disabled, EE reads the URIs directly:
+
+```yaml
+agenta:
+  license: ee
+
+postgresql:
+  enabled: false
+  external:
+    uriCore: postgresql+asyncpg://username:password@your-host:5432/agenta_oss_core
+    uriTracing: postgresql+asyncpg://username:password@your-host:5432/agenta_oss_tracing
+    uriSupertokens: postgresql://username:password@your-host:5432/agenta_oss_supertokens
+```
+
+Add any EE-only values you need in the same file. Then upgrade the release; the migration runs as a post-upgrade job:
+
+```bash
+helm upgrade --install agenta agenta/agenta -f <your-values-file>
+```
+
+The post-upgrade migration job runs against your existing data automatically.
+
+## After the switch
+
+- All organizations, members, projects, and traces are unchanged.
+- The EE-only tables are populated, and EE features become available.
+
+## Rollback
+
+The switch adds tables and rows; it does not change or remove your OSS data. To go back, stop EE and start OSS again against the same databases. Take a backup before switching, as with any upgrade.

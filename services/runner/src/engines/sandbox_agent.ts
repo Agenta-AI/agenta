@@ -743,6 +743,14 @@ export async function acquireEnvironment(
             log: logger,
           })
         : null;
+  // A session-owned run expects a durable session cwd mount. When signing returns nothing the run
+  // still proceeds on an ephemeral cwd (behavior unchanged, RSH-11); emit one structured warning
+  // keyed by mount kind so durable-to-ephemeral degradation is measurable, not silent.
+  if (sessionForMount && !mountCreds) {
+    logger(
+      `mount degraded kind=session_cwd cause=sign_returned_no_mount session=${sessionForMount}`,
+    );
+  }
 
   const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
   const signAgentMount =
@@ -755,6 +763,12 @@ export async function acquireEnvironment(
           log: logger,
         })
       : null;
+  // A workflow-artifact run expects an agent mount; same structured degrade signal when unsigned.
+  if (artifactId && !agentMountCreds) {
+    logger(
+      `mount degraded kind=agent_mount cause=sign_returned_no_mount artifact=${artifactId}`,
+    );
+  }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
   // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
@@ -843,6 +857,14 @@ export async function acquireEnvironment(
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   let runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+
+  // A local Claude subscription run reads and writes the operator's read-write mounted login
+  // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
+  // and there is deliberately no per-run copy. Claude refreshes its OAuth token mid-run and writes
+  // it back to its config dir; copying that dir per run would discard the refresh, so the next run
+  // would fail as soon as the provider rotated the refresh token. The harness owns its own token
+  // lifecycle, exactly like a normal local install (interface.md section 6). buildRunPlan already
+  // rejected a runtime_provided Claude run with no configured CLAUDE_CONFIG_DIR.
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
@@ -990,7 +1012,9 @@ export async function acquireEnvironment(
     } else {
       await environment.workspace?.cleanup().catch(() => {});
     }
-    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
+    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too. This is only
+    // ever a temp dir: a subscription run leaves `runAgentDir` undefined precisely so that the
+    // operator's mounted login (which the harness runs out of directly) is never deleted here.
     if (environment.runAgentDir)
       rmSync(environment.runAgentDir, { recursive: true, force: true });
     // Backstop: the extension deletes this on read; remove it here too in case the harness never

@@ -28,7 +28,8 @@
  *       execute_tool <name> (TOOL)  — each tool the turn ran
  *
  * Config (read lazily from the environment for the fallback target):
- *   AGENTA_API_URL, AGENTA_API_KEY  — fallback exporter endpoint + auth
+ *   AGENTA_API_INTERNAL_URL, AGENTA_API_URL  — fallback exporter endpoint
+ *   AGENTA_CREDENTIALS                       — per-run caller credential (no static API key)
  *   OTEL_SERVICE_NAME            — resource service.name (default "pi-agent")
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -219,13 +220,15 @@ function defaultTarget(): ExportTarget {
     (
       process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
     )?.replace(/\/+$/, "") || "https://cloud.agenta.ai/api";
-  // Prefer the bare API key; else fall back to the full (scheme-tagged) ephemeral
-  // credential, used verbatim — `/check` hands back a `Secret ...`, not an API key.
-  const apiKey = process.env.AGENTA_API_KEY || "";
+  // The per-run caller credential rides the request (each explicit trace target carries its own
+  // authorization; local Pi's OTLP bearer is written to a 0600 file). The runner holds no static
+  // platform key: it must not carry an `AGENTA_API_KEY` a local harness could read from /proc and
+  // reuse (interface.md section 2). The scheme-tagged ephemeral `AGENTA_CREDENTIALS` (a
+  // `Secret ...` from `/check`, used verbatim) is the only fallback; absent it, export unauthed.
   const credentials = process.env.AGENTA_CREDENTIALS || "";
   return {
     endpoint: `${base}/otlp/v1/traces`,
-    authorization: apiKey ? `ApiKey ${apiKey}` : credentials || undefined,
+    authorization: credentials || undefined,
   };
 }
 

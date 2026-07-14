@@ -1,0 +1,838 @@
+---
+title: Configuration of Environment Variables
+sidebar_label: Configuring Environment
+description: Learn how to configure the environment variables to self-host Agenta through Docker Compose or Helm
+slug: /self-host/configuration
+sidebar_position: 1
+---
+
+Agenta encodes the same nesting at three layers: the environment variable name,
+the Python `env.py` attribute path, and the Helm `values.yaml` path. Every
+section below lists the canonical names in those three forms.
+
+For deprecated/legacy environment variable names that still work via fallback,
+see [Deprecated environment variables](#deprecated-environment-variables) at
+the bottom.
+
+:::tip Kubernetes / Helm
+For Helm deployments, set the `values.yaml` path instead of the env var. The
+chart maps every value to the same canonical env var internally.
+:::
+
+:::note Helm-only pre-existing Secret
+The Helm chart accepts a single Helm-only key, `secrets.existingSecret`, that
+points at a pre-created Kubernetes Secret. When set, the chart will not create
+or update the Secret object; it just wires `envFrom`/`secretKeyRef` references
+to the name you provide. Your Secret must contain the canonical env-var keys
+(`AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `POSTGRES_PASSWORD`, and any optional
+keys such as `SUPERTOKENS_API_KEY`, `OPENAI_API_KEY`, OAuth client secrets,
+etc.). See [Deploy to Kubernetes Secrets](/self-host/guides/deploy-to-kubernetes#secrets).
+This key has no env-var or `env.py` equivalent.
+:::
+
+## Agenta core
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_LICENSE` | `agenta.license` | `agenta.license` |
+| `AGENTA_WEB_URL` | `agenta.web_url` | `agenta.webUrl` |
+| `AGENTA_SERVICES_URL` | `agenta.services_url` | `agenta.servicesUrl` |
+| `AGENTA_API_URL` | `agenta.api_url` | `agenta.apiUrl` |
+| `AGENTA_API_INTERNAL_URL` | `agenta.api_internal_url` | `agenta.apiInternalUrl` |
+| `AGENTA_AUTH_KEY` | `agenta.auth_key` | `agenta.authKey` |
+| `AGENTA_CRYPT_KEY` | `agenta.crypt_key` | `agenta.cryptKey` |
+
+## Agenta access
+
+The first four variables (allowed/blocked domains and emails, allowed owner
+emails) apply to both the open source and Enterprise editions. See
+[Restrict Sign-ups and Organization Creation](/self-host/guides/restrict-organization-creation)
+for how they behave. The plan and role variables are Enterprise-only; see
+[Dynamic Access Controls](/self-host/dynamic-access-controls).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_ACCESS_ALLOWED_DOMAINS` | `agenta.access.allowed_domains` | `agenta.access.allowedDomains` |
+| `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` | `agenta.access.allowed_owner_emails` | `agenta.access.allowedOwnerEmails` |
+| `AGENTA_ACCESS_BLOCKED_DOMAINS` | `agenta.access.blocked_domains` | `agenta.access.blockedDomains` |
+| `AGENTA_ACCESS_BLOCKED_EMAILS` | `agenta.access.blocked_emails` | `agenta.access.blockedEmails` |
+| `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
+| `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
+| `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
+| `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
+| `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
+| `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
+
+## Agenta AI services
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_AI_SERVICES_API_KEY` | `agenta.ai_services.api_key` | `agenta.aiServices.apiKey` |
+| `AGENTA_AI_SERVICES_API_URL` | `agenta.ai_services.api_url` | `agenta.aiServices.apiUrl` |
+| `AGENTA_AI_SERVICES_ENVIRONMENT_SLUG` | `agenta.ai_services.environment_slug` | `agenta.aiServices.environmentSlug` |
+| `AGENTA_AI_SERVICES_REFINE_PROMPT_KEY` | `agenta.ai_services.refine_prompt_key` | `agenta.aiServices.refinePromptKey` |
+
+## Agenta billing
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_BILLING_CATALOG` | `agenta.billing.catalog` | `agenta.billing.catalog` |
+| `AGENTA_BILLING_PRICING` | `agenta.billing.pricing` | `agenta.billing.pricing` |
+
+## Agenta API
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_API_CACHING_ENABLED` | `agenta.api.caching.enabled` | `agenta.api.caching.enabled` |
+
+## Agenta extras
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_EXTRAS_DEMOS` | `agenta.extras.demos` | `agenta.extras.demos` |
+
+## Agenta logging
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_LOGGING_CONSOLE_ENABLED` | `agenta.logging.console_enabled` | `agenta.logging.consoleEnabled` |
+| `AGENTA_LOGGING_CONSOLE_LEVEL` | `agenta.logging.console_level` | `agenta.logging.consoleLevel` |
+| `AGENTA_LOGGING_FILE_ENABLED` | `agenta.logging.file_enabled` | `agenta.logging.fileEnabled` |
+| `AGENTA_LOGGING_FILE_LEVEL` | `agenta.logging.file_level` | `agenta.logging.fileLevel` |
+| `AGENTA_LOGGING_FILE_PATH` | `agenta.logging.file_path` | `agenta.logging.filePath` |
+| `AGENTA_LOGGING_OTLP_ENABLED` | `agenta.logging.otlp_enabled` | `agenta.logging.otlpEnabled` |
+| `AGENTA_LOGGING_OTLP_LEVEL` | `agenta.logging.otlp_level` | `agenta.logging.otlpLevel` |
+
+## Agenta OTLP
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_OTLP_MAX_BATCH_BYTES` | `agenta.otlp.max_batch_bytes` | `agenta.otlp.maxBatchBytes` |
+
+## Agenta redaction
+
+The online redaction filter scrubs known credential/secret **values** out of error responses,
+persisted records, spans, and logs on the invoke path (detective control, not preventive; see
+[docs/designs/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/designs/online-redaction/specs.md)).
+The filter redacts a value only when it is a live secret the platform resolved for the request,
+never by guessing at shape or entropy.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_REDACTION_MODE` | `agenta.redaction.mode` | `agenta.redaction.mode` |
+| `AGENTA_REDACTED_PREFIXES` | `agenta.redaction.prefixes` | `agenta.redaction.prefixes` |
+| `AGENTA_REDACTED_SUFFIXES` | `agenta.redaction.suffixes` | `agenta.redaction.suffixes` |
+| `AGENTA_REDACTED_BLOCKLIST` | `agenta.redaction.blocklist` | `agenta.redaction.blocklist` |
+| `AGENTA_REDACTED_ALLOWLIST` | `agenta.redaction.allowlist` | `agenta.redaction.allowlist` |
+
+- `AGENTA_REDACTION_MODE`: `off` or `known` (default `known`). `pattern` and `full` are accepted
+  but currently behave as `known`; setting either logs a warning.
+- `AGENTA_REDACTED_PREFIXES` / `_SUFFIXES` / `_BLOCKLIST` select env var **names**, not values:
+  any process env var whose name starts with a prefix, ends with a suffix, or equals/contains a
+  blocklist entry has its **value** seeded into the deny-set. Each is comma-separated and
+  **merges onto its built-in default** (concatenation, never a replace); you only ever add
+  more names to catch, you can't narrow the defaults. The prefix default is **empty** (opt-in
+  only, since a broad service prefix over-seeds non-secret config like hostnames/regions); the
+  suffix default covers the common credential-shaped endings (`_KEY`, `_SECRET`, `_TOKEN`,
+  `_AUTHTOKEN`, `_PASSWORD`, `_CREDENTIALS`, `_KEY_ID`, `_SECRET_ID`, `_TOKEN_ID`); the
+  blocklist default is `AWS_BEARER_TOKEN_BEDROCK` (a real secret whose name matches no suffix).
+- `AGENTA_REDACTED_ALLOWLIST` is different: it's a list of literal **values** (booleans/flags
+  such as `true`/`false`/`1`/`0`) that are never redacted even if a secret-named env var holds
+  one. Otherwise a flag like `SOME_FEATURE_KEY=true` would redact every "true" in output. It
+  also merges (union) onto its built-in default; add values here that your deployment uses as
+  flags but that also happen to sit in a secret-suffixed env var.
+- Safe default is unset. Leaving all four unset keeps prefix empty, suffix/blocklist/allowlist
+  at their built-in defaults.
+
+## Agenta services
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
+| `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
+| `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
+
+:::warning Custom-code evaluator runner
+`AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
+
+- `local` (default): raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. This is what makes self-hosting work with zero configuration; the deployment logs a warning while it's active.
+- `restricted`: in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access. Set this to harden a shared/multi-tenant deployment.
+- `daytona`: isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona-code-evaluator) credentials below.
+
+The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
+:::
+
+## Agent runner
+
+Agent workflows run through a separate `runner` service that executes agent code, either inside its
+own container (`local`) or in a Daytona cloud sandbox. This section lists every operator-facing
+runner variable, its default, its Helm path, and the errors an invalid value produces.
+
+The runner parses all of its `AGENTA_RUNNER_*` variables once before it starts listening. An
+invalid value fails startup with the error shown in [Startup validation](#startup-validation).
+
+For the model behind these settings, see [How agents run](/self-host/agent-execution/how-agents-run).
+The local subscription mount variables (`PI_CODING_AGENT_DIR` and `CLAUDE_CONFIG_DIR`) are covered
+by [Use your own subscription](/self-host/use-your-own-subscription).
+
+`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` and `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` are read by
+both the runner and the Services API. Setting the enabled list to `daytona` only keeps agent code
+out of the runner container on a shared deployment. See
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+
+The bundled Compose env examples group these variables under `Agenta - Agent runner` in the same
+order as the sections below, so the file and this page mirror each other.
+
+### Service
+
+Set on the `runner` service.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_HOST` | Bind interface | `127.0.0.1` | no | `agentRunner.env.AGENTA_RUNNER_HOST` |
+| `AGENTA_RUNNER_PORT` | Bind port | `8765` | no | Chart-managed (`8765`) |
+| `AGENTA_RUNNER_CONCURRENCY_LIMIT` | Maximum concurrent runs | `1000` | no | `agentRunner.env.AGENTA_RUNNER_CONCURRENCY_LIMIT` |
+| `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | no | `agentRunner.logLevel` |
+| `AGENTA_RUNNER_REPLICA_ID` | Replica identity for logs | Generated when unset | no | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
+
+Every variable on this page treats an empty value as unset, so leaving a line blank selects the
+default rather than an empty string.
+
+The code default host is `127.0.0.1`. The bundled Compose files set `AGENTA_RUNNER_HOST=0.0.0.0`
+so the Services container can reach the runner across the Compose network. `AGENTA_RUNNER_PORT` and
+`AGENTA_RUNNER_CONCURRENCY_LIMIT` must be positive integers.
+
+### Routing and authentication
+
+These locate the runner and authenticate the call. Two of the three are caller-side: the Services
+API and its SDK read them, not the runner.
+
+| Variable | Role | Read by | Default | Secret | Helm |
+|---|---|---|---|---|---|
+| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API (caller-side) | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
+| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services sends it; runner verifies it | Unset | yes | `agentRunner.auth.tokenSecretRef` |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `180` | no | n/a |
+
+`AGENTA_RUNNER_TOKEN` is the same credential at both ends. It does not belong to a sandbox or a
+harness. The runner enforces the check only when the value is set, so leaving it unset (the bundled
+Compose and Helm default) disables it. To turn it on, set the same value on the runner and on the
+Services API; in Helm, point `agentRunner.auth.tokenSecretRef` at a Secret holding it — the chart
+injects the same value into both the runner and the Services deployment.
+
+`AGENTA_RUNNER_TIMEOUT_SECONDS` bounds idle time on the caller's streaming transport, not the total
+run duration, and the runner never reads it. The runner enforces its own deadlines through
+[Run limits](#run-limits). Set the caller timeout above the runner's idle timeout, or the caller
+gives up on a run the runner still considers healthy.
+
+### Sandbox providers
+
+Read by both the runner and the Services API, so the operator sets each value once and hosting
+templates apply it to both.
+
+| Variable | Role | Default | Helm |
+|---|---|---|---|
+| `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` | Providers this deployment can use | `local` | `agentRunner.providers.enabled` (list, rendered comma-joined) |
+| `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` | Provider used when a run does not choose | `local` | `agentRunner.providers.default` |
+
+Rules:
+
+- Values are lowercase provider ids separated by commas. The known ids are `local` and `daytona`.
+- Unset enabled providers means exactly `local`.
+- An explicitly empty list is invalid, and so is an empty entry inside the list.
+- Unknown ids and duplicate ids are invalid.
+- The default must be one of the enabled providers.
+- A run may select any enabled provider. A run that selects a known but disabled provider fails
+  before any working directory, mount, secret, or sandbox is created. There is no fallback to
+  another provider.
+
+The enabled list applies to the whole deployment, not to a user or a run. It decides what isolation
+a run can get; see
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+
+### Daytona
+
+Read by the `runner` service. Required only when `daytona` is enabled.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
+| `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
+| `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v1` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
+| `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
+| `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
+
+When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
+starts from its pinned default snapshot `agenta-agent-sandbox-v1`. The two variables are mutually
+exclusive. The autostop and autodelete values must be positive integers. See
+[Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
+and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
+CPU, memory, and disk each sandbox gets.
+
+:::warning The bare `DAYTONA_*` variables configure a different sandbox
+`DAYTONA_API_KEY`, `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DAYTONA_SNAPSHOT`, and
+`DAYTONA_SNAPSHOT_CODE` configure the code evaluator's sandbox, which runs custom evaluator code.
+The agent runner reads only the `AGENTA_RUNNER_DAYTONA_*` names in the table above.
+
+The two may point at the same Daytona account, so the key, the URL, and the target may hold the
+same values. The snapshot may not: the evaluator's snapshot (for example `daytona-small`) has no
+agent harness installed, so an agent booted into it cannot run.
+:::
+
+### Warm sessions and scale
+
+A session stays warm between turns so a follow-up turn skips a cold start. Both providers pool
+sessions, but they budget different things: the Daytona pool budgets billed compute, and the local
+pool budgets host memory inside the runner container. All of these are read by the `runner` service,
+and all are safe to leave unset.
+
+Daytona, one warm sandbox per parked session:
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | How long a sandbox stays running with its live session after a clean turn | `120000` (2 minutes) | no | `...daytona.sessionIdleTtlMs` |
+| `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` | How many idle sandboxes may stay running between turns | `20` | no | `...daytona.sessionMaxWarm` |
+
+Set `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` to `0` to stop a sandbox after each turn. There is
+no separate enable flag. `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` bounds idle spend only; it never
+blocks an active turn. Overflow sandboxes park in the stopped state.
+
+:::warning[Keep the idle TTL below the autostop window]
+`AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` must stay below
+`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`. Autostop is Daytona's own idle timer, and it does not
+know about the runner's warm pool. If the TTL is the longer of the two, Daytona stops a sandbox the
+runner still believes is warm: the next turn takes the cold path anyway, and you paid for the warm
+window without getting it. The defaults (2 minutes against 15) satisfy this. Raise autostop first
+whenever you raise the TTL.
+:::
+
+Local, one pooled harness process per parked session inside the runner container:
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_SESSION_POOL_MAX` | How many local sessions may stay pooled | `8` | no | `agentRunner.env.AGENTA_RUNNER_SESSION_POOL_MAX` |
+| `AGENTA_RUNNER_SESSION_TTL_MS` | Idle lifetime of a pooled local session | `60000` (1 minute) | no | `agentRunner.env.AGENTA_RUNNER_SESSION_TTL_MS` |
+| `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` | Idle lifetime while a run waits for a human approval | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` |
+| `AGENTA_RUNNER_SESSION_KEEPALIVE` | Whether local sessions are reused at all | Enabled | no | `agentRunner.env.AGENTA_RUNNER_SESSION_KEEPALIVE` |
+
+Local keep-alive is on by default. Set `AGENTA_RUNNER_SESSION_KEEPALIVE=off` (`0`, `false`, and `no`
+also work) to make every local turn take the cold path, which lowers the runner container's memory
+ceiling and raises the latency of a follow-up turn. The approval TTL applies while a run waits on a
+human approval, so it does not expire a session that is waiting on a person. These four apply to
+the `local` provider only; Daytona ignores them and uses the two variables above.
+
+A Daytona sandbox moves through three states:
+
+| State | When | Billing |
+|---|---|---|
+| Running | While a turn executes, and during the warm window after a clean turn | Compute and disk |
+| Stopped | After `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` idle minutes | Disk only; restart is cheap and the session reloads on the same instance |
+| Deleted | After `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` idle minutes | None; the next turn creates a fresh sandbox and reloads the working directory from the store |
+
+### Run limits
+
+Four deadlines bound a single run. Whichever limit trips first aborts the run and releases its
+sandbox, its mount, and its socket. All four are read by the `runner` service and apply to every
+provider.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` | Hard deadline for one run, measured from the first message | `2700000` (45 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` |
+| `AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` | Longest gap between two progress events before the run is abandoned | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` |
+| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
+| `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
+
+Three rules govern how they interact:
+
+- A run paused for a human approval is exempt from all four. The pause freezes every timer.
+- The idle timeout must stay below the total deadline, or it could never fire first. A value at or
+  above the total is clamped to half the total, and the runner logs the clamp rather than failing to
+  start.
+- The TTFB timer only covers the wait for the first response. The first progress event of any kind
+  cancels it and arms the idle timer instead.
+
+An invalid value (not a number, or negative) falls back to the default for that variable. These are
+the runner's own deadlines and are unrelated to `AGENTA_RUNNER_TIMEOUT_SECONDS`, which is the
+caller's idle timeout on the streaming transport.
+
+### Callback API
+
+Set on the `runner` service. It gives the runner the in-network address of the API for session
+heartbeats, working-directory mount signing, and the trace-export fallback.
+
+| Variable | Role | Default | Helm |
+|---|---|---|---|
+| `AGENTA_API_INTERNAL_URL` | API locator for runner callbacks | Compose: `http://api:8000` | Wired by the chart |
+
+Point this at the API as reached from inside the runner container (its Compose or cluster service
+name, for example `http://api:8000`), not the public URL, which does not resolve inside a
+container. If it is unset, the runner falls back to the public `AGENTA_API_URL` and then to the
+base inferred from each request.
+
+### Internal settings
+
+The runner reads two more variables that exist for debugging and for custom sandbox images. They
+are not part of the supported configuration surface and may change without notice. Leave them unset
+on a normal deployment.
+
+- `AGENTA_RUNNER_DEBUG_TOOLS`: when set to any value, the runner logs verbose tool-callback
+  diagnostics to standard error. Unset by default.
+- `AGENTA_AGENT_SANDBOX_PI_DIR`: where the Pi agent directory lives *inside* a Daytona sandbox,
+  defaulting to `/home/sandbox/.pi/agent`. This describes the sandbox image's own layout, not the
+  deployment. Change it only if you build a custom snapshot that puts Pi somewhere else.
+
+### Startup validation
+
+The runner fails to start when configuration is invalid, before it listens. The exact messages:
+
+| Cause | Error |
+|---|---|
+| Enabled list is set but empty | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is set but empty; unset it for the default 'local', or list at least one provider.` |
+| Empty entry in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS has an empty entry in '<list>'.` |
+| Unknown provider id in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider '<id>'; known providers: local, daytona.` |
+| Duplicate provider id | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists provider '<id>' more than once.` |
+| Default is an unknown provider | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '<id>'; known providers: local, daytona.` |
+| Default not in the enabled set | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER '<id>' is not in the enabled set [<list>]. Add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS or change the default.` |
+| Daytona enabled without a key | `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'daytona' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS.` |
+| Snapshot and image both set | `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive; set only one.` |
+| Non-integer positive value | `<variable> must be a positive integer, got '<value>'.` |
+
+The last message covers `AGENTA_RUNNER_PORT`, `AGENTA_RUNNER_CONCURRENCY_LIMIT`,
+`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, and `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`.
+
+On a valid start, the runner logs one redacted summary. No credential value or source path is
+logged.
+
+```text
+runner providers enabled=[local,daytona] default=local
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
+```
+
+The first line always prints. The second line appears only when `daytona` is enabled. `target`
+reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
+`snapshot:agenta-agent-sandbox-v1` (the pinned default), `snapshot:<name>`, or `image:<name>`
+depending on what is set.
+
+### Troubleshooting
+
+#### A run fails with `Sandbox provider '<id>' is not enabled on this deployment`
+
+**Cause:** The run requested a provider that is not in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`.
+
+**Solution:** Add the provider and recreate the runner, or change the run to use an enabled
+provider.
+
+#### A run fails with `could not find runner CLI at /app/runner/src/cli.ts`
+
+**Cause:** `AGENTA_RUNNER_INTERNAL_URL` is unset on the Services API. With no runner URL, the SDK
+falls back to spawning the runner as a subprocess from its own image, which does not ship the
+runner source.
+
+**Solution:** Set the locator on the `services` container and recreate it. On Compose:
+
+```bash
+AGENTA_RUNNER_INTERNAL_URL=http://runner:8765
+```
+
+The bundled Compose files already default to this value, and the Helm chart derives it from
+`agentRunner.enabled`. A hand-written deployment has to set it. Check that the Services container
+reaches the runner at that address:
+
+```bash
+docker compose exec services python -c \
+  "import urllib.request; print(urllib.request.urlopen('http://runner:8765/health').status)"
+```
+
+A `200` confirms the hop.
+
+#### The API cannot reach the runner, or the runner rejects its calls
+
+**Cause:** `AGENTA_RUNNER_INTERNAL_URL` does not point at the runner, or `AGENTA_RUNNER_TOKEN` is
+set on only one side.
+
+**Solution:** Check the URL, and set the same token value on the API and on the runner or on
+neither.
+
+#### A self-managed local run fails because the harness has no login
+
+**Cause:** The subscription mount is missing, or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` does
+not point at it.
+
+**Solution:** See [Use your own subscription](/self-host/use-your-own-subscription).
+
+#### A self-managed run that requested Daytona fails
+
+**Cause:** Personal subscriptions are local-only.
+
+**Solution:** Run Daytona with a model API key. See
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+
+#### The runner fails to start with a Daytona authentication error
+
+**Cause:** `AGENTA_RUNNER_DAYTONA_API_KEY` is wrong, or it has no access to the target.
+
+**Solution:** Check the key and `AGENTA_RUNNER_DAYTONA_TARGET`.
+
+#### Working directories do not persist across turns on Daytona
+
+**Cause:** The sandbox could not reach the store, so it mounted nothing. The runner logs a
+mount-degradation warning.
+
+**Solution:** Make the store publicly reachable. See
+[Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona).
+
+## Store (durable object store) {#store-durable-object-store}
+
+Backs the durable working directory for sessions and agents. Files written by an agent run
+survive sandbox teardown and reappear in the next turn. The store is disabled until `ACCESS_KEY`
+and `SECRET_KEY` are set. Point these at any S3-compatible store: the bundled SeaweedFS, AWS S3,
+or MinIO. `ENDPOINT_URL` is always explicit (SeaweedFS defaults it to `http://seaweedfs:8333`; a
+remote store must set it).
+
+The API holds the master credentials and never passes them to the runner. At run start it mints
+short-lived, prefix-scoped credentials and only those reach the sandbox, which mounts the durable
+prefix as its working directory. The STS mechanism depends on the backend (see the two-backend
+note below): bundled SeaweedFS uses `AssumeRoleWithWebIdentity`; a remote S3 store uses
+`GetFederationToken`.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_STORE_ENDPOINT_URL` | `store.endpoint_url` | `store.endpointUrl` (auto-populated when `store.seaweedfs.enabled=true`) |
+| `AGENTA_STORE_STS_ENDPOINT_URL` | `store.sts_endpoint_url` | `store.stsEndpointUrl` |
+| `AGENTA_STORE_ACCESS_KEY` | `store.access_key` | `store.accessKey` |
+| `AGENTA_STORE_SECRET_KEY` | `store.secret_key` | `store.secretKey` |
+| `AGENTA_STORE_REGION` | `store.region` | `store.region` |
+| `AGENTA_STORE_BUCKET` | `store.bucket` | `store.bucket` |
+| `AGENTA_STORE_NAMESPACE` | `store.namespace` | `store.namespace` |
+| `AGENTA_STORE_SIGNING_KEY` | `store.signing_key` | `store.signingKey` |
+| `AGENTA_STORE_JWT_ISSUER` | `store.jwt_issuer` | `store.jwtIssuer` |
+| `AGENTA_STORE_JWT_PRIVATE_KEY` | `store.jwt_private_key` | `store.jwtPrivateKey` |
+| n/a | n/a | `store.seaweedfs.enabled` |
+
+`store.seaweedfs.enabled=true` bundles a SeaweedFS StatefulSet and auto-populates
+`store.endpointUrl`. Set it to `false` and supply `store.endpointUrl` to use an external
+S3-compatible store. This toggle mirrors `postgresql.enabled`.
+
+:::note `AGENTA_STORE_NAMESPACE`: sharing one bucket across environments
+The key layout treats the store as a small database: the **bucket** is the cluster, an optional
+**namespace** is the database, the entity prefix (`mounts/`) is the table, and `<project>/<mount>`
+is the row, so a full key is `<bucket>/[<namespace>/]mounts/<project_id>/<mount_id>/...`.
+
+Leave `NAMESPACE` unset for a dedicated bucket; the key layout is then identical to a single-tenant
+store (no empty leading segment). Set it (typically to a deployment or environment id) when
+several **ephemeral environments share one bucket**. Each environment's keys are prefixed with its
+namespace, and the short-lived credentials the API signs are scoped to that namespace, so one
+environment can never read or write another's objects even though they live in the same bucket.
+The namespace narrows the credential scope; it never widens it, and it is orthogonal to the store
+backend (it works on remote S3 and on bundled SeaweedFS alike).
+:::
+
+:::note Two STS backends (selected by `SIGNING_KEY` presence)
+The API narrows the master credentials to one mount prefix per run with an inline session policy.
+How it signs that scoped credential depends on the backend, and the backend is chosen by whether
+`AGENTA_STORE_SIGNING_KEY` is set, not by the endpoint:
+
+- **`SIGNING_KEY` set → bundled SeaweedFS.** SeaweedFS authorizes scoped credentials only through
+  its OIDC IAM engine: the API acts as the OIDC issuer, mints a short-lived RS256 *web-identity*
+  token, and serves the matching public JWKS at `/.well-known/jwks.json`; SeaweedFS fetches that
+  JWKS to verify the token on each `AssumeRoleWithWebIdentity` call.
+- **`SIGNING_KEY` unset → remote S3-compatible store (AWS S3, MinIO).** The API already holds S3
+  credentials, so it signs a `GetFederationToken` request (SigV4) with them. No OIDC provider, no
+  role. Cloudflare R2 is **not** supported: it does not implement AWS STS `GetFederationToken`.
+
+`AGENTA_STORE_STS_ENDPOINT_URL` is the STS endpoint for the remote-S3 path. It defaults to the S3
+endpoint (MinIO co-locates STS there); set it only when the store splits STS onto another host.
+For AWS: `https://sts.<region>.amazonaws.com`. It is ignored on the SeaweedFS path.
+
+The SeaweedFS-only settings (`SIGNING_KEY`, `JWT_ISSUER`, `JWT_PRIVATE_KEY`):
+
+- `AGENTA_STORE_SIGNING_KEY`: base64 of exactly 32 bytes; the HMAC key SeaweedFS signs its own STS
+  session tokens with (`head -c 32 /dev/urandom | base64`). Its presence also selects the SeaweedFS
+  backend, so leave it unset for a remote S3 store.
+- `AGENTA_STORE_JWT_ISSUER`: the in-network API URL SeaweedFS fetches the JWKS from (e.g.
+  `http://api:8000`).
+- `AGENTA_STORE_JWT_PRIVATE_KEY`: a stable RSA private key (PKCS#8 PEM) the API signs the
+  web-identity token with. **Required in production:** every API replica must share one key, or
+  SeaweedFS's cached JWKS desyncs and token validation fails intermittently. Generate with
+  `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Local dev falls back to a
+  built-in key when unset.
+
+The bundled store and the API must agree on `ACCESS_KEY` and `SECRET_KEY`; in the Helm chart and
+docker-compose this is wired automatically.
+:::
+
+:::warning Remote sandboxes (Daytona) need a reachable store endpoint
+A local sandbox mounts durable storage on the runner host against the in-network store. A
+**remote** sandbox mounts from inside the cloud sandbox, so the store endpoint must be publicly
+reachable. Enable the `ngrok` tunnel (the compose `with-tunnel` profile) or point
+`AGENTA_STORE_ENDPOINT_URL` at a public S3 URL. Only the scoped, short-lived credentials ever
+cross into a remote sandbox.
+:::
+
+## Agenta egress
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_INSECURE_EGRESS_ALLOWED` | `agenta.webhooks.allow_insecure` (API); read directly by the SDK for workflow hooks and custom model provider endpoints | `agenta.insecureEgressAllowed` |
+
+:::note SSRF protection
+`AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true`, so outbound requests that Agenta
+itself makes to a tenant-configured endpoint (webhooks, workflow hooks, custom model
+provider URLs) are allowed even when they resolve to a private, loopback, or otherwise
+reserved IP address. The deployment logs a warning while this default is active.
+
+If you're running a shared or multi-tenant deployment, set it to `false`. Agenta then
+blocks any such request that resolves to a private, loopback, or reserved IP address,
+regardless of who configured the URL. Public URLs are never affected either way.
+
+The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALLOW_INSECURE`,
+`AGENTA_SERVICES_HOOK_ALLOW_INSECURE`, `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE`) are
+deprecated aliases and still work, but new configuration should use the canonical name.
+:::
+
+## alembic
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `ALEMBIC_AUTO_MIGRATIONS` | `alembic.auto_migrations` | `alembic.autoMigrations` |
+| `ALEMBIC_CFG_PATH_CORE` | `alembic.cfg_path_core` | `alembic.cfgPathCore` |
+| `ALEMBIC_CFG_PATH_TRACING` | `alembic.cfg_path_tracing` | `alembic.cfgPathTracing` |
+
+## cloudflare
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `CLOUDFLARE_TURNSTILE_ALLOWED_HOSTNAMES` | `cloudflare.turnstile.allowed_hostnames` | `cloudflare.turnstile.allowedHostnames` |
+| `CLOUDFLARE_TURNSTILE_SECRET_KEY` | `cloudflare.turnstile.secret_key` | `cloudflare.turnstile.secretKey` |
+| `CLOUDFLARE_TURNSTILE_SITE_KEY` | `cloudflare.turnstile.site_key` | `cloudflare.turnstile.siteKey` |
+
+## composio
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `COMPOSIO_API_KEY` | `composio.api_key` | `composio.apiKey` |
+| `COMPOSIO_API_URL` | `composio.api_url` | `composio.apiUrl` |
+
+## crisp
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `CRISP_WEBSITE_ID` | `crisp.website_id` | `crisp.websiteId` |
+
+## daytona (code evaluator) {#daytona-code-evaluator}
+
+These configure the custom-code evaluator sandbox. The agent runner reads its own
+`AGENTA_RUNNER_DAYTONA_*` names instead; see [Agent runner](#agent-runner).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `DAYTONA_API_KEY` | `daytona.api_key` | `daytona.apiKey` |
+| `DAYTONA_API_URL` | `daytona.api_url` | `daytona.apiUrl` |
+| `DAYTONA_SNAPSHOT` | `daytona.snapshot` | `daytona.snapshot` |
+| `DAYTONA_SNAPSHOT_CODE` | `daytona.snapshot` (takes precedence) | n/a |
+| `DAYTONA_TARGET` | `daytona.target` | `daytona.target` |
+
+`DAYTONA_SNAPSHOT` sets the snapshot for the custom-code evaluator sandbox. Set
+`DAYTONA_SNAPSHOT_CODE` to override it for the evaluator specifically. The agent runner uses its
+own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona).
+
+## docker
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `DOCKER_NETWORK_MODE` | `docker.network_mode` | `docker.networkMode` |
+
+## identity (OIDC providers)
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `APPLE_OAUTH_CLIENT_ID` | `identity.apple.client_id` | `identity.apple.clientId` |
+| `APPLE_OAUTH_CLIENT_SECRET` | `identity.apple.client_secret` | `identity.apple.clientSecret` |
+| `APPLE_KEY_ID` | `identity.apple.key_id` | `identity.apple.keyId` |
+| `APPLE_PRIVATE_KEY` | `identity.apple.private_key` | `identity.apple.privateKey` |
+| `APPLE_TEAM_ID` | `identity.apple.team_id` | `identity.apple.teamId` |
+| `AZURE_AD_OAUTH_CLIENT_ID` | `identity.azure_ad.client_id` | `identity.azureAd.clientId` |
+| `AZURE_AD_OAUTH_CLIENT_SECRET` | `identity.azure_ad.client_secret` | `identity.azureAd.clientSecret` |
+| `AZURE_AD_DIRECTORY_ID` | `identity.azure_ad.directory_id` | `identity.azureAd.directoryId` |
+| `BITBUCKET_OAUTH_CLIENT_ID` | `identity.bitbucket.client_id` | `identity.bitbucket.clientId` |
+| `BITBUCKET_OAUTH_CLIENT_SECRET` | `identity.bitbucket.client_secret` | `identity.bitbucket.clientSecret` |
+| `BOXY_SAML_OAUTH_CLIENT_ID` | `identity.boxy_saml.client_id` | `identity.boxySaml.clientId` |
+| `BOXY_SAML_OAUTH_CLIENT_SECRET` | `identity.boxy_saml.client_secret` | `identity.boxySaml.clientSecret` |
+| `BOXY_SAML_URL` | `identity.boxy_saml.url` | `identity.boxySaml.url` |
+| `DISCORD_OAUTH_CLIENT_ID` | `identity.discord.client_id` | `identity.discord.clientId` |
+| `DISCORD_OAUTH_CLIENT_SECRET` | `identity.discord.client_secret` | `identity.discord.clientSecret` |
+| `FACEBOOK_OAUTH_CLIENT_ID` | `identity.facebook.client_id` | `identity.facebook.clientId` |
+| `FACEBOOK_OAUTH_CLIENT_SECRET` | `identity.facebook.client_secret` | `identity.facebook.clientSecret` |
+| `GITHUB_OAUTH_CLIENT_ID` | `identity.github.client_id` | `identity.github.clientId` |
+| `GITHUB_OAUTH_CLIENT_SECRET` | `identity.github.client_secret` | `identity.github.clientSecret` |
+| `GITLAB_BASE_URL` | `identity.gitlab.base_url` | `identity.gitlab.baseUrl` |
+| `GITLAB_OAUTH_CLIENT_ID` | `identity.gitlab.client_id` | `identity.gitlab.clientId` |
+| `GITLAB_OAUTH_CLIENT_SECRET` | `identity.gitlab.client_secret` | `identity.gitlab.clientSecret` |
+| `GOOGLE_OAUTH_CLIENT_ID` | `identity.google.client_id` | `identity.google.clientId` |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | `identity.google.client_secret` | `identity.google.clientSecret` |
+| `GOOGLE_WORKSPACES_OAUTH_CLIENT_ID` | `identity.google_workspaces.client_id` | `identity.googleWorkspaces.clientId` |
+| `GOOGLE_WORKSPACES_OAUTH_CLIENT_SECRET` | `identity.google_workspaces.client_secret` | `identity.googleWorkspaces.clientSecret` |
+| `GOOGLE_WORKSPACES_HD` | `identity.google_workspaces.hd` | `identity.googleWorkspaces.hd` |
+| `LINKEDIN_OAUTH_CLIENT_ID` | `identity.linkedin.client_id` | `identity.linkedin.clientId` |
+| `LINKEDIN_OAUTH_CLIENT_SECRET` | `identity.linkedin.client_secret` | `identity.linkedin.clientSecret` |
+| `OKTA_OAUTH_CLIENT_ID` | `identity.okta.client_id` | `identity.okta.clientId` |
+| `OKTA_OAUTH_CLIENT_SECRET` | `identity.okta.client_secret` | `identity.okta.clientSecret` |
+| `OKTA_DOMAIN` | `identity.okta.domain` | `identity.okta.domain` |
+| `TWITTER_OAUTH_CLIENT_ID` | `identity.twitter.client_id` | `identity.twitter.clientId` |
+| `TWITTER_OAUTH_CLIENT_SECRET` | `identity.twitter.client_secret` | `identity.twitter.clientSecret` |
+
+## llm (provider API keys)
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `ALEPHALPHA_API_KEY` | `llm.alephalpha` | `llm.alephalpha` |
+| `ANTHROPIC_API_KEY` | `llm.anthropic` | `llm.anthropic` |
+| `ANYSCALE_API_KEY` | `llm.anyscale` | `llm.anyscale` |
+| `COHERE_API_KEY` | `llm.cohere` | `llm.cohere` |
+| `DEEPINFRA_API_KEY` | `llm.deepinfra` | `llm.deepinfra` |
+| `GEMINI_API_KEY` | `llm.gemini` | `llm.gemini` |
+| `GROQ_API_KEY` | `llm.groq` | `llm.groq` |
+| `MINIMAX_API_KEY` | `llm.minimax` | `llm.minimax` |
+| `MISTRAL_API_KEY` | `llm.mistral` | `llm.mistral` |
+| `OPENAI_API_KEY` | `llm.openai` | `llm.openai` |
+| `OPENROUTER_API_KEY` | `llm.openrouter` | `llm.openrouter` |
+| `PERPLEXITYAI_API_KEY` | `llm.perplexityai` | `llm.perplexityai` |
+| `TOGETHERAI_API_KEY` | `llm.togetherai` | `llm.togetherai` |
+
+## loops
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `LOOPS_API_KEY` | `loops.api_key` | `loops.apiKey` |
+
+## newrelic
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `NEWRELIC_LICENSE_KEY` | `newrelic.license_key` | `newrelic.licenseKey` |
+
+## postgres
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `POSTGRES_USER` | `postgres.user` | `postgres.user` |
+| `POSTGRES_PASSWORD` | `postgres.password` | `postgres.password` |
+| `POSTGRES_PORT` | `postgres.port` | `postgres.port` |
+| `POSTGRES_URI_CORE` | `postgres.uri_core` | `postgres.uriCore` |
+| `POSTGRES_URI_SUPERTOKENS` | `postgres.uri_supertokens` | `postgres.uriSupertokens` |
+| `POSTGRES_URI_TRACING` | `postgres.uri_tracing` | `postgres.uriTracing` |
+
+## posthog
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `POSTHOG_API_KEY` | `posthog.api_key` | `posthog.apiKey` |
+| `POSTHOG_API_URL` | `posthog.api_url` | `posthog.apiUrl` |
+
+## redis
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `REDIS_URI` | `redis.uri` | `redis.uri` |
+| `REDIS_URI_DURABLE` | `redis.uri_durable` | `redis.uriDurable` |
+| `REDIS_URI_VOLATILE` | `redis.uri_volatile` | `redis.uriVolatile` |
+
+## smtp
+
+SMTP is preferred for email delivery. It is enabled only when host, port, and
+sender are configured. SendGrid remains supported as a fallback when SMTP is not
+fully configured.
+
+For local Mailpit from an API container, use `SMTP_HOST=host.docker.internal`
+when Mailpit runs on the host, or `SMTP_HOST=mailpit` only when Mailpit is on
+the same Docker network.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `SMTP_HOST` | `smtp.host` | _(not mapped)_ |
+| `SMTP_PORT` | `smtp.port` | _(not mapped)_ |
+| `SMTP_USERNAME` | `smtp.username` | _(not mapped)_ |
+| `SMTP_PASSWORD` | `smtp.password` | _(not mapped)_ |
+| `SMTP_FROM_EMAIL` | `smtp.from_email` | _(not mapped)_ |
+| `SMTP_USE_TLS` | `smtp.use_tls` | _(not mapped)_ |
+| `SMTP_USE_SSL` | `smtp.use_ssl` | _(not mapped)_ |
+| `SMTP_TIMEOUT` | `smtp.timeout` | _(not mapped)_ |
+
+## sendgrid
+
+SendGrid is used only when SMTP is not fully configured.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `SENDGRID_API_KEY` | `sendgrid.api_key` | `sendgrid.apiKey` |
+| `SENDGRID_FROM_EMAIL` | `sendgrid.from_email` | `sendgrid.fromEmail` |
+
+## stripe
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `STRIPE_API_KEY` | `stripe.api_key` | `stripe.apiKey` |
+| `STRIPE_WEBHOOK_SECRET` | `stripe.webhook_secret` | `stripe.webhookSecret` |
+| `STRIPE_WEBHOOK_TARGET` | `stripe.webhook_target` | `stripe.webhookTarget` |
+
+## supertokens
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `SUPERTOKENS_API_KEY` | `supertokens.api_key` | `supertokens.apiKey` |
+| `SUPERTOKENS_APPLICATION` | `supertokens.application` | `supertokens.application` |
+| `SUPERTOKENS_PASSWORD_MAX_LENGTH` | `supertokens.password_max_length` | `supertokens.passwordMaxLength` |
+| `SUPERTOKENS_PASSWORD_MIN_LENGTH` | `supertokens.password_min_length` | `supertokens.passwordMinLength` |
+| `SUPERTOKENS_PASSWORD_POLICY` | `supertokens.password_policy` | `supertokens.passwordPolicy` |
+| `SUPERTOKENS_PASSWORD_REGEX` | `supertokens.password_regex` | `supertokens.passwordRegex` |
+| `SUPERTOKENS_TENANT` | `supertokens.tenant` | `supertokens.tenant` |
+| `SUPERTOKENS_URI_CORE` | `supertokens.uri_core` | `supertokens.uriCore` |
+
+## Deprecated environment variables
+
+The following legacy names still work via fallback (the Pydantic env loader
+reads the new name first, then the legacy one). They will be removed in a
+future major release.
+
+| Legacy env var | Canonical replacement |
+|---|---|
+| `AGENTA_ALLOWED_DOMAINS` | `AGENTA_ACCESS_ALLOWED_DOMAINS` |
+| `AGENTA_ORG_CREATION_ALLOWLIST` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_ACCESS_ORG_CREATION_ALLOWLIST` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_ACCESS_ALLOWED_ORGANIZATION_OWNERS` | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` |
+| `AGENTA_BLOCKED_DOMAINS` | `AGENTA_ACCESS_BLOCKED_DOMAINS` |
+| `AGENTA_BLOCKED_EMAILS` | `AGENTA_ACCESS_BLOCKED_EMAILS` |
+| `AGENTA_DEFAULT_PLAN` | `AGENTA_ACCESS_DEFAULT_PLAN` |
+| `SUPERTOKENS_EMAIL_DISABLED` | `AGENTA_ACCESS_EMAIL_DISABLED` |
+| `AGENTA_PRICING` | `AGENTA_BILLING_PRICING` |
+| `STRIPE_PRICING` | `AGENTA_BILLING_PRICING` |
+| `AGENTA_CACHE_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
+| `AGENTA_CACHING_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
+| `AGENTA_DEMOS` | `AGENTA_EXTRAS_DEMOS` |
+| `AGENTA_LOG_CONSOLE_ENABLED` | `AGENTA_LOGGING_CONSOLE_ENABLED` |
+| `AGENTA_LOG_CONSOLE_LEVEL` | `AGENTA_LOGGING_CONSOLE_LEVEL` |
+| `AGENTA_LOG_FILE_ENABLED` | `AGENTA_LOGGING_FILE_ENABLED` |
+| `AGENTA_LOG_FILE_LEVEL` | `AGENTA_LOGGING_FILE_LEVEL` |
+| `AGENTA_LOG_FILE_PATH` | `AGENTA_LOGGING_FILE_PATH` |
+| `AGENTA_LOG_OTLP_ENABLED` | `AGENTA_LOGGING_OTLP_ENABLED` |
+| `AGENTA_LOG_OTLP_LEVEL` | `AGENTA_LOGGING_OTLP_LEVEL` |
+| `AGENTA_SERVICES_SANDBOX_RUNNER` | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` |
+| `AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` |
+| `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` (singular SERVICE) | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` |
+| `AGENTA_WEBHOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_WEBHOOKS_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_SERVICES_HOOK_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE` | `AGENTA_INSECURE_EGRESS_ALLOWED` |
+| `AGENTA_AUTO_MIGRATIONS` | `ALEMBIC_AUTO_MIGRATIONS` |
+| `AGENTA_RUNTIME_PREFIX` | _(removed; no consumer in API)_ |
+| `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` | `AZURE_AD_OAUTH_CLIENT_ID` |
+| `ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET` | `AZURE_AD_OAUTH_CLIENT_SECRET` |
+| `ACTIVE_DIRECTORY_DIRECTORY_ID` | `AZURE_AD_DIRECTORY_ID` |
+| `NEW_RELIC_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
+| `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
+| `POSTHOG_HOST` | `POSTHOG_API_URL` |
+| `AGENTA_AUTHN_EMAIL_FROM` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
+| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
+| `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
+| `SUPERTOKENS_CONNECTION_URI` | `SUPERTOKENS_URI_CORE` |

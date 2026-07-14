@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildRunPlan,
-  shouldUploadOwnLogin,
+  DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE,
+  LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { RESERVED_MCP_SERVER_NAME_MESSAGE } from "../../src/engines/sandbox_agent/mcp.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
@@ -602,7 +603,10 @@ describe("buildRunPlan", () => {
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on this remote sandbox provider/);
+      assert.match(
+        result.error,
+        /non-Pi harness on this remote sandbox provider/,
+      );
       assert.match(result.error, /proven for Daytona only/);
       assert.match(
         result.error,
@@ -953,8 +957,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.usageOutPath, undefined);
     assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");
     assert.equal(result.plan.hasApiKey, true);
-    // The resolved credentialMode is carried onto the plan (drives clear-then-apply + the
-    // OAuth-upload gate).
+    // The resolved credentialMode is carried onto the plan (drives clear-then-apply).
     assert.equal(result.plan.credentialMode, "env");
     assert.equal(result.plan.systemPrompt, undefined);
     assert.equal(result.plan.hasSystemPrompt, false);
@@ -1072,53 +1075,102 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
   });
 });
 
-describe("shouldUploadOwnLogin", () => {
-  it("never uploads when the connection resolved a real key (credentialMode 'env')", () => {
-    // A resolved key is the credential (Security rule 6); the fallback auth.json must not load,
-    // even if hasApiKey somehow disagrees.
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: "env", hasApiKey: true }),
-      false,
-    );
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: "env", hasApiKey: false }),
-      false,
-    );
-  });
+describe("buildRunPlan runtime_provided (subscription) gates", () => {
+  const withEnv = (
+    vars: Record<string, string | undefined>,
+    fn: () => void,
+  ): void => {
+    const saved: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(vars)) {
+      saved[key] = process.env[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    try {
+      fn();
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  };
 
-  it("uploads for runtime_provided (the harness authenticates with its own login)", () => {
-    assert.equal(
-      shouldUploadOwnLogin({
+  it("rejects a Daytona runtime_provided run before any sandbox side effect", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "runtime_provided",
-        hasApiKey: false,
-      }),
-      true,
+      },
+      {
+        createDaytonaCwd: () => {
+          created = true;
+          return "/home/sandbox/should-not-happen";
+        },
+      },
     );
-    assert.equal(
-      shouldUploadOwnLogin({
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+    assert.equal(created, false);
+  });
+
+  it("rejects a local Pi runtime_provided run when PI_CODING_AGENT_DIR is unset", () => {
+    withEnv({ PI_CODING_AGENT_DIR: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "pi_core",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "runtime_provided",
-        hasApiKey: true,
-      }),
-      true,
-    );
+      });
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
   });
 
-  it("never uploads for credentialMode 'none' (no credential asserted)", () => {
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: "none", hasApiKey: false }),
-      false,
-    );
+  it("rejects a local Claude runtime_provided run when CLAUDE_CONFIG_DIR is unset", () => {
+    withEnv({ CLAUDE_CONFIG_DIR: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "claude",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
   });
 
-  it("falls back to the hasApiKey heuristic for an un-migrated caller (no credentialMode)", () => {
-    // No credentialMode on the wire: upload only when no api key was supplied (today's behavior).
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: undefined, hasApiKey: false }),
-      true,
-    );
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: undefined, hasApiKey: true }),
-      false,
-    );
+  it("accepts a local Pi runtime_provided run when PI_CODING_AGENT_DIR names a mount", () => {
+    withEnv({ PI_CODING_AGENT_DIR: "/agenta/harness/pi" }, () => {
+      const result = buildRunPlan({
+        harness: "pi_core",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.plan.credentialMode, "runtime_provided");
+      assert.equal(result.plan.sourcePiAgentDir, "/agenta/harness/pi");
+    });
+  });
+
+  it("does not gate a managed (env) local run on a subscription mount", () => {
+    withEnv({ PI_CODING_AGENT_DIR: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "pi_core",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        secrets: { OPENAI_API_KEY: "sk-test" },
+        credentialMode: "env",
+      });
+      assert.equal(result.ok, true);
+    });
   });
 });

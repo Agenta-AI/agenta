@@ -136,7 +136,6 @@ redisDurable:
 # ================================================================== #
 # agentRunner:
 #   enabled: true
-#   token: ""
 #   providers:
 #     enabled: [local]        # AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS (rendered comma-joined)
 #     default: local          # AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER (must be one of enabled)
@@ -146,11 +145,15 @@ redisDurable:
 #         key: api-key
 #       apiUrl: https://app.daytona.io/api
 #       target: eu
-#       snapshot: agenta-agent-runner
+#       snapshot: agenta-agent-sandbox-v1
 #       autostopMinutes: 15
 #       autodeleteMinutes: 30
 #       sessionIdleTtlMs: ""
 #       sessionMaxWarm: ""
+#   auth:
+#     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
+#       name: agenta-runner
+#       key: token
 
 # ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md

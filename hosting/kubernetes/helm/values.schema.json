@@ -303,7 +303,6 @@
       "properties": {
         "enabled":     { "type": "boolean", "description": "Deploy the runner; the Services API derives AGENTA_RUNNER_INTERNAL_URL from it unless externalUrl is set." },
         "externalUrl": { "type": "string", "description": "AGENTA_RUNNER_INTERNAL_URL override pointing at an external runner." },
-        "token":       { "type": "string", "description": "AGENTA_RUNNER_TOKEN via Secret — shared bearer token gating the runner's /run and /kill. Unset (default) means NO auth check: the runner trusts anything that can reach it, so it must stay on a private network. Set it (same value reaches the runner and the Services API caller) to harden a shared/multi-tenant deployment." },
         "piAgentDir":  { "type": "string", "description": "PI_CODING_AGENT_DIR for local Pi runs (default /pi-agent); unset means no Agenta extension for the run (the runner logs a warning)." },
         "logLevel":    { "type": "string", "description": "AGENTA_RUNNER_LOG_LEVEL read by the runner service." },
         "providers": {
@@ -341,6 +340,23 @@
                 "sessionIdleTtlMs":  { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS." },
                 "sessionMaxWarm":    { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM." }
               }
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Runner protocol credential. Rendered as AGENTA_RUNNER_TOKEN on both the runner (verifier) and the Services API (sender).",
+          "properties": {
+            "tokenSecretRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Secret holding the shared runner token, injected as AGENTA_RUNNER_TOKEN.",
+              "properties": {
+                "name": { "type": "string" },
+                "key":  { "type": "string" }
+              },
+              "required": ["name", "key"]
             }
           }
         }
