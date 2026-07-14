@@ -1,0 +1,205 @@
+---
+title: "Runner and sandbox configuration"
+sidebar_label: "Runner and sandbox configuration"
+description: "Reference for every runner environment variable: routing, server, sandbox providers, Daytona, warm sessions, callbacks, and internal settings, with defaults, Helm paths, and validation."
+slug: /self-host/agent-execution/runner-configuration
+sidebar_position: 5
+---
+
+Every operator-facing runner variable, its default, and where it is set. The runner parses all of
+its `AGENTA_RUNNER_*` variables once before it starts listening. An invalid value fails startup
+with the error shown in [Startup validation](#startup-validation).
+
+For the model behind these settings, see [How agents run](/self-host/agent-execution/how-agents-run).
+For the general platform variables, see the [configuration reference](/self-host/configuration).
+The local subscription mount variables (`PI_CODING_AGENT_DIR` and `CLAUDE_CONFIG_DIR`) are covered
+by [Use your own subscription](/self-host/use-your-own-subscription).
+
+## Services-to-runner routing
+
+Set on the Services API. They locate the runner and authenticate the call.
+
+| Variable | Role | Read by | Default | Secret | Helm |
+|---|---|---|---|---|---|
+| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
+| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services sends it; runner verifies it | Unset | yes | `agentRunner.env.AGENTA_RUNNER_TOKEN` |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout on the run request | Services API and SDK | `180` | no | n/a |
+
+`AGENTA_RUNNER_TOKEN` is the same credential at both ends. It does not belong to a sandbox or a
+harness. The runner enforces the check only when the value is set, so leaving it unset (the bundled
+Compose and Helm default) disables it. To turn it on, set the same value on the runner and on the
+Services API. `AGENTA_RUNNER_TIMEOUT_SECONDS` bounds idle time on the streaming transport, not the
+total run duration.
+
+## Runner server
+
+Set on the `runner` service.
+
+| Variable | Role | Default | Empty allowed | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_HOST` | Bind interface | `127.0.0.1` | Yes | `agentRunner.env.AGENTA_RUNNER_HOST` |
+| `AGENTA_RUNNER_PORT` | Bind port | `8765` | Yes | Chart-managed (`8765`) |
+| `AGENTA_RUNNER_CONCURRENCY_LIMIT` | Maximum concurrent runs | `1000` | Yes | `agentRunner.env.AGENTA_RUNNER_CONCURRENCY_LIMIT` |
+| `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | Yes | `agentRunner.logLevel` |
+| `AGENTA_RUNNER_REPLICA_ID` | Replica identity for logs | Generated when unset | Yes | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
+
+The code default host is `127.0.0.1`. The bundled Compose files set `AGENTA_RUNNER_HOST=0.0.0.0`
+so the Services container can reach the runner across the Compose network. `AGENTA_RUNNER_PORT` and
+`AGENTA_RUNNER_CONCURRENCY_LIMIT` must be positive integers.
+
+The runner does not take a static API key. Session coordination, mount signing, and trace export
+use the per-run caller credential.
+
+## Sandbox providers
+
+Read by both the runner and the Services API, so the operator sets each value once and hosting
+templates apply it to both.
+
+| Variable | Role | Default | Helm |
+|---|---|---|---|
+| `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` | Providers this deployment can use | `local` | `agentRunner.providers.enabled` (list, rendered comma-joined) |
+| `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` | Provider used when a run does not choose | `local` | `agentRunner.providers.default` |
+
+Rules:
+
+- Values are lowercase provider ids separated by commas. The known ids are `local` and `daytona`.
+- Unset enabled providers means exactly `local`.
+- An explicitly empty list is invalid, and so is an empty entry inside the list.
+- Unknown ids and duplicate ids are invalid.
+- The default must be one of the enabled providers.
+- A run may select any enabled provider. A run that selects a known but disabled provider fails
+  before any working directory, mount, secret, or sandbox is created. There is no fallback to
+  another provider.
+
+The enabled list is also the [security posture switch](/self-host/agent-execution/sandbox-isolation-and-security).
+This is capability configuration for the deployment, not a per-user authorization list.
+
+## Daytona
+
+Read by the `runner` service. Required only when `daytona` is enabled.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
+| `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
+| `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-sandbox-pi` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
+| `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
+| `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
+
+When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
+starts from its pinned default snapshot `agenta-sandbox-pi`. The two variables are mutually
+exclusive. The autostop and autodelete values must be positive integers. See
+[Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow.
+
+## Session lifecycle and warm sessions
+
+A Daytona sandbox stays warm between turns so a follow-up turn skips a cold start. Both variables
+are read by the `runner` service. The bundled Compose and Helm templates leave them empty, which
+means "use the default".
+
+| Variable | Role | Default | Helm |
+|---|---|---|---|
+| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | How long a sandbox stays running with its live session after a clean turn | `120000` (2 minutes) | `...daytona.sessionIdleTtlMs` |
+| `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` | How many idle sandboxes may stay running between turns | `20` | `...daytona.sessionMaxWarm` |
+
+Set `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` to `0` to stop a sandbox after each turn. There is
+no separate enable flag. `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` bounds idle spend only; it never
+blocks an active turn. Overflow sandboxes park in the stopped state.
+
+A Daytona sandbox moves through three states:
+
+| State | When | Billing |
+|---|---|---|
+| Running | While a turn executes, and during the warm window after a clean turn | Compute and disk |
+| Stopped | After `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` idle minutes | Disk only; restart is cheap and the session reloads on the same instance |
+| Deleted | After `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` idle minutes | None; the next turn creates a fresh sandbox and reloads the working directory from the store |
+
+## Callback API
+
+Set on the `runner` service. It gives the runner the in-network address of the API for session
+heartbeats, working-directory mount signing, and the trace-export fallback.
+
+| Variable | Role | Default | Helm |
+|---|---|---|---|
+| `AGENTA_API_INTERNAL_URL` | API locator for runner callbacks | Compose: `http://api:8000` | Wired by the chart |
+
+Point this at the API as reached from inside the runner container (its Compose or cluster service
+name, for example `http://api:8000`), not the public URL, which does not resolve inside a
+container. If it is unset, the runner falls back to the public `AGENTA_API_URL` and then to the
+base inferred from each request.
+
+## Internal settings
+
+The runner reads a few variables that exist for debugging and internal tuning. They are not part
+of the supported configuration surface. Leave them unset on a normal deployment.
+
+- `AGENTA_RUNNER_DEBUG_TOOLS`: when set to any value, the runner logs verbose tool-callback
+  diagnostics to standard error. Unset by default.
+- The runner also reads internal local-session-pool tuning variables
+  (`AGENTA_RUNNER_SESSION_KEEPALIVE`, `AGENTA_RUNNER_SESSION_TTL_MS`,
+  `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS`, and `AGENTA_RUNNER_SESSION_POOL_MAX`). These size the
+  in-container warm pool for `local` runs and change without notice. Do not set them.
+
+## Startup validation
+
+The runner fails to start when configuration is invalid, before it listens. The exact messages:
+
+| Cause | Error |
+|---|---|
+| Enabled list is set but empty | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is set but empty; unset it for the default 'local', or list at least one provider.` |
+| Empty entry in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS has an empty entry in '<list>'.` |
+| Unknown provider id in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider '<id>'; known providers: local, daytona.` |
+| Duplicate provider id | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists provider '<id>' more than once.` |
+| Default is an unknown provider | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '<id>'; known providers: local, daytona.` |
+| Default not in the enabled set | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER '<id>' is not in the enabled set [<list>]. Add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS or change the default.` |
+| Daytona enabled without a key | `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'daytona' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS.` |
+| Snapshot and image both set | `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive; set only one.` |
+| Non-integer positive value | `<variable> must be a positive integer, got '<value>'.` |
+
+The last message covers `AGENTA_RUNNER_PORT`, `AGENTA_RUNNER_CONCURRENCY_LIMIT`,
+`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, and `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`.
+
+On a valid start, the runner logs one redacted summary. No credential value or source path is
+logged.
+
+```text
+runner providers enabled=[local,daytona] default=local
+runner daytona target=eu artifact=snapshot:agenta-sandbox-pi
+```
+
+The first line always prints. The second line appears only when `daytona` is enabled. `target`
+reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
+`snapshot:agenta-sandbox-pi` (the pinned default), `snapshot:<name>`, or `image:<name>`
+depending on what is set.
+
+## Troubleshooting
+
+**A run fails with `Sandbox provider '<id>' is not enabled on this deployment (enabled: <list>)`.**
+The run requested a provider that is not in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`. Add it and
+recreate the runner, or change the run to use an enabled provider.
+
+**Services cannot reach the runner, or calls are rejected.**
+Check that `AGENTA_RUNNER_INTERNAL_URL` points at the runner and that `AGENTA_RUNNER_TOKEN`
+matches on both the Services API and the runner. A token set on one side only rejects the call.
+
+**A self-managed local run fails because the harness has no login.**
+The subscription mount is missing or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` does not point at
+it. See [Use your own subscription](/self-host/use-your-own-subscription).
+
+**A self-managed run requested Daytona and failed.**
+Personal subscriptions are local-only. Run Daytona with a managed model key instead. See
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+
+**A run fails naming a missing Pi executable.**
+The Daytona snapshot or image lacks the pinned Pi and the runtime install failed. Rebuild the
+snapshot with the [recipe](/self-host/agent-execution/daytona).
+
+**The runner fails to start with a Daytona authentication error.**
+`AGENTA_RUNNER_DAYTONA_API_KEY` is wrong or lacks access to the target. Check the key and
+`AGENTA_RUNNER_DAYTONA_TARGET`.
+
+**Durable working directories do not persist across turns, and the runner logs a mount-degradation warning.**
+A Daytona sandbox could not reach the store. Make the store publicly reachable. See
+[Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona).

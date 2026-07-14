@@ -1,5 +1,6 @@
 ---
 title: Networking Configuration
+slug: /self-host/infrastructure/networking
 description: "Understanding Agenta's network topology, container communication patterns, and networking environment variables"
 sidebar_position: 2
 ---
@@ -136,8 +137,8 @@ These variables configure how containers communicate internally. Use `REDIS_URI`
 | `SUPERTOKENS_CONNECTION_URI` | Auth service | `http://supertokens:3567` | SuperTokens service URL |
 | `AGENTA_RUNNER_INTERNAL_URL` | Runner URL | `http://runner:8765` | Points the Services API at the agent runner; default in compose, generated from `agentRunner.*` in Helm |
 
-:::note Daytona sandboxes and the remote compose profile
-Compose deployments using Daytona remote sandboxes require the `remote` compose profile, which starts an ngrok tunnel. The remote sandbox mounts durable storage over the public internet, so the store endpoint must be reachable. Railway and Kubernetes deployments expose the store endpoint publicly and do not need ngrok.
+:::note Daytona sandboxes and the store tunnel
+Compose deployments using Daytona remote sandboxes require the `with-tunnel` compose profile, which starts an ngrok tunnel (it needs an `NGROK_AUTHTOKEN`). The remote sandbox mounts durable storage over the public internet, so the store endpoint must be reachable. Railway and Kubernetes deployments expose the store endpoint publicly and do not need ngrok.
 :::
 
 ### Port Mapping (Optional)

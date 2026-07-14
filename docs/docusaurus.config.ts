@@ -368,6 +368,18 @@ const config: Config = {
             to: "/self-host/upgrading",
           },
           {
+            from: "/self-host/guides/deploy-the-agent-runner",
+            to: "/self-host/agent-execution/how-agents-run",
+          },
+          {
+            from: "/self-host/guides/custom-agent-runner-images",
+            to: "/self-host/agent-execution/customize-the-agent-runtime",
+          },
+          {
+            from: "/self-host/guides/agent-daytona-sandboxes",
+            to: "/self-host/agent-execution/daytona",
+          },
+          {
             from: "/reference/sdk/quick_start",
             to: "/reference/sdk/configuration-management",
           },

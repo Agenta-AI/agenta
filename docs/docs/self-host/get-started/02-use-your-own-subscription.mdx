@@ -1,0 +1,99 @@
+---
+title: "Use your own subscription"
+sidebar_label: "Use your own subscription"
+description: "Run local agents with your own Pi, Claude Code, or ChatGPT/Codex login instead of a managed API key, on a trusted single-operator deployment."
+slug: /self-host/use-your-own-subscription
+sidebar_position: 2
+---
+
+By default, Agenta runs agents with a model API key it resolves for each run. On a local
+deployment you run yourself, you can instead run agents with your own harness subscription: a
+Pi login, a Claude Code login, or a ChatGPT/Codex login.
+
+This tutorial mounts your login into the runner container and runs an agent that uses it.
+
+:::warning This is for a single trusted operator
+One personal subscription serves one operator, not every user of a shared deployment. Local
+agents can read files visible to the runner container, so the local runner is not an isolation
+boundary. Use this only on a deployment you run for yourself. Daytona runs do not support
+personal subscriptions. See [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+:::
+
+## Before you start
+
+- A running local OSS stack. See the [Quick start](/self-host/quick-start).
+- A harness you have logged into on your own machine:
+  - **Pi** stores its login at `~/.pi/agent/auth.json`. Log in with `pi`, then `/login`.
+  - **ChatGPT / Codex** uses the same Pi login file. Log in with `pi`, then `/login`, and pick
+    the ChatGPT sign-in.
+  - **Claude Code** stores its login at `~/.claude/.credentials.json`. Log in with `claude` and
+    pick the subscription login.
+
+## 1. Confirm the login on your machine
+
+Check that the login file exists before you mount it:
+
+```bash
+# Pi and ChatGPT/Codex
+ls ~/.pi/agent/auth.json
+
+# Claude Code
+ls ~/.claude/.credentials.json
+```
+
+## 2. Mount the login into the runner
+
+Edit the `runner` service in your Compose file
+(`hosting/docker-compose/oss/docker-compose.gh.yml`). Add a read-only volume for your login and
+point the harness at it.
+
+For **Pi** or **ChatGPT/Codex**:
+
+```yaml
+runner:
+  volumes:
+    - ~/.pi/agent:/agenta/harness/pi:ro
+  environment:
+    PI_CODING_AGENT_DIR: /agenta/harness/pi
+```
+
+For **Claude Code**:
+
+```yaml
+runner:
+  volumes:
+    - ~/.claude:/agenta/harness/claude:ro
+  environment:
+    CLAUDE_CONFIG_DIR: /agenta/harness/claude
+```
+
+The mount is read-only. The runner copies the login into a fresh per-run directory before each
+run, so the harness never writes back to your source login. Keep the Claude login current on the
+host, since a read-only mount cannot refresh an expired token in the container.
+
+Recreate the runner so it picks up the change:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh up -d runner
+```
+
+## 3. Run a self-managed agent
+
+In the studio, run an agent and choose the self-managed credential option (use your own login)
+for the matching harness. The run authenticates with your mounted subscription instead of a
+managed key.
+
+## 4. Confirm the mount is required
+
+Remove the volume and environment lines you added in step 2, recreate the runner, and run the
+same agent again. The run fails because the harness has no login to authenticate with. This
+confirms the run used your mounted subscription and not a hidden credential.
+
+Restore the mount to go back to using your subscription.
+
+## What crosses into a sandbox
+
+Your mounted login stays inside the runner container. Agenta never uploads it to a Daytona
+sandbox. A run that requests Daytona with a self-managed credential is not supported. For the
+full trust model, see [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).

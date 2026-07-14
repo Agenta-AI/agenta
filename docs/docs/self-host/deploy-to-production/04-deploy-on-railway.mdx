@@ -1,5 +1,6 @@
 ---
 title: Deploy on Railway
+slug: /self-host/guides/deploy-on-railway
 sidebar_label: Deploy on Railway
 description: 'Deploy Agenta on Railway using CLI scripts. Covers fresh deployments, upgrades, environment variables, and common troubleshooting.'
 ---
@@ -21,10 +22,8 @@ The scripts create the following services inside one Railway project:
 - **Redis** with a persistent volume
 - **SuperTokens** for authentication
 - **Alembic** for database migrations
-- **Worker (tracing)** for OTLP trace ingestion
-- **Worker (evaluations)** for async evaluation jobs
-- **Worker (webhooks)** for async webhook deliveries
-- **Worker (events)** for async event processing
+- **Worker (streams)** for stream consumers such as tracing and session records
+- **Worker (queues)** for queue consumers such as evaluations, webhooks, events, interactions, and triggers
 - **Cron** for scheduled maintenance tasks
 
 All traffic enters through the gateway. The gateway routes `/` to web, `/api/` to the API, and `/services/` to the services backend.
@@ -192,8 +191,9 @@ These environment variables control the deployment scripts. All have sensible de
 | Variable | Default | Description |
 |---|---|---|
 | `AGENTA_RUNNER_IMAGE` | `ghcr.io/agenta-ai/agenta-runner:latest` | Image used by the `runner` service |
-| `SANDBOX_AGENT_PROVIDER` | `local` | Default sandbox provider for agent runs |
-| `DAYTONA_API_KEY` | (none) | Daytona key for agent-runner sandboxes |
+| `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` | `local` | Sandbox providers this deployment can use |
+| `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` | `local` | Default sandbox provider for agent runs |
+| `AGENTA_RUNNER_DAYTONA_API_KEY` | (none) | Daytona provisioning credential |
 
 ### Smoke Test Tuning
 

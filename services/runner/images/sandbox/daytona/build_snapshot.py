@@ -19,7 +19,7 @@ recipe additionally installs python3 and typescript/ts-node.
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 
-Licensing (see services/runner/docker/README.md):
+Licensing (see services/runner/images/service/README.md):
     This script is the build recipe we ship, NOT a snapshot we distribute. Whoever
     runs it builds the snapshot in their own Daytona account: Agenta Cloud builds
     its own for internal use; self-hosters build their own. We never hand anyone a
@@ -31,6 +31,7 @@ Licensing (see services/runner/docker/README.md):
     pin that only after confirming the daemon-only tag also ships the ACP adapters.
 """
 
+import os
 import sys
 import time
 
@@ -135,7 +136,11 @@ def main() -> None:
         CreateSnapshotParams(
             name=SNAPSHOT_NAME,
             image=image,
-            resources=Resources(cpu=2, memory=4, disk=8),
+            resources=Resources(
+                cpu=int(os.getenv("AGENTA_SANDBOX_CPU", "2")),
+                memory=int(os.getenv("AGENTA_SANDBOX_MEMORY_GB", "4")),
+                disk=int(os.getenv("AGENTA_SANDBOX_DISK_GB", "5")),
+            ),
         ),
         on_logs=print,
     )

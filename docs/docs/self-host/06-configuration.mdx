@@ -2,6 +2,8 @@
 title: Configuration of Environment Variables
 sidebar_label: Configuring Environment
 description: Learn how to configure the environment variables to self-host Agenta through Docker Compose or Helm
+slug: /self-host/configuration
+sidebar_position: 6
 ---
 
 Agenta encodes the same nesting at three layers: the environment variable name,
@@ -112,8 +114,8 @@ for how they behave. The plan and role variables are Enterprise-only; see
 The online redaction filter scrubs known credential/secret **values** out of error responses,
 persisted records, spans, and logs on the invoke path (detective control, not preventive — see
 [docs/designs/online-redaction](https://github.com/agenta-ai/agenta/blob/main/docs/designs/online-redaction/specs.md)).
-Slice 1 ships the known-value pass only: it redacts a value only when it is a live secret the
-platform resolved for the request, never by guessing at shape or entropy.
+The filter redacts a value only when it is a live secret the platform resolved for the request,
+never by guessing at shape or entropy.
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
@@ -123,9 +125,8 @@ platform resolved for the request, never by guessing at shape or entropy.
 | `AGENTA_REDACTED_BLOCKLIST` | `agenta.redaction.blocklist` | `agenta.redaction.blocklist` |
 | `AGENTA_REDACTED_ALLOWLIST` | `agenta.redaction.allowlist` | `agenta.redaction.allowlist` |
 
-- `AGENTA_REDACTION_MODE` — `off` or `known` (default `known`). `pattern`/`full` are
-  declared-but-inert (Slice 2, not shipped yet): setting either logs a warning and behaves as
-  `known`.
+- `AGENTA_REDACTION_MODE` — `off` or `known` (default `known`). `pattern` and `full` are accepted
+  but currently behave as `known`; setting either logs a warning.
 - `AGENTA_REDACTED_PREFIXES` / `_SUFFIXES` / `_BLOCKLIST` select env var **names**, not values:
   any process env var whose name starts with a prefix, ends with a suffix, or equals/contains a
   blocklist entry has its **value** seeded into the deny-set. Each is comma-separated and
@@ -153,28 +154,14 @@ platform resolved for the request, never by guessing at shape or entropy.
 
 ## Agent runner
 
-These variables configure agent workflows. `AGENTA_RUNNER_*` variables are read by the
-Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` service. See
-[Deploy the agent runner](/self-host/guides/deploy-the-agent-runner).
+Agent workflows run through a separate `runner` service. Its full configuration (routing, sandbox
+providers, Daytona, warm sessions, and local subscription inputs) lives in the
+[runner and sandbox configuration reference](/self-host/agent-execution/runner-configuration).
 
-| Env var | Component | values.yaml path |
-|---|---|---|
-| `AGENTA_RUNNER_INTERNAL_URL` | Services API | `agentRunner.externalUrl` or generated from `agentRunner.enabled` |
-| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Services API / SDK | n/a |
-| `AGENTA_SANDBOX_LOCAL_ALLOWED` | Services API, SDK | `agenta.sandboxLocalAllowed` |
-| `SANDBOX_AGENT_PROVIDER` | `runner` | `agentRunner.provider` |
-| `SANDBOX_AGENT_LOG_LEVEL` | `runner` | `agentRunner.logLevel` |
-| `DAYTONA_API_KEY` | `runner` | `agentRunner.daytona.apiKey` |
-| `DAYTONA_API_URL` | `runner` | `agentRunner.daytona.apiUrl` |
-| `DAYTONA_TARGET` | `runner` | `agentRunner.daytona.target` |
-| `DAYTONA_SNAPSHOT` | `runner` | `agentRunner.daytona.snapshot` |
-| `DAYTONA_SNAPSHOT_AGENT` | `runner` | n/a (compose-only override of `DAYTONA_SNAPSHOT`; Helm scopes per pod) |
-| `DAYTONA_IMAGE` | `runner` | `agentRunner.daytona.image` |
-| `DAYTONA_AUTOSTOP` | `runner` | `agentRunner.daytona.autostopDelay` |
-| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | `runner` | `agentRunner.daytona.sessionIdleTtlMs` |
-| `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` | `runner` | `agentRunner.daytona.sessionMaxWarm` |
-| `DAYTONA_AUTODELETE` | `runner` | `agentRunner.daytona.autodeleteDelay` |
-| `AGENTA_AGENT_SANDBOX_PI_INSTALLED` | `runner` | `agentRunner.daytona.installPi` |
+`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` and `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` are read by
+both the runner and the Services API. Setting the enabled list to `daytona` only keeps agent code
+out of the runner container on a shared deployment. See
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
 
 :::warning Custom-code evaluator runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
@@ -184,16 +171,6 @@ Services API. `SANDBOX_AGENT_*` variables are read by the separate `runner` serv
 - `daytona` — isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona) credentials below.
 
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
-:::
-
-:::warning Agent sandbox
-`AGENTA_SANDBOX_LOCAL_ALLOWED` gates the `local` sandbox for agents (unconfined host bash,
-not a tenant boundary). It defaults to `true` so self-hosting works with zero
-configuration; the deployment logs a warning while `local` is active. Set it to `false`
-to harden a shared/multi-tenant deployment: requests for the `local` sandbox are then
-refused with an HTTP 403, and the web UI hides the `local` option
-(`NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED`, derived automatically). The `daytona`
-sandbox is unaffected either way.
 :::
 
 ## Store (durable object store) {#store-durable-object-store}
@@ -344,10 +321,10 @@ deprecated aliases and still work, but new configuration should use the canonica
 | `DAYTONA_SNAPSHOT_CODE` | `daytona.snapshot` (takes precedence) | n/a |
 | `DAYTONA_TARGET` | `daytona.target` | `daytona.target` |
 
-`DAYTONA_SNAPSHOT` is shared between the custom-code evaluators and the agent runner; the
-[snapshot recipe](/self-host/guides/agent-daytona-sandboxes#optional-snapshot) equips one
-snapshot for both. Set `DAYTONA_SNAPSHOT_CODE` (evaluators) or `DAYTONA_SNAPSHOT_AGENT`
-(runner) only when the two must diverge.
+`DAYTONA_SNAPSHOT` sets the snapshot for the custom-code evaluator sandbox. Set
+`DAYTONA_SNAPSHOT_CODE` to override it for the evaluator specifically. The agent runner uses its
+own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the
+[runner reference](/self-host/agent-execution/runner-configuration#daytona).
 
 ## docker
 

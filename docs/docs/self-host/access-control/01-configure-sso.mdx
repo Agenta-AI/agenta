@@ -1,5 +1,6 @@
 ---
 title: Configure SSO Authentication
+slug: /self-host/guides/configure-sso
 sidebar_label: Configure SSO
 description: Set up Single Sign-On with Okta, Azure AD, or BoxySAML for your self-hosted Agenta Enterprise deployment
 ---
@@ -112,7 +113,7 @@ Restart your deployment. The SAML login option will appear on the login page.
 If you want users to authenticate exclusively through SSO, you can disable email/password login by setting:
 
 ```bash
-SUPERTOKENS_EMAIL_DISABLED=true
+AGENTA_ACCESS_EMAIL_DISABLED=true
 ```
 
 With this set, the login page will only show the SSO and OAuth buttons you have configured. Make sure you have at least one SSO or OAuth provider configured before disabling email login, otherwise users will have no way to sign in.

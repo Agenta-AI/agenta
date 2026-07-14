@@ -13,7 +13,7 @@ export const KNOWN_SANDBOX_PROVIDER_IDS = ["local", "daytona"] as const;
 export type SandboxProviderId = (typeof KNOWN_SANDBOX_PROVIDER_IDS)[number];
 
 /** The runner's pinned default Daytona artifact, used when neither snapshot nor image is set. */
-export const DEFAULT_DAYTONA_SNAPSHOT = "agenta-agent-runner";
+export const DEFAULT_DAYTONA_SNAPSHOT = "agenta-sandbox-pi";
 
 /** Idle-minute thresholds for Daytona lifecycle transitions (see `provider.ts`). */
 export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
