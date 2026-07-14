@@ -33,6 +33,7 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.tools import ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
 from agenta.sdk.agents.errors import LocalSandboxNotAllowedError
+from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
 from agenta.sdk.agents.mcp import ResolvedMCPServer
 from agenta.sdk.agents.platform import (
     resolve_connection as _platform_resolve_connection,
