@@ -1,7 +1,36 @@
 import { Daytona, DaytonaNotFoundError, type Sandbox } from "@daytonaio/sdk";
 import { daytona, type DaytonaProviderOptions } from "sandbox-agent/daytona";
 
+import type { RunnerDaytonaConfig } from "../../config/runner-config.ts";
+
 type DaytonaClient = Pick<Daytona, "get">;
+
+/**
+ * Build a Daytona SDK client explicitly from the typed runner config, instead of relying on the
+ * SDK reading ambient `DAYTONA_*` values (interface.md section 2). This client drives the
+ * lifecycle operations the vendored provider does not implement (get/pause/reconnect/delete).
+ */
+export function buildDaytonaClient(config: RunnerDaytonaConfig): Daytona {
+  return new Daytona({
+    ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+    ...(config.apiUrl ? { apiUrl: config.apiUrl } : {}),
+    ...(config.target ? { target: config.target } : {}),
+  });
+}
+
+/**
+ * Bridge the typed Daytona config into the ambient `DAYTONA_*` variables the VENDORED
+ * `sandbox-agent/daytona` provider constructs its own client from (it calls `new Daytona()` with
+ * no arguments during sandbox creation, so it cannot be handed an explicit client). The operator
+ * only ever sets `AGENTA_RUNNER_DAYTONA_*`; the runner derives the SDK's expected names from its
+ * own typed config here. The daemon force-blanks these before any harness runs (`daemon.ts`
+ * KNOWN_SANDBOX_ENV_VARS), so the bridged credential never reaches user code.
+ */
+export function applyDaytonaSdkEnv(config: RunnerDaytonaConfig): void {
+  if (config.apiKey) process.env.DAYTONA_API_KEY = config.apiKey;
+  if (config.apiUrl) process.env.DAYTONA_API_URL = config.apiUrl;
+  if (config.target) process.env.DAYTONA_TARGET = config.target;
+}
 type BaseProvider = ReturnType<typeof daytona>;
 
 interface DaytonaLifecycleDependencies {

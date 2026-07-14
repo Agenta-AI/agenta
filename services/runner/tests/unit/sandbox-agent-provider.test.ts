@@ -1,38 +1,49 @@
 /**
- * Unit tests for the Layer 2 network policy -> Daytona create field mapping and the
- * stop and delete lifecycle intervals.
+ * Unit tests for the Layer 2 network policy -> Daytona create field mapping, the stop/delete
+ * lifecycle intervals (now sourced from the typed runner config), and the provider factory's
+ * enabled-provider gate.
  *
- * The mapping is tested directly because the real `daytona()` provider closes over its
- * create object and constructs a Daytona client (needs API-key env), so it cannot be
- * inspected through `buildSandboxProvider`. The orchestration test covers that the run
- * plan's `sandboxPermission` reaches `buildSandboxProvider` as the new argument.
+ * The mapping is tested directly because the real `daytona()` provider closes over its create
+ * object and constructs a Daytona client, so it cannot be inspected through `buildSandboxProvider`.
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-provider.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
-  DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
-  DEFAULT_DAYTONA_AUTODELETE_MINUTES,
   buildDaytonaCreate,
   buildSandboxProvider,
-  daytonaAutoStopMinutes,
-  daytonaAutoDeleteMinutes,
   daytonaNetworkFields,
 } from "../../src/engines/sandbox_agent/provider.ts";
+import {
+  DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
+  DEFAULT_DAYTONA_AUTODELETE_MINUTES,
+  DEFAULT_DAYTONA_SNAPSHOT,
+  parseRunnerConfig,
+  type RunnerConfig,
+  type RunnerDaytonaConfig,
+} from "../../src/config/runner-config.ts";
 
-const LIFECYCLE_ENVS = ["DAYTONA_AUTOSTOP", "DAYTONA_AUTODELETE"];
-const previous = Object.fromEntries(LIFECYCLE_ENVS.map((k) => [k, process.env[k]]));
+/** A typed Daytona config with the given overrides on top of parsed defaults. */
+function daytonaConfig(
+  overrides: Partial<RunnerDaytonaConfig> = {},
+): RunnerDaytonaConfig {
+  const base = parseRunnerConfig({}).daytona;
+  return { ...base, ...overrides };
+}
 
-afterEach(() => {
-  for (const k of LIFECYCLE_ENVS) {
-    if (previous[k] === undefined) delete process.env[k];
-    else process.env[k] = previous[k];
-  }
-});
-
-const AUTOSTOP_ENV = "DAYTONA_AUTOSTOP";
+/** A full runner config with a given enabled set + Daytona overrides (bypasses process.env). */
+function runnerConfig(
+  enabled: string,
+  daytona: Partial<RunnerDaytonaConfig> = {},
+): RunnerConfig {
+  const config = parseRunnerConfig({
+    AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: enabled,
+    AGENTA_RUNNER_DAYTONA_API_KEY: "test-key",
+  });
+  return { ...config, daytona: { ...config.daytona, ...daytona } };
+}
 
 describe("daytonaNetworkFields", () => {
   it("blocks all egress for network:off", () => {
@@ -74,40 +85,9 @@ describe("daytonaNetworkFields", () => {
   });
 });
 
-describe("daytona lifecycle interval parsers", () => {
-  it("use the env value when it is a positive integer", () => {
-    assert.equal(daytonaAutoStopMinutes("30"), 30);
-    assert.equal(daytonaAutoDeleteMinutes("2880"), 2880);
-  });
-
-  it("floor a fractional env value to whole minutes", () => {
-    assert.equal(daytonaAutoStopMinutes("12.9"), 12);
-  });
-
-  it("fall back to their defaults when the env is unset", () => {
-    assert.equal(daytonaAutoStopMinutes(undefined), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
-    assert.equal(daytonaAutoDeleteMinutes(undefined), DEFAULT_DAYTONA_AUTODELETE_MINUTES);
-  });
-
-  it("fall back to the default for a non-numeric env value", () => {
-    assert.equal(daytonaAutoStopMinutes("soon"), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
-  });
-
-  it("clamp 0 and negatives to the default (a disabled reaper would leak)", () => {
-    assert.equal(daytonaAutoStopMinutes("0"), DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
-    assert.equal(daytonaAutoDeleteMinutes("-5"), DEFAULT_DAYTONA_AUTODELETE_MINUTES);
-  });
-
-  it("orders the defaults stop before delete", () => {
-    assert.ok(DEFAULT_DAYTONA_AUTOSTOP_MINUTES >= 1);
-    assert.ok(DEFAULT_DAYTONA_AUTOSTOP_MINUTES < DEFAULT_DAYTONA_AUTODELETE_MINUTES);
-  });
-});
-
-describe("buildDaytonaCreate (lifecycle on the create object)", () => {
+describe("buildDaytonaCreate (lifecycle + artifact on the create object)", () => {
   it("carries stop and delete intervals without auto-archive by default", () => {
-    for (const k of LIFECYCLE_ENVS) delete process.env[k];
-    const create = buildDaytonaCreate({}, {}, undefined);
+    const create = buildDaytonaCreate(daytonaConfig(), {}, {}, undefined);
     // ephemeral:false so a stop PARKS (warm) instead of deleting; the intervals are the reapers.
     assert.equal(create.ephemeral, false);
     assert.equal(create.autoStopInterval, DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
@@ -115,21 +95,38 @@ describe("buildDaytonaCreate (lifecycle on the create object)", () => {
     assert.equal(create.autoDeleteInterval, DEFAULT_DAYTONA_AUTODELETE_MINUTES);
   });
 
-  it("prefers the agent snapshot var over the shared code-evaluator one", () => {
-    process.env["DAYTONA_SNAPSHOT"] = "daytona-small";
-    const shared = buildDaytonaCreate({}, {}, undefined);
-    assert.equal(shared.snapshot, "daytona-small");
-    process.env["DAYTONA_SNAPSHOT_AGENT"] = "agenta-sandbox-pi";
-    const own = buildDaytonaCreate({}, {}, undefined);
-    assert.equal(own.snapshot, "agenta-sandbox-pi");
-    delete process.env["DAYTONA_SNAPSHOT"];
-    delete process.env["DAYTONA_SNAPSHOT_AGENT"];
+  it("falls back to the runner's pinned default snapshot when none is configured", () => {
+    const create = buildDaytonaCreate(daytonaConfig(), {}, {}, undefined);
+    assert.equal(create.snapshot, DEFAULT_DAYTONA_SNAPSHOT);
   });
 
-  it("carries the env-configured intervals", () => {
-    process.env["DAYTONA_AUTOSTOP"] = "5";
-    process.env["DAYTONA_AUTODELETE"] = "120";
-    const create = buildDaytonaCreate({}, {}, undefined);
+  it("uses the configured snapshot when set", () => {
+    const create = buildDaytonaCreate(
+      daytonaConfig({ snapshot: "daytona-small" }),
+      {},
+      {},
+      undefined,
+    );
+    assert.equal(create.snapshot, "daytona-small");
+  });
+
+  it("omits the snapshot when an image is configured (image via the top-level option)", () => {
+    const create = buildDaytonaCreate(
+      daytonaConfig({ image: "custom:latest", snapshot: undefined }),
+      {},
+      {},
+      undefined,
+    );
+    assert.equal("snapshot" in create, false);
+  });
+
+  it("carries the config-supplied lifecycle intervals", () => {
+    const create = buildDaytonaCreate(
+      daytonaConfig({ autostopMinutes: 5, autodeleteMinutes: 120 }),
+      {},
+      {},
+      undefined,
+    );
     assert.equal(create.autoStopInterval, 5);
     assert.equal("autoArchiveInterval" in create, false);
     assert.equal(create.autoDeleteInterval, 120);
@@ -137,27 +134,58 @@ describe("buildDaytonaCreate (lifecycle on the create object)", () => {
   });
 });
 
-describe("buildSandboxProvider (unknown sandbox id must refuse, not run local)", () => {
+describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", () => {
+  const localOnly = parseRunnerConfig({});
+
   it("throws for an unrecognized sandbox id instead of falling back to local", () => {
     assert.throws(
-      () => buildSandboxProvider("typo-sandbox", {}, undefined, {}, {}),
+      () =>
+        buildSandboxProvider(
+          "typo-sandbox",
+          {},
+          undefined,
+          {},
+          {},
+          undefined,
+          localOnly,
+        ),
       /Unknown sandbox id 'typo-sandbox'/,
     );
   });
 
-  it("still resolves 'local' without refusing (no widening/narrowing of the known set)", () => {
+  it("resolves 'local' without refusing", () => {
     assert.doesNotThrow(() =>
-      buildSandboxProvider("local", {}, undefined, {}, {}),
+      buildSandboxProvider("local", {}, undefined, {}, {}, undefined, localOnly),
     );
   });
 
-  it("'daytona' reaches the daytona() constructor, not the unknown-id refusal", () => {
-    // No DAYTONA_* credentials in this test env, so daytona() itself throws — proving the
-    // known-id branch was taken (the unknown-id error is never a credential error).
+  it("refuses 'daytona' when it is not enabled on this deployment", () => {
     assert.throws(
-      () => buildSandboxProvider("daytona", {}, undefined, {}, {}),
-      (err: unknown) =>
-        err instanceof Error && !/Unknown sandbox id/.test(err.message),
+      () =>
+        buildSandboxProvider(
+          "daytona",
+          {},
+          undefined,
+          {},
+          {},
+          undefined,
+          localOnly,
+        ),
+      /not enabled on this deployment/,
+    );
+  });
+
+  it("builds the 'daytona' provider when enabled and configured", () => {
+    assert.doesNotThrow(() =>
+      buildSandboxProvider(
+        "daytona",
+        {},
+        undefined,
+        {},
+        {},
+        undefined,
+        runnerConfig("local,daytona"),
+      ),
     );
   });
 });

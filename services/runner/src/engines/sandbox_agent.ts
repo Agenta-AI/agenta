@@ -129,6 +129,7 @@ import {
   type TeardownReason,
 } from "./sandbox_agent/teardown.ts";
 import { buildSandboxProvider } from "./sandbox_agent/provider.ts";
+import { loadRunnerConfig } from "../config/runner-config.ts";
 import { DaytonaReconnectTerminalError } from "./sandbox_agent/daytona-provider.ts";
 import {
   buildRunPlan,
@@ -714,8 +715,7 @@ export async function acquireEnvironment(
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
     const isDaytonaReq =
-      (request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local") ===
-      "daytona";
+      (request.sandbox ?? loadRunnerConfig().providers.default) === "daytona";
     durableCwd = isDaytonaReq
       ? `/home/sandbox/agenta/${mountCreds.prefix}`
       : `/tmp/agenta/${mountCreds.prefix}`;
@@ -1303,14 +1303,9 @@ export async function acquireEnvironment(
         }
         // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
         // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
-        // byte-identical. Opt-out via env, default on wherever a durable cwd mount is active (no
-        // separate credential/session-id path from the cwd mount).
-        if (
-          canMount &&
-          sessionForMount &&
-          runCred &&
-          process.env.AGENTA_SESSION_HARNESS_MOUNTS !== "false"
-        ) {
+        // byte-identical. Transcript mounts derive from the session contract (a durable cwd mount
+        // is active), with no separate public switch or credential/session-id path.
+        if (canMount && sessionForMount && runCred) {
           const dirs = harnessSessionMounts(
             plan.acpAgent,
             "/home/sandbox",

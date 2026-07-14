@@ -340,11 +340,13 @@ async def test_composition_select_backend_is_deployment_specific():
 # Local-sandbox gate is the bare SDK default too (a composition-free `agent_v0` gets
 # this protocol-level safety behavior for free, same as capability/MCP gating above).
 # --------------------------------------------------------------------------- #
-async def test_default_select_backend_refuses_local_sandbox_when_knob_off(monkeypatch):
+async def test_default_select_backend_refuses_local_sandbox_when_not_enabled(
+    monkeypatch,
+):
     from agenta.sdk.agents import LocalSandboxNotAllowedError
     from agenta.sdk.agents.dtos import AgentTemplate
 
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", "false")
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
     comp = AgentComposition(resolve_connection=_no_connection)
     handler = make_agent_handler(comp)
 
@@ -364,7 +366,8 @@ async def test_default_select_backend_refuses_local_sandbox_when_knob_off(monkey
 async def test_default_select_backend_allows_local_sandbox_by_default(monkeypatch):
     from agenta.sdk.agents.errors import AgentRunnerConfigurationError
 
-    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", raising=False)
     comp = AgentComposition(resolve_connection=_no_connection)
     handler = make_agent_handler(comp)
 
@@ -380,8 +383,11 @@ async def test_default_select_backend_allows_local_sandbox_by_default(monkeypatc
         )
 
 
-async def test_default_select_backend_allows_daytona_sandbox_by_default(monkeypatch):
-    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
+async def test_default_select_backend_allows_daytona_sandbox_with_custom_backend(
+    monkeypatch,
+):
+    monkeypatch.delenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", raising=False)
     backend = _FakeBackend()
     comp = AgentComposition(
         select_backend=lambda template: backend,
