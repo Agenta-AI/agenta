@@ -9,12 +9,13 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     useTableManager,
 } from "@agenta/ui/table"
-import {Code, Play} from "@phosphor-icons/react"
+import {Code, Play, TreeView} from "@phosphor-icons/react"
 import {Drawer, Empty, Tag, Tooltip, Typography, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtom, useSetAtom} from "jotai"
@@ -57,11 +58,17 @@ function deliveryTraceId(record: TriggerDeliveryRow): string | null {
     return typeof traceId === "string" && traceId ? traceId : null
 }
 
+function deliverySpanId(record: TriggerDeliveryRow): string | null {
+    const spanId = record.data?.result?.span_id
+    return typeof spanId === "string" && spanId ? spanId : null
+}
+
 export default function TriggerDeliveriesDrawer() {
     const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
     const open = !!state
     const owner = state?.owner
     const playgroundEntityId = state?.playgroundEntityId
+    const {openTrace} = useDrillInUI()
 
     const setOwner = useSetAtom(triggerDeliveriesOwnerAtom)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
@@ -199,6 +206,18 @@ export default function TriggerDeliveriesDrawer() {
                               ]
                             : []),
                         {
+                            key: "view-trace",
+                            label: "View trace",
+                            icon: <TreeView size={16} />,
+                            hidden: (record: TriggerDeliveryRow) =>
+                                !openTrace || !deliveryTraceId(record),
+                            onClick: (record: TriggerDeliveryRow) => {
+                                const traceId = deliveryTraceId(record)
+                                if (!traceId || !openTrace) return
+                                openTrace({traceId, spanId: deliverySpanId(record)})
+                            },
+                        },
+                        {
                             key: "view",
                             label: "View payload",
                             icon: <Code size={16} />,
@@ -212,21 +231,10 @@ export default function TriggerDeliveriesDrawer() {
                                 message.success("Event ID copied")
                             },
                         },
-                        {
-                            key: "copy-trace-id",
-                            label: "Copy trace ID",
-                            hidden: (record: TriggerDeliveryRow) => !deliveryTraceId(record),
-                            onClick: (record: TriggerDeliveryRow) => {
-                                const traceId = deliveryTraceId(record)
-                                if (!traceId) return
-                                void navigator.clipboard?.writeText(traceId)
-                                message.success("Trace ID copied")
-                            },
-                        },
                     ],
                 },
             ]),
-        [runInPlayground],
+        [openTrace, runInPlayground],
     )
 
     const tableProps = useMemo(
