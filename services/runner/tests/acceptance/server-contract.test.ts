@@ -282,13 +282,13 @@ describe("POST /stream alias contract", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /kill contract", () => {
-  it("returns 200 {ok:true} for a scoped sessionId when no token configured", async () => {
+  it("returns 200 {ok:true} for a fully scoped kill when no token configured", async () => {
     delete process.env[TOKEN_ENV];
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",
-        body: JSON.stringify({ sessionId: "sess-1" }),
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
       });
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
@@ -311,13 +311,29 @@ describe("POST /kill contract", () => {
     }
   });
 
+  it("returns 400 when projectId is missing: both teardown halves must scope to one tenant", async () => {
+    delete process.env[TOKEN_ENV];
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean };
+      assert.equal(body.ok, false);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("returns 401 when token is set and no bearer supplied", async () => {
     process.env[TOKEN_ENV] = "kill-tok";
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",
-        body: JSON.stringify({ sessionId: "sess-1" }),
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
       });
       assert.equal(res.status, 401);
     } finally {
