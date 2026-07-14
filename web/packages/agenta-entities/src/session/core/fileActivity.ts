@@ -101,11 +101,11 @@ export function mountPathMatchesToolPath(mountPath: string, toolPath: string): b
  */
 export function fileRecencyFromRecords(
     records:
-        | Array<{
+        | {
               session_update?: string | null
               payload?: unknown
               created_at?: string | null
-          }>
+          }[]
         | null
         | undefined,
 ): Map<string, number> {
