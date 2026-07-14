@@ -128,6 +128,14 @@ async def _agent_run_to_vercel_parts_impl(
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
     content_parts_emitted = 0
+    # Whether a real `error` frame already went out this turn (a live-streamed provider/runner
+    # error, or one raised out of the run and caught below). The zero-content-parts backstop
+    # below must not pile a generic "produced no output" frame on top of a real error the user
+    # already saw -- that would bury the actionable message under a useless one (the runner's
+    # swallowed-provider-error recovery streams the real error live AND fails the terminal
+    # result, so both an `etype == "error"` event and the `except` branch can fire for the SAME
+    # underlying failure; either one must suppress the backstop).
+    error_emitted = False
     # Tool-call ids already surfaced as a tool part. An approval request attaches
     # to its tool part by id, so we synthesize one only when none preceded it.
     seen_tool_calls: set = set()
@@ -285,6 +293,7 @@ async def _agent_run_to_vercel_parts_impl(
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
+                error_emitted = True
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
                 # Last non-null stop reason wins; see the routing-layer twin's `done` note.
@@ -294,7 +303,15 @@ async def _agent_run_to_vercel_parts_impl(
     except Exception as exc:
         # Sanitize — an unexpected exception's raw str() can carry a stack/path dump.
         log.error("agent_run_to_vercel_parts: error mid-stream", exc_info=True)
-        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+        if not error_emitted:
+            # Only surface this as a NEW user-facing frame when no error already went out this
+            # turn. A swallowed-provider-error recovery streams the real error live (the
+            # `etype == "error"` branch above) and THEN fails the terminal result, so this
+            # exception is very often just that same failure resurfacing as a raised
+            # `RuntimeError` (`result_from_wire`) -- yielding it too would duplicate the message
+            # the user already saw under a second, "Agent run failed: ..."-prefixed frame.
+            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+        error_emitted = True
     finally:
         # Every exit path — including the raw exception above — must still drain to a
         # finish frame, or a consumer waiting on it hangs. Mirrors the routing-layer twin.
@@ -312,8 +329,12 @@ async def _agent_run_to_vercel_parts_impl(
                 trace_id = result.trace_id
 
         yield {"type": "finish-step"}
-        if content_parts_emitted == 0:
+        if content_parts_emitted == 0 and not error_emitted:
             # An ok:true run with zero content parts would otherwise render as a blank bubble.
+            # Skip this when a real error already went out above -- appending a second, useless
+            # "no output" frame on top of it would bury the actionable message (the swallowed-
+            # provider-error path both streams a live error event AND fails the terminal result,
+            # so this backstop must not double up on it).
             yield {"type": "error", "errorText": "The agent produced no output."}
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)
@@ -380,6 +401,9 @@ async def _agent_stream_to_vercel_stream_impl(
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
     content_parts_emitted = 0
+    # See the dev-twin's `error_emitted` note above: suppresses the zero-content backstop when
+    # a real error already went out this turn, live or raised.
+    error_emitted = False
     seen_tool_calls: set = set()
     tool_names_by_id: Dict[Any, Any] = {}
 
@@ -535,6 +559,7 @@ async def _agent_stream_to_vercel_stream_impl(
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
+                error_emitted = True
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
                 # Prefer the LAST non-null stop reason. The handler appends a corrective
@@ -547,13 +572,23 @@ async def _agent_stream_to_vercel_stream_impl(
                     stop_reason = reason
     except Exception as exc:
         log.error("agent_stream_to_vercel_stream: error mid-stream", exc_info=True)
-        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+        if not error_emitted:
+            # See the dev-twin's matching note: suppress this when a real error already went
+            # out live this turn, so a swallowed-provider-error recovery (live error event, then
+            # a failed terminal result raised as this same exception) doesn't duplicate the
+            # user-facing message under a second, differently-worded frame.
+            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+        error_emitted = True
     finally:
         # Every exit path — including the raw exception above — must still drain to a
         # finish frame, or a consumer waiting on it hangs.
         yield {"type": "finish-step"}
-        if content_parts_emitted == 0:
+        if content_parts_emitted == 0 and not error_emitted:
             # An ok:true run with zero content parts would otherwise render as a blank bubble.
+            # Skip this when a real error already went out above (see the dev-twin's matching
+            # note) -- a swallowed-provider-error turn both streams a live error event and fails
+            # the terminal result, so this backstop must not double up on it and bury the real
+            # message under "The agent produced no output."
             yield {"type": "error", "errorText": "The agent produced no output."}
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)
