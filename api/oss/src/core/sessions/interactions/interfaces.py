@@ -45,6 +45,7 @@ class SessionInteractionsDAOInterface(ABC):
         project_id: UUID,
         session_id: str,
         except_turn_id: Optional[str] = None,
+        except_tokens: Optional[List[str]] = None,
     ) -> int: ...
 
     @abstractmethod

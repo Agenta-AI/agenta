@@ -391,7 +391,7 @@ describe("tailIsFreshUserMessage", () => {
 });
 
 describe("credential epoch", () => {
-  it("same secrets + tool-callback auth hash equal; a changed secret value differs", () => {
+  it("same secrets hash equal; a changed secret value differs", () => {
     const a = computeCredentialEpoch({
       secrets: { A: "1" },
       toolCallback: { endpoint: "e", authorization: "z" },
@@ -410,6 +410,21 @@ describe("credential epoch", () => {
       c.secretsHash,
       "a rotated same-slug secret changes the hash",
     );
+  });
+
+  it("a re-minted tool-callback bearer does NOT change the hash (per-turn material)", () => {
+    // The backend re-mints the callback bearer on its auth-cache cadence (~60s); the turn's
+    // relay always uses the incoming bearer, so a warm continue must not evict over it.
+    const parked = computeCredentialEpoch({
+      secrets: { A: "1" },
+      toolCallback: { endpoint: "e", authorization: "bearer-old" },
+    });
+    const incoming = computeCredentialEpoch({
+      secrets: { A: "1" },
+      toolCallback: { endpoint: "e", authorization: "bearer-new" },
+    });
+    assert.equal(parked.secretsHash, incoming.secretsHash);
+    assert.equal(credentialEpochMismatch(parked, incoming), undefined);
   });
 
   it("valid until the mount expiry elapses; invalid once expired", () => {
@@ -560,6 +575,24 @@ describe("SessionPool destroy scoping (backs the /kill contract)", () => {
 
 describe("SessionPool", () => {
   const cfg = { poolMax: 2 };
+
+  it("awaitingApproval finds an approval-parked session by session id, whatever the project scope", async () => {
+    const pool = new SessionPool(cfg, () => {});
+    const idle = parkInput("proj-a:s-idle");
+    const parked = parkInput("proj-b:s-gated");
+    assert.equal(await pool.park(idle.input, 10_000), true);
+    assert.equal(
+      await pool.park(parked.input, 10_000, "awaiting_approval"),
+      true,
+    );
+    // Only the awaiting_approval entry matches, and only by its own session id.
+    assert.equal(pool.awaitingApproval("s-idle"), undefined);
+    assert.equal(
+      pool.awaitingApproval("s-gated")?.environment,
+      parked.env,
+    );
+    assert.equal(pool.awaitingApproval("s-unknown"), undefined);
+  });
 
   it("park then checkoutIdle returns the same session (busy) and clears the timer", async () => {
     const pool = new SessionPool(cfg, () => {});
