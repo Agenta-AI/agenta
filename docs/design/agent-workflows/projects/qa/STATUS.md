@@ -88,8 +88,9 @@ return value, so a matching reply *proves* the tool ran. The model cannot guess 
 | Object-store fix (other agent) | DONE — SeaweedFS up, `mounts/sign` = 200, real durable cwd. F-1 closed. |
 | Playwright testability backlog | DONE — `playwright-testability.md` |
 | Programmatic driver | DONE — `scripts/qa_product.py` |
-| C3/C4/P1 (Pi cells) | DONE — see matrix below |
-| C1/C2 (Claude cells) | **BLOCKED — Anthropic key out of credit** |
+| C3/C4/P1 (Pi cells) | DONE — see matrix below. NOTE 2026-07-14 ~21:45: the **OpenAI vault key is out of quota** (C3/C4 chat now FAIL with a clean "insufficient credit" error — external, needs a top-up; see runs/20260714-214326). The error surfaces correctly, so the #5317 fix is live. |
+| C1/C2 (Claude cells) | **DONE** — Anthropic key funded 2026-07-14; C2 ran the full six-journey set on the vault key, all green (see matrix below) |
+| S1 (Pi + Codex subscription) | **DONE** — chat/tool/approve green (see matrix below) |
 | P2 (custom OpenAI-compatible provider) | **BLOCKED — needs the raw OpenRouter key or a custom_provider slug** |
 | UI end-to-end pass | PARTIAL — approval dock verified end-to-end; rest blocked on credit |
 | J5 commit journey | **DONE** — PASS on P1; `commit` journey added to the driver (see below) |
@@ -104,10 +105,37 @@ stack.**
 | cell | harness | sandbox | model | chat | mount | tool | approve | deny | warm |
 |---|---|---|---|---|---|---|---|---|---|
 | C1 | claude | local | sonnet | PASS | — | PASS | PASS | PASS | — |
-| C2 | claude | daytona | sonnet | PASS | — | PASS | PASS | PASS | — |
+| C2 | claude | daytona | **haiku** (vault key) | PASS | **PASS** | PASS | PASS | PASS | PASS |
 | C3 | pi_core | local | gpt-5.6-luna | PASS | PASS | PASS | PASS | PASS | PASS |
-| C4 | pi_core | daytona | gpt-5.6-luna | PASS | **FAIL** | PASS | PASS | PASS | PASS |
+| C4 | pi_core | daytona | gpt-5.6-luna | PASS | **FAIL** (pre store-exposure; see C2 mount) | PASS | PASS | PASS | PASS |
 | P1 | pi_core | local | openrouter/deepseek-v4-flash | PASS | PASS | PASS | PASS | PASS | PASS |
+| S1 | pi_core | local | gpt-5.6-luna (**openai-codex subscription**) | PASS | — | PASS | PASS | — | — |
+
+### C2 full six-journey run (2026-07-14 ~21:53, funded Anthropic vault key) — `runs/20260714-215309`
+
+The never-tested cell. Connection `{"mode": "agenta"}` (the vault key — Daytona rejects
+subscription auth by design), model alias `haiku` (accepted on the Claude ACP path exactly like
+`sonnet`; probed first on chat, `runs/20260714-215252`). All six journeys PASS.
+
+- **mount PASS is the headline**: the redeploy exposed the store publicly
+  (`AGENTA_STORE_ENDPOINT_URL=https://bighetzner-store.agenta.dev` on the api container), and the
+  runner log shows the Daytona sandbox REALLY mounting it — `remote mounted agenta-store:mounts/…
+  (verified alive)` via geesefs against the public URL, `stage=mounts ms≈2000` (vs the 2ms
+  nothing-mounted signature of F-7), and **zero** `mount degraded` / `tunnel discovery failed`
+  lines in the window. **F-7 is fixed on this deployment by the store exposure.** (The fail-open
+  code path still exists for deployments without a public store — the hardening ask stands.)
+- warm: 9497ms → 1721/1453ms, corroborated by two `[keepalive] hit-continue` lines for the
+  session (`6b22fca8`) — genuinely warm, not just faster.
+- deny outcome is `error` (Claude surfaces a denied tool as tool-output-error), which the driver
+  accepts (`outcome != "available"`).
+
+### S1: Pi + Codex subscription (2026-07-14 ~21:53) — `runs/20260714-215322` (chat), `runs/20260714-215335` (tool+approve)
+
+New cell in the driver: `pi_core`/`local`, provider `openai-codex`, model `gpt-5.6-luna`,
+connection `{"mode": "self_managed", "slug": null}` (the ChatGPT/Codex OAuth login in the
+subscription sidecar, not a vault key). chat, tool, approve: **all PASS** — the subscription wire
+path works end to end, including the approval gate. Contrast with C3/C4 (same model via the vault
+`openai` key), which now fail on quota — the subscription path is independent of that key.
 
 Warm/cold looks healthy where measured: C3 4444ms -> 1166/1130ms; C4 12189ms -> 1699/1392ms.
 (Latency only. The cold/warm TRUTH is in the runner log — see F-2.)
@@ -193,7 +221,7 @@ code that behaves the same everywhere; it cannot be configured away.
 | F-6 | Permission Policy control does not govern Claude's builtins | **BUG, deployment-independent** | `claude_settings.py:134` only emits rules for MCP-delivered tools, never for Claude's own Bash/Write/Edit. Not configurable. |
 | F-8 | `/tools/discover` output is rejected by the agent config | **BUG, deployment-independent** | Schema contradiction: discovery attaches `input_schema`/`description`; `GatewayToolConfig` forbids extra keys. |
 | F-3 | Pi permission layer fails OPEN (ask/deny become no-ops) | **BUG (fail-open) + image-specific TRIGGER** | The `try/catch` swallow in `pi-assets.ts:349` is on every deployment. The trigger here is the image (no `/pi-agent`, non-root). Expect NOT to reproduce on our root-ful dev image — which does not make it safe: a read-only rootfs, a k8s securityContext, or a custom `PI_CODING_AGENT_DIR` re-arms it. **It was live on the stack we are shipping from.** |
-| F-7 | Daytona durable mount silently skipped -> files never persist | **BUG — RELEASE BLOCKER, hits every self-hoster on Daytona** | CONFIRMED, see below. Our dev stack structurally cannot reproduce it. |
+| F-7 | Daytona durable mount silently skipped -> files never persist | **FIXED on this deployment (store exposure, 2026-07-14); fail-open hardening still open** | Was CONFIRMED, see below. After the redeploy exposed the store publicly (`AGENTA_STORE_ENDPOINT_URL=https://bighetzner-store.agenta.dev`), C2 mount PASSES with `remote mounted … (verified alive)` in the runner log. The silent-skip code path still exists for any deployment whose store is not publicly reachable — the "fail loud" ask stands. |
 | F-1 | Mounts 503 -> agent runs in a throwaway `/tmp` cwd | FIXED (config) + BUG (fail-open) | Store was simply not deployed. The fail-open half is the same defect as F-3/F-7. |
 | F-9 | Claude harness resuming its native session | **DOWNGRADED / PARTIALLY RETRACTED — was a blocker, now a residual resilience risk** | See below. The 72h `mode=create`-only observation predates a redeploy that pulled recent upstream fixes; a 2026-07-14 decisive experiment against the redeployed stack shows native session resume now working (4/4 runs, both harnesses, `mode=load` + `loaded=true`). The lossy 4000-char rebuild path still exists as the fallback when native load fails. |
 | F-10 | Daytona sandbox destroyed ~2s after a 120s park | **UNKNOWN — not config** | Config is byte-identical across both stacks (all Daytona vars empty -> code defaults). The runner has **no code path that deletes a parked sandbox** (`deleteSandbox` is defined and never called). Local Daytona sandboxes park correctly (`state: stopped`, autostop 15m). So the 1.8s destruction on bighetzner is a platform anomaly or a create->park race — needs a live re-test with tighter logging. |
@@ -528,9 +556,10 @@ it. Only the runner log knows. Means J6 can never be a CI test until the wire ca
 
 ## Two things that need Mahmoud
 
-1. **Anthropic key is out of credit.** The UI reports "Credit balance is too low — claude: the
-   model provider account has insufficient credit". Blocks C1/C2 (Claude mount + warm/cold are
-   untested). Credit where due: that error message is clear, specific, and names the key to check.
+1. **RESOLVED 2026-07-14: Anthropic key funded.** C2 ran the full six-journey set on the vault key,
+   all green (`runs/20260714-215309`). Replaced by a NEW ask: **the OpenAI vault key is out of
+   quota** — C3/C4 (vault `openai` provider) fail chat with a clean "insufficient credit" error
+   (`runs/20260714-214326`). The Codex-subscription path (S1) is unaffected.
 2. **P2 needs the raw OpenRouter key** (or a `custom_provider` secret slug created in the UI).
    Secrets are encrypted at rest, so the key already in the vault cannot be read back. P2 tests
    OpenRouter as a **custom OpenAI-compatible provider** (`base_url = https://openrouter.ai/api/v1`)

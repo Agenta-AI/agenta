@@ -1,0 +1,38 @@
+{
+  "C3": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "gpt-5.6-luna",
+      "provider": "openai"
+    },
+    "journeys": {
+      "chat": {
+        "pass": false,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 5674,
+          "finish": null,
+          "frames": [
+            "start",
+            "start-step",
+            "error",
+            "error",
+            "finish-step",
+            "error",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "{\"type\": \"error\", \"errorText\": \"pi_core: the model provider account has insufficient credit (check the project's OpenAI key).\"}",
+            "{\"type\": \"error\", \"errorText\": \"Agent run failed: pi_core: the model provider account has insufficient credit (check the project's OpenAI key).\"}",
+            "{\"type\": \"error\", \"errorText\": \"The agent produced no output.\"}"
+          ],
+          "reply": ""
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "S1": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "connection": {
+        "mode": "self_managed",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "chat": {
+        "pass": true,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 6127,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [],
+          "reply": "PONG"
+        }
+      }
+    }
+  }
+}

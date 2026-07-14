@@ -89,7 +89,10 @@ CELLS = {
         "sandbox": "daytona",
         "model": "sonnet",
         "provider": "anthropic",
-        "connection": {"mode": "self_managed", "slug": None},
+        # VAULT KEY (mode "agenta"), NOT subscription: Daytona rejects runtime-provided
+        # (subscription) auth by design — "Use a managed API key … or run this harness on the
+        # local sandbox." C2 therefore genuinely needs a funded Anthropic key in the vault.
+        "connection": {"mode": "agenta", "slug": None},
     },
     "C3": {
         "harness": "pi_core",
@@ -109,6 +112,18 @@ CELLS = {
         "sandbox": "local",
         "model": "openrouter/deepseek/deepseek-v4-flash",
         "provider": "openrouter",
+    },
+    # S1: the Codex SUBSCRIPTION path — Pi with provider `openai-codex` (a first-class
+    # subscription provider slug, distinct from the vault-key `openai` provider; see
+    # sdks/python/agenta/sdk/agents/capabilities.py PI_SUBSCRIPTION_PROVIDERS). Auth comes from
+    # the subscription sidecar's ChatGPT/Codex OAuth login (~/.pi/agent/auth.json), never a
+    # vault key, so `self_managed` + slug None is the whole connection.
+    "S1": {
+        "harness": "pi_core",
+        "sandbox": "local",
+        "model": "gpt-5.6-luna",
+        "provider": "openai-codex",
+        "connection": {"mode": "self_managed", "slug": None},
     },
     # P2 (OpenRouter as a CUSTOM OpenAI-compatible provider) needs a `custom_provider` secret in
     # the vault; `connection.slug` points at it. Set --custom-slug to run it.
@@ -853,6 +868,10 @@ def main() -> int:
         "--mcp-url",
         help=f"public HTTPS MCP server URL for the `mcp` journey (default: {DEFAULT_MCP_URL})",
     )
+    p.add_argument(
+        "--model",
+        help="override the cell's model (e.g. `haiku` on a Claude cell; aliases only on Claude — F-007)",
+    )
     args = p.parse_args()
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
@@ -862,6 +881,9 @@ def main() -> int:
     if args.mcp_url:
         global MCP_URL
         MCP_URL = args.mcp_url
+    if args.model:
+        for cid in cells:
+            CELLS[cid]["model"] = args.model
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     outdir = RUNS / stamp

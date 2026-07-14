@@ -1,0 +1,39 @@
+{
+  "C1": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "local",
+      "model": "sonnet",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "self_managed",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "chat": {
+        "pass": true,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 8475,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [],
+          "reply": "PONG"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "S1": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "connection": {
+        "mode": "self_managed",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "tool": {
+        "pass": true,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 200,
+          "ms": 7179,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "bash"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-BASH-00dbfc9b6354-x86_64"
+        }
+      },
+      "approve": {
+        "pass": true,
+        "why": "approved: the gated command executed after approval (outcome=available, paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 5617,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Bash"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 1085,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Bash"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        }
+      }
+    }
+  }
+}

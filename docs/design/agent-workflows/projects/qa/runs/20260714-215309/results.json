@@ -1,0 +1,287 @@
+{
+  "C2": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "daytona",
+      "model": "haiku",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "agenta",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "chat": {
+        "pass": true,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 8178,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [],
+          "reply": "PONG"
+        }
+      },
+      "mount": {
+        "pass": true,
+        "why": "turn 2 read the token back from the mounted cwd (token=QA-MOUNT-7328b41f02)",
+        "turn_write": {
+          "http": 200,
+          "ms": 11115,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        },
+        "turn_read": {
+          "http": 200,
+          "ms": 5069,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-MOUNT-7328b41f02"
+        }
+      },
+      "tool": {
+        "pass": true,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 200,
+          "ms": 10436,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-BASH-50895052-fe88-451f-92f5-8c123028d780-x86_64"
+        }
+      },
+      "approve": {
+        "pass": true,
+        "why": "approved: the gated command executed after approval (outcome=available, paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 8850,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 4958,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-output-available",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        }
+      },
+      "deny": {
+        "pass": true,
+        "why": "denied: the gated command never executed (outcome=error)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 7965,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 1750,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-output-error",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "The bash tool execution was not permitted. Please check your permissions or hooks configuration if you'd like to authorize this command."
+        }
+      },
+      "warm": {
+        "pass": true,
+        "why": "turn1=9497ms, turn2=1721ms, turn3=1453ms (warm gain 8044ms)",
+        "session_id": "6b22fca8-2db1-4965-9388-0e742e1ec36d",
+        "times_ms": [
+          9497,
+          1721,
+          1453
+        ]
+      }
+    }
+  }
+}
