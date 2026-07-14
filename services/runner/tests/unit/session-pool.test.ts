@@ -1052,11 +1052,11 @@ describe("SessionPool", () => {
 
   it("destroyAll drains every parked session", async () => {
     const pool = new SessionPool({ poolMax: 8 }, () => {});
-    const envs = ["a", "b", "c"].map((k) => {
-      const p = parkInput(k);
-      pool.park(p.input, 10_000);
-      return p.env;
-    });
+    const inputs = ["a", "b", "c"].map((k) => parkInput(k));
+    for (const p of inputs) {
+      await pool.park(p.input, 10_000);
+    }
+    const envs = inputs.map((p) => p.env);
     assert.equal(pool.size(), 3);
     await pool.destroyAll(5000, "shutdown-idle", "shutdown-in-flight");
     assert.equal(pool.size(), 0);
@@ -1099,8 +1099,8 @@ describe("SessionPool", () => {
     const pool = new SessionPool({ poolMax: 8 }, () => {});
     const tenantA = parkInput("proj-a:sess-1");
     const tenantB = parkInput("proj-b:sess-1");
-    pool.park(tenantA.input, 10_000);
-    pool.park(tenantB.input, 10_000);
+    await pool.park(tenantA.input, 10_000);
+    await pool.park(tenantB.input, 10_000);
     assert.equal(pool.size(), 2);
 
     await pool.destroy("proj-a:sess-1", "kill");

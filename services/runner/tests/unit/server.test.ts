@@ -245,12 +245,25 @@ describe("createAgentServer", () => {
     }
   });
 
-  it("POST /kill with only whitespace projectId is rejected as under-scoped (400)", async () => {
+  it("POST /kill with an empty-string projectId is rejected as under-scoped (400)", async () => {
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",
-        body: JSON.stringify({ sessionId: "sess-1", projectId: "   " }),
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "" }),
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with a non-string projectId is rejected as under-scoped (400)", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1", projectId: 12345 }),
       });
       assert.equal(res.status, 400);
     } finally {

@@ -182,7 +182,10 @@ import {
   sessionContinuityStore,
   type SessionContinuityStore,
 } from "./sandbox_agent/session-continuity.ts";
-import { resolvesToLocalProvider } from "./sandbox_agent/session-pool.ts";
+import {
+  projectScopeFor,
+  resolvesToLocalProvider,
+} from "./sandbox_agent/session-pool.ts";
 
 export {
   buildTurnText,
@@ -226,6 +229,7 @@ const inFlightSandboxes = new Set<{
   destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;
   sessionId: string;
   mountProjectId?: string;
+  projectScopeId?: string;
 }>();
 
 /**
@@ -256,6 +260,14 @@ export async function destroyInFlightSandboxes(
  * owning project). Backs the HTTP `/kill` route so a caller can only tear down its own
  * session's in-flight sandbox(es) — the unscoped sweep above stays an in-process-only call
  * (the shutdown handler).
+ *
+ * Filters on `projectScopeId` (same run-context-preferred, mount-fallback precedence as
+ * `poolKeyFor`/`projectScopeFor` — never `mountProjectId` alone, which is undefined for a
+ * mountless run and would make a scoped kill silently match nothing). A sandbox whose run had
+ * no project scope at all (`projectScopeId` undefined) never matches a scoped `projectId`
+ * filter: `/kill` requires a non-blank `projectId`, so there is no caller this in-flight entry
+ * could ever be proven to belong to — the same no-scope-no-park invariant the pool enforces,
+ * mirrored here as no-scope-no-scoped-kill. It still falls to the unscoped shutdown sweep.
  */
 export async function destroyInFlightSandboxesForSession(
   sessionId: string,
@@ -266,7 +278,7 @@ export async function destroyInFlightSandboxesForSession(
   const pending = [...inFlightSandboxes].filter(
     (environment) =>
       environment.sessionId === sessionId &&
-      (!projectId || environment.mountProjectId === projectId),
+      (!projectId || environment.projectScopeId === projectId),
   );
   if (pending.length === 0) return;
   const sweep = Promise.allSettled(
@@ -587,6 +599,10 @@ export interface SessionEnvironment {
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
    * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
+  /** This run's resolved project scope (`projectScopeFor`: run-context preferred, mount
+   * fallback) — the same scope `poolKeyFor` keys on. Undefined when neither source yields
+   * one; a scoped `/kill` can then never claim this sandbox (see `destroyInFlightSandboxesForSession`). */
+  projectScopeId?: string;
   /** This acquire resumed the harness's native session via `session/load` (not cold). */
   loadedFromContinuity: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
@@ -874,6 +890,7 @@ export async function acquireEnvironment(
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,
+    projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
     loadedFromContinuity: false,
     resumable: false,
     continuityTurnIndex: undefined,
