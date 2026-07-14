@@ -52,6 +52,11 @@ function deliveryInputs(record: TriggerDeliveryRow): Record<string, unknown> {
     return (record.data?.inputs ?? {}) as Record<string, unknown>
 }
 
+function deliveryTraceId(record: TriggerDeliveryRow): string | null {
+    const traceId = record.data?.result?.trace_id
+    return typeof traceId === "string" && traceId ? traceId : null
+}
+
 export default function TriggerDeliveriesDrawer() {
     const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
     const open = !!state
@@ -137,12 +142,15 @@ export default function TriggerDeliveriesDrawer() {
                     type: "text",
                     key: "result",
                     title: "Result",
-                    width: 280,
+                    width: 380,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         if (record.data?.error) {
                             return (
-                                <Typography.Text type="danger" className="!text-xs" ellipsis>
+                                <Typography.Text
+                                    type="danger"
+                                    className="!text-xs whitespace-normal break-words"
+                                >
                                     {record.data.error}
                                 </Typography.Text>
                             )
@@ -152,7 +160,7 @@ export default function TriggerDeliveriesDrawer() {
                             return <Typography.Text type="secondary">-</Typography.Text>
                         }
                         return (
-                            <Typography.Text className="!text-xs" ellipsis>
+                            <Typography.Text className="!text-xs whitespace-normal break-words">
                                 {JSON.stringify(result)}
                             </Typography.Text>
                         )
@@ -204,6 +212,17 @@ export default function TriggerDeliveriesDrawer() {
                                 message.success("Event ID copied")
                             },
                         },
+                        {
+                            key: "copy-trace-id",
+                            label: "Copy trace ID",
+                            hidden: (record: TriggerDeliveryRow) => !deliveryTraceId(record),
+                            onClick: (record: TriggerDeliveryRow) => {
+                                const traceId = deliveryTraceId(record)
+                                if (!traceId) return
+                                void navigator.clipboard?.writeText(traceId)
+                                message.success("Trace ID copied")
+                            },
+                        },
                     ],
                 },
             ]),
@@ -236,7 +255,7 @@ export default function TriggerDeliveriesDrawer() {
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            <div className="flex h-full min-h-0 grow flex-col">
+            <div className="flex h-full min-h-0 grow flex-col px-6 pt-4">
                 <InfiniteVirtualTableFeatureShell<TriggerDeliveryRow>
                     {...table.shellProps}
                     // Read-only audit log: no table-level multi-row actions, so no
