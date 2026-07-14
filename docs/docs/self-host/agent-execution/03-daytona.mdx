@@ -1,34 +1,33 @@
 ---
 title: "Run agents in a cloud sandbox (Daytona)"
 sidebar_label: "Cloud sandbox (Daytona)"
-description: "Enable the Daytona sandbox provider on the runner: API key, enabled providers, a custom snapshot, public store reachability, and a smoke test."
+description: "Enable the Daytona sandbox provider on the runner: credentials, the sandbox snapshot, store reachability, and a smoke test."
 slug: /self-host/agent-execution/daytona
 sidebar_position: 3
 ---
 
-Daytona runs agent code in an isolated cloud sandbox instead of the runner container. Enable it
-when your deployment is multi-user or exposed. For the trust model, see
+Daytona runs each agent in an isolated cloud sandbox instead of the runner container. This page
+sets it up on an existing deployment. For what the sandbox isolates, see
 [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
 
-Configure Daytona on the `runner` service only. The variable names and defaults are in the
-[runner reference](/self-host/agent-execution/runner-configuration).
+Every variable on this page is set on the `runner` service. Defaults and validation rules are in
+the [runner reference](/self-host/agent-execution/runner-configuration).
 
-## Prerequisites
+## Before you start
 
 - A Daytona account and an API key.
 - A running deployment. See the [Quick start](/self-host/quick-start).
 
 ## 1. Enable the provider
 
-Set the enabled providers and pick a default. To serve both local and Daytona runs from one
-runner:
+To serve both local and Daytona runs from one runner:
 
 ```bash
 AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local,daytona
 AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=daytona
 ```
 
-To run only Daytona (no harness ever runs in the runner container):
+To run only Daytona, so no harness ever runs inside the runner container:
 
 ```bash
 AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona
@@ -45,7 +44,7 @@ AGENTA_RUNNER_DAYTONA_API_URL=https://app.daytona.io/api
 AGENTA_RUNNER_DAYTONA_TARGET=eu
 ```
 
-The API key is required whenever `daytona` is enabled. The URL and target are optional.
+The API key is required whenever `daytona` is enabled. The URL and the target are optional.
 
 For Helm:
 
@@ -62,17 +61,26 @@ agentRunner:
       target: eu
 ```
 
-## 3. Build a snapshot (recommended)
+## 3. Build the sandbox snapshot
 
-Daytona runs start faster from a prepared snapshot that already contains the harness runtimes.
-Agenta ships the build recipe, not a prebuilt snapshot. Build it in your own Daytona account:
+A [snapshot](https://www.daytona.io/docs/snapshots/) is a prebuilt sandbox image stored in your
+Daytona account. Every sandbox the runner creates starts from one, so whatever the snapshot
+contains is what your agents can run.
+
+Agenta ships the build recipe rather than a prebuilt snapshot, so you build it in your own Daytona
+account:
 
 ```bash
 cd services/runner/images/sandbox/daytona
 DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run build_snapshot.py --force
 ```
 
-The recipe builds a snapshot named `agenta-agent-sandbox-v1`. Point the runner at it:
+The recipe starts from the sandbox base image, which already contains Claude Code, Codex, and
+OpenCode. It adds the Pi harness at the version the runner expects, plus the FUSE tooling that
+mounts durable working directories inside the sandbox. It builds a snapshot named
+`agenta-agent-sandbox-v1` and sets each sandbox to 2 vCPU, 4 GB of memory, and 5 GB of disk.
+
+Point the runner at it:
 
 ```bash
 AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1
@@ -87,74 +95,115 @@ agentRunner:
       snapshot: agenta-agent-sandbox-v1
 ```
 
-`AGENTA_RUNNER_DAYTONA_SNAPSHOT` and `AGENTA_RUNNER_DAYTONA_IMAGE` are mutually exclusive. Set a
-snapshot or an image, not both. If you set neither, the runner uses its pinned default artifact.
+To give agents extra tools (a browser, the `gh` CLI, a language runtime) or different sandbox
+resources, add them to the recipe. See
+[Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime).
 
-If a snapshot or image is missing the pinned Pi runtime, the runner installs it before the
-session and logs the repair, so runs still work. Building the snapshot avoids that per-sandbox
-install cost.
-
-The recipe here builds the runner's sandbox. It does not build the runner service image and it
-does not build the custom-code evaluator sandbox. To add your own binaries or dependencies to
-agent runs, see [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime).
-
-:::warning[Do not reuse the code evaluator's snapshot]
-If your deployment already runs the custom-code evaluator on Daytona, it has a `DAYTONA_SNAPSHOT`
-(or `DAYTONA_SNAPSHOT_CODE`) of its own, often a plain runtime image such as `daytona-small`. The
-two sandboxes may share the Daytona **account**, meaning the same api key, url, and target, but they
-cannot share the **snapshot**. The evaluator's image has no agent harness installed, so an agent
-booted into it cannot run. Give the agent runner its own `agenta-agent-sandbox-v1` snapshot from the
-recipe above, and never copy `DAYTONA_SNAPSHOT` into `AGENTA_RUNNER_DAYTONA_SNAPSHOT`.
+:::info
+`AGENTA_RUNNER_DAYTONA_SNAPSHOT` and `AGENTA_RUNNER_DAYTONA_IMAGE` are mutually exclusive. Set one
+or the other. If you set neither, the runner starts sandboxes from `agenta-agent-sandbox-v1`.
 :::
 
-## 4. Make the store reachable
+## 4. Make the store reachable from the sandbox
 
-Daytona sandboxes run in the cloud and mount durable working directories over the public
-internet. The store endpoint must be publicly reachable, or durable directories degrade to
-ephemeral ones.
+Agents keep files across turns in a working directory that lives in the
+[durable store](/self-host/configuration#store-durable-object-store). A Daytona sandbox mounts that
+directory from inside the cloud, so it reaches the store over the public internet. If the store
+endpoint is not publicly reachable, the sandbox starts without the mount, working directories are
+ephemeral, and the runner logs a mount-degradation warning.
 
-- **Local Docker Compose:** enable the `with-tunnel` profile, which starts an ngrok tunnel to the
-  store. It needs an `NGROK_AUTHTOKEN`.
-- **Railway and Kubernetes:** the store endpoint is already public. No tunnel is needed.
+**This applies to you when** `AGENTA_STORE_ENDPOINT_URL` points at a host the internet cannot
+resolve: a Compose service name such as `http://seaweedfs:8333` (the default for the bundled
+store), `localhost`, or a private IP. If it already points at a public S3 endpoint, as on Railway
+and on Kubernetes with public ingress, skip this step.
 
-See the [networking page](/self-host/infrastructure/networking) and the
-[store reference](/self-host/configuration#store-durable-object-store).
+Two ways to fix it:
+
+**Point the store at a public endpoint.** Use an external S3-compatible bucket, or expose the
+bundled store on a public hostname, and set the store endpoint to that URL:
+
+```bash
+AGENTA_STORE_ENDPOINT_URL=https://<your-public-store-host>
+```
+
+**Or tunnel the bundled store.** The dev Compose stack ships an ngrok service that publishes the
+bundled store on a public URL, which the runner discovers automatically. Create an
+[ngrok authtoken](https://dashboard.ngrok.com/get-started/your-authtoken), put it in your env file,
+and start the stack with the `with-tunnel` profile:
+
+```bash
+# in hosting/docker-compose/oss/.env.oss.dev
+NGROK_AUTHTOKEN=<your-ngrok-authtoken>
+```
+
+```bash
+bash ./hosting/docker-compose/run.sh --oss --dev
+```
+
+`run.sh` enables the `with-tunnel` profile by default (`--no-tunnel` turns it off). If you drive
+Compose directly, pass `--profile with-tunnel`. Confirm the tunnel is up:
+
+```bash
+docker compose logs ngrok | grep "started tunnel"
+```
 
 ## 5. Smoke test
 
-Recreate the runner and run an agent with the Daytona sandbox selected. In the runner logs, the
-startup summary confirms the resolved configuration:
+Recreate the runner, then run an agent with the Daytona sandbox selected. The runner logs its
+resolved configuration on startup:
 
 ```text
 runner providers enabled=[local,daytona] default=daytona
 runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
 ```
 
-A first run creates a sandbox in your Daytona account. Later turns reuse a warm sandbox until it
-stops or is deleted. See [warm sessions and lifecycle](/self-host/agent-execution/runner-configuration).
+The first run creates a sandbox in your Daytona account. Later turns reuse a warm sandbox until it
+stops or is deleted. See
+[warm sessions and scale](/self-host/agent-execution/runner-configuration#warm-sessions-and-scale).
 
-## Personal subscriptions are not supported on Daytona
-
-A run that requests Daytona with a self-managed credential (your own Pi, Claude, or ChatGPT/Codex
-login) is not supported. Personal subscription mounts are local-only and never travel to a
-sandbox. Use a managed model key for Daytona runs. See
-[Use your own subscription](/self-host/use-your-own-subscription).
+:::info Personal subscriptions are local-only
+A personal Pi, Claude, or ChatGPT login authenticates a harness through a directory mounted into
+the runner container. Agenta does not upload that login to a Daytona sandbox, so Daytona runs use a
+model API key instead. See [Use your own subscription](/self-host/use-your-own-subscription).
+:::
 
 ## Troubleshooting
 
-**A run fails with `Sandbox provider 'daytona' is not enabled on this deployment`.**
-Add `daytona` to `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` and recreate the runner.
+### A run fails with `Sandbox provider 'daytona' is not enabled on this deployment`
 
-**The runner fails to start with `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'daytona' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`.**
-Set `AGENTA_RUNNER_DAYTONA_API_KEY`.
+**Cause:** `daytona` is missing from `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`.
 
-**The runner fails to start with `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive`.**
-Set only one of the two.
+**Solution:** Add it (step 1) and recreate the runner.
 
-**A run fails naming a missing Pi executable.**
-The snapshot or image lacks Pi and the runtime install failed. Rebuild the snapshot with the
-recipe in step 3, or check the runner logs for the install error.
+### The runner fails to start with `AGENTA_RUNNER_DAYTONA_API_KEY is required`
 
-**Durable working directories do not persist across turns.**
-The store is not reachable from the sandbox. The runner logs a mount-degradation warning. Make
-the store public (step 4).
+**Cause:** `daytona` is enabled without a key.
+
+**Solution:** Set `AGENTA_RUNNER_DAYTONA_API_KEY` (step 2).
+
+### The runner fails to start with `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive`
+
+**Cause:** Both are set.
+
+**Solution:** Set only one of them.
+
+### The runner fails to start with a Daytona authentication error
+
+**Cause:** The API key is wrong, or it has no access to the target.
+
+**Solution:** Check `AGENTA_RUNNER_DAYTONA_API_KEY` and `AGENTA_RUNNER_DAYTONA_TARGET` against your
+Daytona account.
+
+### Working directories do not persist across turns
+
+**Cause:** The sandbox cannot reach the store, so it mounted nothing. The runner logs a
+mount-degradation warning.
+
+**Solution:** Make the store publicly reachable (step 4).
+
+## Next
+
+- [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) adds tools,
+  folders, or resources to the sandbox.
+- [Run agents locally](/self-host/agent-execution/run-agents-locally) runs agents in the runner
+  container instead.

@@ -1,56 +1,54 @@
 ---
 title: "Self-host Agenta"
 sidebar_label: "Overview"
-description: "What you run when you self-host Agenta, the OSS and EE editions, license scope, and where to start."
+description: "Where to start with a self-hosted Agenta deployment: deployment surfaces, agent execution, editions, and upgrades."
 slug: /self-host/overview
 sidebar_position: 0
 ---
 
-Agenta is an agent studio. When you self-host, you run the studio and the services that let you
-build, run, and evaluate agents on your own infrastructure.
+A self-hosted deployment runs the studio, the API, the agent runner, and their datastores on your
+own infrastructure. It has every feature of Agenta Cloud except the governance features listed
+under [Editions](#editions).
 
-## What you run
+## Start here
 
-A self-hosted deployment is a set of containers:
+- [Quick start](/self-host/quick-start) runs the full stack locally with Docker Compose.
+- [Deploy on a remote server](/self-host/guides/deploy-remotely) puts that stack on a server you own.
+- [Deploy to Kubernetes](/self-host/guides/deploy-to-kubernetes) runs it from the Helm chart.
+- [Deploy on Railway](/self-host/guides/deploy-on-railway) is a community-maintained deployment. There is
+  no official support for it, and fixes depend on contributor availability.
 
-- **Web** and **API** serve the studio and its REST API.
-- **Services** runs workflows and routes agent runs to the runner.
-- **The runner** runs agent code inside a sandbox. See [How agents run](/self-host/agent-execution/how-agents-run).
-- **Postgres**, **Redis**, and a **durable store** hold data, queues, and agent working directories.
+## Where agents run
 
-Agents are the reason most people self-host Agenta, so agent execution is a first-class part of
-the deployment, not an add-on. If you only want to try Agenta locally, the [Quick start](/self-host/quick-start)
-gets you a running stack in a few minutes.
+Agents execute in the runner service, in one of two sandboxes. Pick one before you open the
+deployment to other people:
 
-## Editions
+- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) gives every run its
+  own isolated cloud sandbox. Use it for multi-user deployments.
+- [Run agents locally](/self-host/agent-execution/run-agents-locally) executes agents inside the
+  runner container. Local runs are the default, and they are not isolated from each other, so use
+  them on a deployment you run for yourself or for a trusted team. They are also the only runs that
+  can use [your own Claude, Pi, or ChatGPT subscription](/self-host/use-your-own-subscription)
+  instead of a model API key.
 
-Agenta ships in two editions:
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) covers
+the difference in full. [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime)
+adds tools, folders, or compute to either one.
 
-- **OSS** is the open-source edition, licensed under the [MIT license](https://github.com/Agenta-AI/agenta/blob/main/LICENSE).
-  It covers the studio, the API, the runner, and local and Daytona sandbox execution. The OSS
-  Docker Compose stack is the supported self-hosting path.
-- **EE** is the enterprise edition. It adds access control features such as SSO, roles, and
-  dynamic access controls. EE is licensed separately.
+## Editions {#editions}
 
-Both editions self-host the same core studio. The pages in this section apply to OSS unless a
-page says otherwise.
+- **OSS** is the open-source edition, under the
+  [MIT license](https://github.com/Agenta-AI/agenta/blob/main/LICENSE). It covers the studio, the
+  API, the runner, and both sandbox providers. Every page in this section applies to it.
+- **EE** is the enterprise edition. It adds the governance features: SSO, roles, and
+  [access controls](/self-host/guides/configure-sso). It is licensed separately.
 
-## Community-maintained deployments
+## Operate a deployment
 
-The OSS Docker Compose quick start is the default, supported self-hosting path.
-
-Some deployment surfaces are community projects. Treat them as best-effort:
-
-- There is no expectation of official support.
-- Fixes and upgrades may depend on contributor availability.
-- Expect to troubleshoot and, in many cases, contribute back.
-
-Today, the Railway OSS deployment is the community-maintained surface documented here. New
-community-maintained guides follow the same expectation. To improve one or propose a new one,
-see [Community Projects](/contributing/guides/community-projects).
-
-## Where to start
-
-- [Quick start](/self-host/quick-start) runs Agenta locally with Docker.
-- [How agents run](/self-host/agent-execution/how-agents-run) explains where agent code runs.
-- [Deploy on a remote server](/self-host/guides/deploy-remotely) takes a deployment to production.
+- [Configuration](/self-host/configuration) lists every platform environment variable.
+- [Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) lists every
+  runner variable.
+- [Architecture](/self-host/infrastructure/architecture) and
+  [Networking](/self-host/infrastructure/networking) describe the containers and the traffic
+  between them.
+- [Upgrading](/self-host/upgrading) covers version upgrades and migrations.

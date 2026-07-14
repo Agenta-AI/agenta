@@ -137,9 +137,9 @@ def main() -> None:
             name=SNAPSHOT_NAME,
             image=image,
             resources=Resources(
-                cpu=int(os.getenv("AGENTA_SANDBOX_CPU", "2")),
-                memory=int(os.getenv("AGENTA_SANDBOX_MEMORY_GB", "4")),
-                disk=int(os.getenv("AGENTA_SANDBOX_DISK_GB", "5")),
+                cpu=int(os.getenv("AGENTA_RUNNER_DAYTONA_SANDBOX_CPU", "2")),
+                memory=int(os.getenv("AGENTA_RUNNER_DAYTONA_SANDBOX_MEMORY_GB", "4")),
+                disk=int(os.getenv("AGENTA_RUNNER_DAYTONA_SANDBOX_DISK_GB", "5")),
             ),
         ),
         on_logs=print,

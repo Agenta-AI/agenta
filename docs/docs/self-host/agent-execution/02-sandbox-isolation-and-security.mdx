@@ -1,64 +1,92 @@
 ---
 title: "Sandbox isolation and security"
 sidebar_label: "Sandbox isolation and security"
-description: "Local runs are a convenience for a trusted operator, not an isolation boundary. How the enabled-provider list is the security posture switch, and what crosses into a Daytona sandbox."
+description: "What a Daytona sandbox isolates, what a local run in the runner container does not isolate, and which provider to enable for your deployment."
 slug: /self-host/agent-execution/sandbox-isolation-and-security
 sidebar_position: 2
 ---
 
-This page answers the first question a self-hosting team asks: is it safe to let users run agents
-on my deployment? The short answer is that it depends on which sandbox provider you enable.
+Agenta runs agent code in a sandbox. A self-hosted deployment picks the sandbox provider: a
+**Daytona** cloud sandbox, or a **local** run inside the runner container. The two give different
+isolation, so the choice decides whether it is safe to let other people run agents on your
+deployment.
 
-## Local runs are not an isolation boundary
+Daytona isolates every run. Local runs do not isolate agents from each other or from the runner.
+Enable providers with `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`; see
+[Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) for the syntax
+and [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the Daytona
+setup.
 
-A local run executes the harness inside the runner container. It shares that container's
-filesystem, processes, and environment. Agent code in a local run can read files the runner can
-read.
+## Daytona
 
-This is a convenience for a single trusted operator, not a security boundary. It lets you
-self-host with no extra infrastructure. It does not protect the runner from the code it runs.
+### The boundary
 
-If every person who can start a run on your deployment is trusted, `local` is fine. If your
-deployment is multi-user or reachable beyond a trusted network, do not rely on `local` for
-isolation.
+Each run gets its own cloud sandbox: a separate machine with its own filesystem, processes, and
+environment. Agent code in a Daytona run cannot read the runner container's filesystem, its
+process environment, or the working directory of another run.
 
-## Daytona runs cross a real boundary
+### What crosses into a Daytona sandbox
 
-A Daytona run executes the harness inside a separate cloud sandbox. The sandbox has its own
-filesystem and environment. Agent code in a Daytona run cannot read the runner's process
-environment, its files, or its Daytona provisioning credential.
-
-Use Daytona when a deployment is multi-user or exposed.
-
-## The enabled-provider list is the posture switch
-
-One setting decides the posture:
-[`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`](/self-host/agent-execution/runner-configuration).
-
-- **Trusted self-host (default): `local` only.** Harnesses run in the runner container. Personal
-  subscription mounts are an opt-in for this posture.
-- **Multi-tenant or exposed: `daytona` only.** No harness process ever runs inside the runner
-  container, so no user code can reach the runner's process environment or its Daytona credential.
-
-Setting the list is the entire posture change. A request for a provider that is not enabled fails
-before any working directory, mount, secret, or sandbox is created, with an explicit error:
-
-```text
-Sandbox provider 'local' is not enabled on this deployment (enabled: daytona).
-```
-
-## What crosses into a Daytona sandbox
-
-| Value | Crosses into a Daytona sandbox? |
+| Value | Crosses in |
 |---|---|
-| The managed model key for the run | Yes. The harness needs it to call the model. |
-| The runner's Daytona provisioning credential | No. It stays on the runner. |
-| A personal subscription mount | No. It never leaves the runner container. |
+| The model key for the run | Yes. The harness needs it to call the model. |
+| The run's own working directory | Yes, mounted from the durable store. |
+| The runner's Daytona API key | No. It stays on the runner. |
+| The runner's other environment variables | No. |
+| A mounted personal subscription login | No. It never leaves the runner container. |
 
-A personal subscription is single-tenant by definition. Agenta does not upload it to a sandbox,
-and a Daytona run cannot use one. See [Use your own subscription](/self-host/use-your-own-subscription).
+### What Daytona runs share with each other
+
+Nothing. Each run gets its own sandbox, so one user's agent cannot see another user's agent, its
+files, or its model key. Sandboxes are reused across the turns of one session only.
+
+### When to use it
+
+Use Daytona when more than one person can start runs on the deployment, or when the deployment is
+reachable by people you do not fully trust. See
+[Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona).
+
+## Local runs
+
+### The boundary
+
+A local run executes the harness inside the runner container. The container is a boundary against
+the host: agent code cannot read files, environment variables, or executables outside the
+container unless you mounted them into it. Mounting a host directory into the runner (a repository
+worktree, a subscription login) puts it inside that boundary and inside reach of every local run.
+
+### What crosses into a local run
+
+| Value | Crosses in |
+|---|---|
+| The model key for the run | Yes. The harness needs it to call the model. |
+| The run's own working directory | Yes. |
+| The runner container's environment | Yes, including `AGENTA_RUNNER_DAYTONA_API_KEY` and `AGENTA_RUNNER_TOKEN` when they are set. |
+| Anything you mounted into the runner container | Yes, including a personal subscription login. |
+| Anything on the host you did not mount | No. |
+
+### What local runs share with each other
+
+Every local run executes in the same runner container. Agents in that container share its
+filesystem, so one agent can read the working directory of another agent running at the same time.
+They also share the container's environment and its mounts.
+
+:::warning Local runs are not isolated from each other
+On a multi-user deployment, one user's agent can read another user's agent files, the runner's
+environment variables (including the Daytona API key and the runner token), and any credential you
+mounted into the runner. Enable `daytona` for multi-user deployments.
+:::
+
+### When to use it
+
+Use local runs on a deployment you run for yourself or for a team that already trusts each other
+with the same data. They need no cloud account, and they are the only runs that can authenticate a
+harness with a [personal subscription login](/self-host/use-your-own-subscription). Constrain what
+an agent may do inside the container with the agent's own tool permissions. See
+[Run agents locally](/self-host/agent-execution/run-agents-locally).
 
 ## Next
 
-- [Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) sets the posture.
-- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) enables the isolated provider.
+- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) enables Daytona.
+- [Run agents locally](/self-host/agent-execution/run-agents-locally) configures local runs.
+- [Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) lists every variable.

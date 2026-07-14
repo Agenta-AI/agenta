@@ -6,10 +6,10 @@ slug: /self-host/agent-execution/how-agents-run
 sidebar_position: 1
 ---
 
-This page explains where agent code runs in a self-hosted Agenta deployment and the pieces that
-decide how a single run behaves. Read it before you configure Daytona or a subscription mount.
+This page explains where agent code runs in a self-hosted Agenta deployment, and the pieces that
+decide how a single run behaves. It is the model behind the configuration pages that follow.
 
-## One runner service
+## The runner service
 
 Services does not run agent code. It sends each agent run to one runner service over an internal
 URL and a shared token:
@@ -23,7 +23,7 @@ sandbox, streams results back, and relays server-side tools. A deployment has on
 even if it later has several replicas. Every replica in one runner deployment shares the same
 provider configuration.
 
-## Harness and sandbox are independent axes
+## Harness and sandbox
 
 Two separate choices shape a run:
 
@@ -31,21 +31,22 @@ Two separate choices shape a run:
 - **The sandbox provider** is where that program runs: the local runner container, or a Daytona
   cloud sandbox.
 
-These axes are independent. One runner can serve local runs and Daytona runs at the same time.
-The harness does not change because the sandbox changed, and the reverse.
+The two are independent. One runner can serve local runs and Daytona runs at the same time, and
+changing one does not change the other.
 
-A sandbox is where agent code runs. Today the providers are:
+The sandbox providers are:
 
-- **local** runs the harness inside the runner container. It is the default.
-- **daytona** runs the harness inside a Daytona cloud sandbox.
+- **daytona** runs the harness in a Daytona cloud sandbox, isolated from the runner and from other
+  runs. See [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona).
+- **local** runs the harness inside the runner container. It is the default. See
+  [Run agents locally](/self-host/agent-execution/run-agents-locally).
 
-Other clouds would be future providers on the same axis. A deployment enables the providers it
-wants and picks a default. See [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona)
-and the [runner reference](/self-host/agent-execution/runner-configuration).
+A deployment enables the providers it wants and picks a default with
+[`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`](/self-host/agent-execution/runner-configuration).
 
-## Credentials: per-run data versus deployment infrastructure
+## Credentials
 
-Two kinds of credential meet at the runner, and they are not the same:
+Two kinds of credential meet at the runner:
 
 - **Model keys are per-run data.** Agenta resolves the model key for each run and passes it with
   the run request. It is not part of the runner's configuration.
@@ -72,5 +73,6 @@ Only a run with no session and no workflow artifact is fully ephemeral.
 ## Next
 
 - [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) for the trust model.
-- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) to enable remote sandboxes.
+- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) to enable isolated cloud sandboxes.
+- [Run agents locally](/self-host/agent-execution/run-agents-locally) to configure local runs.
 - [Runner and sandbox configuration](/self-host/agent-execution/runner-configuration) for every variable.

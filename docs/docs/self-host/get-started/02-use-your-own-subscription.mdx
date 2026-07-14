@@ -6,17 +6,21 @@ slug: /self-host/use-your-own-subscription
 sidebar_position: 2
 ---
 
-By default, Agenta runs agents with a model API key it resolves for each run. On a local
-deployment you run yourself, you can instead run agents with your own harness subscription: a
-Pi login, a Claude Code login, or a ChatGPT/Codex login.
+By default, Agenta runs agents with a model API key it resolves for each run. You can instead run
+agents with your own harness subscription: a Pi login, a Claude Code login, or a ChatGPT/Codex
+login.
+
+A subscription authenticates the harness through a directory mounted into the runner container, so
+it works only with [local runs](/self-host/agent-execution/run-agents-locally). Agenta never
+uploads the login to a Daytona sandbox, and a Daytona run cannot use one.
 
 This tutorial mounts your login into the runner container and runs an agent that uses it.
 
 :::warning This is for a single trusted operator
-One personal subscription serves one operator, not every user of a shared deployment. Local
-agents can read files visible to the runner container, so the local runner is not an isolation
-boundary. Use this only on a deployment you run for yourself. Daytona runs do not support
-personal subscriptions. See [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+One personal subscription serves one operator, not every user of a shared deployment. Every local
+run can read the files mounted into the runner container, including this login. Use this only on a
+deployment you run for yourself. See
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
 :::
 
 ## Before you start
@@ -44,7 +48,7 @@ ls ~/.claude/.credentials.json
 ## 2. Mount the login into the runner
 
 Edit the `runner` service in your Compose file
-(`hosting/docker-compose/oss/docker-compose.gh.yml`). Add a read-only volume for your login and
+(`hosting/docker-compose/oss/docker-compose.gh.yml`). Add a read-write volume for your login and
 point the harness at it.
 
 For **Pi** or **ChatGPT/Codex**:
@@ -52,7 +56,7 @@ For **Pi** or **ChatGPT/Codex**:
 ```yaml
 runner:
   volumes:
-    - ~/.pi/agent:/agenta/harness/pi:ro
+    - ~/.pi/agent:/agenta/harness/pi:rw
   environment:
     PI_CODING_AGENT_DIR: /agenta/harness/pi
 ```
@@ -62,14 +66,24 @@ For **Claude Code**:
 ```yaml
 runner:
   volumes:
-    - ~/.claude:/agenta/harness/claude:ro
+    - ~/.claude:/agenta/harness/claude:rw
   environment:
     CLAUDE_CONFIG_DIR: /agenta/harness/claude
 ```
 
-The mount is read-only. The runner copies the login into a fresh per-run directory before each
-run, so the harness never writes back to your source login. Keep the Claude login current on the
-host, since a read-only mount cannot refresh an expired token in the container.
+The mount is read-write, and the harness runs directly out of it. Subscription logins are OAuth
+logins: the harness refreshes its own access token during a run and writes the new one back to
+the mount. Because the mount is writable, that refreshed token persists to your login on the
+host, so runs keep working after the provider rotates a token and you never have to log in again
+by hand. This is exactly how the harness behaves when you run it on your own machine.
+
+Two consequences:
+
+- The harness writes to your login directory. It refreshes tokens there, and a run that carries
+  skills or a system prompt installs them there too.
+- Concurrent local subscription runs share that one directory, the same way two `claude` or `pi`
+  sessions on your laptop do. This path is for a single trusted operator, not a shared
+  deployment.
 
 Recreate the runner so it picks up the change:
 
