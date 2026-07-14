@@ -11,7 +11,7 @@ import {
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {isSandboxLocalEnabled} from "@agenta/shared/api"
+import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -98,8 +98,8 @@ export function useModelHarness({
     const runnerProps = subProps("runner")
     const sandboxProps = subProps("sandbox")
     const sandboxOptions = useMemo(() => {
-        const options = getEnumOptions(sandboxProps.kind)
-        return isSandboxLocalEnabled() ? options : options.filter((o) => o.value !== "local")
+        const enabled = new Set(getEnabledSandboxProviders())
+        return getEnumOptions(sandboxProps.kind).filter((o) => enabled.has(o.value))
     }, [sandboxProps.kind])
 
     const asObject = useCallback(
@@ -715,7 +715,7 @@ export function useModelHarness({
                             />
                         </RailField>
                     ) : null}
-                    {sandboxProps.permissions ? (
+                    {sandboxProps.permissions && sandbox.kind !== "local" ? (
                         <>
                             {permissionOverrideHint}
                             {/* Renders its knobs as peer RailField rows (Network egress / Filesystem

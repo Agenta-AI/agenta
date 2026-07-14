@@ -69,6 +69,8 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
     NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
+    NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS:
+        process.env.NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH:
         process.env.NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH:
@@ -91,6 +93,16 @@ const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enabl
 export const isSandboxLocalEnabled = () => {
     const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
     return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
+}
+
+// The sandbox providers this deployment enabled, normalized to lowercase ids. Unset/empty
+// falls back to ["local"] so the picker never hides every option.
+export const getEnabledSandboxProviders = (): string[] => {
+    const providers = getEnv("NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS")
+        .split(",")
+        .map((provider) => provider.trim().toLowerCase())
+        .filter(Boolean)
+    return providers.length > 0 ? providers : ["local"]
 }
 
 export const getEffectiveAuthConfig = () => {

@@ -41,11 +41,11 @@ const lightTags = buildAcceptanceTags({
     speed: TestSpeedType.FAST,
 })
 
-const navigateToTestsets = async (page: any, uiHelpers: any) => {
-    await page.goto("/apps", {waitUntil: "domcontentloaded"})
-    const testSetsLink = page.locator('a:has-text("Test sets")').first()
-    await expect(testSetsLink).toBeVisible({timeout: 10000})
-    await testSetsLink.click()
+const navigateToTestsets = async (page: any, uiHelpers: any, apiHelpers: any) => {
+    // "Test sets" now lives under the collapsible "Evaluation" sidebar group rather
+    // than as a top-level link, so navigate straight to the project-scoped URL.
+    const basePath = apiHelpers.getProjectScopedBasePath()
+    await page.goto(`${basePath}/testsets`, {waitUntil: "domcontentloaded"})
     await uiHelpers.waitForPath("/testsets")
     await expect(page.getByRole("heading", {name: "Testsets"})).toBeVisible({timeout: 10000})
 }
@@ -62,7 +62,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.when(
@@ -120,7 +120,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.when("the user uploads a CSV file as a new testset", async () => {
@@ -178,7 +178,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.and("at least one testset exists", async () => {
@@ -270,7 +270,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.and("at least one testset exists", async () => {
@@ -419,7 +419,7 @@ const testsetTests = () => {
         })
 
         await scenarios.and("the user is on the Test Sets page", async () => {
-            await navigateToTestsets(page, uiHelpers)
+            await navigateToTestsets(page, uiHelpers, apiHelpers)
         })
 
         await scenarios.and("at least one testset exists", async () => {

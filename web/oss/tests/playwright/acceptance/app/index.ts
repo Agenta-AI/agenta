@@ -148,8 +148,8 @@ const tests = () => {
                 expect(workflowPosts).toEqual([])
             })
 
-            await scenarios.and("the user remains on the apps page", async () => {
-                await expect(page).toHaveURL(/\/apps$/)
+            await scenarios.and("the user remains on the prompts page", async () => {
+                await expect(page).toHaveURL(/\/prompts$/)
             })
         },
     )
