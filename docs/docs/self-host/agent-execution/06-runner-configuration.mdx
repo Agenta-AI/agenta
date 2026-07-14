@@ -40,9 +40,6 @@ The code default host is `127.0.0.1`. The bundled Compose files set `AGENTA_RUNN
 so the Services container can reach the runner across the Compose network. `AGENTA_RUNNER_PORT` and
 `AGENTA_RUNNER_CONCURRENCY_LIMIT` must be positive integers.
 
-The runner does not take a static API key. Session coordination, mount signing, and trace export
-use the per-run caller credential.
-
 ## Routing and authentication
 
 These locate the runner and authenticate the call. Two of the three are caller-side: the Services
@@ -85,8 +82,9 @@ Rules:
   before any working directory, mount, secret, or sandbox is created. There is no fallback to
   another provider.
 
-The enabled list is also the [security posture switch](/self-host/agent-execution/sandbox-isolation-and-security).
-This is capability configuration for the deployment, not a per-user authorization list.
+The enabled list applies to the whole deployment, not to a user or a run. It decides what isolation
+a run can get; see
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
 
 ## Daytona
 
@@ -182,9 +180,6 @@ provider.
 | `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
 | `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
 
-Lower the total deadline to cap the cost of one run. Lower the idle and TTFB timeouts to fail a
-broken harness sooner.
-
 Three rules govern how they interact:
 
 - A run paused for a human approval is exempt from all four. The pause freezes every timer.
@@ -216,7 +211,7 @@ base inferred from each request.
 
 The runner reads two more variables that exist for debugging and for custom sandbox images. They
 are not part of the supported configuration surface and may change without notice. Leave them unset
-on a normal deployment. Every other variable the runner reads is documented above.
+on a normal deployment.
 
 - `AGENTA_RUNNER_DEBUG_TOOLS`: when set to any value, the runner logs verbose tool-callback
   diagnostics to standard error. Unset by default.

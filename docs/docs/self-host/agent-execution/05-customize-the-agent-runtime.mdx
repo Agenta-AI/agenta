@@ -65,8 +65,17 @@ runner at it.
 ### Add folders
 
 A Daytona sandbox runs in the cloud and cannot mount a directory from your host. To make files
-available to Daytona runs, copy them into the snapshot with a `COPY` or a download step in the same
-`dockerfile_commands` list, then rebuild.
+available to Daytona runs, fetch them into the snapshot from a `RUN` step in the same
+`dockerfile_commands` list, then rebuild. For example, a repository checkout at
+`/agenta/workspaces/my-service`:
+
+```python
+"RUN git clone --depth 1 https://github.com/my-org/my-service "
+"/agenta/workspaces/my-service",
+```
+
+The files are baked into the snapshot, so every sandbox starts with the same copy, and a rebuild is
+what refreshes them.
 
 ### Sandbox resources
 
@@ -132,7 +141,14 @@ it.
        image: <registry>/agenta-runner:<tag>
    ```
 
-   For Helm, set the runner image under `agentRunner` in your values file.
+   For Helm, set the image in your values file:
+
+   ```yaml
+   agentRunner:
+     image:
+       repository: <registry>/agenta-runner
+       tag: <tag>
+   ```
 
 ### Add folders
 
@@ -147,7 +163,10 @@ services:
 ```
 
 Use `:rw` when agents should write to the folder (committing to a worktree, for instance) and `:ro`
-when they should only read it. For Helm, add the volume to the runner pod in your values file.
+when they should only read it.
+
+The Helm chart does not expose extra volumes on the runner pod. On Kubernetes, bake the folder into
+a custom runner image with the steps above, or patch the runner Deployment yourself.
 
 :::warning
 Every local run sees every folder you mount into the runner container, and a mount with `:rw` is
@@ -170,7 +189,18 @@ services:
           memory: 4G
 ```
 
-For Helm, set the runner resource requests and limits under `agentRunner` in your values file.
+For Helm, set them in your values file:
+
+```yaml
+agentRunner:
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+```
 
 ## Related
 

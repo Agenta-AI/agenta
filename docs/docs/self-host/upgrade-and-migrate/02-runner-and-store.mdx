@@ -87,12 +87,12 @@ existing self-hosted Agenta deployment that predates the runner and store featur
        -----END PRIVATE KEY-----
    ```
 
-   `jwtPrivateKey` is **required when the API runs more than one replica** — every replica must
-   sign with the same key or SeaweedFS's cached JWKS desyncs and STS fails intermittently.
+   `jwtPrivateKey` is **required when the API runs more than one replica**. Every replica must
+   sign with the same key, or SeaweedFS's cached JWKS desyncs and STS fails intermittently.
    Generate it with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`.
 
    To point at a remote S3-compatible store instead (AWS S3, MinIO), leave `signingKey`
-   unset — its absence selects the `GetFederationToken` path, so no `jwtPrivateKey` is needed.
+   unset. Its absence selects the `GetFederationToken` path, so no `jwtPrivateKey` is needed.
    Set `stsEndpointUrl` only for AWS, which splits STS onto its own host:
 
    ```yaml

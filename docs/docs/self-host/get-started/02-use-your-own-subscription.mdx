@@ -71,19 +71,14 @@ runner:
     CLAUDE_CONFIG_DIR: /agenta/harness/claude
 ```
 
-The mount is read-write, and the harness runs directly out of it. Subscription logins are OAuth
-logins: the harness refreshes its own access token during a run and writes the new one back to
-the mount. Because the mount is writable, that refreshed token persists to your login on the
-host, so runs keep working after the provider rotates a token and you never have to log in again
-by hand. This is exactly how the harness behaves when you run it on your own machine.
+The mount is read-write, and the harness runs directly out of it. These are OAuth logins: the
+harness refreshes its access token during a run and writes the new one back. Because the mount is
+writable, the refreshed token lands in your login on the host, so runs keep working after the
+provider rotates a token and you never log in again by hand.
 
-Two consequences:
-
-- The harness writes to your login directory. It refreshes tokens there, and a run that carries
-  skills or a system prompt installs them there too.
-- Concurrent local subscription runs share that one directory, the same way two `claude` or `pi`
-  sessions on your laptop do. This path is for a single trusted operator, not a shared
-  deployment.
+The harness writes other things there too. A run that carries skills or a system prompt installs
+them into the same directory, and concurrent local runs share it, the same way two `pi` or `claude`
+sessions on your laptop do.
 
 Recreate the runner so it picks up the change:
 
@@ -98,16 +93,12 @@ In the studio, run an agent and choose the self-managed credential option (use y
 for the matching harness. The run authenticates with your mounted subscription instead of a
 managed key.
 
-## 4. Confirm the mount is required
+If the run fails because the harness has no login, the mount is missing or
+`PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` does not point at it. Recheck step 2.
 
-Remove the volume and environment lines you added in step 2, recreate the runner, and run the
-same agent again. The run fails because the harness has no login to authenticate with. This
-confirms the run used your mounted subscription and not a hidden credential.
+## Next
 
-Restore the mount to go back to using your subscription.
-
-## What crosses into a sandbox
-
-Your mounted login stays inside the runner container. Agenta never uploads it to a Daytona
-sandbox. A run that requests Daytona with a self-managed credential is not supported. For the
-full trust model, see [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+- [Run agents locally](/self-host/agent-execution/run-agents-locally) configures the provider these
+  runs use.
+- [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) covers
+  what else can read the mounted login.

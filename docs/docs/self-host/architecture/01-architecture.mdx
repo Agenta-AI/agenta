@@ -115,7 +115,7 @@ environment selector; an empty selector runs the whole family.
   - **Evaluation Execution**: runs asynchronous evaluation workloads (`queues:evaluations`).
 
 Stream and queue names, consumer groups, and message shapes are unchanged by this
-grouping, so scaling a container out simply shares work across its consumer groups.
+grouping, so scaling a container out shares work across its consumer groups.
 To scale a single hot loop, run a second instance of the same kind with a disjoint
 selector (for example, `AGENTA_WORKER_STREAMS=spans` on its own).
 
@@ -151,7 +151,7 @@ variables.
 - **Prompt Processing**: Handles prompt templates and variable substitution
 - **Response Generation**: Manages LLM API calls and response handling
 - **Provider Abstraction**: Unified interface across different LLM providers
-- **Error Handling**: Robust error handling for LLM API failures
+- **Error Handling**: Handles LLM API failures
 - **Endpoint Groups**: Includes `/services/completion/*` and `/services/chat/*`
 
 ## Infrastructure Services

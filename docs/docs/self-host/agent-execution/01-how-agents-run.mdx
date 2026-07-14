@@ -19,9 +19,8 @@ Services  --(AGENTA_RUNNER_INTERNAL_URL, AGENTA_RUNNER_TOKEN)-->  Runner
 ```
 
 The runner owns sandbox execution. It receives a run request, starts a harness process inside a
-sandbox, streams results back, and relays server-side tools. A deployment has one logical runner,
-even if it later has several replicas. Every replica in one runner deployment shares the same
-provider configuration.
+sandbox, streams results back, and relays server-side tools. A deployment has one logical runner.
+Its replicas all share the same provider configuration.
 
 ## Harness and sandbox
 

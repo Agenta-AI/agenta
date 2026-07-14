@@ -81,8 +81,22 @@ not point at it.
 **Cause:** The runner container cannot mount the durable store. It mounts it with FUSE, which needs
 `/dev/fuse` and the `SYS_ADMIN` capability.
 
-**Solution:** The bundled Compose files grant both. On a custom deployment, grant them to the
-`runner` container.
+**Solution:** The bundled Compose files grant both. On a Compose deployment of your own, grant them
+on the `runner` service:
+
+```yaml
+services:
+  runner:
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+```
+
+The Helm chart grants them on the runner pod whenever the store is enabled, unless you set
+`agentRunner.securityContext` yourself, which replaces the chart's default.
 
 ## Next
 
