@@ -145,6 +145,23 @@ before every batch.
 
 ---
 
+## 13. Findings expire on redeploy — re-run blocker-level findings after the stack is rebuilt
+
+F-9 ("Claude harness never resumes its native session") was CONFIRMED across 72h of real traffic
+and triaged as a release blocker. A deployment repair landed later the same day, pulling in recent
+upstream fixes. Nobody re-ran F-9 against the rebuilt stack before trusting it — until a decisive
+cold-context experiment on 2026-07-14 showed native session resume now working 4/4 runs, downgrading
+F-9 to a residual resilience concern (see STATUS.md).
+
+**The trap.** A deployment under active repair invalidates earlier observations made against it.
+Once the repair lands, the finding is stale, not necessarily wrong — but you don't know which
+until you re-check. Treating "CONFIRMED" as permanent past a redeploy is how a fixed bug survives
+in a triage doc as a blocker.
+
+**The rule.** For any blocker-level finding, record WHICH build/commit/deploy window it was
+observed on. After any redeploy that touches the relevant code path, re-run the decisive experiment
+before shipping a release decision on that finding — do not just re-read the old evidence.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.
@@ -154,3 +171,5 @@ before every batch.
 5. Assert on frames + side effects. Never on prose.
 6. After every capability passes, grep the log for silent degradation.
 7. Re-run anything that failed once before reporting it.
+8. Before trusting an existing blocker-level finding, check whether the stack has been redeployed
+   since it was observed — if so, re-run the decisive experiment.

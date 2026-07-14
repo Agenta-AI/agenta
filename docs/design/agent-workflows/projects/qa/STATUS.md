@@ -126,7 +126,7 @@ code that behaves the same everywhere; it cannot be configured away.
 | F-3 | Pi permission layer fails OPEN (ask/deny become no-ops) | **BUG (fail-open) + image-specific TRIGGER** | The `try/catch` swallow in `pi-assets.ts:349` is on every deployment. The trigger here is the image (no `/pi-agent`, non-root). Expect NOT to reproduce on our root-ful dev image — which does not make it safe: a read-only rootfs, a k8s securityContext, or a custom `PI_CODING_AGENT_DIR` re-arms it. **It was live on the stack we are shipping from.** |
 | F-7 | Daytona durable mount silently skipped -> files never persist | **BUG — RELEASE BLOCKER, hits every self-hoster on Daytona** | CONFIRMED, see below. Our dev stack structurally cannot reproduce it. |
 | F-1 | Mounts 503 -> agent runs in a throwaway `/tmp` cwd | FIXED (config) + BUG (fail-open) | Store was simply not deployed. The fail-open half is the same defect as F-3/F-7. |
-| F-9 | **Claude harness NEVER resumes its native session** (`mode=create`, always) | **BUG, deployment-independent — CONFIRMED on BOTH stacks** | See below. Reproduced on our own dev stack across 72h of real traffic: **96 claude sessions, 96 `mode=create`, ZERO `mode=load`**, and the `[continuity]` line never once names claude. `pi_core` on the same stack: 50 loads / 21 creates. This is the strongest candidate for the "long conversations lose information" report. |
+| F-9 | Claude harness resuming its native session | **DOWNGRADED / PARTIALLY RETRACTED — was a blocker, now a residual resilience risk** | See below. The 72h `mode=create`-only observation predates a redeploy that pulled recent upstream fixes; a 2026-07-14 decisive experiment against the redeployed stack shows native session resume now working (4/4 runs, both harnesses, `mode=load` + `loaded=true`). The lossy 4000-char rebuild path still exists as the fallback when native load fails. |
 | F-10 | Daytona sandbox destroyed ~2s after a 120s park | **UNKNOWN — not config** | Config is byte-identical across both stacks (all Daytona vars empty -> code defaults). The runner has **no code path that deletes a parked sandbox** (`deleteSandbox` is defined and never called). Local Daytona sandboxes park correctly (`state: stopped`, autostop 15m). So the 1.8s destruction on bighetzner is a platform anomaly or a create->park race — needs a live re-test with tighter logging. |
 | — | Claude + Daytona rejects subscription auth | **BY DESIGN, well surfaced** | `"Daytona sandboxes do not support runtime-provided (subscription) authentication. Use a managed API key … or run this harness on the local sandbox."` Not a bug. It does mean C2 genuinely needs a funded Anthropic key. |
 | F-11 | **Every Pi provider error is swallowed into "The agent produced no output."** | **REGRESSION (2 days old), deployment-independent — CONFIRMED, one-line fix** | See below. Commit `42075a5e9f` disarmed `findSwallowedPiError`. Dead key, exhausted quota, rate limit, bad model — all surface to the user as "no output". |
@@ -237,10 +237,12 @@ Fix: pass the transcript root, not the agent dir — `join(plan.cwd, "agents")`,
 Consequence for users: a dead key, an exhausted quota, a rate limit, or a bad model id all present
 as "the agent produced no output" — the single least actionable message we could show.
 
-**F-9 (CONFIRMED on both stacks, likely THE long-conversation bug) — the Claude harness never
-resumes its native session. Every turn is rebuilt from a lossy hand-rendered transcript.**
+**F-9 (DOWNGRADED / PARTIALLY RETRACTED 2026-07-14 — was "CONFIRMED on both stacks, likely THE
+long-conversation bug") — the Claude harness never resumes its native session. Every turn is
+rebuilt from a lossy hand-rendered transcript.**
 
-Evidence from our OWN dev stack (not bighetzner), over 72h of real dogfooding traffic:
+**Original claim, kept for the record.** Evidence from our OWN dev stack (not bighetzner), over
+72h of real dogfooding traffic:
 
 | harness | `create_session mode=create` | `mode=load` |
 |---|---|---|
@@ -267,6 +269,42 @@ That is a very strong candidate for the reported "long conversations with lots o
 information" — and it predicts the loss is **worse on Claude than on Pi**, which matches a
 tool-heavy Claude session degrading over time. Worth confirming with a long Claude conversation
 that crosses the 60s pool TTL between turns.
+
+**What the decisive experiment showed (2026-07-14, `runs/coldctx-20260714-201002/`).** The
+prediction above was directly testable: plant an EARLY token near the start of a ~7.3k-char bash
+output and a LATE token past the 4000-char truncation cap, wait 75s (past the 60s keepalive pool
+TTL) so the session goes cold, then ask for both tokens back in the same session via a faithful
+history replay (full assistant `parts`, tool calls included — see LESSONS.md #1). If F-9 as
+written were still true, `claude` should recall EARLY but lose LATE.
+
+It did not. Run against the redeployed bighetzner stack — 2 runs on `claude/local` (subscription
+auth) and 2 runs on `pi_core/local` (`openrouter/deepseek/deepseek-v4-flash`) — **both tokens came
+back in all 4/4 runs**, and the runner log confirms the session genuinely went cold and then
+genuinely reloaded natively for both harnesses:
+
+```
+[sandbox-agent] [continuity] session/load attempted session=3aa4d192… harness=claude loaded=true
+[sandbox-agent] [timing] stage=create_session ms=1480 sandbox=local/… session=3aa4d192… mode=load
+```
+
+(and the matching pair for `pi_core`). Claude native session resume works on this build. The
+`mode=create`-only signature from the 72h dogfooding window is gone.
+
+**Residual risk (this is now a resilience concern, not an every-cold-turn data-loss bug).** The
+lossy 4000-char rebuild path described above still exists in code and is still real — it is just
+no longer the routine outcome of crossing the 60s pool TTL. It remains the fallback whenever
+native load genuinely fails: sandbox recreated, a Daytona teardown, or a runner restart. Those
+cases still deserve hardening (fail loud instead of silently truncating), but they are no longer
+"every long Claude conversation eventually loses information" — they are "a conversation that
+survives an infrastructure event may lose information," a materially smaller and rarer blast
+radius.
+
+**Likely cause of the change.** The most plausible explanation is the redeploy the other agent ran
+tonight against bighetzner, which pulled in recent upstream fixes to the runner/session-continuity
+path (see the STATUS PAUSED note above — QA was explicitly paused because the deployment was
+mid-repair). The original 96/96 `mode=create` observation predates that redeploy and was never
+re-run against the rebuilt stack until tonight's experiment. See LESSONS.md for the general rule
+this produced: re-run any blocker-level finding after a redeploy before trusting it.
 
 **F-8 (open, DX blocker) — `/api/tools/discover` returns a tool object that the agent config
 REJECTS. The discover -> configure round trip is broken.**

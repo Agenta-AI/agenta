@@ -1,0 +1,84 @@
+[claude] run 1 starting...
+    [claude run1] session=3aa4d192-9639-4b83-bf1f-027045b12c22 sleeping 75s for TTL...
+[claude] run 1: early_recalled=True late_recalled=True (hypothesis predicts early=True, late=False on claude; pi may preserve both if it does a native mode=load)
+    early=EARLY-3e3825a3c75d464d92139c150baa1922 late=LATE-dcf5338abba748b6a4556666c70a8322
+    turn2 reply: 'EARLY: EARLY-3e3825a3c75d464d92139c150baa1922\nLATE: LATE-dcf5338abba748b6a4556666c70a8322'
+    LOG: [sessions] stream sessionOwned=true sessionId=3aa4d192-9639-4b83-bf1f-027045b12c22 turnId=2a5fdcde-62dd-42b8-89f8-81e053ab5e05 cred=present
+    LOG: [sessions/persist] ingest OK session=3aa4d192-9639-4b83-bf1f-027045b12c22 idx=0 type=message
+    LOG: [sessions/alive] heartbeat OK session=3aa4d192-9639-4b83-bf1f-027045b12c22 turn=2a5fdcde-62dd-42b8-89f8-81e053ab5e05 running=true
+    LOG: [sessions/interactions] cancel-stale OK session=3aa4d192-9639-4b83-bf1f-027045b12c22 turn=2a5fdcde-62dd-42b8-89f8-81e053ab5e05
+    LOG: [keepalive] scope=mount key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:3aa4d192-9639-4b83-bf1f-027045b12c22 session=3aa4d192-9639-4b83-bf1f-027045b12c22
+    LOG: [keepalive] miss key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:3aa4d192-9639-4b83-bf1f-027045b12c22; cold
+    LOG: [sandbox-agent] local durable cwd mount (initial) session=3aa4d192-9639-4b83-bf1f-027045b12c22 cwd=/tmp/agenta/mounts/019f6113-bd4e-7fe2-b79c-3cb64a1a684d/019f61cc-8a8a-7453-b2aa-d557237b38d4
+    LOG: [sandbox-agent] [timing] stage=sandbox_start ms=214 sandbox=local/127.0.0.1:36419 session=3aa4d192-9639-4b83-bf1f-027045b12c22 mode=create
+    LOG: [sandbox-agent] [timing] stage=prepare_workspace ms=1 sandbox=local/127.0.0.1:36419 session=3aa4d192-9639-4b83-bf1f-027045b12c22
+    LOG: [sandbox-agent] [timing] stage=probe_capabilities ms=80 sandbox=local/127.0.0.1:36419 session=3aa4d192-9639-4b83-bf1f-027045b12c22
+    LOG: [sandbox-agent] [continuity] session/load attempted session=3aa4d192-9639-4b83-bf1f-027045b12c22 harness=claude loaded=true
+    LOG: [sandbox-agent] [timing] stage=create_session ms=1480 sandbox=local/127.0.0.1:36419 session=3aa4d192-9639-4b83-bf1f-027045b12c22 mode=load
+    LOG: [sandbox-agent] [timing] stage=acquire_total ms=2380 sandbox=local/127.0.0.1:36419 session=3aa4d192-9639-4b83-bf1f-027045b12c22
+    LOG: [sessions/persist] ingest OK session=3aa4d192-9639-4b83-bf1f-027045b12c22 idx=1 type=usage
+    LOG(cold-replay): [sandbox-agent] [HITL] cold replay: transcript 4902->4902 chars, evicted 0/2 messages, pendingNudge=false, resumeFrame=false, turnText 5110 chars
+
+[claude] run 2 starting...
+    [claude run2] session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a sleeping 75s for TTL...
+[claude] run 2: early_recalled=True late_recalled=True (hypothesis predicts early=True, late=False on claude; pi may preserve both if it does a native mode=load)
+    early=EARLY-0666ec2467744f62a2224fa5a1a78f10 late=LATE-615ffd0338be4abaa840ae4889d56578
+    turn2 reply: 'EARLY: EARLY-0666ec2467744f62a2224fa5a1a78f10\nLATE: LATE-615ffd0338be4abaa840ae4889d56578'
+    LOG: [sessions] stream sessionOwned=true sessionId=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a turnId=bb87f528-4b2e-4dab-afc0-d1815122a25d cred=present
+    LOG: [sessions/alive] heartbeat OK session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a turn=bb87f528-4b2e-4dab-afc0-d1815122a25d running=true
+    LOG: [sessions/persist] ingest OK session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a idx=0 type=message
+    LOG: [sessions/interactions] cancel-stale OK session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a turn=bb87f528-4b2e-4dab-afc0-d1815122a25d
+    LOG: [keepalive] scope=mount key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:acb30b9f-bb5f-4ce8-a476-4eddfdd3736a session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a
+    LOG: [keepalive] miss key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:acb30b9f-bb5f-4ce8-a476-4eddfdd3736a; cold
+    LOG: [sandbox-agent] local durable cwd mount (initial) session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a cwd=/tmp/agenta/mounts/019f6113-bd4e-7fe2-b79c-3cb64a1a684d/019f61ce-1e0b-7c73-a91f-6014b91da8f0
+    LOG: [sandbox-agent] [timing] stage=sandbox_start ms=210 sandbox=local/127.0.0.1:42933 session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a mode=create
+    LOG: [sandbox-agent] [timing] stage=prepare_workspace ms=1 sandbox=local/127.0.0.1:42933 session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a
+    LOG: [sandbox-agent] [timing] stage=probe_capabilities ms=89 sandbox=local/127.0.0.1:42933 session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a
+    LOG: [sandbox-agent] [continuity] session/load attempted session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a harness=claude loaded=true
+    LOG: [sandbox-agent] [timing] stage=create_session ms=1630 sandbox=local/127.0.0.1:42933 session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a mode=load
+    LOG: [sandbox-agent] [timing] stage=acquire_total ms=2532 sandbox=local/127.0.0.1:42933 session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a
+    LOG: [sessions/persist] ingest OK session=acb30b9f-bb5f-4ce8-a476-4eddfdd3736a idx=1 type=usage
+    LOG(cold-replay): [sandbox-agent] [HITL] cold replay: transcript 4902->4902 chars, evicted 0/2 messages, pendingNudge=false, resumeFrame=false, turnText 5110 chars
+
+[pi] run 1 starting...
+    [pi run1] session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c sleeping 75s for TTL...
+[pi] run 1: early_recalled=True late_recalled=True (hypothesis predicts early=True, late=False on claude; pi may preserve both if it does a native mode=load)
+    early=EARLY-d9581b4278eb4bc3926566517c2cf96b late=LATE-dc9f20d8c7ae450981850f1c26b4fb35
+    turn2 reply: 'EARLY: EARLY-d9581b4278eb4bc3926566517c2cf96b\nLATE: LATE-dc9f20d8c7ae450981850f1c26b4fb35'
+    LOG: [sessions] stream sessionOwned=true sessionId=ea6085dd-472a-4f5e-ac77-d06e935d8b7c turnId=1125afe7-d74a-4136-9266-a10b4d109f90 cred=present
+    LOG: [sessions/interactions] cancel-stale OK session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c turn=1125afe7-d74a-4136-9266-a10b4d109f90
+    LOG: [sessions/persist] ingest OK session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c idx=0 type=message
+    LOG: [sessions/alive] heartbeat OK session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c turn=1125afe7-d74a-4136-9266-a10b4d109f90 running=true
+    LOG: [keepalive] scope=mount key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:ea6085dd-472a-4f5e-ac77-d06e935d8b7c session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c
+    LOG: [keepalive] miss key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:ea6085dd-472a-4f5e-ac77-d06e935d8b7c; cold
+    LOG: [sandbox-agent] local durable cwd mount (initial) session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c cwd=/tmp/agenta/mounts/019f6113-bd4e-7fe2-b79c-3cb64a1a684d/019f61cf-99e2-7853-b74a-d935afcbe364
+    LOG: [sandbox-agent] [timing] stage=sandbox_start ms=220 sandbox=local/127.0.0.1:45375 session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c mode=create
+    LOG: [sandbox-agent] [timing] stage=prepare_workspace ms=1 sandbox=local/127.0.0.1:45375 session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c
+    LOG: [sandbox-agent] [timing] stage=probe_capabilities ms=482 sandbox=local/127.0.0.1:45375 session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c
+    LOG: [sandbox-agent] [continuity] session/load attempted session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c harness=pi_core loaded=true
+    LOG: [sandbox-agent] [timing] stage=create_session ms=601 sandbox=local/127.0.0.1:45375 session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c mode=load
+    LOG: [sandbox-agent] [timing] stage=acquire_total ms=1939 sandbox=local/127.0.0.1:45375 session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c
+    LOG: [sessions/persist] ingest OK session=ea6085dd-472a-4f5e-ac77-d06e935d8b7c idx=1 type=thought
+    LOG(cold-replay): [sandbox-agent] [HITL] cold replay: transcript 4826->4826 chars, evicted 0/2 messages, pendingNudge=false, resumeFrame=false, turnText 5034 chars
+
+[pi] run 2 starting...
+    [pi run2] session=a93b9263-6ff8-4e1e-9870-83c2562909f5 sleeping 75s for TTL...
+[pi] run 2: early_recalled=True late_recalled=True (hypothesis predicts early=True, late=False on claude; pi may preserve both if it does a native mode=load)
+    early=EARLY-26db67968bd1404a8f324e068321ea8d late=LATE-95ba9fb6460143e59175879b01ecd1bb
+    turn2 reply: 'EARLY: EARLY-26db67968bd1404a8f324e068321ea8d\nLATE: LATE-95ba9fb6460143e59175879b01ecd1bb'
+    LOG: [sessions] stream sessionOwned=true sessionId=a93b9263-6ff8-4e1e-9870-83c2562909f5 turnId=fabadf25-cc11-4ba5-9da5-239cc5522389 cred=present
+    LOG: [sessions/alive] heartbeat OK session=a93b9263-6ff8-4e1e-9870-83c2562909f5 turn=fabadf25-cc11-4ba5-9da5-239cc5522389 running=true
+    LOG: [sessions/persist] ingest OK session=a93b9263-6ff8-4e1e-9870-83c2562909f5 idx=0 type=message
+    LOG: [sessions/interactions] cancel-stale OK session=a93b9263-6ff8-4e1e-9870-83c2562909f5 turn=fabadf25-cc11-4ba5-9da5-239cc5522389
+    LOG: [keepalive] scope=mount key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:a93b9263-6ff8-4e1e-9870-83c2562909f5 session=a93b9263-6ff8-4e1e-9870-83c2562909f5
+    LOG: [keepalive] miss key=019f6113-bd4e-7fe2-b79c-3cb64a1a684d:a93b9263-6ff8-4e1e-9870-83c2562909f5; cold
+    LOG: [sandbox-agent] local durable cwd mount (initial) session=a93b9263-6ff8-4e1e-9870-83c2562909f5 cwd=/tmp/agenta/mounts/019f6113-bd4e-7fe2-b79c-3cb64a1a684d/019f61d0-fb9e-72a3-b310-600638746a58
+    LOG: [sandbox-agent] [timing] stage=sandbox_start ms=212 sandbox=local/127.0.0.1:41909 session=a93b9263-6ff8-4e1e-9870-83c2562909f5 mode=create
+    LOG: [sandbox-agent] [timing] stage=prepare_workspace ms=2 sandbox=local/127.0.0.1:41909 session=a93b9263-6ff8-4e1e-9870-83c2562909f5
+    LOG: [sandbox-agent] [timing] stage=probe_capabilities ms=488 sandbox=local/127.0.0.1:41909 session=a93b9263-6ff8-4e1e-9870-83c2562909f5
+    LOG: [sandbox-agent] [continuity] session/load attempted session=a93b9263-6ff8-4e1e-9870-83c2562909f5 harness=pi_core loaded=true
+    LOG: [sandbox-agent] [timing] stage=create_session ms=667 sandbox=local/127.0.0.1:41909 session=a93b9263-6ff8-4e1e-9870-83c2562909f5 mode=load
+    LOG: [sandbox-agent] [timing] stage=acquire_total ms=2022 sandbox=local/127.0.0.1:41909 session=a93b9263-6ff8-4e1e-9870-83c2562909f5
+    LOG(cold-replay): [sandbox-agent] [HITL] cold replay: transcript 4826->4826 chars, evicted 0/2 messages, pendingNudge=false, resumeFrame=false, turnText 5034 chars
+
+results: /tmp/claude-1000/-home-mahmoud-code-agenta/1417014e-74dd-4a4e-81d8-a371492ea769/scratchpad/coldctx-results-20260714-201002.json

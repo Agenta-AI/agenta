@@ -23,6 +23,9 @@ __pycache__/
 **/error-*.log
 **/*.logs
 **/*.log
+# QA evidence runs keep the raw runner log alongside results.json (e.g. run.log) so a
+# cold successor can corroborate findings without re-running the experiment.
+!docs/design/agent-workflows/projects/qa/runs/**/run.log
 
 /.nox/
 /docs/_build/

@@ -48,6 +48,11 @@ regexes = [
   # memory/compaction (e.g. QA-MEM-0EF553A2C1C1, QA-CONC0-1A2B3C4D). They land in
   # the runs/**/results.json evidence files — random-looking but NOT secrets.
   '''QA-[A-Z]+[0-9]?-[0-9A-Fa-f]{8,}''',
+  # Synthetic EARLY/LATE canary tokens the cold-context QA probe plants inside a
+  # large tool output to test truncation/eviction across the 4000-char transcript
+  # cap (e.g. EARLY-3f9a1c2b..., LATE-8e0d5f6a...). Same story: land in
+  # runs/**/results.json + run.log evidence files — random-looking but NOT secrets.
+  '''(EARLY|LATE)-[0-9A-Fa-f]{16,}''',
   # ----------------------------------------------------------------------------
 ]
 
