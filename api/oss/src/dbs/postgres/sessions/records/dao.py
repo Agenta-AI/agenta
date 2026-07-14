@@ -32,11 +32,21 @@ class RecordsDAO(RecordsDAOInterface):
     ) -> Optional[SessionRecord]:
         if session is None:
             async with self.engine.session() as session:
-                return await self.append(event=event, session=session)
+                result = await self._append(event=event, session=session)
+                await session.commit()
+                return result
 
-        stmt = self._upsert_stmt(values_list=[self._values(event=event)])
+        return await self._append(event=event, session=session)
+
+    @staticmethod
+    async def _append(
+        *,
+        event: SessionRecordEvent,
+        session: AsyncSession,
+    ) -> Optional[SessionRecord]:
+        stmt = RecordsDAO._upsert_stmt(values_list=[RecordsDAO._values(event=event)])
         result = await session.execute(stmt)
-        await session.commit()
+        await session.flush()
 
         row = result.scalars().first()
         if row is None:

@@ -194,13 +194,13 @@ describe("createAgentServer", () => {
     }
   });
 
-  it("POST /kill with a sessionId drains that session's pool entry + sandboxes (idempotent)", async () => {
+  it("POST /kill with sessionId + projectId drains that session's pool entry + sandboxes (idempotent)", async () => {
     // With keep-alive off (default) the pool is empty, so the drain is a no-op that still 200s.
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",
-        body: JSON.stringify({ sessionId: "sess-1" }),
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
       });
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
@@ -213,11 +213,46 @@ describe("createAgentServer", () => {
   it("POST /kill without a sessionId is rejected as unscoped (400)", async () => {
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/kill`, { method: "POST", body: "{}" });
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ projectId: "proj-1" }),
+      });
       assert.equal(res.status, 400);
       const body = (await res.json()) as { ok: boolean; error: string };
       assert.equal(body.ok, false);
       assert.match(body.error, /sessionId/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill without a projectId is rejected as under-scoped (400), not half-executed", async () => {
+    // The two teardown halves (pool key vs in-flight sandbox filter) must agree on scope; a
+    // missing projectId is rejected outright instead of silently draining one and sweeping
+    // the other unscoped.
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /projectId/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with only whitespace projectId is rejected as under-scoped (400)", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "   " }),
+      });
+      assert.equal(res.status, 400);
     } finally {
       await s.close();
     }
@@ -236,16 +271,14 @@ describe("createAgentServer", () => {
     }
   });
 
-  it("POST /kill with a whitespace-only projectId is accepted (normalized like an absent one)", async () => {
+  it("POST /kill with a whitespace-only projectId is rejected: a blank scope is no scope", async () => {
     const s = await listen(okRun);
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",
         body: JSON.stringify({ sessionId: "sess-1", projectId: "   " }),
       });
-      assert.equal(res.status, 200);
-      const body = (await res.json()) as { ok: boolean };
-      assert.equal(body.ok, true);
+      assert.equal(res.status, 400);
     } finally {
       await s.close();
     }

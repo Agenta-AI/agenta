@@ -6,7 +6,7 @@
  *
  *   GET  /health -> runner identity ({ status, runner, protocol, engines, harnesses })
  *   POST /stream -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
- *   POST /kill   -> best-effort, idempotent teardown of in-flight sandboxes
+ *   POST /kill   -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
  *
  * Uses Node's built-in http server (no framework dependency).
  *
@@ -1013,10 +1013,9 @@ export function createRequestListener(
         if (!isAuthorized(req)) {
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
-        // Scoped, idempotent, best-effort: a caller must name the session it owns — an
-        // unscoped call would tear down every tenant's sandbox(es) on this box and is
-        // rejected outright. Drain that session's keep-alive pool entry (its complete
-        // per-session destroy), then its in-flight sandbox as a second line of defense.
+        // Scoped, idempotent, best-effort: both sessionId and projectId are required so the
+        // pool-key drain and the in-flight sandbox sweep agree on exactly one tenant's session
+        // (pool keys are always project-scoped; see `poolKeyFor`).
         let killBody: { sessionId?: unknown; projectId?: unknown };
         try {
           const raw = await readBodyCapped(req, KILL_BODY_MAX_BYTES);
@@ -1035,14 +1034,15 @@ export function createRequestListener(
             ? killBody.sessionId.trim()
             : "";
         const projectId = normalizeKillProjectId(killBody.projectId);
-        if (!sessionId) {
+        if (!sessionId || !projectId) {
           return send(res, 400, {
             ok: false,
-            error: "sessionId is required: /kill cannot target every session",
+            error:
+              "sessionId and projectId are both required: /kill must be scoped to exactly one tenant's session",
           });
         }
         const scope = poolKeyFor(
-          { sessionId, runContext: projectId ? { project: { id: projectId } } : undefined },
+          { sessionId, runContext: { project: { id: projectId } } },
           projectId,
         );
         await Promise.all(
@@ -1050,7 +1050,12 @@ export function createRequestListener(
             scope ? pool.destroy(scope.key, "kill") : Promise.resolve(),
           ),
         );
-        await destroyInFlightSandboxesForSession(sessionId, projectId, 5000, "kill");
+        await destroyInFlightSandboxesForSession(
+          sessionId,
+          projectId,
+          5000,
+          "kill",
+        );
         return send(res, 200, { ok: true });
       }
 
