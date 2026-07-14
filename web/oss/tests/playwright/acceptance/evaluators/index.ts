@@ -283,34 +283,52 @@ const testEvaluators = () => {
                 .locator('[role="option"]')
             await expect(appItems.first()).toBeVisible({timeout: 10000})
 
-            // Pick the first non-Chat / non-Custom app — completion-type.
+            // Collect every non-Chat / non-Custom app — completion-type candidates.
             const allItems = await appItems.all()
-            let completionItem = null
+            const completionItems = []
             for (const item of allItems) {
                 const itemText = await item.textContent()
                 const isNonCompletion = EVALUATOR_NON_COMPLETION_TYPE_LABELS.some((label) =>
                     itemText?.includes(label),
                 )
                 if (!isNonCompletion) {
-                    completionItem = item
-                    break
+                    completionItems.push(item)
                 }
             }
-            if (!completionItem) {
+            if (!completionItems.length) {
                 test.skip(
                     true,
                     "No completion-type app available — evaluator requires a completion app",
                 )
                 return
             }
-            await completionItem.click()
 
-            // Wait for and pick the first revision in the right-side panel.
+            // Some completion apps in the shared test project may have no committed
+            // revisions (e.g. leftover/archived state from other specs). Try each
+            // candidate in turn until one has a selectable revision.
             const revisionPanel = popover.getByTestId(EVALUATOR_POPOVER_CHILD_PANEL_TEST_ID)
-            await expect(revisionPanel).toBeVisible({timeout: 5000})
-            const revisionItems = revisionPanel.locator('[role="option"]')
-            await expect(revisionItems.first()).toBeVisible({timeout: 5000})
-            await revisionItems.first().click()
+            let revisionItem = null
+            for (const item of completionItems) {
+                await item.click()
+                await expect(revisionPanel).toBeVisible({timeout: 5000})
+                const revisionItems = revisionPanel.locator('[role="option"]')
+                const hasRevision = await revisionItems
+                    .first()
+                    .isVisible({timeout: 5000})
+                    .catch(() => false)
+                if (hasRevision) {
+                    revisionItem = revisionItems.first()
+                    break
+                }
+            }
+            if (!revisionItem) {
+                test.skip(
+                    true,
+                    "No completion-type app with a committed revision available in this environment",
+                )
+                return
+            }
+            await revisionItem.click()
 
             // Step 5: Verify completion-app UI (Testcase Data section) appears.
             const isCompletionApp = await page
