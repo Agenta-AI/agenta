@@ -523,6 +523,16 @@ still gets read-only shell commands executing**, contradicting the UI's own help
 either making the Policy control harness-aware (hide/annotate it for Claude) or by translating the
 policy into Claude builtin rules.
 
+**Same mechanism explains a UI-exploration finding filed as a HIGH persistence bug.**
+`ui-exploration-20260714.md` bug 1 originally read "one Terminal approval becomes a permanent
+grant; Policy=Ask not enforced." A follow-up investigation (2026-07-14, live probes + code trace)
+found no persisted grant: approvals are answered once-only, no settings file is written, and a
+mutating command re-gates every time including in new sessions. The "Terminal never asked again"
+runs were read-only commands auto-approved by Claude Code's own classifier under Ask — this table's
+`ask` / read-only `echo` row. Downgraded from HIGH (security persistence) to MEDIUM (policy-label
+gap), same family as F-6 above; entry corrected in place with the original observation kept for the
+record.
+
 **RETRACTED (was reported as a Claude permission bypass):** an earlier reading of this — "`ask`
 silently drops the tool call on Claude" — was **model non-determinism**, not a defect: the model
 simply chose not to call bash on that run. On rerun the gate fired correctly. Recorded here
