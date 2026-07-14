@@ -46,6 +46,29 @@ def load_env() -> dict:
 ENV = load_env()
 BASE, PROJECT, KEY = ENV["AGENTA_BASE"], ENV["AGENTA_PROJECT_ID"], ENV["AGENTA_API_KEY"]
 
+# A public, no-auth, HTTPS Streamable-HTTP MCP server used by the `mcp` journey. DeepWiki is a
+# well-known free reference server (tools: read_wiki_structure / read_wiki_contents / ask_question).
+# Override with --mcp-url to point at any other public server. The runner/SDK both reject non-https
+# and private/loopback hosts (SSRF guard), so a LOCAL server is NOT reachable from the deployment —
+# it must be a public HTTPS URL. See STATUS.md "MCP smoke test".
+DEFAULT_MCP_URL = "https://mcp.deepwiki.com/mcp"
+MCP_URL = DEFAULT_MCP_URL
+
+
+def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.Response:
+    """One REST call to the /api surface (the routes the playground UI drives for config/commits),
+    NOT the SSE /services/agent/v0/invoke turn endpoint. Auth is the same ApiKey header, and
+    project_id rides the query string (never the body), exactly like the browser."""
+    return httpx.request(
+        method,
+        f"{BASE}/api{path}",
+        params={"project_id": PROJECT},
+        headers={"Authorization": f"ApiKey {KEY}", "Content-Type": "application/json"},
+        timeout=timeout,
+        **kwargs,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Cells: harness x sandbox (core) + provider/auth sub-matrix (Pi only).
 # ---------------------------------------------------------------------------
@@ -158,6 +181,7 @@ def template(
     tools: list | None = None,
     instructions: str | None = None,
     permission_default: str | None = None,
+    mcps: list | None = None,
 ) -> dict:
     conn = cell.get("connection") or {"mode": "agenta", "slug": None}
     t = {
@@ -172,7 +196,7 @@ def template(
             "extras": {},
         },
         "tools": tools or [],
-        "mcps": [],
+        "mcps": mcps or [],
         "skills": [],
         "harness": {"kind": cell["harness"]},
         "sandbox": {"kind": cell["sandbox"]},
@@ -578,13 +602,242 @@ def j2_mount(cell: dict) -> dict:
     }
 
 
+def j5_commit(cell: dict) -> dict:
+    """J5: committing an agent config as a new workflow revision — the playground's Save/Commit.
+
+    This is a WORKFLOW-revision commit (a new version of the agent's configuration), NOT a git
+    commit and NOT the in-stream `data-committed-revision` frame. It drives the exact REST route
+    the UI's commit button hits: `POST /api/workflows/revisions/commit`
+    (web/packages/agenta-entities/src/workflow/api/api.ts commitWorkflowRevisionApi).
+
+    Wire truth, not prose: after committing a changed parameter we FETCH the revision back
+    (`GET /api/workflows/revisions/{id}`) and assert the stored config carries the change AND the
+    version incremented.
+
+    Two facts that bite (both verified in the API):
+    - The FIRST commit on a fresh variant is the v0 SEED: the DAO force-nulls its data/flags/meta
+      (`dbs/postgres/git/dao.py` `_null_revision_fields`, `if revision.version == "0"`). So a
+      config only persists on the SECOND commit (v1). The UI does the same seed-then-commit dance.
+    - `data` is `extra="forbid"` — only {uri,url,headers,runtime,script,schemas,parameters} are
+      accepted; the agent config goes under `data.parameters`.
+
+    QA artifacts are namespaced `qa-commit-<hex>` and the whole workflow is archived at the end so
+    repeated runs don't pile up.
+    """
+    hexid = uuid.uuid4().hex[:8]
+    token = f"QA-COMMIT-{uuid.uuid4().hex[:12]}"  # unguessable; also gitleaks-allowlisted shape
+    workflow_id = None
+    try:
+        r = api_call(
+            "POST",
+            "/workflows/",
+            json={
+                "workflow": {
+                    "slug": f"qa-commit-{hexid}",
+                    "name": f"QA commit {hexid}",
+                    "flags": {
+                        "is_custom": True,
+                        "is_evaluator": False,
+                        "is_feedback": False,
+                    },
+                }
+            },
+        )
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"create workflow HTTP {r.status_code}: {r.text[:200]}",
+            }
+        workflow_id = r.json()["workflow"]["id"]
+
+        r = api_call(
+            "POST",
+            "/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"qa-commit-{hexid}-v",
+                    "name": f"QA commit {hexid} v",
+                    "workflow_id": workflow_id,
+                }
+            },
+        )
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"create variant HTTP {r.status_code}: {r.text[:200]}",
+            }
+        variant_id = r.json()["workflow_variant"]["id"]
+
+        # The committed config IS an agent config — the same shape a playground agent commits.
+        base_params = {
+            "agent": {
+                "instructions": {"agents_md": "seed"},
+                "llm": {"model": cell["model"], "provider": cell["provider"]},
+                "tools": [],
+                "harness": {"kind": cell["harness"]},
+                "sandbox": {"kind": cell["sandbox"]},
+            }
+        }
+
+        def commit(parameters: dict, message: str, slug: str) -> httpx.Response:
+            return api_call(
+                "POST",
+                "/workflows/revisions/commit",
+                json={
+                    "workflow_revision": {
+                        "slug": slug,
+                        "name": f"QA commit {hexid} rev",
+                        "message": message,
+                        "data": {
+                            "uri": "agenta:builtin:chat:v0",
+                            "parameters": parameters,
+                        },
+                        "workflow_id": workflow_id,
+                        "workflow_variant_id": variant_id,
+                    }
+                },
+            )
+
+        # v0 seed (data is intentionally nulled by the API for version 0).
+        r = commit(base_params, "seed", f"qa-commit-seed-{hexid}")
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"seed commit HTTP {r.status_code}: {r.text[:200]}",
+            }
+        seed_version = r.json()["workflow_revision"].get("version")
+
+        # v1: the real commit — modify one config parameter (the instructions token).
+        changed = json.loads(json.dumps(base_params))
+        changed["agent"]["instructions"]["agents_md"] = token
+        r = commit(
+            changed, "QA commit journey: change agents_md", f"qa-commit-real-{hexid}"
+        )
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"real commit HTTP {r.status_code}: {r.text[:200]}",
+            }
+        committed = r.json()["workflow_revision"]
+        revision_id = committed["id"]
+        new_version = committed.get("version")
+
+        # Fetch the revision back and compare on the wire (never trust the commit echo alone).
+        r = api_call("GET", f"/workflows/revisions/{revision_id}")
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"fetch revision HTTP {r.status_code}: {r.text[:200]}",
+            }
+        fetched = r.json()["workflow_revision"]
+        fetched_token = (
+            (fetched.get("data") or {})
+            .get("parameters", {})
+            .get("agent", {})
+            .get("instructions", {})
+            .get("agents_md")
+        )
+        version_bumped = (
+            seed_version == "0" and new_version == "1" and fetched.get("version") == "1"
+        )
+        ok = fetched_token == token and version_bumped
+        return {
+            "pass": ok,
+            "why": (
+                f"committed a new revision and read it back: token match={fetched_token == token}, "
+                f"version {seed_version}->{new_version} (bumped={version_bumped})"
+            ),
+            "workflow_id": workflow_id,
+            "revision_id": revision_id,
+            "token": token,
+        }
+    finally:
+        # Clean up so repeated runs don't accumulate QA workflows.
+        if workflow_id:
+            try:
+                api_call("POST", f"/workflows/{workflow_id}/archive")
+            except Exception:
+                pass
+
+
+# The wire name of an MCP-delivered tool is `mcp__<server>__<tool>` (verified on DeepWiki:
+# `mcp__deepwiki__read_wiki_structure`). We give the agent NO builtin tools, so any tool call it
+# makes is necessarily the MCP tool — and we still key the assertion on the `mcp__` prefix.
+MCP_TOOL_RE = re.compile(r"^mcp__")
+
+
+def j7_mcp(cell: dict) -> dict:
+    """J7: an MCP server declared in the agent config is delivered to the harness, and one of its
+    tools actually executes — proven by a `tool-output-available` frame for an `mcp__*` tool.
+
+    Two hard constraints (both verified in the runner):
+    - **Claude only.** Pi refuses any run that declares `mcps`
+      (`run-plan.ts` PI_USER_MCP_UNSUPPORTED_MESSAGE); user MCP needs a harness with mcpTools
+      (Claude). So this journey SKIPS on non-Claude cells.
+    - **Public HTTPS only.** The SDK resolver and the runner both run an SSRF guard that rejects
+      http:// and private/loopback/metadata hosts, so a local MCP server is unreachable from the
+      deployment. --mcp-url must be a public HTTPS Streamable-HTTP endpoint (default: DeepWiki).
+
+    The harness dials the URL directly (on `local`, from the runner host), so the endpoint must be
+    reachable from the deployment's network.
+    """
+    if cell["harness"] != "claude":
+        return {
+            "skip": True,
+            "why": f"MCP requires a Claude harness; Pi rejects any run with mcps (cell harness={cell['harness']}). Run with --cell C1.",
+        }
+
+    s = str(uuid.uuid4())
+    mcp = {
+        "name": "deepwiki",
+        "connection": {"type": "http", "url": MCP_URL},
+        "policy": {"tools": {"mode": "all"}},
+    }
+    prompt = (
+        "Use the deepwiki MCP tool named read_wiki_structure with repoName 'facebook/react' to "
+        "list the wiki topics, then reply with only: DONE."
+    )
+    t = invoke(
+        s,
+        [user_msg(prompt)],
+        template(
+            cell,
+            tools=[],
+            instructions="Use the available MCP tools when asked. Be terse.",
+            permission_default="allow",
+            mcps=[mcp],
+        ),
+    )
+
+    mcp_calls = [c for c in t.tool_calls if MCP_TOOL_RE.match(c.get("toolName") or "")]
+    mcp_ran = any(
+        t.tool_outcomes.get(c["toolCallId"]) == "available" for c in mcp_calls
+    )
+    if not mcp_calls and not mcp_ran:
+        why = (
+            f"no mcp__* tool call was made against {MCP_URL} — the harness may not have reached "
+            "the server, or the server exposed no tools. Check the runner log for MCP errors."
+        )
+    else:
+        why = f"an mcp__* tool executed against {MCP_URL} (wire shows tool-output-available)"
+    return {
+        "pass": mcp_ran,
+        "why": why,
+        "mcp_url": MCP_URL,
+        "mcp_tools_called": [c.get("toolName") for c in mcp_calls],
+        "turn": t.summary(),
+    }
+
+
 JOURNEYS = {
     "chat": j1_chat,
     "mount": j2_mount,
     "tool": j3_tool,
     "approve": j4_approve,
     "deny": j4_deny,
+    "commit": j5_commit,
     "warm": j6_warm,
+    "mcp": j7_mcp,
 }
 
 
@@ -596,12 +849,19 @@ def main() -> int:
     p.add_argument(
         "--custom-slug", help="vault slug of the custom OpenAI-compatible provider (P2)"
     )
+    p.add_argument(
+        "--mcp-url",
+        help=f"public HTTPS MCP server URL for the `mcp` journey (default: {DEFAULT_MCP_URL})",
+    )
     args = p.parse_args()
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
     journeys = args.only or list(JOURNEYS)
     if args.custom_slug:
         CELLS["P2"]["connection"]["slug"] = args.custom_slug
+    if args.mcp_url:
+        global MCP_URL
+        MCP_URL = args.mcp_url
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     outdir = RUNS / stamp
@@ -618,7 +878,8 @@ def main() -> int:
             except Exception as e:  # a crash is a result, not a reason to lose the run
                 r = {"pass": False, "why": f"driver exception: {type(e).__name__}: {e}"}
             results[cid]["journeys"][jname] = r
-            print("PASS" if r.get("pass") else "FAIL", f"— {r.get('why', '')[:90]}")
+            verdict = "SKIP" if r.get("skip") else ("PASS" if r.get("pass") else "FAIL")
+            print(verdict, f"— {r.get('why', '')[:90]}")
             (outdir / "results.json").write_text(json.dumps(results, indent=2))
 
     lines = ["| cell | harness | sandbox | model | " + " | ".join(journeys) + " |"]
@@ -626,7 +887,12 @@ def main() -> int:
     for cid, r in results.items():
         c = r["config"]
         cellstr = [
-            ("PASS" if r["journeys"][j].get("pass") else "FAIL") for j in journeys
+            (
+                "SKIP"
+                if r["journeys"][j].get("skip")
+                else ("PASS" if r["journeys"][j].get("pass") else "FAIL")
+            )
+            for j in journeys
         ]
         lines.append(
             f"| {cid} | {c['harness']} | {c['sandbox']} | {c['model']} | "

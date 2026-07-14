@@ -1,0 +1,19 @@
+{
+  "P1": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    "journeys": {
+      "commit": {
+        "pass": true,
+        "why": "committed a new revision and read it back: token match=True, version 0->1 (bumped=True)",
+        "workflow_id": "019f6216-00f2-7940-9690-4cee8552b75e",
+        "revision_id": "019f6216-0278-75f1-bc2e-ee2bfe5f728c",
+        "token": "QA-COMMIT-5d3fbbd925db"
+      }
+    }
+  }
+}

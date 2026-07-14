@@ -1,0 +1,49 @@
+{
+  "C1": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "local",
+      "model": "sonnet",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "self_managed",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "mcp": {
+        "pass": true,
+        "why": "an mcp__* tool executed against https://mcp.deepwiki.com/mcp (wire shows tool-output-available)",
+        "mcp_url": "https://mcp.deepwiki.com/mcp",
+        "mcp_tools_called": [
+          "mcp__deepwiki__read_wiki_structure"
+        ],
+        "turn": {
+          "http": 200,
+          "ms": 13723,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "mcp__deepwiki__read_wiki_structure"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "DONE."
+        }
+      }
+    }
+  }
+}

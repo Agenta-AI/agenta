@@ -1,0 +1,23 @@
+{
+  "P1": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    "journeys": {
+      "mcp": {
+        "skip": true,
+        "why": "MCP requires a Claude harness; Pi rejects any run with mcps (cell harness=pi_core). Run with --cell C1."
+      },
+      "commit": {
+        "pass": true,
+        "why": "committed a new revision and read it back: token match=True, version 0->1 (bumped=True)",
+        "workflow_id": "019f6216-6762-7210-a530-e92869d49b1c",
+        "revision_id": "019f6216-68cd-7b33-864a-0ab8268cd75c",
+        "token": "QA-COMMIT-84b698ecc57b"
+      }
+    }
+  }
+}

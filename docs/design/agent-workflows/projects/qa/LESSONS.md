@@ -162,6 +162,41 @@ in a triage doc as a blocker.
 observed on. After any redeploy that touches the relevant code path, re-run the decisive experiment
 before shipping a release decision on that finding — do not just re-read the old evidence.
 
+## 14. The v0 revision is a SEED — a committed config only persists on the SECOND commit
+
+Committing an agent config as a workflow revision (`POST /api/workflows/revisions/commit`) looks
+like it stores your `data.parameters` immediately. It does not on the first commit. The DAO
+force-nulls `data`/`flags`/`meta` for **version 0** (`api/oss/src/dbs/postgres/git/dao.py`
+`_null_revision_fields`, `if revision.version == "0"`). So a fresh variant's first commit is an
+empty seed; your config lands on the **second** commit (v1). A test that commits once and asserts
+`data.parameters == X` fails with `KeyError: 'data'` and looks like a broken endpoint — it is not.
+Commit twice (seed, then the real change) and assert v0→v1 plus the changed field surviving a
+`GET /api/workflows/revisions/{id}`. Also: `data` is `extra="forbid"` — only
+`{uri,url,headers,runtime,script,schemas,parameters}` are accepted.
+
+Second trap in the same area: this is a WORKFLOW-revision commit, NOT the in-stream
+`data-committed-revision` SSE frame (which is a different mechanism — the agent committing during a
+turn) and NOT a git commit. The playground's Save/Commit button hits the REST route above.
+
+## 15. User MCP servers are Claude-only, public-HTTPS-only, and the harness dials them
+
+Three things will each silently break an MCP smoke test:
+
+- **Pi rejects any run that declares `mcps`** (`run-plan.ts` `PI_USER_MCP_UNSUPPORTED_MESSAGE`).
+  User MCP needs a harness with `capabilities.mcpTools` — i.e. **Claude**. Do not smoke-test MCP on
+  a Pi cell; SKIP it there.
+- **A local MCP server is unreachable.** The SDK resolver AND the runner both run an SSRF guard
+  (`assert_endpoint_url_allowed` / `validateUserMcpUrl`) that rejects `http://` and
+  private/loopback/metadata hosts unless `AGENTA_INSECURE_EGRESS_ALLOWED` /
+  `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` is set (neither is, on bighetzner). Use a **public HTTPS**
+  server. DeepWiki (`https://mcp.deepwiki.com/mcp`, no auth) works.
+- **The harness — not the runner process — opens the connection**, from the runner host on `local`
+  (from the sandbox on Daytona). The endpoint must be reachable from wherever the harness runs.
+
+The config entry is a full object, not a URL string:
+`{"name","connection":{"type":"http","url":...},"policy":{"tools":{"mode":"all"}}}`. Assert on the
+wire: a `tool-output-available` frame for a tool named `mcp__<server>__<tool>`.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.

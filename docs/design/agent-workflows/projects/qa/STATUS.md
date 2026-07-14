@@ -43,8 +43,9 @@ auth question, not a sandbox question — re-running it in all four cells tests 
 | J2 | Write a file, then read it back **in a second turn** | File exists in the mount; content survives across turns |
 | J3 | Call a tool | An unguessable token baked into the tool's return appears in the reply |
 | J4 | Approval: **approve** one, then **deny** another | Approved path continues; denied path is handled cleanly, no phantom failure |
-| J5 | Commit | `data-committed-revision` frame + revision version bumps |
+| J5 | Commit (save an agent config as a new revision) | The new revision, fetched back over the wire, carries the changed parameter AND the version bumped (see below — this is the playground's `POST /api/workflows/revisions/commit`, NOT the in-stream `data-committed-revision` frame) |
 | J6 | Warm/cold | Turns 2-3 faster than 1; runner log confirms session **loaded**, not silently cold; conversation continues coherently after a forced cold restart |
+| J7 | MCP smoke test | An MCP server declared in the agent config is delivered to the harness and one of its tools executes — a `tool-output-available` frame for an `mcp__*` tool (Claude only; see below) |
 
 Triggers are explicitly out of scope for this gate.
 
@@ -91,11 +92,12 @@ return value, so a matching reply *proves* the tool ran. The model cannot guess 
 | C1/C2 (Claude cells) | **BLOCKED — Anthropic key out of credit** |
 | P2 (custom OpenAI-compatible provider) | **BLOCKED — needs the raw OpenRouter key or a custom_provider slug** |
 | UI end-to-end pass | PARTIAL — approval dock verified end-to-end; rest blocked on credit |
-| J5 commit journey | NOT STARTED |
+| J5 commit journey | **DONE** — PASS on P1; `commit` journey added to the driver (see below) |
+| J7 MCP smoke test | **DONE** — PASS on C1 (Claude/local, subscription) against public DeepWiki MCP; `mcp` journey added (see below) |
 
-**PAUSED 2026-07-14 ~18:05: the deployment is being repaired by the other agent (mounts work in
-flight, "some things got screwed up"). Do NOT run anything against bighetzner until Mahmoud says
-go — a stack mid-restart produces phantom failures (see the retracted 500s note below).**
+**RESUMED 2026-07-14 ~21:20: the deployment settled (runner healthy, SeaweedFS up, `chat` green
+on P1 and C1). The 18:05 pause is lifted. The two new journeys below ran against this settled
+stack.**
 
 ## Matrix (last good run: runs/20260714-175715, Pi cells; Claude from runs/20260714-174932)
 
@@ -112,6 +114,73 @@ Warm/cold looks healthy where measured: C3 4444ms -> 1166/1130ms; C4 12189ms -> 
 
 **OpenRouter as a native provider (P1) is fully green.** That answers one of the two provider
 questions.
+
+### J5 commit + J7 MCP (added 2026-07-14 ~21:20, settled stack)
+
+| cell | harness | sandbox | model | commit (J5) | mcp (J7) |
+|---|---|---|---|---|---|
+| P1 | pi_core | local | openrouter/deepseek-v4-flash | PASS (`runs/20260714-212356`) | SKIP (Pi rejects mcps) |
+| C1 | claude | local | sonnet (subscription) | PASS | PASS (`runs/20260714-212400`) |
+
+- **commit** is harness-agnostic (it drives the config REST API, not a turn), so it runs and passes
+  the same in every cell; P1 is the recorded evidence.
+- **mcp** requires a Claude harness and therefore SKIPs on every Pi cell (P1/C3/C4/P2) with a clear
+  message; C1 is the recorded pass. Evidence of the SKIP path: `runs/20260714-212423`.
+
+## Journey mechanics (J5 commit, J7 MCP) — the load-bearing facts
+
+**J5 commit — the endpoint and the seed trap.** "Commit" = save the agent config as a new workflow
+revision, the playground's Save/Commit button. The driver drives the same REST route the UI does
+(`web/packages/agenta-entities/src/workflow/api/api.ts` `commitWorkflowRevisionApi`):
+
+- Create the artifact + variant: `POST /api/workflows/` then `POST /api/workflows/variants/`.
+- Commit: `POST /api/workflows/revisions/commit`, body
+  `{"workflow_revision": {slug, name, message, workflow_id, workflow_variant_id,
+  "data": {"uri": ..., "parameters": {...the agent config...}}}}`. Auth is `ApiKey`, `project_id`
+  in the query string. The agent config lives under `data.parameters` (for an agent workflow:
+  `data.parameters.agent.{instructions,llm,tools,harness,sandbox}`).
+- Fetch back: `GET /api/workflows/revisions/{id}` → `workflow_revision.data.parameters` +
+  `.version`.
+- **The trap that cost real time:** the FIRST commit on a fresh variant is the **v0 seed**, and the
+  DAO force-nulls its `data`/`flags`/`meta` (`api/oss/src/dbs/postgres/git/dao.py`
+  `_null_revision_fields`, guarded by `if revision.version == "0"`). A config only persists on the
+  **second** commit (v1). The UI does the same seed-then-commit dance. So the journey commits twice
+  (seed, then the real change) and asserts v0→v1 plus the changed `agents_md` token surviving a
+  fetch-back. `data` is `extra="forbid"` — only `{uri,url,headers,runtime,script,schemas,parameters}`
+  are accepted. QA artifacts are namespaced `qa-commit-<hex>` and the workflow is archived
+  (`POST /api/workflows/{id}/archive`) in a `finally`, so repeated runs leave nothing behind.
+
+**J7 MCP — what it takes to run, and why it is Claude-only.** The agent config accepts user MCP
+servers under the template's `mcps` list. Each entry is a full `MCPServerConfig`
+(`sdks/python/agenta/sdk/agents/mcp/models.py`), NOT a bare URL:
+`{"name": "<slug>", "connection": {"type": "http", "url": "<https url>", "headers": {...}?,
+"credentials": {...}?}, "policy": {"tools": {"mode": "all"}}}`. Only `type: "http"`
+(Streamable-HTTP / SSE) is supported; there is no user `stdio`.
+
+Two hard constraints, both verified in the runner:
+
+1. **Claude only.** Pi refuses any run that declares `mcps`
+   (`services/runner/src/engines/sandbox_agent/run-plan.ts`, `PI_USER_MCP_UNSUPPORTED_MESSAGE`).
+   User MCP needs a harness with `capabilities.mcpTools` (Claude). The journey therefore SKIPs on
+   every Pi cell and runs on C1 (Claude/local). C1 uses **subscription** auth (the vault Anthropic
+   key is out of credit) — proven working on this stack.
+2. **Public HTTPS only — a local MCP server is NOT reachable.** Both the SDK resolver
+   (`assert_endpoint_url_allowed`) and the runner (`validateUserMcpUrl`) run an SSRF guard that
+   rejects `http://` and private/loopback/metadata hosts unless `AGENTA_INSECURE_EGRESS_ALLOWED`
+   (SDK) or `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` (runner) is set. The **harness** dials the URL — on
+   `local` from the runner host — so the endpoint must be a public HTTPS server reachable from the
+   deployment's network.
+
+**Infra to run J7:** no infra we host is needed — the journey uses a well-known free public
+reference server, **DeepWiki** (`https://mcp.deepwiki.com/mcp`, no auth, tools
+`read_wiki_structure` / `read_wiki_contents` / `ask_question`), reachable from bighetzner. Override
+with `--mcp-url <public-https-url>` for any other public server. If in future you want to point at
+a server that is not publicly reachable (a local one, or an intranet one), you would need to set
+`AGENTA_AGENT_MCPS_HOST_ALLOWLIST`/`AGENTA_INSECURE_EGRESS_ALLOWED` on the runner AND make the URL
+reachable from the runner host — neither is set today, so a local server will be rejected by the
+SSRF guard. Assertion is wire-level: a `tool-output-available` frame for a tool named `mcp__*`
+(the runner namespaces MCP tools `mcp__<server>__<tool>`, e.g. `mcp__deepwiki__read_wiki_structure`);
+the runner log corroborates with an `[HITL] gate toolName="mcp__deepwiki__..." outcome=allow` line.
 
 ## Triage: product bug vs deployment artifact
 
