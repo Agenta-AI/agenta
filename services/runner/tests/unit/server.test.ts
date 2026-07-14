@@ -9,10 +9,12 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
+import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 
 import {
   createAgentServer,
+  normalizeKillProjectId,
   registerShutdownHandler,
   type RunAgent,
 } from "../../src/server.ts";
@@ -234,6 +236,86 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("POST /kill with a whitespace-only projectId is accepted (normalized like an absent one)", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "   " }),
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { ok: boolean };
+      assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with an oversized body is rejected with 413, not buffered in full", async () => {
+    const s = await listen(okRun);
+    try {
+      const oversized = JSON.stringify({
+        sessionId: "sess-1",
+        // 16 KiB cap: this comfortably exceeds it.
+        projectId: "p".repeat(64 * 1024),
+      });
+      // Stream the body in small chunks with a real event-loop tick between them (rather than
+      // one synchronous fetch() write) so the server has a chance to detect the overage, respond
+      // 413, and destroy the socket WHILE the client is still writing — the same interleaving an
+      // actual oversized upload would race, and the scenario the destroy-mid-write guard exists
+      // for. A reset while writing is an acceptable client-side outcome as long as the guard
+      // itself fired before the whole body was ever buffered; a 413 response is the ideal case.
+      const url = new URL(`${s.url}/kill`);
+      const responseStatus = await new Promise<number | "reset">((resolve) => {
+        const req = http.request(
+          {
+            hostname: url.hostname,
+            port: url.port,
+            path: url.pathname,
+            method: "POST",
+            headers: { "content-type": "application/json" },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? -1);
+          },
+        );
+        req.on("error", () => resolve("reset"));
+        (async () => {
+          const chunkSize = 1024;
+          for (let i = 0; i < oversized.length; i += chunkSize) {
+            if (req.destroyed) return;
+            const ok = req.write(oversized.slice(i, i + chunkSize));
+            if (!ok) await new Promise((r) => req.once("drain", r));
+            await new Promise((r) => setImmediate(r));
+          }
+          if (!req.destroyed) req.end();
+        })();
+      });
+      // Either outcome proves the guard fired before the full 64 KiB body was accepted: a clean
+      // 413, or the connection being reset mid-write once the cap was crossed.
+      assert.ok(
+        responseStatus === 413 || responseStatus === "reset",
+        `expected 413 or a reset, got ${responseStatus}`,
+      );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with a body within the cap is unaffected by the 413 guard", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("NDJSON stream: events first, then exactly one terminal result with no echoed events", async () => {
     const streamRun: RunAgent = async (_req, emit) => {
       emit?.({ type: "message", text: "a" });
@@ -274,6 +356,27 @@ describe("createAgentServer", () => {
     } finally {
       await s.close();
     }
+  });
+});
+
+describe("normalizeKillProjectId (blank projectId scope-agreement)", () => {
+  it("normalizes undefined to undefined", () => {
+    assert.equal(normalizeKillProjectId(undefined), undefined);
+  });
+
+  it("normalizes a whitespace-only string to undefined", () => {
+    assert.equal(normalizeKillProjectId("   "), undefined);
+    assert.equal(normalizeKillProjectId(""), undefined);
+    assert.equal(normalizeKillProjectId("\t\n"), undefined);
+  });
+
+  it("normalizes a non-string value to undefined", () => {
+    assert.equal(normalizeKillProjectId(123), undefined);
+    assert.equal(normalizeKillProjectId(null), undefined);
+  });
+
+  it("trims and keeps a real projectId", () => {
+    assert.equal(normalizeKillProjectId("  proj-1  "), "proj-1");
   });
 });
 
