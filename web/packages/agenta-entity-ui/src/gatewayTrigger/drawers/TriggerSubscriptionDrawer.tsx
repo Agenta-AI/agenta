@@ -1615,6 +1615,7 @@ function InputsMappingField({
                 <Collapse
                     ghost
                     size="small"
+                    defaultActiveKey={["sample"]}
                     className="mt-1 [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-header]:!px-0 [&_.ant-collapse-header]:!py-1"
                     items={[
                         {
