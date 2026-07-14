@@ -1,0 +1,209 @@
+---
+title: "Customize the agent runtime"
+sidebar_label: "Customize the agent runtime"
+description: "Add binaries, dependencies, folders, or more compute to the environment agents run in, on Daytona and on local runs."
+slug: /self-host/agent-execution/customize-the-agent-runtime
+sidebar_position: 4
+---
+
+Agents sometimes need tools that are not in the default runtime: a browser like Chromium, the
+`gh` CLI, a custom certificate, or an extra system package. They sometimes need a folder from your
+infrastructure, such as a repository checkout, or more CPU, memory, and disk than the default.
+
+This page shows how to add each of those. The mechanism depends on where your agents run:
+
+- **Daytona runs** execute in a cloud sandbox. You customize the snapshot the sandbox starts from.
+- **Local runs** execute inside the runner container. You customize the runner service image.
+
+Both paths below are self-contained. If you do not know which provider your deployment runs, check
+`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` in the
+[runner reference](/self-host/configuration#agent-runner), and see
+[How agents run](/self-host/agent-execution/how-agents-run) for the model behind the two.
+
+## Daytona
+
+### Add tools and dependencies
+
+Add your build steps to the snapshot recipe, build the snapshot under your own name, and point the
+runner at it.
+
+1. Copy the shipped recipe:
+
+   ```bash
+   cp services/runner/images/sandbox/daytona/build_snapshot.py ./my_snapshot.py
+   ```
+
+2. Give the snapshot its own name, so it does not collide with the Agenta default, and add your
+   dependencies to the `dockerfile_commands` list. For example, the `gh` CLI and Chromium:
+
+   ```python
+   SNAPSHOT_NAME = "my-agent-sandbox-v1"
+
+   image = Image.base(SANDBOX_AGENT_IMAGE).dockerfile_commands(
+       [
+           "USER root",
+           # ... the shipped commands stay as they are ...
+           "RUN apt-get update && apt-get install -y --no-install-recommends "
+           "gh chromium && rm -rf /var/lib/apt/lists/*",
+           "USER sandbox",
+       ]
+   )
+   ```
+
+3. Build it in your Daytona account:
+
+   ```bash
+   DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run my_snapshot.py --force
+   ```
+
+4. Point the runner at your snapshot and recreate it:
+
+   ```bash
+   AGENTA_RUNNER_DAYTONA_SNAPSHOT=my-agent-sandbox-v1
+   ```
+
+### Add folders
+
+A Daytona sandbox runs in the cloud and cannot mount a directory from your host. To make files
+available to Daytona runs, fetch them into the snapshot from a `RUN` step in the same
+`dockerfile_commands` list, then rebuild. For example, a repository checkout at
+`/agenta/workspaces/my-service`:
+
+```python
+"RUN git clone --depth 1 https://github.com/my-org/my-service "
+"/agenta/workspaces/my-service",
+```
+
+The files are baked into the snapshot, so every sandbox starts with the same copy, and a rebuild is
+what refreshes them.
+
+### Sandbox resources
+
+Each Daytona sandbox gets the CPU, memory, and disk baked into the snapshot. The recipe reads them
+from build-time environment variables:
+
+| Variable | Default | Controls |
+|---|---|---|
+| `AGENTA_RUNNER_DAYTONA_SANDBOX_CPU` | `2` | vCPUs per sandbox |
+| `AGENTA_RUNNER_DAYTONA_SANDBOX_MEMORY_GB` | `4` | Memory (GB) per sandbox |
+| `AGENTA_RUNNER_DAYTONA_SANDBOX_DISK_GB` | `5` | Disk (GB) per sandbox |
+
+To change them, set the values, rebuild the snapshot, then point the runner at the rebuilt snapshot
+and recreate it so the two match:
+
+```bash
+cd services/runner/images/sandbox/daytona
+AGENTA_RUNNER_DAYTONA_SANDBOX_DISK_GB=10 \
+  DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run build_snapshot.py --force
+```
+
+:::warning
+Sandboxes that are already running keep the old values. Only sandboxes created after the rebuild
+get the new ones.
+:::
+
+## Local runs
+
+### Add tools and dependencies
+
+Build a custom runner service image from the shipped Dockerfile, then point the `runner` service at
+it.
+
+1. Copy the shipped Dockerfile:
+
+   ```bash
+   cp services/runner/images/service/Dockerfile.gh \
+      services/runner/images/service/Dockerfile.custom
+   ```
+
+2. Add your steps to the copy. For example, the `gh` CLI and Chromium:
+
+   ```dockerfile
+   RUN apt-get update && apt-get install -y --no-install-recommends \
+       gh chromium && rm -rf /var/lib/apt/lists/*
+   ```
+
+3. Build and push it:
+
+   ```bash
+   docker build \
+     -f services/runner/images/service/Dockerfile.custom \
+     -t <registry>/agenta-runner:<tag> \
+     services/runner
+   ```
+
+4. Point the `runner` service at your image with a Compose override file
+   (`docker-compose.override.yml`), then recreate it:
+
+   ```yaml
+   services:
+     runner:
+       image: <registry>/agenta-runner:<tag>
+   ```
+
+   For Helm, set the image in your values file:
+
+   ```yaml
+   agentRunner:
+     image:
+       repository: <registry>/agenta-runner
+       tag: <tag>
+   ```
+
+### Add folders
+
+Mount the folder into the runner container with a Compose override. For example, to let agents work
+on a repository checkout that lives on the host:
+
+```yaml
+services:
+  runner:
+    volumes:
+      - /srv/repos/my-service:/agenta/workspaces/my-service:rw
+```
+
+Use `:rw` when agents should write to the folder (committing to a worktree, for instance) and `:ro`
+when they should only read it.
+
+The Helm chart does not expose extra volumes on the runner pod. On Kubernetes, bake the folder into
+a custom runner image with the steps above, or patch the runner Deployment yourself.
+
+:::warning
+Every local run sees every folder you mount into the runner container, and a mount with `:rw` is
+writable by any of them. See
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security).
+:::
+
+### Container resources
+
+Local runs share the CPU and memory of the runner container. Set limits on the `runner` service in
+a Compose override, then recreate it:
+
+```yaml
+services:
+  runner:
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+```
+
+For Helm, set them in your values file:
+
+```yaml
+agentRunner:
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+```
+
+## Related
+
+- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona)
+- [Run agents locally](/self-host/agent-execution/run-agents-locally)
+- [Runner and sandbox configuration](/self-host/configuration#agent-runner)
