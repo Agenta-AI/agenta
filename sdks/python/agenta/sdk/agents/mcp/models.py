@@ -1,94 +1,110 @@
-"""Canonical MCP server declarations and resolved runner configuration."""
+"""MCP author configuration and resolved runner delivery models."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-# Layer-3 per-server permission (same value set as a tool's): ``allow`` runs with
-# no prompt, ``ask`` raises a human-in-the-loop request, ``deny`` never runs. Absent means the
-# server inherits the runner policy.
 Permission = Literal["allow", "ask", "deny"]
 
-# The deleted pre-redesign vocabulary, still present in old dev-DB drafts. Literal on
-# purpose so the legacy spelling stays greppable.
-_LEGACY_PERMISSION_KEYS = frozenset({"permission_mode", "permissionMode"})
+
+class NoMCPCredentials(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["none"] = "none"
 
 
-def _drop_legacy_permission_keys(data: Any) -> Any:
-    if isinstance(data, dict):
-        return {
-            key: value
-            for key, value in data.items()
-            if key not in _LEGACY_PERMISSION_KEYS
-        }
-    return data
+class MCPHeaderSecretRefs(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["header_secret_refs"] = "header_secret_refs"
+    headers: Dict[str, str] = Field(default_factory=dict)
+
+
+MCPCredentials = Annotated[
+    Union[NoMCPCredentials, MCPHeaderSecretRefs],
+    Field(discriminator="type"),
+]
+
+
+class MCPConnection(BaseModel):
+    """How Agenta reaches one external MCP server."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["http"] = "http"
+    url: str = Field(min_length=1)
+    headers: Dict[str, str] = Field(default_factory=dict)
+    credentials: MCPCredentials = Field(default_factory=NoMCPCredentials)
+
+
+class MCPToolPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["all", "include"] = "all"
+    names: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_names(self) -> "MCPToolPolicy":
+        if self.mode == "all" and self.names:
+            raise ValueError("MCP tool policy mode 'all' must not declare names")
+        if self.mode == "include" and not self.names:
+            raise ValueError("MCP tool policy mode 'include' requires names")
+        return self
+
+
+class MCPPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tools: MCPToolPolicy = Field(default_factory=MCPToolPolicy)
+    permission: Optional[Permission] = None
 
 
 class MCPServerConfig(BaseModel):
+    """Saved author intent. This model never contains resolved secret values."""
+
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1)
-    transport: Literal["stdio", "http"] = "stdio"
-    command: Optional[str] = None
-    args: List[str] = Field(default_factory=list)
-    env: Dict[str, str] = Field(default_factory=dict, repr=False)
-    url: Optional[str] = None
-    secrets: Dict[str, str] = Field(default_factory=dict)
-    tools: List[str] = Field(default_factory=list)
-    permission: Optional[Permission] = None
+    name: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
+    connection: MCPConnection
+    policy: MCPPolicy = Field(default_factory=MCPPolicy)
 
-    @model_validator(mode="before")
+    @field_validator("name")
     @classmethod
-    def _ignore_legacy_permission_keys(cls, data: Any) -> Any:
-        return _drop_legacy_permission_keys(data)
-
-    @model_validator(mode="after")
-    def _validate_transport(self) -> "MCPServerConfig":
-        if self.transport == "stdio" and not self.command:
-            raise ValueError("stdio MCP server requires command")
-        if self.transport == "http" and not self.url:
-            raise ValueError("http MCP server requires url")
-        return self
+    def _reject_reserved_name(cls, value: str) -> str:
+        if value == "agenta-tools":
+            raise ValueError("MCP server name 'agenta-tools' is reserved")
+        return value
 
 
 class ResolvedMCPServer(BaseModel):
+    """Per-run delivery config. Headers may contain resolved secret values."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
-    transport: Literal["stdio", "http"] = "stdio"
-    command: Optional[str] = None
-    args: List[str] = Field(default_factory=list)
-    env: Dict[str, str] = Field(default_factory=dict, repr=False)
-    url: Optional[str] = None
-    tools: List[str] = Field(default_factory=list)
-    permission: Optional[Permission] = None
-
-    @model_validator(mode="after")
-    def _validate_transport(self) -> "ResolvedMCPServer":
-        if self.transport == "stdio" and not self.command:
-            raise ValueError("stdio MCP server requires command")
-        if self.transport == "http" and not self.url:
-            raise ValueError("http MCP server requires url")
-        return self
+    url: str
+    headers: Dict[str, str] = Field(default_factory=dict, repr=False)
+    policy: MCPPolicy = Field(default_factory=MCPPolicy)
 
     def to_wire(self) -> Dict[str, Any]:
+        connection: Dict[str, Any] = {
+            "type": "http",
+            "url": self.url,
+        }
+        if self.headers:
+            connection["headers"] = dict(self.headers)
+
         wire: Dict[str, Any] = {
             "name": self.name,
-            "transport": self.transport,
+            "connection": connection,
+            "policy": {
+                "tools": self.policy.tools.model_dump(exclude_defaults=True)
+                or {"mode": "all"},
+            },
         }
-        if self.command:
-            wire["command"] = self.command
-        if self.args:
-            wire["args"] = list(self.args)
-        if self.env:
-            wire["env"] = dict(self.env)
-        if self.url:
-            wire["url"] = self.url
-        if self.tools:
-            wire["tools"] = list(self.tools)
-        if self.permission is not None:
-            wire["permission"] = self.permission
+        if self.policy.permission is not None:
+            wire["policy"]["permission"] = self.policy.permission
         return wire

@@ -31,6 +31,7 @@
     "@opentelemetry/sdk-trace-base": "1.28.0",
     "@opentelemetry/sdk-trace-node": "1.28.0",
     "@opentelemetry/semantic-conventions": "1.28.0",
+    "acp-http-client": "0.4.2",
     "pi-acp": "0.0.29",
     "sandbox-agent": "0.4.2",
     "undici": "8.3.0"
@@ -52,6 +53,8 @@
       "esbuild"
     ],
     "patchedDependencies": {
+      "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
+      "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
       "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
     }
   }

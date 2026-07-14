@@ -13,10 +13,8 @@
  * loopback HTTP endpoint launches no process; it is served by the already-running runner. This
  * is why restoring delivery here does NOT reopen #4831's hole (see project gateway-tool-mcp).
  *
- * IMPORTANT — this is NOT the user MCP capability:
- *  - USER stdio MCP servers stay DISABLED (`engines/sandbox_agent/mcp.ts` `toAcpMcpServers` +
- *    `run-plan.ts` `hasStdioMcpServer`, fail with `USER_MCP_UNSUPPORTED_MESSAGE`).
- *  - USER http MCP servers are delivered unchanged (#4834).
+ * IMPORTANT: this is not the user MCP capability:
+ *  - External user HTTP MCP servers are delivered separately.
  *  - THIS internal channel is synthesized by the runner from `customTools`; the user never
  *    declares it. The two layers toggle independently — do not merge their gates.
  */
@@ -28,21 +26,12 @@ import { startInternalToolMcpServer } from "./tool-mcp-http.ts";
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
 /**
- * USER-facing MCP refusal. Means ONLY "user-declared MCP servers are not supported" — used by
- * the user stdio gate (`run-plan.ts` `hasStdioMcpServer`) and the user stdio branch
- * (`toAcpMcpServers`). The INTERNAL gateway-tool channel below must NEVER borrow this constant:
- * conflating the two is exactly the #4831 regression this project fixed.
- */
-export const USER_MCP_UNSUPPORTED_MESSAGE =
-  "MCPs are not supported by the sidecar.";
-
-/**
- * Pi-family refusal for ANY user-declared MCP server (stdio AND http). The Pi runtime delivers
+ * Pi-family refusal for an external user-declared HTTP MCP server. The Pi runtime delivers
  * tools through the bundled Agenta extension, not over ACP MCP (`buildSessionMcpServers` returns
  * `[]` for Pi), so a user MCP server attached to a Pi run would be DROPPED — silently, with no
  * log and an HTTP 200. That is exactly the silent-drop F-032 forbids. The `run-plan.ts` gate
  * refuses it up front (the way the stdio-MCP and code-tool gates do) so the failure is loud
- * instead of a "successful" empty run. Http MCP is a Claude-only capability (#4834); pick a
+ * instead of a "successful" empty run. HTTP MCP is a Claude-only capability for now; pick a
  * non-Pi harness to use one.
  */
 export const PI_USER_MCP_UNSUPPORTED_MESSAGE =

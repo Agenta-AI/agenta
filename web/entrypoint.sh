@@ -63,9 +63,10 @@ else
   export AGENTA_BILLING_ENABLED="false"
 fi
 
-# Mirror AGENTA_SANDBOX_LOCAL_ALLOWED (api/oss/src/utils/env.py _TRUTHY): unset -> enabled.
-case "$(printf '%s' "${AGENTA_SANDBOX_LOCAL_ALLOWED:-true}" | tr '[:upper:]' '[:lower:]')" in
-  true|1|t|y|yes|on|enable|enabled) export AGENTA_SANDBOX_LOCAL_ENABLED="true" ;;
+# Derive the local-sandbox picker flag from the shared provider registry
+# (AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS; unset -> "local"): enabled iff "local" is listed.
+case ",$(printf '%s' "${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," in
+  *,local,*) export AGENTA_SANDBOX_LOCAL_ENABLED="true" ;;
   *) export AGENTA_SANDBOX_LOCAL_ENABLED="false" ;;
 esac
 

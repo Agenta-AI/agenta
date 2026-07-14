@@ -11,16 +11,19 @@ pytestmark = pytest.mark.integration
 async def test_named_secrets_are_resolved_by_tools_adapter(install_http):
     capture = install_http(
         platform_secrets,
-        payload={"secrets": {"TOKEN": "value", "EMPTY": None}},
+        payload={
+            "kind": "custom_secret",
+            "slug": "TOKEN",
+            "data": {"secret": {"format": "text", "content": "value"}},
+        },
     )
 
-    resolved = await secrets.resolve_named_secrets(["TOKEN", "EMPTY", "MISSING"])
+    resolved = await secrets.resolve_named_secrets(["TOKEN"])
 
     assert resolved == {"TOKEN": "value"}
     assert capture == {
-        "method": "POST",
-        "url": "https://api.x/api/secrets/resolve",
-        "json": {"names": ["TOKEN", "EMPTY", "MISSING"]},
+        "method": "GET",
+        "url": "https://api.x/api/secrets/TOKEN",
         "headers": {
             "Content-Type": "application/json",
             "Authorization": "Access tok",

@@ -37,7 +37,6 @@ src/
     code.ts           execute resolved code tools in a scoped subprocess
     dispatch.ts       dispatch resolved tools by executor kind
     mcp-bridge.ts     the INTERNAL gateway-tool MCP channel (loopback HTTP) — live
-    mcp-server.ts     the OLD stdio MCP bridge — REMOVED (refuses to serve; no longer launched)
   extensions/
     agenta.ts         the Pi extension (tracing + tools), bundled into dist/ for Pi to load
 ```
@@ -89,13 +88,9 @@ Non-Pi harnesses (e.g. Claude) that only accept tools over MCP get these same re
 through an INTERNAL loopback HTTP MCP channel the runner serves (`tools/mcp-bridge.ts` +
 `tools/tool-mcp-http.ts`) — this channel is live and is how Claude runs take custom tools.
 
-This internal channel is a different thing from USER-declared MCP servers (a run request's own
-`mcpServers`), which stay gated: stdio user MCP servers are refused for every harness
-(`tools/mcp-server.ts`, the old stdio bridge, is REMOVED — it launched an unconfined child
-process on the runner host, the same execution bypass that had code tools removed), and it is
-_Pi_, not the sidecar broadly, that also refuses user _http_ MCP servers, because Pi delivers
-tools through its bundled extension rather than over ACP MCP. Claude accepts user http MCP
-servers. See `docs/design/agent-workflows/projects/sidecar-trust-and-sandbox-enforcement/`.
+This internal channel is different from external user MCP servers in `mcpServers`. The public
+contract accepts HTTP only. Pi currently refuses external MCP because it delivers tools through
+its bundled extension rather than ACP MCP; Claude accepts the HTTP entries.
 
 ## The extension bundle
 

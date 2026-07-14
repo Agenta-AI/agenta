@@ -2,8 +2,9 @@
  * Unit tests for the shared tool-dispatch module (tools/dispatch.ts) and its routing.
  *
  * The kind-dispatch ("branch on spec.kind to execute a resolved tool") lives once in
- * `runResolvedTool`, used by the Pi extension (extensions/agenta.ts) and the MCP server
- * (tools/mcp-server.ts). These tests cover the routing into that function and the file relay:
+ * `runResolvedTool`, used by the Pi extension (extensions/agenta.ts) and the internal MCP tool
+ * servers (tools/tool-mcp-http.ts and tools/tool-mcp-stdio.ts). These tests cover the routing
+ * into that function and the file relay:
  *  - runResolvedTool advertises code tools but fails their sidecar execution, and relays `client`.
  *  - relayToolCall reads back the relayed result from the Daytona file relay.
  *

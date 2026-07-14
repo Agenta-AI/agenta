@@ -27,37 +27,21 @@ import {
 
 describe("resolvesToLocalProvider (local/remote gate)", () => {
   it("is true when the request explicitly asks for local", () => {
-    assert.equal(resolvesToLocalProvider("local", {}), true);
+    assert.equal(resolvesToLocalProvider("local", "local"), true);
   });
 
   it("is false when the request explicitly asks for daytona", () => {
-    assert.equal(resolvesToLocalProvider("daytona", {}), false);
+    assert.equal(resolvesToLocalProvider("daytona", "local"), false);
   });
 
-  it("falls back to SANDBOX_AGENT_PROVIDER when the request omits sandbox", () => {
-    assert.equal(
-      resolvesToLocalProvider(undefined, { SANDBOX_AGENT_PROVIDER: "daytona" }),
-      false,
-    );
-    assert.equal(
-      resolvesToLocalProvider(undefined, { SANDBOX_AGENT_PROVIDER: "local" }),
-      true,
-    );
+  it("falls back to the configured default when the request omits sandbox", () => {
+    assert.equal(resolvesToLocalProvider(undefined, "daytona"), false);
+    assert.equal(resolvesToLocalProvider(undefined, "local"), true);
   });
 
-  it("defaults to local when neither the request nor env specify a provider", () => {
-    assert.equal(resolvesToLocalProvider(undefined, {}), true);
-  });
-
-  it("the request value wins over the env fallback", () => {
-    assert.equal(
-      resolvesToLocalProvider("local", { SANDBOX_AGENT_PROVIDER: "daytona" }),
-      true,
-    );
-    assert.equal(
-      resolvesToLocalProvider("daytona", { SANDBOX_AGENT_PROVIDER: "local" }),
-      false,
-    );
+  it("the request value wins over the configured default", () => {
+    assert.equal(resolvesToLocalProvider("local", "daytona"), true);
+    assert.equal(resolvesToLocalProvider("daytona", "local"), false);
   });
 });
 

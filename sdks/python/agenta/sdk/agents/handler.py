@@ -2,7 +2,7 @@
 
 Owns stream/trim/force; composition (template, tool/MCP/connection resolvers, backend
 selector) is injectable via `AgentComposition`, defaulting to env-driven SDK behavior. The
-default composition also owns capability gating, degradation policy, and MCP gating:
+default composition also owns capability gating and degradation policy:
 these are protocol-level safety behaviors, not service-specific, so a bare `agent_v0` (no
 composition override) gets them for free instead of a permissive fallback.
 """
@@ -33,8 +33,8 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.tools import ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
 from agenta.sdk.agents.errors import LocalSandboxNotAllowedError
-from agenta.sdk.agents.mcp import MCPDisabledError, ResolvedMCPServer
-from agenta.sdk.agents.mcp.parsing import parse_mcp_server_configs
+from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
+from agenta.sdk.agents.mcp import ResolvedMCPServer
 from agenta.sdk.agents.platform import (
     resolve_connection as _platform_resolve_connection,
 )
@@ -54,7 +54,6 @@ from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
     WorkflowServiceRequest,
 )
-from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -76,21 +75,16 @@ def _default_template() -> AgentTemplate:
     return AgentTemplate()
 
 
-def _sandbox_local_allowed() -> bool:
-    return (
-        os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true"
-    ).strip().lower() in TRUTHY
-
-
 def _default_select_backend(agent_template: AgentTemplate) -> Backend:
     """Env-driven default: `AGENTA_RUNNER_INTERNAL_URL` picks HTTP transport; else local cwd.
 
-    `local` (unconfined host bash, not a tenant boundary) is refused unless
-    `AGENTA_SANDBOX_LOCAL_ALLOWED` is on — a bare `agent_v0` gets this protocol-level
-    safety behavior for free, same as capability gating and MCP gating above.
+    A sandbox the deployment has not enabled is refused before any run — a bare `agent_v0`
+    gets this protocol-level safety behavior for free, same as capability gating and MCP
+    gating above. The runner remains the final authority; this is a pre-filter that reads the
+    same `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` registry.
     """
-    if agent_template.sandbox == "local" and not _sandbox_local_allowed():
-        raise LocalSandboxNotAllowedError()
+    if not sandbox_provider_enabled(agent_template.sandbox):
+        raise LocalSandboxNotAllowedError(sandbox=agent_template.sandbox)
     url = os.getenv("AGENTA_RUNNER_INTERNAL_URL", "").strip() or None
     return SandboxAgentBackend(sandbox=agent_template.sandbox, url=url, cwd=os.getcwd())
 
@@ -99,25 +93,10 @@ async def _default_resolve_tools(tools, **kwargs) -> ResolvedToolSet:
     return await _platform_resolve_tools(tools, **kwargs)
 
 
-def _mcp_enabled() -> bool:
-    # MCP gating: off by default, deployment opts in via AGENTA_AGENT_MCPS_ENABLED.
-    return os.getenv("AGENTA_AGENT_MCPS_ENABLED", "").strip().lower() in TRUTHY
-
-
 async def _default_resolve_mcp_servers(
     mcp_servers, **kwargs
 ) -> List[ResolvedMCPServer]:
-    """Resolve MCP servers, gated by ``AGENTA_AGENT_MCPS_ENABLED`` (off by default).
-
-    Disabled + no servers declared -> ``[]`` (the common case, unchanged). Disabled + servers
-    declared -> :class:`MCPDisabledError`, so a caller's ignored MCP config fails loud instead
-    of silently running with none.
-    """
-    if not _mcp_enabled():
-        if not mcp_servers:
-            return []
-        names = [config.name for config in parse_mcp_server_configs(mcp_servers)]
-        raise MCPDisabledError(server_names=names)
+    """Resolve external MCP server declarations for one run."""
     return await _platform_resolve_mcp(mcp_servers, **kwargs)
 
 

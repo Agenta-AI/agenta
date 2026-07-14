@@ -9,22 +9,16 @@ MCP layers, and they toggle separately (do not merge their gates):
    endpoint the runner serves (local sandbox; no runner-host child process), or an in-sandbox
    stdio MCP shim the runner uploads and the harness launches (Daytona). Its server name,
    `agenta-tools`, is reserved on every transport.
-2. **User-declared MCP servers** — the user's own servers on the `/run` payload after the Python
-   side resolves their secrets. HTTP (remote) servers are delivered; stdio servers are DISABLED
-   (they launch an arbitrary process on the runner host, outside the sandbox boundary).
-
-PR #4831 once conflated these into a single `MCP_UNSUPPORTED_MESSAGE` switch, which disabled the
-internal channel as collateral with the (correct) user-stdio disable; the gateway-tool-mcp
-project split them again. The user-facing constant is now `USER_MCP_UNSUPPORTED_MESSAGE` and means
-ONLY "user MCP servers are unsupported"; the internal channel never borrows it.
+2. **User-declared MCP servers** - the user's external HTTP servers on the `/run` payload after
+   the Python side resolves header-secret references. Public stdio is not representable.
 
 ## The contract
 
 **Gating.** The runner builds MCP servers only when the harness is not Pi and the capability
 probe reports `mcpTools: true`. Pi always returns an empty MCP set because it gets tools the
-native way. Because Pi cannot consume MCP, a USER MCP server (stdio OR http) attached to a Pi run
+native way. Because Pi cannot consume MCP, a user HTTP MCP server attached to a Pi run
 would be dropped silently — so `run-plan.ts` refuses any Pi run carrying `mcpServers` up front
-with `PI_USER_MCP_UNSUPPORTED_MESSAGE` (fail loud, the way the stdio-MCP and code-tool gates do),
+with `PI_USER_MCP_UNSUPPORTED_MESSAGE`,
 rather than returning a "successful" empty run. A user http MCP is a Claude-only capability.
 
 **Reserved server name.** The channel's name `agenta-tools` is a stable identity on both
@@ -137,28 +131,33 @@ the guard passes `ask`. Residual, stated honestly: on that path a forged request
 still trigger an ask-tool WITHOUT a dialog; reflecting the harness approval into the grant
 ledger is a documented follow-up. The hard deny boundary holds on every harness.
 
-**User-declared servers.** `mcpServers` in `/run` carries each user server with its
-transport, command or url, args, env (secrets already injected by the Python resolver), tool
-allowlist, and permission. Two transports, opposite states:
+**User-declared servers.** `/run.mcpServers` carries only resolved external HTTP servers:
 
-- **HTTP (`transport: "http"` + `url`) is delivered.** A remote server has no child process on
-  the runner host: the harness connects to the URL and the named secret rides in a request
-  header, so it does not bypass the sandbox boundary. The resolved secret arrives on the wire
-  under the server's `env` map (the resolver merges named secrets into `env` regardless of
-  transport, and the wire has no separate `headers` field), so `toAcpMcpServers` emits each
-  `env` entry as an HTTP header (`Authorization: <token>`, etc.). The author names the header
-  via the secret-map key — `secrets: {"Authorization": "linear-mcp-token"}` lands as a header.
-  The runner builds the ACP `McpServer` `type: "http"` variant (`{name, url, headers}`). Before
-  attaching the credential, `validateUserMcpUrl` applies an SSRF guard: the `url` must be `https`
-  and must not target an internal/metadata host (loopback, link-local incl. `169.254.169.254`,
-  or private literals), else the run fails loud. A host listed in the optional comma-separated
-  `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` env var opts out of both checks (e.g. a known-safe internal
-  endpoint).
-- **Stdio (`transport: "stdio"` + `command`) is disabled.** A stdio server launches an
-  arbitrary process on the runner host, outside the sandbox boundary, so the implementation is
-  disabled (parity with the removed code execution) until its security is fixed. `run-plan.ts`
-  refuses any run carrying one (`USER_MCP_UNSUPPORTED_MESSAGE`); `toAcpMcpServers` throws the same
-  as a defense-in-depth backstop. The wire shape is kept; only delivery is off.
+```jsonc
+{
+  "name": "memory",
+  "connection": {
+    "type": "http",
+    "url": "https://memory.example.com/mcp",
+    "headers": { "Authorization": "Bearer resolved-value" }
+  },
+  "policy": {
+    "tools": { "mode": "all" },
+    "permission": "ask"
+  }
+}
+```
+
+The Python service resolves named header-secret references before constructing this object. The
+runner treats `connection.headers` as secret-bearing and converts each entry to the ACP HTTP header
+array. `validateUserMcpUrl` requires HTTPS and blocks internal, private, link-local, loopback, and
+metadata destinations unless the operator explicitly allowlists the host with
+`AGENTA_AGENT_MCPS_HOST_ALLOWLIST`.
+
+A user HTTP server remains reachable from Daytona because Claude connects from inside the sandbox
+to the remote URL. This is independent of the internal `agenta-tools` transport selection. Public
+stdio does not exist in the run contract. Pi refuses external user MCP servers with
+`PI_USER_MCP_UNSUPPORTED_MESSAGE` until Pi has a delivery bridge.
 
 ## Owned by
 
@@ -180,8 +179,9 @@ allowlist, and permission. Two transports, opposite states:
 - `services/runner/src/engines/sandbox_agent/client-tools.ts`: the shared client-tool seam
   (`buildClientToolRelay`, `emitClientToolInteraction`, the ACP tool-call correlation index).
 - `services/runner/src/tools/mcp-bridge.ts`: the internal channel builder (advertises `client`
-  tools when a relay is wired); the `USER_MCP_UNSUPPORTED_MESSAGE` /
-  `PI_USER_MCP_UNSUPPORTED_MESSAGE` refusal constants.
+  tools when a relay is wired).
+- `services/runner/src/engines/sandbox_agent/run-plan.ts`: the
+  `PI_USER_MCP_UNSUPPORTED_MESSAGE` refusal.
 - `services/runner/src/tools/tool-mcp-http.ts`: the internal loopback HTTP MCP server (the
   `client` pause: no JSON-RPC result + abort-the-request).
 - `services/runner/src/tools/tool-mcp-stdio.ts`: the in-sandbox stdio shim (newline-delimited
@@ -190,7 +190,6 @@ allowlist, and permission. Two transports, opposite states:
   module the server-side entry builder shares without importing the bundle entrypoint.
 - `services/runner/src/tools/spec-schema.ts`: the shared `specInputSchema` accessor + arg
   validation.
-- `services/runner/src/tools/mcp-server.ts`: the removed stdio JSON-RPC server (refusing stub).
 - `services/runner/src/tools/relay.ts`: the runner-side relay loop and hosts
   (delete-on-pickup; idle-poll backoff in fallback mode).
 - `services/runner/src/tools/relay-client.ts` and `relay-protocol.ts`: the bundle-safe
@@ -234,11 +233,7 @@ allowlist, and permission. Two transports, opposite states:
   the shim. Requiring a grant there would refuse every approved call; removing the guard would
   let a forged file run a denied tool. Keep the residual (forged-file ask without a dialog on
   the MCP path) documented until the grant-ledger follow-up lands.
-- **HTTP MCP delivery.** `toAcpMcpServers` routes the resolved secret from `env` into a
-  request header and builds the ACP `type: "http"` entry. Changing the env-to-header mapping or
-  the ACP variant shape changes which auth reaches the remote server.
-- **USER stdio MCP stays disabled.** Re-enabling it requires making its runner-host execution
-  sandbox-safe — a real security change, not a flag flip. The internal in-sandbox stdio shim
-  is not an exception to this: it runs inside the sandbox, is synthesized from runner
-  constants, and can never be user-declared.
+- **HTTP MCP delivery.** `toAcpMcpServers` routes resolved `connection.headers` into the ACP
+  `type: "http"` entry. Changing the header mapping or ACP variant changes which authentication
+  reaches the remote server.
 - **Per-server permission and allowlist behavior.**

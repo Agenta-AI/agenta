@@ -12,14 +12,15 @@ DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
 Configure the runner service with:
 
 ```bash
-SANDBOX_AGENT_PROVIDER=daytona
-DAYTONA_SNAPSHOT=agenta-sandbox-pi
-AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
+AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local,daytona
+AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=daytona
+AGENTA_RUNNER_DAYTONA_API_KEY=...
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-sandbox-pi
 ```
 
-`DAYTONA_SNAPSHOT` is shared with the SDK custom-code evaluator runner, so the recipe also
-bakes its runtimes (python3, typescript/ts-node). Per-consumer overrides when the two must
-diverge: `DAYTONA_SNAPSHOT_CODE` / `DAYTONA_SNAPSHOT_AGENT`.
+The SDK custom-code evaluator runner can share the built snapshot (it reads the separate
+`DAYTONA_SNAPSHOT_CODE` / `DAYTONA_SNAPSHOT` variables), so the recipe also bakes its
+runtimes (python3, typescript/ts-node).
 
 ## What is baked
 
@@ -46,19 +47,15 @@ runs the agent; the adapter translates Pi events and dialogs onto ACP. In partic
 adapter version must not be inherited implicitly from the base image because older versions
 do not forward Pi extension dialogs as ACP permission requests.
 
-## Pi installation controls
+## Pi installation
 
-The runner keeps the reliable bare-image behavior by default:
-
-- unset or `AGENTA_AGENT_SANDBOX_PI_INSTALLED=true`: install the pinned Pi version into
-  each new sandbox session and point `pi-acp` at it;
-- `AGENTA_AGENT_SANDBOX_PI_INSTALLED=false`: skip the session-time install because the
-  configured snapshot already contains Pi; and
-- `AGENTA_AGENT_SANDBOX_PI_VERSION`: override the pinned session-time fallback version.
-
-Despite its historical `_INSTALLED` name, the boolean controls whether the runner performs
-the session-time installation. Set it to `false` only together with a snapshot known to
-contain Pi, such as `agenta-sandbox-pi`.
+Harness availability is an image/runtime contract, not operator truth: before each session
+the runner probes the expected Pi executable at its pinned in-sandbox path
+(`/home/sandbox/.agenta-pi/node_modules/.bin/pi`). A snapshot built with this recipe bakes
+the pinned Pi there, so the probe hits and no session-time install runs. If a custom image
+or snapshot lacks Pi, the runner installs the pinned version before the session and logs the
+repair; if that install fails, the run fails naming the missing executable and attempted
+version. There is no "installed" environment flag.
 
 The full base image includes Claude Code. We do not distribute the resulting snapshot. Agenta
 Cloud builds its own internal snapshot, and self-hosters build their own.

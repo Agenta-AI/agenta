@@ -29,13 +29,17 @@ const _TRUTHY = new Set([
  * / `AGENTA_WEBHOOK_ALLOW_INSECURE` aliases. When true, http and private/loopback/link-local/
  * metadata targets are permitted (trusted/single-tenant deployments only). Read per-call so tests
  * and hot-reconfig see the current env.
+ *
+ * Defaults permissive (unset -> true) to match the Python side (`env.py`'s `WebhooksConfig`):
+ * zero-config self-host must work out of the box; harden a shared/prod deployment by setting
+ * this to `false`.
  */
 export function insecureEgressAllowed(): boolean {
   const raw =
     process.env.AGENTA_INSECURE_EGRESS_ALLOWED ??
     process.env.AGENTA_WEBHOOKS_ALLOW_INSECURE ??
     process.env.AGENTA_WEBHOOK_ALLOW_INSECURE ??
-    "false";
+    "true";
   return _TRUTHY.has(raw.toLowerCase());
 }
 

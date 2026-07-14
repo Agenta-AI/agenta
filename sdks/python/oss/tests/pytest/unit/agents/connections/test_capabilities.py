@@ -100,6 +100,14 @@ def test_capabilities_document_shape():
         "vertex_ai",
         "vertex",
     ]
+    assert doc["claude"]["mcp"] == {
+        "user_servers": {
+            "connection_types": ["http"],
+            "credentials": ["none", "header_secret_refs"],
+        }
+    }
+    assert "mcp" not in doc["pi_core"]
+    assert "mcp" not in doc["pi_agenta"]
 
 
 def test_every_harness_publishes_a_models_map():

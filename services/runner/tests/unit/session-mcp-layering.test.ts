@@ -2,16 +2,13 @@
  * Layering regression guard for buildSessionMcpServers — the test that FAILS if the internal
  * gateway-tool channel and the user MCP capability are ever re-merged into one gate.
  *
- * PR #4831 conflated two independent things into a single `MCP_UNSUPPORTED_MESSAGE` switch, which
- * disabled gateway-tool delivery to Claude as collateral with the (correct) user stdio MCP
- * disable. The fix (project gateway-tool-mcp) split them into:
+ * The gateway-tool repair split two independent things into:
  *   1. INTERNAL gateway-tool channel — restored over loopback HTTP MCP; toggles on executable tools.
- *   2. USER MCP capability — stdio DISABLED, http delivered (#4834).
+ *   2. USER MCP capability — external HTTP delivered separately.
  *
- * These three cases pin that the two layers toggle independently:
+ * These cases pin that the two layers toggle independently:
  *   (a) gateway tools + NO user MCP        -> internal channel present, no throw
- *   (b) user stdio MCP + NO gateway tools  -> refused (user gate)
- *   (c) gateway tools + user http MCP      -> BOTH delivered; user stdio still refused
+ *   (b) gateway tools + user HTTP MCP       -> both delivered
  *
  * Plus: Pi gets [] (native delivery), and the channel never carries a credential.
  *
@@ -27,7 +24,6 @@ import {
   type SessionMcpServers,
 } from "../../src/engines/sandbox_agent/mcp.ts";
 import type { ToolMcpAssets } from "../../src/engines/sandbox_agent/tool-mcp-assets.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type {
   HarnessCapabilities,
   McpServerConfig,
@@ -79,27 +75,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     );
   });
 
-  it("(b) user stdio MCP + no gateway tools -> refused (user gate untouched)", async () => {
-    const userMcpServers: McpServerConfig[] = [
-      { name: "github", transport: "stdio", command: "npx", args: ["x"] },
-    ];
-    await assert.rejects(
-      () =>
-        buildSessionMcpServers({
-          isPi: false,
-          isDaytona: false,
-          capabilities: mcpCapable,
-          harness: "claude",
-          toolSpecs: [],
-          userMcpServers,
-          relayDir,
-        }),
-      new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
-      "a user stdio MCP server is still refused",
-    );
-  });
-
-  it("(c) gateway tools + user http MCP -> BOTH delivered; user stdio still refused", async () => {
+  it("(b) gateway tools + user HTTP MCP -> both delivered", async () => {
     const { servers } = await build({
       isPi: false,
       isDaytona: false,
@@ -109,9 +85,12 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       userMcpServers: [
         {
           name: "linear",
-          transport: "http",
-          url: "https://mcp.linear.app/sse",
-          env: { Authorization: "Bearer x" },
+          connection: {
+            type: "http",
+            url: "https://mcp.linear.app/sse",
+            headers: { Authorization: "Bearer x" },
+          },
+          policy: { tools: { mode: "all" } },
         },
       ],
       relayDir,
@@ -124,20 +103,6 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     const names = servers.map((s) => s.name).sort();
     assert.deepEqual(names, ["agenta-tools", "linear"]);
 
-    // The user stdio path is still refused even alongside a gateway tool.
-    await assert.rejects(
-      () =>
-        buildSessionMcpServers({
-          isPi: false,
-          isDaytona: false,
-          capabilities: mcpCapable,
-          harness: "claude",
-          toolSpecs: [gatewayTool],
-          userMcpServers: [{ name: "evil", transport: "stdio", command: "rm" }],
-          relayDir,
-        }),
-      new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
-    );
   });
 
   it("Pi gets [] (native delivery, no MCP channel) even with gateway tools", async () => {
@@ -239,10 +204,9 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     );
   });
 
-  it("(Daytona, non-Pi, internalToolMcp) one run: user stdio refused, user http delivered, internal stdio entry present", async () => {
-    // The slice-1 layering pin, all three layers on ONE Daytona run: the uploaded in-sandbox
-    // shim becomes the internal TYPELESS stdio entry; a user http MCP rides along unchanged;
-    // a user stdio MCP is still refused. The internal entry carries ONLY the two env names —
+  it("(Daytona, non-Pi, internalToolMcp) delivers user HTTP and the internal stdio entry", async () => {
+    // The uploaded in-sandbox shim becomes the internal TYPELESS stdio entry and a user HTTP MCP
+    // rides along unchanged. The internal entry carries only the two env names:
     // no credential, no callRef, no loopback URL. The response-watch flag is cleared for the
     // duration (buildInternalToolMcpEntry forwards it verbatim when the runner env sets it,
     // which would add a third env entry; the with-flag shape has its own test below).
@@ -259,8 +223,8 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       // shape is owned by another seam.
       const userHttp: McpServerConfig = {
         name: "linear",
-        transport: "http",
-        url: "https://mcp.linear.app/sse",
+        connection: { type: "http", url: "https://mcp.linear.app/sse" },
+        policy: { tools: { mode: "all" } },
       };
       const { servers } = await build({
         isPi: false,
@@ -307,23 +271,6 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       );
       assert.ok(!serialized.includes("127.0.0.1"), "no loopback URL");
 
-      // The user stdio path is still refused on the same Daytona + internalToolMcp shape.
-      await assert.rejects(
-        () =>
-          buildSessionMcpServers({
-            isPi: false,
-            isDaytona: true,
-            capabilities: mcpCapable,
-            harness: "claude",
-            toolSpecs: [gatewayTool],
-            userMcpServers: [
-              { name: "evil", transport: "stdio", command: "rm" },
-            ],
-            relayDir,
-            internalToolMcp,
-          }),
-        new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
-      );
     } finally {
       if (savedResponseWatch === undefined) {
         delete process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
@@ -443,8 +390,8 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
           userMcpServers: [
             {
               name: "agenta-tools",
-              transport: "http",
-              url: "https://mcp.example.com/mcp",
+              connection: { type: "http", url: "https://mcp.example.com/mcp" },
+              policy: { tools: { mode: "all" } },
             },
           ],
           relayDir,
@@ -466,9 +413,12 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       userMcpServers: [
         {
           name: "linear",
-          transport: "http",
-          url: "https://mcp.linear.app/sse",
-          env: { Authorization: "Bearer x" },
+          connection: {
+            type: "http",
+            url: "https://mcp.linear.app/sse",
+            headers: { Authorization: "Bearer x" },
+          },
+          policy: { tools: { mode: "all" } },
         },
       ],
       relayDir,

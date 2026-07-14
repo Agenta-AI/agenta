@@ -8,20 +8,34 @@
  */
 import { beforeEach } from "vitest";
 
+import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+
 const SCRUBBED = [
   "AGENTA_INSECURE_EGRESS_ALLOWED",
   "AGENTA_WEBHOOKS_ALLOW_INSECURE",
   "AGENTA_WEBHOOK_ALLOW_INSECURE",
+  // Scrub BOTH the operator-facing runner names and the ambient SDK names the runner bridges
+  // into, so a loaded dev env cannot silently flip a test that asserts the no-credential default.
+  "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS",
+  "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER",
+  "AGENTA_RUNNER_DAYTONA_API_KEY",
+  "AGENTA_RUNNER_DAYTONA_API_URL",
+  "AGENTA_RUNNER_DAYTONA_TARGET",
+  "AGENTA_RUNNER_DAYTONA_SNAPSHOT",
+  "AGENTA_RUNNER_DAYTONA_IMAGE",
+  "AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES",
+  "AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES",
   "DAYTONA_API_KEY",
   "DAYTONA_API_URL",
   "DAYTONA_TARGET",
   "DAYTONA_SNAPSHOT",
-  "DAYTONA_SNAPSHOT_AGENT",
 ];
 
 for (const name of SCRUBBED) delete process.env[name];
 
-// Re-scrub per test: a prior test may have set one and not restored it.
+// Re-scrub per test: a prior test may have set one and not restored it. Also drop the memoized
+// runner config so the next `loadRunnerConfig()` re-parses the scrubbed environment.
 beforeEach(() => {
   for (const name of SCRUBBED) delete process.env[name];
+  resetRunnerConfigCache();
 });

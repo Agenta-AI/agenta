@@ -60,20 +60,22 @@ import {
   type LiveSession,
 } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
+import {
+  loadRunnerConfig,
+  runnerConfigSummary,
+} from "./config/runner-config.ts";
+import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
 import { buildPersistingEmitter } from "./sessions/persist.ts";
 
-const PORT = Number(process.env.AGENTA_RUNNER_PORT ?? 8765);
-
-// Bind to loopback by default (sidecar-trust step 1): the `/run` body carries plaintext
-// provider secrets and reusable bearer tokens, so the sidecar MUST sit on a trusted,
-// non-public network. `127.0.0.1` keeps it reachable only from the same host (the co-located
-// Python service) and never `0.0.0.0`. In Kubernetes/Compose, set `AGENTA_RUNNER_HOST`
-// to the private pod/internal-network interface; never publish the port to the host.
-const HOST = process.env.AGENTA_RUNNER_HOST ?? "127.0.0.1";
+// Server binding (host/port) comes from the typed `RunnerConfig` resolved at boot. The host
+// binds to loopback by default (sidecar-trust step 1): the `/run` body carries plaintext provider
+// secrets and reusable bearer tokens, so the sidecar MUST sit on a trusted, non-public network.
+// In Kubernetes/Compose, set `AGENTA_RUNNER_HOST` to the private pod/internal-network interface;
+// never publish the port to the host.
 
 // Optional shared `/run` token (sidecar-trust step 2): default OFF. When
 // `AGENTA_RUNNER_TOKEN` is set, every `/run` request must present the same secret (in
@@ -300,8 +302,7 @@ export function resolveKeepaliveProvider(
   request: AgentRunRequest,
 ): KeepaliveProviderName | undefined {
   if (resolvesToLocalProvider(request.sandbox)) return "local";
-  const provider =
-    request.sandbox ?? process.env.SANDBOX_AGENT_PROVIDER ?? "local";
+  const provider = request.sandbox ?? loadRunnerConfig().providers.default;
   return provider === "daytona" ? "daytona" : undefined;
 }
 
@@ -1042,9 +1043,10 @@ export function createRequestListener(
 
       return send(res, 404, { ok: false, error: "Not found" });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // Stack stays server-side; only the message goes on the wire.
-      if (err instanceof Error && err.stack) console.error(err.stack);
+      // Only .message goes on the wire: the raw thrown value (even via String()) is
+      // stack-trace-tainted to CodeQL, and the stack itself stays server-side.
+      const message = err instanceof Error ? err.message : "Internal error";
+      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -1129,20 +1131,35 @@ if (isEntrypoint(import.meta.url)) {
     },
   });
 
-  createAgentServer().listen(PORT, HOST, () => {
-    process.stderr.write(
-      `[sandbox-agent] http server listening on ${HOST}:${PORT}\n`,
-    );
-    if (insecureEgressAllowed()) {
+  // Parse and validate the operator configuration ONCE before listening. An invalid
+  // configuration (empty/unknown provider list, default not enabled, Daytona enabled without a
+  // credential, mutually exclusive artifact, invalid lifecycle values) fails startup here. Log
+  // one redacted summary, then bridge the typed Daytona credential into the ambient names the
+  // vendored SDK reads during sandbox creation.
+  const runnerConfig = loadRunnerConfig();
+  process.stderr.write(`[sandbox-agent] ${runnerConfigSummary(runnerConfig)}\n`);
+  if (runnerConfig.providers.enabled.includes("daytona")) {
+    applyDaytonaSdkEnv(runnerConfig.daytona);
+  }
+
+  createAgentServer().listen(
+    runnerConfig.server.port,
+    runnerConfig.server.host,
+    () => {
       process.stderr.write(
-        "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCPs may " +
-          "target http and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.\n",
+        `[sandbox-agent] http server listening on ${runnerConfig.server.host}:${runnerConfig.server.port}\n`,
       );
-    } else {
-      process.stderr.write(
-        "[sandbox-agent] Outbound egress is in restricted mode: user MCPs must use https and " +
-          "public hosts (private/loopback/link-local/metadata targets are blocked).\n",
-      );
-    }
-  });
+      if (insecureEgressAllowed()) {
+        process.stderr.write(
+          "[sandbox-agent] WARNING: AGENTA_INSECURE_EGRESS_ALLOWED is set: user MCPs may " +
+            "target http and private/loopback/metadata hosts. Use only for trusted/single-tenant deployments.\n",
+        );
+      } else {
+        process.stderr.write(
+          "[sandbox-agent] Outbound egress is in restricted mode: user MCPs must use https and " +
+            "public hosts (private/loopback/link-local/metadata targets are blocked).\n",
+        );
+      }
+    },
+  );
 }

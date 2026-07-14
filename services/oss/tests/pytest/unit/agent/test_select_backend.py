@@ -26,12 +26,12 @@ def runner_wrapper(tmp_path: Path) -> Path:
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch, runner_wrapper: Path):
-    # Start every case from a known-empty deployment environment. These tests exercise
-    # transport/harness selection, not the local-sandbox gate (on by default anyway), so
-    # pin it explicitly here for clarity; the gate itself has its own tests below.
+    # Start every case from a known deployment environment. These tests exercise
+    # transport/harness selection, so enable both providers; the enabled-provider gate has
+    # its own tests below.
     monkeypatch.delenv("AGENTA_RUNNER_INTERNAL_URL", raising=False)
     monkeypatch.setenv("AGENTA_RUNNER_DIR", str(runner_wrapper))
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", "true")
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,daytona")
 
 
 def _sel(harness="pi_core", sandbox="local"):
@@ -73,20 +73,20 @@ def test_no_runner_url_requires_runner_assets(monkeypatch, tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# Local-sandbox gate: `sandbox: "local"` is unconfined host bash, not a tenant
-# boundary, so it is refused unless AGENTA_SANDBOX_LOCAL_ALLOWED is on.
+# Enabled-provider gate: a sandbox not in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is
+# refused before any run. `local` is unconfined host bash, not a tenant boundary.
 # ---------------------------------------------------------------------------
 
 
-def test_local_sandbox_refused_when_knob_off(monkeypatch):
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", "false")
+def test_local_sandbox_refused_when_not_enabled(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
 
     with pytest.raises(LocalSandboxNotAllowedError):
         select_backend(_sel("pi_core", "local"))
 
 
 def test_local_sandbox_allowed_by_default_when_unset(monkeypatch):
-    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", raising=False)
 
     backend = select_backend(_sel("pi_core", "local"))
 
@@ -94,8 +94,8 @@ def test_local_sandbox_allowed_by_default_when_unset(monkeypatch):
     assert backend._sandbox == "local"
 
 
-def test_local_sandbox_allowed_when_knob_on(monkeypatch):
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", "true")
+def test_local_sandbox_allowed_when_explicitly_enabled(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local")
 
     backend = select_backend(_sel("pi_core", "local"))
 
@@ -103,10 +103,17 @@ def test_local_sandbox_allowed_when_knob_on(monkeypatch):
     assert backend._sandbox == "local"
 
 
-def test_daytona_sandbox_always_allowed(monkeypatch):
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", "false")
+def test_daytona_sandbox_allowed_when_enabled(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,daytona")
 
     backend = select_backend(_sel("pi_core", "daytona"))
 
     assert isinstance(backend, SandboxAgentBackend)
     assert backend._sandbox == "daytona"
+
+
+def test_daytona_sandbox_refused_when_not_enabled(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local")
+
+    with pytest.raises(LocalSandboxNotAllowedError):
+        select_backend(_sel("pi_core", "daytona"))

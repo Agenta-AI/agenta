@@ -9,17 +9,15 @@
  * the SAME dispatch the Pi path uses (`runResolvedTool` → relay → `/tools/call`), so every
  * credentialed action still happens server-side in runner memory.
  *
- * Why HTTP-on-loopback and not the old stdio bridge:
- *  - No runner-host child process. The old `mcp-server.ts` spawned `tsx mcp-server.ts` on the
- *    runner host, outside the sandbox boundary — the same execution hole PR #4831 closed for
- *    USER stdio MCP servers. This endpoint launches nothing; it is served by the already-running
- *    runner process and is reachable only from loopback.
+ * Why HTTP on loopback:
+ *  - No runner-host child process. This endpoint is served by the already-running runner process
+ *    and is reachable only from loopback.
  *  - Reuses #4834's proven transport. Claude consumes a `type: "http"` MCP server natively (the
  *    bundled `@agentclientprotocol/claude-agent-acp` maps it to the Claude SDK's HTTP MCP client).
  *
  * This server is INDEPENDENT of the user MCP capability (`engines/sandbox_agent/mcp.ts`
- * `toAcpMcpServers`): user stdio MCP stays disabled, user HTTP MCP is unchanged, and this
- * internal channel is its own thing. Do not merge their gates (see project gateway-tool-mcp).
+ * `toAcpMcpServers`): external HTTP MCP is passed separately and this internal channel remains
+ * its own thing.
  *
  * Transport: MCP Streamable HTTP in stateless JSON mode. The MCP client (`@modelcontextprotocol/sdk`
  * `StreamableHTTPClientTransport`) POSTs JSON-RPC with `Accept: application/json, text/event-stream`;

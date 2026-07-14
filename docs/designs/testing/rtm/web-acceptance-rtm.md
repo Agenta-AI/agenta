@@ -1468,13 +1468,13 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-### WEB-ACC-MCP-001 - MCP server form: switching transport renders the correct fields
+### WEB-ACC-MCP-001 - Claude MCP server form shows the HTTP connection fields
 
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
 - Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
-- Playwright title: `MCP Servers: form > switching transport between stdio and http shows the correct fields`
+- Playwright title: `MCP Servers: form > Claude shows HTTP connection and credential fields`
 
 #### Markers
 
@@ -1490,23 +1490,23 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-### WEB-ACC-MCP-002 - stdio MCP server is blocked at runtime with a clear error message
+### WEB-ACC-MCP-002 - Pi hides external MCP authoring
 
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/mcp-servers.feature` (not yet created)
 - Test file: `web/oss/tests/playwright/acceptance/mcp-servers/mcp-servers.spec.ts` (not yet created)
-- Playwright title: `MCP Servers: runtime > stdio MCP server is refused with USER_MCP_UNSUPPORTED_MESSAGE`
+- Playwright title: `MCP Servers: capability > Pi does not render the external MCP editor`
 
 #### Markers
 
 - Scope: `playground`, `mcp`
 - Coverage: `light`
-- Path: `grumpy`
-- Case: `edge`
+- Path: `happy`
+- Case: `typical`
 - Lens: `functional`
-- Speed: `slow`
-- Cost: `paid`
+- Speed: `fast`
+- Cost: `free`
 - Role: `owner`
 - Plan: environment-defined
 - License: `oss`

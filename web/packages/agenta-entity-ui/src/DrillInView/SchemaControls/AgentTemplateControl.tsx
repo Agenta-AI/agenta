@@ -84,7 +84,7 @@ import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 // Tooltip copy for the config-panel draft/validation indicators.
 const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     tool: "This tool is missing its name.",
-    mcp: "This server is missing a required field (name, command, or URL).",
+    mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
 const DRAFT_TIP: Record<string, string> = {
@@ -371,7 +371,7 @@ export function AgentTemplateControl({
         referenceableWorkflows,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
-    // MCP servers: a flat array of McpServer shapes (stdio command/args/env or remote url + secrets).
+    // External HTTP MCP servers from the saved agent template.
     const mcpServers = useMemo(
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
@@ -424,7 +424,7 @@ export function AgentTemplateControl({
 
     const hasInstructions = Boolean(props.instructions)
     const hasTools = Boolean(props.tools)
-    const hasMcp = Boolean(props.mcps)
+    const hasMcp = Boolean(props.mcps) && mh.mcpSupported
     const hasSkills = Boolean(props.skills)
 
     // Per-field section headers read their label from the template schema (`props.<field>.title`),
@@ -628,7 +628,7 @@ export function AgentTemplateControl({
         }
         if (key === "mcp")
             return mcpServers.some((m) => ITEM_KINDS.mcp.draftInvalid(m as Record<string, unknown>))
-                ? "An MCP server is missing a required field."
+                ? "An MCP server is missing its name or URL."
                 : null
         if (key === "skills")
             return skills.some((s) => ITEM_KINDS.skill.draftInvalid(s as Record<string, unknown>))
