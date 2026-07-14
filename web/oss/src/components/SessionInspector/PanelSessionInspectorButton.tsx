@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {executionController} from "@agenta/playground"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -15,6 +15,11 @@ const PanelSessionInspectorButton = ({entityId}: {entityId: string}) => {
         executionController.selectors.backendSessionId(loadableId ?? "", `sess:${entityId}`),
     )
     const [open, setOpen] = useState(false)
+    // If the session goes invalid while the drawer is open, close it (letting it animate out) rather
+    // than unmounting mid-flight; also resets `open` so it can't silently reappear if the id returns.
+    useEffect(() => {
+        if (!backendSessionId) setOpen(false)
+    }, [backendSessionId])
     return (
         <>
             <Tooltip title="Inspect session">

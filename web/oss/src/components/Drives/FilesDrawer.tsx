@@ -72,6 +72,14 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
     useEffect(() => {
         if (!inPreview) return
         const onKey = (e: KeyboardEvent) => {
+            // The grid (with its search box) stays mounted behind the preview; don't steal Left/Right
+            // from a focused text field, where they move the caret.
+            const target = e.target as HTMLElement | null
+            if (
+                target?.isContentEditable ||
+                /^(input|textarea|select)$/i.test(target?.tagName ?? "")
+            )
+                return
             if (e.key === "ArrowLeft") page(-1)
             if (e.key === "ArrowRight") page(1)
         }

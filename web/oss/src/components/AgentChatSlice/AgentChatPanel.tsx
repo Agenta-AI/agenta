@@ -195,6 +195,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                 opacity: chromeHidden || chatMaximized ? 0 : 1,
                                 pointerEvents: chromeHidden || chatMaximized ? "none" : undefined,
                             }}
+                            // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
+                            // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
+                            inert={chromeHidden || chatMaximized}
                         >
                             {/* Region fallback = the same bar skeleton the pre-confirmation gate
                             renders, so the strip's lane holds its shape while this chunk loads; the

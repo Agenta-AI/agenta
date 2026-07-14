@@ -22,9 +22,15 @@ export const loadSessionMessages = async (sessionId: string): Promise<UIMessage[
     if (!projectId) return null
 
     // Replay hydration is secondary to the live conversation stream — send it low-priority so
-    // Chromium schedules it behind render-critical traffic.
-    const records = await querySessionRecords({sessionId, projectId, lowPriority: true})
-    if (!records || records.length === 0) return null
-
-    return transcriptToMessages(records)
+    // Chromium schedules it behind render-critical traffic. A transient fetch failure resolves to
+    // `null` (the documented "request failed" contract) so the caller shows the history-unavailable
+    // notice instead of leaking an unhandled rejection.
+    try {
+        const records = await querySessionRecords({sessionId, projectId, lowPriority: true})
+        if (!records || records.length === 0) return null
+        return transcriptToMessages(records)
+    } catch (err) {
+        console.warn("[loadSessionMessages] hydration fetch failed:", err)
+        return null
+    }
 }

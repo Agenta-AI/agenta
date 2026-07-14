@@ -16,6 +16,7 @@ import {downloadText} from "@/oss/lib/helpers/fileManipulations"
 
 import {sessionLivenessAtomFamily} from "../../state/liveness"
 
+import {invalidateSessionInspector} from "./invalidate"
 import {LensBody} from "./LensBody"
 import {LensRail} from "./LensRail"
 import {
@@ -124,7 +125,7 @@ export function Inspector({sessionId}: {sessionId: string}) {
 
     const refresh = () => {
         revalidateRecords(sessionId)
-        void queryClient.invalidateQueries({queryKey: ["session-inspector"]})
+        void invalidateSessionInspector(queryClient, sessionId)
     }
 
     const exportPayload = () => {

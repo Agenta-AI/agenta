@@ -275,8 +275,10 @@ const CSV_ROW_CAP = 500
 const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
     const content = contentQuery.data
+    // +2 (header + CSV_ROW_CAP body + 1 probe): parse one row PAST the display cap so `capped` below
+    // can tell "exactly CSV_ROW_CAP body rows" from "more than that" and show the truncation banner.
     const rows = useMemo(
-        () => (typeof content === "string" ? parseCsv(content, CSV_ROW_CAP + 1) : []),
+        () => (typeof content === "string" ? parseCsv(content, CSV_ROW_CAP + 2) : []),
         [content],
     )
 
@@ -358,6 +360,14 @@ const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                     alt={path.split("/").pop() ?? path}
                     onError={onError}
                     onClick={() => setZoomed((z) => !z)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            setZoomed((z) => !z)
+                        }
+                    }}
                     className={
                         zoomed
                             ? "max-w-none cursor-zoom-out"

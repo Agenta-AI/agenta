@@ -156,12 +156,23 @@ export function useSessionDrive(sessionId: string, artifactId?: string): Session
             (Boolean(sessionId) &&
                 (mountsQuery.isPending || Boolean(mount && filesQuery.isPending))) ||
             agentPending
-        const errored =
+        // The session cwd mount and the artifact-scoped agent mount fail independently — mirror the
+        // `isLoading` split above so an agent-mount failure surfaces as an error even with no session
+        // (otherwise the drive reads as an empty "No files yet" instead of the real failure).
+        const sessionErrored =
             Boolean(sessionId) &&
             ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
                 (Boolean(mount) &&
                     !filesQuery.isPending &&
                     (listing === null || filesQuery.isError)))
+        const agentErrored =
+            Boolean(artifactId) &&
+            ((!agentMountQuery.isPending &&
+                (agentMountQuery.data === null || agentMountQuery.isError)) ||
+                (Boolean(agentMount) &&
+                    !agentFilesQuery.isPending &&
+                    (agentListing === null || agentFilesQuery.isError)))
+        const errored = sessionErrored || agentErrored
 
         const totalSize = driveTotalSize(listing) + driveTotalSize(agentListing)
 
@@ -197,7 +208,10 @@ export function useSessionDrive(sessionId: string, artifactId?: string): Session
         filesQuery.isError,
         agentFilesQuery.data,
         agentFilesQuery.isPending,
+        agentFilesQuery.isError,
+        agentMountQuery.data,
         agentMountQuery.isPending,
+        agentMountQuery.isError,
         mountsQuery.data,
         mountsQuery.isPending,
         mountsQuery.isError,

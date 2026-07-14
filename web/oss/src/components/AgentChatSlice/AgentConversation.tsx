@@ -96,6 +96,7 @@ import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
 import {Inspector} from "./components/Inspector/Inspector"
+import {invalidateSessionInspector} from "./components/Inspector/invalidate"
 import {
     closeInspectorAtom,
     inspectorTargetAtom,
@@ -622,7 +623,6 @@ const AgentConversation = ({
     // A to-be-hydrated session (empty local cache, not brand-new) shows a transcript skeleton
     // instead of the "start a chat" hero, so a session WITH server history doesn't flash the empty
     // state before its records land. Seeded synchronously so the first paint is already the skeleton.
-    const hydratedRef = useRef(false)
     const [isHydrating, setIsHydrating] = useState(
         () => initialMessages.length === 0 && !isSessionFresh(sessionId),
     )
@@ -633,11 +633,13 @@ const AgentConversation = ({
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
-        if (hydratedRef.current || initialMessages.length > 0 || isSessionFresh(sessionId)) {
+        if (initialMessages.length > 0 || isSessionFresh(sessionId)) {
             setIsHydrating(false)
             return
         }
-        hydratedRef.current = true
+        // No persistent "already-hydrated" ref: the `cancelled` flag is the whole guard, so React
+        // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
+        // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
         loadSessionMessages(sessionId)
             .then((msgs) => {
@@ -953,11 +955,10 @@ const AgentConversation = ({
     // never-run sessions have no server records. Reconciliation is by message COUNT, not content:
     // detecting a same-length server-side edit/regenerate is deferred, as is focus/interval
     // revalidation. FOLLOWUP(sessions,swr): see docs/designs/sessions/frontend-integration.md.
-    const revalidatedRef = useRef(false)
     useEffect(() => {
-        if (revalidatedRef.current || initialMessages.length === 0 || isSessionFresh(sessionId))
-            return
-        revalidatedRef.current = true
+        if (initialMessages.length === 0 || isSessionFresh(sessionId)) return
+        // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
+        // re-runs the revalidation rather than latching it out.
         let cancelled = false
         loadSessionMessages(sessionId).then((serverMsgs) => {
             if (cancelled || !serverMsgs || serverMsgs.length === 0) return
@@ -1204,7 +1205,7 @@ const AgentConversation = ({
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                         // Refresh an open Inspector's Runtime lens so its Lifecycle/State reflect the
                         // kill immediately (mirrors the panel's own Kill button).
-                        queryClient.invalidateQueries({queryKey: ["session-inspector"]})
+                        void invalidateSessionInspector(queryClient, sessionId)
                     }
                 })
                 .catch(() => {})

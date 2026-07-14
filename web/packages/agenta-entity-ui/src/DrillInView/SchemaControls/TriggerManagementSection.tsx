@@ -833,6 +833,10 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 uses (icon, count summary, header "+", collapse) so the Triggers region reads like
                 the Configuration region. */}
             <ConfigAccordionSection
+                // Remount on the empty↔non-empty boundary so `defaultOpen` re-applies: adding the
+                // FIRST subscription (0→1) otherwise leaves the mount-time-collapsed section shut and
+                // hides the new row.
+                key={scopedSubscriptions.length > 0 ? "has-subscriptions" : "empty"}
                 icon={<Lightning size={16} />}
                 title="Subscriptions"
                 summary={countSummary(scopedSubscriptions.length, "subscription")}
@@ -864,6 +868,8 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
             </ConfigAccordionSection>
 
             <ConfigAccordionSection
+                // See the Subscriptions section: remount on 0↔1 so adding the first schedule opens it.
+                key={scopedSchedules.length > 0 ? "has-schedules" : "empty"}
                 icon={<Clock size={16} />}
                 title="Schedules"
                 summary={countSummary(scopedSchedules.length, "schedule")}

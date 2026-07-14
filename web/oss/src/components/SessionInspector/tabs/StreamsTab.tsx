@@ -6,6 +6,7 @@ import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Button, Popconfirm, Skeleton, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {invalidateSessionInspector} from "@/oss/components/AgentChatSlice/components/Inspector/invalidate"
 import {
     isSessionStreamingAtomFamily,
     sessionStatusAtomFamily,
@@ -112,7 +113,7 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
             // Refresh this panel (Lifecycle/State flip to the killed state) and the shared liveness
             // query (tab dots). The old SessionInspector drawer also closes; the new Inspector lens
             // has no-op close and instead stays open showing the now-dead session.
-            await queryClient.invalidateQueries({queryKey: ["session-inspector"]})
+            await invalidateSessionInspector(queryClient, sessionId)
             void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
             closeInspector()
         } catch {
