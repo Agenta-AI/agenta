@@ -122,12 +122,27 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         }),
         draftInvalid: (draft) => {
             const name = String(draft.name ?? "").trim()
+            const validName = /^[A-Za-z0-9._-]{1,128}$/.test(name)
             const connection =
                 draft.connection && typeof draft.connection === "object"
                     ? (draft.connection as Record<string, unknown>)
                     : {}
             const url = String(connection.url ?? "").trim()
-            return !name || !url
+            const credentials =
+                connection.credentials && typeof connection.credentials === "object"
+                    ? (connection.credentials as Record<string, unknown>)
+                    : {}
+            const headers =
+                credentials.headers && typeof credentials.headers === "object"
+                    ? (credentials.headers as Record<string, unknown>)
+                    : {}
+            const missingSecretHeader =
+                credentials.type === "header_secret_refs" &&
+                !Object.entries(headers).some(
+                    ([headerName, secretSlug]) =>
+                        headerName.trim() && String(secretSlug ?? "").trim(),
+                )
+            return !validName || !url || missingSecretHeader
         },
     },
     skill: {
