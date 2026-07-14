@@ -957,6 +957,48 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+/**
+ * Normalize `/kill`'s `projectId` to `undefined` for both absent and whitespace-only input. A
+ * blank string surviving as `""` would make `poolKeyFor` and `destroyInFlightSandboxesForSession`
+ * disagree on scope: the former forms no pool key from an empty project id (so keepalive pool
+ * entries are NOT destroyed), while the latter treats `""` as "no project filter" and still
+ * destroys every in-flight sandbox for the session regardless of project.
+ */
+export function normalizeKillProjectId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/** `/kill`'s payload is `{ sessionId, projectId }` — a few hundred bytes at most. */
+const KILL_BODY_MAX_BYTES = 16 * 1024;
+
+/** Thrown by `readBodyCapped` when the request exceeds `maxBytes`; the caller maps it to 413. */
+class BodyTooLargeError extends Error {}
+
+/** Same streaming byte-count-and-reject shape as tool-mcp-http.ts's `readBody`, so a caller
+ *  cannot force the runner to buffer an arbitrarily large body before JSON parsing. */
+function readBodyCapped(
+  req: IncomingMessage,
+  maxBytes: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new BodyTooLargeError("request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
 export function createRequestListener(
   run: RunAgent,
@@ -977,9 +1019,12 @@ export function createRequestListener(
         // per-session destroy), then its in-flight sandbox as a second line of defense.
         let killBody: { sessionId?: unknown; projectId?: unknown };
         try {
-          const raw = await readBody(req);
+          const raw = await readBodyCapped(req, KILL_BODY_MAX_BYTES);
           killBody = raw.trim() ? JSON.parse(raw) : {};
         } catch (err) {
+          if (err instanceof BodyTooLargeError) {
+            return send(res, 413, { ok: false, error: err.message });
+          }
           return send(res, 400, {
             ok: false,
             error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
@@ -989,10 +1034,7 @@ export function createRequestListener(
           typeof killBody.sessionId === "string"
             ? killBody.sessionId.trim()
             : "";
-        const projectId =
-          typeof killBody.projectId === "string"
-            ? killBody.projectId.trim()
-            : undefined;
+        const projectId = normalizeKillProjectId(killBody.projectId);
         if (!sessionId) {
           return send(res, 400, {
             ok: false,
