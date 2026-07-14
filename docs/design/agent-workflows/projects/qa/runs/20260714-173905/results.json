@@ -1,0 +1,167 @@
+{
+  "C3": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "gpt-5.6-luna",
+      "provider": "openai"
+    },
+    "journeys": {
+      "approve": {
+        "pass": true,
+        "why": "approved: gate fired, resumed, wire shows tool-output-available (paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 3865,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Bash"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 6626,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "bash"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-BASH-bb7f87310fe6-x86_64"
+        }
+      },
+      "deny": {
+        "pass": true,
+        "why": "denied: wire shows the tool refused and never executed (finish=stop)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 4663,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Bash"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 8168,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-error",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "bash"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": ""
+        }
+      }
+    }
+  }
+}

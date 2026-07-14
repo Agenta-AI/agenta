@@ -1,0 +1,270 @@
+{
+  "C1": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "local",
+      "model": "sonnet",
+      "provider": "anthropic"
+    },
+    "journeys": {
+      "approve": {
+        "pass": false,
+        "why": "approved: the GATED call executed after approval (paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 4445,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 5411,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        }
+      },
+      "deny": {
+        "pass": false,
+        "why": "denied: the GATED call was refused and never executed (finish=stop)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 4593,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 7845,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-error",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "The command was not run \u2014 permission was denied."
+        }
+      }
+    }
+  },
+  "C2": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "daytona",
+      "model": "sonnet",
+      "provider": "anthropic"
+    },
+    "journeys": {
+      "approve": {
+        "pass": false,
+        "why": "approved: the GATED call executed after approval (paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 10863,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 19550,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        }
+      },
+      "deny": {
+        "pass": false,
+        "why": "denied: the GATED call was refused and never executed (finish=stop)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 15137,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 15445,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-error",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "The user denied the tool execution."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,669 @@
+{
+  "C1": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "local",
+      "model": "sonnet",
+      "provider": "anthropic"
+    },
+    "journeys": {
+      "chat": {
+        "pass": true,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 3299,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [],
+          "reply": "PONG"
+        }
+      },
+      "tool": {
+        "pass": true,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 200,
+          "ms": 6699,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-BASH-bb7f87310fe6-x86_64"
+        }
+      },
+      "approve": {
+        "pass": true,
+        "why": "approved: the gated command executed after approval (outcome=available, paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 3860,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 5253,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        }
+      },
+      "deny": {
+        "pass": true,
+        "why": "denied: the gated command never executed (outcome=error)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 4356,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 6494,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-error",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "The command was not run \u2014 permission was denied."
+        }
+      },
+      "warm": {
+        "pass": false,
+        "why": "turn1=3437ms, turn2=3857ms, turn3=4122ms (warm gain -420ms)",
+        "session_id": "afff6e9a-9bbf-4b07-9474-bd819640a014",
+        "times_ms": [
+          3437,
+          3857,
+          4122
+        ]
+      }
+    }
+  },
+  "C2": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "daytona",
+      "model": "sonnet",
+      "provider": "anthropic"
+    },
+    "journeys": {
+      "chat": {
+        "pass": true,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 200,
+          "ms": 13917,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [],
+          "approval": false,
+          "errors": [],
+          "reply": "PONG"
+        }
+      },
+      "tool": {
+        "pass": true,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 200,
+          "ms": 14792,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-BASH-e364084b-af9c-441c-b181-32e08c3a410d-x86_64"
+        }
+      },
+      "approve": {
+        "pass": true,
+        "why": "approved: the gated command executed after approval (outcome=available, paused finish=other: True)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 11740,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 20738,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        }
+      },
+      "deny": {
+        "pass": true,
+        "why": "denied: the gated command never executed (outcome=error)",
+        "paused_finish_other": true,
+        "turn_paused": {
+          "http": 200,
+          "ms": 10190,
+          "finish": "other",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-approval-request",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": true,
+          "errors": [],
+          "reply": ""
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 17711,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-error",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "The user denied the tool execution."
+        }
+      },
+      "warm": {
+        "pass": false,
+        "why": "turn 1 errored",
+        "turn": {
+          "http": 500,
+          "ms": 184,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"session_id\":\"08293f8d-7388-42cd-8851-47715a451ae8\",\"span_id\":\"bc8c3909d28f2717\",\"trace_id\":\"ee37cea2ef26804b2e45bf192f9b977f\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Expecting value: line 1 column 1 (char 0)\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\\\", line 292, in __call__\\n    normalized = await self._normalize_response(res"
+          ],
+          "reply": ""
+        }
+      }
+    }
+  },
+  "C3": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "gpt-5.6-luna",
+      "provider": "openai"
+    },
+    "journeys": {
+      "chat": {
+        "pass": false,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 500,
+          "ms": 175,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"session_id\":\"93252844-fa5a-441c-9b7d-e63d46fe9e2a\",\"span_id\":\"523f709a2d7ec0ac\",\"trace_id\":\"27ebbb4f681f63e899dd798a0bdae334\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Expecting value: line 1 column 1 (char 0)\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\\\", line 292, in __call__\\n    normalized = await self._normalize_response(res"
+          ],
+          "reply": ""
+        }
+      },
+      "tool": {
+        "pass": false,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 500,
+          "ms": 242,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"session_id\":\"7924cbc6-5490-4c36-8ef7-2156fb2745b4\",\"span_id\":\"df8e249564e9abb0\",\"trace_id\":\"7be624379c2e852dd6fa591a2e3186e6\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Expecting value: line 1 column 1 (char 0)\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\\\", line 292, in __call__\\n    normalized = await self._normalize_response(res"
+          ],
+          "reply": ""
+        }
+      },
+      "approve": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 500,
+          "ms": 208,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"session_id\":\"9b7e1a59-4f07-42ed-9a08-0bc5d18f6baf\",\"span_id\":\"f3813f93923b219e\",\"trace_id\":\"6ecc1c4795ddad39fae5e4751d5f2bcf\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Expecting value: line 1 column 1 (char 0)\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\\\", line 292, in __call__\\n    normalized = await self._normalize_response(res"
+          ],
+          "reply": ""
+        }
+      },
+      "deny": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 500,
+          "ms": 175,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"session_id\":\"352f9d40-1357-4f01-b8ea-2a2fde2a56d7\",\"span_id\":\"5b3885751231a256\",\"trace_id\":\"d5c82d9538d23d4c43a97a7bc6b1439c\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Expecting value: line 1 column 1 (char 0)\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\\\", line 292, in __call__\\n    normalized = await self._normalize_response(res"
+          ],
+          "reply": ""
+        }
+      },
+      "warm": {
+        "pass": false,
+        "why": "turn 1 errored",
+        "turn": {
+          "http": 500,
+          "ms": 165,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"session_id\":\"2a008ef8-ce20-4f52-84dc-d900f23536d8\",\"span_id\":\"c77587df2e570b9b\",\"trace_id\":\"873e81f9a2a8f6b195ea3629adbeb41e\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Expecting value: line 1 column 1 (char 0)\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\\\", line 292, in __call__\\n    normalized = await self._normalize_response(res"
+          ],
+          "reply": ""
+        }
+      }
+    }
+  },
+  "C4": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "daytona",
+      "model": "gpt-5.6-luna",
+      "provider": "openai"
+    },
+    "journeys": {
+      "chat": {
+        "pass": false,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 500,
+          "ms": 163,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"session_id\":\"f1699e4d-8fb2-495e-986b-6555b26be497\",\"span_id\":\"d8c4aff7024ae54c\",\"trace_id\":\"e24e469a4be416d112fdb27ac02eab2f\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Expecting value: line 1 column 1 (char 0)\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/python/agenta/sdk/middlewares/running/normalizer.py\\\", line 292, in __call__\\n    normalized = await self._normalize_response(res"
+          ],
+          "reply": ""
+        }
+      },
+      "tool": {
+        "pass": false,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 500,
+          "ms": 169,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "approve": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 500,
+          "ms": 143,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "deny": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 500,
+          "ms": 128,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "warm": {
+        "pass": false,
+        "why": "turn 1 errored",
+        "turn": {
+          "http": 500,
+          "ms": 157,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      }
+    }
+  },
+  "P1": {
+    "config": {
+      "harness": "pi_core",
+      "sandbox": "local",
+      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "provider": "openrouter"
+    },
+    "journeys": {
+      "chat": {
+        "pass": false,
+        "why": "finish=stop and reply contains PONG",
+        "turn": {
+          "http": 500,
+          "ms": 142,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "tool": {
+        "pass": false,
+        "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit",
+        "turn": {
+          "http": 500,
+          "ms": 145,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "approve": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 500,
+          "ms": 157,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "deny": {
+        "pass": false,
+        "why": "expected a tool-approval-request frame; the gate never fired",
+        "turn": {
+          "http": 500,
+          "ms": 137,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      },
+      "warm": {
+        "pass": false,
+        "why": "turn 1 errored",
+        "turn": {
+          "http": 500,
+          "ms": 174,
+          "finish": null,
+          "frames": [],
+          "tools": [],
+          "approval": false,
+          "errors": [
+            "HTTP 500: {\"detail\":\"Could not verify credentials: https://bighetzner.agenta.dev returned unexpected status code 404. Please try again later or contact support if the issue persists.\"}"
+          ],
+          "reply": ""
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "gmail": {
+    "pass": false,
+    "why": "a Gmail gateway tool executed (tool-output-available) with no error",
+    "tools_called": [],
+    "turn": {
+      "http": 500,
+      "ms": 290,
+      "finish": null,
+      "frames": [],
+      "tools": [],
+      "approval": false,
+      "errors": [
+        "HTTP 500: {\"session_id\":\"e73c62fe-8510-4a9c-adf6-74e697470e11\",\"span_id\":\"bd3111bdd867a85a\",\"trace_id\":\"10794435051b42a3992409bf6430389e\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Invalid tool configuration: [{'type': 'extra_forbidden', 'loc': ('gateway', 'input_schema'), 'msg': 'Extra inputs are not permitted'}, {'type': 'extra_forbidden', 'loc': ('gateway', 'description'), 'msg': 'Extra inputs are not permitted'}, {'type': 'extra_forbidden', 'loc': ('gateway', 'provider_action'), 'msg': 'Ex"
+      ],
+      "reply": ""
+    }
+  }
+}

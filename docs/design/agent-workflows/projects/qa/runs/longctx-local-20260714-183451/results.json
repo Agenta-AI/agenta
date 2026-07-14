@@ -1,0 +1,69 @@
+{
+  "gmail": {
+    "pass": false,
+    "why": "a Gmail gateway tool executed (tool-output-available) with no error",
+    "tools_called": [],
+    "turn": {
+      "http": 500,
+      "ms": 682,
+      "finish": null,
+      "frames": [],
+      "tools": [],
+      "approval": false,
+      "errors": [
+        "HTTP 500: {\"session_id\":\"4d4bdcb3-37b1-46c2-a26f-66cff763efb3\",\"span_id\":\"3d830934cf9b18f7\",\"trace_id\":\"ee491cb08d424b4720a87d140a9d19cb\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Gateway tool resolution failed: Action not found: composio/gmail/GMAIL_FETCH_EMAILS (HTTP 404). Remove or re-resolve this tool; the action is no longer in the catalog.\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/pyt"
+      ],
+      "reply": ""
+    }
+  },
+  "memory": {
+    "pass": false,
+    "why": "turn 1 (plant) errored",
+    "turn": {
+      "http": 500,
+      "ms": 394,
+      "finish": null,
+      "frames": [],
+      "tools": [],
+      "approval": false,
+      "errors": [
+        "HTTP 500: {\"session_id\":\"8d953a8b-dc8d-4775-8095-8edd0acfb568\",\"span_id\":\"fc98fef56dd77d5f\",\"trace_id\":\"c4a36727bd76d999c059e43dd14aa22c\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Gateway tool resolution failed: Action not found: composio/gmail/GMAIL_FETCH_EMAILS (HTTP 404). Remove or re-resolve this tool; the action is no longer in the catalog.\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/pyt"
+      ],
+      "reply": ""
+    }
+  },
+  "concurrent": {
+    "pass": false,
+    "why": "each of 3 concurrent sessions recalled ITS OWN token and none leaked another's",
+    "leaks": [],
+    "results": [
+      {
+        "i": 0,
+        "expected": "QA-CONC0-C920082F",
+        "reply": "",
+        "session": "27c9a72d-aece-4e07-ac48-161ec7bd2efe",
+        "errors": [
+          "HTTP 500: {\"session_id\":\"27c9a72d-aece-4e07-ac48-161ec7bd2efe\",\"span_id\":\"a82c13236a1b3689\",\"trace_id\":\"c68230599ca0c82cb5600c5ce13bd190\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Gateway tool resolution failed: Action not found: composio/gmail/GMAIL_FETCH_EMAILS (HTTP 404). Remove or re-resolve this tool; the action is no longer in the catalog.\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/pyt"
+        ]
+      },
+      {
+        "i": 1,
+        "expected": "QA-CONC1-0F44AC64",
+        "reply": "",
+        "session": "26d7de3d-1b44-495d-9a92-92c7c58e8ce7",
+        "errors": [
+          "HTTP 500: {\"session_id\":\"26d7de3d-1b44-495d-9a92-92c7c58e8ce7\",\"span_id\":\"753319183105bad4\",\"trace_id\":\"39066814d7d514dd6ce64cda52413044\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Gateway tool resolution failed: Action not found: composio/gmail/GMAIL_FETCH_EMAILS (HTTP 404). Remove or re-resolve this tool; the action is no longer in the catalog.\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/pyt"
+        ]
+      },
+      {
+        "i": 2,
+        "expected": "QA-CONC2-4C1442D9",
+        "reply": "",
+        "session": "353f17cd-0aee-4138-b070-ae46ca8f55d6",
+        "errors": [
+          "HTTP 500: {\"session_id\":\"353f17cd-0aee-4138-b070-ae46ca8f55d6\",\"span_id\":\"05aaf5d2381cc262\",\"trace_id\":\"b1be0b2df70598b40bc60e886201414f\",\"version\":\"2025.07.14\",\"status\":{\"code\":500,\"message\":\"Gateway tool resolution failed: Action not found: composio/gmail/GMAIL_FETCH_EMAILS (HTTP 404). Remove or re-resolve this tool; the action is no longer in the catalog.\",\"type\":\"https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error\",\"stacktrace\":[\"Traceback (most recent call last):\\n\",\"  File \\\"/sdks/pyt"
+        ]
+      }
+    ]
+  }
+}
