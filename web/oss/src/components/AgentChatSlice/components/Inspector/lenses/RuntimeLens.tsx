@@ -58,7 +58,6 @@ const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
                         >
                             <DriveFileRow
                                 path={f.path}
-                                label={f.path}
                                 trailing={humanSize(f.size)}
                                 showOrigin={driveHasMixedOrigins(drive.recents)}
                                 onOpen={() => openQuickLook({path: f.path})}

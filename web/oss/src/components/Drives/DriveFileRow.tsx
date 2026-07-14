@@ -25,7 +25,6 @@ export type DriveFileVariant = "row" | "card" | "tile"
 
 export const DriveFileRow = ({
     path,
-    label,
     trailing,
     recent,
     onOpen,
@@ -35,8 +34,6 @@ export const DriveFileRow = ({
     showOrigin,
 }: {
     path: string
-    /** Main label; defaults to the basename. Pass the full relative path for the config surfaces. */
-    label?: string
     /** Right-aligned (row) or secondary-line (card/tile) meta — size / relative time. */
     trailing?: ReactNode
     /** Highlight as just-changed (teal accent). */
@@ -50,7 +47,9 @@ export const DriveFileRow = ({
     /** Show the agent/session origin tag. Pass true only when the drive holds both kinds. */
     showOrigin?: boolean
 }) => {
-    const name = label ?? path.split("/").pop() ?? path
+    // Always the basename — folders never bloat the visible name (a nested/long path would
+    // truncate the important tail). The full relative path is on the `title` tooltip instead.
+    const name = path.split("/").pop() ?? path
     const origin = fileOrigin(path)
 
     if (variant === "row") {
@@ -65,7 +64,9 @@ export const DriveFileRow = ({
                 {/* Name + tag are one left-aligned group so the tag hugs the filename and the size
                     stays in its own right-aligned column (tagged and untagged rows line up). */}
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span className="min-w-0 truncate font-mono text-xs">{name}</span>
+                    <span className="min-w-0 truncate font-mono text-xs" title={path}>
+                        {name}
+                    </span>
                     {showOrigin ? <OriginTag origin={origin} /> : null}
                 </span>
                 {trailing != null ? (
@@ -120,7 +121,9 @@ export const DriveFileRow = ({
                 style={recentStyle}
             >
                 {thumb}
-                <span className="w-full truncate text-center font-mono text-xs">{name}</span>
+                <span className="w-full truncate text-center font-mono text-xs" title={path}>
+                    {name}
+                </span>
                 {meta ? (
                     <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
                         {meta}
@@ -140,7 +143,9 @@ export const DriveFileRow = ({
         >
             <div className="w-16 shrink-0">{thumb}</div>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate font-mono text-xs">{name}</span>
+                <span className="truncate font-mono text-xs" title={path}>
+                    {name}
+                </span>
                 {meta ? (
                     <span className="truncate text-[11px] text-colorTextTertiary">{meta}</span>
                 ) : null}

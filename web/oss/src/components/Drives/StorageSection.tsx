@@ -45,7 +45,6 @@ const RecentFileRow = ({
 }) => (
     <DriveFileRow
         path={file.path}
-        label={file.path}
         recent={recent}
         showOrigin={showOrigin}
         trailing={
