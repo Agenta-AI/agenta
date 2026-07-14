@@ -41,7 +41,7 @@ builds and pushes the images. See
 
 Agent runs use two separate images. Do not confuse them.
 
-- **Runner service image** (`services/runner/images/service/`) runs the runner process itself.
+- **Runner service image** (`services/runner/docker/`) runs the runner process itself.
   `Dockerfile.gh` is the production image and `Dockerfile.dev` is the hot-reload development
   image. The Compose and Railway builds reference these files.
 - **Sandbox image** (`services/runner/images/sandbox/<provider>/`) is the environment an agent

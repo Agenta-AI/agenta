@@ -130,7 +130,7 @@ jobs:
             dockerfile: services/oss/docker/Dockerfile.gh
           - image_name: agenta-runner
             context: services/runner
-            dockerfile: services/runner/images/service/Dockerfile.gh
+            dockerfile: services/runner/docker/Dockerfile.gh
           # Per-arch config (runner + platform string)
           - arch: amd64
             runner: ubuntu-24.04

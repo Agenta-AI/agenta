@@ -112,8 +112,8 @@ it.
 1. Copy the shipped Dockerfile:
 
    ```bash
-   cp services/runner/images/service/Dockerfile.gh \
-      services/runner/images/service/Dockerfile.custom
+   cp services/runner/docker/Dockerfile.gh \
+      services/runner/docker/Dockerfile.custom
    ```
 
 2. Add your steps to the copy. For example, the `gh` CLI and Chromium:
@@ -127,7 +127,7 @@ it.
 
    ```bash
    docker build \
-     -f services/runner/images/service/Dockerfile.custom \
+     -f services/runner/docker/Dockerfile.custom \
      -t <registry>/agenta-runner:<tag> \
      services/runner
    ```
