@@ -264,7 +264,7 @@ services:
         # === IMAGE ================================================ #
         build:
             context: ../../../services/runner
-            dockerfile: docker/Dockerfile.gh
+            dockerfile: images/service/Dockerfile.gh
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
