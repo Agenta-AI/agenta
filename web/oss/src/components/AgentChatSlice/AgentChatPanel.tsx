@@ -111,6 +111,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // in the SAME commit as the size flip (else it snaps), then held ~280ms; off during drag/resize.
     const prevMaximizedRef = useRef(chatMaximized)
     const [holdAnimate, setHoldAnimate] = useState(false)
+    // Rail pane is controlled: 0 while collapsed (build mode), the dragged width while open.
+    // Keeping `size` always defined + an `onResize` satisfies antd's controlled-Splitter contract.
+    const [railSize, setRailSize] = useState<number>(RAIL_WIDTH)
     const justToggled = prevMaximizedRef.current !== chatMaximized
     // Deps = toggle value ONLY: with `justToggled` in deps, the holdAnimate re-render re-ran the
     // effect and its cleanup cancelled the timer — the class stuck on and every drag lagged.
@@ -136,10 +139,13 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     "playground-splitter-animated": animateRailSplit,
                 },
             )}
+            onResize={(sizes) => {
+                if (chatMaximized) setRailSize(sizes[0])
+            }}
         >
             <Splitter.Panel
                 defaultSize={RAIL_WIDTH}
-                size={chatMaximized ? undefined : 0}
+                size={chatMaximized ? railSize : 0}
                 min={RAIL_MIN_WIDTH}
                 max={RAIL_MAX_WIDTH}
                 collapsible={false}
