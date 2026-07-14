@@ -475,8 +475,17 @@ services:
         ports:
             - "127.0.0.1:${AGENTA_STORE_PORT:-8333}:8333"
         # === LABELS =============================================== #
+        # Off by default. Daytona cloud sandboxes reach the store over the internet, so set
+        # AGENTA_STORE_TRAEFIK_ENABLE=true and AGENTA_STORE_DOMAIN=<store-host> to publish the
+        # S3 endpoint on its own subdomain, terminate TLS at your own proxy, then point
+        # AGENTA_STORE_ENDPOINT_URL at https://<store-host>. The router is Host-only (no path
+        # rewrite), which SeaweedFS S3 SigV4 requires.
         labels:
-            - "traefik.enable=false"
+            - "traefik.enable=${AGENTA_STORE_TRAEFIK_ENABLE:-false}"
+            - "traefik.http.routers.store.rule=Host(`${AGENTA_STORE_DOMAIN:-store.localhost}`)"
+            - "traefik.http.routers.store.entrypoints=web"
+            - "traefik.http.routers.store.service=store"
+            - "traefik.http.services.store.loadbalancer.server.port=8333"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:

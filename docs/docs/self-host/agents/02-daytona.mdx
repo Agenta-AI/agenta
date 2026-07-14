@@ -117,17 +117,39 @@ resolve: a Compose service name such as `http://seaweedfs:8333` (the default for
 store), `localhost`, or a private IP. If it already points at a public S3 endpoint, as on Railway
 and on Kubernetes with public ingress, skip this step.
 
-Two ways to fix it:
+There are three ways to fix it. Most self-hosted deployments use the first.
 
-**Point the store at a public endpoint.** Use an external S3-compatible bucket, or expose the
-bundled store on a public hostname, and set the store endpoint to that URL:
+**Expose the bundled store through traefik.** The `gh` Compose stacks can publish the bundled
+store on its own subdomain. This is off by default. Pick a hostname such as `store.example.com`
+and add a DNS record that points it at the same server as your main domain. Then set these
+variables in your env file (`.env.oss.gh`, or `.env.oss.gh.ssl` on the `--ssl` stack):
 
 ```bash
-AGENTA_STORE_ENDPOINT_URL=https://<your-public-store-host>
+AGENTA_STORE_TRAEFIK_ENABLE=true
+AGENTA_STORE_DOMAIN=store.example.com
+AGENTA_STORE_ENDPOINT_URL=https://store.example.com
 ```
 
-**Or tunnel the bundled store.** The dev Compose stack ships an ngrok service that publishes the
-bundled store on a public URL, which the runner discovers automatically. Create an
+Recreate the stack. On the `--ssl` stack, traefik requests a Let's Encrypt certificate for the
+new hostname from the same resolver it uses for your main domain. On the plain `gh` stack, traefik
+serves the store on port 80 and your own proxy terminates TLS. The router matches on the hostname
+and never rewrites the path, which the S3 request signature requires, so do not place the store
+behind a path prefix.
+
+To verify, run an agent on Daytona (step 5) and write a file. The runner logs
+`remote mounted ... (verified alive)` for the session instead of a `mount degraded` line, and the
+file is still there on the next turn.
+
+**Point the store at an external S3 endpoint.** Use an external S3-compatible bucket (AWS S3,
+Cloudflare R2, MinIO) that is already reachable from the internet, and set the store endpoint to
+its URL:
+
+```bash
+AGENTA_STORE_ENDPOINT_URL=https://<your-bucket-endpoint>
+```
+
+**Tunnel the bundled store (dev only).** The dev Compose stack ships an ngrok service that
+publishes the bundled store on a public URL, which the runner discovers automatically. Create an
 [ngrok authtoken](https://dashboard.ngrok.com/get-started/your-authtoken), put it in your env file,
 and start the stack with the `with-tunnel` profile:
 
