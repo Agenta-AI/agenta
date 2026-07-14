@@ -1235,6 +1235,29 @@ export const outputPortSchemaMapAtom = atom<
 export const isChatModeAtom = atom<boolean | undefined>((get) => get(playgroundIsChatBehaviorAtom))
 
 /**
+ * Per-entity agent-mode flag — true when THIS entity is an agent workflow.
+ *
+ * Deliberately **per-entity**, not app-scoped like `isChatModeAtom`
+ * (`playgroundIsChatBehaviorAtom` reads the depth-0 node + a per-app override,
+ * one value per playground). `ExecutionItems` renders one panel per `entityId`,
+ * so the agent branch must answer "is THIS entity an agent", not "is the
+ * playground in agent mode" — an app-scoped flag would misroute any mixed-type
+ * comparison grid.
+ *
+ * Agent and chat are parallel, disjoint workflow types (agent-type →
+ * AgentChatPanel; chat-type → ChatMode); agent mode is NOT a replacement for
+ * classic chat mode.
+ *
+ * Signal: `workflowType === "agent"`, which derives from the backend `is_agent` flag.
+ */
+export const isAgentModeAtomFamily = atomFamily((entityId: string) =>
+    atom<boolean>((get) => {
+        // The backend marks the workflow as an agent (is_agent, surfaced via workflowType).
+        return get(workflowMolecule.selectors.workflowType(entityId)) === "agent"
+    }),
+)
+
+/**
  * App-level type derived from chat mode.
  *
  * Returns `"chat"` or `"completion"` based on `isChatModeAtom`.

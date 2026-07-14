@@ -16,4 +16,5 @@ export interface WorkflowRevisionCommit {
     data?: (AgentaApi.WorkflowRevisionDataInput | null) | undefined;
     message?: (string | null) | undefined;
     revision_id?: (string | null) | undefined;
+    delta?: (AgentaApi.WorkflowRevisionDelta | null) | undefined;
 }

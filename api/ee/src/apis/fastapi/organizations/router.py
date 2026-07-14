@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
 
-from ee.src.core.access.permissions.service import check_user_org_access
+from oss.src.core.access.permissions.service import check_user_org_access
 from ee.src.core.access.entitlements.service import (
     check_entitlements,
     NOT_ENTITLED_RESPONSE,

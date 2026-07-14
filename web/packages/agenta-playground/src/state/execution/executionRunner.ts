@@ -15,6 +15,7 @@ import {
     describeUnreachableService,
     isHtmlBody,
 } from "@agenta/entities/shared/execution/invocationErrors"
+import {markTraceAsFresh} from "@agenta/entities/trace"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
@@ -29,9 +30,14 @@ import {
     cleanupAbortController,
     buildResultKey,
     resultsByKeyAtomFamily,
+    setBackendSessionIdAtomFamily,
 } from "./atoms"
 import {createExecutionItemHandle} from "./executionItems"
-import {extractSpanIdFromPayload, extractTraceIdFromPayload} from "./trace"
+import {
+    extractSessionIdFromPayload,
+    extractSpanIdFromPayload,
+    extractTraceIdFromPayload,
+} from "./trace"
 import type {ExecutionSession, RunResult, SessionExecutionOptions} from "./types"
 
 interface RunnableNode {
@@ -440,7 +446,7 @@ export async function executeStepForSessionWithExecutionItems(
 ): Promise<void> {
     const {
         get,
-        set: _set,
+        set,
         loadableId,
         stepId,
         session,
@@ -800,6 +806,14 @@ export async function executeStepForSessionWithExecutionItems(
         }
 
         const primaryResult = nodeResults[rootNode.id]
+
+        if (primaryResult?.sessionId) {
+            set(setBackendSessionIdAtomFamily(loadableId), {
+                sessionId: session.id,
+                backendSessionId: primaryResult.sessionId,
+            })
+        }
+
         const repetitions: {
             output?: unknown
             structuredOutput?: unknown
@@ -953,6 +967,8 @@ async function executeViaFetch(params: {
                 }
             }
 
+            if (traceId) markTraceAsFresh(traceId)
+
             return {
                 executionId,
                 status: "error",
@@ -993,6 +1009,12 @@ async function executeViaFetch(params: {
                   }
                 : undefined
 
+        const sessionId = extractSessionIdFromPayload(responseData) ?? undefined
+
+        // The trace may not be ingested yet — mark it fresh so the summary/entity
+        // queries keep retrying through the ingestion lag.
+        if (trace?.id) markTraceAsFresh(trace.id)
+
         return {
             executionId,
             status: "success",
@@ -1001,6 +1023,7 @@ async function executeViaFetch(params: {
             output: normalized.output,
             structuredOutput: responseData,
             trace,
+            ...(sessionId ? {sessionId} : {}),
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {

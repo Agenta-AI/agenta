@@ -1,0 +1,38 @@
+{
+  "schema_version": "1",
+  "_curation": {
+    "target": "pi_models.generated.json",
+    "note": "Human overlay for the generated Pi catalog. Keyed by the entry `id` (the `provider/model` join key). Only `label`, `description`, and `ratings` may appear here; the objective facts (name/pricing/context_window/modalities) always come from the generated file. The SDK loader merges this on top of the generated facts, so a pi-ai regeneration never overwrites these judgments. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Sourced from the current lineup (Fable 5 is the Anthropic frontier, above Opus), not a model's memory. Uncurated ids are valid and fall back to `name` in the picker; seed only the models worth a description.",
+    "sources": "@earendil-works/pi-ai@0.80.6; vendor model + pricing pages"
+  },
+  "overlay": {
+    "anthropic/claude-fable-5": {
+      "label": "Fable",
+      "description": "Anthropic's most capable model. Use for the hardest reasoning and long-horizon agentic work.",
+      "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
+    },
+    "anthropic/claude-opus-4-8": {
+      "label": "Opus 4.8",
+      "description": "Strong reasoning one tier below Fable, at a lower price.",
+      "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
+    },
+    "anthropic/claude-sonnet-5": {
+      "label": "Sonnet 5",
+      "description": "Balanced speed and capability for everyday agentic work.",
+      "ratings": {"cost": 4, "intelligence": 3, "speed": 4}
+    },
+    "anthropic/claude-haiku-4-5": {
+      "label": "Haiku 4.5",
+      "description": "The fastest, cheapest Anthropic tier for high-volume tasks.",
+      "ratings": {"cost": 5, "intelligence": 2, "speed": 5}
+    },
+    "openai/gpt-5.5": {
+      "description": "OpenAI's flagship general model, strong across reasoning and tool use.",
+      "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
+    },
+    "gemini/gemini-3-pro-preview": {
+      "description": "Google's flagship Gemini 3 Pro, large context and multimodal input.",
+      "ratings": {"cost": 4, "intelligence": 4, "speed": 4}
+    }
+  }
+}

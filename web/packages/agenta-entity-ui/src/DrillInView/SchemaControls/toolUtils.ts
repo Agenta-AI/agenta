@@ -5,6 +5,7 @@
  * Contains provider metadata and builtin tool specs for detecting
  * provider-specific tools (OpenAI, Anthropic, Google Gemini).
  */
+import {parseGatewayToolSlug} from "@agenta/shared/utils"
 
 // ============================================================================
 // TYPES
@@ -28,18 +29,52 @@ export interface GatewayToolParsed {
     connection: string
 }
 
-// Gateway tools are encoded as function names:
-// tools__{provider}__{integration}__{action}__{connection}
-// Double-underscore is the segment separator because dots are not allowed.
-export function parseGatewayFunctionName(name: string | undefined): GatewayToolParsed | null {
-    if (!name) return null
-    const parts = name.split("__")
-    if (parts.length !== 5 || parts[0] !== "tools") return null
+/** @deprecated alias — use parseGatewayToolSlug (shared) or parseGatewayTool (object-level). */
+export const parseGatewayFunctionName = parseGatewayToolSlug
 
-    const [, provider, integration, action, connection] = parts
-    if (!provider || !integration || !action || !connection) return null
+/** Normalized view of a connected-app tool from either encoding; null if it isn't one. */
+export interface ParsedGatewayTool {
+    provider: string
+    integration: string
+    action: string
+    connection: string
+    /** Encoding it was read from — protocol context only; never displayed or persisted. */
+    encoding: "canonical" | "legacy"
+    /** Per-tool permission when present (top-level on both shapes). */
+    permission?: string
+}
 
-    return {provider, integration, action, connection}
+/** Normalize either encoding of a connected-app tool into one view. */
+export function parseGatewayTool(tool: unknown): ParsedGatewayTool | null {
+    if (!tool || typeof tool !== "object" || Array.isArray(tool)) return null
+    const t = tool as Record<string, unknown>
+    const permission = typeof t.permission === "string" ? t.permission : undefined
+    // Canonical discriminated object.
+    if (t.type === "gateway") {
+        const integration = typeof t.integration === "string" ? t.integration : ""
+        const action = typeof t.action === "string" ? t.action : ""
+        const connection = typeof t.connection === "string" ? t.connection : ""
+        if (!integration || !action || !connection) return null
+        const provider = typeof t.provider === "string" && t.provider ? t.provider : "composio"
+        return {provider, integration, action, connection, encoding: "canonical", permission}
+    }
+    // Legacy function-name slug.
+    const fn = t.function
+    const name = fn && typeof fn === "object" ? (fn as Record<string, unknown>).name : undefined
+    const parsed = parseGatewayToolSlug(typeof name === "string" ? name : undefined)
+    if (parsed) return {...parsed, encoding: "legacy", permission}
+    return null
+}
+
+// NUL join — a connection slug can contain a dot, so a dotted key is not collision-safe.
+const GATEWAY_IDENTITY_SEP = "\u0000"
+
+/** Stable identity for the drawer's added-state, independent of encoding. Excludes
+ *  permission (policy, not identity) and encoding. */
+export function gatewayToolIdentity(view: ParsedGatewayTool): string {
+    return [view.provider, view.integration, view.action, view.connection].join(
+        GATEWAY_IDENTITY_SEP,
+    )
 }
 
 // ============================================================================

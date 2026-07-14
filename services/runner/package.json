@@ -1,0 +1,61 @@
+{
+  "name": "agenta-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.0",
+  "description": "Agenta sandbox-agent runner. Reads one /run request and drives a coding harness.",
+  "scripts": {
+    "run:cli": "tsx src/cli.ts",
+    "serve": "tsx src/server.ts",
+    "serve:watch": "tsx watch src/server.ts",
+    "build:extension": "node scripts/build-extension.mjs",
+    "login": "pi",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run --project unit --reporter=default --reporter=junit --outputFile.junit=./tests/results/junit-unit.xml",
+    "test:integration": "vitest run --project integration --reporter=default --reporter=junit --outputFile.junit=./tests/results/junit-integration.xml",
+    "test:acceptance": "vitest run --project acceptance --reporter=default --reporter=junit --outputFile.junit=./tests/results/junit-acceptance.xml",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --project unit --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.58.1",
+    "@anthropic-ai/sdk": "0.111.0",
+    "@daytonaio/sdk": "^0.187.0",
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/core": "1.28.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.54.0",
+    "@opentelemetry/resources": "1.28.0",
+    "@opentelemetry/sdk-trace-base": "1.28.0",
+    "@opentelemetry/sdk-trace-node": "1.28.0",
+    "@opentelemetry/semantic-conventions": "1.28.0",
+    "acp-http-client": "0.4.2",
+    "pi-acp": "0.0.29",
+    "sandbox-agent": "0.4.2",
+    "undici": "8.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.4",
+    "esbuild": "0.23.1",
+    "tsx": "4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@sandbox-agent/cli-linux-x64",
+      "@sandbox-agent/cli-darwin-arm64",
+      "@sandbox-agent/cli-darwin-x64",
+      "@sandbox-agent/cli-linux-arm64",
+      "esbuild"
+    ],
+    "patchedDependencies": {
+      "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
+      "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
+      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
+    }
+  }
+}

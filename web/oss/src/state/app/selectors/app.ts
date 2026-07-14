@@ -44,7 +44,9 @@ export {routerAppIdAtom, recentAppIdAtom}
 export const currentAppContextAtom = eagerAtom((get) => {
     const currentApp = get(currentAppAtom)
     const selectedId = get(selectedAppIdAtom)
-    const {isLoading} = get(appsQueryAtom)
+    // Loading comes from the by-id current-app query, NOT the full apps list
+    // (`appsQueryAtom`) — reading the list here would pull the whole apps catalog
+    // just to expose a loading flag for one app.
     const currentAppQuery = get(currentAppQueryAtom) as {isPending?: boolean}
 
     return {
@@ -59,6 +61,6 @@ export const currentAppContextAtom = eagerAtom((get) => {
                 ? "completion"
                 : null,
         hasApp: !!currentApp,
-        loading: isLoading || (!currentApp && !!selectedId && !!currentAppQuery.isPending),
+        loading: !currentApp && !!selectedId && !!currentAppQuery.isPending,
     }
 })

@@ -16,7 +16,7 @@ When you add or touch styling, ask: **"what makes this flip in dark mode?"**
 | You're writing… | Do this | Don't |
 |---|---|---|
 | A Tailwind color class | Use a theme-aware scale/token: `bg-zinc-1`, `text-colorTextSecondary`, `border-colorBorder` | `bg-white`, `bg-[#f5f7fa]`, `text-[#1c2c3d]` |
-| A one-off hex in a component | Route through a codemod var: `bg-[var(--ag-c-F5F7FA)]` | `bg-[#f5f7fa]` |
+| A one-off hex in a component | Use the closest semantic token: `bg-colorBgElevated`, `bg-zinc-1` | `bg-[#f5f7fa]`, new `--ag-c-*` vars |
 | A JS inline style (`dom.style.x` / `style={{}}`) | Use a CSS var string: `style={{color: "var(--ag-colorText)"}}` | `style={{color: "#1c2c3d"}}` |
 | A link | Nothing — antd's `colorLink` token is themed globally | Per-component blue overrides |
 | Elevation on a floating panel | A **border** (`dark:border dark:border-colorBorder`) | Rely on a black `shadow-*` (invisible on dark) |
@@ -28,10 +28,39 @@ block differs.** Keep it that way — see [Preserving light mode](#preserving-li
 
 ---
 
+## Source of truth: `palette.ts`
+
+All theme colors are defined in one file — **`web/oss/src/styles/theme/palette.ts`**.
+It holds ~40 semantic **roles** (surface / text / border / fill / accent / semantic /
+scales / feature families), each a `{ light, dark }` pair with an explicit value. This is
+the only file you edit to change a color.
+
+A generator, **`web/scripts/generate-tailwind-tokens.ts`** (run via
+`pnpm generate:tailwind-tokens`), turns `palette.ts` into every downstream artifact:
+
+- `theme-variables.css` — the `--ag-*` CSS-variable layer (layer 2 below).
+- `theme/antd-overrides.generated.ts` — the antd `DARK_TOKEN_OVERRIDES` + `darkComponents`
+  that `ThemeContextProvider` imports (layer 1 below).
+- The `--ag-c-*` compatibility shim (layer 3), each legacy token **aliased to a role** so
+  editing a role propagates to legacy component classes.
+
+`theme/legacy-shim.ts` is a frozen, one-time extraction of the legacy `--ag-c-*` tokens; it
+is generator **input**, not something you edit. `theme-variables.css` and
+`antd-overrides.generated.ts` are generator **output** — never hand-edit them; edit
+`palette.ts` and regenerate. The generator has a built-in parity harness proving the output
+is lossless, so a plain regen (no palette change) is a no-op.
+
+> antd's `darkAlgorithm` still derives most of antd's internal token set; `palette.ts` owns
+> its **inputs** (the seed + the ~16 overrides) plus everything the algorithm can't reach
+> (the role-inverted scales, the shim, the feature surfaces). A handful of antd **seed**
+> tokens (`colorPrimary`/`colorSuccess`/`colorWarning`/`colorError`) are transformed by the
+> algorithm, so their CSS var carries the *derived* output while the *seed* feeds the
+> override — the generator handles this split.
+
 ## The three layers
 
-Theming is delivered by three coordinated layers. A component becomes
-theme-aware by using any of them; most use the first two without any
+Theming is **generated from `palette.ts`** into three coordinated layers. A component
+becomes theme-aware by using any of them; most use the first two without any
 `dark:`-specific code.
 
 ### 1. antd via `ConfigProvider`
@@ -45,21 +74,26 @@ truth for the active theme. It:
   `<html>`. Our own variables alias these (see layer 2), which is what lets
   Tailwind/CSS resolve antd's computed dark values.
 - Applies a small set of dark **color** overrides (`DARK_TOKEN_OVERRIDES`):
-  brand primary (`#f2f25c`, the logo yellow), success/warning/error, and the
-  link colors (`colorLink`/`colorLinkHover`/`colorLinkActive`).
+  brand primary (`#f2f25c`, the logo yellow), success/warning/error, the link colors, the
+  overlay/drawer shadows, elevated surface, and placeholder text.
 - Applies dark **component** overrides (`darkComponents`, e.g. `Button.primaryColor`).
+
+  Both `DARK_TOKEN_OVERRIDES` and `darkComponents` are **imported from the generated
+  `styles/theme/antd-overrides.generated.ts`** (produced from `palette.ts`); they are no
+  longer hand-written here.
 
 It also toggles the `.dark` class on `<html>` (drives layer 2) and sets
 `document.documentElement.style.colorScheme`.
 
 ### 2. Tailwind CSS-variable layer
 
-`web/oss/src/styles/theme-variables.css` defines two blocks:
+`web/oss/src/styles/theme-variables.css` (**generated** from `palette.ts`) defines two
+blocks:
 
 - `:root { --ag-*: <light value> }` — light values, **identical to the previous
   hardcoded values**.
-- `.dark { --ag-*: <dark value> }` — dark values, usually referencing antd's
-  computed `var(--ant-*)` tokens.
+- `.dark { --ag-*: <dark value> }` — dark values (explicit hex/rgba, or a `var(--ant-*)`
+  reference for tokens still derived by the algorithm).
 
 `web/oss/tailwind.config.ts` points the color scales and antd semantic-token
 names at those variables (`const v = (name) => \`var(--ag-${name})\``), with
@@ -74,17 +108,23 @@ Variable families in `theme-variables.css`:
 | antd semantic tokens | `--ag-colorText`, `--ag-colorBgContainer`, `--ag-colorBorder` | The main palette; dark = `var(--ant-color-*)` |
 | `zinc` ramp | `--ag-zinc-1` … `--ag-zinc-10` | Brand monochrome; role-inverted in dark |
 | `gray` / `ag-gray` ramps | `--ag-gray-500`, `--ag-aggray-200` | Tailwind gray + Untitled-UI gray; role-inverted |
-| Codemod hex vars | `--ag-c-F5F7FA`, `--ag-c-1C2C3D` | One per hardcoded hex found in the codebase |
+| Legacy shim hex vars | `--ag-c-F5F7FA`, `--ag-c-1C2C3D` | One per hardcoded hex the codemod found; light = the hex, dark = aliased to a role (frozen in `legacy-shim.ts`) |
 | Reference-tag tones | `--ag-ref-app-bg`, `--ag-ref-variant-text` | Entity reference chips |
 | Env-tag tones | `--ag-env-production-bg` | Deployment environment pills |
 | Misc named | `--ag-sidebar-bg`, `--ag-app-variant-label` | Component-specific surfaces |
 
-### 3. Hex codemod variables
+### 3. Legacy hex shim variables
 
 A one-shot codemod rewrote ~165 files' arbitrary `bg-[#hex]` / `bg-white` into
-`bg-[var(--ag-c-HEX)]`. Each hex got a `--ag-c-<UPPERHEX>` variable (light = the
-exact hex, lossless; dark = a luminance/role-computed value). When you need a
-literal hex in a component, **reuse or add one of these** instead of inlining it.
+`bg-[var(--ag-c-HEX)]`. Each hex got a `--ag-c-<UPPERHEX>` variable (light = the exact hex,
+lossless). These ~90 tokens are now **frozen in `theme/legacy-shim.ts`**, and the generator
+re-emits them with their **dark value aliased to the nearest role** — so editing a role
+(e.g. `surface.elevated`) moves every legacy token that maps to it.
+
+This is a compatibility layer for existing markup, not the pattern for new code. **New
+components should use semantic tokens** (`bg-colorBgContainer`, `text-colorText`,
+`var(--ag-color*)`), not `--ag-c-*`. Don't add new `--ag-c-*` vars; add a role to
+`palette.ts` instead.
 
 ---
 
@@ -105,29 +145,30 @@ literal hex in a component, **reuse or add one of these** instead of inlining it
 
 ## How to implement future adjustments
 
-### Adding a theme-aware color (used via Tailwind classes)
+### Changing or adding a theme color
 
-Most common case. Add a variable + a config entry:
+Everything goes through `palette.ts` — you don't hand-edit CSS or the tailwind config.
 
-1. `theme-variables.css`:
-   ```css
-   :root { --ag-myThing: #f5f7fa; }      /* light = exact intended light value */
-   .dark { --ag-myThing: var(--ant-color-bg-elevated); }  /* dark = adapted */
-   ```
-2. `tailwind.config.ts` (inside `themeAwareColors`): `myThing: v("myThing")`.
-3. Use it: `className="bg-myThing"`.
+**To change an existing color** (the common case, e.g. tuning the dark theme): open
+`palette.ts`, find the role, edit its `light` and/or `dark` value, then:
 
-Prefer an **existing** semantic token (`colorBgElevated`, `colorFillSecondary`,
-`zinc-1`, …) over inventing a new variable. Only add a variable when nothing fits.
-
-### Routing a hardcoded hex in a component
-
-Use the codemod var if it exists (`grep --ag-c-<HEX> theme-variables.css`):
-```tsx
-className="bg-[var(--ag-c-F5F7FA)]"
+```bash
+cd web && pnpm generate:tailwind-tokens   # regenerates theme-variables.css + overrides
 ```
-If the hex has no var yet, add one to the codemod blocks (`:root` light = exact
-hex, `.dark` = adapted) following the existing entries.
+
+Commit the regenerated files alongside `palette.ts`. Every consumer — antd components,
+Tailwind classes, `var(--ag-*)` refs, JSS, and the legacy `--ag-c-*` classes that alias the
+role — moves coherently.
+
+**To add a new role** that Tailwind classes consume: add it to the appropriate group in
+`palette.ts`, add the emit mapping in `generate-tailwind-tokens.ts` (the `CORE` / feature
+lists), and — if it's a new antd-semantic name — add the tailwind mapping in
+`tailwind.config.ts`. Regenerate. But first: prefer an **existing** role
+(`surface.elevated`, `fill.secondary`, `zinc-1`, …) — only add one when nothing fits.
+
+**A hardcoded hex in a component** should become a semantic token, not a new literal. Map it
+to the closest existing role (`bg-colorBgElevated`, `text-colorTextSecondary`, …). The
+legacy `--ag-c-*` shim still resolves for existing markup, but don't add new `--ag-c-*` vars.
 
 ### Colors set via JavaScript (the codemod's blind spot)
 
@@ -212,17 +253,16 @@ checklist:
 
 ## Preserving light mode
 
-The branch's guarantee is that **light is unchanged**. To keep it that way:
+The guarantee is that **light is unchanged**. To keep it that way:
 
-- A variable's `:root` value must equal the original hardcoded value, byte for
-  byte (e.g. `--ag-colorFillSecondary: rgba(5, 23, 41, 0.06)` matches the literal
-  it replaced).
-- When you replace a literal with a token, verify the token's light value is
-  identical. If no token matches exactly, add a dedicated variable rather than
-  approximating with a near-match semantic token.
-- Dark-only changes belong in the `.dark` block (CSS) or `DARK_TOKEN_OVERRIDES` /
-  `dark:` variants (TS/JSX) — never alter the `:root` / light path for a
-  dark-only fix.
+- Each role's `light` value in `palette.ts` must equal the original hardcoded value, byte
+  for byte (e.g. `fill.secondary.light = "rgba(5, 23, 41, 0.06)"` matches the literal it
+  replaced). The generator's parity harness verifies the generated output against a frozen
+  baseline (0 light + 0 dark mismatches) — a lossless regen changes nothing.
+- When you replace a literal with a token, verify the role's light value is identical. If
+  none matches exactly, add a dedicated role rather than approximating.
+- For a **dark-only** change, edit only the role's `dark` value in `palette.ts` and leave
+  its `light` value untouched.
 
 ---
 
@@ -260,8 +300,12 @@ The branch's guarantee is that **light is unchanged**. To keep it that way:
 
 | File | Role |
 |---|---|
-| `web/oss/src/components/Layout/ThemeContextProvider.tsx` | Theme state, antd `ConfigProvider`, `DARK_TOKEN_OVERRIDES`, `stripColors`/`stripComponentColors`, `.dark` class toggle |
-| `web/oss/src/styles/theme-variables.css` | `:root` (light) + `.dark` variable definitions |
+| **`web/oss/src/styles/theme/palette.ts`** | **Source of truth** — semantic roles with `{light, dark}` values. Edit this to change any color. |
+| `web/scripts/generate-tailwind-tokens.ts` | Generator: `palette.ts` → CSS vars + antd overrides + shim (`pnpm generate:tailwind-tokens`); parity harness |
+| `web/oss/src/styles/theme/legacy-shim.ts` | Frozen legacy `--ag-c-*` tokens (generator **input**) |
+| `web/oss/src/styles/theme/antd-overrides.generated.ts` | **Generated** — antd `DARK_TOKEN_OVERRIDES` + `darkComponents`, imported by the provider |
+| `web/oss/src/styles/theme-variables.css` | **Generated** — `:root` (light) + `.dark` `--ag-*` variable definitions |
+| `web/oss/src/components/Layout/ThemeContextProvider.tsx` | Theme state, antd `ConfigProvider`, imports the generated overrides, `stripColors`/`stripComponentColors`, `.dark` class toggle |
 | `web/oss/tailwind.config.ts` | Maps color scales/tokens → `var(--ag-*)`; `darkMode: "selector"` |
 | `web/oss/src/pages/_document.tsx` | Pre-paint FOUC script (must mirror the provider's default) |
 | `web/oss/src/styles/globals.css` | Global `.dark body` background for bare routes |

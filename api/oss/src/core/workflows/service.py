@@ -1,4 +1,5 @@
-from typing import Optional, List, Union, TYPE_CHECKING
+import json
+from typing import Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import httpx
@@ -17,6 +18,7 @@ from agenta.sdk.engines.running.utils import (
     infer_flags_from_data,
     infer_url_from_uri,
     infer_outputs_schema,
+    normalize_snippet_data,
     parse_uri,
     retrieve_interface,
 )
@@ -91,11 +93,27 @@ from oss.src.core.git.types import (
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
 )
+from oss.src.core.workflows.build_kit import BUILD_KIT_WORKFLOW_SLUG
+from oss.src.core.workflows.interfaces import StaticWorkflowProvider
+from oss.src.core.workflows.static_catalog import normalize_static_version
+from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
+from oss.src.core.workflows.types import (
+    StaticWorkflowSlug,
+    WorkflowServiceUrlMissing,
+    WorkflowDetachedStartFailed,
+    is_static_workflow_slug,
+)
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
+)
+from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.embeds.utils import (
+    find_object_embeds,
+    find_snippet_embeds,
+    find_string_embeds,
 )
 
 from oss.src.middlewares.auth import sign_secret_token
@@ -125,6 +143,9 @@ class WorkflowsService:
             "is_snippet",
         }
     )
+    # Server-owned flags a user may never persist. Only the synthetic catalogue revision sets
+    # is_static=True, and it never touches the DB; any user-supplied value is scrubbed on write.
+    SERVER_OWNED_FLAG_KEYS = frozenset({"is_static"})
 
     def __init__(
         self,
@@ -133,14 +154,58 @@ class WorkflowsService:
         #
         environments_service: Optional["EnvironmentsService"] = None,  # type: ignore
         embeds_service: Optional["EmbedsService"] = None,  # type: ignore
+        static_catalog: Optional[StaticWorkflowProvider] = None,
     ):
         self.workflows_dao = workflows_dao
         self.environments_service = environments_service
         self.embeds_service = embeds_service
+        self.static_catalog = static_catalog
 
     @staticmethod
     def _artifact_cache_key(artifact_id: UUID) -> str:
         return str(artifact_id)
+
+    def _reject_static_slug(self, slug: Optional[str]) -> None:
+        """Reject a user-supplied slug in the reserved static namespace.
+
+        Static workflows are served from code by the catalogue; a user must not be able to
+        author or shadow one. The check is a pure function independent of the catalogue, so it
+        holds even when no catalogue is injected (evaluators, migrations, the worker). Resolution
+        of a reserved slug never falls through to the DB, so this guard plus that short-circuit
+        close both directions.
+        """
+        if is_static_workflow_slug(slug):
+            raise StaticWorkflowSlug(slug)
+
+    @classmethod
+    def _scrub_server_owned_flags(cls, flags: dict) -> dict:
+        """Force a present server-owned flag to False in a user-supplied stored-flags dict.
+
+        ``is_static`` is slug-derived, never user-declarable: the DB always stores it False, and the
+        read path re-infers it from the (reserved) slug. When a caller supplies it, hard-code False
+        (rather than dropping the key) so the stored row stays explicit and a forged
+        ``is_static=true`` can never round-trip. A dict that never had the key (e.g. the artifact
+        flag dump) is untouched.
+        """
+        return {
+            key: (False if key in cls.SERVER_OWNED_FLAG_KEYS else value)
+            for key, value in flags.items()
+        }
+
+    @classmethod
+    def _drop_default_server_owned_query_flags(cls, flags: dict) -> dict:
+        """For query filters: drop a server-owned flag only when it is False (its default).
+
+        A caller re-posting a workflow's serialized flags carries ``is_static=False``; filtering on
+        it would match nothing useful (every stored row is False; staticness is read-time slug
+        inference, not a stored fact). An explicit ``is_static=True`` is dropped too for the same
+        reason: it does not correspond to any stored value.
+        """
+        return {
+            key: value
+            for key, value in flags.items()
+            if key not in cls.SERVER_OWNED_FLAG_KEYS
+        }
 
     async def _get_cached_workflow(
         self,
@@ -212,15 +277,17 @@ class WorkflowsService:
             return {}
 
         if hasattr(flags, "model_dump"):
-            return flags.model_dump(
+            dumped = flags.model_dump(
                 mode="json",
                 exclude_none=True,
             )
+        elif isinstance(flags, dict):
+            dumped = {key: value for key, value in flags.items() if value is not None}
+        else:
+            return {}
 
-        if isinstance(flags, dict):
-            return {key: value for key, value in flags.items() if value is not None}
-
-        return {}
+        # is_static is server-owned (slug-derived); never persist a user-supplied value.
+        return cls._scrub_server_owned_flags(dumped)
 
     @classmethod
     def _dump_stored_revision_flags(cls, flags: Optional[object]) -> dict:
@@ -365,6 +432,7 @@ class WorkflowsService:
         project_id: UUID,
         revision: WorkflowRevision,
         include_archived: Optional[bool] = True,
+        workflow: Optional[Workflow] = None,
     ) -> WorkflowRevision:
         if revision.data and not revision.data.url and revision.data.uri:
             path = infer_url_from_uri(revision.data.uri)
@@ -380,22 +448,30 @@ class WorkflowsService:
         if revision.version == "0":
             return revision
 
-        workflow = await self.fetch_workflow(
-            project_id=project_id,
-            #
-            workflow_ref=Reference(id=revision.workflow_id),
-            #
-            include_archived=include_archived,
+        # Callers fanning out over many revisions pass the workflow already
+        # resolved (deduped by workflow_id) to avoid a fetch per revision.
+        if workflow is None:
+            workflow = await self.fetch_workflow(
+                project_id=project_id,
+                #
+                workflow_ref=Reference(id=revision.workflow_id),
+                #
+                include_archived=include_archived,
+            )
+
+        merged_flags = self._merge_workflow_flags(
+            artifact_flags=workflow.flags if workflow else None,
+            revision_flags=revision.flags,
         )
 
-        return revision.model_copy(
-            update={
-                "flags": self._merge_workflow_flags(
-                    artifact_flags=workflow.flags if workflow else None,
-                    revision_flags=revision.flags,
-                )
-            }
-        )
+        # is_static is slug-derived, never stored. Re-infer it on read from the (reserved) slug so a
+        # consumer recognizes a static revision without slug-sniffing.
+        if is_static_workflow_slug(revision.slug):
+            merged_flags = (merged_flags or WorkflowRevisionFlags()).model_copy(
+                update={"is_static": True}
+            )
+
+        return revision.model_copy(update={"flags": merged_flags})
 
     @staticmethod
     def _validate_execution_reference_families(
@@ -515,6 +591,80 @@ class WorkflowsService:
         return response, body
 
     @staticmethod
+    async def _stream_service_started(
+        *,
+        url: str,
+        credentials: str,
+        payload: dict,
+        run_id: str,
+    ) -> WorkflowServiceDetachedResponse:
+        """Stream the service ``/invoke`` and return on the FIRST record (the started handshake).
+
+        The runner emits NDJSON ``{"kind": "event"|"result", ...}`` records the moment each is
+        built; the first one means the run is accepted and owned (the alive-held handshake). We
+        return then and close the connection — the runner owns the run (alive watchdog) and
+        persists independently (producer-driven ingest), so draining to completion is unnecessary.
+        The read timeout is generous (sandbox cold-start can take seconds); we are NOT awaiting
+        the whole run, so it is not the batch 60s-whole-run budget.
+        """
+        headers = inject(
+            {
+                "Authorization": credentials,
+                "Content-Type": "application/json",
+                "Accept": "application/x-ndjson",
+            }
+        )
+
+        # connect/write/pool bounded; read=None so we can wait for the first frame across a
+        # cold-start without ever budgeting the whole run.
+        timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
+
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+        ) as client:
+            async with client.stream(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+            ) as response:
+                if response.status_code < 200 or response.status_code >= 300:
+                    raw = await response.aread()
+                    raise WorkflowDetachedStartFailed(
+                        f"Workflow service returned HTTP {response.status_code} on detached start: "
+                        f"{raw[:500]!r}"
+                    )
+
+                trace_id = response.headers.get("x-ag-trace-id")
+                span_id = response.headers.get("x-ag-span-id")
+
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # First meaningful record = started/accepted. Return WITHOUT draining;
+                    # exiting the context closes the connection (run keeps going on the runner).
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        record = None
+                    record_run_id = (
+                        record.get("run_id") if isinstance(record, dict) else None
+                    )
+                    return WorkflowServiceDetachedResponse(
+                        run_id=record_run_id or run_id,
+                        accepted=True,
+                        trace_id=trace_id,
+                        span_id=span_id,
+                    )
+
+        # The stream closed before any record arrived: the run never started.
+        raise WorkflowDetachedStartFailed(
+            "Workflow service closed the stream before emitting a started record."
+        )
+
+    @staticmethod
     def _coerce_invoke_response(
         *,
         response: httpx.Response,
@@ -624,6 +774,8 @@ class WorkflowsService:
         #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[Workflow]:
+        self._reject_static_slug(workflow_create.slug)
+
         artifact_flags = self._artifact_flags_from_any(workflow_create.flags)
         artifact_create = ArtifactCreate(
             **workflow_create.model_dump(
@@ -751,8 +903,10 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._dump_flags(
-                    self._artifact_query_flags_from_any(workflow_query.flags)
+                flags=self._drop_default_server_owned_query_flags(
+                    self._dump_flags(
+                        self._artifact_query_flags_from_any(workflow_query.flags)
+                    )
                 )
                 or None,
             )
@@ -859,6 +1013,8 @@ class WorkflowsService:
         #
         workflow_variant_create: WorkflowVariantCreate,
     ) -> Optional[WorkflowVariant]:
+        self._reject_static_slug(workflow_variant_create.slug)
+
         _variant_create = VariantCreate(
             **workflow_variant_create.model_dump(
                 mode="json",
@@ -1024,6 +1180,8 @@ class WorkflowsService:
         workflow_variant_ref: Reference,
         workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
+        self._reject_static_slug(workflow_variant_fork.slug)
+
         source_variant = await self.fetch_workflow_variant(
             project_id=project_id,
             workflow_variant_ref=workflow_variant_ref,
@@ -1132,6 +1290,11 @@ class WorkflowsService:
         #
         workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
+        self._reject_static_slug(workflow_revision_create.slug)
+        self._reject_non_embeddable_workflow_embeds(
+            getattr(workflow_revision_create, "data", None)
+        )
+
         _revision_create = RevisionCreate(
             **workflow_revision_create.model_dump(
                 mode="json",
@@ -1162,6 +1325,178 @@ class WorkflowsService:
             revision=_workflow_revision,
         )
 
+    @staticmethod
+    def _ref_is_static(ref: Optional[Reference]) -> bool:
+        return ref is not None and is_static_workflow_slug(ref.slug)
+
+    @staticmethod
+    def _reference_category(entity_type: str) -> str:
+        return entity_type.split("_", 1)[0] if "_" in entity_type else entity_type
+
+    def _non_embeddable_static_workflow_slug(
+        self,
+        ref: Reference,
+    ) -> Optional[str]:
+        if ref.slug == BUILD_KIT_WORKFLOW_SLUG:
+            return BUILD_KIT_WORKFLOW_SLUG
+
+        if not self.static_catalog:
+            return None
+
+        if ref.slug and not self.static_catalog.is_embeddable(slug=ref.slug):
+            return ref.slug
+        if ref.id and not self.static_catalog.is_embeddable(id=ref.id):
+            revision = self.static_catalog.retrieve_revision(id=ref.id)
+            return revision.slug if revision and revision.slug else str(ref.id)
+        return None
+
+    def _reject_non_embeddable_workflow_embeds(
+        self,
+        data: Optional[WorkflowRevisionData],
+    ) -> None:
+        if not data:
+            return
+
+        configuration = data.model_dump(mode="json", exclude_none=True)
+        embeds = (
+            *find_object_embeds(configuration),
+            *find_string_embeds(configuration),
+            *find_snippet_embeds(configuration),
+        )
+        for embed in embeds:
+            for entity_type, ref in embed.references.items():
+                if self._reference_category(entity_type) != "workflow":
+                    continue
+                slug = self._non_embeddable_static_workflow_slug(ref)
+                if slug:
+                    raise NonEmbeddableWorkflowReferenceError(slug)
+
+    def _ref_has_static_id(self, ref: Optional[Reference]) -> bool:
+        return (
+            ref is not None
+            and self.static_catalog is not None
+            and self.static_catalog.is_static_id(ref.id)
+        )
+
+    def _resolve_static_revision(
+        self,
+        *,
+        workflow_ref: Optional[Reference],
+        workflow_variant_ref: Optional[Reference],
+        workflow_revision_ref: Optional[Reference],
+    ) -> tuple[bool, Optional[WorkflowRevision]]:
+        """Resolve a static-namespace reference to a synthetic catalogue revision.
+
+        Returns ``(is_static, revision)``. When ``is_static`` is True the reference is in the
+        static namespace (by reserved ``__ag__*`` slug, or by a synthetic catalogue id) and the
+        caller must NOT fall through to the DB — even when ``revision`` is None (an unknown version,
+        a non-matching paired ref, or no catalogue injected), so a user can never shadow static
+        content. The static-slug detection is a pure function independent of the catalogue, so a
+        static slug short-circuits even when no catalogue is wired (``revision`` is then None).
+        A revision-level reference resolves to its ``version``; an artifact / variant reference
+        resolves to ``latest`` (or to a pinned ``version``). A non-static reference returns
+        ``(False, None)`` so the caller continues to the DB path unchanged.
+        """
+        static = (
+            self._ref_is_static(workflow_revision_ref)
+            or self._ref_is_static(workflow_ref)
+            or self._ref_is_static(workflow_variant_ref)
+            or self._ref_has_static_id(workflow_revision_ref)
+            or self._ref_has_static_id(workflow_ref)
+            or self._ref_has_static_id(workflow_variant_ref)
+        )
+
+        if not static:
+            return (False, None)
+
+        # Static: never fall through to the DB. Without a catalogue we still short-circuit, but
+        # there is no synthetic content to serve, so return None.
+        if not self.static_catalog:
+            return (True, None)
+
+        # A static reference must not silently ignore a paired ref that points elsewhere. Resolve
+        # the static revision, then reject (return None) when any sibling ref is non-matching.
+        revision = self._lookup_static_revision(
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        )
+
+        if revision is not None and not self._static_refs_consistent(
+            revision=revision,
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        ):
+            return (True, None)
+
+        return (True, revision)
+
+    def _lookup_static_revision(
+        self,
+        *,
+        workflow_ref: Optional[Reference],
+        workflow_variant_ref: Optional[Reference],
+        workflow_revision_ref: Optional[Reference],
+    ) -> Optional[WorkflowRevision]:
+        # Slug refs first (the revision ref pins a version), then id-only refs. A revision-level
+        # slug resolves to its version; artifact / variant to latest. retrieve_revision dispatches.
+        if self._ref_is_static(workflow_revision_ref):
+            return self.static_catalog.retrieve_revision(
+                slug=workflow_revision_ref.slug,
+                version=workflow_revision_ref.version,
+            )
+        if self._ref_is_static(workflow_ref):
+            return self.static_catalog.retrieve_revision(
+                slug=workflow_ref.slug,
+                version=workflow_ref.version,
+            )
+        if self._ref_is_static(workflow_variant_ref):
+            return self.static_catalog.retrieve_revision(
+                slug=workflow_variant_ref.slug,
+                version=workflow_variant_ref.version,
+            )
+
+        for ref in (workflow_revision_ref, workflow_ref, workflow_variant_ref):
+            if self._ref_has_static_id(ref):
+                return self.static_catalog.retrieve_revision(id=ref.id)
+
+        return None
+
+    @staticmethod
+    def _static_refs_consistent(
+        *,
+        revision: WorkflowRevision,
+        workflow_ref: Optional[Reference],
+        workflow_variant_ref: Optional[Reference],
+        workflow_revision_ref: Optional[Reference],
+    ) -> bool:
+        """Whether every supplied ref agrees with the resolved static revision.
+
+        A static reference that carries a non-matching sibling (e.g. an unrelated variant id) must
+        not be served as if the extra ref did not exist.
+        """
+        # The reserved namespace uses one slug across all three levels, so every level's slug ref
+        # is expected to equal the revision's reserved slug.
+        reserved_slug = revision.workflow_slug
+        checks = (
+            (workflow_ref, revision.workflow_id, reserved_slug),
+            (workflow_variant_ref, revision.workflow_variant_id, reserved_slug),
+            (workflow_revision_ref, revision.id, reserved_slug),
+        )
+        for ref, resolved_id, resolved_slug in checks:
+            if ref is None:
+                continue
+            if ref.id is not None and ref.id != resolved_id:
+                return False
+            if ref.slug is not None and ref.slug != resolved_slug:
+                return False
+            if ref.version is not None and normalize_static_version(
+                ref.version
+            ) != normalize_static_version(revision.version):
+                return False
+        return True
+
     async def fetch_workflow_revision(
         self,
         *,
@@ -1175,6 +1510,19 @@ class WorkflowsService:
     ) -> Optional[WorkflowRevision]:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
+
+        # Static workflows live under the reserved `__ag__*` slug namespace (or a synthetic
+        # catalogue id) and are served from code, never from Postgres. Resolve them before any DB
+        # lookup so a user can never shadow static content. A reserved reference never falls
+        # through to the DB, even when its version is unknown, a paired ref is non-matching, or no
+        # catalogue is injected; a non-reserved reference falls through unchanged.
+        is_reserved, static_revision = self._resolve_static_revision(
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        )
+        if is_reserved:
+            return static_revision
 
         validate_variant_refs_sufficient(
             variant_ref=workflow_variant_ref,
@@ -1439,9 +1787,11 @@ class WorkflowsService:
                     exclude_none=True,
                     exclude={"flags"},
                 ),
-                flags=self._dump_flags(
-                    self._revision_query_flags_from_any(
-                        workflow_revision_query.flags,
+                flags=self._drop_default_server_owned_query_flags(
+                    self._dump_flags(
+                        self._revision_query_flags_from_any(
+                            workflow_revision_query.flags,
+                        )
                     )
                 )
                 or None,
@@ -1466,6 +1816,19 @@ class WorkflowsService:
 
         _workflow_revisions = []
 
+        # Fetch each distinct workflow once, not once per revision. `revisions` is the
+        # plain git Revision DTO here (artifact_id), not yet the WorkflowRevision alias.
+        workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
+        for revision in revisions:
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
+                    project_id=project_id,
+                    #
+                    workflow_ref=Reference(id=revision.artifact_id),
+                    #
+                    include_archived=include_archived,
+                )
+
         for revision in revisions:
             workflow_revision = await self._normalize_revision_for_read(
                 project_id=project_id,
@@ -1473,6 +1836,7 @@ class WorkflowsService:
                     **revision.model_dump(mode="json"),
                 ),
                 include_archived=include_archived,
+                workflow=workflows_by_id[revision.artifact_id],
             )
             if not self._matches_requested_flags(
                 actual_flags=workflow_revision.flags,
@@ -1497,7 +1861,17 @@ class WorkflowsService:
         #
         emit: bool = True,
     ) -> Optional[WorkflowRevision]:
-        data = workflow_revision_commit.data
+        self._reject_static_slug(workflow_revision_commit.slug)
+
+        if workflow_revision_commit.delta is not None:
+            workflow_revision_commit = await self._resolve_revision_delta(
+                project_id=project_id,
+                workflow_revision_commit=workflow_revision_commit,
+            )
+
+        # A snippet (skill) is non-runnable content: strip every execution-surface field, only uri +
+        # parameters survive. Holds even if a caller posts the skill uri under a normal slug.
+        data = normalize_snippet_data(workflow_revision_commit.data)
         if data and data.uri and not data.url:
             _, kind, _, _ = parse_uri(data.uri)
             if kind != "builtin":
@@ -1506,6 +1880,8 @@ class WorkflowsService:
                     data = data.model_copy(
                         update={"url": env.agenta.services_url.rstrip("/") + path}
                     )
+
+        self._reject_non_embeddable_workflow_embeds(data)
 
         if data and data.uri:
             interface = retrieve_interface(data.uri)
@@ -1538,18 +1914,20 @@ class WorkflowsService:
             if schemas_dict:
                 data = data.model_copy(update={"schemas": JsonSchemas(**schemas_dict)})
 
+        _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
         _revision_commit = RevisionCommit(
             **workflow_revision_commit.model_dump(
                 mode="json",
                 exclude_none=True,
                 exclude={"flags", "data", "slug"},
             ),
-            slug=workflow_revision_commit.slug or uuid4().hex[-12:],
+            slug=_revision_slug,
             flags=self._dump_stored_revision_flags(
                 self._revision_flags_from_any(
                     infer_flags_from_data(
                         flags=workflow_revision_commit.flags,
                         data=data,
+                        slug=_revision_slug,
                     )
                 )
             )
@@ -1603,6 +1981,40 @@ class WorkflowsService:
             revision=_workflow_revision,
         )
 
+    async def _resolve_revision_delta(
+        self,
+        *,
+        project_id: UUID,
+        workflow_revision_commit: WorkflowRevisionCommit,
+    ) -> WorkflowRevisionCommit:
+        """Resolve a delta commit into a full-data commit against the variant's latest revision.
+
+        Applies ``delta.set`` (deep-merge) then ``delta.remove`` (dotted-path delete) onto the
+        current revision's data, returning a commit carrying the resulting ``data`` and no delta.
+        """
+        delta = workflow_revision_commit.delta
+        variant_id = (
+            workflow_revision_commit.workflow_variant_id
+            or workflow_revision_commit.variant_id
+        )
+        current = await self.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_variant_ref=Reference(id=variant_id),
+            include_archived=False,
+        )
+        base = (
+            current.data.model_dump(mode="json", exclude_none=True)
+            if current and current.data
+            else {}
+        )
+        merged = _deep_merge(base, delta.set or {})
+        for path in delta.remove or []:
+            _remove_path(merged, path)
+
+        return workflow_revision_commit.model_copy(
+            update={"data": WorkflowRevisionData(**merged), "delta": None}
+        )
+
     async def log_workflow_revisions(
         self,
         *,
@@ -1626,6 +2038,19 @@ class WorkflowsService:
 
         _workflow_revisions = []
 
+        # Fetch each distinct workflow once, not once per revision. `revisions` is the
+        # plain git Revision DTO here (artifact_id), not yet the WorkflowRevision alias.
+        workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
+        for revision in revisions:
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
+                    project_id=project_id,
+                    #
+                    workflow_ref=Reference(id=revision.artifact_id),
+                    #
+                    include_archived=include_archived,
+                )
+
         for revision in revisions:
             _workflow_revisions.append(
                 await self._normalize_revision_for_read(
@@ -1634,6 +2059,7 @@ class WorkflowsService:
                         **revision.model_dump(mode="json"),
                     ),
                     include_archived=include_archived,
+                    workflow=workflows_by_id[revision.artifact_id],
                 )
             )
 
@@ -1695,19 +2121,21 @@ class WorkflowsService:
 
     # workflow services --------------------------------------------------------
 
-    async def invoke_workflow(
+    async def _prepare_invoke(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
-        #
-        **kwargs,
-    ) -> Union[
-        WorkflowServiceBatchResponse,
-        WorkflowServiceStreamResponse,
-    ]:
+    ) -> tuple[str, Optional[str]]:
+        """Shared invoke prelude for batch + detached: auth + ref-resolution + service URL.
+
+        Centralizes the security-sensitive steps (project lookup, secret-token signing,
+        ref→revision resolution, service_url derivation) so the batch and detached paths can
+        never drift on auth or resolution. Returns ``(credentials, service_url)``; the missing
+        service_url case is left to the caller (batch returns a 400 body; detached raises).
+        """
         project = await get_project_by_id(
             project_id=str(project_id),
         )
@@ -1728,6 +2156,27 @@ class WorkflowsService:
 
         revision_data = self._get_revision_data(request=request)
         service_url = self._get_service_url(revision_data=revision_data)
+
+        return credentials, service_url
+
+    async def invoke_workflow(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        request: WorkflowServiceRequest,
+        #
+        **kwargs,
+    ) -> Union[
+        WorkflowServiceBatchResponse,
+        WorkflowServiceStreamResponse,
+    ]:
+        credentials, service_url = await self._prepare_invoke(
+            project_id=project_id,
+            user_id=user_id,
+            request=request,
+        )
 
         if not service_url:
             return WorkflowServiceBatchResponse(
@@ -1750,6 +2199,53 @@ class WorkflowsService:
         return self._coerce_invoke_response(
             response=_response,
             body=_body,
+        )
+
+    async def invoke_workflow_detached(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        request: WorkflowServiceRequest,
+        #
+        run_id: Optional[str] = None,
+    ) -> WorkflowServiceDetachedResponse:
+        """Fire-and-forget invoke: stream the service and return on the started handshake.
+
+        Shares the batch path's prelude (``_prepare_invoke``) so auth + ref-resolution are
+        identical, then streams ``/invoke`` and returns on the FIRST NDJSON record without
+        draining (``_stream_service_started``). The runner owns the run thereafter (alive
+        watchdog + producer-driven transcript ingest). ``run_id``/``project_id`` ride the
+        request ``meta`` so the deployed workflow service threads them onto the runner wire
+        (Foundation B) and the runner can prove alive-lock ownership on heartbeat.
+        """
+        run_id = run_id or str(uuid4())
+
+        # Thread the coordination ids through `meta` so the workflow service forwards them onto
+        # the runner wire (`runId`/`projectId`); merged, not overwritten.
+        meta = dict(request.meta or {})
+        meta["run_id"] = run_id
+        meta["project_id"] = str(project_id)
+        request.meta = meta
+
+        credentials, service_url = await self._prepare_invoke(
+            project_id=project_id,
+            user_id=user_id,
+            request=request,
+        )
+
+        if not service_url:
+            raise WorkflowServiceUrlMissing()
+
+        return await self._stream_service_started(
+            url=f"{service_url}/invoke",
+            credentials=credentials,
+            payload=request.model_dump(
+                mode="json",
+                exclude_none=True,
+            ),
+            run_id=run_id,
         )
 
     async def inspect_workflow(
@@ -1908,6 +2404,27 @@ class WorkflowsService:
         return (revision, resolution_info)
 
     # --------------------------------------------------------------------------
+
+
+def _deep_merge(base: dict, patch: dict) -> dict:
+    merged = dict(base)
+    for key, value in patch.items():
+        current = merged.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(current, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _remove_path(tree: dict, path: str) -> None:
+    keys = path.split(".")
+    node = tree
+    for key in keys[:-1]:
+        node = node.get(key) if isinstance(node, dict) else None
+        if not isinstance(node, dict):
+            return
+    node.pop(keys[-1], None)
 
 
 def _build_simple_workflow_data(

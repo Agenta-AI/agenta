@@ -1,3 +1,4 @@
+from inspect import isawaitable
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -13,6 +14,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
+from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.workflows.service import (
     WorkflowsService,
     SimpleWorkflowsService,
@@ -57,6 +59,8 @@ from oss.src.apis.fastapi.workflows.models import (
     #
     WorkflowCatalogTypeResponse,  # noqa: F401
     WorkflowCatalogTypesResponse,
+    WorkflowCatalogHarnessResponse,  # noqa: F401
+    WorkflowCatalogHarnessesResponse,
     WorkflowCatalogPresetResponse,
     WorkflowCatalogTemplateResponse,
     WorkflowCatalogTemplatesResponse,
@@ -88,6 +92,8 @@ from oss.src.apis.fastapi.environments.utils import (
 from oss.src.resources.workflows.catalog import (
     get_workflow_catalog_types,
     get_workflow_catalog_type,
+    get_workflow_catalog_harnesses,
+    get_workflow_catalog_harness,
     get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
     get_filtered_workflow_catalog_presets,
@@ -133,6 +139,26 @@ class WorkflowsRouter:
             operation_id="fetch_workflow_catalog_type",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowCatalogTypeResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/harnesses/",
+            self.list_workflow_catalog_harnesses,
+            methods=["GET"],
+            operation_id="list_workflow_catalog_harnesses",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogHarnessesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/harnesses/{ag_harness}",
+            self.fetch_workflow_catalog_harness,
+            methods=["GET"],
+            operation_id="fetch_workflow_catalog_harness",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogHarnessResponse,
             response_model_exclude_none=True,
         )
 
@@ -471,6 +497,52 @@ class WorkflowsRouter:
         )
 
     @intercept_exceptions()
+    async def list_workflow_catalog_harnesses(
+        self,
+    ) -> WorkflowCatalogHarnessesResponse:
+        """
+        List the agent harness records shipped with the product.
+
+        Each record carries the harness `capabilities` (providers, deployments, connection
+        modes, model selection, models). A workflow's harness field references one via
+        `x-ag-harness-ref`, resolved against `/catalog/harnesses/{ag_harness}`.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
+        harnesses = get_workflow_catalog_harnesses()
+
+        return WorkflowCatalogHarnessesResponse(
+            count=len(harnesses),
+            harnesses=harnesses,
+        )
+
+    @intercept_exceptions()
+    async def fetch_workflow_catalog_harness(
+        self,
+        *,
+        ag_harness: str,
+    ) -> WorkflowCatalogHarnessResponse:
+        """
+        Return a single harness record (with its `capabilities`).
+
+        Returns 404 when the `ag_harness` is not part of the shipped catalog.
+
+        See: [Workflows](/reference/api-guide/workflows).
+        """
+        harness = get_workflow_catalog_harness(ag_harness=ag_harness)
+
+        if harness is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Unknown ag-harness: {ag_harness}",
+            )
+
+        return WorkflowCatalogHarnessResponse(
+            count=1,
+            harness=harness,
+        )
+
+    @intercept_exceptions()
     @suppress_exceptions(
         default=WorkflowCatalogTemplatesResponse(), exclude=[HTTPException]
     )
@@ -594,6 +666,7 @@ class WorkflowsRouter:
     # WORKFLOWS ----------------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def create_workflow(
         self,
         request: Request,
@@ -867,6 +940,7 @@ class WorkflowsRouter:
     # WORKFLOW VARIANTS --------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def create_workflow_variant(
         self,
         request: Request,
@@ -1135,6 +1209,7 @@ class WorkflowsRouter:
         return workflow_variants_response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def fork_workflow_variant(
         self,
@@ -1171,6 +1246,7 @@ class WorkflowsRouter:
     # WORKFLOW REVISIONS -------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def create_workflow_revision(
         self,
@@ -1202,6 +1278,11 @@ class WorkflowsRouter:
 
         # Invalidate legacy caches so the registry page reflects the new revision
         await invalidate_cache(project_id=request.state.project_id)
+
+        await _emit_committed_revision_data_event(
+            request=request,
+            workflow_revision=workflow_revision,
+        )
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
@@ -1415,6 +1496,7 @@ class WorkflowsRouter:
         return workflow_revisions_response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def commit_workflow_revision(
         self,
         request: Request,
@@ -1435,6 +1517,43 @@ class WorkflowsRouter:
         ):
             return WorkflowRevisionResponse()
 
+        workflow_revision_commit = workflow_revision_commit_request.workflow_revision
+
+        variant_id = (
+            workflow_revision_commit.workflow_variant_id
+            or workflow_revision_commit.variant_id
+        )
+        if variant_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="workflow_revision.workflow_variant_id is required when committing a workflow revision.",
+            )
+
+        # A commit carries data (full replace) or delta (ops merged onto the latest revision),
+        # never both. Empty is allowed only as the v0 seed (intentionally null data/flags/meta);
+        # once the variant has a data revision, an empty commit is rejected.
+        has_data = bool(
+            workflow_revision_commit.data
+            and workflow_revision_commit.data.model_dump(mode="json", exclude_none=True)
+        )
+        has_delta = workflow_revision_commit.delta is not None
+        if has_data and has_delta:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either data or delta for a commit, not both.",
+            )
+        if not has_data and not has_delta:
+            current_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                workflow_variant_ref=Reference(id=variant_id),
+                include_archived=False,
+            )
+            if current_revision and current_revision.data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="workflow_revision.data is required when committing a workflow revision.",
+                )
+
         workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1444,6 +1563,11 @@ class WorkflowsRouter:
 
         # Invalidate legacy caches so the registry page reflects the new revision
         await invalidate_cache(project_id=request.state.project_id)
+
+        await _emit_committed_revision_data_event(
+            request=request,
+            workflow_revision=workflow_revision,
+        )
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
@@ -1642,6 +1766,7 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionResponse(), exclude=[HTTPException])
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def retrieve_workflow_revision(
         self,
@@ -1763,6 +1888,7 @@ class WorkflowsRouter:
         return workflow_revision_response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def resolve_workflow_revision_endpoint(
         self,
@@ -1826,6 +1952,42 @@ class WorkflowsRouter:
         )
 
         return workflow_revision_resolve_response
+
+
+async def _emit_committed_revision_data_event(
+    *,
+    request: Request,
+    workflow_revision,
+) -> None:
+    if not workflow_revision:
+        return
+
+    await _emit_data_event(
+        request=request,
+        name="committed-revision",
+        data={
+            "variantId": str(workflow_revision.workflow_variant_id),
+            "revisionId": str(workflow_revision.id),
+            "version": workflow_revision.version,
+        },
+    )
+
+
+async def _emit_data_event(
+    *,
+    request: Request,
+    name: str,
+    data: dict,
+) -> None:
+    emit = getattr(request.state, "emit", None) or getattr(
+        request.state, "emit_event", None
+    )
+    if not callable(emit):
+        return
+
+    result = emit({"type": "data", "name": name, "data": data})
+    if isawaitable(result):
+        await result
 
 
 class SimpleWorkflowsRouter:
@@ -1901,6 +2063,7 @@ class SimpleWorkflowsRouter:
     # SIMPLE WORKFLOWS ---------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def create_simple_workflow(
         self,
         request: Request,

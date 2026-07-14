@@ -5,7 +5,7 @@
  * These are pure functions with no Jotai dependencies.
  */
 
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getTestsetsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
@@ -271,9 +271,7 @@ export async function fetchTestsetsList({
         return {testsets: [], count: 0}
     }
 
-    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
-
-    const data = await client.testsets.queryTestsets(
+    const data = await getTestsetsClient().queryTestsets(
         {
             windowing: {limit: 100, order: "descending"},
             ...(searchQuery && searchQuery.trim() ? {testset: {name: searchQuery.trim()}} : {}),

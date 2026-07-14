@@ -137,7 +137,7 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                 const pathname = new URL(page.url()).pathname
                 const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
                 const headingVisible = await page
-                    .getByRole("heading", {name: "Providers & Models"})
+                    .getByRole("heading", {name: "LLMs"})
                     .isVisible()
                     .catch(() => false)
                 const sectionVisible = await customProvidersSection.isVisible().catch(() => false)
@@ -146,7 +146,7 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                     .isVisible()
                     .catch(() => false)
                 const createButtonEnabled = await customProvidersSection
-                    .getByRole("button", {name: "Create"})
+                    .getByRole("button", {name: "Custom Provider"})
                     .isEnabled()
                     .catch(() => false)
 
@@ -168,8 +168,8 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
 
 async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void> {
     if (!getProjectScopedBasePath(page)) {
-        await page.goto("/apps", {waitUntil: "domcontentloaded"})
-        await uiHelpers.expectPath("/apps")
+        await page.goto("/prompts", {waitUntil: "domcontentloaded"})
+        await uiHelpers.expectPath("/prompts")
     }
 
     const projectBasePath = getProjectScopedBasePath(page)
@@ -178,10 +178,10 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
         throw new Error(`Could not derive project scoped path from current URL: ${page.url()}`)
     }
 
-    await page.goto(`${projectBasePath}/settings?tab=secrets`, {waitUntil: "domcontentloaded"})
+    await page.goto(`${projectBasePath}/settings?tab=llms`, {waitUntil: "domcontentloaded"})
 
     await uiHelpers.expectPath("/settings")
-    await expect(page.getByRole("heading", {name: "Providers & Models"})).toBeVisible({
+    await expect(page.getByRole("heading", {name: "LLMs"})).toBeVisible({
         timeout: 15000,
     })
     await expect(getCustomProvidersSection(page)).toBeVisible({timeout: 15000})
@@ -189,8 +189,10 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
 }
 
 function getCustomProvidersSection(page: Page): Locator {
+    // The custom-providers section no longer has a dedicated header label — its
+    // section-identifying text IS the "Custom Provider" trigger button now.
     return page
-        .getByText("Custom providers", {exact: true})
+        .getByText("Custom Provider", {exact: true})
         .locator("xpath=ancestor::section[1]")
         .first()
 }

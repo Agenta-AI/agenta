@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.104.3",
+    "version": "0.105.0",
     "workspaces": [
         "ee",
         "oss",
@@ -21,7 +21,7 @@
         "@agenta/oss": "link:oss",
         "@eslint/eslintrc": "^3.3.5",
         "@eslint/js": "^9.39.4",
-        "@lexical/eslint-plugin": "^0.40.0",
+        "@lexical/eslint-plugin": "^0.46.0",
         "@next/eslint-plugin-next": "15.5.18",
         "@typescript-eslint/eslint-plugin": "^8.61.0",
         "@typescript-eslint/parser": "^8.61.0",
@@ -40,7 +40,7 @@
         "ts-node": "^10.9.2",
         "tsconfig-paths": "^4.2.0",
         "tsx": "^4.22.4",
-        "turbo": "2.8.20",
+        "turbo": "2.10.5",
         "typescript-eslint": "^8.61.0"
     },
     "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
@@ -65,7 +65,7 @@
         "test:datalayer": "pnpm test:revision-centric && pnpm test:apps && pnpm test:environments && pnpm test:deployments && pnpm test:orgs && pnpm test:profile && pnpm test:workspace && pnpm test:project && pnpm test:newPlayground && pnpm test:observability",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "generate:tailwind-tokens": "tsx scripts/generate-tailwind-tokens.ts"
+        "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts"
     },
     "pnpm": {
         "overrides": {

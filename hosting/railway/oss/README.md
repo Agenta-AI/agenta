@@ -23,11 +23,10 @@ baseline.
 - `web/` - web wrapper image and runtime config
 - `api/` - api wrapper image with explicit gunicorn command
 - `services/` - services wrapper image with explicit gunicorn command
+- `runner/` - agent runner image
 - `redis/` - redis wrapper to ensure volume permissions are writable
-- `worker-evaluations/` - Taskiq worker image for evaluations
-- `worker-tracing/` - tracing ingestion worker image
-- `worker-webhooks/` - webhook delivery worker image
-- `worker-events/` - event stream worker image
+- `worker-streams/` - list-parameterized worker image for stream consumers (tracing, events, records)
+- `worker-queues/` - list-parameterized worker image for taskiq queue consumers (webhooks, triggers, interactions, evaluations)
 - `cron/` - cron service image
 - `alembic/` - migration runner image
 - `scripts/bootstrap.sh` - create project, environment, and services
@@ -35,7 +34,7 @@ baseline.
 - `scripts/deploy-gateway.sh` - deploy gateway image from local Dockerfile
 - `scripts/smoke.sh` - quick health checks
 - `scripts/upgrade.sh` - run full in-place upgrade flow
-- `scripts/build-and-push-images.sh` - build local `api/web/services` images and push tags
+- `scripts/build-and-push-images.sh` - build local `api/web/services/runner` images and push tags
 - `scripts/deploy-from-images.sh` - deploy Railway services from explicit image tags
 - `scripts/preview-create-or-update.sh` - create or update a PR-scoped preview project
 - `scripts/preview-destroy.sh` - delete a PR-scoped preview project
@@ -50,13 +49,14 @@ baseline.
 ## Security Note
 
 The scripts default to compose-like placeholder values for `AGENTA_AUTH_KEY`,
-`AGENTA_CRYPT_KEY`, and `POSTGRES_PASSWORD`. This is acceptable for ephemeral
-preview environments, but not for persistent deployments. For persistent
-deployments, set unique values:
+`AGENTA_CRYPT_KEY`, `AGENTA_RUNNER_TOKEN`, and `POSTGRES_PASSWORD`. This is
+acceptable for ephemeral preview environments, but not for persistent
+deployments. For persistent deployments, set unique values:
 
 ```bash
 export AGENTA_AUTH_KEY="$(openssl rand -hex 32)"
 export AGENTA_CRYPT_KEY="$(openssl rand -hex 32)"
+export AGENTA_RUNNER_TOKEN="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 ```
 
@@ -119,6 +119,7 @@ Optional reliability knobs for fresh projects:
 - `RAILWAY_ALEMBIC_MAX_ATTEMPTS` (default `3`)
 
 `deploy-from-images.sh` redeploys Postgres and Redis before running Alembic, then retries Alembic on failure to reduce first-deploy race conditions.
+It also deploys `runner` before `services` and configures `AGENTA_RUNNER_INTERNAL_URL` to the runner's private Railway URL.
 
 ## Preview Lifecycle Scripts
 
@@ -209,7 +210,7 @@ The API image defaults to docker-compose hostnames for Redis (`redis-durable:638
 
 First deploys on Railway take longer because Docker layer caches are cold. Deploy now relies mostly on readiness polling in smoke checks instead of fixed sleeps, so slower starts are less likely to fail prematurely.
 
-For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, and services images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
+For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, services, and runner images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
 
 ### SDK source in preview builds
 
@@ -284,8 +285,6 @@ the deploy flow grows or back-to-back deploys hit the 1,000 RPH Hobby ceiling.
   off to the official Redis entrypoint, preventing `MISCONF` from RDB write
   permission failures.
 - Alembic now creates `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens` automatically before running migrations.
-- OTLP traces require `worker-tracing` to be deployed and healthy.
-- Evaluation jobs require `worker-evaluations` to be deployed and healthy.
-- Webhook deliveries require `worker-webhooks` to be deployed and healthy.
-- Event processing requires `worker-events` to be deployed and healthy.
+- OTLP traces and event/record processing require `worker-streams` to be deployed and healthy.
+- Evaluation jobs, webhook deliveries, triggers, and interactions require `worker-queues` to be deployed and healthy.
 - The scripts intentionally do not persist secrets in git-tracked files.

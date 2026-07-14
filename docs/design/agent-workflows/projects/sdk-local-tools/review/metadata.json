@@ -1,0 +1,40 @@
+{
+  "review_id": "sdk-local-tools-tool-resolution-2026-06-19",
+  "created_at": "2026-06-19T00:00:00Z",
+  "updated_at": "2026-06-19T00:00:00Z",
+  "scope_ref": "scope.md",
+  "activity": "scan-codebase",
+  "depth": "deep",
+  "path": "docs/design/agent-workflows/sdk-local-tools/review/",
+  "branch": "gitbutler/workspace",
+  "rubrics": ["sdk", "services", "general", "security", "architecture"],
+  "reviewed_files": [
+    "sdks/python/agenta/sdk/agents/tool_resolution.py",
+    "sdks/python/agenta/sdk/agents/errors.py",
+    "sdks/python/agenta/sdk/agents/__init__.py",
+    "services/oss/src/agent/tools.py",
+    "services/oss/src/agent/app.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_tool_resolution.py",
+    "services/oss/tests/pytest/unit/agent/test_tool_refs.py",
+    "services/oss/tests/pytest/unit/agent/test_invoke_handler.py",
+    "services/oss/tests/pytest/integration/agent/test_resolve_tools_http.py"
+  ],
+  "files_in_scope": 9,
+  "files_reviewed": 9,
+  "coverage_pct": 100,
+  "finding_counts": {
+    "critical": 0,
+    "high": 0,
+    "medium": 3,
+    "low": 2,
+    "info": 1
+  },
+  "open_risks": 1,
+  "open_questions": 2,
+  "tests": {
+    "sdk_agents_unit": "118 passed",
+    "service_agent_unit_integration": "33 passed"
+  },
+  "verdict": "pass with conditions",
+  "complete": true
+}

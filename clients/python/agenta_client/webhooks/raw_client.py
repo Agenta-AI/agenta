@@ -301,6 +301,86 @@ class RawWebhooksClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def start_webhook_subscription(self, subscription_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WebhookSubscriptionResponse]:
+        """
+        Parameters
+        ----------
+        subscription_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[WebhookSubscriptionResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"webhooks/subscriptions/{jsonable_encoder(subscription_id)}/start",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WebhookSubscriptionResponse,
+                    parse_obj_as(
+                        type_ =WebhookSubscriptionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def stop_webhook_subscription(self, subscription_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WebhookSubscriptionResponse]:
+        """
+        Parameters
+        ----------
+        subscription_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[WebhookSubscriptionResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"webhooks/subscriptions/{jsonable_encoder(subscription_id)}/stop",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WebhookSubscriptionResponse,
+                    parse_obj_as(
+                        type_ =WebhookSubscriptionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def create_webhook_delivery(self, *, delivery: WebhookDeliveryCreate, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WebhookDeliveryResponse]:
         """
         Parameters
@@ -698,6 +778,86 @@ class AsyncRawWebhooksClient:
                     WebhookSubscriptionsResponse,
                     parse_obj_as(
                         type_ =WebhookSubscriptionsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def start_webhook_subscription(self, subscription_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WebhookSubscriptionResponse]:
+        """
+        Parameters
+        ----------
+        subscription_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[WebhookSubscriptionResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"webhooks/subscriptions/{jsonable_encoder(subscription_id)}/start",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WebhookSubscriptionResponse,
+                    parse_obj_as(
+                        type_ =WebhookSubscriptionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def stop_webhook_subscription(self, subscription_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WebhookSubscriptionResponse]:
+        """
+        Parameters
+        ----------
+        subscription_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[WebhookSubscriptionResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"webhooks/subscriptions/{jsonable_encoder(subscription_id)}/stop",method="POST",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    WebhookSubscriptionResponse,
+                    parse_obj_as(
+                        type_ =WebhookSubscriptionResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )

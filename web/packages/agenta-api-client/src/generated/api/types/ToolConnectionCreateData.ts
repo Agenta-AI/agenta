@@ -5,4 +5,9 @@ import type * as AgentaApi from "../index.js";
 export interface ToolConnectionCreateData {
     callback_url?: (string | null) | undefined;
     auth_scheme?: (AgentaApi.ToolAuthScheme | null) | undefined;
+    connected_account_id?: (string | null) | undefined;
+    auth_config_id?: (string | null) | undefined;
+    redirect_url?: (string | null) | undefined;
+    project_id?: (string | null) | undefined;
+    no_auth?: (boolean | null) | undefined;
 }

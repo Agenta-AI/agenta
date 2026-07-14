@@ -1,6 +1,6 @@
 import {atom} from "jotai"
 
-import {appsAtom} from "@/oss/state/app"
+import {currentAppAtom} from "@/oss/state/app"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {selectedOrgAtom} from "@/oss/state/org"
 import {projectsAtom} from "@/oss/state/project"
@@ -13,7 +13,12 @@ const breadcrumbOverridesAtom = atom<BreadcrumbAtom>({})
 
 export const defaultBreadcrumbAtom = atom<BreadcrumbAtom>((get) => {
     const appState = get(appStateSnapshotAtom)
-    const apps = get(appsAtom)
+    // The breadcrumb only needs the CURRENT app's name (looked up by id in
+    // `buildBreadcrumbSegments`), so resolve it by id instead of subscribing to the
+    // whole apps catalog — which would otherwise fire `GET /workflows/query` (all
+    // apps) early on every page, just to render one breadcrumb label.
+    const currentApp = get(currentAppAtom)
+    const apps = currentApp ? [currentApp] : []
     const selectedOrg = get(selectedOrgAtom)
     const projects = get(projectsAtom)
     const projectId = appState.projectId

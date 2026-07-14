@@ -11,11 +11,13 @@ from ..core.pydantic_utilities import parse_obj_as
 from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
+from ..types.capabilities_result import CapabilitiesResult
 from ..types.http_validation_error import HttpValidationError
 from ..types.tool_call_data import ToolCallData
 from ..types.tool_call_response import ToolCallResponse
 from ..types.tool_catalog_action_response import ToolCatalogActionResponse
 from ..types.tool_catalog_actions_response import ToolCatalogActionsResponse
+from ..types.tool_catalog_categories_response import ToolCatalogCategoriesResponse
 from ..types.tool_catalog_integration_response import ToolCatalogIntegrationResponse
 from ..types.tool_catalog_integrations_response import ToolCatalogIntegrationsResponse
 from ..types.tool_catalog_provider_response import ToolCatalogProviderResponse
@@ -23,6 +25,8 @@ from ..types.tool_catalog_providers_response import ToolCatalogProvidersResponse
 from ..types.tool_connection_create import ToolConnectionCreate
 from ..types.tool_connection_response import ToolConnectionResponse
 from ..types.tool_connections_response import ToolConnectionsResponse
+from ..types.tool_resolve_response import ToolResolveResponse
+from .types.tool_resolve_request_tools_item import ToolResolveRequestToolsItem
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -116,7 +120,7 @@ class RawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogIntegrationsResponse]:
+    def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, category: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogIntegrationsResponse]:
         """
         Parameters
         ----------
@@ -125,6 +129,8 @@ class RawToolsClient:
         search : typing.Optional[str]
         
         sort_by : typing.Optional[str]
+        
+        category : typing.Optional[str]
         
         limit : typing.Optional[int]
         
@@ -142,7 +148,7 @@ class RawToolsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             f"tools/catalog/providers/{jsonable_encoder(provider_key)}/integrations/",method="GET",
-            params={"search": search, "sort_by": sort_by, "limit": limit, "cursor": cursor, "full_details": full_details, }
+            params={"search": search, "sort_by": sort_by, "category": category, "limit": limit, "cursor": cursor, "full_details": full_details, }
             ,
             request_options=request_options,)
         try:
@@ -151,6 +157,46 @@ class RawToolsClient:
                     ToolCatalogIntegrationsResponse,
                     parse_obj_as(
                         type_ =ToolCatalogIntegrationsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def list_tool_categories(self, provider_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCatalogCategoriesResponse]:
+        """
+        Parameters
+        ----------
+        provider_key : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[ToolCatalogCategoriesResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"tools/catalog/providers/{jsonable_encoder(provider_key)}/categories/",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolCatalogCategoriesResponse,
+                    parse_obj_as(
+                        type_ =ToolCatalogCategoriesResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -627,6 +673,118 @@ class RawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
+    def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolResolveResponse]:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[ToolResolveResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "tools/resolve",method="POST",
+            json={
+                "tools": convert_and_respect_annotation_metadata(object_=tools, annotation=typing.Sequence[ToolResolveRequestToolsItem], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolResolveResponse,
+                    parse_obj_as(
+                        type_ =ToolResolveResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[CapabilitiesResult]:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[CapabilitiesResult]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "tools/discover",method="POST",
+            json={
+                "use_cases": use_cases,
+                "provider": provider,
+                "limit_alternatives": limit_alternatives,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    CapabilitiesResult,
+                    parse_obj_as(
+                        type_ =CapabilitiesResult,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
     def call_tool(self, *, data: ToolCallData, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[ToolCallResponse]:
         """
         Call a tool action with a connection.
@@ -765,7 +923,7 @@ class AsyncRawToolsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogIntegrationsResponse]:
+    async def list_tool_integrations(self, provider_key: str, *, search: typing.Optional[str] = None, sort_by: typing.Optional[str] = None, category: typing.Optional[str] = None, limit: typing.Optional[int] = None, cursor: typing.Optional[str] = None, full_details: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogIntegrationsResponse]:
         """
         Parameters
         ----------
@@ -774,6 +932,8 @@ class AsyncRawToolsClient:
         search : typing.Optional[str]
         
         sort_by : typing.Optional[str]
+        
+        category : typing.Optional[str]
         
         limit : typing.Optional[int]
         
@@ -791,7 +951,7 @@ class AsyncRawToolsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             f"tools/catalog/providers/{jsonable_encoder(provider_key)}/integrations/",method="GET",
-            params={"search": search, "sort_by": sort_by, "limit": limit, "cursor": cursor, "full_details": full_details, }
+            params={"search": search, "sort_by": sort_by, "category": category, "limit": limit, "cursor": cursor, "full_details": full_details, }
             ,
             request_options=request_options,)
         try:
@@ -800,6 +960,46 @@ class AsyncRawToolsClient:
                     ToolCatalogIntegrationsResponse,
                     parse_obj_as(
                         type_ =ToolCatalogIntegrationsResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def list_tool_categories(self, provider_key: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolCatalogCategoriesResponse]:
+        """
+        Parameters
+        ----------
+        provider_key : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[ToolCatalogCategoriesResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"tools/catalog/providers/{jsonable_encoder(provider_key)}/categories/",method="GET",
+            request_options=request_options,)
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolCatalogCategoriesResponse,
+                    parse_obj_as(
+                        type_ =ToolCatalogCategoriesResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1259,6 +1459,118 @@ class AsyncRawToolsClient:
                     ToolConnectionResponse,
                     parse_obj_as(
                         type_ =ToolConnectionResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def resolve_tools(self, *, tools: typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[ToolResolveResponse]:
+        """
+        Resolve an agent's tool references into model-ready specs.
+        
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        
+        Parameters
+        ----------
+        tools : typing.Optional[typing.Sequence[ToolResolveRequestToolsItem]]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[ToolResolveResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "tools/resolve",method="POST",
+            json={
+                "tools": convert_and_respect_annotation_metadata(object_=tools, annotation=typing.Sequence[ToolResolveRequestToolsItem], direction="write"),
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ToolResolveResponse,
+                    parse_obj_as(
+                        type_ =ToolResolveResponse,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def discover_tool_capabilities(self, *, use_cases: typing.Sequence[str], provider: typing.Optional[str] = OMIT, limit_alternatives: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[CapabilitiesResult]:
+        """
+        Discover the tools that fit a set of use cases, translated to Agenta terms.
+        
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        
+        Parameters
+        ----------
+        use_cases : typing.Sequence[str]
+        
+        provider : typing.Optional[str]
+        
+        limit_alternatives : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[CapabilitiesResult]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "tools/discover",method="POST",
+            json={
+                "use_cases": use_cases,
+                "provider": provider,
+                "limit_alternatives": limit_alternatives,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    CapabilitiesResult,
+                    parse_obj_as(
+                        type_ =CapabilitiesResult,  # type: ignore
                         object_ =_response.json()
                     )
                 )

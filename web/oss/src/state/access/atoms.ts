@@ -1,10 +1,12 @@
 import {inferQueueMaxFromPlan} from "@agenta/entities/trace/etl"
+import {lowPriorityWhenCached} from "@agenta/shared/api"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isBillingEnabled, isEE} from "@/oss/lib/helpers/isEE"
+import {idleReadyAtom} from "@/oss/state/boot/idleReady"
 import {selectedOrgIdAtom} from "@/oss/state/org"
 import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
@@ -37,25 +39,41 @@ export interface RoleEntry {
 
 export type RolesCatalog = Record<"organization" | "workspace" | "project", RoleEntry[]>
 
+// Entitlement/billing bootstrap: never retry a 4xx, and DON'T hammer a gateway-unavailable billing
+// service (502/503/504). Entitlements degrade gracefully (fall back to hobby/free), so failing fast
+// beats firing several slow attempts that compete with render-critical traffic — the symptom that
+// prompted this was /billing/subscription 502-ing three times at High priority on playground load.
+const entitlementRetry = (failureCount: number, error: unknown) => {
+    const status = (error as {response?: {status?: number}})?.response?.status
+    if (status != null && status >= 400 && status < 500) return false
+    if (status === 502 || status === 503 || status === 504) return false
+    return failureCount < 2
+}
+
 export const plansQueryAtom = atomWithQuery((get) => {
     const sessionExists = get(sessionExistsAtom)
+    const user = get(profileQueryAtom).data as {id?: string} | undefined
+    const projectId = get(projectIdAtom)
     return {
         queryKey: ["access", "plans"],
         queryFn: async (): Promise<PlansCatalog> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/access/plans`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/access/plans`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        // Gate on the full auth context the axios interceptor requires (user +
+        // project), not just the session, so the request isn't fired and aborted
+        // before the profile resolves.
+        // Deferred to browser idle: entitlement chrome, never needed for first paint, so it yields
+        // the load burst to the render-critical requests.
+        enabled: isEE() && sessionExists && !!user && !!projectId && get(idleReadyAtom),
+        retry: entitlementRetry,
     }
 })
 
@@ -83,6 +101,7 @@ export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
         queryFn: async (): Promise<CurrentSubscription> => {
             const response = await axios.get(
                 `${getAgentaApiUrl()}/billing/subscription?project_id=${projectId}`,
+                lowPriorityWhenCached(true),
             )
             return response.data
         },
@@ -90,13 +109,15 @@ export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: true,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists && !!organizationId && !!user && !!projectId,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        // Deferred to browser idle (billing chrome, not first-paint critical).
+        enabled:
+            isEE() &&
+            sessionExists &&
+            !!organizationId &&
+            !!user &&
+            !!projectId &&
+            get(idleReadyAtom),
+        retry: entitlementRetry,
     }
 })
 
@@ -123,20 +144,19 @@ export const catalogQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["billing", "catalog"],
         queryFn: async (): Promise<CatalogEntry[]> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/billing/catalog`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/billing/catalog`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        // Deferred to browser idle (billing chrome, not first-paint critical).
+        enabled: isEE() && sessionExists && get(idleReadyAtom),
+        retry: entitlementRetry,
     }
 })
 
@@ -145,20 +165,19 @@ export const pricingQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["billing", "pricing"],
         queryFn: async (): Promise<PricingMap> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/billing/pricing`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/billing/pricing`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: isEE() && sessionExists,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        // Deferred to browser idle (billing chrome, not first-paint critical).
+        enabled: isEE() && sessionExists && get(idleReadyAtom),
+        retry: entitlementRetry,
     }
 })
 
@@ -214,22 +233,27 @@ export const queueMaxItemsAtom = atom((get): number => {
 
 export const rolesQueryAtom = atomWithQuery((get) => {
     const sessionExists = get(sessionExistsAtom)
+    const user = get(profileQueryAtom).data as {id?: string} | undefined
+    const projectId = get(projectIdAtom)
     return {
         queryKey: ["access", "roles"],
         queryFn: async (): Promise<RolesCatalog> => {
-            const response = await axios.get(`${getAgentaApiUrl()}/access/roles`)
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/access/roles`,
+                lowPriorityWhenCached(true),
+            )
             return response.data
         },
         staleTime: 1000 * 60 * 10,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: sessionExists,
-        retry: (failureCount, error) => {
-            if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
-                return false
-            }
-            return failureCount < 2
-        },
+        // Gate on the full auth context the axios interceptor requires (user +
+        // project), not just the session, so the request isn't fired and aborted
+        // before the profile resolves.
+        // Deferred to browser idle: permission gates already default to not-ready until loaded, so
+        // holding the roles fetch off the load burst doesn't change first-paint behavior.
+        enabled: sessionExists && !!user && !!projectId && get(idleReadyAtom),
+        retry: entitlementRetry,
     }
 })

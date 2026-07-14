@@ -1,6 +1,5 @@
 import {LastInputMessageCell} from "@agenta/ui/cell-renderers"
 import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {
@@ -8,9 +7,11 @@ import {
     sessionsLoadingAtom,
 } from "@/oss/state/newObservability/atoms/queries"
 
+import {useSessionAtomValue} from "../../assets/sessionCellStore"
+
 export const FirstInputCell = ({sessionId}: {sessionId: string}) => {
-    const isLoading = useAtomValue(sessionsLoadingAtom)
-    const firstInput = useAtomValue(sessionFirstInputAtomFamily(sessionId))
+    const isLoading = useSessionAtomValue(sessionsLoadingAtom)
+    const firstInput = useSessionAtomValue(sessionFirstInputAtomFamily(sessionId))
 
     if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
     if (firstInput === undefined) return ""

@@ -3,7 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface WebhookSubscription {
-    flags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
+    flags?: AgentaApi.WebhookSubscriptionFlags | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
     name?: (string | null) | undefined;

@@ -17,10 +17,13 @@ class EvaluatorRevisionQueryFlags(UniversalBaseModel):
     is_code: typing.Optional[bool] = None
     is_match: typing.Optional[bool] = None
     is_feedback: typing.Optional[bool] = None
+    is_agent: typing.Optional[bool] = None
+    is_skill: typing.Optional[bool] = None
     is_chat: typing.Optional[bool] = None
     has_url: typing.Optional[bool] = None
     has_script: typing.Optional[bool] = None
     has_handler: typing.Optional[bool] = None
+    is_static: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -11,8 +11,11 @@ export interface WorkflowRevisionFlags {
     is_code?: boolean | undefined;
     is_match?: boolean | undefined;
     is_feedback?: boolean | undefined;
+    is_agent?: boolean | undefined;
+    is_skill?: boolean | undefined;
     is_chat?: boolean | undefined;
     has_url?: boolean | undefined;
     has_script?: boolean | undefined;
     has_handler?: boolean | undefined;
+    is_static?: boolean | undefined;
 }

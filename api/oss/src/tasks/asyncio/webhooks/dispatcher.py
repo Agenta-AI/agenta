@@ -8,10 +8,9 @@ The dispatcher is intentionally self-contained so it can be extracted into
 its own consumer process later without changing its internal logic.
 """
 
+import asyncio
 from typing import Any, Dict, List, Optional
-from uuid import UUID
-
-import uuid_utils.compat as uuid_compat
+from uuid import UUID, uuid5, NAMESPACE_DNS
 
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.events.types import EventType
@@ -26,6 +25,23 @@ from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+
+class WebhookDispatchError(Exception):
+    """Raised when one or more deliveries in a batch failed to enqueue, so the events worker
+    skips ACK/DEL and the whole batch is retried. Redelivery is deduped by the deterministic
+    delivery_id, so already-enqueued deliveries are not sent twice."""
+
+
+_ENQUEUE_TIMEOUT_SECONDS = 5.0
+
+# Deterministic delivery_id: same (event_id, subscription_id) always derives the same id, so a
+# Redis-Streams redelivery re-mints an identical id instead of a fresh one (dedup backstop).
+_DELIVERY_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "webhooks.delivery")
+
+
+def _delivery_id(*, event_id: UUID, subscription_id: UUID) -> UUID:
+    return uuid5(_DELIVERY_NAMESPACE, f"{event_id}:{subscription_id}")
 
 
 class WebhooksDispatcher:
@@ -57,7 +73,7 @@ class WebhooksDispatcher:
         secret_id: UUID,
     ) -> Optional[str]:
         try:
-            secret_dto = await self.vault_service.get_secret(
+            secret_dto = await self.vault_service.get_secret_by_id(
                 project_id=project_id,
                 #
                 secret_id=secret_id,
@@ -249,6 +265,14 @@ class WebhooksDispatcher:
                 )
 
                 for sub in matching:
+                    flags = getattr(sub, "flags", None)
+                    if flags is not None and not getattr(flags, "is_active", True):
+                        log.info(
+                            f"[WEBHOOKS DISPATCHER] Skipping subscription {sub.id} "
+                            f"— inactive"
+                        )
+                        continue
+
                     if not sub.secret:
                         log.warning(
                             f"[WEBHOOKS DISPATCHER] Skipping subscription {sub.id} "
@@ -257,48 +281,64 @@ class WebhooksDispatcher:
                         continue
 
                     try:
-                        delivery_id = uuid_compat.uuid7()
+                        delivery_id = _delivery_id(
+                            event_id=event.event_id,
+                            subscription_id=sub.id,
+                        )
 
-                        await self.deliver_task.kiq(
-                            project_id=str(project_id),
-                            #
-                            delivery_id=str(delivery_id),
-                            #
-                            subscription_id=str(sub.id),
-                            event_id=str(event.event_id),
-                            #
-                            url=str(sub.data.url),
-                            headers=sub.data.headers or {},
-                            payload_fields=sub.data.payload_fields,
-                            auth_mode=sub.data.auth_mode,
-                            #
-                            event_type=event_type,
-                            #
-                            subscription=sub.model_dump(
-                                mode="json",
-                                exclude_none=True,
-                                exclude={"secret", "secret_id"},
+                        await asyncio.wait_for(
+                            self.deliver_task.kiq(
+                                project_id=str(project_id),
+                                #
+                                delivery_id=str(delivery_id),
+                                #
+                                subscription_id=str(sub.id),
+                                event_id=str(event.event_id),
+                                #
+                                url=str(sub.data.url),
+                                headers=sub.data.headers or {},
+                                payload_fields=sub.data.payload_fields,
+                                auth_mode=sub.data.auth_mode,
+                                #
+                                event_type=event_type,
+                                #
+                                subscription=sub.model_dump(
+                                    mode="json",
+                                    exclude_none=True,
+                                    exclude={"secret", "secret_id"},
+                                ),
+                                event=event.model_dump(
+                                    mode="json",
+                                    exclude_none=True,
+                                ),
+                                #
+                                encrypted_secret=encrypt(sub.secret),
                             ),
-                            event=event.model_dump(
-                                mode="json",
-                                exclude_none=True,
-                            ),
-                            #
-                            encrypted_secret=encrypt(sub.secret),
+                            timeout=_ENQUEUE_TIMEOUT_SECONDS,
                         )
                         log.info(
                             f"[WEBHOOKS DISPATCHER] Enqueued delivery "
                             f"delivery={delivery_id} event={event.event_id} "
                             f"subscription={sub.id}"
                         )
+                        log.tick("webhooks.enqueued", dims={"queue": "webhooks"})
                     except Exception as e:
                         log.error(
                             f"[WEBHOOKS DISPATCHER] Failed to enqueue delivery "
                             f"for subscription {sub.id}: {e}"
                         )
+                        log.tick("webhooks.enqueue_errors", dims={"queue": "webhooks"})
                         enqueue_failures += 1
 
         if enqueue_failures > 0:
-            raise RuntimeError(
-                f"Webhook dispatch had {enqueue_failures} enqueue failures"
+            log.tick(
+                "webhooks.enqueue_failures",
+                count=enqueue_failures,
+                dims={"queue": "webhooks"},
+            )
+            # Raise so the events worker skips ACK/DEL and retries the whole batch. Without this
+            # the batch is acked and the failed deliveries are dropped for good. Redelivery is
+            # safe: the deterministic delivery_id dedups already-enqueued deliveries.
+            raise WebhookDispatchError(
+                f"{enqueue_failures} deliveries failed to enqueue"
             )

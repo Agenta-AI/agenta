@@ -19,6 +19,13 @@ export interface BatchFetcherOptions<K, V, R = BatchFnResponse<K, V>> {
     serializeKey?: (key: K) => string
     resolveResult?: (response: R, key: K, serializedKey: string) => V | undefined
     flushDelay?: number
+    /**
+     * "timer" (default) flushes `flushDelay` ms after the first request.
+     * "idle" waits for a main-thread idle period (capped at 1s) — batches
+     * yield to render-critical work and coalesce wider. Background-hydration
+     * fetchers only; falls back to the timer where rIC is unavailable.
+     */
+    flushScheduling?: "timer" | "idle"
     onError?: (error: unknown, keys: K[]) => void
     maxBatchSize?: number
 }
@@ -31,6 +38,9 @@ interface PendingEntry<K, V> {
 }
 
 const DEFAULT_FLUSH_DELAY = 16 * 5 // approx. one frame at 60Hz
+
+// Upper bound for "idle" flushes: never hold a batch longer than this.
+const IDLE_FLUSH_TIMEOUT_MS = 1_000
 
 const defaultSerializeKey = <K>(key: K) => {
     if (typeof key === "string" || typeof key === "number" || typeof key === "boolean") {
@@ -89,16 +99,22 @@ export const createBatchFetcher = <K, V, R = BatchFnResponse<K, V>>({
     serializeKey = defaultSerializeKey,
     resolveResult = defaultResolveResult,
     flushDelay = DEFAULT_FLUSH_DELAY,
+    flushScheduling = "timer",
     onError,
     maxBatchSize,
 }: BatchFetcherOptions<K, V, R>): BatchFetcher<K, V> => {
     let pending = new Map<string, PendingEntry<K, V>>()
     const inflight = new Map<string, Promise<V>>()
-    let flushTimer: ReturnType<typeof setTimeout> | null = null
+    let flushScheduled = false
 
     const scheduleFlush = () => {
-        if (flushTimer) return
-        flushTimer = setTimeout(flushPending, flushDelay)
+        if (flushScheduled) return
+        flushScheduled = true
+        if (flushScheduling === "idle" && typeof requestIdleCallback === "function") {
+            requestIdleCallback(() => flushPending(), {timeout: IDLE_FLUSH_TIMEOUT_MS})
+        } else {
+            setTimeout(flushPending, flushDelay)
+        }
     }
 
     const runBatch = async (entries: PendingEntry<K, V>[]) => {
@@ -131,7 +147,7 @@ export const createBatchFetcher = <K, V, R = BatchFnResponse<K, V>>({
     }
 
     const flushPending = () => {
-        flushTimer = null
+        flushScheduled = false
         if (pending.size === 0) {
             return
         }

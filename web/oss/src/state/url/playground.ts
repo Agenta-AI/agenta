@@ -141,15 +141,42 @@ const setLastWrittenSnapshotHash = (v: string | null) =>
     _store().set(_lastWrittenSnapshotHashAtom, v)
 
 /**
- * Track the current selection in memory to survive HMR.
- * Replaces the old OSS selectedVariantsAtom bridge.
- */
-const _selectedVariantsAtom = atom<string[]>([])
-
-/**
  * Track the last processed URL revisions to prevent loops.
  */
 const _urlRevisionsAtom = atom<string[]>([])
+
+// ---------------------------------------------------------------------------
+// PERSISTED LAST SELECTION (per app)
+// ---------------------------------------------------------------------------
+// Restores the previous selection SYNCHRONOUSLY on entry. A client-side nav back to
+// the playground carries a bare URL, and without a restore nothing is selected until
+// the app's revisions LIST query resolves — at which point the default selection, the
+// config panel, and the chat pane all mount in one long-task burst (the "flash").
+// Stale ids are safe: the validation sub (SUB 4) corrects them once queries settle.
+const PERSISTED_SELECTION_KEY = "agenta:playground:last-selection"
+
+const readPersistedSelection = (appId: string): string[] => {
+    if (!isBrowser) return []
+    try {
+        const raw = window.localStorage.getItem(PERSISTED_SELECTION_KEY)
+        const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {}
+        return sanitizeRevisionList(Array.isArray(map[appId]) ? map[appId] : [])
+    } catch {
+        return []
+    }
+}
+
+const writePersistedSelection = (appId: string, ids: string[]) => {
+    if (!isBrowser) return
+    try {
+        const raw = window.localStorage.getItem(PERSISTED_SELECTION_KEY)
+        const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {}
+        map[appId] = ids
+        window.localStorage.setItem(PERSISTED_SELECTION_KEY, JSON.stringify(map))
+    } catch {
+        // Quota/serialization failures are non-fatal — the next entry just waits for defaults.
+    }
+}
 
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
@@ -593,6 +620,14 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
         return true // Mark as "applied" so we don't keep retrying
     }
 
+    // Synchronous restore of this app's last selection — no waiting on the revisions
+    // list query. Stale ids self-correct via the validation sub once queries settle.
+    const persisted = readPersistedSelection(appId)
+    if (persisted.length > 0) {
+        applyPlaygroundSelection(store, persisted)
+        return true
+    }
+
     const revisions = store.get(workflowRevisionsByWorkflowListDataAtomFamily(appId))
     const latest = revisions[0]
     if (latest) {
@@ -989,15 +1024,18 @@ playgroundSyncAtom.onMount = (set) => {
                 store.set(playgroundInitializedAtom, true)
             }
         } else {
+            // Deferred by a microtask: these subs fire inside TanStack query notifications,
+            // i.e. mid atom-read — applying the selection there mutates the store during a
+            // read (jotai's "Detected store mutation during atom read").
             currentRevReadyUnsub = store.sub(playgroundController.selectors.revisionsReady(), () =>
-                tryApplyDefaults(),
+                queueMicrotask(tryApplyDefaults),
             )
             // Subscribe to entity data so we retry when it finishes loading.
             // Only needed when no URL selection exists and we must find a default.
             if (currentAppId) {
                 currentLatestRevUnsub = store.sub(
                     workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
-                    () => tryApplyDefaults(),
+                    () => queueMicrotask(tryApplyDefaults),
                 )
             }
             // Immediate check in case already ready
@@ -1048,6 +1086,19 @@ playgroundSyncAtom.onMount = (set) => {
         }
     })
     unsubs.push(unsubValidation)
+
+    // -----------------------------------------------------------------------
+    // SUB 4b: Persist the selection per app
+    // -----------------------------------------------------------------------
+    // Written on every selection change so the NEXT entry restores it synchronously
+    // (see readPersistedSelection in ensurePlaygroundDefaults).
+    const unsubPersistSelection = store.sub(playgroundController.selectors.entityIds(), () => {
+        const appId = store.get(routerAppIdAtom) as string | null
+        if (!appId) return
+        const ids = sanitizeRevisionList(store.get(playgroundController.selectors.entityIds()))
+        if (ids.length > 0) writePersistedSelection(appId, ids)
+    })
+    unsubs.push(unsubPersistSelection)
 
     // -----------------------------------------------------------------------
     // SUB 5: Update URL when testset connection changes
@@ -1289,14 +1340,21 @@ playgroundSyncAtom.onMount = (set) => {
     // -----------------------------------------------------------------------
     // INITIAL URL SYNC: ensure URL reflects in-memory selection
     // -----------------------------------------------------------------------
-    // When navigating away from the playground, urlRevisionsAtom is cleared but
-    // selectedVariantsAtom persists in memory. On return, the URL has no
-    // ?revisions param even though a selection exists. Write synchronously
+    // On client-side return to the playground, the in-memory selection (controller
+    // nodes) persists but the URL has no ?revisions param. Write synchronously
     // (bypassing RAF) so a subsequent RAF-based call cannot cancel this write.
+    // NOTE: this previously read `_selectedVariantsAtom`, which nothing ever wrote
+    // — the block was dead and the URL never regained ?revisions on re-entry.
     {
-        const initialSelection = sanitizeRevisionList(store.get(_selectedVariantsAtom))
-        const initialUrlRevisions = sanitizeRevisionList(store.get(_urlRevisionsAtom))
-        if (initialSelection.length > 0 && initialUrlRevisions.length === 0) {
+        const initialSelection = sanitizeRevisionList(
+            store.get(playgroundController.selectors.entityIds()),
+        )
+        const currentUrlRevisions = sanitizeRevisionList(
+            (new URL(window.location.href).searchParams.get(REVISIONS_QUERY_PARAM) ?? "")
+                .split(",")
+                .filter(Boolean),
+        )
+        if (initialSelection.length > 0 && currentUrlRevisions.length === 0) {
             store.set(_urlRevisionsAtom, initialSelection)
             writeUrlNow(initialSelection)
         }

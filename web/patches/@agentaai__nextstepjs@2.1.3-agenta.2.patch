@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index ea5d844651a10352577268c2a646b47d0ceac0c3..d1f9c1c808451a53cac8cbc904ca92c688e1e07a 100644
+--- a/package.json
++++ b/package.json
+@@ -85,5 +85,6 @@
+       "import": "./dist/adapters/remix/index.js",
+       "types": "./dist/adapters/remix/index.d.ts"
+     }
+-  }
++  },
++  "sideEffects": false
+ }
