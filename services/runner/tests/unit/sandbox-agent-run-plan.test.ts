@@ -3,7 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-run-plan.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
@@ -12,9 +12,18 @@ import {
   shouldUploadOwnLogin,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { RESERVED_MCP_SERVER_NAME_MESSAGE } from "../../src/engines/sandbox_agent/mcp.ts";
+import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
+
+// These cases exercise Daytona runs, so enable it (with a provisioning credential) on top of the
+// hermetic scrub, then drop the memoized config so buildRunPlan reads the enabled set.
+beforeEach(() => {
+  process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
+  process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "test-key";
+  resetRunnerConfigCache();
+});
 
 afterEach(() => {
   if (previousPiDir === undefined) delete process.env.PI_CODING_AGENT_DIR;

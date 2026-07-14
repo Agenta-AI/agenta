@@ -1,5 +1,7 @@
 {{- $runner := default dict .Values.agentRunner -}}
-{{- $daytona := default dict $runner.daytona -}}
+{{- $providers := default dict $runner.providers -}}
+{{- $enabledProviders := default (list "local") $providers.enabled -}}
+{{- $daytona := default dict $providers.daytona -}}
 {{- if eq (include "agenta.agentRunner.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -48,35 +50,37 @@ spec:
           env:
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
-            - name: SANDBOX_AGENT_PROVIDER
-              value: {{ default "local" $runner.provider | quote }}
+            - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+              value: {{ join "," $enabledProviders | quote }}
+            - name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
+              value: {{ default "local" $providers.default | quote }}
             {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}
             - name: PI_CODING_AGENT_DIR
               value: {{ default "/pi-agent" $runner.piAgentDir | quote }}
             {{- end }}
             {{- if $runner.logLevel }}
-            - name: SANDBOX_AGENT_LOG_LEVEL
+            - name: AGENTA_RUNNER_LOG_LEVEL
               value: {{ $runner.logLevel | quote }}
             {{- end }}
             {{- if $daytona.apiUrl }}
-            - name: DAYTONA_API_URL
+            - name: AGENTA_RUNNER_DAYTONA_API_URL
               value: {{ $daytona.apiUrl | quote }}
             {{- end }}
             {{- if $daytona.target }}
-            - name: DAYTONA_TARGET
+            - name: AGENTA_RUNNER_DAYTONA_TARGET
               value: {{ $daytona.target | quote }}
             {{- end }}
             {{- if $daytona.snapshot }}
-            - name: DAYTONA_SNAPSHOT
+            - name: AGENTA_RUNNER_DAYTONA_SNAPSHOT
               value: {{ $daytona.snapshot | quote }}
             {{- end }}
             {{- if $daytona.image }}
-            - name: DAYTONA_IMAGE
+            - name: AGENTA_RUNNER_DAYTONA_IMAGE
               value: {{ $daytona.image | quote }}
             {{- end }}
-            {{- if $daytona.autostopDelay }}
-            - name: DAYTONA_AUTOSTOP
-              value: {{ $daytona.autostopDelay | quote }}
+            {{- if $daytona.autostopMinutes }}
+            - name: AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES
+              value: {{ $daytona.autostopMinutes | quote }}
             {{- end }}
             {{- if hasKey $daytona "sessionIdleTtlMs" }}
             - name: AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS
@@ -86,20 +90,16 @@ spec:
             - name: AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM
               value: {{ $daytona.sessionMaxWarm | quote }}
             {{- end }}
-            {{- if $daytona.autodeleteDelay }}
-            - name: DAYTONA_AUTODELETE
-              value: {{ $daytona.autodeleteDelay | quote }}
+            {{- if $daytona.autodeleteMinutes }}
+            - name: AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES
+              value: {{ $daytona.autodeleteMinutes | quote }}
             {{- end }}
-            {{- if hasKey $daytona "installPi" }}
-            - name: AGENTA_AGENT_SANDBOX_PI_INSTALLED
-              value: {{ $daytona.installPi | quote }}
-            {{- end }}
-            {{- if or $daytona.apiKey (eq (default "local" $runner.provider) "daytona") }}
-            - name: DAYTONA_API_KEY
+            {{- if $daytona.apiKeySecretRef }}
+            - name: AGENTA_RUNNER_DAYTONA_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "agenta.secretName" . }}
-                  key: DAYTONA_API_KEY
+                  name: {{ $daytona.apiKeySecretRef.name | quote }}
+                  key: {{ $daytona.apiKeySecretRef.key | quote }}
                   optional: true
             {{- end }}
             {{- range $key, $val := $runner.env }}

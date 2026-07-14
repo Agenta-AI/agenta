@@ -1,8 +1,20 @@
 import { local } from "sandbox-agent/local";
 
 import type { SandboxPermission } from "../../protocol.ts";
+import {
+  DEFAULT_DAYTONA_SNAPSHOT,
+  KNOWN_SANDBOX_PROVIDER_IDS,
+  loadRunnerConfig,
+  type RunnerConfig,
+  type RunnerDaytonaConfig,
+  type SandboxProviderId,
+} from "../../config/runner-config.ts";
 import { daytonaEnvVars } from "./daytona.ts";
-import { daytonaWithLifecycle } from "./daytona-provider.ts";
+import {
+  applyDaytonaSdkEnv,
+  buildDaytonaClient,
+  daytonaWithLifecycle,
+} from "./daytona-provider.ts";
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -31,61 +43,27 @@ export function daytonaNetworkFields(
 }
 
 /**
- * Idle-minute thresholds for Daytona lifecycle transitions. Each is measured from last activity
- * and refreshed on every turn. Stop must exceed the 300-second maximum silent stretch of a live
- * turn. A stopped sandbox keeps its disk; a deleted one is gone and must be recreated.
- */
-export const DEFAULT_DAYTONA_AUTOSTOP_MINUTES = 15;
-export const DEFAULT_DAYTONA_AUTODELETE_MINUTES = 30;
-
-/**
- * Treat empty or whitespace-only env values as absent. Compose renders unset variables as
- * `${VAR:-}` -> "" inside the container, and `??` keeps that empty string, which would
- * silently discard the fallback variable.
- */
-function nonEmpty(rawValue: string | undefined): string | undefined {
-  const trimmed = rawValue?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function positiveMinutes(rawValue: string | undefined, fallback: number): number {
-  const parsed = Number(rawValue);
-  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
-  return Math.floor(parsed);
-}
-
-/** Idle minutes before a warm (stopped) sandbox is reached. Override `DAYTONA_AUTOSTOP`. */
-export function daytonaAutoStopMinutes(
-  rawValue: string | undefined = process.env.DAYTONA_AUTOSTOP,
-): number {
-  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTOSTOP_MINUTES);
-}
-
-/** Idle minutes before a stopped sandbox is deleted. Override `DAYTONA_AUTODELETE`. */
-export function daytonaAutoDeleteMinutes(
-  rawValue: string | undefined = process.env.DAYTONA_AUTODELETE,
-): number {
-  return positiveMinutes(rawValue, DEFAULT_DAYTONA_AUTODELETE_MINUTES);
-}
-
-/**
- * Build the Daytona `create` object from the runner's env + the resolved run inputs.
+ * Build the Daytona `create` object from the typed runner config + the resolved run inputs.
  *
- * Pulled out as a pure function because the real `daytona()` provider closes over this object
- * and constructs a Daytona client (needs API-key env), so the create fields cannot be inspected
- * through `buildSandboxProvider`. Testing this directly is the only way to pin that the create
- * object carries the auto-stop leak backstop (and `ephemeral`).
+ * Pulled out as a pure function because the vendored `daytona()` provider closes over this object
+ * and constructs a Daytona client, so the create fields cannot be inspected through
+ * `buildSandboxProvider`. Testing this directly is the only way to pin that the create object
+ * carries the auto-stop leak backstop (and `ephemeral`).
+ *
+ * The artifact is the configured snapshot, else the configured image (applied at the top-level
+ * provider option, so no snapshot rides the create), else the runner's pinned default snapshot.
+ * Snapshot and image are mutually exclusive — the config parser already rejects setting both.
  */
 export function buildDaytonaCreate(
+  daytona: RunnerDaytonaConfig,
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
   sandboxPermission: SandboxPermission | undefined,
 ): Record<string, unknown> {
-  // Agent override first, then the snapshot shared with the code evaluators.
-  const snapshot =
-    nonEmpty(process.env.DAYTONA_SNAPSHOT_AGENT) ??
-    nonEmpty(process.env.DAYTONA_SNAPSHOT);
-  const target = process.env.DAYTONA_TARGET;
+  const snapshot = daytona.image
+    ? undefined
+    : (daytona.snapshot ?? DEFAULT_DAYTONA_SNAPSHOT);
+  const target = daytona.target;
   return {
     // The sandbox-agent provider always sets a default `image`, which Daytona turns into a
     // build entry that conflicts with `snapshot`. Spreading image:undefined last
@@ -97,14 +75,11 @@ export function buildDaytonaCreate(
     // `ephemeral: false` lets stop park the sandbox. Leave autoArchiveInterval unset so Daytona's
     // seven-day default sits beyond our 30-minute delete. The ladder is stop, then delete.
     // These intervals override the wrapper's hardcoded zeroes. A leaked sandbox self-reaps.
-    autoStopInterval: daytonaAutoStopMinutes(),
-    autoDeleteInterval: daytonaAutoDeleteMinutes(),
+    autoStopInterval: daytona.autostopMinutes,
+    autoDeleteInterval: daytona.autodeleteMinutes,
     ephemeral: false,
   };
 }
-
-/** Sandbox ids this runner can actually provision (the "expected one of" set). */
-export const KNOWN_SANDBOX_IDS = ["local", "daytona"] as const;
 
 /** Recognized ids that are planned but not yet provisionable (fail with a specific message). */
 export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
@@ -112,13 +87,12 @@ export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
 /**
  * Build the sandbox-agent provider for the requested axis.
  *
- * Daytona needs an image or snapshot that carries the daemon and harness CLI: the shared
- * `DAYTONA_SNAPSHOT` (which the build recipe equips for code evaluators too), or the
- * `DAYTONA_SNAPSHOT_AGENT` override when the two consumers must diverge.
- * Provider keys come from the request secrets. Pi's self-managed login is only uploaded
- * when no key is available. The Layer 2 network policy (S1b) is enforced on Daytona via
- * `networkBlockAll` / `networkAllowList`; `buildRunPlan` rejects restricted policies the
- * local provider cannot enforce before this is reached.
+ * Daytona is provisioned from an explicit client and create object derived from the typed runner
+ * config (snapshot/image/target/lifecycle). Provider keys come from the request secrets. The
+ * Layer 2 network policy (S1b) is enforced on Daytona via `networkBlockAll` / `networkAllowList`;
+ * `buildRunPlan` rejects restricted policies the local provider cannot enforce before this is
+ * reached. A known-but-disabled provider is refused here too (defense-in-depth for callers that
+ * bypass `buildRunPlan`).
  */
 export function buildSandboxProvider(
   sandboxId: string,
@@ -127,13 +101,35 @@ export function buildSandboxProvider(
   piExtEnv: Record<string, string>,
   secrets: Record<string, string>,
   sandboxPermission?: SandboxPermission,
+  config: RunnerConfig = loadRunnerConfig(),
 ) {
+  if (
+    (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
+    !config.providers.enabled.includes(sandboxId as SandboxProviderId)
+  ) {
+    throw new Error(
+      `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
+        `(enabled: ${config.providers.enabled.join(", ")}).`,
+    );
+  }
+
   if (sandboxId === "daytona") {
-    const image = process.env.DAYTONA_IMAGE;
-    return daytonaWithLifecycle({
-      ...(image ? { image } : {}),
-      create: buildDaytonaCreate(piExtEnv, secrets, sandboxPermission) as any,
-    });
+    // Bridge the typed credential into the ambient names the vendored provider's own
+    // `new Daytona()` reads during creation; hand the lifecycle wrapper an explicit client.
+    applyDaytonaSdkEnv(config.daytona);
+    const image = config.daytona.image;
+    return daytonaWithLifecycle(
+      {
+        ...(image ? { image } : {}),
+        create: buildDaytonaCreate(
+          config.daytona,
+          piExtEnv,
+          secrets,
+          sandboxPermission,
+        ) as any,
+      },
+      { client: buildDaytonaClient(config.daytona) },
+    );
   }
 
   if ((PLANNED_SANDBOX_IDS as readonly string[]).includes(sandboxId)) {
@@ -145,11 +141,11 @@ export function buildSandboxProvider(
   if (sandboxId !== "local") {
     // Refuse loud: an unrecognized id must not fall through to host execution.
     throw new Error(
-      `Unknown sandbox id '${sandboxId}'; expected one of ${KNOWN_SANDBOX_IDS.join(", ")}`,
+      `Unknown sandbox id '${sandboxId}'; expected one of ${KNOWN_SANDBOX_PROVIDER_IDS.join(", ")}`,
     );
   }
 
   // local: spawn `sandbox-agent server` on this host with the daemon env merged in.
-  const logMode = (process.env.SANDBOX_AGENT_LOG_LEVEL ?? "silent") as any;
+  const logMode = config.server.logLevel as any;
   return local({ env, binaryPath, log: logMode });
 }

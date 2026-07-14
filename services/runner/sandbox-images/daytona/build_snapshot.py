@@ -10,13 +10,12 @@ pinned version, adds the pinned standalone `pi` CLI that adapter launches, and v
 the other baked harnesses so Daytona runs do not pay their installation cost for every
 fresh sandbox. Set the runner service to use it:
 
-    DAYTONA_SNAPSHOT=agenta-sandbox-pi
-    AGENTA_AGENT_SANDBOX_PI_INSTALLED=false
+    AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-sandbox-pi
 
-The snapshot is shared with the SDK code-evaluator runner (which also falls back to
-`DAYTONA_SNAPSHOT`), so the recipe additionally installs python3 and typescript/ts-node.
-Per-consumer overrides when the two must diverge: DAYTONA_SNAPSHOT_CODE /
-DAYTONA_SNAPSHOT_AGENT.
+The runner probes for its pinned Pi before each session; because this recipe bakes it, the
+probe hits and no session-time install runs. The SDK code-evaluator runner can share the
+built snapshot through its own DAYTONA_SNAPSHOT_CODE / DAYTONA_SNAPSHOT variables, so the
+recipe additionally installs python3 and typescript/ts-node.
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 

@@ -22,6 +22,7 @@ import {
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
 import type { TeardownReason } from "./teardown.ts";
+import { loadRunnerConfig } from "../../config/runner-config.ts";
 
 function log(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
@@ -113,16 +114,15 @@ export function readKeepaliveConfig(
 /**
  * `poolMax` (and the LRU/TTL eviction it drives) is a LOCAL-provider parameter — "how many
  * ~300 MB hot Claude trees fit on this runner host" — never a global one. Mirrors `run-plan.ts`'s
- * own sandbox-id resolution (`request.sandbox || SANDBOX_AGENT_PROVIDER env || "local"`), kept
- * here (not imported from there) so this module stays engine-agnostic. The pool dispatch
+ * own sandbox-id resolution (`request.sandbox || configured default provider`). The pool dispatch
  * (`server.ts` `isLocalSandbox`) and the continuity module's own local/remote framing both
  * resolve through this one function, so the "local-only" invariant has a single source of truth.
  */
 export function resolvesToLocalProvider(
   requestSandbox: string | undefined,
-  env: NodeJS.ProcessEnv = process.env,
+  defaultProvider: string = loadRunnerConfig().providers.default,
 ): boolean {
-  return (requestSandbox || env.SANDBOX_AGENT_PROVIDER || "local") === "local";
+  return (requestSandbox || defaultProvider) === "local";
 }
 
 // --- Fingerprints and the pool key ------------------------------------------ //
