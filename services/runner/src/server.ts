@@ -802,6 +802,27 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
 };
 
 /**
+ * The durable interaction token of a parked approval gate this request answers in-band, if
+ * any. The turn-start cancel-stale sweep must spare it: the gate belongs to the PREVIOUS turn
+ * (so the sweep's own `turn_id` exemption misses it), an in-band answer never transitions the
+ * row off `pending` (only the interactions-plane respond endpoint does), and the resume
+ * resolves the token after consuming the decision. Swept first, the granted gate's record
+ * lands as `cancelled` and the resolve 404s.
+ */
+function inBandAnswerToken(request: AgentRunRequest): string | undefined {
+  const sessionId = request.sessionId?.trim();
+  if (!sessionId) return undefined;
+  const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
+  if (!provider) return undefined;
+  const parked = keepalivePools[provider].awaitingApproval(sessionId)
+    ?.environment.parkedApproval;
+  if (!parked) return undefined;
+  return approvalDecisionForToolCall(request, parked.toolCallId) !== undefined
+    ? parked.interactionToken
+    : undefined;
+}
+
+/**
  * Stream a run as NDJSON: one `{kind:"event"}` line per event the moment it is built, then
  * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
  * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
@@ -897,8 +918,15 @@ async function runAndStreamWithApiBaseResolved(
     );
     aliveWatchdog = watchdog;
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
-    // interactions (sparing this turn's own). Best-effort, never blocks the turn.
-    void cancelStaleInteractions(sessionId, turnId, watchdog.credential);
+    // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
+    // the resume resolves that one). Best-effort, never blocks the turn.
+    const answeredToken = inBandAnswerToken(request);
+    void cancelStaleInteractions(
+      sessionId,
+      turnId,
+      answeredToken ? [answeredToken] : undefined,
+      watchdog.credential,
+    );
     const {
       emit: persistingEmit,
       persist,

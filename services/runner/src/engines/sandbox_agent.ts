@@ -1900,9 +1900,11 @@ export async function runTurn(
     };
     // Transition the durable interaction row to resolved once its gate is answered. Used both by
     // the cold decision-map path (via attachPermissionResponder) and the live approval resume,
-    // which answers the parked gate directly. It mirrors the cold path's ordering against
-    // `cancelStaleInteractions` (server.ts): that sweep cancels only PENDING gates of OTHER turns,
-    // and by resume time the human already marked this gate responded, so it is spared here too.
+    // which answers the parked gate directly. The turn-start `cancelStaleInteractions` sweep
+    // (server.ts) cancels only PENDING gates of OTHER turns and spares this gate two ways: an
+    // interactions-plane answer already transitioned it to responded, and an in-band answer is
+    // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
+    // row stays pending until this resolve lands it as resolved, never cancelled.
     const resolveInteractionToken = (token: string): void => {
       const cred = runCredential(request);
       if (!cred) return;
