@@ -449,6 +449,7 @@ export interface PrepareLocalPiAssetsInput {
     RunPlan,
     | "isPi"
     | "isDaytona"
+    | "credentialMode"
     | "skillDirs"
     | "hasSystemPrompt"
     | "systemPrompt"
@@ -460,9 +461,23 @@ export interface PrepareLocalPiAssetsInput {
 }
 
 /**
- * Prepare local Pi's agent dir assets and return the throwaway per-run dir when one was
- * created. Skills and system prompts always use an isolated dir; plain Pi runs only install
- * the inert Agenta extension into the configured shared dir.
+ * Prepare local Pi's agent dir assets and return the THROWAWAY per-run dir when one was created —
+ * `undefined` means "nothing here for the caller to delete" (the caller `rmSync`s whatever it gets
+ * back at teardown, so the operator's own login must never be returned).
+ *
+ * Two shapes:
+ *
+ * - Subscription (`runtime_provided`): the harness runs directly out of the operator's read-write
+ *   mounted login, exactly like a normal local Pi install. Pi refreshes its OAuth token mid-run and
+ *   writes the new one back into its agent dir; a per-run copy would throw that refresh away, so
+ *   once the provider rotated the refresh token the next run would fail and the operator would have
+ *   to log in by hand. Returns `undefined` so teardown cannot delete the mount.
+ * - Managed / none: no credential to preserve, so skills and system prompts still get an isolated
+ *   per-run copy (returned, and deleted at teardown). A plain run with neither only installs the
+ *   inert Agenta extension into the configured shared dir.
+ *
+ * Tradeoff (interface.md section 6): concurrent local subscription runs share the one agent dir,
+ * the same way two local `pi` sessions do. This path is single-trusted-operator only.
  */
 export function prepareLocalPiAssets({
   plan,
@@ -470,6 +485,24 @@ export function prepareLocalPiAssets({
   log = () => {},
 }: PrepareLocalPiAssetsInput): string | undefined {
   if (!plan.isPi || plan.isDaytona) return undefined;
+
+  // buildRunPlan already rejected a local runtime_provided run with no configured
+  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
+  if (plan.credentialMode === "runtime_provided") {
+    const agentDir = plan.sourcePiAgentDir;
+    installPiExtensionLocal(agentDir, log);
+    if (plan.hasSystemPrompt) {
+      writeSystemPromptLocal(
+        agentDir,
+        plan.systemPrompt,
+        plan.appendSystemPrompt,
+        log,
+      );
+    }
+    env.PI_CODING_AGENT_DIR = agentDir;
+    // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
+    return undefined;
+  }
 
   if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
     const runAgentDir = prepareLocalAgentDir(plan.sourcePiAgentDir, log);

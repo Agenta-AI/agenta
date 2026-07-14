@@ -5,9 +5,7 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rmSync } from "node:fs";
 
 import {
   DAYTONA_PI_COMMAND,
@@ -17,7 +15,6 @@ import {
   createCookieFetch,
   daytonaEnvVars,
   ensurePiInSandbox,
-  uploadPiAuthToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
 
 const envKeys = ["PI_CODING_AGENT_DIR"];
@@ -32,7 +29,8 @@ afterEach(() => {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs.splice(0))
+    rmSync(dir, { recursive: true, force: true });
   globalThis.fetch = originalFetch;
 });
 
@@ -149,35 +147,14 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
   });
 });
 
-describe("uploadPiAuthToSandbox", () => {
-  it("uploads local Pi auth and settings when present", async () => {
-    const agentDir = mkdtempSync(join(tmpdir(), "agenta-pi-auth-test-"));
-    dirs.push(agentDir);
-    process.env.PI_CODING_AGENT_DIR = agentDir;
-    writeFileSync(join(agentDir, "auth.json"), "{\"token\":\"x\"}", "utf-8");
-    writeFileSync(join(agentDir, "settings.json"), "{\"approval\":\"never\"}", "utf-8");
-    const calls: Array<{ path: string; body?: string }> = [];
-    const sandbox = {
-      mkdirFs: async ({ path }: { path: string }) => calls.push({ path }),
-      writeFsFile: async ({ path }: { path: string }, body: string) => calls.push({ path, body }),
-    };
-
-    await uploadPiAuthToSandbox(sandbox);
-
-    assert.deepEqual(calls, [
-      { path: DAYTONA_PI_DIR },
-      { path: `${DAYTONA_PI_DIR}/auth.json`, body: "{\"token\":\"x\"}" },
-      { path: `${DAYTONA_PI_DIR}/settings.json`, body: "{\"approval\":\"never\"}" },
-    ]);
-  });
-});
-
 describe("createCookieFetch", () => {
   it("persists Daytona preview cookies per host", async () => {
     const seenCookies: Array<string | null> = [];
     const innerFetch = (async (_input: any, init?: any) => {
       seenCookies.push(new Headers(init?.headers).get("cookie"));
-      return new Response("ok", { headers: { "set-cookie": "session=abc; Path=/" } });
+      return new Response("ok", {
+        headers: { "set-cookie": "session=abc; Path=/" },
+      });
     }) as typeof fetch;
     const cookieFetch = createCookieFetch(innerFetch);
 

@@ -312,10 +312,14 @@ export async function mountStorage(
 
   // Not alive: a prior stale node may still occupy the mountpoint. Force-detach before
   // remounting, else geesefs fails "mountpoint is not empty" / re-stacks on the dead node.
-  const staleMountDetached = await unmountStorage(cwd, { ...deps.unmountDeps, log });
+  const staleMountDetached = await unmountStorage(cwd, {
+    ...deps.unmountDeps,
+    log,
+  });
   if (!staleMountDetached) {
     throw new Error(
-      "pre-mount detach could not be confirmed for " + cwd +
+      "pre-mount detach could not be confirmed for " +
+        cwd +
         "; refusing to start geesefs",
     );
   }
@@ -676,7 +680,9 @@ export async function mountStorageRemote(
       await unmountRemoteDeadMount(sandbox, cwd, log);
       return false;
     }
-    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
+    log(
+      `remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`,
+    );
     return true;
   } catch (err) {
     log(
@@ -732,7 +738,11 @@ export async function mountHarnessSessionDirs(
       dir.name,
     );
     if (!creds) {
-      log(`harness session mount '${dir.name}' not signed — skipping ${dir.path}`);
+      // A resumable harness session expects its transcript dir mounted. Same structured degrade
+      // signal as the session/agent mounts (behavior unchanged; the run proceeds without it).
+      log(
+        `mount degraded kind=harness_transcript cause=sign_returned_no_mount session=${sessionId} dir=${dir.name}`,
+      );
       continue;
     }
     await mountRemote(sandbox, dir.path, creds, {
