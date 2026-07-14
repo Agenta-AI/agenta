@@ -349,7 +349,7 @@ services:
         networks:
             - agenta-gh-ssl-network
         ports:
-            - "${POSTGRES_PORT:-5432}:5432"
+            - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
@@ -431,7 +431,7 @@ services:
             - agenta-gh-ssl-network
         ports:
             - "${TRAEFIK_PORT:-80}:80"
-            - "${TRAEFIK_UI_PORT:-8080}:8080"
+            - "127.0.0.1:${TRAEFIK_UI_PORT:-8080}:8080"
             - "${TRAEFIK_HTTPS_PORT:-443}:443"
         # === LIFECYCLE ============================================ #
         restart: always
