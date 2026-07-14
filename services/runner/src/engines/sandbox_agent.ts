@@ -90,7 +90,6 @@ import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
-  prepareLocalClaudeConfigDir,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
   uploadSystemPromptToSandbox,
@@ -809,21 +808,13 @@ export async function acquireEnvironment(
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   let runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
 
-  // Local Claude subscription run: copy the mounted CLAUDE_CONFIG_DIR into a per-run dir and point
-  // the daemon at the copy, so the harness's own writes stay off the read-only source mount
-  // (interface.md section 6). buildRunPlan already rejected a runtime_provided Claude run with no
-  // configured CLAUDE_CONFIG_DIR, so the source here is the mount.
-  if (
-    !plan.isDaytona &&
-    plan.acpAgent === "claude" &&
-    plan.credentialMode === "runtime_provided"
-  ) {
-    const runClaudeConfigDir = prepareLocalClaudeConfigDir(
-      process.env.CLAUDE_CONFIG_DIR,
-      logger,
-    );
-    if (runClaudeConfigDir) env.CLAUDE_CONFIG_DIR = runClaudeConfigDir;
-  }
+  // A local Claude subscription run reads and writes the operator's read-write mounted login
+  // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
+  // and there is deliberately no per-run copy. Claude refreshes its OAuth token mid-run and writes
+  // it back to its config dir; copying that dir per run would discard the refresh, so the next run
+  // would fail as soon as the provider rotated the refresh token. The harness owns its own token
+  // lifecycle, exactly like a normal local install (interface.md section 6). buildRunPlan already
+  // rejected a runtime_provided Claude run with no configured CLAUDE_CONFIG_DIR.
 
   logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
 
@@ -970,7 +961,9 @@ export async function acquireEnvironment(
     } else {
       await environment.workspace?.cleanup().catch(() => {});
     }
-    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too.
+    // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too. This is only
+    // ever a temp dir: a subscription run leaves `runAgentDir` undefined precisely so that the
+    // operator's mounted login (which the harness runs out of directly) is never deleted here.
     if (environment.runAgentDir)
       rmSync(environment.runAgentDir, { recursive: true, force: true });
     // Backstop: the extension deletes this on read; remove it here too in case the harness never

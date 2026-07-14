@@ -444,28 +444,6 @@ export function prepareLocalAgentDir(
   return dir;
 }
 
-/**
- * Seed a throwaway local Claude config dir from a read-only source (`CLAUDE_CONFIG_DIR`) and
- * return its path. A local `runtime_provided` Claude run authenticates from the operator's mounted
- * subscription; copying it into a per-run dir keeps the harness's own writes (session state,
- * refreshed tokens) off the read-only source mount (interface.md section 6). Returns `undefined`
- * when the source is unset or absent, so the caller leaves the daemon env untouched.
- */
-export function prepareLocalClaudeConfigDir(
-  sourceConfigDir: string | undefined,
-  log: Log = () => {},
-): string | undefined {
-  if (!sourceConfigDir || !existsSync(sourceConfigDir)) return undefined;
-  const dir = mkdtempSync(join(tmpdir(), "agenta-claude-config-"));
-  try {
-    cpSync(sourceConfigDir, dir, { recursive: true });
-  } catch (err) {
-    log(`claude config copy skipped: ${(err as Error).message}`);
-    return undefined;
-  }
-  return dir;
-}
-
 export interface PrepareLocalPiAssetsInput {
   plan: Pick<
     RunPlan,
@@ -483,10 +461,23 @@ export interface PrepareLocalPiAssetsInput {
 }
 
 /**
- * Prepare local Pi's agent dir assets and return the throwaway per-run dir when one was
- * created. Skills, system prompts, and subscription (`runtime_provided`) runs always use an
- * isolated per-run copy so harness writes never touch the operator's source login; a plain
- * managed/none Pi run only installs the inert Agenta extension into the configured shared dir.
+ * Prepare local Pi's agent dir assets and return the THROWAWAY per-run dir when one was created —
+ * `undefined` means "nothing here for the caller to delete" (the caller `rmSync`s whatever it gets
+ * back at teardown, so the operator's own login must never be returned).
+ *
+ * Two shapes:
+ *
+ * - Subscription (`runtime_provided`): the harness runs directly out of the operator's read-write
+ *   mounted login, exactly like a normal local Pi install. Pi refreshes its OAuth token mid-run and
+ *   writes the new one back into its agent dir; a per-run copy would throw that refresh away, so
+ *   once the provider rotated the refresh token the next run would fail and the operator would have
+ *   to log in by hand. Returns `undefined` so teardown cannot delete the mount.
+ * - Managed / none: no credential to preserve, so skills and system prompts still get an isolated
+ *   per-run copy (returned, and deleted at teardown). A plain run with neither only installs the
+ *   inert Agenta extension into the configured shared dir.
+ *
+ * Tradeoff (interface.md section 6): concurrent local subscription runs share the one agent dir,
+ * the same way two local `pi` sessions do. This path is single-trusted-operator only.
  */
 export function prepareLocalPiAssets({
   plan,
@@ -495,12 +486,25 @@ export function prepareLocalPiAssets({
 }: PrepareLocalPiAssetsInput): string | undefined {
   if (!plan.isPi || plan.isDaytona) return undefined;
 
-  // A `runtime_provided` run reads the operator's mounted subscription (read-only). Copy it into
-  // an isolated per-run dir even with no skills/prompt, so the harness's own writes stay off the
-  // read-only source mount (interface.md section 6). buildRunPlan already rejected the case where
-  // the source mount is unconfigured, so `sourcePiAgentDir` here is the mount.
-  const isSubscriptionRun = plan.credentialMode === "runtime_provided";
-  if (plan.skillDirs.length > 0 || plan.hasSystemPrompt || isSubscriptionRun) {
+  // buildRunPlan already rejected a local runtime_provided run with no configured
+  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
+  if (plan.credentialMode === "runtime_provided") {
+    const agentDir = plan.sourcePiAgentDir;
+    installPiExtensionLocal(agentDir, log);
+    if (plan.hasSystemPrompt) {
+      writeSystemPromptLocal(
+        agentDir,
+        plan.systemPrompt,
+        plan.appendSystemPrompt,
+        log,
+      );
+    }
+    env.PI_CODING_AGENT_DIR = agentDir;
+    // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
+    return undefined;
+  }
+
+  if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
     const runAgentDir = prepareLocalAgentDir(plan.sourcePiAgentDir, log);
     if (plan.hasSystemPrompt) {
       writeSystemPromptLocal(

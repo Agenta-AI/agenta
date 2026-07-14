@@ -370,9 +370,11 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-runner:latest
         # === EXECUTION ============================================ #
+        # The Pi login is bind-mounted read-write at /pi-agent and the harness runs directly out
+        # of it, so a refreshed OAuth token persists to the host login instead of dying with the
+        # container.
         command: >
-            sh -c "mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
-            node scripts/build-extension.mjs &&
+            sh -c "node scripts/build-extension.mjs &&
             exec node_modules/.bin/tsx watch src/server.ts"
         # === CONFIGURATION ======================================== #
         # Deliberately no env_file: harness processes must not inherit the full stack
@@ -406,7 +408,9 @@ services:
         volumes:
             - ../../../services/runner/src:/app/src
             - ../../../services/runner/skills:/app/skills
-            - ${HOME}/.pi/agent:/pi-agent-ro:ro
+            # Read-write on purpose: the harness refreshes its own OAuth token here and the new
+            # token must persist back to the host login (a copy would discard it).
+            - ${HOME}/.pi/agent:/pi-agent:rw
         # === NETWORK ============================================== #
         networks:
             - agenta-network

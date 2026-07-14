@@ -511,6 +511,88 @@ describe("Pi skill snapshots", () => {
   });
 });
 
+/**
+ * A local subscription (`runtime_provided`) run authenticates from the operator's READ-WRITE
+ * mounted login, and the harness runs directly out of that mount: Pi refreshes its OAuth token
+ * mid-run and writes the new one back, so a per-run copy would discard the refresh and the next
+ * run would fail once the provider rotated the refresh token.
+ */
+describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-write)", () => {
+  const subscriptionPlan = (
+    mount: string,
+    over: Record<string, unknown> = {},
+  ) => ({
+    isPi: true,
+    isDaytona: false,
+    credentialMode: "runtime_provided",
+    skillDirs: [],
+    hasSystemPrompt: false,
+    systemPrompt: undefined,
+    appendSystemPrompt: undefined,
+    sourcePiAgentDir: mount,
+    ...over,
+  });
+
+  it("points PI_CODING_AGENT_DIR at the mount itself, not at a per-run copy", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+    const env: Record<string, string> = {};
+
+    prepareLocalPiAssets({ plan: subscriptionPlan(mount) as never, env });
+
+    assert.equal(
+      env.PI_CODING_AGENT_DIR,
+      mount,
+      "a subscription run must run out of the operator's mount so a refreshed token persists",
+    );
+  });
+
+  /**
+   * The caller `rmSync`s whatever this returns at teardown. Returning the mount would delete the
+   * operator's actual login, so the contract is: a subscription run reports NO throwaway dir.
+   */
+  it("returns undefined so teardown can never delete the operator's login", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+
+    const runDir = prepareLocalPiAssets({
+      plan: subscriptionPlan(mount, {
+        skillDirs: [],
+        hasSystemPrompt: true,
+        appendSystemPrompt: "extra",
+      }) as never,
+      env: {},
+    });
+
+    assert.equal(runDir, undefined);
+    // The login itself survives: nothing moved it, and the harness still has its token to refresh.
+    assert.ok(existsSync(join(mount, "auth.json")));
+  });
+
+  it("still isolates a MANAGED run's skills in a throwaway copy (no credential at stake)", () => {
+    const source = tempDir("agenta-pi-managed-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
+    const env: Record<string, string> = {};
+
+    const runDir = prepareLocalPiAssets({
+      plan: subscriptionPlan(source, {
+        credentialMode: "env",
+        hasSystemPrompt: true,
+        appendSystemPrompt: "extra",
+      }) as never,
+      env,
+    });
+
+    assert.ok(
+      runDir,
+      "a managed run with a system prompt still gets a per-run dir",
+    );
+    assert.notEqual(runDir, source);
+    assert.equal(env.PI_CODING_AGENT_DIR, runDir);
+    dirs.push(runDir as string);
+  });
+});
+
 describe("sandbox uploads", () => {
   it("recursively uploads files into sandbox fs", async () => {
     const root = tempDir("agenta-pi-upload-test-");

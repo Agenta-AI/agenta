@@ -302,13 +302,15 @@ services:
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
         # === SUBSCRIPTION MOUNTS (opt-in) ========================= #
         # Use your own harness subscription for LOCAL runs instead of a managed API
-        # key. Mount the login read-only; the runner copies it into a per-run dir, so
-        # the harness's own writes never touch your source. Single-operator convenience
-        # only — this state is never shipped to a Daytona sandbox. A runtime_provided
-        # local run without the matching mount fails with a clear error.
+        # key. Mount the login READ-WRITE: the harness runs directly out of the mount and
+        # refreshes its own OAuth token there, so a rotated token persists and you never
+        # have to log in again by hand. Single-operator convenience only — this state is
+        # never shipped to a Daytona sandbox, and concurrent local subscription runs share
+        # the dir (same as two local harness sessions). A runtime_provided local run
+        # without the matching mount fails with a clear error.
         # volumes:
-        #     - ~/.pi/agent:/agenta/harness/pi:ro        # Pi / Codex login
-        #     - ~/.claude:/agenta/harness/claude:ro      # Claude login
+        #     - ~/.pi/agent:/agenta/harness/pi:rw        # Pi / Codex login
+        #     - ~/.claude:/agenta/harness/claude:rw      # Claude login
         # Then point the harness config var at the mount (override the defaults above):
         #     PI_CODING_AGENT_DIR: /agenta/harness/pi
         #     CLAUDE_CONFIG_DIR: /agenta/harness/claude

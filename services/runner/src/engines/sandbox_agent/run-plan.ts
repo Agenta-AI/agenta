@@ -81,14 +81,14 @@ export const DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE =
   "Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.";
 
 /**
- * A local `runtime_provided` run reads the operator's subscription state from a read-only mount
+ * A local `runtime_provided` run reads the operator's subscription state from a read-write mount
  * named by the harness config var. With no mount configured there is nothing to authenticate
  * with, so the run fails up front (interface.md section 6) instead of silently proceeding and
  * having the harness discover the runner's own home directory.
  */
 export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
   "runtime_provided local run requires a mounted subscription: set PI_CODING_AGENT_DIR " +
-  "(Pi) or CLAUDE_CONFIG_DIR (Claude) to a read-only mount of your harness login.";
+  "(Pi) or CLAUDE_CONFIG_DIR (Claude) to a read-write mount of your harness login.";
 
 export interface RunPlan {
   harness: string;
@@ -318,8 +318,8 @@ export function buildRunPlan(
   // ships one, and "unknown" must not silently behave like "reachable loopback".
   const isRemoteSandbox = sandboxId !== "local";
 
-  // Subscription (runtime_provided) auth is a LOCAL-only capability: the harness reads its login
-  // from a read-only mount that lives in the runner container and is never shipped to a
+  // Subscription (runtime_provided) auth is a LOCAL-only capability: the harness reads and refreshes
+  // its login on a read-write mount that lives in the runner container and is never shipped to a
   // third-party sandbox. Reject Daytona + runtime_provided here, before any sandbox is created,
   // rather than silently falling back to an unauthenticated remote run (interface.md sections 5-6).
   if (isDaytona && request.credentialMode === "runtime_provided") {
