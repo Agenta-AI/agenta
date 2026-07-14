@@ -2213,10 +2213,9 @@ export async function runTurn(
       !plan.isDaytona &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
-        ? findSwallowedPiError(
-            env.runAgentDir ?? plan.sourcePiAgentDir,
-            plan.cwd,
-          )
+        ? // The helper derives the transcript location from `piSessionWorkspaceDir(plan.cwd)`,
+          // the same shared helper `configurePiSessionWorkspace` used to point Pi at it.
+          findSwallowedPiError(plan.cwd)
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
