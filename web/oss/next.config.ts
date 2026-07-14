@@ -135,16 +135,16 @@ const COMMON_CONFIG: NextConfig = {
                       loader: "swc-loader",
                   })
 
-                  // Ignore problematic ESM imports from @ant-design/x that we don't use
-                  // This prevents build errors for mermaid and refractor packages
+                  // Ignore the mermaid import from @ant-design/x — we don't use that surface.
+                  // NOTE: do not ignore `refractor/*` here. react-syntax-highlighter's PrismAsync
+                  // dynamically imports `refractor/all` at runtime; stubbing it out throws
+                  // "Cannot find module 'refractor/all'" when a chat code block renders, which trips
+                  // the app error boundary and remounts the playground. refractor@5 resolves every
+                  // subpath rsh imports, so the import must be left intact.
                   config.plugins.push(
                       new webpack.IgnorePlugin({
                           resourceRegExp: /^mermaid$/,
                           contextRegExp: /@ant-design[\\/]x/,
-                      }),
-                      new webpack.IgnorePlugin({
-                          resourceRegExp: /^refractor\/.+$/,
-                          contextRegExp: /react-syntax-highlighter/,
                       }),
                   )
 
