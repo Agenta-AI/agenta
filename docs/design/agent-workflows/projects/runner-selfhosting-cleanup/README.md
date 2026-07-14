@@ -27,7 +27,7 @@ The normal deployment uses one runner service. That runner can support both loca
 - API and web get provider availability from the same environment value, set once per deployment by the hosting templates. A discovery endpoint is deferred (RSH-7).
 - Daytona configuration belongs under the runner namespace. Code-evaluator Daytona configuration is separate.
 - The runner never discovers an operator's home directory or automatically uploads Pi or Claude OAuth state.
-- Subscription authentication is an explicit local self-hosting setup: a read-only Compose volume mount taught in a tutorial. There is no bootstrap manifest in version 1 (RSH-4).
+- Subscription authentication is an explicit local self-hosting setup: a read-write Compose volume mount taught in a tutorial. The harness runs directly out of the mount so it can refresh its own OAuth token; there is no per-run copy and no bootstrap manifest in version 1 (RSH-4).
 - Runtime customization (extra binaries, certificates, dependencies) happens through operator-built images and the shipped Daytona snapshot scripts, not runner configuration.
 - Remote subscription authentication is unsupported until the relevant provider explicitly approves the integration and Agenta defines a safe product contract.
 - Pi installation is detected and repaired by the runtime. There is no deployment-wide "Pi is installed" boolean.
@@ -50,7 +50,7 @@ The normal deployment uses one runner service. That runner can support both loca
 - Runner provider selection and configuration.
 - Runner-specific Daytona names and validation.
 - Runner-to-Services routing and authentication.
-- Local subscription setup through explicit read-only mounts.
+- Local subscription setup through explicit read-write mounts.
 - Removal of automatic Daytona OAuth upload.
 - Removal of deployment-wide runtime facts and hidden policy switches.
 - A structured warning when a durable mount degrades.

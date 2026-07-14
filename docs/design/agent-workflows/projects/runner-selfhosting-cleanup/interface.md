@@ -187,20 +187,24 @@ The two problems this replaces the manifest for:
 
 ### Local subscription mounts
 
-The operator mounts credential state read-only into the runner container and points the harness config variable at it. The Compose files ship commented examples:
+The operator mounts credential state read-write into the runner container and points the harness config variable at it. The Compose files ship commented examples:
 
 ~~~yaml
 runner:
   # Opt-in: use your own harness subscription for local runs.
   # volumes:
-  #   - ~/.pi:/agenta/harness/pi:ro
+  #   - ~/.pi:/agenta/harness/pi:rw
   # environment:
   #   - PI_CODING_AGENT_DIR=/agenta/harness/pi
 ~~~
 
 Rules:
 
-- Mounts are read-only. The runner copies the state into a per-run directory so harness writes never touch the operator's source credential.
+- Mounts are read-write, and the harness runs directly out of the mount. There is no per-run copy of the credential state.
+
+  A subscription login is an OAuth login: the harness refreshes its access token mid-run and writes the new one back to its own config directory. A read-only mount plus a per-run copy discarded that refresh, so as soon as the provider rotated the refresh token the next run failed and the operator had to log in again by hand. Letting the harness own its token lifecycle, exactly as it does on a normal local install, is the only shape that survives rotation.
+
+  The tradeoff: harness writes land in the operator's login directory (refreshed tokens, and any skills or system prompt a run installs), and concurrent local subscription runs share that directory the same way two local harness sessions do. This path is single-trusted-operator only, so both are acceptable.
 - A `runtime_provided` local run without the matching mount fails with an error naming the missing configuration.
 - Mounted subscription state never leaves the runner container. Daytona runs never receive it.
 - One personal subscription belongs to one operator. The docs state this is a single-tenant convenience.
@@ -250,7 +254,7 @@ The fail-loud contract (a required mount failure fails the run, no silent durabl
 
 ### Docker Compose
 
-The runner service enumerates only runner variables. It has no shared `env_file`. The examples include commented, opt-in read-only volumes for subscription inputs (section 6).
+The runner service enumerates only runner variables. It has no shared `env_file`. The examples include commented, opt-in read-write volumes for subscription inputs (section 6).
 
 One runner service can enable `local,daytona`; there is no second subscription runner in the default stack.
 

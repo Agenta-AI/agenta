@@ -91,12 +91,12 @@ Assert the presence of only configured runner values, runner token reference, AP
 
 ## 4. Subscription mount tests
 
-- every runtime-provided run gets a unique per-run config copy;
-- Pi receives `PI_CODING_AGENT_DIR` pointing at the copy;
-- Claude receives `CLAUDE_CONFIG_DIR` pointing at the copy;
-- the operator source is mounted read-only and harness writes do not mutate it;
-- teardown removes the per-run copy;
-- concurrent runs cannot see each other's copies;
+- every runtime-provided run runs directly out of the operator's mount (no per-run config copy);
+- Pi receives `PI_CODING_AGENT_DIR` pointing at the mount;
+- Claude receives `CLAUDE_CONFIG_DIR` pointing at the mount;
+- the operator source is mounted read-write and a token the harness refreshes persists to it;
+- teardown does NOT delete the mount;
+- concurrent local subscription runs share the mount (accepted: single trusted operator);
 - subscription state never uploads to a Daytona sandbox;
 - content and credential paths do not appear in logs or traces.
 
@@ -130,9 +130,9 @@ Before deleting the extra runners:
 
 1. Record the currently selected `AGENTA_RUNNER_INTERNAL_URL`.
 2. Confirm which service contains the Daytona credential.
-3. Confirm which read-only subscription inputs exist.
+3. Confirm which read-write subscription inputs exist.
 4. Configure the normal runner with enabled providers `local,daytona`.
-5. Add local-only Pi and Claude read-only subscription mounts.
+5. Add local-only Pi and Claude read-write subscription mounts.
 6. Run the primary matrix.
 7. Confirm the Daytona sandbox count returns to zero.
 8. Stop the legacy subscription sidecars.

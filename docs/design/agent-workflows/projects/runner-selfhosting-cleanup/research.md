@@ -34,7 +34,7 @@ That couples three unrelated decisions:
 2. the runner happens to have Pi state;
 3. the state should be copied to a third-party remote sandbox.
 
-The target removes this inference. Local subscription use requires an explicit read-only mount. Daytona runtime-provided subscription authentication is unsupported in version 1.
+The target removes this inference. Local subscription use requires an explicit read-write mount. Daytona runtime-provided subscription authentication is unsupported in version 1.
 
 ### Runtime-fact and policy booleans
 

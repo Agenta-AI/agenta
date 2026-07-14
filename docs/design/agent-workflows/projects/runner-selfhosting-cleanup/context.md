@@ -50,7 +50,7 @@ DAYTONA_JWT_TOKEN and DAYTONA_ORGANIZATION_ID.
 
 Nothing was wrong with the user's Daytona account. The request reached a runner deployment that was not configured for Daytona. The setup made it easy to split capabilities accidentally.
 
-The target local QA deployment is one trusted development runner with both providers enabled and explicit read-only local subscription mounts. This is a development convenience, not a production multi-tenant topology. A local harness shares the runner container and can inspect other same-user processes through `/proc`.
+The target local QA deployment is one trusted development runner with both providers enabled and explicit read-write local subscription mounts. This is a development convenience, not a production multi-tenant topology. A local harness shares the runner container and can inspect other same-user processes through `/proc`.
 
 ## Trust boundaries
 

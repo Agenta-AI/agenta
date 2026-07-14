@@ -26,7 +26,7 @@ No implementation or tutorial should precede that decision.
 
 ## RSH-4: Declarative bootstrap assets, hooks, and network plugins
 
-Version 1 ships no bootstrap manifest at all: local subscription state arrives through an operator-owned read-only Compose mount, and runtime customization happens through images and snapshots. If operator demand shows a real need for declarative per-run file assets (typed manifest, validation, Daytona upload of non-auth files), design it then, together with hooks: repository checkout, VPN enrollment, certificate rotation, custom initialization.
+Version 1 ships no bootstrap manifest at all: local subscription state arrives through an operator-owned read-write Compose mount, and runtime customization happens through images and snapshots. If operator demand shows a real need for declarative per-run file assets (typed manifest, validation, Daytona upload of non-auth files), design it then, together with hooks: repository checkout, VPN enrollment, certificate rotation, custom initialization.
 
 A future design must define:
 

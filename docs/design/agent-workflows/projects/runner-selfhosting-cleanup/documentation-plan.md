@@ -92,7 +92,7 @@ The opt-in path for a trusted personal deployment. Covers the three supported lo
 login, Claude Code OAuth, and the ChatGPT/Codex login.
 
 1. Find the supported login state for the harness on the operator's machine.
-2. Add the read-only volume mount in the Compose file and point the harness config variable at it.
+2. Add the read-write volume mount in the Compose file and point the harness config variable at it.
 3. Run a self-managed agent and confirm it uses the mounted login.
 4. Remove the mount and confirm the run fails with the explicit missing-configuration error.
 

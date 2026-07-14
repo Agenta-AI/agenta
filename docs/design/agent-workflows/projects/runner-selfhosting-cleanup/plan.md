@@ -12,7 +12,7 @@ Goal: restore a trustworthy 8280 test environment before larger refactors.
 - Remove the dead `AGENTA_AGENT_SANDBOX_DAYTONA_SNAPSHOT` line.
 - Point the 8280 deployment at one trusted development runner.
 - Give that runner the Daytona provisioning credential.
-- Keep local Pi and Claude login inputs read-only and explicit.
+- Keep local Pi and Claude login inputs read-write and explicit (the harness owns its token lifecycle).
 - Remove or stop the two ad hoc runner services after the unified runner passes the matrix.
 - Record the exact local setup without committing personal credentials.
 
