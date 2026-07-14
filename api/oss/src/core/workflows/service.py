@@ -277,11 +277,9 @@ class WorkflowsService:
             return {}
 
         if hasattr(flags, "model_dump"):
-            # exclude_unset: a flag the caller never set must not persist as an explicit false.
             dumped = flags.model_dump(
                 mode="json",
                 exclude_none=True,
-                exclude_unset=True,
             )
         elif isinstance(flags, dict):
             dumped = {key: value for key, value in flags.items() if value is not None}
@@ -1818,14 +1816,15 @@ class WorkflowsService:
 
         _workflow_revisions = []
 
-        # Fetch each distinct workflow once, not once per revision.
+        # Fetch each distinct workflow once, not once per revision. `revisions` is the
+        # plain git Revision DTO here (artifact_id), not yet the WorkflowRevision alias.
         workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
         for revision in revisions:
-            if revision.workflow_id not in workflows_by_id:
-                workflows_by_id[revision.workflow_id] = await self.fetch_workflow(
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
                     project_id=project_id,
                     #
-                    workflow_ref=Reference(id=revision.workflow_id),
+                    workflow_ref=Reference(id=revision.artifact_id),
                     #
                     include_archived=include_archived,
                 )
@@ -1837,7 +1836,7 @@ class WorkflowsService:
                     **revision.model_dump(mode="json"),
                 ),
                 include_archived=include_archived,
-                workflow=workflows_by_id[revision.workflow_id],
+                workflow=workflows_by_id[revision.artifact_id],
             )
             if not self._matches_requested_flags(
                 actual_flags=workflow_revision.flags,
@@ -2039,14 +2038,15 @@ class WorkflowsService:
 
         _workflow_revisions = []
 
-        # Fetch each distinct workflow once, not once per revision.
+        # Fetch each distinct workflow once, not once per revision. `revisions` is the
+        # plain git Revision DTO here (artifact_id), not yet the WorkflowRevision alias.
         workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
         for revision in revisions:
-            if revision.workflow_id not in workflows_by_id:
-                workflows_by_id[revision.workflow_id] = await self.fetch_workflow(
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
                     project_id=project_id,
                     #
-                    workflow_ref=Reference(id=revision.workflow_id),
+                    workflow_ref=Reference(id=revision.artifact_id),
                     #
                     include_archived=include_archived,
                 )
@@ -2059,7 +2059,7 @@ class WorkflowsService:
                         **revision.model_dump(mode="json"),
                     ),
                     include_archived=include_archived,
-                    workflow=workflows_by_id[revision.workflow_id],
+                    workflow=workflows_by_id[revision.artifact_id],
                 )
             )
 

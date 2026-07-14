@@ -8,6 +8,15 @@ revision (instead of once per distinct workflow_id) would reopen a connection pe
 row under a fanned-out query. These tests assert the CALL COUNT into
 `workflows_dao.fetch_artifact`, not just the returned shape — a result-only test
 would still pass with the bug present.
+
+The dedup loop must key off `artifact_id`: `workflows_dao.query_revisions` /
+`log_revisions` return the plain git `Revision` DTO (`artifact_id`), not the
+`WorkflowRevision` alias (`workflow_id`) — that only exists after the per-row
+`WorkflowRevision(**revision.model_dump(...))` conversion later in the method.
+Building the mock's revisions from `WorkflowRevision` instead of `Revision` masks
+exactly this mismatch, which is what let the `revision.workflow_id` AttributeError
+regression (silently swallowed by `@suppress_exceptions`, returning an empty
+response) ship past this test.
 """
 
 from unittest.mock import AsyncMock
@@ -15,15 +24,14 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.core.git.dtos import Artifact
-from oss.src.core.workflows.dtos import WorkflowRevision
+from oss.src.core.git.dtos import Artifact, Revision
 from oss.src.core.workflows.service import WorkflowsService
 
 
 def _revision(*, workflow_id, version="1"):
-    return WorkflowRevision(
+    return Revision(
         id=uuid4(),
-        workflow_id=workflow_id,
+        artifact_id=workflow_id,
         version=version,
         slug="v1",
     )
