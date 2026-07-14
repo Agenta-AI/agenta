@@ -298,25 +298,27 @@ const MessageRow = ({
               onInspect()
           }
         : undefined
-    // While the inspector is open, a turn is interactive: padded + rounded so the fill has breathing
-    // room. Inspected = a persistent, slightly stronger version of the hover fill (same visual
-    // language, just "held"). `box-border` is required (preflight off → content-box) so the padding
-    // doesn't overflow the 880px column.
+    // While the inspector is open, every turn is interactive: padded + rounded so the fill has
+    // breathing room, and cursor-pointer everywhere (clicking the selected turn just re-selects it).
+    // Hover is a light fill; the SELECTED turn is a held fill + a left accent bar, so "the one the
+    // inspector is showing" reads distinctly from a passing hover. Background + accent-bar both
+    // transition, so selection glides between turns instead of snapping. `box-border` is required
+    // (preflight off → content-box) so the padding doesn't overflow the 880px column.
     const interactive = Boolean(onInspect)
     // `shown || !enter` is a belt-and-suspenders: a settled row (id seen) is always visible.
     return (
         <div
             data-mid={mid}
             onClick={handleClick}
-            className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-[opacity,background-color] motion-safe:duration-200 motion-safe:ease-out ${
+            className={`${CHAT_COLUMN} flex flex-col gap-1 motion-safe:transition-[opacity,background-color,box-shadow] motion-safe:duration-200 motion-safe:ease-out ${
                 offscreenSkip ? "[content-visibility:auto] [contain-intrinsic-size:auto_240px]" : ""
             } ${shown || !enter ? "opacity-100" : "motion-safe:opacity-0"} ${
-                interactive ? "box-border rounded-lg px-3 py-2.5" : ""
+                interactive ? "box-border cursor-pointer rounded-lg px-3 py-2.5" : ""
             } ${
                 inspected
-                    ? "bg-[var(--ag-colorFillSecondary)]"
+                    ? "bg-[var(--ag-colorFillSecondary)] shadow-[inset_2px_0_0_var(--ag-colorPrimary)]"
                     : interactive
-                      ? "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]"
+                      ? "hover:bg-[var(--ag-colorFillTertiary)]"
                       : ""
             }`}
         >
@@ -1778,15 +1780,17 @@ const AgentConversation = ({
             message.role === "user" && messages[index + 1]
                 ? getMessageTraceId(messages[index + 1])
                 : undefined
-        // While the inspector is open, an assistant turn tints when it's the target and is
-        // click-to-refocus otherwise (click any other turn to re-point the inspector at it).
+        // Whenever the inspector PANEL is open, every assistant turn is click-to-focus — click any
+        // turn to re-point the inspector at it; the current target tints. Gated on the panel being
+        // open (not on a turn already being focused), so opening the inspector on session scope
+        // still lets you click a turn to drill in.
         const isAssistantTurn = message.role === "assistant"
         const isInspected =
             isAssistantTurn &&
             inspectedTurn != null &&
             turnOfAssistant(message.id) === inspectedTurn
         const onInspect =
-            turnInspectorOpen && isAssistantTurn
+            inspectorOpen && isAssistantTurn
                 ? () => openInspectorTurn({sessionId, turn: turnOfAssistant(message.id)})
                 : undefined
         const showInspect = buildMode && isAssistantTurn
