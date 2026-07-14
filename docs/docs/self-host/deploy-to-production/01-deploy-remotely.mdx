@@ -85,11 +85,53 @@ AGENTA_WEB_URL=http://192.168.1.100
 AGENTA_SERVICES_URL=http://192.168.1.100:80/services
 ```
 
+The web container reads `AGENTA_WEB_URL` and `AGENTA_API_URL` when it starts and writes them into the page it serves. If you change either one on a running deployment, recreate the container so the new values reach the browser. The image does not need rebuilding:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh \
+  --profile with-web --profile with-traefik up -d --force-recreate web
+```
+
 ### Additional Configuration Options
 
 For more advanced settings like SSL, authentication, or custom ports, see our [complete configuration guide](/self-host/configuration).
 
-## Step 3: Deploy Agenta
+## Step 3: Secure the Deployment
+
+The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The two Agenta keys ship as the literal string `replace-me`.
+
+:::warning Change these before the first start
+PostgreSQL applies `POSTGRES_USER` and `POSTGRES_PASSWORD` when it initializes its data volume. Setting them after the first start does not change an existing database.
+:::
+
+Set these in `hosting/docker-compose/oss/.env.oss.gh`:
+
+```bash
+# Publish the database on the loopback interface only. Compose accepts the
+# host_ip:port form here. Containers reach the database over the Compose
+# network as postgres:5432, so nothing inside the stack changes.
+POSTGRES_PORT=127.0.0.1:5432
+
+POSTGRES_USER=agenta
+POSTGRES_PASSWORD=<a password you generate>
+
+AGENTA_AUTH_KEY=<a random string>
+AGENTA_CRYPT_KEY=<a random string>
+```
+
+Generate each key with:
+
+```bash
+openssl rand -hex 32
+```
+
+- `AGENTA_AUTH_KEY` authenticates the admin API and signs the tokens Agenta issues. A caller who knows it is an admin on your deployment.
+- `AGENTA_CRYPT_KEY` encrypts the secrets Agenta stores, such as the model provider keys you add in the web interface. Any non-empty string works: Agenta derives the encryption key from it with SHA-256. Changing it later makes already-stored secrets undecryptable.
+
+The API builds its database URLs from `POSTGRES_USER` and `POSTGRES_PASSWORD`. If you also set `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING`, or `POSTGRES_URI_SUPERTOKENS` yourself, update the credentials in those URLs too.
+
+## Step 4: Deploy Agenta
 
 ### Option 1: Deploy with Traefik (Recommended)
 
@@ -111,7 +153,7 @@ If you prefer Nginx or need to integrate with existing Nginx configurations:
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-nginx up -d
 ```
 
-## Step 4: Verify Your Deployment
+## Step 5: Verify Your Deployment
 
 ### Check Service Status
 
@@ -163,6 +205,30 @@ docker compose logs
 - Check that your domain DNS is pointing to the server
 - Ensure AGENTA_WEB_URL matches how you're accessing the site
 
+
+### Redirects Come Back as HTTP Behind a Reverse Proxy
+
+This applies if TLS terminates in front of Agenta, in Cloudflare, a load balancer, or your own proxy, and that proxy forwards plain HTTP to Agenta's Traefik. The symptom is a redirect (`307` or `308`) whose `Location` header carries `http://` instead of `https://`, which the browser then blocks or loops on.
+
+Agenta's API runs under gunicorn, which trusts `X-Forwarded-*` headers only from `127.0.0.1` and `::1` by default. Traefik reaches it from another container address, so the API does not see the original scheme and builds its redirect URLs from the plain-HTTP hop it did see. Traefik also drops the `X-Forwarded-*` headers your proxy sets, because it does not trust them from an unknown client.
+
+Fix both hops. In your env file, tell gunicorn to trust the forwarded headers it receives:
+
+```bash
+FORWARDED_ALLOW_IPS=*
+```
+
+`*` means the API trusts `X-Forwarded-*` from any peer that can reach it. Only use it when the API is reachable through the proxy alone, not directly.
+
+Then let Traefik pass through the headers your proxy sets, by adding this line to the `traefik` service `command` in the Compose file:
+
+```yaml
+traefik:
+  command:
+    - --entrypoints.web.forwardedHeaders.insecure=true
+```
+
+Recreate the API and Traefik containers afterwards.
 
 ### Nginx-Specific Issues
 

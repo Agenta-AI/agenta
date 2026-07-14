@@ -76,6 +76,21 @@ not point at it.
 
 **Solution:** See [Use your own subscription](/self-host/use-your-own-subscription).
 
+### The runner container does not start: `error gathering device information while adding custom device "/dev/fuse"`
+
+**Cause:** The bundled Compose files pass `/dev/fuse` to the runner, and the host does not have that
+device. Docker then refuses to create the container.
+
+**Solution:** Load the FUSE module on the host:
+
+```bash
+sudo modprobe fuse
+```
+
+If the host cannot provide FUSE at all, remove the `devices`, `cap_add`, and `security_opt` entries
+from the `runner` service. Agents still run: the runner falls back to an ephemeral working
+directory per run, and working directories stop persisting across turns.
+
 ### Working directories do not persist across turns
 
 **Cause:** The runner container cannot mount the durable store. It mounts it with FUSE, which needs

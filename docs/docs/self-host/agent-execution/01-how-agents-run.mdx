@@ -69,6 +69,11 @@ What a run keeps depends on what the run is:
 Durable working directories are backed by the [store](/self-host/infrastructure/architecture).
 Only a run with no session and no workflow artifact is fully ephemeral.
 
+The store is optional. A deployment that configures no `AGENTA_STORE_*` credentials runs agents
+normally, with mounts disabled: every run gets an ephemeral working directory inside its sandbox,
+and the table above no longer applies. See
+[Enable the agent runner and durable store](/self-host/upgrades/runner-and-store).
+
 ## Next
 
 - [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) for the trust model.

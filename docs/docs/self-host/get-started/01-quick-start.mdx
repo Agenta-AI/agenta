@@ -15,6 +15,13 @@ Looking to deploy on Kubernetes instead? See the [Deploy on Kubernetes](/self-ho
 ## Prerequisites
 
 - Docker installed on your machine ([Download Docker](https://docs.docker.com/get-docker/))
+- Permission to reach the Docker daemon socket, `/var/run/docker.sock`. It is owned by `root` and the `docker` group. Run the commands below as `root`, prefix them with `sudo`, or add your user to the `docker` group:
+
+  ```bash
+  sudo usermod -aG docker $USER
+  ```
+
+  Then open a new login shell so the group applies. A member of the `docker` group can start a container that mounts the host filesystem, which makes the group equivalent to root on that machine.
 
 ## Quick Setup (Port 80)
 
@@ -83,6 +90,7 @@ If Agenta doesn't start properly, check these common issues:
 4. SDK connectivity issues: If you're using the Agenta SDK from outside Docker to connect to your localhost Agenta instance and experiencing connection failures, ensure the `DOCKER_NETWORK_MODE` environment variable is unset (this is the default behavior).
 5. Docker network layout: The Docker networks are defined in the compose files. See `hosting/docker-compose/oss/docker-compose.gh.yml` (OSS) or `hosting/docker-compose/ee/docker-compose.dev.yml` (EE) for the network names and service attachments.
 6. Lack of memory provided to docker: If you are experiencing the web container restarting and dying unexpectedly, the most likely cause is that you are running out of memory. You may need to increase the memory allocated to docker (desktop).
+7. The runner container does not start and Docker reports `error gathering device information while adding custom device "/dev/fuse"`: the host has no FUSE device. See [Run agents locally](/self-host/agent-execution/run-agents-locally#troubleshooting).
 
 :::info
 To set up a development environment with features like hot-reloading, refer to our [Development Guide](/contributing/guides/development-mode).

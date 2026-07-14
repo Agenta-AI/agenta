@@ -260,6 +260,29 @@ depending on what is set.
 **Solution:** Add the provider and recreate the runner, or change the run to use an enabled
 provider.
 
+### A run fails with `could not find runner CLI at /app/runner/src/cli.ts`
+
+**Cause:** `AGENTA_RUNNER_INTERNAL_URL` is unset on the Services API. With no runner URL, the SDK
+falls back to spawning the runner as a subprocess from its own image, which does not ship the
+runner source.
+
+**Solution:** Set the locator on the `services` container and recreate it. On Compose:
+
+```bash
+AGENTA_RUNNER_INTERNAL_URL=http://runner:8765
+```
+
+The bundled Compose files already default to this value, and the Helm chart derives it from
+`agentRunner.enabled`. A hand-written deployment has to set it. Check that the Services container
+reaches the runner at that address:
+
+```bash
+docker compose exec services python -c \
+  "import urllib.request; print(urllib.request.urlopen('http://runner:8765/health').status)"
+```
+
+A `200` confirms the hop.
+
 ### The API cannot reach the runner, or the runner rejects its calls
 
 **Cause:** `AGENTA_RUNNER_INTERNAL_URL` does not point at the runner, or `AGENTA_RUNNER_TOKEN` is
