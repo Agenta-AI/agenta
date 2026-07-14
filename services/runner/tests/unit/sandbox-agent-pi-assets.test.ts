@@ -58,10 +58,7 @@ describe("Pi session workspace", () => {
     const env: Record<string, string> = {};
 
     assert.equal(
-      configurePiSessionWorkspace(
-        { isPi: false, cwd: "/work/session-1" },
-        env,
-      ),
+      configurePiSessionWorkspace({ isPi: false, cwd: "/work/session-1" }, env),
       undefined,
     );
     assert.equal(env.PI_CODING_AGENT_SESSION_DIR, undefined);
@@ -357,10 +354,11 @@ describe("prepareLocalAgentDir", () => {
     writeFileSync(join(source, "auth.json"), '{"token":"x"}', "utf-8");
     writeFileSync(join(source, "settings.json"), '{"model":"gpt"}', "utf-8");
 
-    const runDir = prepareLocalAgentDir(source);
+    const { dir: runDir, extensionInstalled } = prepareLocalAgentDir(source);
     dirs.push(runDir);
 
     assert.notEqual(runDir, source);
+    assert.equal(extensionInstalled, true);
     assert.equal(
       readFileSync(join(runDir, "auth.json"), "utf-8"),
       '{"token":"x"}',
@@ -371,17 +369,28 @@ describe("prepareLocalAgentDir", () => {
     );
     assert.equal(existsSync(join(runDir, "skills")), false);
   });
+
+  it("reports failure when the extension cannot be installed (bundle missing)", () => {
+    const source = tempDir("agenta-pi-source-nobundle-");
+    const previous = process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+    process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = join(
+      tmpdir(),
+      "agenta-nonexistent-extension-bundle.js",
+    );
+    try {
+      const { dir: runDir, extensionInstalled } = prepareLocalAgentDir(source);
+      dirs.push(runDir);
+      assert.equal(extensionInstalled, false);
+      assert.equal(existsSync(join(runDir, "extensions", "agenta.js")), false);
+    } finally {
+      if (previous === undefined)
+        delete process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+      else process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = previous;
+    }
+  });
 });
 
-describe("prepareLocalPiAssets (PI_CODING_AGENT_DIR guard)", () => {
-  const ENV_VAR = "PI_CODING_AGENT_DIR";
-  const previous = process.env[ENV_VAR];
-
-  afterEach(() => {
-    if (previous === undefined) delete process.env[ENV_VAR];
-    else process.env[ENV_VAR] = previous;
-  });
-
+describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", () => {
   const plainPiPlan = {
     isPi: true,
     isDaytona: false,
@@ -392,35 +401,43 @@ describe("prepareLocalPiAssets (PI_CODING_AGENT_DIR guard)", () => {
     sourcePiAgentDir: "/unused",
   };
 
-  it("logs a clear warning when a plain local Pi run has no PI_CODING_AGENT_DIR", () => {
-    delete process.env[ENV_VAR];
-    const logs: string[] = [];
+  it("installs the extension into a per-run temp dir it owns, independent of PI_CODING_AGENT_DIR", () => {
+    const env: Record<string, string> = {};
 
-    const runDir = prepareLocalPiAssets({
+    const { dir: runDir, extensionInstalled } = prepareLocalPiAssets({
       plan: plainPiPlan,
-      env: {},
-      log: (msg) => logs.push(msg),
+      env,
     });
 
-    assert.equal(runDir, undefined);
-    assert.ok(
-      logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")),
-      `expected a PI_CODING_AGENT_DIR warning, got: ${JSON.stringify(logs)}`,
+    assert.ok(runDir, "a plain local Pi run gets a throwaway per-run dir");
+    assert.notEqual(runDir, "/unused");
+    assert.equal(env.PI_CODING_AGENT_DIR, runDir);
+    assert.equal(extensionInstalled, true);
+    assert.equal(
+      existsSync(join(runDir as string, "extensions", "agenta.js")),
+      true,
     );
+    dirs.push(runDir as string);
   });
 
-  it("installs the extension silently (no warning) when PI_CODING_AGENT_DIR is set", () => {
-    const dir = tempDir("agenta-pi-configured-dir-");
-    process.env[ENV_VAR] = dir;
-    const logs: string[] = [];
-
-    prepareLocalPiAssets({
-      plan: plainPiPlan,
-      env: {},
-      log: (msg) => logs.push(msg),
-    });
-
-    assert.ok(!logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")));
+  it("reports extensionInstalled=false when the extension could not be installed", () => {
+    const previous = process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+    process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = join(
+      tmpdir(),
+      "agenta-nonexistent-extension-bundle.js",
+    );
+    try {
+      const { dir: runDir, extensionInstalled } = prepareLocalPiAssets({
+        plan: plainPiPlan,
+        env: {},
+      });
+      if (runDir) dirs.push(runDir);
+      assert.equal(extensionInstalled, false);
+    } finally {
+      if (previous === undefined)
+        delete process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+      else process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = previous;
+    }
   });
 });
 
@@ -555,7 +572,7 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     const mount = tempDir("agenta-pi-subscription-mount-");
     writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
 
-    const runDir = prepareLocalPiAssets({
+    const { dir: runDir } = prepareLocalPiAssets({
       plan: subscriptionPlan(mount, {
         skillDirs: [],
         hasSystemPrompt: true,
@@ -574,7 +591,7 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
     const env: Record<string, string> = {};
 
-    const runDir = prepareLocalPiAssets({
+    const { dir: runDir } = prepareLocalPiAssets({
       plan: subscriptionPlan(source, {
         credentialMode: "env",
         hasSystemPrompt: true,

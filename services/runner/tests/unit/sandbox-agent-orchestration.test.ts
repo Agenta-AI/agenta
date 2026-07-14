@@ -394,7 +394,7 @@ describe("runSandboxAgent orchestration", () => {
 
   it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
     const { calls, deps } = fakeHarness();
-    deps.prepareDaytonaPiAssets = (async () => {}) as any;
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
 
     const result = await runSandboxAgent(
       {
@@ -482,6 +482,7 @@ describe("runSandboxAgent orchestration", () => {
     let agentDirSkillCount = -1;
     deps.prepareDaytonaPiAssets = (async ({ plan }: any) => {
       agentDirSkillCount = plan.skillDirs.length;
+      return true;
     }) as any;
 
     const result = await runSandboxAgent(
