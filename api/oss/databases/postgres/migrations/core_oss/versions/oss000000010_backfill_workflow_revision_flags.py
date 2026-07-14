@@ -28,10 +28,43 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     conn = op.get_bind()
 
-    # Only add each key where absent — never overwrite an already-set value. Each row
-    # records which keys THIS backfill added, under a private marker key: an explicit
-    # false is otherwise indistinguishable from one a caller stored, and downgrade must
-    # not strip the latter.
+    # Record which rows this backfill touched, and which keys it added to each, in a
+    # side table — not inside `flags` itself. An explicit false is indistinguishable
+    # from one a caller stored, so downgrade needs provenance; but `flags` is
+    # user-facing and typed (Dict[str, bool | str | dict]), so bookkeeping must not
+    # live there.
+    conn.execute(
+        sa.text(
+            """
+            CREATE TABLE IF NOT EXISTS oss000000010_backfilled_flags (
+                revision_id uuid NOT NULL,
+                project_id  uuid NOT NULL,
+                added_keys  text[] NOT NULL,
+                PRIMARY KEY (project_id, revision_id)
+            )
+            """
+        )
+    )
+
+    conn.execute(
+        sa.text(
+            """
+            INSERT INTO oss000000010_backfilled_flags (revision_id, project_id, added_keys)
+            SELECT id, project_id,
+                   ARRAY(
+                       SELECT k FROM unnest(ARRAY['is_agent', 'is_skill']) AS k
+                       WHERE NOT (COALESCE(flags, '{}'::jsonb) ? k)
+                   )
+            FROM workflow_revisions
+            WHERE flags IS NULL
+               OR NOT (flags ? 'is_agent')
+               OR NOT (flags ? 'is_skill')
+            ON CONFLICT DO NOTHING
+            """
+        )
+    )
+
+    # Add each key only where absent; never overwrite a value a caller already stored.
     conn.execute(
         sa.text(
             """
@@ -41,13 +74,6 @@ def upgrade() -> None:
                         THEN '{"is_agent": false}'::jsonb ELSE '{}'::jsonb END
                 || CASE WHEN NOT (COALESCE(flags, '{}'::jsonb) ? 'is_skill')
                         THEN '{"is_skill": false}'::jsonb ELSE '{}'::jsonb END
-                || jsonb_build_object(
-                       '__oss000000010__',
-                       (CASE WHEN NOT (COALESCE(flags, '{}'::jsonb) ? 'is_agent')
-                             THEN '["is_agent"]'::jsonb ELSE '[]'::jsonb END)
-                       || (CASE WHEN NOT (COALESCE(flags, '{}'::jsonb) ? 'is_skill')
-                                THEN '["is_skill"]'::jsonb ELSE '[]'::jsonb END)
-                   )
             WHERE flags IS NULL
                OR NOT (flags ? 'is_agent')
                OR NOT (flags ? 'is_skill')
@@ -59,18 +85,22 @@ def upgrade() -> None:
 def downgrade() -> None:
     conn = op.get_bind()
 
-    # Strip only the keys this backfill added, per row, then drop the marker.
+    # Strip only the keys this backfill added, per row, from its recorded provenance.
     conn.execute(
         sa.text(
             """
-            UPDATE workflow_revisions
+            UPDATE workflow_revisions AS wr
             SET flags = (
                     SELECT COALESCE(jsonb_object_agg(kv.key, kv.value), '{}'::jsonb)
-                    FROM jsonb_each(flags) AS kv
-                    WHERE kv.key <> '__oss000000010__'
-                      AND NOT (flags -> '__oss000000010__' ? kv.key)
+                    FROM jsonb_each(wr.flags) AS kv
+                    WHERE NOT (kv.key = ANY(b.added_keys))
                 )
-            WHERE flags ? '__oss000000010__'
+            FROM oss000000010_backfilled_flags AS b
+            WHERE wr.id = b.revision_id
+              AND wr.project_id = b.project_id
+              AND wr.flags IS NOT NULL
             """
         )
     )
+
+    conn.execute(sa.text("DROP TABLE IF EXISTS oss000000010_backfilled_flags"))
