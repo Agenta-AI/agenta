@@ -234,25 +234,23 @@ export interface WireSkill {
   allowExecutableFiles?: boolean;
 }
 
-/**
- * A user-declared MCP server attached to the run. `stdio` launches `command`/`args` with
- * `env` (secret env already resolved server-side); `tools` is an optional allowlist (empty =
- * all). Remote (`http`) carries no auth on the wire by design.
- */
+export interface McpToolPolicy {
+  mode: "all" | "include";
+  names?: string[];
+}
+
 export interface McpServerConfig {
   name: string;
-  transport?: "stdio" | "http";
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
-  tools?: string[];
-  /**
-   * Layer-3 permission for the whole server: `allow` / `ask` / `deny`. Absent =
-   * fall back to the global permission plan. An MCP server has no `readOnly` hint, so there
-   * is no derived default: an explicit author value or nothing.
-   */
-  permission?: ToolPermission;
+  connection: {
+    type: "http";
+    url: string;
+    /** Resolved per-run headers. Values may be secret and must never be logged. */
+    headers?: Record<string, string>;
+  };
+  policy: {
+    tools: McpToolPolicy;
+    permission?: ToolPermission;
+  };
 }
 
 /**

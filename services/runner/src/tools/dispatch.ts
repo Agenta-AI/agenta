@@ -2,8 +2,8 @@
  * Shared tool dispatch: execute one backend-resolved tool, branching on its executor `kind`.
  *
  * The same "branch on spec.kind to run a resolved tool" logic was duplicated across the
- * delivery paths (extensions/agenta.ts Pi-under-sandbox-agent, tools/mcp-server.ts the MCP
- * bridge). This module owns that dispatch ONCE so a change to how a kind is executed is a
+ * delivery paths (the Pi extension and internal MCP channels). This module owns that dispatch
+ * once so a change to how a kind is executed is a
  * one-line edit, not several. Each call site still keeps its OWN result-wrapping shape (the Pi
  * extension's tool details, the MCP `content` envelope) and its OWN advertise/skip behavior
  * for `client` tools — only the execution itself is shared.

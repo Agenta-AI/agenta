@@ -327,8 +327,6 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 - name: AGENTA_RUNNER_INTERNAL_URL
   value: {{ $url | quote }}
 {{- end }}
-- name: AGENTA_AGENT_MCPS_ENABLED
-  value: {{ default false $runner.enableMcp | quote }}
 {{- /* agentRunner.token — the caller side of the runner's shared-token gate; the runner reads
      the same var (see runner-deployment.yaml). Unset = gate off (default). */}}
 {{- if $runner.token }}
@@ -1107,11 +1105,12 @@ imagePullSecrets:
 - name: AGENTA_SERVICES_CODE_SANDBOX_RUNNER
   value: {{ $svcCode.sandboxRunner | quote }}
 {{- end }}
-{{- /* agenta.sandboxLocalAllowed — agent runner `local` sandbox gate */}}
-{{- if hasKey $agenta "sandboxLocalAllowed" }}
-- name: AGENTA_SANDBOX_LOCAL_ALLOWED
-  value: {{ $agenta.sandboxLocalAllowed | quote }}
-{{- end }}
+{{- /* agent runner sandbox provider registry — one operator entry, read by api/web/services and the runner */}}
+{{- $runnerProviders := default dict (default dict .Values.agentRunner).providers }}
+- name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+  value: {{ join "," (default (list "local") $runnerProviders.enabled) | quote }}
+- name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
+  value: {{ default "local" $runnerProviders.default | quote }}
 {{- /* agenta.services.middleware — SDK middleware toggles */}}
 {{- if hasKey $svcMiddleware "authEnabled" }}
 - name: AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED

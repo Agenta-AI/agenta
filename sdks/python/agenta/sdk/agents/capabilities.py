@@ -33,7 +33,7 @@ general capability-table mechanism; this module is the provider/model/auth contr
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -164,6 +164,17 @@ def _pi_models() -> Dict[str, List[str]]:
     return models
 
 
+class UserMCPServerCapabilities(BaseModel):
+    connection_types: List[str] = Field(default_factory=lambda: ["http"])
+    credentials: List[str] = Field(
+        default_factory=lambda: ["none", "header_secret_refs"]
+    )
+
+
+class HarnessMCPCapabilities(BaseModel):
+    user_servers: Optional[UserMCPServerCapabilities] = None
+
+
 class HarnessConnectionCapabilities(BaseModel):
     """The connection-relevant capabilities of one harness (the ``/inspect`` ``meta`` shape).
 
@@ -192,6 +203,7 @@ class HarnessConnectionCapabilities(BaseModel):
     # ``models``. Loosely typed as dicts here so this module stays decoupled from the entry schema
     # in ``model_catalog.py`` and the ``/inspect`` payload stays plain JSON.
     model_catalog: List[Dict[str, object]] = Field(default_factory=list)
+    mcp: Optional[HarnessMCPCapabilities] = None
 
 
 HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
@@ -218,6 +230,9 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         model_selection="alias",
         models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
         model_catalog=_model_catalog("claude"),
+        mcp=HarnessMCPCapabilities(
+            user_servers=UserMCPServerCapabilities(),
+        ),
     ),
 }
 
@@ -235,7 +250,7 @@ def harness_capabilities_document() -> Dict[str, Dict[str, object]]:
     type — instead of an inlined, agent-only ``meta`` field on every inspect call.
     """
     return {
-        harness: caps.model_dump()
+        harness: caps.model_dump(exclude_none=True)
         for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items()
     }
 
@@ -249,7 +264,10 @@ def harness_catalog_document() -> Dict[str, Dict[str, object]]:
     template's harness field via ``x-ag-harness-ref``.
     """
     return {
-        harness: {"harness": harness, "capabilities": caps.model_dump()}
+        harness: {
+            "harness": harness,
+            "capabilities": caps.model_dump(exclude_none=True),
+        }
         for harness, caps in HARNESS_CONNECTION_CAPABILITIES.items()
     }
 

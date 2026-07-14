@@ -114,6 +114,10 @@ export const KNOWN_PROVIDER_ENV_VARS = [
 // ones. sandbox-agent's local() spawns `{...process.env, ...options.env}` (inherit-then-apply), so
 // an absent key here doesn't stop the leak — must be forced to "" to override the inherited value.
 export const KNOWN_SANDBOX_ENV_VARS = [
+  // The operator sets the runner's Daytona credential under this name; the runner also bridges it
+  // into the ambient `DAYTONA_API_KEY` the vendored SDK reads. Blank BOTH so neither reaches a
+  // local harness process.
+  "AGENTA_RUNNER_DAYTONA_API_KEY",
   "DAYTONA_API_KEY",
   "E2B_API_KEY",
 ] as const;

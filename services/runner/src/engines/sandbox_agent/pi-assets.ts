@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import {
   copyFileSync,
   cpSync,
@@ -6,6 +7,8 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -19,6 +22,226 @@ import { PKG_ROOT } from "./daemon.ts";
 import type { RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
+
+/**
+ * Pi native transcripts belong to the Agenta conversation, not the temporary Pi agent dir.
+ * The session cwd is already the durable, session-scoped workspace on both local and Daytona
+ * runs, so keeping transcripts below it gives Pi a stable path without persisting credentials,
+ * settings, extensions, or system prompts.
+ */
+export function piSessionWorkspaceDir(cwd: string): string {
+  return join(cwd, "agents", "sessions", "pi");
+}
+
+/** Point Pi at the durable conversation-scoped transcript directory. */
+export function configurePiSessionWorkspace(
+  plan: Pick<RunPlan, "isPi" | "cwd">,
+  env: Record<string, string>,
+): string | undefined {
+  if (!plan.isPi) return undefined;
+  const sessionDir = piSessionWorkspaceDir(plan.cwd);
+  env.PI_CODING_AGENT_SESSION_DIR = sessionDir;
+  return sessionDir;
+}
+
+export const PI_SKILL_SNAPSHOT_MARKER = ".agenta-skill-set.json";
+
+export interface PiSkillSnapshot {
+  digest: string;
+  dir: string;
+  marker: string;
+  skills: MaterializedSkill[];
+}
+
+interface SkillFile {
+  path: string;
+  mode: number;
+  content: Buffer;
+}
+
+function listSkillFiles(dir: string, relativeDir = ""): SkillFile[] {
+  const files: SkillFile[] = [];
+  for (const entry of readdirSync(join(dir, relativeDir), {
+    withFileTypes: true,
+  }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const relativePath = relativeDir
+      ? `${relativeDir}/${entry.name}`
+      : entry.name;
+    const sourcePath = join(dir, relativePath);
+    const stat = entry.isSymbolicLink() ? statSync(sourcePath) : undefined;
+    if (entry.isDirectory() || stat?.isDirectory()) {
+      files.push(...listSkillFiles(dir, relativePath));
+    } else if (entry.isFile() || stat?.isFile()) {
+      files.push({
+        path: relativePath,
+        mode: statSync(sourcePath).mode & 0o777,
+        content: readFileSync(sourcePath),
+      });
+    }
+  }
+  return files;
+}
+
+function hashPart(
+  hash: ReturnType<typeof createHash>,
+  value: string | Buffer,
+): void {
+  const bytes = typeof value === "string" ? Buffer.from(value, "utf-8") : value;
+  const length = Buffer.alloc(8);
+  length.writeBigUInt64BE(BigInt(bytes.length));
+  hash.update(length);
+  hash.update(bytes);
+}
+
+/** Resolve the immutable project-local snapshot selected for this Pi run. */
+export function resolvePiSkillSnapshot(
+  plan: Pick<RunPlan, "isPi" | "cwd" | "skillDirs">,
+): PiSkillSnapshot | undefined {
+  if (!plan.isPi || plan.skillDirs.length === 0) return undefined;
+
+  const skills = [...plan.skillDirs].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  const hash = createHash("sha256");
+  hashPart(hash, "agenta-pi-skill-set-v1");
+  for (const skill of skills) {
+    hashPart(hash, skill.name);
+    for (const file of listSkillFiles(skill.dir)) {
+      hashPart(hash, file.path);
+      hashPart(hash, file.mode.toString(8));
+      hashPart(hash, file.content);
+    }
+  }
+  const digest = hash.digest("hex");
+  const marker = `${JSON.stringify({
+    version: 1,
+    digest,
+    skills: skills.map((skill) => skill.name),
+  })}\n`;
+  return {
+    digest,
+    dir: join(plan.cwd, "agents", "skills", digest),
+    marker,
+    skills,
+  };
+}
+
+/** Tell Pi to load only the explicitly selected project-local snapshot. */
+export function configurePiSkillSnapshot(
+  snapshot: PiSkillSnapshot | undefined,
+  env: Record<string, string>,
+): void {
+  if (snapshot) env.PI_CODING_AGENT_SKILL_DIR = snapshot.dir;
+}
+
+function validateLocalPiSkillSnapshot(snapshot: PiSkillSnapshot): boolean {
+  if (!existsSync(snapshot.dir)) return false;
+  const markerPath = join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER);
+  if (
+    !existsSync(markerPath) ||
+    readFileSync(markerPath, "utf-8") !== snapshot.marker
+  ) {
+    throw new Error(
+      `Pi skill snapshot ${snapshot.dir} exists without the expected completion marker`,
+    );
+  }
+  return true;
+}
+
+/** Publish a local snapshot once; existing snapshots are only validated and reused. */
+export function materializeLocalPiSkillSnapshot(
+  snapshot: PiSkillSnapshot,
+): void {
+  if (validateLocalPiSkillSnapshot(snapshot)) return;
+
+  const root = dirname(snapshot.dir);
+  mkdirSync(root, { recursive: true });
+  const staging = mkdtempSync(join(root, `.${snapshot.digest}.tmp-`));
+  try {
+    for (const skill of snapshot.skills) {
+      cpSync(skill.dir, join(staging, skill.name), {
+        recursive: true,
+        dereference: true,
+      });
+    }
+    writeFileSync(
+      join(staging, PI_SKILL_SNAPSHOT_MARKER),
+      snapshot.marker,
+      "utf-8",
+    );
+    try {
+      renameSync(staging, snapshot.dir);
+    } catch (err) {
+      if (!validateLocalPiSkillSnapshot(snapshot)) throw err;
+    }
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+async function readDaytonaSnapshotMarker(
+  sandbox: any,
+  snapshot: PiSkillSnapshot,
+): Promise<string | undefined> {
+  try {
+    const bytes = await sandbox.readFsFile({
+      path: `${snapshot.dir}/${PI_SKILL_SNAPSHOT_MARKER}`,
+    });
+    return Buffer.from(bytes).toString("utf-8");
+  } catch {
+    return undefined;
+  }
+}
+
+async function validateDaytonaPiSkillSnapshot(
+  sandbox: any,
+  snapshot: PiSkillSnapshot,
+): Promise<boolean> {
+  const marker = await readDaytonaSnapshotMarker(sandbox, snapshot);
+  if (marker === undefined) return false;
+  if (marker !== snapshot.marker) {
+    throw new Error(
+      `Pi skill snapshot ${snapshot.dir} exists without the expected completion marker`,
+    );
+  }
+  return true;
+}
+
+/** Publish a Daytona snapshot through a unique staging dir and a non-overwriting move. */
+export async function materializeDaytonaPiSkillSnapshot(
+  sandbox: any,
+  snapshot: PiSkillSnapshot,
+): Promise<void> {
+  if (await validateDaytonaPiSkillSnapshot(sandbox, snapshot)) return;
+
+  const root = dirname(snapshot.dir);
+  const staging = `${root}/.${snapshot.digest}.tmp-${randomUUID()}`;
+  await sandbox.mkdirFs({ path: staging });
+  try {
+    for (const skill of snapshot.skills) {
+      await uploadDirToSandbox(sandbox, skill.dir, `${staging}/${skill.name}`);
+    }
+    await sandbox.writeFsFile(
+      { path: `${staging}/${PI_SKILL_SNAPSHOT_MARKER}` },
+      snapshot.marker,
+    );
+    try {
+      await sandbox.moveFs({
+        from: staging,
+        to: snapshot.dir,
+        overwrite: false,
+      });
+    } catch (err) {
+      if (!(await validateDaytonaPiSkillSnapshot(sandbox, snapshot))) throw err;
+    }
+  } finally {
+    if (typeof sandbox.runProcess === "function") {
+      await sandbox
+        .runProcess({ command: "rm", args: ["-rf", "--", staging] })
+        .catch(() => {});
+    }
+  }
+}
 
 // The bundled Agenta Pi extension (tracing + tools). Built by `pnpm run build:extension`
 // and baked into the image; installed into Pi's agent dir so Pi loads it on every run.
@@ -200,30 +423,12 @@ export async function uploadPiExtensionToSandbox(
   }
 }
 
-/** Install materialized skill dirs into a local Pi agent dir's user-scope `skills/`. */
-export function installSkillsLocal(
-  agentDir: string,
-  skillDirs: MaterializedSkill[],
-  log: Log = () => {},
-): void {
-  for (const skill of skillDirs) {
-    try {
-      const dest = join(agentDir, "skills", skill.name);
-      mkdirSync(dirname(dest), { recursive: true });
-      cpSync(skill.dir, dest, { recursive: true, dereference: true });
-    } catch (err) {
-      log(`skill install skipped for ${skill.name}: ${(err as Error).message}`);
-    }
-  }
-}
-
 /**
  * Seed a throwaway local Pi agent dir from `sourceAgentDir` and install the Agenta extension
- * plus the run's materialized skills into it.
+ * into it.
  */
 export function prepareLocalAgentDir(
   sourceAgentDir: string,
-  skillDirs: MaterializedSkill[],
   log: Log = () => {},
 ): string {
   const dir = mkdtempSync(join(tmpdir(), "agenta-pi-agentdir-"));
@@ -236,7 +441,6 @@ export function prepareLocalAgentDir(
     }
   }
   installPiExtensionLocal(dir, log);
-  installSkillsLocal(dir, skillDirs, log);
   return dir;
 }
 
@@ -268,11 +472,7 @@ export function prepareLocalPiAssets({
   if (!plan.isPi || plan.isDaytona) return undefined;
 
   if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
-    const runAgentDir = prepareLocalAgentDir(
-      plan.sourcePiAgentDir,
-      plan.skillDirs,
-      log,
-    );
+    const runAgentDir = prepareLocalAgentDir(plan.sourcePiAgentDir, log);
     if (plan.hasSystemPrompt) {
       writeSystemPromptLocal(
         runAgentDir,

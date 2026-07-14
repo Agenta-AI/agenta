@@ -6,7 +6,6 @@ import pytest
 
 from agenta.sdk.agents import (
     CodeToolSpec,
-    MCPDisabledError,
     MissingMCPSecretError,
     MissingToolSecretError,
 )
@@ -70,42 +69,24 @@ async def test_missing_tool_secret_is_not_silently_omitted():
         )
 
 
-async def test_mcp_disabled_with_no_servers_is_an_empty_list(monkeypatch):
-    # The common case (MCP off, no servers declared): still a clean empty list, unchanged.
-    monkeypatch.delenv("AGENTA_AGENT_MCPS_ENABLED", raising=False)
+async def test_no_mcp_servers_is_an_empty_list():
     assert await resolve_mcp_servers([]) == []
 
 
-async def test_mcp_disabled_with_servers_fails_loud_instead_of_silent_strip(
-    monkeypatch,
-):
-    # F-039: disabling MCP must NOT silently drop user-declared servers. The user gets a clear
-    # "MCP servers are disabled" error naming the servers, not a run that quietly ignored them.
-    monkeypatch.delenv("AGENTA_AGENT_MCPS_ENABLED", raising=False)
-    with pytest.raises(MCPDisabledError) as excinfo:
-        await resolve_mcp_servers(
-            [
-                {"name": "github", "command": "npx"},
-                {"name": "filesystem", "command": "npx"},
-            ]
-        )
-    assert excinfo.value.server_names == ("github", "filesystem")
-    message = str(excinfo.value)
-    assert "disabled" in message
-    assert "github" in message and "filesystem" in message
-
-
-async def test_missing_mcp_secret_is_explicit_when_enabled(monkeypatch):
-    # Drive the real gate input (the env var), like the sibling cases above. The gate itself
-    # now lives once in the SDK (SVC-4), so there is no module-local _mcp_enabled to patch.
-    monkeypatch.setenv("AGENTA_AGENT_MCPS_ENABLED", "true")
+async def test_missing_mcp_secret_is_explicit():
     with pytest.raises(MissingMCPSecretError):
         await resolve_mcp_servers(
             [
                 {
                     "name": "github",
-                    "command": "npx",
-                    "secrets": {"GITHUB_TOKEN": "missing"},
+                    "connection": {
+                        "type": "http",
+                        "url": "https://github.example.com/mcp",
+                        "credentials": {
+                            "type": "header_secret_refs",
+                            "headers": {"Authorization": "missing"},
+                        },
+                    },
                 }
             ],
             secret_provider=_FakeSecretProvider({}),

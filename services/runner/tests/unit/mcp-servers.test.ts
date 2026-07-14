@@ -1,64 +1,34 @@
-/**
- * Unit tests for the user-declared MCP server conversion — HTTP enabled, stdio disabled.
- *
- * `resolve_mcp_servers` (Python) emits the McpServerConfig wire shape; the wire is unchanged.
- *
- * - HTTP (`transport: "http"` + `url`) is DELIVERED. A remote server has no child process on the
- *   runner host: the harness connects to the URL with the named secret in a request header, so it
- *   does not bypass the sandbox boundary. The resolved secret arrives on the wire under the
- *   server's `env` map (the SDK resolver merges named secrets into `env` regardless of transport,
- *   and the wire has no separate `headers` field), so each `env` entry becomes an HTTP header.
- * - STDIO is DISABLED: a stdio server runs an arbitrary process on the RUNNER HOST, outside the
- *   sandbox boundary, so it throws `USER_MCP_UNSUPPORTED_MESSAGE` (parity with the removed code
- *   execution) until its security is fixed.
- * - A command-less stdio server or a url-less http server was never deliverable and is skipped.
- *
- * The SSRF guard resolves hostnames via DNS (`tools/ssrf-guard.ts`), so tests here use IP literals
- * to stay network-free; the DNS-resolution path itself is covered in `ssrf-guard.test.ts`.
- *
- * Run: pnpm test (or: pnpm exec vitest run tests/unit/mcp-servers.test.ts)
- */
+/** External HTTP MCP conversion and SSRF policy. */
 import { afterEach, beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import { toAcpMcpServers } from "../../src/engines/sandbox_agent.ts";
 import type { McpServerHttp } from "../../src/engines/sandbox_agent/mcp.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { McpServerConfig } from "../../src/protocol.ts";
 
-describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
+const http = (
+  url: string,
+  headers: Record<string, string> = { Authorization: "Bearer secret" },
+): McpServerConfig[] => [
+  {
+    name: "s",
+    connection: { type: "http", url, headers },
+    policy: { tools: { mode: "all" } },
+  },
+];
+
+describe("toAcpMcpServers", () => {
   it("maps empty input to []", async () => {
     assert.deepEqual(await toAcpMcpServers(undefined), [], "undefined -> []");
     assert.deepEqual(await toAcpMcpServers([]), [], "[] -> []");
   });
 
-  it("throws the unsupported error for a stdio server", async () => {
-    const servers: McpServerConfig[] = [
-      {
-        name: "github",
-        transport: "stdio",
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-github"],
-        env: { GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_x", LOG_LEVEL: "info" },
-      },
-    ];
-    await assert.rejects(
-      () => toAcpMcpServers(servers),
-      new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
-    );
-  });
-
-  it("delivers an http server, routing the resolved secret into a header", async () => {
-    const out = await toAcpMcpServers([
-      {
-        name: "linear",
-        transport: "http",
-        url: "https://93.184.216.34/sse",
-        // The SDK resolver put the resolved `linear-mcp-token` secret here under the
-        // author-chosen header name "Authorization"; the wire has no separate `headers` key.
-        env: { Authorization: "Bearer secret-token-value" },
-      },
-    ]);
+  it("delivers an HTTP server with resolved headers", async () => {
+    const servers = http("https://93.184.216.34/sse", {
+      Authorization: "Bearer secret-token-value",
+    });
+    servers[0].name = "linear";
+    const out = await toAcpMcpServers(servers);
 
     assert.equal(out.length, 1, "one server delivered");
     const server = out[0] as McpServerHttp;
@@ -68,39 +38,20 @@ describe("toAcpMcpServers (http enabled, stdio disabled)", () => {
     assert.deepEqual(
       server.headers,
       [{ name: "Authorization", value: "Bearer secret-token-value" }],
-      "env entry -> request header",
+      "resolved header is delivered to ACP",
     );
   });
 
   it("delivers an http server with no secrets as an empty header list", async () => {
-    const out = await toAcpMcpServers([
-      { name: "public", transport: "http", url: "https://93.184.216.34/sse" },
-    ]);
+    const out = await toAcpMcpServers(http("https://93.184.216.34/sse", {}));
     const server = out[0] as McpServerHttp;
     assert.equal(server.type, "http");
-    assert.deepEqual(server.headers, [], "no env -> no headers");
-  });
-
-  it("does not throw on a mix of http (delivered) and command-less stdio (skipped)", async () => {
-    const out = await toAcpMcpServers([
-      {
-        name: "remote",
-        transport: "http",
-        url: "https://93.184.216.34/mcp",
-        env: { "X-Api-Key": "k" },
-      },
-      { name: "broken", transport: "stdio" }, // no command -> never launched, skipped
-      { name: "no-url", transport: "http" }, // no url -> never deliverable, skipped
-    ]);
-
-    assert.equal(out.length, 1, "only the valid http server is delivered");
-    assert.equal((out[0] as McpServerHttp).name, "remote");
+    assert.deepEqual(server.headers, [], "no headers stays empty");
   });
 });
 
 describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
   const previousAllowlist = process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST;
-  // Egress defaults permissive (unset -> allowed); this suite exercises the guard, so arm it.
   beforeEach(() => {
     process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "false";
   });
@@ -110,15 +61,6 @@ describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
       delete process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST;
     else process.env.AGENTA_AGENT_MCPS_HOST_ALLOWLIST = previousAllowlist;
   });
-
-  const http = (url: string): McpServerConfig[] => [
-    {
-      name: "s",
-      transport: "http",
-      url,
-      env: { Authorization: "Bearer secret" },
-    },
-  ];
 
   it("rejects a non-https url (the secret would ride in clear text)", async () => {
     await assert.rejects(

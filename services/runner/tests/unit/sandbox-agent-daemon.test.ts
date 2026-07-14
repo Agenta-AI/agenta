@@ -24,6 +24,7 @@ const touched = [
   "COMPOSIO_API_KEY",
   "DAYTONA_API_KEY",
   "AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS",
+  "AGENTA_RUNNER_DAYTONA_API_KEY",
   // Every var the clear-inventory test touches is the full known provider inventory plus the
   // cloud groups, so the afterEach restores them all.
   ...KNOWN_PROVIDER_ENV_VARS,
@@ -231,8 +232,9 @@ describe("buildDaemonEnv", () => {
     assert.equal(widened.OPENAI_API_KEY, "sidecar-openai");
   });
 
-  it("force-blanks infra creds (DAYTONA_API_KEY) on every run, managed or not (F-INFRA-ENV)", () => {
+  it("force-blanks infra creds (DAYTONA_API_KEY + AGENTA_RUNNER_DAYTONA_API_KEY) on every run, managed or not (F-INFRA-ENV)", () => {
     process.env.DAYTONA_API_KEY = "org-key-should-not-leak";
+    process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "runner-key-should-not-leak";
 
     // The underlying sandbox-agent local() provider spawns with
     // {...process.env, ...options.env} (inherit-then-apply), so an ABSENT key here would not

@@ -21,7 +21,6 @@ from agenta.sdk.agents.connections import (
 )
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
-from agenta.sdk.agents.mcp import MCPDisabledError
 from agenta.sdk.agents.streaming import AgentStream
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
@@ -277,57 +276,6 @@ async def test_composition_override_replaces_default_gating():
 
 
 # --------------------------------------------------------------------------- #
-# Drift 3: MCP gating is the seam DEFAULT now (previously ungated in handler.py).
-# --------------------------------------------------------------------------- #
-async def test_default_composition_mcp_disabled_with_no_servers_is_empty(monkeypatch):
-    from agenta.sdk.agents import handler as handler_module
-
-    monkeypatch.delenv("AGENTA_AGENT_MCPS_ENABLED", raising=False)
-    backend = _FakeBackend()
-    comp = AgentComposition(
-        select_backend=lambda template: backend,
-        resolve_connection=_no_connection,
-    )
-    handler = make_agent_handler(comp)
-
-    result = await handler(
-        request=_request(),
-        messages=[{"role": "user", "content": "hi"}],
-        parameters=_params(),
-    )
-    assert isinstance(result, dict)
-    assert handler_module._mcp_enabled() is False
-
-
-async def test_default_composition_mcp_disabled_with_servers_fails_loud(monkeypatch):
-    monkeypatch.delenv("AGENTA_AGENT_MCPS_ENABLED", raising=False)
-    backend = _FakeBackend()
-    comp = AgentComposition(
-        select_backend=lambda template: backend,
-        resolve_connection=_no_connection,
-    )
-    handler = make_agent_handler(comp)
-
-    params = _params()
-    params["agent"]["mcps"] = [{"name": "github", "command": "npx"}]
-
-    with pytest.raises(MCPDisabledError) as excinfo:
-        await handler(
-            request=_request(),
-            messages=[{"role": "user", "content": "hi"}],
-            parameters=params,
-        )
-    assert "github" in str(excinfo.value)
-
-
-async def test_default_composition_mcp_enabled_resolves_servers(monkeypatch):
-    from agenta.sdk.agents import handler as handler_module
-
-    monkeypatch.setenv("AGENTA_AGENT_MCPS_ENABLED", "true")
-    assert handler_module._mcp_enabled() is True
-
-
-# --------------------------------------------------------------------------- #
 # Drift 5: backend/template defaults are per-composition (deployment-specific),
 # proving the seam is request/composition-aware rather than hardcoding one source.
 # --------------------------------------------------------------------------- #
@@ -392,11 +340,13 @@ async def test_composition_select_backend_is_deployment_specific():
 # Local-sandbox gate is the bare SDK default too (a composition-free `agent_v0` gets
 # this protocol-level safety behavior for free, same as capability/MCP gating above).
 # --------------------------------------------------------------------------- #
-async def test_default_select_backend_refuses_local_sandbox_when_knob_off(monkeypatch):
+async def test_default_select_backend_refuses_local_sandbox_when_not_enabled(
+    monkeypatch,
+):
     from agenta.sdk.agents import LocalSandboxNotAllowedError
     from agenta.sdk.agents.dtos import AgentTemplate
 
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", "false")
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
     comp = AgentComposition(resolve_connection=_no_connection)
     handler = make_agent_handler(comp)
 
@@ -416,7 +366,8 @@ async def test_default_select_backend_refuses_local_sandbox_when_knob_off(monkey
 async def test_default_select_backend_allows_local_sandbox_by_default(monkeypatch):
     from agenta.sdk.agents.errors import AgentRunnerConfigurationError
 
-    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", raising=False)
     comp = AgentComposition(resolve_connection=_no_connection)
     handler = make_agent_handler(comp)
 
@@ -432,8 +383,11 @@ async def test_default_select_backend_allows_local_sandbox_by_default(monkeypatc
         )
 
 
-async def test_default_select_backend_allows_daytona_sandbox_by_default(monkeypatch):
-    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
+async def test_default_select_backend_allows_daytona_sandbox_with_custom_backend(
+    monkeypatch,
+):
+    monkeypatch.delenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", raising=False)
     backend = _FakeBackend()
     comp = AgentComposition(
         select_backend=lambda template: backend,
