@@ -371,7 +371,10 @@ export type AgentEvent =
       cost?: number;
     }
   | { type: "error"; message: string }
-  | { type: "done"; stopReason?: string };
+  // `traceId` is the run's observability trace id, stamped on the turn's terminal event so a
+  // persisted transcript can link a replayed turn back to its trace (latency, full-trace view).
+  // Live streams carry it via `messageMetadata`; this is the durable-replay channel.
+  | { type: "done"; stopReason?: string; traceId?: string };
 
 /** A live event sink the engines call as each event is built. */
 export type EmitEvent = (event: AgentEvent) => void;
