@@ -82,3 +82,10 @@ def test_harness_default_is_pi_core_in_every_source():
     assert build_agent_v0_default()["harness"]["kind"] == "pi_core"
     assert _builtin_agent_default()["harness"]["kind"] == "pi_core"
     assert _inspect_agent_default()["harness"]["kind"] == "pi_core"
+
+
+def test_model_default_is_gpt_5_6_luna_in_every_source():
+    expected = {"provider": "openai", "model": "gpt-5.6-luna"}
+    assert build_agent_v0_default()["llm"] == expected
+    assert _builtin_agent_default()["llm"] == expected
+    assert _inspect_agent_default()["llm"] == expected

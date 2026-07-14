@@ -1056,7 +1056,7 @@ def _model_catalog_type() -> dict:
     }
 
 
-_DEFAULT_AGENT_MODEL = "gpt-5.5"
+_DEFAULT_AGENT_MODEL = "gpt-5.6-luna"
 _DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"

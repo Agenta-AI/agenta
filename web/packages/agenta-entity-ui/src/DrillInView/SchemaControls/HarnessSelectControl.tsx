@@ -96,6 +96,8 @@ export interface HarnessSelectControlProps {
     label?: string
     /** Current value. */
     value: string | null | undefined
+    /** Optional visible values, used to hide supported but non-selectable harnesses. */
+    visibleValues?: string[]
     /** Change handler. */
     onChange: (value: string | null) => void
     /** Optional description for tooltip. */
@@ -115,6 +117,7 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
     schema,
     label,
     value,
+    visibleValues,
     onChange,
     description,
     withTooltip = true,
@@ -128,12 +131,13 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
     const metaWithLabel = (id: string): HarnessMeta => ({...metaFor(id), label: labelFor(id)})
 
     const options = useMemo(() => {
-        const values = Array.isArray(schema?.enum) ? (schema?.enum as unknown[]) : []
+        const values =
+            visibleValues ?? (Array.isArray(schema?.enum) ? (schema.enum as string[]) : [])
         return values.map((v) => {
             const id = String(v)
             return {value: id, label: titles[id] ?? metaFor(id).label}
         })
-    }, [schema, titles])
+    }, [schema, titles, visibleValues])
 
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
