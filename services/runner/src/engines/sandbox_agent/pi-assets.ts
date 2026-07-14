@@ -243,11 +243,32 @@ export async function materializeDaytonaPiSkillSnapshot(
   }
 }
 
-// The bundled Agenta Pi extension (tracing + tools). Built by `pnpm run build:extension`
-// and baked into the image; installed into Pi's agent dir so Pi loads it on every run.
-export const EXTENSION_BUNDLE =
-  process.env.SANDBOX_AGENT_EXTENSION_BUNDLE ??
-  join(PKG_ROOT, "dist", "extensions", "agenta.js");
+// The bundled Agenta Pi extension (tracing + tools + permission gating). Built by
+// `pnpm run build:extension` and baked into the image; installed into Pi's agent dir so Pi loads
+// it on every run. Resolved lazily (a function, not a module-level const) so
+// `SANDBOX_AGENT_EXTENSION_BUNDLE` is honored at call time — tests point it at a fixture, and it
+// mirrors `toolMcpBundlePath()` in tool-mcp-assets.ts. The override selects code, so it is trusted
+// deployment configuration, never run or request configuration.
+export function extensionBundlePath(): string {
+  return (
+    process.env.SANDBOX_AGENT_EXTENSION_BUNDLE ??
+    join(PKG_ROOT, "dist", "extensions", "agenta.js")
+  );
+}
+
+/**
+ * Thrown when the policy could gate a Pi built-in tool (`builtinGatingActive`) but the Agenta
+ * permission extension could not be installed, so Pi would run its built-in tools with NO policy
+ * enforcement. Fail closed: stop the run rather than run unprotected. Mirrors
+ * `TOOL_MCP_UNAVAILABLE_MESSAGE` in tool-mcp-assets.ts — a named message the engine's own catch
+ * turns into `{ ok: false, error }` and a visible error frame. Single line so `conciseError`
+ * (which keeps only the first line) surfaces it verbatim.
+ */
+export const PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE =
+  "The agent could not enforce its permission policy: the permission component failed to install, " +
+  "so no built-in tool could be gated. The run was stopped so no tool ran outside your policy. " +
+  "Ask your deployment operator to make the runner's Pi agent directory writable, or rebuild and " +
+  "republish the runner image.";
 
 /**
  * Env the Agenta Pi extension reads. Tool env contains only public metadata plus the
@@ -331,23 +352,28 @@ export function writeOtlpAuthFile(
   }
 }
 
-/** Install the extension bundle into a local Pi agent dir's extensions/. Best-effort. */
+/**
+ * Install the extension bundle into a local Pi agent dir's extensions/. Reports whether the
+ * install succeeded so the caller can fail closed when the policy needs it (a missing bundle or
+ * an unwritable dir returns false rather than silently proceeding with no enforcement).
+ */
 export function installPiExtensionLocal(
   agentDir: string,
   log: Log = () => {},
-): void {
-  if (!existsSync(EXTENSION_BUNDLE)) {
-    log(
-      `pi extension bundle missing at ${EXTENSION_BUNDLE} (run build:extension)`,
-    );
-    return;
+): boolean {
+  const bundle = extensionBundlePath();
+  if (!existsSync(bundle)) {
+    log(`pi extension bundle missing at ${bundle} (run build:extension)`);
+    return false;
   }
   try {
     const dir = join(agentDir, "extensions");
     mkdirSync(dir, { recursive: true });
-    copyFileSync(EXTENSION_BUNDLE, join(dir, "agenta.js"));
+    copyFileSync(bundle, join(dir, "agenta.js"));
+    return true;
   } catch (err) {
     log(`pi extension install skipped: ${(err as Error).message}`);
+    return false;
   }
 }
 
@@ -404,33 +430,52 @@ export async function uploadSystemPromptToSandbox(
   }
 }
 
-/** Upload the extension bundle into a Daytona sandbox's Pi extensions dir. Best-effort. */
+/**
+ * Upload the extension bundle into a Daytona sandbox's Pi extensions dir. Reports whether the
+ * upload succeeded so the caller can fail closed when the policy needs enforcement (a missing
+ * bundle or a failed upload returns false rather than silently proceeding with no enforcement).
+ */
 export async function uploadPiExtensionToSandbox(
   sandbox: any,
   agentDir: string,
   log: Log = () => {},
-): Promise<void> {
-  if (!existsSync(EXTENSION_BUNDLE)) return;
+): Promise<boolean> {
+  const bundle = extensionBundlePath();
+  if (!existsSync(bundle)) {
+    log(`pi extension bundle missing at ${bundle} (run build:extension)`);
+    return false;
+  }
   try {
     const dir = `${agentDir}/extensions`;
     await sandbox.mkdirFs({ path: dir });
     await sandbox.writeFsFile(
       { path: `${dir}/agenta.js` },
-      readFileSync(EXTENSION_BUNDLE, "utf-8"),
+      readFileSync(bundle, "utf-8"),
     );
+    return true;
   } catch (err) {
     log(`pi extension upload skipped: ${(err as Error).message}`);
+    return false;
   }
+}
+
+export interface PreparedLocalAgentDir {
+  /** The throwaway per-run agent dir the runtime user owns (under the system temp path). */
+  dir: string;
+  /** False when the Agenta permission extension could not be installed into it. */
+  extensionInstalled: boolean;
 }
 
 /**
  * Seed a throwaway local Pi agent dir from `sourceAgentDir` and install the Agenta extension
- * into it.
+ * into it. The temp dir lives under the system temp path, which the runtime user owns, so the
+ * install never depends on the operator-configured `PI_CODING_AGENT_DIR` being writable. Reports
+ * whether the extension install succeeded.
  */
 export function prepareLocalAgentDir(
   sourceAgentDir: string,
   log: Log = () => {},
-): string {
+): PreparedLocalAgentDir {
   const dir = mkdtempSync(join(tmpdir(), "agenta-pi-agentdir-"));
   for (const name of ["auth.json", "settings.json"]) {
     const src = join(sourceAgentDir, name);
@@ -440,8 +485,8 @@ export function prepareLocalAgentDir(
       log(`agent-dir seed skipped for ${name}: ${(err as Error).message}`);
     }
   }
-  installPiExtensionLocal(dir, log);
-  return dir;
+  const extensionInstalled = installPiExtensionLocal(dir, log);
+  return { dir, extensionInstalled };
 }
 
 export interface PrepareLocalPiAssetsInput {
@@ -460,10 +505,23 @@ export interface PrepareLocalPiAssetsInput {
   log?: Log;
 }
 
+export interface PrepareLocalPiAssetsResult {
+  /**
+   * The THROWAWAY per-run dir when one was created — `undefined` means "nothing here for the caller
+   * to delete" (the caller `rmSync`s `dir` at teardown, so the operator's own login must never be
+   * returned).
+   */
+  dir: string | undefined;
+  /**
+   * False when the Agenta permission extension could not be installed for this run. The caller
+   * fails the run closed when the policy could gate a Pi built-in tool (`builtinGatingActive`).
+   */
+  extensionInstalled: boolean;
+}
+
 /**
- * Prepare local Pi's agent dir assets and return the THROWAWAY per-run dir when one was created —
- * `undefined` means "nothing here for the caller to delete" (the caller `rmSync`s whatever it gets
- * back at teardown, so the operator's own login must never be returned).
+ * Prepare local Pi's agent dir assets and report the throwaway dir plus whether the permission
+ * extension installed.
  *
  * Two shapes:
  *
@@ -471,10 +529,13 @@ export interface PrepareLocalPiAssetsInput {
  *   mounted login, exactly like a normal local Pi install. Pi refreshes its OAuth token mid-run and
  *   writes the new one back into its agent dir; a per-run copy would throw that refresh away, so
  *   once the provider rotated the refresh token the next run would fail and the operator would have
- *   to log in by hand. Returns `undefined` so teardown cannot delete the mount.
- * - Managed / none: no credential to preserve, so skills and system prompts still get an isolated
- *   per-run copy (returned, and deleted at teardown). A plain run with neither only installs the
- *   inert Agenta extension into the configured shared dir.
+ *   to log in by hand. Returns `dir: undefined` so teardown cannot delete the mount. The extension
+ *   still installs into the mount; a non-writable mount reports `extensionInstalled: false`.
+ * - Managed / none: no credential to preserve, so every run (plain, or with skills / a system
+ *   prompt) gets an isolated per-run copy under the system temp path the runtime user owns, and the
+ *   extension installs there. This removes the fail-open that shipped when the configured
+ *   `PI_CODING_AGENT_DIR` (e.g. `/pi-agent` on the published image) was not writable by the runtime
+ *   user: the install no longer depends on that directory being writable.
  *
  * Tradeoff (interface.md section 6): concurrent local subscription runs share the one agent dir,
  * the same way two local `pi` sessions do. This path is single-trusted-operator only.
@@ -483,14 +544,16 @@ export function prepareLocalPiAssets({
   plan,
   env,
   log = () => {},
-}: PrepareLocalPiAssetsInput): string | undefined {
-  if (!plan.isPi || plan.isDaytona) return undefined;
+}: PrepareLocalPiAssetsInput): PrepareLocalPiAssetsResult {
+  // Not a local Pi run: nothing to install here, so enforcement is not this path's concern.
+  if (!plan.isPi || plan.isDaytona)
+    return { dir: undefined, extensionInstalled: true };
 
   // buildRunPlan already rejected a local runtime_provided run with no configured
   // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
   if (plan.credentialMode === "runtime_provided") {
     const agentDir = plan.sourcePiAgentDir;
-    installPiExtensionLocal(agentDir, log);
+    const extensionInstalled = installPiExtensionLocal(agentDir, log);
     if (plan.hasSystemPrompt) {
       writeSystemPromptLocal(
         agentDir,
@@ -501,32 +564,25 @@ export function prepareLocalPiAssets({
     }
     env.PI_CODING_AGENT_DIR = agentDir;
     // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
-    return undefined;
+    return { dir: undefined, extensionInstalled };
   }
 
-  if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
-    const runAgentDir = prepareLocalAgentDir(plan.sourcePiAgentDir, log);
-    if (plan.hasSystemPrompt) {
-      writeSystemPromptLocal(
-        runAgentDir,
-        plan.systemPrompt,
-        plan.appendSystemPrompt,
-        log,
-      );
-    }
-    env.PI_CODING_AGENT_DIR = runAgentDir;
-    return runAgentDir;
-  }
-
-  if (process.env.PI_CODING_AGENT_DIR) {
-    installPiExtensionLocal(process.env.PI_CODING_AGENT_DIR, log);
-  } else {
-    // unset here means this run has no Agenta extension (tracing + tools); warn so it's visible.
-    log(
-      "PI_CODING_AGENT_DIR is unset; plain local Pi run has no Agenta extension installed",
+  // Managed / none: always route through a throwaway per-run dir the runtime user owns, so the
+  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable.
+  const { dir: runAgentDir, extensionInstalled } = prepareLocalAgentDir(
+    plan.sourcePiAgentDir,
+    log,
+  );
+  if (plan.hasSystemPrompt) {
+    writeSystemPromptLocal(
+      runAgentDir,
+      plan.systemPrompt,
+      plan.appendSystemPrompt,
+      log,
     );
   }
-  return undefined;
+  env.PI_CODING_AGENT_DIR = runAgentDir;
+  return { dir: runAgentDir, extensionInstalled };
 }
 
 /** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */

@@ -91,6 +91,7 @@ import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
+  PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
   uploadSystemPromptToSandbox,
@@ -297,7 +298,8 @@ function shouldSuppressPausedToolCallUpdate(
   pause: PendingApprovalPauseController,
 ): boolean {
   const frame = update as
-    { sessionUpdate?: unknown; toolCallId?: unknown } | undefined;
+    | { sessionUpdate?: unknown; toolCallId?: unknown }
+    | undefined;
   const kind = frame?.sessionUpdate;
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
   const toolCallId =
@@ -644,7 +646,8 @@ export interface SessionEnvironment {
 }
 
 export type AcquireEnvironmentResult =
-  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
+  | { ok: true; env: SessionEnvironment }
+  | { ok: false; error: string };
 
 /**
  * Sign the session's durable mount up front so keep-alive can build a pool key (the mount's
@@ -856,7 +859,18 @@ export async function acquireEnvironment(
   }
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
-  let runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+  const localPiAssets = prepareLocalPiAssets({ plan, env, log: logger });
+  let runAgentDir = localPiAssets.dir;
+  // Fail closed (Decision 2): when the policy could gate a Pi built-in tool but the permission
+  // extension did not install, the run must stop rather than run those tools unprotected. Recorded
+  // here (the install ran above) and thrown inside the try below so the engine's own catch turns it
+  // into `{ ok: false, error }` and a visible error frame. `builtinGatingActive` false means
+  // allow-everything, where the extension is not needed and a failed install is harmless.
+  const localBuiltinGatingUnenforceable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    plan.builtinGatingActive &&
+    !localPiAssets.extensionInstalled;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
   // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
@@ -1065,7 +1079,17 @@ export async function acquireEnvironment(
       );
       return;
     }
-    runAgentDir = prepareLocalPiAssets({ plan, env, log: logger });
+    // Discarding `.extensionInstalled` here is safe, and a fail-closed throw here would be
+    // unsound anyway (both callers wrap this in a mount try/catch that logs and continues, so a
+    // throw could not stop the run). Reachability: managed/none local Pi runs always created a
+    // throwaway dir in the first prepareLocalPiAssets call, so `environment.runAgentDir` is set
+    // for them and they returned above — only the subscription (runtime_provided) path reaches
+    // this re-prep. That path installs into the SAME operator mount the first call already
+    // installed into, and the fail-closed gating check right after that first call stopped the
+    // run when the install was required but failed. So by the time this runs, either enforcement
+    // is not needed (policy allows everything) or the extension file is already on disk from the
+    // verified first install; a transient failure here cannot remove it.
+    runAgentDir = prepareLocalPiAssets({ plan, env, log: logger }).dir;
     environment.runAgentDir = runAgentDir;
   };
 
@@ -1213,6 +1237,11 @@ export async function acquireEnvironment(
   };
 
   try {
+    // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
+    // built-in tool cannot proceed without the permission extension installed (Decision 2).
+    if (localBuiltinGatingUnenforceable) {
+      throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+    }
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
       deps.createPersist?.() ?? new InMemorySessionPersistDriver();
@@ -1328,11 +1357,18 @@ export async function acquireEnvironment(
     // cannot be delivered (fail loud — this path requires it).
     let internalToolMcp: ToolMcpAssets | undefined;
     if (plan.isDaytona) {
-      await (deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets)({
+      const daytonaExtensionInstalled = await (
+        deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets
+      )({
         sandbox: environment.sandbox,
         plan: { ...plan, skillDirs: [] },
         log: logger,
       });
+      // Fail closed (Decision 2): same guarantee as the local path. A genuine upload failure on the
+      // Daytona sandbox stops the run rather than running Pi's built-in tools unprotected.
+      if (plan.isPi && plan.builtinGatingActive && !daytonaExtensionInstalled) {
+        throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+      }
       if (!plan.isPi && plan.executableToolSpecs.length > 0) {
         internalToolMcp = await (
           deps.uploadToolMcpAssets ?? uploadToolMcpAssets
@@ -1356,9 +1392,9 @@ export async function acquireEnvironment(
         const storeEndpoint = environment.mountCreds.endpoint;
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
-          : (await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
-            })) ?? undefined;
+            })) ?? undefined);
         const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
         if (
           canMount &&
@@ -1411,9 +1447,9 @@ export async function acquireEnvironment(
         const storeEndpoint = environment.agentMountCreds.endpoint;
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
-          : (await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
-            })) ?? undefined;
+            })) ?? undefined);
         const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
         const mountPath = agentMountDir;
         if (

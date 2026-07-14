@@ -154,20 +154,26 @@ export interface PrepareDaytonaPiAssetsInput {
 
 /**
  * Push the Pi login fallback, Agenta extension, forced skills, system prompts, and optional
- * Pi CLI install into a Daytona sandbox.
+ * Pi CLI install into a Daytona sandbox. Reports whether the permission extension installed so the
+ * caller can fail the run closed when the policy could gate a Pi built-in tool. A non-Pi run needs
+ * no extension, so it reports `true` (nothing to enforce here).
  */
 export async function prepareDaytonaPiAssets({
   sandbox,
   plan,
   log = () => {},
-}: PrepareDaytonaPiAssetsInput): Promise<void> {
-  if (!plan.isPi) return;
+}: PrepareDaytonaPiAssetsInput): Promise<boolean> {
+  if (!plan.isPi) return true;
 
   // A Daytona run never receives the runner's own Pi login: subscription (runtime_provided) auth
   // is rejected for Daytona in buildRunPlan, and a managed run authenticates from the vault keys
   // in `daytonaEnvVars`. The runner therefore uploads only the inert Agenta extension, forced
   // skills, and system prompts — never a personal `auth.json` (interface.md section 6).
-  await uploadPiExtensionToSandbox(sandbox, DAYTONA_PI_DIR, log);
+  const extensionInstalled = await uploadPiExtensionToSandbox(
+    sandbox,
+    DAYTONA_PI_DIR,
+    log,
+  );
   if (plan.skillDirs.length > 0) {
     await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, plan.skillDirs, log);
   }
@@ -185,6 +191,7 @@ export async function prepareDaytonaPiAssets({
   log(
     `[timing] stage=pi_install ms=${Math.round(Date.now() - piInstallStartedAt)} sandbox=${sandbox?.sandboxId ?? "-"} session=-`,
   );
+  return extensionInstalled;
 }
 
 /**
