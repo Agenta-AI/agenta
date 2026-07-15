@@ -4,31 +4,21 @@
  * One flat file view (no App/Session split — the config surface is "simply files"): the active
  * conversation's working files, newest first, with the full relative path (mono) so the raw
  * cwd/session UUIDs stay abstracted away. Rows open the DriveDrawer preselected on the clicked
- * file; "View all files" opens it at the tree root. The agent's durable folder is a subfolder of
- * this working folder, so it needs no separate drive here. Lives in the app layer because it reads
- * the chat slice's session state.
+ * file; the Files header count (StorageFilesHeader) opens it at the tree root. The agent's durable
+ * folder is a subfolder of this working folder, so it needs no separate drive here. Lives in the
+ * app layer because it reads the chat slice's session state.
  */
-import {useState} from "react"
-
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {CaretRight} from "@phosphor-icons/react"
 import {Skeleton, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
-import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
-import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
-import {
-    activeSessionIdAtomFamily,
-    sessionsListAtomFamily,
-} from "@/oss/components/AgentChatSlice/state/sessions"
-
+import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
 import {DriveDrawer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, relativeTime} from "./driveTree"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {driveHasMixedOrigins, useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
+import {driveHasMixedOrigins, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -58,27 +48,12 @@ const RecentFileRow = ({
 )
 
 export default function StorageSection({revisionId}: {revisionId?: string | null}) {
-    const scope = useChatScopeKey()
-    // The agent's durable folder (`agent-files/`) is keyed by the workflow artifact, not the
-    // session — resolve it from the edited revision so it folds into this listing.
-    const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(revisionId ?? ""))
-    const sessions = useAtomValue(sessionsListAtomFamily(scope))
-    const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
-    // Same fallback the chat uses: a stale active id (closed tab) resolves to the first open tab.
-    const resolvedId = sessions.some((s) => s.id === rawActiveId)
-        ? rawActiveId
-        : (sessions[0]?.id ?? "")
-    // A brand-new never-run tab has no server data by construction — hold the queries off (empty
-    // id disables them) until its first run instead of asking the backend for guaranteed-empties.
-    const sessionId = resolvedId && !isSessionFresh(resolvedId) ? resolvedId : ""
-
-    const [drawer, setDrawer] = useState<{open: boolean; initialPath: string | null}>({
-        open: false,
-        initialPath: null,
-    })
+    const {drive, sessionId} = useConfigDrive(revisionId)
+    // Drawer request is shared with the Files header (which opens it at the root); rows open it
+    // preselected on the clicked file.
+    const [drawer, setDrawer] = useAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
     const openDrawer = (initialPath: string | null) => setDrawer({open: true, initialPath})
 
-    const drive = useSessionDrive(sessionId, artifactId ?? undefined)
     const now = useRecentChangeClock(drive.lastTouchedAt)
     const showOrigin = driveHasMixedOrigins(drive.recents)
 
@@ -112,16 +87,6 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                             ))}
                         </AnimatePresence>
                     </MotionConfig>
-                    {drive.fileCount > 5 ? (
-                        <button
-                            type="button"
-                            onClick={() => openDrawer(null)}
-                            className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline"
-                        >
-                            View all files
-                            <CaretRight size={11} />
-                        </button>
-                    ) : null}
                 </div>
             ) : drive.errored ? (
                 <Text type="secondary" className="!text-xs">

@@ -38,6 +38,10 @@ const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {
 const StorageSection = dynamic(() => import("@/oss/components/Drives/StorageSection"), {
     ssr: false,
 })
+// Files header count + browse entry, slotted into the operational panel's Files header bar.
+const StorageFilesHeader = dynamic(() => import("@/oss/components/Drives/StorageFilesHeader"), {
+    ssr: false,
+})
 
 // Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
 const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
@@ -312,6 +316,7 @@ const PlaygroundVariantConfig: React.FC<
                         revisionId={variantId}
                         sticky={!embedded}
                         storage={<StorageSection revisionId={variantId} />}
+                        storageHeader={<StorageFilesHeader revisionId={variantId} />}
                     />
                 ))}
         </div>

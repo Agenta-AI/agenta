@@ -65,6 +65,7 @@ export function AgentOperationsSections({
     disabled,
     sticky = true,
     storage,
+    storageHeader,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -74,6 +75,9 @@ export function AgentOperationsSections({
     /** The Files region body (the flat file listing), slotted in by the app layer — it owns the
      * chat session state this package can't reach. Absent → static placeholder. */
     storage?: ReactNode
+    /** Right-side content of the Files header bar (file count + browse entry), slotted by the app
+     * layer for the same reason as `storage`. Matches the Triggers header's count slot. */
+    storageHeader?: ReactNode
 }) {
     const {count: triggerCount} = useAgentTriggers(revisionId)
 
@@ -94,6 +98,7 @@ export function AgentOperationsSections({
             <section className="flex w-full flex-col">
                 <div className={barClass(sticky)}>
                     <span className={titleClass}>Files</span>
+                    {storageHeader}
                 </div>
                 <div className="flex flex-col px-4 py-3">
                     {storage ?? (
