@@ -337,13 +337,15 @@ class SessionsClient:
         _response = self._raw_client.transition_interaction(session_id=session_id, token=token, status=status, request_options=request_options)
         return _response.data
     
-    def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    def cancel_stale_interactions(self, *, session_id: str, turn_id: str, tokens: typing.Optional[typing.Sequence[str]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
         session_id : str
         
         turn_id : str
+        
+        tokens : typing.Optional[typing.Sequence[str]]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -365,7 +367,7 @@ class SessionsClient:
             turn_id="turn_id",
         )
         """
-        _response = self._raw_client.cancel_stale_interactions(session_id=session_id, turn_id=turn_id, request_options=request_options)
+        _response = self._raw_client.cancel_stale_interactions(session_id=session_id, turn_id=turn_id, tokens=tokens, request_options=request_options)
         return _response.data
     
     def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
@@ -1122,13 +1124,15 @@ class AsyncSessionsClient:
         _response = await self._raw_client.transition_interaction(session_id=session_id, token=token, status=status, request_options=request_options)
         return _response.data
     
-    async def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    async def cancel_stale_interactions(self, *, session_id: str, turn_id: str, tokens: typing.Optional[typing.Sequence[str]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
         session_id : str
         
         turn_id : str
+        
+        tokens : typing.Optional[typing.Sequence[str]]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1158,7 +1162,7 @@ class AsyncSessionsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.cancel_stale_interactions(session_id=session_id, turn_id=turn_id, request_options=request_options)
+        _response = await self._raw_client.cancel_stale_interactions(session_id=session_id, turn_id=turn_id, tokens=tokens, request_options=request_options)
         return _response.data
     
     async def fetch_interaction(self, interaction_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
