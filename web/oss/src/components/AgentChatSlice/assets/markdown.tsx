@@ -30,11 +30,17 @@ export const MD_CLASS =
     "[&_td]:border [&_td]:border-solid [&_td]:border-colorBorderSecondary " +
     "[&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top [&_td]:break-normal " +
     // Headings — compact for a chat bubble (browser defaults are huge), descending weight/size.
-    "[&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:leading-snug " +
-    "[&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:leading-snug " +
-    "[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold " +
-    "[&_h4]:mt-2 [&_h4]:mb-0.5 [&_h4]:text-xs [&_h4]:font-semibold " +
-    "[&_h5]:mt-2 [&_h5]:mb-0.5 [&_h5]:text-xs [&_h5]:font-semibold " +
+    // Colour is `text-inherit`, NOT a fixed token: a global bare-`h1 { color:#333 }` rule
+    // (editor-theme.css) leaks into every unstyled h1 and preflight is off so nothing normalises
+    // it. `inherit` out-specifies that global rule (0,1,1 vs 0,0,1) and makes headings follow the
+    // block's own colour — correct on any surface AND respecting a caller/ancestor recolour (e.g.
+    // a muted context). Same guard on h2–h5 future-proofs against another stray global heading
+    // rule; h6 stays intentionally quieter.
+    "[&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:text-inherit " +
+    "[&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:leading-snug [&_h2]:text-inherit " +
+    "[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-inherit " +
+    "[&_h4]:mt-2 [&_h4]:mb-0.5 [&_h4]:text-xs [&_h4]:font-semibold [&_h4]:text-inherit " +
+    "[&_h5]:mt-2 [&_h5]:mb-0.5 [&_h5]:text-xs [&_h5]:font-semibold [&_h5]:text-inherit " +
     "[&_h6]:mt-2 [&_h6]:mb-0.5 [&_h6]:text-xs [&_h6]:font-medium [&_h6]:text-colorTextSecondary " +
     // Blockquote — a quiet left-ruled aside. Layout is forced (!important) so nothing (the UA's
     // logical `margin-inline: 40px`, the Bubble's placement styles, etc.) can push the content into
@@ -49,6 +55,12 @@ export const MD_CLASS =
     "[&_hr]:my-3 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-solid [&_hr]:border-colorBorderSecondary " +
     "[&_img]:my-2 [&_img]:max-w-full [&_img]:rounded " +
     "[&_strong]:font-semibold [&_em]:italic [&_del]:line-through " +
+    // HTML passthrough (LLM output sometimes includes raw HTML): neutralise the elements whose UA
+    // defaults are jarring with preflight off — <mark> (bright yellow bg) → a subtle theme
+    // highlight, <kbd> → a keycap. <sub>/<sup> UA styling (position only) is already fine.
+    "[&_mark]:rounded [&_mark]:bg-colorFillTertiary [&_mark]:px-0.5 [&_mark]:text-inherit " +
+    "[&_kbd]:rounded [&_kbd]:border [&_kbd]:border-solid [&_kbd]:border-colorBorderSecondary " +
+    "[&_kbd]:bg-colorFillTertiary [&_kbd]:px-1 [&_kbd]:font-mono [&_kbd]:text-[0.9em] " +
     "[&_li:has(input)]:list-none [&_input]:mr-1.5 [&_input]:align-middle " +
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
     "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0"
