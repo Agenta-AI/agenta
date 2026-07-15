@@ -21,14 +21,15 @@ const hasExtension = (name: string): boolean => /\.[^./]+$/.test(name)
 
 /**
  * Runner/harness runtime artifacts written INTO the durable session cwd — not user files, so they're
- * hidden from every drive surface. Covers Pi's native transcript workspace (`agents/sessions/…`) and
- * the runner's dot-markers (`.agenta-skill-set.json`, `.agenta-usage.json`, `.agenta-pi`, …). The
- * agent's own folder (`agent-files/`) is intentional and NOT matched (no dot, not under agents/).
+ * hidden from every drive surface. Covers the whole runner-owned `agents/` namespace (Pi's transcript
+ * workspace `agents/sessions/…` AND materialized skill definitions `agents/skills/…`) and the runner's
+ * dot-markers (`.agenta-skill-set.json`, `.agenta-usage.json`, `.agenta-pi`, …). The agent's own folder
+ * (`agent-files/`) is intentional and NOT matched — different prefix, so `startsWith("agents/")` misses it.
  */
 export const isInternalDrivePath = (path: string): boolean => {
     const rel = cleanPath(path)
     if (!rel) return false
-    if (rel === "agents/sessions" || rel.startsWith("agents/sessions/")) return true
+    if (rel === "agents" || rel.startsWith("agents/")) return true
     return rel.split("/").some((seg) => seg.startsWith(".agenta-"))
 }
 

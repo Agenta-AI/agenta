@@ -4,34 +4,44 @@
  *   grid  — the FilesWindow (grid / list, search + sort). A tile opens a file.
  *   preview — a single file's content (the same renderer the Build drawer uses), with ◂ ▸ paging.
  *
- * The grid stays mounted (scroll preserved); the preview slides OVER it and back, so exiting is a
- * single close from either state (the old stack needed two). Every opener — tiles, in-thread
- * cards, rail rows, chat links — just sets this session's `driveQuickLookAtomFamily` slot (the file
- * to preview); that also
- * opens the drawer, so a chat link jumps straight to the file and Back reveals the grid behind it.
+ * A THIN wrapper: it holds only the open-state atoms + light drawer chrome (title/footer), and
+ * `next/dynamic`-imports the heavy {@link FilesDrawerBody} (grid renderers + preview) so that graph
+ * loads only when the drawer opens and unmounts on close (`destroyOnClose`). The drive query is
+ * gated on `open`, so the always-mounted per-session host does no heavy work while closed.
  *
- * Chat mode is jargon-free and content-first: NO metadata block here (that lives in the Build
- * drawer) — the header carries name · size · time and the body is the file itself.
+ * Every opener — tiles, in-thread cards, rail rows, chat links — just sets this session's
+ * `driveQuickLookAtomFamily` slot (the file to preview); that also opens the drawer, so a chat link
+ * jumps straight to the file and Back reveals the grid behind it. Chat mode is jargon-free and
+ * content-first: NO metadata block here (that lives in the Build drawer).
  */
 import {useEffect} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {ArrowLeft, CaretLeft, CaretRight, FolderSimple} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {ArrowLeft, CaretLeft, CaretRight, DownloadSimple, FolderSimple} from "@phosphor-icons/react"
+import {Button, Skeleton} from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {AnimatePresence, motion} from "motion/react"
+import dynamic from "next/dynamic"
 
-import {SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
+import {projectIdAtom} from "@/oss/state/project"
 
-import {DriveFileContentViewer, DriveFileDownloadButton, driveFileIcon} from "./DriveDrawer"
+import {driveFileIcon} from "./driveIcons"
+import {downloadMountFile} from "./driveMedia"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {humanSize, relativeTime} from "./driveTree"
-import {DriveFileMetaList} from "./fileMeta"
-import FilesWindow from "./FilesWindow"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {useSessionDrive} from "./useSessionDrive"
+
+// Heavy grid + preview — loaded lazily on first open, not with the always-mounted chat pane.
+const FilesDrawerBody = dynamic(() => import("./FilesDrawerBody"), {
+    ssr: false,
+    loading: () => (
+        <div className="min-h-0 flex-1 p-3">
+            <Skeleton active paragraph={{rows: 6}} />
+        </div>
+    ),
+})
 
 // Keyed by session id — every mounted pane has its own FilesDrawer host, so a shared open flag
 // would leak the drawer's open state across sessions on a tab switch.
@@ -45,11 +55,17 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     // Build mode gets the full metadata block; chat mode stays content-first (jargon-free).
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
+    const projectId = useAtomValue(projectIdAtom)
     const open = gridOpen || quickLook != null
     const inPreview = quickLook != null
 
     const artifactId = useDriveArtifactId()
-    const drive = useSessionDrive(open ? sessionId : "", artifactId ?? undefined)
+    // Gate BOTH ids on `open`: the agent-mount query keys on artifactId (not sessionId), so passing
+    // a live artifactId while closed would fetch the agent drive before the drawer is ever shown.
+    const drive = useSessionDrive(
+        open ? sessionId : "",
+        open ? (artifactId ?? undefined) : undefined,
+    )
     const files = drive.recents
     const index = inPreview ? files.findIndex((f) => matchesTail(f.path, quickLook.path)) : -1
     const file = index >= 0 ? files[index] : null
@@ -143,10 +159,19 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
             }
             extra={
                 inPreview && file ? (
-                    <DriveFileDownloadButton
-                        mount={resolvedFile?.mount ?? null}
-                        path={resolvedFile?.path ?? file.path}
-                    />
+                    <Button
+                        icon={<DownloadSimple size={13} />}
+                        disabled={!resolvedFile?.mount && !drive.mount}
+                        onClick={() =>
+                            void downloadMountFile({
+                                mount: resolvedFile?.mount ?? null,
+                                path: resolvedFile?.path ?? file.path,
+                                projectId,
+                            })
+                        }
+                    >
+                        Download
+                    </Button>
                 ) : undefined
             }
             footer={
@@ -172,50 +197,14 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
             }
             styles={{body: {padding: 0, display: "flex", minHeight: 0}}}
         >
-            <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                {/* Grid stays mounted so its scroll survives a preview round-trip. */}
-                <div className="absolute inset-0 flex min-h-0 flex-col">
-                    <FilesWindow sessionId={sessionId} embedded />
-                </div>
-                {/* initial={false}: a direct link-open lands ON the preview (no grid flash); a
-                    grid→preview navigation within the open drawer still slides. */}
-                <AnimatePresence initial={false}>
-                    {inPreview ? (
-                        <motion.div
-                            key="preview"
-                            className="absolute inset-0 flex min-h-0 flex-col bg-colorBgElevated"
-                            initial={{x: "100%"}}
-                            animate={{x: 0}}
-                            exit={{x: "100%"}}
-                            transition={SESSION_SPRING}
-                        >
-                            {file ? (
-                                <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-                                    {buildMode ? (
-                                        <DriveFileMetaList
-                                            mount={resolvedFile?.mount ?? null}
-                                            path={resolvedFile?.path ?? file.path}
-                                            size={file.size}
-                                            touchedAt={file.touchedAt}
-                                        />
-                                    ) : null}
-                                    <DriveFileContentViewer
-                                        mount={resolvedFile?.mount ?? null}
-                                        path={resolvedFile?.path ?? file.path}
-                                        size={file.size}
-                                    />
-                                </div>
-                            ) : (
-                                <div className="flex flex-1 items-center justify-center p-6 text-xs text-colorTextTertiary">
-                                    {drive.isLoading
-                                        ? "Loading…"
-                                        : "This file isn't in the drive yet."}
-                                </div>
-                            )}
-                        </motion.div>
-                    ) : null}
-                </AnimatePresence>
-            </div>
+            <FilesDrawerBody
+                sessionId={sessionId}
+                inPreview={inPreview}
+                file={file}
+                resolvedFile={resolvedFile}
+                buildMode={buildMode}
+                isLoading={drive.isLoading}
+            />
         </EnhancedDrawer>
     )
 }

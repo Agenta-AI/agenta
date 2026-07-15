@@ -17,13 +17,13 @@ import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {driveFileIcon} from "./DriveDrawer"
+import {driveFileIcon} from "./driveIcons"
+import {resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
 import {mountFileBlobQueryFamily, mountFileDownloadUrl} from "./driveMedia"
 import {renderPdfFirstPage} from "./pdfThumb"
-import {resolveDriveFileKind, type DriveFileKind} from "./renderers"
 import {type DriveRecentFile} from "./useSessionDrive"
 
-const IMG_CAP = 2 * 1024 * 1024
+const IMG_CAP = 8 * 1024 * 1024
 const PDF_CAP = 4 * 1024 * 1024
 const TEXT_CAP = 256 * 1024
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv"])
@@ -72,6 +72,28 @@ function usePdfThumbnail(mount: Mount | null, path: string, enabled: boolean) {
     return url
 }
 
+/** Object URL for an image file's bytes via the AUTHENTICATED blob fetch. A raw `<img src>` at the
+ * download endpoint 401s on header-auth / cross-origin deployments (and it sends attachment
+ * disposition), so images must go through the client like every other media body. Gated on
+ * `enabled`; revokes on change/unmount. */
+function useImageObjectUrl(mount: Mount | null, path: string, enabled: boolean) {
+    const query = useAtomValue(
+        mountFileBlobQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
+    )
+    const blob = enabled ? (query.data ?? null) : null
+    const [url, setUrl] = useState<string | null>(null)
+    useEffect(() => {
+        if (!blob) {
+            setUrl(null)
+            return
+        }
+        const u = URL.createObjectURL(blob)
+        setUrl(u)
+        return () => URL.revokeObjectURL(u)
+    }, [blob])
+    return url
+}
+
 /** First lines of a text-family file (same shared content query the preview body reads). */
 function useTextSnippet(mount: Mount | null, path: string, enabled: boolean) {
     const query = useAtomValue(
@@ -94,6 +116,7 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
     const isText = TEXT_KINDS.has(kind) && size > 0 && size <= TEXT_CAP
 
     const directUrl = mountFileDownloadUrl(mount, file.path, projectId)
+    const imgUrl = useImageObjectUrl(mount, file.path, isImage && inView && !failed)
     const pdfUrl = usePdfThumbnail(mount, file.path, isPdf && inView && !failed)
     const snippet = useTextSnippet(mount, file.path, isText && inView)
 
@@ -102,15 +125,15 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
     const box =
         "flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary"
 
-    // Image — native lazy decode straight off the bytes URL.
-    if (isImage && directUrl && !failed) {
+    // Image — decode off the authenticated blob (object URL); icon until it resolves. Covers gifs,
+    // which animate straight from the object URL.
+    if (isImage && imgUrl && !failed) {
         return (
             <div ref={ref} className={box}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- authed dynamic bytes URL; next/image can't optimize it */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- object URL for authed bytes; next/image can't optimize it */}
                 <img
-                    src={directUrl}
+                    src={imgUrl}
                     alt=""
-                    loading="lazy"
                     onError={() => setFailed(true)}
                     className="h-full w-full object-cover"
                 />
@@ -150,11 +173,13 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
         )
     }
 
-    // Text — a few lines, monospaced, as a document-y preview.
+    // Text — a few lines, monospaced, as a document-y preview. The pre is ABSOLUTE so its content
+    // can't stretch the box: a flex item's min-content height overrides `aspect-ratio`, which would
+    // otherwise blow the tile up to the snippet's full height (broken grid). Absolute → out of flow.
     if (isText && snippet) {
         return (
-            <div ref={ref} className={`${box} !items-start !justify-start`}>
-                <pre className="m-0 max-h-full w-full overflow-hidden whitespace-pre-wrap break-all p-1.5 text-left font-mono text-[7px] leading-[1.35] text-colorTextTertiary">
+            <div ref={ref} className={`${box} relative`}>
+                <pre className="absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-all p-1.5 text-left font-mono text-[7px] leading-[1.35] text-colorTextTertiary">
                     {snippet}
                 </pre>
             </div>

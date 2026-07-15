@@ -12,12 +12,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {driveFileIcon} from "./DriveDrawer"
+import {driveFileIcon} from "./driveIcons"
+import {fileTypeLabel} from "./driveKinds"
 import {downloadMountFile} from "./driveMedia"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
-import {fileTypeLabel} from "./renderers"
 import {useSessionDrive} from "./useSessionDrive"
 
 const {Text} = Typography

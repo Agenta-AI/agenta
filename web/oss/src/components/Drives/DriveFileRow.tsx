@@ -16,7 +16,7 @@ import {type ReactNode} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 
-import {driveFileIcon} from "./DriveDrawer"
+import {driveFileIcon} from "./driveIcons"
 import {FileThumb} from "./FileThumb"
 import {AGENT_ACCENT, OriginTag} from "./OriginTag"
 import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
@@ -114,10 +114,13 @@ export const DriveFileRow = ({
 
     if (variant === "tile") {
         return (
+            // min-w-0 + w-full: without it the grid item's `min-width: auto` lets a long unbreakable
+            // path (name or meta) expand the column past its track, which widens the tile and — since
+            // the thumb is w-full aspect-[4/3] — blows its height up too. Constrained → truncation wins.
             <button
                 type="button"
                 onClick={onOpen}
-                className="flex cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
+                className="flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
                 style={recentStyle}
             >
                 {thumb}

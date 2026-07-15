@@ -11,7 +11,7 @@ import {Input, Segmented, Select, Skeleton, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
-import {DriveExplorer} from "./DriveDrawer"
+import {DriveExplorer} from "./DriveExplorer"
 import {DriveFileRow} from "./DriveFileRow"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
@@ -148,7 +148,9 @@ export default function FilesWindow({
                 <>
                     <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto p-3">
                         <MotionConfig reducedMotion="user">
-                            <AnimatePresence mode="popLayout" initial={false}>
+                            {/* No `layout`/popLayout here: on CSS-grid children they animate via
+                                transforms that ignore grid tracks and overlap tiles. Fade only. */}
+                            <AnimatePresence initial={false}>
                                 {shown.map((file) => {
                                     // Thumbnail reads from the file's own mount (cwd or agent-files)
                                     // with a mount-relative path; the tile shows the presented path.
@@ -156,7 +158,7 @@ export default function FilesWindow({
                                     return (
                                         <motion.div
                                             key={file.path}
-                                            layout
+                                            className="min-w-0"
                                             variants={FILE_ITEM_VARIANTS}
                                             initial="initial"
                                             animate="animate"
