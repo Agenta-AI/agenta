@@ -31,7 +31,8 @@ from uuid import uuid4
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
 from taskiq.cli.worker.run import shutdown_broker
-from taskiq_redis import RedisStreamBroker
+
+from oss.src.tasks.taskiq.shared.broker import TrimOnAckRedisStreamBroker
 
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.environments.service import EnvironmentsService
@@ -123,7 +124,7 @@ def _selected_queues() -> List[str]:
 
 
 def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
-    broker = RedisStreamBroker(
+    broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
         queue_name="queues:webhooks",
         consumer_group_name="worker-webhooks",
@@ -135,7 +136,7 @@ def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
 
 
 def _build_triggers_broker() -> tuple[AsyncBroker, int]:
-    broker = RedisStreamBroker(
+    broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
         queue_name="queues:triggers",
         consumer_group_name="worker-triggers",
@@ -175,7 +176,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
 
 
 def _build_interactions_broker() -> tuple[AsyncBroker, int]:
-    broker = RedisStreamBroker(
+    broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
         queue_name="queues:interactions",
         consumer_group_name="worker-interactions",
