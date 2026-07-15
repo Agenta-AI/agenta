@@ -19,7 +19,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {driveFiles, driveTotalSize} from "./driveTree"
+import {cleanPath, driveFiles, driveTotalSize} from "./driveTree"
 import type {DriveRecentFile, SessionDriveData} from "./useSessionDrive"
 
 export async function fetchAgentMount({
@@ -81,8 +81,7 @@ export function useAgentDrive(artifactId: string): SessionDriveData & {exists: b
             totalSize: driveTotalSize(listing),
             recents,
             // Single-mount drive: every path maps straight to this mount.
-            resolveMount: (path: string) =>
-                mount ? {mount, path: path.replace(/^\/+|\/+$/g, "")} : null,
+            resolveMount: (path: string) => (mount ? {mount, path: cleanPath(path)} : null),
             lastTouchedAt: null,
             summary: isLoading
                 ? "…"

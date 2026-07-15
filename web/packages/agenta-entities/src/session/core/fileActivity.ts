@@ -9,6 +9,7 @@
  * `bash` is deliberately NOT matched — shell one-liners can touch anything, and a false "file
  * created" signal is worse than none (the turn-finish revalidation still catches the effect).
  */
+import {stripLeadingSlashes, stripTrailingSlashes} from "./pathUtils"
 
 export type FileActivityOp = "write" | "edit" | "delete"
 
@@ -82,8 +83,8 @@ export function detectFileActivity(toolName: string, input: unknown): FileActivi
  * boundary ("notes/a.md" matches "/tmp/agenta/x/notes/a.md" but not "xnotes/a.md").
  */
 export function mountPathMatchesToolPath(mountPath: string, toolPath: string): boolean {
-    const mount = mountPath.replace(/^\/+/, "")
-    const tool = toolPath.replace(/\/+$/, "")
+    const mount = stripLeadingSlashes(mountPath)
+    const tool = stripTrailingSlashes(toolPath)
     if (!mount || !tool) return false
     if (tool === mount || tool.endsWith(`/${mount}`)) return true
     return false

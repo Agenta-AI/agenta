@@ -12,14 +12,12 @@ import {
 import {useAtomValue} from "jotai"
 
 import {agentMountQueryFamily} from "./agentDrive"
-import {driveFiles, driveTotalSize, relativeTime} from "./driveTree"
+import {cleanPath, driveFiles, driveTotalSize, relativeTime} from "./driveTree"
 
 /** The agent's durable mount is symlinked into the session cwd under this name (runner:
  * `AGENT_FILES_LINK_NAME`). Its files live in a SEPARATE mount/prefix, so the drive folds them in
  * under this path — matching how the agent sees them on disk. */
 export const AGENT_FILES_DIR = "agent-files"
-
-const cleanPath = (p: string): string => p.replace(/^\/+|\/+$/g, "")
 
 /** Where a presented drive path comes from: the durable per-agent mount (`agent-files/…`, shared
  * across the agent's sessions) or the ephemeral session cwd. Drives it visually + the grid filter. */

@@ -6,6 +6,7 @@
  * listing into the immediate children of a given directory — the one-level view a file browser
  * renders — so drilling into a folder is a pure re-derivation (change `currentPath`), not a refetch.
  */
+import {trimSlashes} from "./pathUtils"
 import type {MountFile} from "./schema"
 
 export interface MountRow {
@@ -19,7 +20,7 @@ export interface MountRow {
 }
 
 /** Normalize a directory path: no leading/trailing slash; `""` is the mount root. */
-const normalizeDir = (path: string | undefined): string => (path ?? "").replace(/^\/+|\/+$/g, "")
+const normalizeDir = (path: string | undefined): string => trimSlashes(path ?? "")
 
 /**
  * The immediate children (folders + files) of `currentPath` within a flat mount listing.

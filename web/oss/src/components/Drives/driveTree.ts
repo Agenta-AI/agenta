@@ -16,7 +16,16 @@ export interface DriveTreeNode {
     children: DriveTreeNode[]
 }
 
-const cleanPath = (p: string): string => p.replace(/^\/+|\/+$/g, "")
+/** Strip leading/trailing slashes via a single linear scan — NOT `/^\/+|\/+$/`, whose end-anchored
+ * `\/+$` backtracks quadratically on backend-supplied paths with many '/' (CodeQL polynomial-ReDoS).
+ * Internal slashes preserved. `47` is `"/".charCodeAt(0)`. */
+export const cleanPath = (p: string): string => {
+    let start = 0
+    let end = p.length
+    while (start < end && p.charCodeAt(start) === 47) start++
+    while (end > start && p.charCodeAt(end - 1) === 47) end--
+    return start === 0 && end === p.length ? p : p.slice(start, end)
+}
 const hasExtension = (name: string): boolean => /\.[^./]+$/.test(name)
 
 /**
@@ -105,7 +114,7 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
 
     const list = files ?? []
     for (const file of list) {
-        const path = file.path.replace(/^\/+|\/+$/g, "")
+        const path = cleanPath(file.path)
         if (!path || isInternalDrivePath(path)) continue
         if (isFolderEntry(file, list)) {
             ensureFolder(path)
