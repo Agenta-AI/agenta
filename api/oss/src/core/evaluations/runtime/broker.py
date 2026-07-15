@@ -6,8 +6,8 @@ custom no-redelivery broker and task registration aren't duplicated.
 """
 
 from taskiq import AsyncBroker
-from taskiq_redis import RedisStreamBroker
 
+from oss.src.tasks.taskiq.shared.broker import TrimOnAckRedisStreamBroker
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -22,12 +22,13 @@ from oss.src.utils.env import env
 MAXLEN_QUEUES_EVALUATIONS = 100_000
 
 
-class NoRedeliveryRedisStreamBroker(RedisStreamBroker):
+class NoRedeliveryRedisStreamBroker(TrimOnAckRedisStreamBroker):
     """Stream broker that never redelivers. `listen()` reads only NEW messages
     (`>`) and skips the XAUTOCLAIM pending-replay block, so a task that crashed
     mid-run is not re-served to later workers. Evaluation tasks are not safely
     re-runnable (`retry_on_error=False`); a stuck unacked entry replaying on every
-    worker restart is worse than dropping it.
+    worker restart is worse than dropping it. Inherits XDEL-on-ack so completed
+    entries leave the stream (XLEN = backlog).
     """
 
     async def listen(self):
