@@ -87,6 +87,69 @@ _service_id() {
           | .serviceInstances.edges[].node | select(.serviceName==$n) | .serviceId][0] // empty' 2>/dev/null || true
 }
 
+# _refresh_status_json: re-fetch the cached status snapshot; keep the old one
+# if the fetch fails so a transient error cannot blank out working IDs.
+_refresh_status_json() {
+    local fresh
+    fresh="$(railway_call status --json 2>/dev/null || true)"
+    [ -n "$fresh" ] && RAILWAY_STATUS_JSON="$fresh"
+}
+
+# _service_id_with_retry <service-name> -> serviceId (empty when unresolved).
+# A service bootstrap created seconds earlier may not be visible in the status
+# snapshot yet (bootstrap→configure eventual-consistency race), so re-fetch the
+# snapshot and retry a few times before giving up. First-try hits (the normal
+# case) cost zero extra API calls and zero sleeps.
+_service_id_with_retry() {
+    local service="$1" svc_id attempt
+    local attempts="${RAILWAY_SERVICE_RESOLVE_ATTEMPTS:-6}"
+    local delay="${RAILWAY_SERVICE_RESOLVE_DELAY:-5}"
+
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        svc_id="$(_service_id "$service")"
+        if [ -n "$svc_id" ]; then
+            printf '%s' "$svc_id"
+            return 0
+        fi
+        if [ "$attempt" -lt "$attempts" ]; then
+            printf "Service id for '%s' not in status snapshot yet; re-fetching in %ds (attempt %d/%d)\n" \
+                "$service" "$delay" "$attempt" "$attempts" >&2
+            sleep "$delay"
+            _refresh_status_json
+        fi
+    done
+    # Empty output: the caller falls back to the CLI path.
+    return 0
+}
+
+# _cli_set_vars <service> KEY=VALUE ...
+# CLI-path variable set. "Service '<name>' not found" seconds after bootstrap
+# created it is the same eventual-consistency race, so retry that specific
+# failure a couple of times instead of failing the deploy on the first hit.
+# Other failures surface immediately (railway_call already retries transient
+# network errors internally).
+_cli_set_vars() {
+    local service="$1"
+    shift
+    local attempts="${RAILWAY_CLI_SET_ATTEMPTS:-3}"
+    local delay="${RAILWAY_SERVICE_RESOLVE_DELAY:-5}"
+    local try output
+
+    for ((try = 1; try <= attempts; try++)); do
+        if output="$(railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" 2>&1)"; then
+            return 0
+        fi
+        if [ "$try" -lt "$attempts" ] && printf '%s' "$output" | grep -qi "not found"; then
+            printf "railway variable set: service '%s' not visible yet, retrying in %ds (attempt %d/%d)\n" \
+                "$service" "$delay" "$try" "$attempts" >&2
+            sleep "$delay"
+            continue
+        fi
+        [ -n "$output" ] && printf '%s\n' "$output" >&2
+        return 1
+    done
+}
+
 # _vars_to_json KEY=VALUE ... -> {"KEY":"VALUE",...}  (split on the first '=')
 _vars_to_json() {
     local json='{}' kv key val
@@ -111,18 +174,18 @@ upsert_service_vars() {
     [ "$#" -gt 0 ] || return 0
 
     if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
-        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
+        _cli_set_vars "$service" "$@"
         return 0
     fi
 
     local svc_id
-    svc_id="$(_service_id "$service")"
+    svc_id="$(_service_id_with_retry "$service")"
     if [ -z "$svc_id" ]; then
         # Name didn't match the cached status JSON (e.g. unexpected casing). Don't
         # hard-fail the deploy where the CLI's --service would have worked; fall
         # back to it.
         printf "Could not resolve service id for '%s'; falling back to CLI variable set.\n" "$service" >&2
-        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
+        _cli_set_vars "$service" "$@"
         return 0
     fi
 
