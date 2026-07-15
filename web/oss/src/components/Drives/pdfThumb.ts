@@ -1,8 +1,13 @@
 /**
  * Lazy PDF first-page → PNG data-URL, for grid thumbnails. pdfjs-dist is ~large, so it is
  * dynamically imported (its own chunk, out of first load) and loaded ONCE (module-level promise).
- * The worker is resolved from the bundled asset via `new URL(…, import.meta.url)` (webpack/Next
- * asset emission) so nothing hits the network/CDN. Render is size-capped by the caller.
+ * The worker is served as a same-origin static asset from public/ (copied there by
+ * scripts/copy-pdf-worker.mjs in dev + build) so nothing hits the network/CDN. Render is
+ * size-capped by the caller.
+ *
+ * NOT `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`: the webpack production build
+ * externalizes that ESM worker and fails ("ESM packages need to be imported"); dev's turbopack
+ * tolerated it, so the break only ever showed in CI.
  */
 type PdfjsModule = typeof import("pdfjs-dist")
 
@@ -11,10 +16,7 @@ let pdfjsPromise: Promise<PdfjsModule> | null = null
 async function loadPdfjs(): Promise<PdfjsModule> {
     if (!pdfjsPromise) {
         pdfjsPromise = import("pdfjs-dist").then((pdfjs) => {
-            pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-                "pdfjs-dist/build/pdf.worker.min.mjs",
-                import.meta.url,
-            ).toString()
+            pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
             return pdfjs
         })
     }

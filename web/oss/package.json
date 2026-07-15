@@ -6,10 +6,10 @@
         "node": "24.x"
     },
     "scripts": {
-        "dev": "next dev --turbopack",
-        "dev:local": "ENV_FILE=.local.env next dev",
-        "dev:turbo": "ENV_FILE=.local.env next dev --turbo",
-        "build": "next build && cp -r public/. .next/standalone/oss/public && cp -r .next/static .next/standalone/oss/.next",
+        "dev": "node scripts/copy-pdf-worker.mjs && next dev --turbopack",
+        "dev:local": "node scripts/copy-pdf-worker.mjs && ENV_FILE=.local.env next dev",
+        "dev:turbo": "node scripts/copy-pdf-worker.mjs && ENV_FILE=.local.env next dev --turbo",
+        "build": "node scripts/copy-pdf-worker.mjs && next build && cp -r public/. .next/standalone/oss/public && cp -r .next/static .next/standalone/oss/.next",
         "start": "next start",
         "lint": "next lint",
         "lint-fix": "next lint --fix",
