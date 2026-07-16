@@ -1,4 +1,4 @@
-import { Daytona, DaytonaNotFoundError, type Sandbox } from "@daytona/sdk";
+import { Daytona, DaytonaNotFoundError, type Sandbox } from "@daytonaio/sdk";
 import { daytona, type DaytonaProviderOptions } from "sandbox-agent/daytona";
 
 import type { RunnerDaytonaConfig } from "../../config/runner-config.ts";
