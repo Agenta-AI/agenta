@@ -1,0 +1,60 @@
+{
+  "cell": "e2-pi-custom-openai-compatible",
+  "provenance": {
+    "captured_from": "live EE dev stack POST /services/agent/v0/invoke (Pi, local sandbox)",
+    "endpoint": "https://openrouter.ai/api/v1 (OpenAI-compatible; free model)",
+    "captured_on": "2026-07-14",
+    "note": "The custom OpenAI-compatible connection green cell. A real vault custom_provider connection (data.kind=custom) pointed at OpenRouter was resolved by the service and run through Pi; the assistant returned the forced token. REDACTIONS: vault_secrets[].data.provider.key -> 'sk-test' placeholder (never a real key); the vault record id and lifecycle timestamps are dropped (unused by resolution); result.sessionId -> 'sess-replay'.",
+    "reply": "REPLAY-COMPAT-OK",
+    "stop_reason": "end_turn"
+  },
+  "request": {
+    "harness": "pi_core",
+    "sandbox": "local",
+    "agents_md": "Reply with exactly the requested token and nothing else.",
+    "model": "openai/gpt-oss-20b:free",
+    "connection": {"mode": "agenta", "slug": "replay-compat"},
+    "messages": [
+      {"role": "user", "content": "Reply with exactly: REPLAY-COMPAT-OK"}
+    ],
+    "vault_secrets": [
+      {
+        "kind": "custom_provider",
+        "data": {
+          "kind": "custom",
+          "provider": {
+            "url": "https://openrouter.ai/api/v1",
+            "key": "sk-test"
+          },
+          "models": [
+            {"slug": "openai/gpt-oss-20b:free"}
+          ],
+          "provider_slug": "replay-compat",
+          "model_keys": [
+            "replay-compat/custom/openai/gpt-oss-20b:free"
+          ]
+        },
+        "header": {
+          "name": "replay-compat",
+          "description": "replay regression custom OpenAI-compatible connection"
+        }
+      }
+    ]
+  },
+  "result": {
+    "ok": true,
+    "output": "REPLAY-COMPAT-OK",
+    "messages": [
+      {"role": "assistant", "content": "REPLAY-COMPAT-OK"}
+    ],
+    "events": [
+      {"type": "message", "text": "REPLAY-COMPAT-OK"},
+      {"type": "done", "stopReason": "end_turn"}
+    ],
+    "usage": {"input": 1, "output": 1, "total": 2, "cost": 0.0},
+    "stopReason": "end_turn",
+    "capabilities": {"textMessages": true, "mcpTools": false},
+    "sessionId": "sess-replay",
+    "model": "openai/gpt-oss-20b:free"
+  }
+}
