@@ -10,6 +10,7 @@
 import {useEffect, useState} from "react"
 
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
+import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {fileTypeLabel, resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
@@ -145,6 +146,7 @@ export function DriveFileMetaList({
     size?: number | null
     touchedAt?: number
 }) {
+    const [expanded, setExpanded] = useState(false)
     const kind = resolveDriveFileKind(path)
     const folder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : "root"
 
@@ -170,26 +172,61 @@ export function DriveFileMetaList({
         ? `${content.split("\n").length.toLocaleString()} lines · ${content.length.toLocaleString()} chars`
         : null
 
+    // Reading the file is the goal, so the metadata collapses to one line; the full grid expands on
+    // "Details". Summary picks the single most relevant "content" fact (text lines, else pixel
+    // dimensions, else duration) after type + size + modified.
+    const detail = textStats ?? dims ?? duration
+    const summary = [
+        fileTypeLabel(path),
+        size != null ? humanSize(size) : null,
+        detail,
+        touchedAt ? relativeTime(touchedAt) : null,
+    ]
+        .filter(Boolean)
+        .join(" · ")
+
     return (
-        // Two label/value pairs per row (4-col grid; empty MetaRows return null so present pairs
-        // auto-flow) — keeps the metadata block compact so the file content sits higher. Label
-        // tracks are a FIXED width (not `auto`): which labels flow into a track changes per file
-        // (Content vs Dimensions vs Duration), so `auto` resized the columns and slid the right
-        // half sideways as you paged. 4.5rem fits the longest label ("Dimensions").
-        <dl className="grid grid-cols-[4.5rem_1fr_4.5rem_1fr] gap-x-4 gap-y-1.5 text-[11px]">
-            <MetaRow label="Type" value={fileTypeLabel(path)} />
-            <MetaRow label="MIME" value={mimeFor(path)} />
-            <MetaRow
-                label="Size"
-                value={
-                    size != null ? `${humanSize(size)} · ${size.toLocaleString()} bytes` : undefined
-                }
-            />
-            <MetaRow label="Location" value={folder} />
-            <MetaRow label="Dimensions" value={dims} />
-            <MetaRow label="Duration" value={duration} />
-            <MetaRow label="Content" value={textStats} />
-            <MetaRow label="Modified" value={touchedAt ? relativeTime(touchedAt) : undefined} />
-        </dl>
+        <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 text-[11px]">
+                <span className="min-w-0 truncate text-colorTextTertiary">{summary}</span>
+                <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    aria-expanded={expanded}
+                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent p-0 text-colorTextTertiary transition-colors hover:text-colorText"
+                >
+                    Details
+                    <CaretRight
+                        size={10}
+                        className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+                    />
+                </button>
+            </div>
+            {expanded ? (
+                // Fixed-width label tracks (not `auto`): which labels flow into a track changes per
+                // file (Content vs Dimensions vs Duration), so `auto` resized the columns and slid the
+                // right half sideways as you paged. 4.5rem fits the longest label ("Dimensions").
+                <dl className="grid grid-cols-[4.5rem_1fr_4.5rem_1fr] gap-x-4 gap-y-1.5 text-[11px]">
+                    <MetaRow label="Type" value={fileTypeLabel(path)} />
+                    <MetaRow label="MIME" value={mimeFor(path)} />
+                    <MetaRow
+                        label="Size"
+                        value={
+                            size != null
+                                ? `${humanSize(size)} · ${size.toLocaleString()} bytes`
+                                : undefined
+                        }
+                    />
+                    <MetaRow label="Location" value={folder} />
+                    <MetaRow label="Dimensions" value={dims} />
+                    <MetaRow label="Duration" value={duration} />
+                    <MetaRow label="Content" value={textStats} />
+                    <MetaRow
+                        label="Modified"
+                        value={touchedAt ? relativeTime(touchedAt) : undefined}
+                    />
+                </dl>
+            ) : null}
+        </div>
     )
 }

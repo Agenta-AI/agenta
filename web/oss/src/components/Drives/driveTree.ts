@@ -42,6 +42,14 @@ export const isInternalDrivePath = (path: string): boolean => {
     return rel.split("/").some((seg) => seg.startsWith(".agenta-"))
 }
 
+/** A dot-prefixed (hidden) file or folder anywhere in the path — surfaced but dimmed, the way a
+ * file browser greys out `.git`, `.claude`, dotfiles. NOT the same as {@link isInternalDrivePath}
+ * (which hides runner plumbing outright). */
+export const isHiddenPath = (path: string): boolean =>
+    cleanPath(path)
+        .split("/")
+        .some((seg) => seg.startsWith("."))
+
 /**
  * Is this listing entry a FOLDER rather than a file? True when the backend flags it (`is_folder`),
  * when another entry nests under it (`<path>/…`), or when it's a zero-byte, extension-less entry —

@@ -17,6 +17,7 @@ import {type ReactNode} from "react"
 import {type Mount} from "@agenta/entities/session"
 
 import {driveFileIcon} from "./driveIcons"
+import {isHiddenPath} from "./driveTree"
 import {FileThumb} from "./FileThumb"
 import {AGENT_ACCENT, OriginTag} from "./OriginTag"
 import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
@@ -51,13 +52,15 @@ export const DriveFileRow = ({
     // truncate the important tail). The full relative path is on the `title` tooltip instead.
     const name = path.split("/").pop() ?? path
     const origin = fileOrigin(path)
+    // Dot-prefixed (hidden) files/folders are surfaced but dimmed, like a file browser greys .git.
+    const hidden = isHiddenPath(path)
 
     if (variant === "row") {
         return (
             <button
                 type="button"
                 onClick={onOpen}
-                className="flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary"
+                className={`flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
                 style={recent ? {boxShadow: `inset 2px 0 0 ${AGENT_ACCENT}`} : undefined}
             >
                 <span className="shrink-0">{driveFileIcon(path)}</span>
@@ -120,7 +123,7 @@ export const DriveFileRow = ({
             <button
                 type="button"
                 onClick={onOpen}
-                className="flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
+                className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
                 style={recentStyle}
             >
                 {thumb}
@@ -141,7 +144,7 @@ export const DriveFileRow = ({
         <button
             type="button"
             onClick={onOpen}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-1.5 text-left transition-colors hover:border-colorBorder hover:bg-colorFillTertiary"
+            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-1.5 text-left transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
             style={recentStyle}
         >
             <div className="w-16 shrink-0">{thumb}</div>
