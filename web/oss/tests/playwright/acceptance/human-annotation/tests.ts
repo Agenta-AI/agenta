@@ -518,11 +518,11 @@ const goToHumanEvaluationStep = async (modal: Locator, step: string) => {
     await expect(stepTab).toBeVisible()
     await stepTab.click()
     await expect(stepTab).toHaveAttribute("aria-selected", "true")
-    await expect(modal.locator(".ant-tabs-tabpane-active").last()).toBeVisible()
+    await expect(modal.locator(".ant-tabs-content-active").last()).toBeVisible()
 }
 
 const getActiveHumanEvaluationPane = (modal: Locator) =>
-    modal.locator(".ant-tabs-tabpane-active").last()
+    modal.locator(".ant-tabs-content-active").last()
 
 const selectHumanEvaluationModalTableInput = async ({
     modal,
