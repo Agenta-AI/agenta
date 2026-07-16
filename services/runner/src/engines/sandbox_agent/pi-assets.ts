@@ -19,6 +19,11 @@ import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
+import {
+  PI_MODELS_JSON_FILENAME,
+  serializePiModelsJson,
+  type PiModelConfigPlan,
+} from "./pi-model-config.ts";
 import type { RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
@@ -271,6 +276,43 @@ export const PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE =
   "republish the runner image.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when a managed OpenAI-compatible custom run has
+ * a model-config plan but its `models.json` could not be materialized. Fail closed: the custom
+ * provider would not be registered, so the run must stop rather than fall back to a default
+ * provider (design Decision 6). Single line so `conciseError` surfaces it verbatim.
+ */
+export const PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE =
+  "The agent could not write its model configuration (models.json), so the OpenAI-compatible " +
+  "custom provider could not be registered. The run was stopped rather than fall back to a " +
+  "default provider. Ask your deployment operator to make the runner's Pi agent directory writable.";
+
+/**
+ * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
+ * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
+ * managed custom run must never fall through to a default provider (design Decision 6). The file
+ * carries only the `$OPENAI_API_KEY` reference, never the key value.
+ */
+export function writePiModelsConfigLocal(
+  agentDir: string,
+  plan: PiModelConfigPlan,
+): void {
+  const document = serializePiModelsJson(plan);
+  const target = join(agentDir, PI_MODELS_JSON_FILENAME);
+  const staging = join(
+    agentDir,
+    `.${PI_MODELS_JSON_FILENAME}.${randomUUID()}.tmp`,
+  );
+  mkdirSync(agentDir, { recursive: true });
+  writeFileSync(staging, document, { encoding: "utf-8", mode: 0o600 });
+  try {
+    renameSync(staging, target);
+  } catch (err) {
+    rmSync(staging, { force: true });
+    throw err;
+  }
+}
+
+/**
  * Env the Agenta Pi extension reads. Tool env contains only public metadata plus the
  * relay directory; private specs/auth stay in the runner.
  *
@@ -471,13 +513,24 @@ export interface PreparedLocalAgentDir {
  * into it. The temp dir lives under the system temp path, which the runtime user owns, so the
  * install never depends on the operator-configured `PI_CODING_AGENT_DIR` being writable. Reports
  * whether the extension install succeeded.
+ *
+ * `seedCredentials` (default true) controls whether the operator's `auth.json` is copied in. A
+ * managed OpenAI-compatible custom run sets it FALSE: that run authenticates purely from the
+ * vault-resolved `$OPENAI_API_KEY` plus its `models.json`, so the operator's personal Pi login
+ * must not leak into it (a copied `auth.json` could let Pi fall back to the operator's own
+ * provider). The non-credential `settings.json` is always carried.
  */
 export function prepareLocalAgentDir(
   sourceAgentDir: string,
   log: Log = () => {},
+  opts: { seedCredentials?: boolean } = {},
 ): PreparedLocalAgentDir {
+  const seedCredentials = opts.seedCredentials ?? true;
   const dir = mkdtempSync(join(tmpdir(), "agenta-pi-agentdir-"));
-  for (const name of ["auth.json", "settings.json"]) {
+  const seedFiles = seedCredentials
+    ? ["auth.json", "settings.json"]
+    : ["settings.json"];
+  for (const name of seedFiles) {
     const src = join(sourceAgentDir, name);
     try {
       if (existsSync(src)) copyFileSync(src, join(dir, name));
@@ -502,6 +555,12 @@ export interface PrepareLocalPiAssetsInput {
     | "sourcePiAgentDir"
   >;
   env: Record<string, string>;
+  /**
+   * A managed OpenAI-compatible custom run's Pi provider config. When set, the isolated per-run
+   * agent dir receives a `models.json` for this provider and does NOT get the operator's personal
+   * `auth.json`; the run authenticates from the vault key referenced by `$OPENAI_API_KEY`.
+   */
+  piModelConfig?: PiModelConfigPlan;
   log?: Log;
 }
 
@@ -517,6 +576,12 @@ export interface PrepareLocalPiAssetsResult {
    * fails the run closed when the policy could gate a Pi built-in tool (`builtinGatingActive`).
    */
   extensionInstalled: boolean;
+  /**
+   * False only when a model-config plan was present but its `models.json` could not be written;
+   * true when there was nothing to write or the write succeeded. The caller fails the run closed
+   * when this is false (materialization is terminal — design Decision 6).
+   */
+  modelConfigWritten: boolean;
 }
 
 /**
@@ -543,14 +608,20 @@ export interface PrepareLocalPiAssetsResult {
 export function prepareLocalPiAssets({
   plan,
   env,
+  piModelConfig,
   log = () => {},
 }: PrepareLocalPiAssetsInput): PrepareLocalPiAssetsResult {
   // Not a local Pi run: nothing to install here, so enforcement is not this path's concern.
   if (!plan.isPi || plan.isDaytona)
-    return { dir: undefined, extensionInstalled: true };
+    return {
+      dir: undefined,
+      extensionInstalled: true,
+      modelConfigWritten: true,
+    };
 
   // buildRunPlan already rejected a local runtime_provided run with no configured
-  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
+  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount. A model-config plan
+  // never reaches here (it requires credentialMode "env"), so there is no models.json to write.
   if (plan.credentialMode === "runtime_provided") {
     const agentDir = plan.sourcePiAgentDir;
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
@@ -564,14 +635,17 @@ export function prepareLocalPiAssets({
     }
     env.PI_CODING_AGENT_DIR = agentDir;
     // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
-    return { dir: undefined, extensionInstalled };
+    return { dir: undefined, extensionInstalled, modelConfigWritten: true };
   }
 
   // Managed / none: always route through a throwaway per-run dir the runtime user owns, so the
-  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable.
+  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable. A
+  // managed OpenAI-compatible custom run (a model-config plan is present) additionally gets a
+  // models.json and does NOT receive the operator's personal auth.json.
   const { dir: runAgentDir, extensionInstalled } = prepareLocalAgentDir(
     plan.sourcePiAgentDir,
     log,
+    { seedCredentials: !piModelConfig },
   );
   if (plan.hasSystemPrompt) {
     writeSystemPromptLocal(
@@ -581,8 +655,22 @@ export function prepareLocalPiAssets({
       log,
     );
   }
+  let modelConfigWritten = true;
+  if (piModelConfig) {
+    try {
+      writePiModelsConfigLocal(runAgentDir, piModelConfig);
+      log(
+        `pi models.json written provider=${piModelConfig.providerId} ` +
+          `api=${piModelConfig.api} model=${piModelConfig.models.map((m) => m.id).join(",")}`,
+      );
+    } catch (err) {
+      // Terminal: the caller stops the run rather than fall back to a default provider.
+      modelConfigWritten = false;
+      log(`pi models.json write failed: ${(err as Error).message}`);
+    }
+  }
   env.PI_CODING_AGENT_DIR = runAgentDir;
-  return { dir: runAgentDir, extensionInstalled };
+  return { dir: runAgentDir, extensionInstalled, modelConfigWritten };
 }
 
 /** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */
