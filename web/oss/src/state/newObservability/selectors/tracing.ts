@@ -14,9 +14,23 @@ export const getTokens = (span?: TraceSpanNode) => {
     return tokens?.cumulative?.total ?? tokens?.incremental?.total ?? null
 }
 
+export const getCacheReadTokens = (span?: TraceSpanNode) => {
+    const tokens = getTokenMetrics(span)
+    return tokens?.cumulative?.cache_read ?? tokens?.incremental?.cache_read ?? null
+}
+
+export const getCacheWriteTokens = (span?: TraceSpanNode) => {
+    const tokens = getTokenMetrics(span)
+    return tokens?.cumulative?.cache_creation ?? tokens?.incremental?.cache_creation ?? null
+}
+
 export const getPromptTokens = (span?: TraceSpanNode) => {
     const tokens = getTokenMetrics(span)
-    return tokens?.cumulative?.prompt ?? tokens?.incremental?.prompt ?? null
+    const prompt = tokens?.cumulative?.prompt ?? tokens?.incremental?.prompt ?? null
+    if (prompt === null) return null
+    // `prompt` excludes cached tokens (cache_read/cache_creation are reported separately),
+    // so fold them back in — displayed Prompt + Completion = Total, cache shown as sub-rows.
+    return prompt + (getCacheReadTokens(span) ?? 0) + (getCacheWriteTokens(span) ?? 0)
 }
 
 export const getCompletionTokens = (span?: TraceSpanNode) => {
@@ -150,6 +164,21 @@ export const formattedSpanPromptTokensAtomFamily = atomFamily((span?: TraceSpanN
 
 export const formattedSpanCompletionTokensAtomFamily = atomFamily((span?: TraceSpanNode) =>
     atom(() => formatTokenUsage(getCompletionTokens(span))),
+)
+
+// Null when the span has no cache metrics, so the drawer can omit the rows entirely.
+export const formattedSpanCacheReadTokensAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => {
+        const tokens = getCacheReadTokens(span)
+        return tokens ? formatTokenUsage(tokens) : null
+    }),
+)
+
+export const formattedSpanCacheWriteTokensAtomFamily = atomFamily((span?: TraceSpanNode) =>
+    atom(() => {
+        const tokens = getCacheWriteTokens(span)
+        return tokens ? formatTokenUsage(tokens) : null
+    }),
 )
 
 export const formattedSpanCostAtomFamily = atomFamily((span?: TraceSpanNode) =>

@@ -318,98 +318,43 @@ def cumulate_costs(
     )
 
 
+TOKEN_KEYS = ("prompt", "completion", "total", "cache_read", "cache_creation")
+
+
 def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
 ) -> None:
+    def _get(span: OTelFlatSpan, scope: str):
+        attr: dict = span.attributes or {}
+
+        tokens = attr.get("ag", {}).get("metrics", {}).get("tokens", {}).get(scope, {})
+        if not isinstance(tokens, dict):
+            tokens = {}
+
+        return {key: tokens.get(key, 0.0) for key in TOKEN_KEYS}
+
     def _get_incremental(span: OTelFlatSpan):
-        _tokens = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _tokens
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("total", 0.0)
-            ),
-        }
+        return _get(span, "incremental")
 
     def _get_cumulative(span: OTelFlatSpan):
-        _tokens = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _tokens
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("total", 0.0)
-            ),
-        }
+        return _get(span, "cumulative")
 
     def _accumulate(a: dict, b: dict):
-        return {
-            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
-            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
-            "total": a.get("total", 0.0) + b.get("total", 0.0),
-        }
+        return {key: a.get(key, 0.0) + b.get(key, 0.0) for key in TOKEN_KEYS}
 
     def _set_cumulative(span: OTelFlatSpan, tokens: dict):
         if span.attributes is None:
             span.attributes = {}
 
-        if (
-            tokens.get("prompt", 0.0) != 0.0
-            or tokens.get("completion", 0.0) != 0.0
-            or tokens.get("total", 0.0) != 0.0
-        ):
+        # Keep the stored shape stable for non-cache traces: cache keys only when non-zero.
+        tokens = {
+            key: value
+            for key, value in tokens.items()
+            if value != 0.0 or key in ("prompt", "completion", "total")
+        }
+
+        if any(value != 0.0 for value in tokens.values()):
             if "ag" not in span.attributes or not isinstance(
                 span.attributes["ag"],
                 dict,
