@@ -37,13 +37,12 @@ type AnnotationLinks = Record<string, AnnotationLink>
 type Prev = [never, 0, 1, 2, 3, 4]
 export type FullJsonRec<Depth extends number = 4> = Depth extends 0
     ? unknown // base case: stop recursion
-    :
-          | string
-          | number
-          | boolean
-          | null
-          | {[key: string]: FullJsonRec<Prev[Depth]>}
-          | FullJsonRec<Prev[Depth]>[]
+    : | string
+      | number
+      | boolean
+      | null
+      | {[key: string]: FullJsonRec<Prev[Depth]>}
+      | FullJsonRec<Prev[Depth]>[]
 
 export type FullJson = FullJsonRec<4>
 

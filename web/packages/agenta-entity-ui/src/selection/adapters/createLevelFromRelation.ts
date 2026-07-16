@@ -294,8 +294,7 @@ export function createLevelFromRelation<TChild = unknown>(
     const resolvedGetDescription =
         getDescription ??
         (selectionConfig?.displayDescription as
-            | ((entity: TChild) => string | undefined)
-            | undefined)
+            ((entity: TChild) => string | undefined) | undefined)
 
     return {
         type,
@@ -317,8 +316,7 @@ export function createLevelFromRelation<TChild = unknown>(
         getGroupKey,
         getGroupLabel,
         buildTabs: buildTabs as
-            | ((items: unknown[]) => import("../types").TabDefinition[])
-            | undefined,
+            ((items: unknown[]) => import("../types").TabDefinition[]) | undefined,
     }
 }
 

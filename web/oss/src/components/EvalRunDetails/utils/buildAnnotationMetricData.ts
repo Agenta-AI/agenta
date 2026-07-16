@@ -46,10 +46,7 @@ export interface NumericMetricData {
 }
 
 export type ScenarioMetricData =
-    | BinaryMetricData
-    | CategoricalMultipleMetricData
-    | StringMetricData
-    | NumericMetricData
+    BinaryMetricData | CategoricalMultipleMetricData | StringMetricData | NumericMetricData
 
 /**
  * Build a binary metric data object from a boolean value.

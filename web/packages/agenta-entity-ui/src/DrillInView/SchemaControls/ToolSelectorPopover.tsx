@@ -55,9 +55,7 @@ interface BuiltinProviderGroup {
 }
 
 type ActivePane =
-    | {kind: "builtin"; providerKey: string}
-    | {kind: "connection"; connectionId: string}
-    | null
+    {kind: "builtin"; providerKey: string} | {kind: "connection"; connectionId: string} | null
 
 export interface ToolSelectionMeta {
     source: "builtin" | "custom" | "gateway"

@@ -399,13 +399,11 @@ const loadableColumnsAtomFamily = atomFamily((revisionId: string) =>
         }
 
         const columns = get(currentColumnsAtom)
-        return columns.map(
-            (col): LoadableColumn => ({
-                key: col.key,
-                name: col.label || col.key,
-                type: "string", // Default type, could be inferred from data
-            }),
-        )
+        return columns.map((col): LoadableColumn => ({
+            key: col.key,
+            name: col.label || col.key,
+            type: "string", // Default type, could be inferred from data
+        }))
     }),
 )
 
