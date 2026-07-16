@@ -16,9 +16,17 @@
  */
 import {useEffect, useState} from "react"
 
+import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {ArrowLeft, CaretLeft, CaretRight, DownloadSimple, FolderSimple} from "@phosphor-icons/react"
-import {Button, Skeleton} from "antd"
+import {
+    ArrowLeft,
+    CaretLeft,
+    CaretRight,
+    DownloadSimple,
+    FolderSimple,
+    Info,
+} from "@phosphor-icons/react"
+import {Button, Skeleton, Tooltip} from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import dynamic from "next/dynamic"
@@ -161,24 +169,38 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
             }
             extra={
                 inPreview && file ? (
-                    <div className="flex items-center gap-1.5">
-                        {/* Details toggle in the header (not a duplicate meta line in the body): the
-                            header already shows name · size · time, so the toggle just reveals the
-                            full grid below. */}
-                        {buildMode ? (
-                            <Button
-                                type="text"
+                    <div className="flex items-center gap-1">
+                        {/* Secondary actions as borderless icon buttons; Download stays primary. */}
+                        <Tooltip title="Copy path">
+                            <CopyButton
+                                text={file.path}
+                                buttonText={null}
+                                icon
                                 size="small"
-                                aria-expanded={metaExpanded}
-                                onClick={() => setMetaExpanded((v) => !v)}
-                                className="!text-colorTextTertiary hover:!text-colorText"
-                            >
-                                Details
-                                <CaretRight
-                                    size={11}
-                                    className={`ml-0.5 transition-transform ${metaExpanded ? "rotate-90" : ""}`}
+                                aria-label="Copy file path"
+                                successMessage=""
+                                className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
+                            />
+                        </Tooltip>
+                        {/* Details toggle → reveals the metadata grid in the body (the header already
+                            shows name · size · time). Info icon fills + tints primary when open. */}
+                        {buildMode ? (
+                            <Tooltip title="File details">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    aria-label="File details"
+                                    aria-pressed={metaExpanded}
+                                    onClick={() => setMetaExpanded((v) => !v)}
+                                    icon={
+                                        <Info
+                                            size={16}
+                                            weight={metaExpanded ? "fill" : "regular"}
+                                        />
+                                    }
+                                    className={`!h-7 !w-7 !p-0 ${metaExpanded ? "!text-colorPrimary" : "!text-colorTextTertiary hover:!text-colorText"}`}
                                 />
-                            </Button>
+                            </Tooltip>
                         ) : null}
                         <Button
                             icon={<DownloadSimple size={13} />}

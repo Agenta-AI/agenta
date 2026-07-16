@@ -12,6 +12,7 @@ import {useEffect, useState} from "react"
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+import {AnimatePresence, motion} from "motion/react"
 
 import {fileTypeLabel, resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
 import {useMountFileMediaSrc} from "./driveMedia"
@@ -198,8 +199,26 @@ export function DriveFileMetaList({
         </dl>
     )
 
-    // Controlled: the caller (drawer header) owns the toggle — render just the grid.
-    if (expanded !== undefined) return expanded ? grid : null
+    // Reveal/collapse the grid with a height+fade transition (framer measures `height: auto`).
+    const animatedGrid = (visible: boolean) => (
+        <AnimatePresence initial={false}>
+            {visible ? (
+                <motion.div
+                    key="grid"
+                    initial={{height: 0, opacity: 0}}
+                    animate={{height: "auto", opacity: 1}}
+                    exit={{height: 0, opacity: 0}}
+                    transition={{duration: 0.2, ease: [0.4, 0, 0.2, 1]}}
+                    className="overflow-hidden"
+                >
+                    {grid}
+                </motion.div>
+            ) : null}
+        </AnimatePresence>
+    )
+
+    // Controlled: the caller (drawer header) owns the toggle — render just the (animated) grid.
+    if (expanded !== undefined) return animatedGrid(expanded)
 
     // Uncontrolled: reading the file is the goal, so the metadata collapses to one line; the full
     // grid expands on "Details". Summary picks the single most relevant "content" fact (text lines,
@@ -231,7 +250,7 @@ export function DriveFileMetaList({
                     />
                 </button>
             </div>
-            {internalExpanded ? grid : null}
+            {animatedGrid(internalExpanded)}
         </div>
     )
 }
