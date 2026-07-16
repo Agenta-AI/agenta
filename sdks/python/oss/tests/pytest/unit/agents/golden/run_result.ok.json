@@ -6,11 +6,11 @@
   ],
   "events": [
     {"type": "message", "text": "Hello!"},
-    {"type": "usage", "input": 10, "output": 5, "total": 15, "cost": 0.001},
+    {"type": "usage", "input": 10, "output": 5, "total": 135, "cost": 0.001, "cacheRead": 100, "cacheWrite": 20},
     {"type": "done", "stopReason": "end_turn"},
     {"text": "an event with no type, dropped on parse"}
   ],
-  "usage": {"input": 10, "output": 5, "total": 15, "cost": 0.001},
+  "usage": {"input": 10, "output": 5, "total": 135, "cost": 0.001, "cacheRead": 100, "cacheWrite": 20},
   "stopReason": "end_turn",
   "capabilities": {
     "textMessages": true,

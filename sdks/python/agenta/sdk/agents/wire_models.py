@@ -354,12 +354,18 @@ class WireHarnessCapabilities(_WireModel):
 
 
 class WireAgentUsage(_WireModel):
-    """Token / cost usage rolled onto a workflow span."""
+    """Token / cost usage rolled onto a workflow span.
+
+    ``input`` counts non-cached prompt tokens only; the cached portion is reported
+    separately so consumers can show a breakdown that sums to ``total``.
+    """
 
     input: Optional[int] = None
     output: Optional[int] = None
     total: Optional[int] = None
     cost: Optional[float] = None
+    cache_read: Optional[int] = Field(default=None, alias="cacheRead")
+    cache_write: Optional[int] = Field(default=None, alias="cacheWrite")
 
 
 # ---------------------------------------------------------------------------

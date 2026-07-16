@@ -367,6 +367,8 @@ export type AgentEvent =
       output?: number;
       total?: number;
       cost?: number;
+      cacheRead?: number;
+      cacheWrite?: number;
     }
   | { type: "error"; message: string }
   | { type: "done"; stopReason?: string };
@@ -374,12 +376,18 @@ export type AgentEvent =
 /** A live event sink the engines call as each event is built. */
 export type EmitEvent = (event: AgentEvent) => void;
 
-/** Run token/cost totals, rolled up onto the caller's workflow span. */
+/** Run token/cost totals, rolled up onto the caller's workflow span.
+ * `input` counts non-cached prompt tokens only (Pi semantics); the cached portion is
+ * reported separately so consumers can show a breakdown that sums to `total`. */
 export interface AgentUsage {
   input: number;
   output: number;
   total: number;
   cost: number;
+  /** Prompt tokens served from the provider's cache. Absent when the harness doesn't report it. */
+  cacheRead?: number;
+  /** Prompt tokens written to the provider's cache. Absent when the harness doesn't report it. */
+  cacheWrite?: number;
 }
 
 export interface AgentRunRequest {

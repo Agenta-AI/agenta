@@ -51,13 +51,19 @@ export interface MessageUsageMetrics {
     completionTokens?: number
     totalTokens?: number
     totalCost?: number
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
 }
 
 /**
  * Usage (tokens + cost) the service stamps onto `message.metadata.usage` via the
- * `finish` part's messageMetadata (`{input, output, total, cost}`), mapped to the
- * metrics-display field names. The trace supplies latency; this supplies tokens/cost
- * (the agent-run trace summary doesn't surface them on the Pi/local path).
+ * `finish` part's messageMetadata (`{input, output, total, cost, cacheRead, cacheWrite}`),
+ * mapped to the metrics-display field names. The trace supplies latency; this supplies
+ * tokens/cost (the agent-run trace summary doesn't surface them on the Pi/local path).
+ *
+ * The wire `input` counts non-cached prompt tokens only (Pi semantics); the displayed
+ * prompt count folds the cached portion back in so Prompt + Completion = Total, with
+ * the cache split surfaced separately.
  */
 export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undefined => {
     const usage = (message.metadata as {usage?: Record<string, unknown>} | undefined)?.usage
@@ -68,9 +74,13 @@ export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undef
     const output = num(usage.output)
     const total = num(usage.total)
     const cost = num(usage.cost)
-    if (input !== undefined) out.promptTokens = input
+    const cacheRead = num(usage.cacheRead)
+    const cacheWrite = num(usage.cacheWrite)
+    if (input !== undefined) out.promptTokens = input + (cacheRead ?? 0) + (cacheWrite ?? 0)
     if (output !== undefined) out.completionTokens = output
     if (total !== undefined) out.totalTokens = total
     if (cost !== undefined) out.totalCost = cost
+    if (cacheRead !== undefined) out.cacheReadTokens = cacheRead
+    if (cacheWrite !== undefined) out.cacheWriteTokens = cacheWrite
     return Object.keys(out).length > 0 ? out : undefined
 }

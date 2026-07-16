@@ -614,7 +614,14 @@ export interface AgentaOtel {
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
   /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
-  usage: () => { input: number; output: number; total: number; cost: number };
+  usage: () => {
+    input: number;
+    output: number;
+    total: number;
+    cost: number;
+    cacheRead: number;
+    cacheWrite: number;
+  };
 }
 
 /**
@@ -654,16 +661,28 @@ export function createAgentaOtel(
   // returned so the caller can roll them up onto the workflow span in its own process
   // (the agent and workflow spans are exported in separate OTLP batches, so Agenta's
   // per-batch cumulative roll-up cannot bridge them on its own).
-  const runUsage = { input: 0, output: 0, total: 0, cost: 0 };
+  const runUsage = {
+    input: 0,
+    output: 0,
+    total: 0,
+    cost: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+  };
 
   function accumulateUsage(msg: any): void {
     const u = msg?.usage;
     if (!u) return;
     const input = u.input ?? 0;
     const output = u.output ?? 0;
+    const cacheRead = u.cacheRead ?? 0;
+    const cacheWrite = u.cacheWrite ?? 0;
     runUsage.input += input;
     runUsage.output += output;
-    runUsage.total += u.totalTokens ?? input + output;
+    runUsage.cacheRead += cacheRead;
+    runUsage.cacheWrite += cacheWrite;
+    // Pi's totalTokens includes cache reads/writes; mirror that in the fallback sum.
+    runUsage.total += u.totalTokens ?? input + output + cacheRead + cacheWrite;
     if (u.cost?.total != null) runUsage.cost += u.cost.total;
   }
 
@@ -829,6 +848,16 @@ export function createAgentaOtel(
           runUsage.output,
         );
         agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
+        if (runUsage.cacheRead > 0)
+          agentSpan.setAttribute(
+            "gen_ai.usage.cache_read.input_tokens",
+            runUsage.cacheRead,
+          );
+        if (runUsage.cacheWrite > 0)
+          agentSpan.setAttribute(
+            "gen_ai.usage.cache_creation.input_tokens",
+            runUsage.cacheWrite,
+          );
         if (runUsage.cost > 0)
           agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
       }
@@ -1146,6 +1175,13 @@ export function createSandboxAgentOtel(
     span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
     span.setAttribute("gen_ai.usage.completion_tokens", u.output);
     span.setAttribute("gen_ai.usage.total_tokens", u.total);
+    if (u.cacheRead != null && u.cacheRead > 0)
+      span.setAttribute("gen_ai.usage.cache_read.input_tokens", u.cacheRead);
+    if (u.cacheWrite != null && u.cacheWrite > 0)
+      span.setAttribute(
+        "gen_ai.usage.cache_creation.input_tokens",
+        u.cacheWrite,
+      );
     if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
   }
 
@@ -1427,6 +1463,8 @@ export function createSandboxAgentOtel(
         output: usage?.output ?? 0,
         total: typeof total === "number" ? total : usage?.total ?? 0,
         cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
+        ...(usage?.cacheRead != null ? { cacheRead: usage.cacheRead } : {}),
+        ...(usage?.cacheWrite != null ? { cacheWrite: usage.cacheWrite } : {}),
       };
       record({ type: "usage", ...usage });
     }

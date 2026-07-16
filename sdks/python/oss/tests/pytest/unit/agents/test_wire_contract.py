@@ -566,7 +566,16 @@ def test_result_from_wire_parses_ok(golden):
     # The event with no `type` is dropped on parse; the other three survive.
     assert [e.type for e in result.events] == ["message", "usage", "done"]
     assert result.events[0].data == {"type": "message", "text": "Hello!"}
-    assert result.usage == {"input": 10, "output": 5, "total": 15, "cost": 0.001}
+    # Cache fields ride alongside input/output so consumers can show a breakdown
+    # that sums to total (input counts non-cached prompt tokens only).
+    assert result.usage == {
+        "input": 10,
+        "output": 5,
+        "total": 135,
+        "cost": 0.001,
+        "cacheRead": 100,
+        "cacheWrite": 20,
+    }
     assert result.stop_reason == "end_turn"
     assert result.session_id == "sess-42"
     assert result.model == "gpt-5.5"

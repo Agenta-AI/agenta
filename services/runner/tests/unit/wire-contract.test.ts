@@ -262,11 +262,15 @@ describe("wire contract: results (vs Python golden)", () => {
       typed.map((e) => e.type),
       ["message", "usage", "done"],
     );
+    // Cache fields ride alongside input/output so consumers can show a breakdown
+    // that sums to total (input counts non-cached prompt tokens only).
     assert.deepEqual(res.usage, {
       input: 10,
       output: 5,
-      total: 15,
+      total: 135,
       cost: 0.001,
+      cacheRead: 100,
+      cacheWrite: 20,
     });
     assert.equal(res.stopReason, "end_turn");
     assert.equal(res.sessionId, "sess-42");

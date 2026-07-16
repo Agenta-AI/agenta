@@ -781,7 +781,7 @@ def _approval_tool_call_id(payload: Dict[str, Any]) -> Optional[Any]:
 def _usage_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
     return {
         key: data[key]
-        for key in ("input", "output", "total", "cost")
+        for key in ("input", "output", "total", "cost", "cacheRead", "cacheWrite")
         if data.get(key) is not None
     }
 
