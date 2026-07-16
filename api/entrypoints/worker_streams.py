@@ -18,7 +18,10 @@ from typing import List
 
 from redis.asyncio import Redis
 
-from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
+from oss.src.tasks.taskiq.shared.broker import (
+    ProducerOnlyRedisStreamBroker,
+    prune_idle_consumers,
+)
 
 from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
@@ -146,6 +149,18 @@ async def main_async() -> int:
 
         for consumer in consumers:
             await consumer.create_consumer_group()
+            removed = await prune_idle_consumers(
+                url=env.redis.uri_durable,
+                queue_name=consumer.stream_name,
+                consumer_group_name=consumer.consumer_group,
+                keep=consumer.consumer_name,
+            )
+            if removed:
+                log.info(
+                    "[STREAMS] Pruned idle consumers",
+                    stream=consumer.stream_name,
+                    removed=removed,
+                )
 
         log.info("[STREAMS] Starting worker-streams", selected=streams)
 
