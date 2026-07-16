@@ -511,13 +511,15 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Any]]:
+    def cancel_stale_interactions(self, *, session_id: str, turn_id: str, tokens: typing.Optional[typing.Sequence[str]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Dict[str, typing.Any]]:
         """
         Parameters
         ----------
         session_id : str
         
         turn_id : str
+        
+        tokens : typing.Optional[typing.Sequence[str]]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -532,6 +534,7 @@ class RawSessionsClient:
             json={
                 "session_id": session_id,
                 "turn_id": turn_id,
+                "tokens": tokens,
             }
             ,
             headers={"content-type": "application/json", }
@@ -1624,13 +1627,15 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def cancel_stale_interactions(self, *, session_id: str, turn_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Any]]:
+    async def cancel_stale_interactions(self, *, session_id: str, turn_id: str, tokens: typing.Optional[typing.Sequence[str]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Dict[str, typing.Any]]:
         """
         Parameters
         ----------
         session_id : str
         
         turn_id : str
+        
+        tokens : typing.Optional[typing.Sequence[str]]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1645,6 +1650,7 @@ class AsyncRawSessionsClient:
             json={
                 "session_id": session_id,
                 "turn_id": turn_id,
+                "tokens": tokens,
             }
             ,
             headers={"content-type": "application/json", }

@@ -321,15 +321,6 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
-    # EMF metric lines (`log.tick(...)`) to stdout — the CloudWatch agent already
-    # ships container stdout, so this needs no new port/infra to light up.
-    metrics_enabled: bool = (
-        os.getenv("AGENTA_LOGGING_METRICS_ENABLED") or "true"
-    ).lower() in _TRUTHY
-    metrics_namespace: str = (
-        os.getenv("AGENTA_LOGGING_METRICS_NAMESPACE") or "Agenta/Workers"
-    )
-
     model_config = ConfigDict(extra="ignore")
 
 

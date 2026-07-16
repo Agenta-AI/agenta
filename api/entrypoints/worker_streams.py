@@ -17,7 +17,8 @@ import asyncio
 from typing import List
 
 from redis.asyncio import Redis
-from taskiq_redis import RedisStreamBroker
+
+from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 
 from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
@@ -85,9 +86,11 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
 async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
     events_service = EventsService(events_dao=EventsDAO())
 
-    # Webhook dispatch runs inside the events loop as its post-hook.
+    # Webhook dispatch runs inside the events loop as its post-hook: this broker
+    # only produces (.kiq), so it must not declare a consumer group it never
+    # reads — that group sits at 0-0 and reports lag == XLEN forever.
     webhooks_dao = WebhooksDAO()
-    broker = RedisStreamBroker(
+    broker = ProducerOnlyRedisStreamBroker(
         url=env.redis.uri_durable,
         queue_name="queues:webhooks",
         consumer_group_name="worker-events-webhooks-dispatcher",
