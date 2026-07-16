@@ -144,7 +144,12 @@ const CodeBlock = ({
                     borderRadius: 6,
                     fontSize: "0.75rem",
                 }}
-                codeTagProps={{style: {fontSize: "0.75rem"}}}
+                // Reset the inline-code chip styles MD_CLASS's `[&_code]` applies: the block's own
+                // <code> is inline (white-space:pre), so a chip background breaks per line and looks
+                // like every line is highlighted. Inline style wins over the utility class.
+                codeTagProps={{
+                    style: {fontSize: "0.75rem", background: "transparent", padding: 0},
+                }}
             >
                 {code}
             </SyntaxHighlighter>
