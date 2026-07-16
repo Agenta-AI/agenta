@@ -136,14 +136,12 @@ const TreeRow = ({
     const hidden = isHiddenPath(node.path)
     return (
         <>
-            <button
-                type="button"
-                // A folder both opens its contents on the right (folder view) AND toggles in the tree.
-                onClick={() => {
-                    onSelect(node.path)
-                    if (node.isFolder) onToggle(node.path)
-                }}
-                className={`flex w-full cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-1 text-left text-xs transition-colors ${
+            {/* Caret and row are SEPARATE controls: the caret only expands/collapses the tree (never
+                touches the right-pane selection), so collapsing a folder while previewing a file
+                inside it keeps that preview. The row selects — a folder shows its folder view and
+                reveals its children, but selecting never collapses (that's the caret's job). */}
+            <div
+                className={`flex w-full items-center rounded transition-colors ${
                     selected
                         ? "bg-colorFillSecondary shadow-[inset_0_0_0_1px_var(--ag-colorPrimary)]"
                         : "hover:bg-colorFillTertiary"
@@ -151,29 +149,49 @@ const TreeRow = ({
                 style={{paddingLeft: 6 + depth * 14}}
             >
                 {node.isFolder ? (
-                    <>
-                        {isOpen ? (
-                            <CaretDown size={10} className="shrink-0 text-colorTextQuaternary" />
-                        ) : (
-                            <CaretRight size={10} className="shrink-0 text-colorTextQuaternary" />
-                        )}
-                        <FolderSimple size={14} className="shrink-0 text-colorWarning" />
-                    </>
-                ) : (
-                    <span className="shrink-0 pl-[14px]">{driveFileIcon(node.path)}</span>
-                )}
-                {/* whitespace-nowrap (not truncate): the tree scrolls horizontally, so long names
-                    stay readable by scrolling rather than being clipped with an ellipsis. */}
-                <span className="whitespace-nowrap font-mono">{node.name}</span>
-                {/* Only the top-level items carry the tag; nested rows inherit it from their
-                    (already-tagged) agent-files folder, so the tree stays quiet. */}
-                {showOrigin && depth === 0 ? <OriginTag origin={fileOrigin(node.path)} /> : null}
-                {!node.isFolder && node.size != null ? (
-                    <span className="ml-auto shrink-0 text-[11px] text-colorTextQuaternary">
-                        {humanSize(node.size)}
-                    </span>
+                    <button
+                        type="button"
+                        aria-label={isOpen ? "Collapse folder" : "Expand folder"}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onToggle(node.path)
+                        }}
+                        className="flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText"
+                    >
+                        {isOpen ? <CaretDown size={10} /> : <CaretRight size={10} />}
+                    </button>
                 ) : null}
-            </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        onSelect(node.path)
+                        // Reveal a folder's children on select; never collapse here.
+                        if (node.isFolder && !isOpen) onToggle(node.path)
+                    }}
+                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 pr-1.5 text-left text-xs ${
+                        node.isFolder ? "" : "pl-4"
+                    }`}
+                >
+                    {node.isFolder ? (
+                        <FolderSimple size={14} className="shrink-0 text-colorWarning" />
+                    ) : (
+                        <span className="shrink-0">{driveFileIcon(node.path)}</span>
+                    )}
+                    {/* whitespace-nowrap (not truncate): the tree scrolls horizontally, so long names
+                        stay readable by scrolling rather than being clipped with an ellipsis. */}
+                    <span className="whitespace-nowrap font-mono">{node.name}</span>
+                    {/* Only the top-level items carry the tag; nested rows inherit it from their
+                        (already-tagged) agent-files folder, so the tree stays quiet. */}
+                    {showOrigin && depth === 0 ? (
+                        <OriginTag origin={fileOrigin(node.path)} />
+                    ) : null}
+                    {!node.isFolder && node.size != null ? (
+                        <span className="ml-auto shrink-0 text-[11px] text-colorTextQuaternary">
+                            {humanSize(node.size)}
+                        </span>
+                    ) : null}
+                </button>
+            </div>
             {node.isFolder && isOpen
                 ? node.children.map((child) => (
                       <TreeRow
