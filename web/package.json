@@ -14,19 +14,19 @@
         "jotai-history": "^0.5.1",
         "jotai-transaction": "^0.2.0",
         "json5": "^2.2.3",
-        "next": "15.5.18"
+        "next": "15.5.20"
     },
     "devDependencies": {
         "@agenta/ee": "link:ee",
         "@agenta/oss": "link:oss",
         "@eslint/eslintrc": "^3.3.6",
         "@eslint/js": "^9.39.5",
-        "@lexical/eslint-plugin": "^0.46.0",
-        "@next/eslint-plugin-next": "15.5.18",
+        "@lexical/eslint-plugin": "^0.47.0",
+        "@next/eslint-plugin-next": "15.5.20",
         "@typescript-eslint/eslint-plugin": "^8.64.0",
         "@typescript-eslint/parser": "^8.64.0",
         "eslint": "^9.39.5",
-        "eslint-config-next": "15.5.18",
+        "eslint-config-next": "15.5.20",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-import": "^2.32.0",
         "eslint-plugin-prettier": "^5.5.6",
@@ -36,7 +36,7 @@
         "node-fetch": "^3.3.2",
         "prettier": "^3.9.5",
         "prettier-eslint": "^16.4.2",
-        "prettier-plugin-tailwindcss": "^0.1.13",
+        "prettier-plugin-tailwindcss": "^0.8.0",
         "ts-node": "^10.9.2",
         "tsconfig-paths": "^4.2.0",
         "tsx": "^4.23.1",
@@ -66,25 +66,5 @@
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts"
-    },
-    "pnpm": {
-        "overrides": {
-            "prismjs@<1.30.0": ">=1.30.0",
-            "@babel/runtime@<7.26.10": ">=7.26.10",
-            "mdast-util-to-hast@<13.2.1": ">=13.2.1",
-            "diff@>=4.0.0 <4.0.4": ">=4.0.4",
-            "lodash@<4.17.23": ">=4.17.23",
-            "lodash-es@<4.17.23": ">=4.17.23",
-            "minimatch": "5.1.8",
-            "glob@>=10.2.0 <10.5.0": ">=10.5.0",
-            "picomatch": "4.0.4",
-            "picomatch@4.0.3": "4.0.4",
-            "webpack@>=5.49.0 <=5.104.0": ">=5.104.1",
-            "yaml@>=2.0.0 <2.8.3": ">=2.8.3",
-            "flatted": "3.4.2",
-            "axios": "1.16.0",
-            "postcss@<8.5.10": ">=8.5.10",
-            "next@<15.5.18": ">=15.5.18"
-        }
     }
 }
