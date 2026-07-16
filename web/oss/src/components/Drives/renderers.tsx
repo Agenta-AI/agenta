@@ -9,7 +9,7 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
@@ -21,7 +21,12 @@ import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
-import {downloadMountFile, useMountFileMediaSrc, useMountFileObjectUrl} from "./driveMedia"
+import {
+    downloadMountFile,
+    fetchMountFileBlob,
+    useMountFileMediaSrc,
+    useMountFileObjectUrl,
+} from "./driveMedia"
 import {humanSize} from "./driveTree"
 
 // Lexical + lazy-Shiki code block (theme-paired highlighting). Loaded only when a code body
@@ -263,10 +268,112 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     )
 }
 
+// A URL the iframe would resolve against ITS OWN origin (external / absolute / anchor / data) — we
+// leave those alone. Only same-mount relative paths get inlined.
+const isExternalUrl = (u: string): boolean =>
+    /^[a-z][a-z0-9+.-]*:/i.test(u) || u.startsWith("//") || u.startsWith("#")
+
+/** Resolve a relative href against the HTML file's folder (handles `./` and `../`). */
+const resolveRel = (dir: string, rel: string): string => {
+    const out: string[] = []
+    for (const seg of (dir ? dir.split("/") : []).concat(rel.split("/"))) {
+        if (seg === "" || seg === ".") continue
+        if (seg === "..") out.pop()
+        else out.push(seg)
+    }
+    return out.join("/")
+}
+
+const INLINE_ASSET_CAP = 8 * 1024 * 1024
+
+async function fetchMountText(
+    mountId: string,
+    projectId: string,
+    path: string,
+): Promise<string | null> {
+    const blob = await fetchMountFileBlob({mountId, projectId, path})
+    return blob ? blob.text() : null
+}
+
+async function fetchMountDataUri(
+    mountId: string,
+    projectId: string,
+    path: string,
+): Promise<string | null> {
+    const blob = await fetchMountFileBlob({mountId, projectId, path})
+    if (!blob || blob.size > INLINE_ASSET_CAP) return null
+    return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null)
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(blob)
+    })
+}
+
+/**
+ * Fold a multi-file site into ONE self-contained document the sandboxed iframe can render: linked
+ * stylesheets become inline `<style>`, images become data URIs — all fetched from the SAME mount,
+ * resolved against the HTML file's folder. Best-effort: external URLs are left alone, and CSS's own
+ * `url(...)`/`@import` chains aren't followed (v1). Scripts are left in place but never run (sandbox).
+ */
+async function inlineHtmlAssets(
+    html: string,
+    mountId: string,
+    dir: string,
+    projectId: string,
+): Promise<string> {
+    try {
+        const doc = new DOMParser().parseFromString(html, "text/html")
+
+        await Promise.all(
+            Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map(
+                async (link) => {
+                    const href = link.getAttribute("href") ?? ""
+                    if (!href || isExternalUrl(href)) return
+                    const css = await fetchMountText(mountId, projectId, resolveRel(dir, href))
+                    if (css == null) return
+                    const style = doc.createElement("style")
+                    style.textContent = css
+                    link.replaceWith(style)
+                },
+            ),
+        )
+
+        await Promise.all(
+            Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
+                const src = img.getAttribute("src") ?? ""
+                if (!src || isExternalUrl(src) || src.startsWith("data:")) return
+                const uri = await fetchMountDataUri(mountId, projectId, resolveRel(dir, src))
+                if (uri) img.setAttribute("src", uri)
+            }),
+        )
+
+        return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
+    } catch {
+        return html
+    }
+}
+
 const HtmlBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const projectId = useAtomValue(projectIdAtom)
     const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
     const content = contentQuery.data
     const [view, setView] = useState<"preview" | "source">("preview")
+    const [assembled, setAssembled] = useState<string | null>(null)
+
+    // Assemble the self-contained preview document once the source lands.
+    useEffect(() => {
+        setAssembled(null)
+        if (typeof content !== "string" || !mount?.id || !projectId) return
+        let alive = true
+        const dir = path.includes("/") ? path.split("/").slice(0, -1).join("/") : ""
+        void inlineHtmlAssets(content, mount.id, dir, projectId).then((html) => {
+            if (alive) setAssembled(html)
+        })
+        return () => {
+            alive = false
+        }
+    }, [content, mount?.id, projectId, path])
 
     if (contentQuery.isPending)
         return (
@@ -291,15 +398,21 @@ const HtmlBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                 />
             </div>
             {view === "preview" ? (
-                // `sandbox` with NO flags: static HTML/CSS renders, but scripts, forms, and
-                // same-origin access are all blocked — the agent-authored HTML can't run JS or reach
-                // the parent page. bg-white since documents assume a white canvas.
-                <iframe
-                    srcDoc={content}
-                    sandbox=""
-                    title="HTML preview"
-                    className="min-h-0 w-full flex-1 border-0 bg-white"
-                />
+                assembled == null ? (
+                    <div className="min-h-0 flex-1 p-3">
+                        <Skeleton active paragraph={{rows: 6}} />
+                    </div>
+                ) : (
+                    // `sandbox` with NO flags: static HTML/CSS renders, but scripts, forms, and
+                    // same-origin access are all blocked. Linked CSS + images were inlined above so the
+                    // page is styled without the iframe reaching the store. bg-white — docs assume it.
+                    <iframe
+                        srcDoc={assembled}
+                        sandbox=""
+                        title="HTML preview"
+                        className="min-h-0 w-full flex-1 border-0 bg-white"
+                    />
+                )
             ) : (
                 <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
                     <LazyCodeBlock language="html" value={content} />
