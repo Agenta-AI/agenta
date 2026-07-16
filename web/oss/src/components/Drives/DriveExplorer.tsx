@@ -328,7 +328,8 @@ const DriveFilePreview = ({
     )
 }
 
-/** A subfolder card in the folder view — click to drill in. */
+/** A subfolder tile — same shape as the file tile (4:3 icon "thumbnail" + name + meta) so folders
+ * and files form ONE uniform grid instead of short folder cards stretching to the file-tile height. */
 const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) => {
     const hidden = isHiddenPath(node.path)
     const count = node.children.length
@@ -336,13 +337,15 @@ const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) =
         <button
             type="button"
             onClick={onOpen}
-            className={`flex w-full min-w-0 cursor-pointer flex-col items-start gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
+            className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
         >
-            <FolderSimple size={22} weight="fill" className="text-colorWarning" />
-            <span className="w-full truncate text-left font-mono text-xs" title={node.path}>
+            <div className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
+                <FolderSimple size={40} weight="fill" className="text-colorWarning" />
+            </div>
+            <span className="w-full truncate text-center font-mono text-xs" title={node.path}>
                 {node.name}
             </span>
-            <span className="text-[11px] text-colorTextTertiary">
+            <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
                 {count} item{count === 1 ? "" : "s"}
             </span>
         </button>
@@ -413,6 +416,7 @@ const FolderView = ({
                                     file={resolved && file ? {...file, path: resolved.path} : file}
                                     mount={resolved?.mount ?? drive.mount}
                                     showOrigin={showOrigin}
+                                    hideFolder
                                     trailing={humanSize(n.size)}
                                     recent={file ? isRecentlyChanged(file.touchedAt, now) : false}
                                     onOpen={() => onSelect(n.path)}

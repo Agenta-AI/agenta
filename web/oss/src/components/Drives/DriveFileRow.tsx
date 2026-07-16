@@ -33,6 +33,7 @@ export const DriveFileRow = ({
     file,
     mount,
     showOrigin,
+    hideFolder,
 }: {
     path: string
     /** Right-aligned (row) or secondary-line (card/tile) meta — size / relative time. */
@@ -47,6 +48,9 @@ export const DriveFileRow = ({
     mount?: Mount | null
     /** Show the agent/session origin tag. Pass true only when the drive holds both kinds. */
     showOrigin?: boolean
+    /** Drop the folder from the card/tile meta — for the folder view, where every file shares the
+     * (already-shown) current folder. */
+    hideFolder?: boolean
 }) => {
     // Always the basename — folders never bloat the visible name (a nested/long path would
     // truncate the important tail). The full relative path is on the `title` tooltip instead.
@@ -86,12 +90,13 @@ export const DriveFileRow = ({
     const rawFolder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null
     // When the tag is shown, agent files drop the redundant `agent-files/` prefix (the tag conveys
     // it). Without the tag, keep the raw folder so the origin still reads from the path.
-    const folder =
-        showOrigin && origin === "agent"
-            ? rawFolder === AGENT_FILES_DIR
-                ? null
-                : (rawFolder?.slice(AGENT_FILES_DIR.length + 1) ?? null)
-            : rawFolder
+    const folder = hideFolder
+        ? null
+        : showOrigin && origin === "agent"
+          ? rawFolder === AGENT_FILES_DIR
+              ? null
+              : (rawFolder?.slice(AGENT_FILES_DIR.length + 1) ?? null)
+          : rawFolder
     const thumb = file ? (
         <FileThumb file={file} mount={mount ?? null} />
     ) : (
