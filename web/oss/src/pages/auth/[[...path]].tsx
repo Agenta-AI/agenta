@@ -16,7 +16,10 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import Image from "next/image"
 import {useRouter} from "next/router"
-import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
+import {
+    clearLoginAttemptInfo,
+    getLoginAttemptInfo,
+} from "supertokens-auth-react/recipe/passwordless"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
@@ -187,9 +190,15 @@ const Auth = () => {
     const hasInitialOTPBeenSent = async () => {
         if (!isPasswordlessDemo) return
         const hasEmailSended = (await getLoginAttemptInfo()) !== undefined
-        if (hasEmailSended) {
+        // The attempt info doesn't carry the email, so we can only resume the OTP
+        // screen when the email is known from the URL (which also drives discovery).
+        // A leftover attempt with no email is unresumable — e.g. abandoned after a
+        // region switch — and would hide both the email form and the OTP input,
+        // stranding the page. Clear it and fall back to the email entry step.
+        if (hasEmailSended && emailFromQuery) {
             setIsLoginCodeVisible(true)
         } else {
+            if (hasEmailSended) await clearLoginAttemptInfo()
             setIsLoginCodeVisible(false)
         }
     }

@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {clearLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
+
 import {
     buildSwitchUrl,
     getCloudRegion,
@@ -70,7 +72,13 @@ export const useRegionSelector = () => {
             setPendingRegion(target)
             setIsSwitching(true)
             setPreferredRegion(target)
-            window.location.assign(targetUrl)
+            // A passwordless OTP attempt is bound to this region's backend and lives
+            // in this origin's storage. Abandoning it here strands the auth page if
+            // the user returns, so clear it before leaving. Ignore if the passwordless
+            // recipe isn't initialized (e.g. password auth).
+            Promise.resolve(clearLoginAttemptInfo())
+                .catch(() => undefined)
+                .finally(() => window.location.assign(targetUrl))
         },
         [currentRegion, isSwitching],
     )
