@@ -1,3 +1,7 @@
+> The runnable release gate now lives in the `agent-release-gate` skill
+> (`.agents/skills/agent-release-gate/`). This folder remains the design and findings archive for
+> that work.
+
 # Agent-workflows QA and autohealing recipe
 
 This folder holds the manual QA program for the agent-workflows feature, the findings it
