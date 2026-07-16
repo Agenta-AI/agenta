@@ -16,7 +16,7 @@ import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
 import {DriveDrawer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
-import {humanSize, relativeTime} from "./driveTree"
+import {humanSize, isHiddenPath, relativeTime} from "./driveTree"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {driveHasMixedOrigins, type DriveRecentFile} from "./useSessionDrive"
 
@@ -55,19 +55,22 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
     const openDrawer = (initialPath: string | null) => setDrawer({open: true, initialPath})
 
     const now = useRecentChangeClock(drive.lastTouchedAt)
-    const showOrigin = driveHasMixedOrigins(drive.recents)
+    // The compact config list is for the user's own files — drop internal/hidden (dot-prefixed)
+    // entries like `.claude/…`; the full drawer still shows them (dimmed).
+    const visibleRecents = drive.recents.filter((f) => !isHiddenPath(f.path))
+    const showOrigin = driveHasMixedOrigins(visibleRecents)
 
     return (
         <div className="flex flex-col gap-2">
             {drive.isLoading ? (
                 <Skeleton active title={false} paragraph={{rows: 2}} className="px-1" />
-            ) : drive.fileCount > 0 ? (
+            ) : visibleRecents.length > 0 ? (
                 // Files win regardless of session status — the agent's durable folder is per-artifact,
                 // so it shows even before any conversation opens.
                 <div className="flex flex-col">
                     <MotionConfig reducedMotion="user">
                         <AnimatePresence mode="popLayout" initial={false}>
-                            {drive.recents.slice(0, 5).map((file) => (
+                            {visibleRecents.slice(0, 5).map((file) => (
                                 <motion.div
                                     key={file.path}
                                     layout
