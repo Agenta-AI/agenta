@@ -150,9 +150,10 @@ def test_claude_models_are_the_alias_set_under_anthropic():
     models = HARNESS_CONNECTION_CAPABILITIES["claude"].models
     assert set(models) == {"anthropic"}
     assert models["anthropic"] == list(CLAUDE_MODEL_ALIASES)
-    # Aliases, not provider-prefixed ids.
-    assert "opus" in models["anthropic"]
+    # Exact harness config values, not provider-prefixed ids or friendly aliases.
     assert "opus[1m]" in models["anthropic"]
+    assert "claude-fable-5" in models["anthropic"]
+    assert "fable" not in models["anthropic"]
     assert all("/" not in alias for alias in models["anthropic"])
 
 
