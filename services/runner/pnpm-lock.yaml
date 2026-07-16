@@ -28,6 +28,9 @@ importers:
       '@daytona/sdk':
         specifier: ^0.197.0
         version: 0.197.0(ws@8.21.1)
+      '@daytonaio/sdk':
+        specifier: npm:@daytona/sdk@^0.197.0
+        version: '@daytona/sdk@0.197.0(ws@8.21.1)'
       '@earendil-works/pi-coding-agent':
         specifier: 0.80.6
         version: 0.80.6(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
@@ -60,7 +63,7 @@ importers:
         version: 0.0.29(patch_hash=e30d9db3a9981a7f844a83795d7ceef6d86919eede6e2adf8a9bf0024d5ff49c)
       sandbox-agent:
         specifier: 0.4.2
-        version: 0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytonaio/sdk@0.197.0(ws@8.21.1))(zod@4.4.3)
+        version: 0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytona/sdk@0.197.0(ws@8.21.1))(zod@4.4.3)
       undici:
         specifier: ^8.7.0
         version: 8.7.0
@@ -327,10 +330,6 @@ packages:
 
   '@daytona/toolbox-api-client@0.197.0':
     resolution: {integrity: sha512-uBcbIAPcqeJUOpessqf2Za6Jid/Negn0x3wJlTcby391gsPUYDgsGzOmDZMs/rFKQ+/xtz/DAd7VThJZC5fnIQ==}
-
-  '@daytonaio/sdk@0.197.0':
-    resolution: {integrity: sha512-RFrK/TLZy8S0VyQcXOzOv70VKNUoUyJ45u/HlCJjmXu5vyK3TH0pQJv9yJn8uT49W+4ypMSODcz0YJIRjH16VA==}
-    deprecated: 'Moved to @daytona/sdk, same API, no breaking changes. Please update: npm uninstall @daytonaio/sdk && npm i @daytona/sdk'
 
   '@earendil-works/pi-agent-core@0.80.7':
     resolution: {integrity: sha512-EFjyAuoz2kn24sR9Q5A86sZCG6mD+nz58DCsA2I2wxgmS50cF1tSLCBOZaHKI5U9Y3pJs4BefeK3LRkB5TdJag==}
@@ -2793,38 +2792,6 @@ snapshots:
       - debug
       - supports-color
 
-  '@daytonaio/sdk@0.197.0(ws@8.21.1)':
-    dependencies:
-      '@aws-sdk/client-s3': 3.1088.0
-      '@aws-sdk/lib-storage': 3.1088.0(@aws-sdk/client-s3@3.1088.0)
-      '@daytona/analytics-api-client': 0.197.0
-      '@daytona/api-client': 0.197.0
-      '@daytona/toolbox-api-client': 0.197.0
-      '@iarna/toml': 2.2.5
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/exporter-trace-otlp-http': 0.219.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/instrumentation-http': 0.219.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/otlp-exporter-base': 0.219.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-node': 0.219.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.43.0
-      axios: 1.18.1
-      busboy: 1.6.0
-      dotenv: 17.4.2
-      expand-tilde: 2.0.2
-      fast-glob: 3.3.3
-      form-data: 4.0.6
-      isomorphic-ws: 5.0.0(ws@8.21.1)
-      pathe: 2.0.3
-      shell-quote: 1.10.0
-      tar: 7.5.20
-    transitivePeerDependencies:
-      - debug
-      - supports-color
-      - ws
-    optional: true
-
   '@earendil-works/pi-agent-core@0.80.7(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)':
     dependencies:
       '@earendil-works/pi-ai': 0.80.7(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.1)(zod@4.4.3)
@@ -4550,12 +4517,12 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sandbox-agent@0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytonaio/sdk@0.197.0(ws@8.21.1))(zod@4.4.3):
+  sandbox-agent@0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytona/sdk@0.197.0(ws@8.21.1))(zod@4.4.3):
     dependencies:
       '@sandbox-agent/cli-shared': 0.4.2
       acp-http-client: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3)
     optionalDependencies:
-      '@daytonaio/sdk': 0.197.0(ws@8.21.1)
+      '@daytonaio/sdk': '@daytona/sdk@0.197.0(ws@8.21.1)'
       '@sandbox-agent/cli': 0.4.2
     transitivePeerDependencies:
       - zod
