@@ -43,9 +43,7 @@ export const aggregatedParametersSchemaAtom = atom<{
     let sawAny = false
     for (const node of nodes) {
         const schemas = get(workflowMolecule.selectors.schemas(node.entityId)) as
-            | {parameters?: {properties?: Record<string, unknown>}}
-            | null
-            | undefined
+            {parameters?: {properties?: Record<string, unknown>}} | null | undefined
         const props = schemas?.parameters?.properties
         if (!props || typeof props !== "object") continue
         sawAny = true

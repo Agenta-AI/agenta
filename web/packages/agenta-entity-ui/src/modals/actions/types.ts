@@ -78,11 +78,7 @@ export interface SaveOrCommitAction {
  * Union type of all entity modal actions
  */
 export type EntityModalAction =
-    | CommitAction
-    | SaveAction
-    | CreateAction
-    | DeleteAction
-    | SaveOrCommitAction
+    CommitAction | SaveAction | CreateAction | DeleteAction | SaveOrCommitAction
 
 // ============================================================================
 // ACTION CREATORS

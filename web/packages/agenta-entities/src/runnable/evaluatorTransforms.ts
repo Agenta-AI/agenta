@@ -56,8 +56,7 @@ export function nestEvaluatorConfiguration(
         // Check if data is already nested with prompt.llm_config.response_format
         const prompt = flat.prompt as Record<string, unknown> | undefined
         const llmConfig = (prompt?.llm_config ?? prompt?.llmConfig) as
-            | Record<string, unknown>
-            | undefined
+            Record<string, unknown> | undefined
         const responseFormat = llmConfig?.response_format as Record<string, unknown> | undefined
 
         // If response_format exists in llm_config, move it to top-level feedback_config
@@ -76,8 +75,7 @@ export function nestEvaluatorConfiguration(
         // Non-LLM evaluator: group x-advanced fields under advanced_settings
         // to match the schema transform from nestEvaluatorSchema.
         const schemaProps = schema?.properties as
-            | Record<string, Record<string, unknown>>
-            | undefined
+            Record<string, Record<string, unknown>> | undefined
         if (schemaProps) {
             // Detect already-nested schema: `nestNonLlmEvaluatorSchema` wraps advanced
             // fields under an `advanced_settings` object. When re-nesting after a preset
@@ -86,11 +84,9 @@ export function nestEvaluatorConfiguration(
             // advanced_settings.properties. Keys absent from the schema (e.g. `version`,
             // which was filtered as hidden during schema nesting) are dropped.
             const advancedSettingsSchema = schemaProps.advanced_settings as
-                | Record<string, unknown>
-                | undefined
+                Record<string, unknown> | undefined
             const advancedSettingsProps = advancedSettingsSchema?.properties as
-                | Record<string, unknown>
-                | undefined
+                Record<string, unknown> | undefined
             if (advancedSettingsProps) {
                 const allowedPrimary = new Set(
                     Object.keys(schemaProps).filter((k) => k !== "advanced_settings"),

@@ -11,13 +11,7 @@
 export type WorkflowKind = "app" | "evaluator" | "snippet"
 
 export type WorkflowRouteSegment =
-    | "overview"
-    | "endpoints"
-    | "evaluations"
-    | "deployments"
-    | "playground"
-    | "variants"
-    | "traces"
+    "overview" | "endpoints" | "evaluations" | "deployments" | "playground" | "variants" | "traces"
 
 const DISABLED_FOR_EVALUATOR: ReadonlySet<WorkflowRouteSegment> = new Set([
     // `overview` and `evaluations` are now allowed for evaluators — Overview

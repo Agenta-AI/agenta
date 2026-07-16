@@ -52,9 +52,7 @@ const playgroundModeScopeKeyAtom = atom<string | null>((get) => {
     const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
     if (!rootNode) return null
     const entity = get(workflowMolecule.selectors.data(rootNode.entityId)) as
-        | {workflow_id?: string | null}
-        | null
-        | undefined
+        {workflow_id?: string | null} | null | undefined
     return entity?.workflow_id || rootNode.entityId
 })
 

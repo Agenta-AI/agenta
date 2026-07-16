@@ -1092,8 +1092,7 @@ function extractModelConfig(span: TraceSpanNode): Record<string, unknown> | null
  */
 function extractAgFlags(span: TraceSpanNode): Record<string, unknown> {
     const ag = (span.attributes as Record<string, unknown> | undefined)?.ag as
-        | Record<string, unknown>
-        | undefined
+        Record<string, unknown> | undefined
     const flags = ag?.flags
     return flags && typeof flags === "object" && !Array.isArray(flags)
         ? (flags as Record<string, unknown>)

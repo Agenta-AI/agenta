@@ -55,8 +55,7 @@ const defaultVisibilityAtom = atom(false)
 // }
 
 type ColumnViewportVisibilityPayload =
-    | ColumnViewportVisibilityEvent
-    | ColumnViewportVisibilityEvent[]
+    ColumnViewportVisibilityEvent | ColumnViewportVisibilityEvent[]
 
 export const setColumnViewportVisibilityAtom = atom(
     null,

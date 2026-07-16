@@ -13,12 +13,7 @@
  * Possible mapping status values
  */
 export type MappingStatus =
-    | "auto"
-    | "manual"
-    | "missing"
-    | "invalid_path"
-    | "type_mismatch"
-    | "optional"
+    "auto" | "manual" | "missing" | "invalid_path" | "type_mismatch" | "optional"
 
 /**
  * Status configuration for UI rendering

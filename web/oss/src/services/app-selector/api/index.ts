@@ -91,12 +91,7 @@ export const updateAppFolder = async (
 }
 
 export type AppCreationStatusType =
-    | "creating_app"
-    | "configuring_app"
-    | "success"
-    | "bad_request"
-    | "timeout"
-    | "error"
+    "creating_app" | "configuring_app" | "success" | "bad_request" | "timeout" | "error"
 
 /**
  * Create a workflow app from a template and navigate to the playground.

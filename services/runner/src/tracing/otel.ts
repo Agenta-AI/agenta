@@ -46,7 +46,7 @@ import {
 } from "@opentelemetry/api";
 import { ExportResultCode } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import type {
   ReadableSpan,
   SpanExporter,
@@ -258,7 +258,7 @@ class TraceBatchProcessor implements SpanProcessor {
     spans.push(span);
     this.buffers.set(traceId, spans);
     // No parent in this process => this is the local root and the trace is done.
-    if (!span.parentSpanId) {
+    if (!span.parentSpanContext) {
       this.flush(traceId);
     }
   }
@@ -341,11 +341,11 @@ function ensureProvider(): void {
   if (provider) return;
   processor = new TraceBatchProcessor();
   provider = new NodeTracerProvider({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "pi-agent",
     }),
+    spanProcessors: [processor],
   });
-  provider.addSpanProcessor(processor);
   provider.register();
 }
 
@@ -380,7 +380,7 @@ function orderParentFirst(spans: ReadableSpan[]): ReadableSpan[] {
   const childrenOf = new Map<string, ReadableSpan[]>();
   const roots: ReadableSpan[] = [];
   for (const s of spans) {
-    const parentId = s.parentSpanId;
+    const parentId = s.parentSpanContext?.spanId;
     if (parentId && byId.has(parentId)) {
       const list = childrenOf.get(parentId) ?? [];
       list.push(s);
