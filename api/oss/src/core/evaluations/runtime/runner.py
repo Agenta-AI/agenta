@@ -38,11 +38,6 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
             kwargs["oldest"] = oldest
 
         result = await self.worker.process_run_from_source.kiq(**kwargs)
-        log.tick(
-            "evaluations.enqueued",
-            dims={"queue": "evaluations"},
-            task="run_from_source",
-        )
         return result
 
     async def process_run_from_batch(
@@ -76,9 +71,6 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
             kwargs["input_step_key"] = input_step_key
 
         result = await self.worker.process_run_from_batch.kiq(**kwargs)
-        log.tick(
-            "evaluations.enqueued", dims={"queue": "evaluations"}, task="run_from_batch"
-        )
         return result
 
     async def process_rerun(
@@ -116,5 +108,4 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
             kwargs["overwrite"] = overwrite
 
         result = await self.worker.process_rerun.kiq(**kwargs)
-        log.tick("evaluations.enqueued", dims={"queue": "evaluations"}, task="rerun")
         return result
