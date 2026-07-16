@@ -1,3 +1,7 @@
+> The runnable release gate graduated to the `agent-release-gate` skill
+> (`.agents/skills/agent-release-gate/`). This folder is now the release-night findings archive
+> (STATUS.md, findings.md, matrix.md, LESSONS moved with the skill).
+
 # Agent-workflows QA and autohealing recipe
 
 This folder holds the manual QA program for the agent-workflows feature, the findings it

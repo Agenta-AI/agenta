@@ -14,29 +14,60 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 import uuid
 
 import httpx
 
+# Credentials come from the environment FIRST (AGENTA_BASE, AGENTA_PROJECT_ID, AGENTA_API_KEY),
+# then from an env file (default below, overridable with --env-file). Resolved in main() so that
+# --help works with no credentials present.
+REQUIRED_CREDS = ("AGENTA_BASE", "AGENTA_PROJECT_ID", "AGENTA_API_KEY")
+DEFAULT_ENV_FILE = pathlib.Path.home() / ".agenta-bighetzner.env"
 
-def load_env() -> dict:
-    env = {}
-    f = pathlib.Path.home() / ".agenta-bighetzner.env"
-    for line in f.read_text().splitlines():
+BASE = ""
+PROJECT = ""
+KEY = ""
+
+
+def _read_env_file(path: pathlib.Path) -> dict:
+    values: dict = {}
+    path = pathlib.Path(path).expanduser()
+    if not path.exists():
+        return values
+    for line in path.read_text().splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        env[k.strip()] = v.strip()
-    return env
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            values[k.strip()] = v.strip()
+    return values
 
 
-ENV = load_env()
-BASE = ENV["AGENTA_BASE"]
-PROJECT = ENV["AGENTA_PROJECT_ID"]
-KEY = ENV["AGENTA_API_KEY"]
+def resolve_credentials(env_file: str | pathlib.Path | None = None) -> None:
+    """Populate BASE/PROJECT/KEY from the environment first, then the env file. Raises SystemExit
+    naming exactly which credentials are missing."""
+    global BASE, PROJECT, KEY
+    file_values = _read_env_file(env_file or DEFAULT_ENV_FILE)
+    resolved: dict = {}
+    missing: list = []
+    for name in REQUIRED_CREDS:
+        value = os.environ.get(name) or file_values.get(name)
+        if value:
+            resolved[name] = value
+        else:
+            missing.append(name)
+    if missing:
+        raise SystemExit(
+            "Missing credentials: "
+            + ", ".join(missing)
+            + f".\nSet them as environment variables or pass --env-file <path> "
+            f"(default: {DEFAULT_ENV_FILE})."
+        )
+    BASE = resolved["AGENTA_BASE"]
+    PROJECT = resolved["AGENTA_PROJECT_ID"]
+    KEY = resolved["AGENTA_API_KEY"]
 
 
 def agent_template(harness: str, sandbox: str, model: str, provider: str) -> dict:
@@ -63,7 +94,13 @@ def main() -> int:
     p.add_argument("--model", default="gpt-5.6-luna")
     p.add_argument("--provider", default="openai")
     p.add_argument("--msg", default="Reply with exactly: PONG")
+    p.add_argument(
+        "--env-file",
+        help=f"credentials file (fallback when env vars are unset; default {DEFAULT_ENV_FILE})",
+    )
     args = p.parse_args()
+
+    resolve_credentials(args.env_file)
 
     session_id = str(uuid.uuid4())
     url = f"{BASE}/services/agent/v0/invoke"

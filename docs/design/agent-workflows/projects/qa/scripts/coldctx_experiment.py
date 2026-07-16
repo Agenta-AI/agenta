@@ -2,7 +2,9 @@
 # requires-python = ">=3.10"
 # dependencies = ["httpx>=0.27"]
 # ///
-"""DECISIVE experiment: does a COLD turn lose a token buried past the runner's 4000-char
+"""Host-only experiment, not part of the release gate (kept here as release-night evidence).
+
+DECISIVE experiment: does a COLD turn lose a token buried past the runner's 4000-char
 tool-result cap (transcript.ts TOOL_RESULT_RENDER_MAX_CHARS), while an EARLY token (within the
 cap) survives?
 

@@ -110,7 +110,9 @@ def discover_tools() -> list:
     return safe
 
 
-GATEWAY_TOOLS = discover_tools()
+# Populated in main() after credentials resolve — discovery hits the live /api/tools/discover
+# endpoint, so it cannot run at import time (that would break --help with no credentials).
+GATEWAY_TOOLS: list = []
 
 
 # gpt-5.6-luna/openai currently returns "The agent produced no output" on this deployment (a
@@ -276,7 +278,15 @@ def main() -> int:
     ap.add_argument(
         "--turns", type=int, default=12, help="flood turns for the memory probe"
     )
+    ap.add_argument(
+        "--env-file",
+        help=f"credentials file (fallback when env vars are unset; default {qa.DEFAULT_ENV_FILE})",
+    )
     args = ap.parse_args()
+
+    qa.resolve_credentials(args.env_file)
+    global GATEWAY_TOOLS
+    GATEWAY_TOOLS = discover_tools()
 
     out: dict = {}
     probes = ["gmail", "memory", "concurrent"] if args.probe == "all" else [args.probe]

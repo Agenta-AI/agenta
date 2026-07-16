@@ -13,13 +13,16 @@ constant is baked into a tool's return value, so a matching reply PROVES the too
   uv run qa_product.py --all                     # every cell
   uv run qa_product.py --cell C3 --only approve  # one journey
 
-Results land in ../runs/<timestamp>/ as JSON + a markdown table.
+Credentials come from the environment (AGENTA_BASE, AGENTA_PROJECT_ID, AGENTA_API_KEY), falling
+back to --env-file. Results land in ./qa-gate-runs/<timestamp>/ (override with AGENTA_QA_RUNS_DIR)
+as JSON + a markdown table.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import time
@@ -28,23 +31,67 @@ import uuid
 import httpx
 
 HERE = pathlib.Path(__file__).resolve().parent
-RUNS = HERE.parent / "runs"
+# Results land in the CURRENT working directory, never inside the skill, so repeated runs do not
+# accumulate in the tree. Override with AGENTA_QA_RUNS_DIR (absolute or relative to the CWD).
+RUNS = pathlib.Path(os.environ.get("AGENTA_QA_RUNS_DIR", "qa-gate-runs")).resolve()
+
+# Credentials: read from the environment FIRST, then fall back to an env file. The env vars are
+# AGENTA_BASE (deployment origin), AGENTA_PROJECT_ID, and AGENTA_API_KEY — the same three the
+# playground needs. This keeps the gate deployment-agnostic: point it at any stack by exporting
+# three vars. The file fallback (default below, overridable with --env-file) is only for backward
+# compatibility with the original bighetzner QA setup.
+REQUIRED_CREDS = ("AGENTA_BASE", "AGENTA_PROJECT_ID", "AGENTA_API_KEY")
+DEFAULT_ENV_FILE = pathlib.Path.home() / ".agenta-bighetzner.env"
+
+# Resolved by resolve_credentials() before any journey runs. Left empty so that --help and other
+# no-network entry points work with no credentials present at all.
+BASE = ""
+PROJECT = ""
+KEY = ""
 
 
-def load_env() -> dict:
-    env = {}
-    for line in (
-        (pathlib.Path.home() / ".agenta-bighetzner.env").read_text().splitlines()
-    ):
+def _read_env_file(path: pathlib.Path) -> dict:
+    values: dict = {}
+    path = pathlib.Path(path).expanduser()
+    if not path.exists():
+        return values
+    for line in path.read_text().splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
-            env[k.strip()] = v.strip()
-    return env
+            values[k.strip()] = v.strip()
+    return values
 
 
-ENV = load_env()
-BASE, PROJECT, KEY = ENV["AGENTA_BASE"], ENV["AGENTA_PROJECT_ID"], ENV["AGENTA_API_KEY"]
+def resolve_credentials(env_file: str | pathlib.Path | None = None) -> None:
+    """Populate BASE/PROJECT/KEY. Environment variables win; the env file only fills what the
+    environment did not set. Raises SystemExit with a clear, specific message naming exactly which
+    credentials are missing so a first-time runner knows what to set."""
+    global BASE, PROJECT, KEY
+    file_values = _read_env_file(env_file or DEFAULT_ENV_FILE)
+    resolved: dict = {}
+    missing: list = []
+    for name in REQUIRED_CREDS:
+        value = os.environ.get(name) or file_values.get(name)
+        if value:
+            resolved[name] = value
+        else:
+            missing.append(name)
+    if missing:
+        raise SystemExit(
+            "Missing credentials: "
+            + ", ".join(missing)
+            + ".\nSet them as environment variables, e.g.\n"
+            "  export AGENTA_BASE=https://your-stack.example.com\n"
+            "  export AGENTA_PROJECT_ID=...\n"
+            "  export AGENTA_API_KEY=...\n"
+            f"or pass --env-file <path> to a file with those lines "
+            f"(default: {DEFAULT_ENV_FILE})."
+        )
+    BASE = resolved["AGENTA_BASE"]
+    PROJECT = resolved["AGENTA_PROJECT_ID"]
+    KEY = resolved["AGENTA_API_KEY"]
+
 
 # A public, no-auth, HTTPS Streamable-HTTP MCP server used by the `mcp` journey. DeepWiki is a
 # well-known free reference server (tools: read_wiki_structure / read_wiki_contents / ask_question).
@@ -872,7 +919,13 @@ def main() -> int:
         "--model",
         help="override the cell's model (e.g. `haiku` on a Claude cell; aliases only on Claude — F-007)",
     )
+    p.add_argument(
+        "--env-file",
+        help=f"credentials file (fallback when the env vars are unset; default {DEFAULT_ENV_FILE})",
+    )
     args = p.parse_args()
+
+    resolve_credentials(args.env_file)
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
     journeys = args.only or list(JOURNEYS)
