@@ -28,13 +28,19 @@ function envTimeoutMs(name: string, defaultMs: number): number {
 /** Wider than the total run deadline default so an ordinary run/pause never trips this first. */
 const DEFAULT_ACP_HEADERS_TIMEOUT_MS = 60 * 60_000; // 60 min
 const DEFAULT_ACP_BODY_TIMEOUT_MS = 60 * 60_000; // 60 min
+/**
+ * Short idle keep-alive so ACP requests do not reuse stale pooled sockets to the sandbox proxy
+ * (undici >=8.5.0 validates idle sockets on reuse; a proxy-half-closed socket stalls the write).
+ * A paused HITL turn is an in-flight request guarded by headers/body timeouts above — idle-socket
+ * lifetime does not affect it.
+ */
+const DEFAULT_ACP_KEEP_ALIVE_TIMEOUT_MS = 1_000; // 1 s
 
 /**
  * Build the long-timeout undici dispatcher used for ACP HTTP. `headersTimeout` is the one that
  * reaps a paused turn (no response headers arrive while the human deliberates); `bodyTimeout`
  * guards the streamed body. Both default wide (not disabled) so they still backstop a truly
- * stuck connection, without reaping a human-timescale pause. `keepAliveTimeout`/
- * `keepAliveMaxTimeout` are raised so the connection is not pooled-closed mid-pause either.
+ * stuck connection, without reaping a human-timescale pause.
  */
 export function createAcpDispatcher(): Agent {
   const headersTimeout = envTimeoutMs(
@@ -45,11 +51,17 @@ export function createAcpDispatcher(): Agent {
     "SANDBOX_AGENT_ACP_BODY_TIMEOUT_MS",
     DEFAULT_ACP_BODY_TIMEOUT_MS,
   );
+  // Clamp to >=1: undici requires a positive keepAliveTimeout, and 0 here means "as short as
+  // possible", not "disabled".
+  const keepAliveTimeout = Math.max(
+    1,
+    envTimeoutMs("SANDBOX_AGENT_ACP_KEEPALIVE_TIMEOUT_MS", DEFAULT_ACP_KEEP_ALIVE_TIMEOUT_MS),
+  );
   return new Agent({
     headersTimeout,
     bodyTimeout,
-    keepAliveTimeout: 600_000,
-    keepAliveMaxTimeout: 600_000,
+    keepAliveTimeout,
+    keepAliveMaxTimeout: keepAliveTimeout,
   });
 }
 
