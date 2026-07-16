@@ -28,6 +28,7 @@ import {AnimatePresence, motion} from "motion/react"
 
 import {projectIdAtom} from "@/oss/state/project"
 
+import {DriveFileRow} from "./DriveFileRow"
 import {driveFileIcon} from "./driveIcons"
 import {resolveDriveFileKind} from "./driveKinds"
 import {downloadMountFile} from "./driveMedia"
@@ -41,6 +42,7 @@ import {
 } from "./driveTree"
 import {DriveFileMetaList} from "./fileMeta"
 import {OriginTag} from "./OriginTag"
+import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {DriveFileBody} from "./renderers"
 import {driveHasMixedOrigins, fileOrigin, type SessionDriveData} from "./useSessionDrive"
 
@@ -58,6 +60,56 @@ const driveSelectionAtomFamily = atomFamily((_mountId: string) => atom<string | 
  * only the human tail ("cwd"), never the uuid (spec: raw ids stay out of labels). */
 export const driveRootLabel = (mount: Mount | null): string =>
     mount?.slug?.split("__").filter(Boolean).pop() ?? "cwd"
+
+/** Clickable path breadcrumb: each folder segment (and the home root) navigates via `onNavigate`
+ * (a folder path, "" = root). The last segment is the current file/folder (plain). Scrolls
+ * horizontally rather than truncating, so every part stays reachable. */
+const DriveBreadcrumb = ({
+    shown,
+    rootLabel,
+    onNavigate,
+}: {
+    shown: string
+    rootLabel: string
+    onNavigate: (folderPath: string) => void
+}) => {
+    const segs = shown.split("/").filter(Boolean)
+    return (
+        <div
+            className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-[11px] text-colorTextTertiary"
+            title={shown}
+        >
+            <button
+                type="button"
+                onClick={() => onNavigate("")}
+                className="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0 bg-transparent p-0 text-colorTextTertiary hover:text-colorText"
+            >
+                <House size={12} />
+                <span className="font-mono">{rootLabel}</span>
+            </button>
+            {segs.map((seg, i) => {
+                const path = segs.slice(0, i + 1).join("/")
+                const isLast = i === segs.length - 1
+                return (
+                    <span key={path} className="flex shrink-0 items-center gap-1">
+                        <span className="text-colorTextQuaternary">/</span>
+                        {isLast ? (
+                            <span className="font-mono">{seg}</span>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => onNavigate(path)}
+                                className="cursor-pointer rounded border-0 bg-transparent p-0 font-mono text-colorTextTertiary hover:text-colorText hover:underline"
+                            >
+                                {seg}
+                            </button>
+                        )}
+                    </span>
+                )
+            })}
+        </div>
+    )
+}
 
 /** One tree row (folder or file), indented by depth; selection = fill + primary ring. */
 const TreeRow = ({
@@ -79,14 +131,18 @@ const TreeRow = ({
     onSelect: (path: string) => void
 }) => {
     const isOpen = expanded.has(node.path)
-    const selected = !node.isFolder && node.path === selectedPath
+    const selected = node.path === selectedPath
     // Dot-prefixed (hidden) entries surface but dimmed, like a file browser greys .git/.claude.
     const hidden = isHiddenPath(node.path)
     return (
         <>
             <button
                 type="button"
-                onClick={() => (node.isFolder ? onToggle(node.path) : onSelect(node.path))}
+                // A folder both opens its contents on the right (folder view) AND toggles in the tree.
+                onClick={() => {
+                    onSelect(node.path)
+                    if (node.isFolder) onToggle(node.path)
+                }}
                 className={`flex w-full cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-1 text-left text-xs transition-colors ${
                     selected
                         ? "bg-colorFillSecondary shadow-[inset_0_0_0_1px_var(--ag-colorPrimary)]"
@@ -194,6 +250,7 @@ const DriveFilePreview = ({
     showOrigin,
     touchedAt,
     size,
+    onSelect,
 }: {
     mount: Mount | null
     /** Path relative to `mount` — used for reading (content/meta/download). */
@@ -206,10 +263,11 @@ const DriveFilePreview = ({
     showOrigin?: boolean
     touchedAt?: number
     size?: number
+    /** Navigate to a folder (breadcrumb) or file — same selection callback the tree uses. */
+    onSelect: (path: string) => void
 }) => {
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
-    const folders = shown.split("/").slice(0, -1)
     const [metaExpanded, setMetaExpanded] = useState(false)
 
     return (
@@ -220,23 +278,7 @@ const DriveFilePreview = ({
             {/* Fixed header (breadcrumb + name + actions + metadata) — stays put while the content
                 scrolls, and the action cluster [copy · details · download] matches the chat file view. */}
             <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-colorBorderSecondary p-4 pb-3">
-                {/* Plain path label (not clickable): the tree + folder switch already handle
-                    navigation. Folder chain truncates (full path on hover via `title`). */}
-                <div
-                    className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-colorTextTertiary"
-                    title={shown}
-                >
-                    <span className="flex shrink-0 items-center gap-1">
-                        <House size={12} />
-                        <span className="font-mono">{rootLabel}</span>
-                    </span>
-                    {folders.length ? (
-                        <span className="min-w-0 truncate font-mono">
-                            {folders.map((f) => `/ ${f} `).join("")}
-                        </span>
-                    ) : null}
-                    <span className="shrink-0 font-mono">/ {name}</span>
-                </div>
+                <DriveBreadcrumb shown={shown} rootLabel={rootLabel} onNavigate={onSelect} />
 
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
@@ -281,6 +323,104 @@ const DriveFilePreview = ({
 
             <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
                 <DriveFileContentViewer mount={mount} path={path} size={size} />
+            </div>
+        </div>
+    )
+}
+
+/** A subfolder card in the folder view — click to drill in. */
+const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) => {
+    const hidden = isHiddenPath(node.path)
+    const count = node.children.length
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            className={`flex w-full min-w-0 cursor-pointer flex-col items-start gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
+        >
+            <FolderSimple size={22} weight="fill" className="text-colorWarning" />
+            <span className="w-full truncate text-left font-mono text-xs" title={node.path}>
+                {node.name}
+            </span>
+            <span className="text-[11px] text-colorTextTertiary">
+                {count} item{count === 1 ? "" : "s"}
+            </span>
+        </button>
+    )
+}
+
+/** Right pane when a FOLDER is selected: fixed header (clickable breadcrumb + folder name) over a
+ * grid of the folder's immediate children — subfolders drill in, files open the preview. Reuses the
+ * chat grid's file tile (DriveFileRow). */
+const FolderView = ({
+    folderPath,
+    nodes,
+    rootLabel,
+    drive,
+    showOrigin,
+    onSelect,
+}: {
+    folderPath: string
+    nodes: DriveTreeNode[]
+    rootLabel: string
+    drive: SessionDriveData
+    showOrigin: boolean
+    onSelect: (path: string) => void
+}) => {
+    const now = useRecentChangeClock(drive.lastTouchedAt)
+    const recentsByPath = useMemo(
+        () => new Map(drive.recents.map((f) => [f.path, f])),
+        [drive.recents],
+    )
+    const folderName = folderPath === "" ? rootLabel : (folderPath.split("/").pop() ?? folderPath)
+    const folders = nodes.filter((n) => n.isFolder)
+    const files = nodes.filter((n) => !n.isFolder)
+
+    return (
+        <div className="flex h-full min-h-0 w-full flex-col">
+            <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-colorBorderSecondary p-4 pb-3">
+                <DriveBreadcrumb shown={folderPath} rootLabel={rootLabel} onNavigate={onSelect} />
+                <div className="flex items-center gap-2">
+                    <FolderSimple size={16} weight="fill" className="shrink-0 text-colorWarning" />
+                    <span className="truncate font-mono text-[13px] font-semibold">
+                        {folderName}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-colorTextTertiary">
+                        {nodes.length} item{nodes.length === 1 ? "" : "s"}
+                    </span>
+                </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+                {nodes.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-1 p-8 text-center">
+                        <Tray size={26} className="text-colorTextQuaternary" />
+                        <div className="text-xs font-medium">Empty folder</div>
+                    </div>
+                ) : (
+                    <div className="grid auto-rows-min grid-cols-3 gap-2">
+                        {folders.map((n) => (
+                            <FolderTile key={n.path} node={n} onOpen={() => onSelect(n.path)} />
+                        ))}
+                        {files.map((n) => {
+                            const file = recentsByPath.get(n.path)
+                            const resolved = drive.resolveMount(n.path)
+                            return (
+                                <DriveFileRow
+                                    key={n.path}
+                                    variant="tile"
+                                    path={n.path}
+                                    file={resolved && file ? {...file, path: resolved.path} : file}
+                                    mount={resolved?.mount ?? drive.mount}
+                                    showOrigin={showOrigin}
+                                    trailing={humanSize(n.size)}
+                                    recent={file ? isRecentlyChanged(file.touchedAt, now) : false}
+                                    onOpen={() => onSelect(n.path)}
+                                />
+                            )
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -340,6 +480,21 @@ export function DriveExplorer({
         () => (search.trim() ? new Set(collectFolderPaths(shownTree)) : expanded),
         [search, shownTree, expanded],
     )
+    // Flat lookup of every tree node by path, so a selected FOLDER can render its children (folder
+    // view) and a selected FILE the preview. Root ("") maps to the top-level nodes.
+    const nodeByPath = useMemo(() => {
+        const map = new Map<string, DriveTreeNode>()
+        const walk = (nodes: DriveTreeNode[]) => {
+            for (const n of nodes) {
+                map.set(n.path, n)
+                if (n.children.length) walk(n.children)
+            }
+        }
+        walk(tree)
+        return map
+    }, [tree])
+    const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
+    const selectedIsFolder = selectedPath === "" || selectedNode?.isFolder === true
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
     const showOrigin = driveHasMixedOrigins(drive.recents)
 
@@ -440,7 +595,20 @@ export function DriveExplorer({
                 </div>
             </Splitter.Panel>
             <Splitter.Panel>
-                {selectedPath ? (
+                {selectedPath == null ? (
+                    <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
+                        Select a file to preview it.
+                    </div>
+                ) : selectedIsFolder ? (
+                    <FolderView
+                        folderPath={selectedPath}
+                        nodes={selectedPath === "" ? tree : (selectedNode?.children ?? [])}
+                        rootLabel={rootLabel}
+                        drive={drive}
+                        showOrigin={showOrigin}
+                        onSelect={select}
+                    />
+                ) : (
                     <DriveFilePreview
                         // Preview reads from the file's own mount (cwd or the nested agent-files
                         // mount), but the breadcrumb/name show the presented path (agent-files/ prefix).
@@ -451,11 +619,8 @@ export function DriveExplorer({
                         rootLabel={rootLabel}
                         touchedAt={selected?.touchedAt}
                         size={selected?.size ?? undefined}
+                        onSelect={select}
                     />
-                ) : (
-                    <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
-                        Select a file to preview it.
-                    </div>
                 )}
             </Splitter.Panel>
         </Splitter>
