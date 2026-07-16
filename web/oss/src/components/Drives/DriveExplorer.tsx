@@ -213,7 +213,10 @@ const DriveFilePreview = ({
     const [metaExpanded, setMetaExpanded] = useState(false)
 
     return (
-        <div className="flex min-h-0 w-full flex-1 flex-col">
+        // h-full (NOT flex-1): the Splitter.Panel isn't a flex parent, so flex-1 gives no bounded
+        // height — the pane would grow to content and scroll the header away. h-full pins it to the
+        // panel so the header stays and only the content viewer scrolls (mirrors the tree pane).
+        <div className="flex h-full min-h-0 w-full flex-col">
             {/* Fixed header (breadcrumb + name + actions + metadata) — stays put while the content
                 scrolls, and the action cluster [copy · details · download] matches the chat file view. */}
             <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-colorBorderSecondary p-4 pb-3">
