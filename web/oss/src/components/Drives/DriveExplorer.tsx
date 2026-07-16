@@ -17,6 +17,7 @@ import {
     DownloadSimple,
     FolderSimple,
     House,
+    Info,
     MagnifyingGlass,
     Tray,
 } from "@phosphor-icons/react"
@@ -182,7 +183,9 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
     )
 }
 
-/** Right pane: breadcrumb + name/meta + Download + content viewer. */
+/** Right pane: a FIXED header (breadcrumb + name + copy/details/download actions + expandable
+ * metadata) over a scrollable content viewer — same shape and interactions as the chat single-file
+ * view, so the file info never scrolls away with the content. */
 const DriveFilePreview = ({
     mount,
     path,
@@ -207,16 +210,17 @@ const DriveFilePreview = ({
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
     const folders = shown.split("/").slice(0, -1)
+    const [metaExpanded, setMetaExpanded] = useState(false)
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
-            {/* Plain path label (not clickable): the tree + folder switch already handle navigation,
-                so the breadcrumb only shows where the file lives. One line; the folder chain
-                truncates (full path on hover via `title`), the filename always survives. A copy
-                button hands you the exact path to give the agent. */}
-            <div className="flex items-center gap-1.5">
+        <div className="flex min-h-0 w-full flex-1 flex-col">
+            {/* Fixed header (breadcrumb + name + actions + metadata) — stays put while the content
+                scrolls, and the action cluster [copy · details · download] matches the chat file view. */}
+            <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-colorBorderSecondary p-4 pb-3">
+                {/* Plain path label (not clickable): the tree + folder switch already handle
+                    navigation. Folder chain truncates (full path on hover via `title`). */}
                 <div
-                    className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-colorTextTertiary"
+                    className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-colorTextTertiary"
                     title={shown}
                 >
                     <span className="flex shrink-0 items-center gap-1">
@@ -230,30 +234,51 @@ const DriveFilePreview = ({
                     ) : null}
                     <span className="shrink-0 font-mono">/ {name}</span>
                 </div>
-                <Tooltip title="Copy path">
-                    <CopyButton
-                        text={shown}
-                        buttonText={null}
-                        icon
-                        size="small"
-                        aria-label="Copy file path"
-                        successMessage=""
-                        className="!h-6 !w-6 shrink-0 !p-0 !text-colorTextTertiary hover:!text-colorText"
-                    />
-                </Tooltip>
-            </div>
 
-            <div className="flex items-start justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-mono text-[13px] font-semibold">{name}</span>
-                    {showOrigin ? <OriginTag origin={fileOrigin(shown)} /> : null}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-mono text-[13px] font-semibold">{name}</span>
+                        {showOrigin ? <OriginTag origin={fileOrigin(shown)} /> : null}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                        <Tooltip title="Copy path">
+                            <CopyButton
+                                text={shown}
+                                buttonText={null}
+                                icon
+                                size="small"
+                                aria-label="Copy file path"
+                                successMessage=""
+                                className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
+                            />
+                        </Tooltip>
+                        <Tooltip title="File details">
+                            <Button
+                                type="text"
+                                size="small"
+                                aria-label="File details"
+                                aria-pressed={metaExpanded}
+                                onClick={() => setMetaExpanded((v) => !v)}
+                                icon={<Info size={16} weight={metaExpanded ? "fill" : "regular"} />}
+                                className={`!h-7 !w-7 !p-0 ${metaExpanded ? "!text-colorPrimary" : "!text-colorTextTertiary hover:!text-colorText"}`}
+                            />
+                        </Tooltip>
+                        <DriveFileDownloadButton mount={mount} path={path} />
+                    </div>
                 </div>
-                <DriveFileDownloadButton mount={mount} path={path} />
+
+                <DriveFileMetaList
+                    mount={mount}
+                    path={path}
+                    size={size}
+                    touchedAt={touchedAt}
+                    expanded={metaExpanded}
+                />
             </div>
 
-            <DriveFileMetaList mount={mount} path={path} size={size} touchedAt={touchedAt} />
-
-            <DriveFileContentViewer mount={mount} path={path} size={size} />
+            <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
+                <DriveFileContentViewer mount={mount} path={path} size={size} />
+            </div>
         </div>
     )
 }
