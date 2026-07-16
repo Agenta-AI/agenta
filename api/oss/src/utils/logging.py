@@ -1,12 +1,10 @@
 import os
 import re
 import sys
-import time
 import logging
 from typing import Any, Optional
 
 import structlog
-from orjson import dumps as orjson_dumps
 from structlog.typing import EventDict, WrappedLogger, Processor
 
 from oss.src.utils.env import env
@@ -34,8 +32,6 @@ structlog.stdlib.BoundLogger.trace = bound_logger_trace
 # ENV VARS
 AGENTA_LOG_CONSOLE_ENABLED = env.agenta.logging.console_enabled
 AGENTA_LOG_CONSOLE_LEVEL = env.agenta.logging.console_level
-AGENTA_LOG_METRICS_ENABLED = env.agenta.logging.metrics_enabled
-AGENTA_LOG_METRICS_NAMESPACE = env.agenta.logging.metrics_namespace
 
 # COLORS
 LEVEL_COLORS = {
@@ -189,54 +185,6 @@ if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
         sdk_logger.propagate = False
 
 
-def _emf_unit_for(field: str) -> str:
-    if field.endswith("_ms"):
-        return "Milliseconds"
-    if field == "bytes" or field.endswith("_bytes"):
-        return "Bytes"
-    return "None"
-
-
-def _emit_emf_metric(
-    name: str,
-    *,
-    count: float,
-    unit: str,
-    dims: dict,
-    fields: dict,
-) -> None:
-    """Write one CloudWatch Embedded Metric Format line to stdout.
-
-    No new port/infra: the CloudWatch agent already ships container stdout, and
-    EMF lines embedded in it become metrics automatically.
-    """
-    dim_names = list(dims.keys())
-    # Register every numeric field (duration_ms, bytes, ...) as its own metric so
-    # it graphs in CloudWatch; a name-based unit keeps ms/bytes sensible. Non-numeric
-    # fields stay as EMF properties (context only).
-    metrics = [{"Name": name, "Unit": unit}]
-    for key, value in fields.items():
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            metrics.append({"Name": key, "Unit": _emf_unit_for(key)})
-    record = {
-        "_aws": {
-            "Timestamp": int(time.time() * 1000),
-            "CloudWatchMetrics": [
-                {
-                    "Namespace": AGENTA_LOG_METRICS_NAMESPACE,
-                    "Dimensions": [dim_names] if dim_names else [[]],
-                    "Metrics": metrics,
-                }
-            ],
-        },
-        name: count,
-        **dims,
-        **fields,
-    }
-    sys.stdout.write(orjson_dumps(record).decode() + "\n")
-    sys.stdout.flush()
-
-
 class MultiLogger:
     def __init__(self, *loggers: structlog.stdlib.BoundLogger):
         self._loggers = loggers
@@ -244,30 +192,6 @@ class MultiLogger:
     def _log(self, level: str, *args: Any, **kwargs: Any):
         for lgr in self._loggers:
             getattr(lgr, level)(*args, **kwargs)
-
-    def tick(
-        self,
-        name: str,
-        *,
-        count: float = 1,
-        unit: str = "Count",
-        dims: Optional[dict] = None,
-        **fields: Any,
-    ) -> None:
-        """Emit a CloudWatch EMF metric line beside the adjacent log call.
-
-        `dims` (e.g. `{"stream": "spans"}`) become CloudWatch dimensions;
-        `**fields` are extra structured context only (not dimensioned).
-        """
-        if not AGENTA_LOG_METRICS_ENABLED:
-            return
-        try:
-            _emit_emf_metric(
-                name, count=count, unit=unit, dims=dims or {}, fields=fields
-            )
-        except Exception:
-            # Metrics must never break the calling code path.
-            pass
 
     def debug(self, *a, **k):
         self._log("debug", *a, **k)

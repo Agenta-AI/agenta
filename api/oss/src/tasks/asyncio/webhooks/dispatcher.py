@@ -321,21 +321,14 @@ class WebhooksDispatcher:
                             f"delivery={delivery_id} event={event.event_id} "
                             f"subscription={sub.id}"
                         )
-                        log.tick("webhooks.enqueued", dims={"queue": "webhooks"})
                     except Exception as e:
                         log.error(
                             f"[WEBHOOKS DISPATCHER] Failed to enqueue delivery "
                             f"for subscription {sub.id}: {e}"
                         )
-                        log.tick("webhooks.enqueue_errors", dims={"queue": "webhooks"})
                         enqueue_failures += 1
 
         if enqueue_failures > 0:
-            log.tick(
-                "webhooks.enqueue_failures",
-                count=enqueue_failures,
-                dims={"queue": "webhooks"},
-            )
             # Raise so the events worker skips ACK/DEL and retries the whole batch. Without this
             # the batch is acked and the failed deliveries are dropped for good. Redelivery is
             # safe: the deterministic delivery_id dedups already-enqueued deliveries.

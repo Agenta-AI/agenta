@@ -18,7 +18,7 @@ class OldAnalyticsResponse(UniversalBaseModel):
     
     buckets: typing.Optional[typing.List[Bucket]] = pydantic.Field(default=None)
     """
-    Time-bucketed aggregates with fixed fields (`total`, `errors`) holding `count`, `duration`, `costs`, and `tokens`.
+    Time-bucketed aggregates with fixed fields (`total`, `errors`) holding `count`, `duration`, `costs`, and `tokens`, ordered oldest to newest.
     """
     
     
