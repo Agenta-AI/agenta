@@ -133,20 +133,23 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                                     <span>Prompt</span>
                                     <span>{formatTokens(metrics.promptTokens)}</span>
                                 </div>
-                                {metrics.cacheReadTokens !== undefined &&
-                                    metrics.cacheReadTokens > 0 && (
-                                        <div className="flex items-center justify-between gap-3 opacity-65">
-                                            <span className="pl-3">Cached (read)</span>
-                                            <span>{formatTokens(metrics.cacheReadTokens)}</span>
-                                        </div>
-                                    )}
-                                {metrics.cacheWriteTokens !== undefined &&
-                                    metrics.cacheWriteTokens > 0 && (
-                                        <div className="flex items-center justify-between gap-3 opacity-65">
-                                            <span className="pl-3">Cached (write)</span>
-                                            <span>{formatTokens(metrics.cacheWriteTokens)}</span>
-                                        </div>
-                                    )}
+                                {(
+                                    [
+                                        ["Cached (read)", metrics.cacheReadTokens],
+                                        ["Cached (write)", metrics.cacheWriteTokens],
+                                    ] as const
+                                ).map(
+                                    ([label, value]) =>
+                                        !!value && (
+                                            <div
+                                                key={label}
+                                                className="flex items-center justify-between gap-3 opacity-65"
+                                            >
+                                                <span className="pl-3">{label}</span>
+                                                <span>{formatTokens(value)}</span>
+                                            </div>
+                                        ),
+                                )}
                                 <div className="flex items-center justify-between gap-3 opacity-85">
                                     <span>Completion</span>
                                     <span>{formatTokens(metrics.completionTokens)}</span>

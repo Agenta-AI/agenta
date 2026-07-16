@@ -61,9 +61,8 @@ export interface MessageUsageMetrics {
  * mapped to the metrics-display field names. The trace supplies latency; this supplies
  * tokens/cost (the agent-run trace summary doesn't surface them on the Pi/local path).
  *
- * The wire `input` counts non-cached prompt tokens only (Pi semantics); the displayed
- * prompt count folds the cached portion back in so Prompt + Completion = Total, with
- * the cache split surfaced separately.
+ * The wire `input` excludes cached tokens, so the displayed prompt count folds the
+ * cached portion back in (Prompt + Completion = Total), with the split kept separately.
  */
 export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undefined => {
     const usage = (message.metadata as {usage?: Record<string, unknown>} | undefined)?.usage

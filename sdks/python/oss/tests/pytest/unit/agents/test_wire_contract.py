@@ -566,8 +566,7 @@ def test_result_from_wire_parses_ok(golden):
     # The event with no `type` is dropped on parse; the other three survive.
     assert [e.type for e in result.events] == ["message", "usage", "done"]
     assert result.events[0].data == {"type": "message", "text": "Hello!"}
-    # Cache fields ride alongside input/output so consumers can show a breakdown
-    # that sums to total (input counts non-cached prompt tokens only).
+    # input excludes cached tokens — see WireAgentUsage in wire_models.py.
     assert result.usage == {
         "input": 10,
         "output": 5,

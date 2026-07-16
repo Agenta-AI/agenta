@@ -262,8 +262,7 @@ describe("wire contract: results (vs Python golden)", () => {
       typed.map((e) => e.type),
       ["message", "usage", "done"],
     );
-    // Cache fields ride alongside input/output so consumers can show a breakdown
-    // that sums to total (input counts non-cached prompt tokens only).
+    // input excludes cached tokens — see AgentUsage in protocol.ts.
     assert.deepEqual(res.usage, {
       input: 10,
       output: 5,

@@ -172,12 +172,16 @@ function redactSpan(span: ReadableSpan, redactors: Iterable<Redactor>): void {
     }
     const status = span.status as { message?: string };
     if (typeof status.message === "string") {
-      status.message = redactor.redactString(status.message, "spans") ?? status.message;
+      status.message =
+        redactor.redactString(status.message, "spans") ?? status.message;
     }
   }
 }
 
-function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): void {
+function redactAttributes(
+  attrs: Record<string, unknown>,
+  redactor: Redactor,
+): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (typeof value === "string") {
       attrs[key] = redactor.redactString(value, "spans");
@@ -296,7 +300,8 @@ class TraceBatchProcessor implements SpanProcessor {
         // Fall back to the env default only for a span whose OWN run's target is unknown
         // (untagged span, or the run already released) — never to another run's target, or a
         // batch could still land on an unintended endpoint/auth.
-        const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+        const target =
+          (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
         return new Promise<void>((resolve) => {
           try {
             getExporter(target).export(orderParentFirst(group), (result) => {
@@ -602,6 +607,24 @@ function applyAssistant(
   return undefined;
 }
 
+/** Stamp run-total usage (tokens, cache split, cost) as gen_ai.usage.* span attributes. */
+function stampUsage(span: Span, u: AgentUsage | undefined): void {
+  if (!u) return;
+  span.setAttribute("gen_ai.usage.input_tokens", u.input);
+  span.setAttribute("gen_ai.usage.output_tokens", u.output);
+  span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
+  span.setAttribute("gen_ai.usage.completion_tokens", u.output);
+  span.setAttribute("gen_ai.usage.total_tokens", u.total);
+  if ((u.cacheRead ?? 0) > 0)
+    span.setAttribute("gen_ai.usage.cache_read.input_tokens", u.cacheRead!);
+  if ((u.cacheWrite ?? 0) > 0)
+    span.setAttribute(
+      "gen_ai.usage.cache_creation.input_tokens",
+      u.cacheWrite!,
+    );
+  if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
+}
+
 // ---------------------------------------------------------------------------
 // Extension factory (one per run; state is closure-scoped)
 // ---------------------------------------------------------------------------
@@ -614,14 +637,7 @@ export interface AgentaOtel {
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
   /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
-  usage: () => {
-    input: number;
-    output: number;
-    total: number;
-    cost: number;
-    cacheRead: number;
-    cacheWrite: number;
-  };
+  usage: () => Required<AgentUsage>;
 }
 
 /**
@@ -839,28 +855,7 @@ export function createAgentaOtel(
       );
       // Stamp the run total on the agent span so it shows the agent's tokens/cost even
       // though Agenta cannot roll the per-turn LLM spans up across batches.
-      if (runUsage.total > 0) {
-        agentSpan.setAttribute("gen_ai.usage.input_tokens", runUsage.input);
-        agentSpan.setAttribute("gen_ai.usage.output_tokens", runUsage.output);
-        agentSpan.setAttribute("gen_ai.usage.prompt_tokens", runUsage.input);
-        agentSpan.setAttribute(
-          "gen_ai.usage.completion_tokens",
-          runUsage.output,
-        );
-        agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
-        if (runUsage.cacheRead > 0)
-          agentSpan.setAttribute(
-            "gen_ai.usage.cache_read.input_tokens",
-            runUsage.cacheRead,
-          );
-        if (runUsage.cacheWrite > 0)
-          agentSpan.setAttribute(
-            "gen_ai.usage.cache_creation.input_tokens",
-            runUsage.cacheWrite,
-          );
-        if (runUsage.cost > 0)
-          agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
-      }
+      if (runUsage.total > 0) stampUsage(agentSpan, runUsage);
       agentSpan.end();
       agentSpan = undefined;
       agentCtx = undefined;
@@ -1168,23 +1163,6 @@ export function createSandboxAgentOtel(
     }
   }
 
-  function stampUsage(span: Span, u: AgentUsage | undefined): void {
-    if (!u) return;
-    span.setAttribute("gen_ai.usage.input_tokens", u.input);
-    span.setAttribute("gen_ai.usage.output_tokens", u.output);
-    span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
-    span.setAttribute("gen_ai.usage.completion_tokens", u.output);
-    span.setAttribute("gen_ai.usage.total_tokens", u.total);
-    if (u.cacheRead != null && u.cacheRead > 0)
-      span.setAttribute("gen_ai.usage.cache_read.input_tokens", u.cacheRead);
-    if (u.cacheWrite != null && u.cacheWrite > 0)
-      span.setAttribute(
-        "gen_ai.usage.cache_creation.input_tokens",
-        u.cacheWrite,
-      );
-    if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
-  }
-
   function setUsage(finalUsage: AgentUsage | undefined): void {
     if (!finalUsage) return;
     usage = finalUsage;
@@ -1458,13 +1436,13 @@ export function createSandboxAgentOtel(
       // which the sandbox-agent engine reads. Keep total + cost here and leave the split to the caller.
       const cost = update.cost?.amount;
       const total = update.used;
+      // Spread first so optional fields (cache split) carry forward untouched.
       usage = {
+        ...usage,
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : usage?.total ?? 0,
-        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
-        ...(usage?.cacheRead != null ? { cacheRead: usage.cacheRead } : {}),
-        ...(usage?.cacheWrite != null ? { cacheWrite: usage.cacheWrite } : {}),
+        total: typeof total === "number" ? total : (usage?.total ?? 0),
+        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
       };
       record({ type: "usage", ...usage });
     }
