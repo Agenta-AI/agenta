@@ -14,7 +14,7 @@
  * jumps straight to the file and Back reveals the grid behind it. Chat mode is jargon-free and
  * content-first: NO metadata block here (that lives in the Build drawer).
  */
-import {useEffect} from "react"
+import {useEffect, useState} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, CaretLeft, CaretRight, DownloadSimple, FolderSimple} from "@phosphor-icons/react"
@@ -56,6 +56,8 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
     // Build mode gets the full metadata block; chat mode stays content-first (jargon-free).
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
     const projectId = useAtomValue(projectIdAtom)
+    // Metadata grid visibility — the toggle lives in the drawer header, the grid renders in the body.
+    const [metaExpanded, setMetaExpanded] = useState(false)
     const open = gridOpen || quickLook != null
     const inPreview = quickLook != null
 
@@ -159,19 +161,39 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
             }
             extra={
                 inPreview && file ? (
-                    <Button
-                        icon={<DownloadSimple size={13} />}
-                        disabled={!resolvedFile?.mount && !drive.mount}
-                        onClick={() =>
-                            void downloadMountFile({
-                                mount: resolvedFile?.mount ?? null,
-                                path: resolvedFile?.path ?? file.path,
-                                projectId,
-                            })
-                        }
-                    >
-                        Download
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                        {/* Details toggle in the header (not a duplicate meta line in the body): the
+                            header already shows name · size · time, so the toggle just reveals the
+                            full grid below. */}
+                        {buildMode ? (
+                            <Button
+                                type="text"
+                                size="small"
+                                aria-expanded={metaExpanded}
+                                onClick={() => setMetaExpanded((v) => !v)}
+                                className="!text-colorTextTertiary hover:!text-colorText"
+                            >
+                                Details
+                                <CaretRight
+                                    size={11}
+                                    className={`ml-0.5 transition-transform ${metaExpanded ? "rotate-90" : ""}`}
+                                />
+                            </Button>
+                        ) : null}
+                        <Button
+                            icon={<DownloadSimple size={13} />}
+                            disabled={!resolvedFile?.mount && !drive.mount}
+                            onClick={() =>
+                                void downloadMountFile({
+                                    mount: resolvedFile?.mount ?? null,
+                                    path: resolvedFile?.path ?? file.path,
+                                    projectId,
+                                })
+                            }
+                        >
+                            Download
+                        </Button>
+                    </div>
                 ) : undefined
             }
             footer={
@@ -203,6 +225,7 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
                 file={file}
                 resolvedFile={resolvedFile}
                 buildMode={buildMode}
+                metaExpanded={metaExpanded}
                 isLoading={drive.isLoading}
             />
         </EnhancedDrawer>

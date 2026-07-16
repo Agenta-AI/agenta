@@ -19,6 +19,7 @@ export default function FilesDrawerBody({
     file,
     resolvedFile,
     buildMode,
+    metaExpanded,
     isLoading,
 }: {
     sessionId: string
@@ -27,8 +28,10 @@ export default function FilesDrawerBody({
     file: DriveRecentFile | null
     /** Which mount backs the previewed file + its mount-relative path (for content/download). */
     resolvedFile: ResolvedMountPath | null
-    /** Build mode shows the full metadata block; chat mode stays content-first. */
+    /** Build mode shows the metadata; chat mode stays content-first. */
     buildMode: boolean
+    /** Whether the metadata grid is expanded — the toggle lives in the drawer header. */
+    metaExpanded: boolean
     isLoading: boolean
 }) {
     return (
@@ -57,6 +60,7 @@ export default function FilesDrawerBody({
                                         path={resolvedFile?.path ?? file.path}
                                         size={file.size}
                                         touchedAt={file.touchedAt}
+                                        expanded={metaExpanded}
                                     />
                                 ) : null}
                                 <DriveFileContentViewer

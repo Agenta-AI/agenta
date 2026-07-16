@@ -140,13 +140,18 @@ export function DriveFileMetaList({
     path,
     size,
     touchedAt,
+    expanded,
 }: {
     mount: Mount | null
     path: string
     size?: number | null
     touchedAt?: number
+    /** Controlled mode: when provided, the caller owns the toggle (e.g. the drawer header) and this
+     * renders ONLY the grid — the grid when true, nothing when false. Omit for the self-contained
+     * one-line-summary + Details toggle. */
+    expanded?: boolean
 }) {
-    const [expanded, setExpanded] = useState(false)
+    const [internalExpanded, setInternalExpanded] = useState(false)
     const kind = resolveDriveFileKind(path)
     const folder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : "root"
 
@@ -172,9 +177,33 @@ export function DriveFileMetaList({
         ? `${content.split("\n").length.toLocaleString()} lines · ${content.length.toLocaleString()} chars`
         : null
 
-    // Reading the file is the goal, so the metadata collapses to one line; the full grid expands on
-    // "Details". Summary picks the single most relevant "content" fact (text lines, else pixel
-    // dimensions, else duration) after type + size + modified.
+    // Fixed-width label tracks (not `auto`): which labels flow into a track changes per file
+    // (Content vs Dimensions vs Duration), so `auto` resized the columns and slid the right half
+    // sideways as you paged. 4.5rem fits the longest label ("Dimensions").
+    const grid = (
+        <dl className="grid grid-cols-[4.5rem_1fr_4.5rem_1fr] gap-x-4 gap-y-1.5 text-[11px]">
+            <MetaRow label="Type" value={fileTypeLabel(path)} />
+            <MetaRow label="MIME" value={mimeFor(path)} />
+            <MetaRow
+                label="Size"
+                value={
+                    size != null ? `${humanSize(size)} · ${size.toLocaleString()} bytes` : undefined
+                }
+            />
+            <MetaRow label="Location" value={folder} />
+            <MetaRow label="Dimensions" value={dims} />
+            <MetaRow label="Duration" value={duration} />
+            <MetaRow label="Content" value={textStats} />
+            <MetaRow label="Modified" value={touchedAt ? relativeTime(touchedAt) : undefined} />
+        </dl>
+    )
+
+    // Controlled: the caller (drawer header) owns the toggle — render just the grid.
+    if (expanded !== undefined) return expanded ? grid : null
+
+    // Uncontrolled: reading the file is the goal, so the metadata collapses to one line; the full
+    // grid expands on "Details". Summary picks the single most relevant "content" fact (text lines,
+    // else pixel dimensions, else duration) after type + size + modified.
     const detail = textStats ?? dims ?? duration
     const summary = [
         fileTypeLabel(path),
@@ -191,42 +220,18 @@ export function DriveFileMetaList({
                 <span className="min-w-0 truncate text-colorTextTertiary">{summary}</span>
                 <button
                     type="button"
-                    onClick={() => setExpanded((v) => !v)}
-                    aria-expanded={expanded}
+                    onClick={() => setInternalExpanded((v) => !v)}
+                    aria-expanded={internalExpanded}
                     className="ml-auto flex shrink-0 cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent p-0 text-colorTextTertiary transition-colors hover:text-colorText"
                 >
                     Details
                     <CaretRight
                         size={10}
-                        className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+                        className={`transition-transform ${internalExpanded ? "rotate-90" : ""}`}
                     />
                 </button>
             </div>
-            {expanded ? (
-                // Fixed-width label tracks (not `auto`): which labels flow into a track changes per
-                // file (Content vs Dimensions vs Duration), so `auto` resized the columns and slid the
-                // right half sideways as you paged. 4.5rem fits the longest label ("Dimensions").
-                <dl className="grid grid-cols-[4.5rem_1fr_4.5rem_1fr] gap-x-4 gap-y-1.5 text-[11px]">
-                    <MetaRow label="Type" value={fileTypeLabel(path)} />
-                    <MetaRow label="MIME" value={mimeFor(path)} />
-                    <MetaRow
-                        label="Size"
-                        value={
-                            size != null
-                                ? `${humanSize(size)} · ${size.toLocaleString()} bytes`
-                                : undefined
-                        }
-                    />
-                    <MetaRow label="Location" value={folder} />
-                    <MetaRow label="Dimensions" value={dims} />
-                    <MetaRow label="Duration" value={duration} />
-                    <MetaRow label="Content" value={textStats} />
-                    <MetaRow
-                        label="Modified"
-                        value={touchedAt ? relativeTime(touchedAt) : undefined}
-                    />
-                </dl>
-            ) : null}
+            {internalExpanded ? grid : null}
         </div>
     )
 }
