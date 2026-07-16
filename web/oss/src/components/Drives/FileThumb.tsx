@@ -26,7 +26,7 @@ import {type DriveRecentFile} from "./useSessionDrive"
 const IMG_CAP = 8 * 1024 * 1024
 const PDF_CAP = 4 * 1024 * 1024
 const TEXT_CAP = 256 * 1024
-const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv"])
+const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv", "html"])
 
 /** Becomes true once the element scrolls within 200px of the viewport; latches so a tile loads
  * its thumbnail once and never re-tears it down on scroll-out. */

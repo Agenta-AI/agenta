@@ -12,6 +12,7 @@ export type DriveFileKind =
     | "code"
     | "json"
     | "csv"
+    | "html"
     | "image"
     | "pdf"
     | "audio"
@@ -64,6 +65,8 @@ const EXT_KINDS: [RegExp, DriveFileKind][] = [
     [/\.(txt|log|env)$/i, "text"],
     [/\.(json|yaml|yml)$/i, "json"],
     [/\.csv$/i, "csv"],
+    // Own kind (renders in a sandboxed iframe); still highlighted as html in the source toggle.
+    [/\.html?$/i, "html"],
     [/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i, "image"],
     [/\.pdf$/i, "pdf"],
     [/\.(mp3|wav|m4a|ogg|flac)$/i, "audio"],

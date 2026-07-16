@@ -74,7 +74,7 @@ const formatDuration = (seconds: number): string => {
     return h > 0 ? `${h}:${two(m)}:${two(sec)}` : `${m}:${two(sec)}`
 }
 
-const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv"])
+const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv", "html"])
 
 /** Pixel dimensions for an image, decoded off a shared (browser-cached) src — no extra download
  * beyond the one the preview makes. */

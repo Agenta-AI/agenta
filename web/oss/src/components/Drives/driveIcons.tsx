@@ -7,6 +7,7 @@ import {
     BracketsCurly,
     File,
     FileCode,
+    FileHtml,
     FilePdf,
     FileText,
     ImageSquare,
@@ -29,6 +30,8 @@ export const driveFileIcon = (path: string, size = 14, colorClassName?: string) 
             return <BracketsCurly size={size} className={c("text-colorWarning")} />
         case "code":
             return <FileCode size={size} className={c("text-colorInfo")} />
+        case "html":
+            return <FileHtml size={size} className={c("text-colorWarning")} />
         case "csv":
             return <Table size={size} className={c("text-colorInfo")} />
         case "image":

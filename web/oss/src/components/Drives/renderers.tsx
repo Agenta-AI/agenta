@@ -13,7 +13,7 @@ import {useMemo, useState} from "react"
 
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
-import {Button, Skeleton} from "antd"
+import {Button, Segmented, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -263,6 +263,52 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     )
 }
 
+const HtmlBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const content = contentQuery.data
+    const [view, setView] = useState<"preview" | "source">("preview")
+
+    if (contentQuery.isPending)
+        return (
+            <Inset>
+                <Skeleton active paragraph={{rows: 6}} />
+            </Inset>
+        )
+    if (typeof content !== "string")
+        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+
+    return (
+        <Inset flush>
+            <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
+                <Segmented<"preview" | "source">
+                    size="small"
+                    value={view}
+                    onChange={setView}
+                    options={[
+                        {value: "preview", label: "Preview"},
+                        {value: "source", label: "Source"},
+                    ]}
+                />
+            </div>
+            {view === "preview" ? (
+                // `sandbox` with NO flags: static HTML/CSS renders, but scripts, forms, and
+                // same-origin access are all blocked — the agent-authored HTML can't run JS or reach
+                // the parent page. bg-white since documents assume a white canvas.
+                <iframe
+                    srcDoc={content}
+                    sandbox=""
+                    title="HTML preview"
+                    className="min-h-0 w-full flex-1 border-0 bg-white"
+                />
+            ) : (
+                <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
+                    <LazyCodeBlock language="html" value={content} />
+                </div>
+            )}
+        </Inset>
+    )
+}
+
 // ---- Media bodies (bytes endpoint → cached blob → object URL) --------------------------------
 
 const MediaLoading = () => (
@@ -359,7 +405,7 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 
 // ---- Dispatch --------------------------------------------------------------------------------
 
-const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json"])
+const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "html"])
 const MEDIA_KINDS = new Set<DriveFileKind>(["image", "pdf", "audio", "video"])
 
 /**
@@ -405,6 +451,8 @@ export function DriveFileBody({
             return <CodeBody mount={mount} path={path} />
         case "csv":
             return <CsvBody mount={mount} path={path} />
+        case "html":
+            return <HtmlBody mount={mount} path={path} />
         case "image":
             return <ImageBody mount={mount} path={path} />
         case "pdf":
