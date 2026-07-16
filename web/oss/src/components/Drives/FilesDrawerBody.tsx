@@ -21,6 +21,7 @@ export default function FilesDrawerBody({
     buildMode,
     metaExpanded,
     isLoading,
+    onNavigate,
 }: {
     sessionId: string
     inPreview: boolean
@@ -33,6 +34,8 @@ export default function FilesDrawerBody({
     /** Whether the metadata grid is expanded — the toggle lives in the drawer header. */
     metaExpanded: boolean
     isLoading: boolean
+    /** Open another drive file — an internal HTML-preview link resolves to its path. */
+    onNavigate: (path: string) => void
 }) {
     return (
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
@@ -67,6 +70,8 @@ export default function FilesDrawerBody({
                                     mount={resolvedFile?.mount ?? null}
                                     path={resolvedFile?.path ?? file.path}
                                     size={file.size}
+                                    displayPath={file.path}
+                                    onNavigate={onNavigate}
                                 />
                             </div>
                         ) : (

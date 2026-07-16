@@ -249,6 +249,7 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
                 buildMode={buildMode}
                 metaExpanded={metaExpanded}
                 isLoading={drive.isLoading}
+                onNavigate={(p) => setQuickLook({path: p})}
             />
         </EnhancedDrawer>
     )

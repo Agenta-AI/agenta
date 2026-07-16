@@ -203,10 +203,15 @@ export const DriveFileContentViewer = ({
     mount,
     path,
     size,
+    displayPath,
+    onNavigate,
 }: {
     mount: Mount | null
     path: string
     size?: number | null
+    /** Presented path + navigate callback — used by the HTML preview to route internal links. */
+    displayPath?: string
+    onNavigate?: (path: string) => void
 }) => {
     const kind = resolveDriveFileKind(path)
     return (
@@ -219,7 +224,13 @@ export const DriveFileContentViewer = ({
                 transition={{duration: 0.15}}
                 className="flex min-h-0 flex-1 flex-col"
             >
-                <DriveFileBody mount={mount} path={path} size={size} />
+                <DriveFileBody
+                    mount={mount}
+                    path={path}
+                    size={size}
+                    displayPath={displayPath}
+                    onNavigate={onNavigate}
+                />
             </motion.div>
         </AnimatePresence>
     )
@@ -322,7 +333,13 @@ const DriveFilePreview = ({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
-                <DriveFileContentViewer mount={mount} path={path} size={size} />
+                <DriveFileContentViewer
+                    mount={mount}
+                    path={path}
+                    size={size}
+                    displayPath={shown}
+                    onNavigate={onSelect}
+                />
             </div>
         </div>
     )

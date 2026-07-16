@@ -9,7 +9,7 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
@@ -310,11 +310,21 @@ async function fetchMountDataUri(
     })
 }
 
+// The ONLY script that runs in the preview (the agent's are stripped): it turns an internal
+// relative link click into a `postMessage` the parent uses to open that file in the drive. Anchors
+// (#…) and external links fall through to the browser.
+const HTML_NAV_INTERCEPTOR =
+    '(function(){document.addEventListener("click",function(e){var el=e.target;while(el&&el.tagName!=="A")el=el.parentElement;if(!el)return;var href=el.getAttribute("href");if(!href||href.charAt(0)==="#")return;if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf("//")===0)return;e.preventDefault();parent.postMessage({type:"ag-html-nav",href:href},"*")},true)})()'
+
 /**
  * Fold a multi-file site into ONE self-contained document the sandboxed iframe can render: linked
  * stylesheets become inline `<style>`, images become data URIs — all fetched from the SAME mount,
  * resolved against the HTML file's folder. Best-effort: external URLs are left alone, and CSS's own
- * `url(...)`/`@import` chains aren't followed (v1). Scripts are left in place but never run (sandbox).
+ * `url(...)`/`@import` chains aren't followed (v1).
+ *
+ * Then hardened for `sandbox="allow-scripts"`: the agent's `<script>`s, inline `on*` handlers, and
+ * `javascript:` URLs are stripped so ONLY {@link HTML_NAV_INTERCEPTOR} runs; external links open in a
+ * new tab; internal links are intercepted and routed to the drive.
  */
 async function inlineHtmlAssets(
     html: string,
@@ -348,18 +358,51 @@ async function inlineHtmlAssets(
             }),
         )
 
+        // Strip every agent-authored script vector so allow-scripts only runs our interceptor.
+        doc.querySelectorAll("script").forEach((s) => s.remove())
+        doc.querySelectorAll("iframe[srcdoc]").forEach((f) => f.removeAttribute("srcdoc"))
+        doc.querySelectorAll("*").forEach((el) => {
+            for (const attr of Array.from(el.attributes)) {
+                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name)
+                else if (/^\s*javascript:/i.test(attr.value)) el.setAttribute(attr.name, "#")
+            }
+        })
+        doc.querySelectorAll("a[href]").forEach((a) => {
+            if (isExternalUrl(a.getAttribute("href") ?? "")) {
+                a.setAttribute("target", "_blank")
+                a.setAttribute("rel", "noopener noreferrer")
+            }
+        })
+        const interceptor = doc.createElement("script")
+        interceptor.textContent = HTML_NAV_INTERCEPTOR
+        ;(doc.body ?? doc.documentElement).appendChild(interceptor)
+
         return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
     } catch {
         return html
     }
 }
 
-const HtmlBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const HtmlBody = ({
+    mount,
+    path,
+    displayPath,
+    onNavigate,
+}: {
+    mount: Mount | null
+    path: string
+    /** Presented path of THIS file (with any `agent-files/` prefix) — internal links resolve against
+     * its folder so drive navigation lands on the right node. */
+    displayPath?: string
+    /** Open another drive file (an internal link click resolves to its path). */
+    onNavigate?: (path: string) => void
+}) => {
     const projectId = useAtomValue(projectIdAtom)
     const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
     const content = contentQuery.data
     const [view, setView] = useState<"preview" | "source">("preview")
     const [assembled, setAssembled] = useState<string | null>(null)
+    const frameRef = useRef<HTMLIFrameElement>(null)
 
     // Assemble the self-contained preview document once the source lands.
     useEffect(() => {
@@ -374,6 +417,23 @@ const HtmlBody = ({mount, path}: {mount: Mount | null; path: string}) => {
             alive = false
         }
     }, [content, mount?.id, projectId, path])
+
+    // Internal link clicks (from the injected interceptor) → open that file in the drive. Resolved
+    // against the presented folder; only messages from THIS iframe are trusted.
+    useEffect(() => {
+        if (!onNavigate) return
+        const base = displayPath ?? path
+        const dir = base.includes("/") ? base.split("/").slice(0, -1).join("/") : ""
+        const onMessage = (e: MessageEvent) => {
+            if (e.source !== frameRef.current?.contentWindow) return
+            const data = e.data as {type?: string; href?: string} | null
+            if (!data || data.type !== "ag-html-nav" || typeof data.href !== "string") return
+            const clean = data.href.split(/[?#]/)[0]
+            if (clean) onNavigate(resolveRel(dir, clean))
+        }
+        window.addEventListener("message", onMessage)
+        return () => window.removeEventListener("message", onMessage)
+    }, [onNavigate, displayPath, path])
 
     if (contentQuery.isPending)
         return (
@@ -403,12 +463,13 @@ const HtmlBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                         <Skeleton active paragraph={{rows: 6}} />
                     </div>
                 ) : (
-                    // `sandbox` with NO flags: static HTML/CSS renders, but scripts, forms, and
-                    // same-origin access are all blocked. Linked CSS + images were inlined above so the
-                    // page is styled without the iframe reaching the store. bg-white — docs assume it.
+                    // allow-scripts runs ONLY our interceptor (agent scripts were stripped); still no
+                    // same-origin, so it can't touch the parent. allow-popups(-escape) lets external
+                    // links open a normal tab. Linked CSS + images were inlined; bg-white — docs assume it.
                     <iframe
+                        ref={frameRef}
                         srcDoc={assembled}
-                        sandbox=""
+                        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                         title="HTML preview"
                         className="min-h-0 w-full flex-1 border-0 bg-white"
                     />
@@ -529,10 +590,16 @@ export function DriveFileBody({
     mount,
     path,
     size,
+    displayPath,
+    onNavigate,
 }: {
     mount: Mount | null
     path: string
     size?: number | null
+    /** Presented path + a navigate callback — used by the HTML preview to route internal links to
+     * other drive files. */
+    displayPath?: string
+    onNavigate?: (path: string) => void
 }) {
     const kind = resolveDriveFileKind(path)
 
@@ -565,7 +632,14 @@ export function DriveFileBody({
         case "csv":
             return <CsvBody mount={mount} path={path} />
         case "html":
-            return <HtmlBody mount={mount} path={path} />
+            return (
+                <HtmlBody
+                    mount={mount}
+                    path={path}
+                    displayPath={displayPath}
+                    onNavigate={onNavigate}
+                />
+            )
         case "image":
             return <ImageBody mount={mount} path={path} />
         case "pdf":
