@@ -10,6 +10,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {type Mount} from "@agenta/entities/session"
+import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     CaretDown,
     CaretRight,
@@ -19,7 +20,7 @@ import {
     MagnifyingGlass,
     Tray,
 } from "@phosphor-icons/react"
-import {Alert, Button, Input, Skeleton, Splitter, Typography} from "antd"
+import {Alert, Button, Input, Skeleton, Splitter, Tooltip, Typography} from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {AnimatePresence, motion} from "motion/react"
@@ -211,18 +212,35 @@ const DriveFilePreview = ({
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
             {/* Plain path label (not clickable): the tree + folder switch already handle navigation,
                 so the breadcrumb only shows where the file lives. One line; the folder chain
-                truncates, the filename always survives. */}
-            <div className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-colorTextTertiary">
-                <span className="flex shrink-0 items-center gap-1">
-                    <House size={12} />
-                    <span className="font-mono">{rootLabel}</span>
-                </span>
-                {folders.length ? (
-                    <span className="min-w-0 truncate font-mono">
-                        {folders.map((f) => `/ ${f} `).join("")}
+                truncates (full path on hover via `title`), the filename always survives. A copy
+                button hands you the exact path to give the agent. */}
+            <div className="flex items-center gap-1.5">
+                <div
+                    className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] text-colorTextTertiary"
+                    title={shown}
+                >
+                    <span className="flex shrink-0 items-center gap-1">
+                        <House size={12} />
+                        <span className="font-mono">{rootLabel}</span>
                     </span>
-                ) : null}
-                <span className="shrink-0 font-mono">/ {name}</span>
+                    {folders.length ? (
+                        <span className="min-w-0 truncate font-mono">
+                            {folders.map((f) => `/ ${f} `).join("")}
+                        </span>
+                    ) : null}
+                    <span className="shrink-0 font-mono">/ {name}</span>
+                </div>
+                <Tooltip title="Copy path">
+                    <CopyButton
+                        text={shown}
+                        buttonText={null}
+                        icon
+                        size="small"
+                        aria-label="Copy file path"
+                        successMessage=""
+                        className="!h-6 !w-6 shrink-0 !p-0 !text-colorTextTertiary hover:!text-colorText"
+                    />
+                </Tooltip>
             </div>
 
             <div className="flex items-start justify-between gap-2">
