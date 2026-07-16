@@ -12,8 +12,6 @@ import {ChatCircle, DownloadSimple, HardDrives} from "@phosphor-icons/react"
 import {Button, Skeleton, Tag, Tooltip} from "antd"
 import dynamic from "next/dynamic"
 
-import useURL from "@/oss/hooks/useURL"
-
 import {type DriveScope} from "./DriveExplorer"
 import {humanSize} from "./driveTree"
 import {type SessionDriveData} from "./useSessionDrive"
@@ -64,7 +62,6 @@ export function DriveDrawer({
     scope = "session",
     initialPath,
 }: DriveDrawerProps) {
-    const {projectURL} = useURL()
     const meta = SCOPE_META[scope]
     const ScopeIcon = meta.icon
 
@@ -113,22 +110,12 @@ export function DriveDrawer({
                 </Tooltip>
             }
             footer={
-                <div className="flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center text-xs">
                     <span className="text-colorTextTertiary">
                         {scope === "session"
                             ? "Read-only · editing & uploads coming soon"
                             : "Shared by every conversation · read-only"}
                     </span>
-                    {scope === "session" ? (
-                        <a
-                            href={`${projectURL}/observability`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[var(--ag-colorInfo)]"
-                        >
-                            Open in Observability ↗
-                        </a>
-                    ) : null}
                 </div>
             }
             styles={{body: {padding: 0, display: "flex", minHeight: 0}}}

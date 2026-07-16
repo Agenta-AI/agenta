@@ -143,17 +143,25 @@ const TextBody = ({
         )
     if (typeof content !== "string")
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+    // flush Inset + an inner BLOCK scroll container (matching CodeBody/CsvBody). Rendering the body
+    // directly into the flex-col Inset made markdown unscrollable: MD_CLASS sets `overflow-hidden`,
+    // so as a flex child its auto min-height collapses to 0 — it shrinks to the pane and clips the
+    // overflow instead of scrolling. A plain block scroller lets the content grow and scroll.
     if (kind === "markdown")
         return (
-            <Inset>
-                <Markdown content={content} className="!text-xs" />
+            <Inset flush>
+                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                    <Markdown content={content} className="!text-xs" />
+                </div>
             </Inset>
         )
     return (
-        <Inset>
-            <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
-                {content}
-            </pre>
+        <Inset flush>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
+                    {content}
+                </pre>
+            </div>
         </Inset>
     )
 }
