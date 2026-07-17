@@ -71,6 +71,25 @@ export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
   "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
 
 /**
+ * A non-Pi harness (Claude) on Daytona receives tools through the in-sandbox stdio MCP shim,
+ * which advertises only EXECUTABLE (gateway/callback) tools. Client tools are intentionally
+ * omitted: the shim's blocking relay call cannot pause for a browser round-trip yet. So a run
+ * whose ENTIRE tool set is client-kind has nothing deliverable to advertise on Daytona — it
+ * would otherwise proceed, drop every tool silently, and return `ok:true` (the F1 zero-tools
+ * drop). `run-plan.ts` is the documented refusal point for this (see `mcp.ts`); refuse it up
+ * front, exactly as the non-Daytona remote case is refused. A MIX of client + executable tools
+ * is fine (the executable ones are delivered; the client ones are dropped), so this fires only
+ * when NO executable tool remains.
+ */
+export const DAYTONA_CLIENT_ONLY_TOOLS_UNSUPPORTED_MESSAGE =
+  "Client tools are not deliverable to a non-Pi harness on Daytona: the in-sandbox stdio MCP " +
+  "shim advertises only executable (gateway/callback) tools, and a client tool cannot pause " +
+  "for a browser round-trip through its blocking relay yet. This run's tool set is entirely " +
+  "client-kind, so nothing would be advertised and the run would silently get zero tools. Add " +
+  "an executable tool, use the Pi harness, run on the local sandbox, or remove the tools. " +
+  "Tracked in docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
+
+/**
  * `runtime_provided` (subscription) auth means the harness authenticates from explicitly prepared
  * local runtime state (a mounted Pi/Claude login). That state lives only in the runner container
  * and is never shipped to a third-party sandbox (interface.md sections 5-6), so the combination is
@@ -413,6 +432,12 @@ export function buildRunPlan(
   if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
     if (!isDaytona) {
       return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
+    }
+    // On Daytona the shim advertises only executable tools; client tools are omitted. If the run
+    // carries tools but NONE are executable, nothing would be delivered — refuse instead of
+    // silently advertising an empty tool set (the F1 zero-tools drop mcp.ts's log warns about).
+    if (executableToolSpecsForRun.length === 0) {
+      return { ok: false, error: DAYTONA_CLIENT_ONLY_TOOLS_UNSUPPORTED_MESSAGE };
     }
   }
 
