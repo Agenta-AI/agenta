@@ -87,7 +87,11 @@ export interface ConnectedTestset {
  * Status of an input mapping
  */
 export type InputMappingStatus =
-    "valid" | "invalid" | "unmapped" | "missing_source" | "type_mismatch"
+    | "valid"
+    | "invalid"
+    | "unmapped"
+    | "missing_source"
+    | "type_mismatch"
 
 /**
  * An input mapping from source output to target input
@@ -157,7 +161,13 @@ export interface TestsetColumn {
  * Execution status
  */
 export type ExecutionStatus =
-    "idle" | "pending" | "running" | "success" | "error" | "cancelled" | "skipped"
+    | "idle"
+    | "pending"
+    | "running"
+    | "success"
+    | "error"
+    | "cancelled"
+    | "skipped"
 
 /**
  * Trace info from execution

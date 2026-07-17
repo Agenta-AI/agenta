@@ -1,7 +1,13 @@
 import type {EvaluatorDefinition, MetricColumnDefinition} from "@agenta/entities/workflow"
 
 export type EvaluationColumnKind =
-    "meta" | "testset" | "query" | "invocation" | "annotation" | "evaluator" | "metric"
+    | "meta"
+    | "testset"
+    | "query"
+    | "invocation"
+    | "annotation"
+    | "evaluator"
+    | "metric"
 
 export interface EvaluationTableColumn {
     /** Unique id used by the table component */

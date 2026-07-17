@@ -23,7 +23,11 @@ import type {ConfigViewMode} from "./DrawerContext"
 // ================================================================
 
 export type DrawerContext =
-    "variant" | "deployment" | "evaluator-view" | "evaluator-create" | "app-create"
+    | "variant"
+    | "deployment"
+    | "evaluator-view"
+    | "evaluator-create"
+    | "app-create"
 
 /**
  * Whether the drawer context represents creating a new entity (vs. viewing

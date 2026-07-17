@@ -287,7 +287,8 @@ const DownstreamNodeCard = ({
             ?.feedback_config as Record<string, unknown> | undefined
         if (fbConfig) {
             const jsonSchema = fbConfig.json_schema as
-                {schema?: {properties?: {score?: Record<string, unknown>}}} | undefined
+                | {schema?: {properties?: {score?: Record<string, unknown>}}}
+                | undefined
             const scoreConstraints = jsonSchema?.schema?.properties?.score
             if (scoreConstraints) {
                 const existing = map.score ?? ({} as Record<string, unknown>)
@@ -455,7 +456,8 @@ const SingleView = ({
 }: Props) => {
     // Read nodes FIRST — this subscription reliably updates on connect/disconnect.
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        PlaygroundNode[] | null
+        | PlaygroundNode[]
+        | null
     const isChain = (nodes?.length ?? 0) > 1
 
     // Derive variable keys using atomFamily keyed on downstream entity IDs.

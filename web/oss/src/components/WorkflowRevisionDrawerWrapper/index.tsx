@@ -646,7 +646,8 @@ const useDrawerCreateCommitCallback = () => {
                     }
                 } else if (isAppCreate) {
                     const newWorkflow = result.workflow as
-                        {workflow_id?: string; id?: string} | undefined
+                        | {workflow_id?: string; id?: string}
+                        | undefined
                     const newAppId = newWorkflow?.workflow_id ?? newWorkflow?.id ?? undefined
                     const newRevisionId = result.newRevisionId
 

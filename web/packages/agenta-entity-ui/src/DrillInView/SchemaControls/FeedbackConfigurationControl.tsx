@@ -93,7 +93,8 @@ function generateJSONSchema(
 
     // Preserve original descriptions if available
     const origProps = originalSchema?.schema?.properties as
-        Record<string, Record<string, unknown>> | undefined
+        | Record<string, Record<string, unknown>>
+        | undefined
     const origScoreDesc = origProps?.score?.description as string | undefined
     const origReasoningDesc = (origProps?.reasoning?.description ??
         origProps?.comment?.description) as string | undefined

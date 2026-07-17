@@ -48,7 +48,9 @@ const CatalogDrawer = dynamic(
 // TODO: This should not live here, it should be in the separate component
 function PlaygroundSyncStateTag({rowId, loadableId}: {rowId: string; loadableId: string}) {
     const mode = useAtomValue(loadableController.selectors.mode(loadableId)) as
-        "local" | "connected" | null
+        | "local"
+        | "connected"
+        | null
     const isDirty = useAtomValue(useMemo(() => testcaseMolecule.isDirty(rowId), [rowId])) as boolean
     const discard = useSetAtom(testcaseMolecule.actions.discard)
 

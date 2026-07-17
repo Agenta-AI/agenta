@@ -138,7 +138,8 @@ function DownstreamNodeCard({
             ?.feedback_config as Record<string, unknown> | undefined
         if (fbConfig) {
             const jsonSchema = fbConfig.json_schema as
-                {schema?: {properties?: {score?: Record<string, unknown>}}} | undefined
+                | {schema?: {properties?: {score?: Record<string, unknown>}}}
+                | undefined
             const scoreConstraints = jsonSchema?.schema?.properties?.score
             if (scoreConstraints) {
                 const existing = map.score ?? ({} as Record<string, unknown>)
@@ -276,7 +277,8 @@ function VariantOutputColumn({
     downstreamNodes: PlaygroundNode[]
 }) {
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        PlaygroundNode[] | null
+        | PlaygroundNode[]
+        | null
 
     const primary = useMemo(
         () => nodes?.find((node) => node.entityId === entityId),
@@ -330,7 +332,8 @@ export interface PlaygroundOutputsProps {
 
 const PlaygroundOutputs = ({rowId, primaryEntityId}: PlaygroundOutputsProps) => {
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        PlaygroundNode[] | null
+        | PlaygroundNode[]
+        | null
     const isChain = (nodes?.length ?? 0) > 1
     const rootNodes = useMemo(() => (nodes ? nodes.filter((n) => n.depth === 0) : []), [nodes])
     const isComparisonView = rootNodes.length > 1
