@@ -46,6 +46,13 @@ export interface AttachPermissionResponderInput {
    * gracefully because a paused Claude turn never resolves `session.prompt()` on its own.
    */
   onPause?: () => void;
+  /**
+   * Collect-then-pause seam for parkable APPROVAL gates (keep-alive only). Parallel gates arrive
+   * staggered, so instead of ending the turn on the first, each gate calls this to (re)arm a
+   * debounced pause — the turn parks once the harness goes quiet, with the whole batch of gates
+   * emitted. When absent (cold path, client tools) the gate falls back to `onPause` (pause now).
+   */
+  onScheduleApprovalPause?: () => void;
   log?: (msg: string) => void;
   /** Called with the ACP tool-call id when a gate pauses the turn. */
   onPausedToolCall?: (id: string) => void;
@@ -107,6 +114,7 @@ export function attachPermissionResponder({
   latch,
   serverPermissions = new Map(),
   onPause,
+  onScheduleApprovalPause,
   log,
   onPausedToolCall,
   onCreateInteraction,
@@ -150,27 +158,33 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
   ): void => {
-    // Signal the parkable gate BEFORE the latch so a keep-alive resume can record the pending
-    // permission id and the multi-gate detector counts every pending gate (not just the first).
+    // Record the parkable gate so a keep-alive resume can answer it via `respondPermission`. In
+    // collect-then-pause mode every gate is recorded (the whole parallel batch parks together).
     const gateToolCallId = stringValue(req?.toolCall?.toolCallId);
+    const eventId = interactionEventId(id, gateToolCallId);
     onUserApprovalGate?.({
       permissionId: id,
       toolCallId: gateToolCallId ?? "",
       toolName: gate.toolName,
       args: gate.args,
-      interactionToken: interactionEventId(id, gateToolCallId),
+      interactionToken: eventId,
       gateType,
     });
-    if (!latch.tryAcquire()) return;
-    const toolCallId = stringValue(req?.toolCall?.toolCallId);
-    const eventId = interactionEventId(id, toolCallId);
-    if (toolCallId) onPausedToolCall?.(toolCallId);
+    // Keep-alive (`onScheduleApprovalPause` present): emit EVERY concurrent gate and debounce the
+    // pause, so a parallel batch surfaces as N approval cards that park together. Cold path keeps
+    // the one-pause-per-turn latch — a single gate emits, and a multi-gate turn tears down cold as
+    // before (its siblings are settled and replayed as retry nudges).
+    const collecting = Boolean(onScheduleApprovalPause);
+    if (!collecting && !latch.tryAcquire()) return;
+    // A duplicate delivery of the SAME gate (same id + tool-call) must not double-emit its card.
+    if (createdInteractionIds.has(eventId)) return;
+    if (gateToolCallId) onPausedToolCall?.(gateToolCallId);
     run.emitEvent({
       type: "interaction_request",
       id: eventId,
       kind: "user_approval",
       payload: {
-        toolCallId,
+        toolCallId: gateToolCallId,
         toolCall: stampResolvedName(req?.toolCall, gate),
         availableReplies: stringArray(req?.availableReplies),
         options: req?.options,
@@ -178,7 +192,7 @@ export function attachPermissionResponder({
     });
     createdInteractionIds.add(eventId);
     onCreateInteraction?.(eventId, gate.toolName, gate.args, "user_approval");
-    onPause?.();
+    (onScheduleApprovalPause ?? onPause)?.();
   };
 
   const pauseClientTool = (

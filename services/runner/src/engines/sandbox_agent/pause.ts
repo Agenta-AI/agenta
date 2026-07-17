@@ -13,6 +13,7 @@ export class PendingApprovalPauseController {
   private readonly pausedToolCallIds = new Set<string>();
   private resolvePause: (() => void) | undefined;
   private eventDrain: Promise<void> = Promise.resolve();
+  private pauseTimer: ReturnType<typeof setTimeout> | undefined;
 
   readonly signal: Promise<void>;
 
@@ -24,8 +25,37 @@ export class PendingApprovalPauseController {
     });
   }
 
+  /**
+   * Debounced pause: (re)arm a timer so the turn pauses only once the harness has been quiet for
+   * `delayMs`. Parallel approval gates arrive staggered (~0.5s apart, measured), so pausing on the
+   * FIRST would strand the rest; each incoming gate calls this again to extend the window, and the
+   * turn parks once with the whole batch. A late gate that lands after the timer fires falls back to
+   * the straggler path (force-settled → cold retry), exactly as a non-collected gate does today.
+   * `pause()` (client tool, non-parkable, teardown) still ends the turn immediately.
+   */
+  schedulePause(delayMs: number): void {
+    if (this.pendingApproval) return; // already paused; the batch is closed
+    // No collection window: pause on this gate immediately (synchronous), i.e. today's
+    // one-gate-per-turn behavior. Also the deterministic path for tests.
+    if (delayMs <= 0) {
+      this.pause();
+      return;
+    }
+    if (this.pauseTimer) clearTimeout(this.pauseTimer);
+    this.pauseTimer = setTimeout(() => {
+      this.pauseTimer = undefined;
+      this.pause();
+    }, delayMs);
+    // Do not keep the event loop alive solely for the collection window.
+    this.pauseTimer.unref?.();
+  }
+
   pause(): void {
     if (this.pendingApproval) return;
+    if (this.pauseTimer) {
+      clearTimeout(this.pauseTimer);
+      this.pauseTimer = undefined;
+    }
     this.pendingApproval = true;
     let destroyResult: Promise<void> | void | undefined;
     try {

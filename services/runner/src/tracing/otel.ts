@@ -172,12 +172,16 @@ function redactSpan(span: ReadableSpan, redactors: Iterable<Redactor>): void {
     }
     const status = span.status as { message?: string };
     if (typeof status.message === "string") {
-      status.message = redactor.redactString(status.message, "spans") ?? status.message;
+      status.message =
+        redactor.redactString(status.message, "spans") ?? status.message;
     }
   }
 }
 
-function redactAttributes(attrs: Record<string, unknown>, redactor: Redactor): void {
+function redactAttributes(
+  attrs: Record<string, unknown>,
+  redactor: Redactor,
+): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (typeof value === "string") {
       attrs[key] = redactor.redactString(value, "spans");
@@ -296,7 +300,8 @@ class TraceBatchProcessor implements SpanProcessor {
         // Fall back to the env default only for a span whose OWN run's target is unknown
         // (untagged span, or the run already released) — never to another run's target, or a
         // batch could still land on an unintended endpoint/auth.
-        const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+        const target =
+          (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
         return new Promise<void>((resolve) => {
           try {
             getExporter(target).export(orderParentFirst(group), (result) => {
@@ -1081,11 +1086,11 @@ export interface SandboxAgentOtel {
   output(): string;
   /** The structured event log built from the ACP stream (tool calls, usage, final message). */
   events(): AgentEvent[];
-  /** Settle open tool calls except those intentionally left pending. */
+  /** Settle open tool calls except those intentionally left pending; returns how many it settled. */
   settleOpenToolCalls(
     isExcluded: (id: string) => boolean,
     message: string,
-  ): void;
+  ): number;
   /** Run token/cost totals from the stream, when the harness reported `usage_update`. */
   usage(): AgentUsage | undefined;
 }
@@ -1425,8 +1430,8 @@ export function createSandboxAgentOtel(
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : usage?.total ?? 0,
-        cost: typeof cost === "number" ? cost : usage?.cost ?? 0,
+        total: typeof total === "number" ? total : (usage?.total ?? 0),
+        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
       };
       record({ type: "usage", ...usage });
     }
@@ -1457,10 +1462,16 @@ export function createSandboxAgentOtel(
     });
   }
 
+  /**
+   * Force-settle every still-open tool call except the excluded (paused) one, with a deterministic
+   * result. Returns HOW MANY were settled, so the caller can tell a real parallel sibling was cut
+   * (>0) from a no-op re-sweep (0) — the dispatch keys its "don't keep-alive park" decision off it.
+   */
   function settleOpenToolCalls(
     isExcluded: (id: string) => boolean,
     message: string,
-  ): void {
+  ): number {
+    let settled = 0;
     for (const [id, entry] of [...toolSpans.entries()]) {
       if (isExcluded(id)) continue;
       if (entry.span) {
@@ -1469,7 +1480,9 @@ export function createSandboxAgentOtel(
       }
       toolSpans.delete(id);
       record({ type: "tool_result", id, output: message, isError: true });
+      settled += 1;
     }
+    return settled;
   }
 
   /**
