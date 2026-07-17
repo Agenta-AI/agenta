@@ -5,7 +5,7 @@ import {
   messageText,
   resolvePromptText,
 } from "../../protocol.ts";
-import { approvalDecisionOf } from "../../responder.ts";
+import { approvalDecisionOf, isDeferredNotExecuted } from "../../responder.ts";
 
 export type ApprovalRenderHint = "executed" | "lastPending" | "stalePending";
 
@@ -33,12 +33,17 @@ export function priorMessages(request: AgentRunRequest): ChatMessage[] {
   // whose text matches the prompt being sent, not every matching turn.
   let lastMatch = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user" && messageText(messages[i].content) === latest) {
+    if (
+      messages[i].role === "user" &&
+      messageText(messages[i].content) === latest
+    ) {
       lastMatch = i;
       break;
     }
   }
-  return lastMatch === -1 ? messages : messages.filter((_, i) => i !== lastMatch);
+  return lastMatch === -1
+    ? messages
+    : messages.filter((_, i) => i !== lastMatch);
 }
 
 /**
@@ -148,7 +153,9 @@ export function messageTranscript(
     if (block.type === "text" && typeof block.text === "string") {
       parts.push(block.text);
     } else if (block.type === "tool_call") {
-      parts.push(`[called ${block.toolName ?? "tool"}(${safeJson(block.input)})]`);
+      parts.push(
+        `[called ${block.toolName ?? "tool"}(${safeJson(block.input)})]`,
+      );
     } else if (block.type === "tool_result") {
       const decision = approvalDecisionOf(block);
       if (decision !== undefined) {
@@ -167,6 +174,17 @@ export function messageTranscript(
         } else {
           parts.push(`[user DENIED ${toolName}; the call was not executed.]`);
         }
+      } else if (isDeferredNotExecuted(block)) {
+        // A sibling of a parallel tool batch: the turn paused on ANOTHER call's approval, so this
+        // one was skipped this turn — NOT denied, NOT failed. On the generic path below it renders
+        // as `[<tool> error: DEFERRED_NOT_EXECUTED …]`, and the model reads that "error" as a
+        // refusal and abandons the call. Render it instead as the same "call it again now" nudge
+        // an approved-but-unexecuted call gets (they are the same situation to the model: the call
+        // has not run yet and must be re-issued), so the model retries and its fresh gate surfaces.
+        const toolName = block.toolName ?? "tool";
+        parts.push(
+          `[${toolName} was NOT run — the turn paused for another approval first, so it was skipped, not denied. Call ${toolName} again with the same arguments now to run it.]`,
+        );
       } else {
         const body = capToolResultBody(safeJson(block.output));
         parts.push(
@@ -243,9 +261,7 @@ export function buildTurnText(
   const maxChars = Number(
     process.env.AGENTA_AGENT_HISTORY_MAX_CHARS ?? DEFAULT_HISTORY_MAX_CHARS,
   );
-  const lines = history.map(
-    ({ message, text }) => `${message.role}: ${text}`,
-  );
+  const lines = history.map(({ message, text }) => `${message.role}: ${text}`);
   const full = lines.join("\n");
   let transcript = full;
   let evicted = 0;
