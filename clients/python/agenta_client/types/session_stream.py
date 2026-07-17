@@ -18,6 +18,8 @@ class SessionStream(UniversalBaseModel):
     deleted_by_id: typing.Optional[str] = None
     project_id: str
     session_id: str
+    name: typing.Optional[str] = None
+    description: typing.Optional[str] = None
     flags: typing.Optional[SessionStreamFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None

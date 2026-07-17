@@ -1,9 +1,12 @@
+export type { ArchiveSessionRequest } from "./ArchiveSessionRequest.js";
 export type { BodyUploadSessionMountFile } from "./BodyUploadSessionMountFile.js";
+export type { DeleteSessionRequest } from "./DeleteSessionRequest.js";
 export type { DeleteSessionStreamRequest } from "./DeleteSessionStreamRequest.js";
 export type { DownloadSessionMountFileRequest } from "./DownloadSessionMountFileRequest.js";
 export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
 export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
+export type { FetchTurnRequest } from "./FetchTurnRequest.js";
 export type { GetRecordEventRequest } from "./GetRecordEventRequest.js";
 export type { GetStateRequest } from "./GetStateRequest.js";
 export type { SessionDetachRequestModel } from "./SessionDetachRequestModel.js";
@@ -14,9 +17,13 @@ export type { SessionInteractionQueryRequest } from "./SessionInteractionQueryRe
 export type { SessionInteractionRespondRequest } from "./SessionInteractionRespondRequest.js";
 export type { SessionInteractionTransitionRequest } from "./SessionInteractionTransitionRequest.js";
 export type { SessionMountQueryRequest } from "./SessionMountQueryRequest.js";
+export type { SessionQueryRequest } from "./SessionQueryRequest.js";
 export type { SessionRecordIngestRequest } from "./SessionRecordIngestRequest.js";
 export type { SessionRecordQueryRequest } from "./SessionRecordQueryRequest.js";
 export type { SessionStreamCommandRequestModel } from "./SessionStreamCommandRequestModel.js";
 export type { SessionStreamQueryRequestModel } from "./SessionStreamQueryRequestModel.js";
+export type { SessionTurnAppendRequest } from "./SessionTurnAppendRequest.js";
+export type { SessionTurnQueryRequest } from "./SessionTurnQueryRequest.js";
 export type { SetStateRequest } from "./SetStateRequest.js";
 export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCredentialsRequest.js";
+export type { UnarchiveSessionRequest } from "./UnarchiveSessionRequest.js";

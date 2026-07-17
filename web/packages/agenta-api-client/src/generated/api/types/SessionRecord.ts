@@ -9,5 +9,7 @@ export interface SessionRecord {
     record_type?: (string | null) | undefined;
     record_source?: (string | null) | undefined;
     attributes?: (Record<string, unknown> | null) | undefined;
+    turn_id?: (string | null) | undefined;
+    span_id?: (string | null) | undefined;
     created_at?: (string | null) | undefined;
 }

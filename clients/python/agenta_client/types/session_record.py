@@ -16,6 +16,8 @@ class SessionRecord(UniversalBaseModel):
     record_type: typing.Optional[str] = None
     record_source: typing.Optional[str] = None
     attributes: typing.Optional[typing.Dict[str, typing.Any]] = None
+    turn_id: typing.Optional[str] = None
+    span_id: typing.Optional[str] = None
     created_at: typing.Optional[dt.datetime] = None
     
     if IS_PYDANTIC_V2:

@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SessionStream {
+export interface SessionTurn {
     id: string;
     created_at?: (string | null) | undefined;
     updated_at?: (string | null) | undefined;
@@ -12,10 +12,14 @@ export interface SessionStream {
     deleted_by_id?: (string | null) | undefined;
     project_id: string;
     session_id: string;
-    name?: (string | null) | undefined;
-    description?: (string | null) | undefined;
-    flags?: AgentaApi.SessionStreamFlags | undefined;
-    tags?: (Record<string, unknown> | null) | undefined;
-    meta?: (Record<string, unknown> | null) | undefined;
-    turn_id?: (string | null) | undefined;
+    stream_id: string;
+    turn_index: number;
+    harness: AgentaApi.Harness;
+    agent_session_id?: (string | null) | undefined;
+    sandbox_id?: (string | null) | undefined;
+    references?: (AgentaApi.Reference[] | null) | undefined;
+    trace_id?: (string | null) | undefined;
+    root_span_id?: (string | null) | undefined;
+    start_time?: (string | null) | undefined;
+    end_time?: (string | null) | undefined;
 }

@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SessionStateResponse {
+export interface SessionResponse {
     count?: number | undefined;
-    session_state?: (AgentaApi.SessionStream | null) | undefined;
+    session?: (AgentaApi.SessionStream | null) | undefined;
 }

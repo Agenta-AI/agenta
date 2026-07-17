@@ -4,18 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .mount_flags import MountFlags
+from .session_stream import SessionStream
 
 
-class MountCreate(UniversalBaseModel):
-    name: typing.Optional[str] = None
-    description: typing.Optional[str] = None
-    slug: typing.Optional[str] = None
-    session_id: typing.Optional[str] = None
-    agent_id: typing.Optional[str] = None
-    flags: typing.Optional[MountFlags] = None
-    tags: typing.Optional[typing.Dict[str, typing.Any]] = None
-    meta: typing.Optional[typing.Dict[str, typing.Any]] = None
+class SessionResponse(UniversalBaseModel):
+    count: typing.Optional[int] = None
+    session: typing.Optional[SessionStream] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

@@ -4,23 +4,17 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .session_state_data import SessionStateData
 
 
 class SessionStateUpsertRequest(UniversalBaseModel):
-    data: typing.Optional[SessionStateData] = pydantic.Field(default=None)
+    name: typing.Optional[str] = pydantic.Field(default=None)
     """
-    Full replacement of the continuity state (resume ids + staleness guard).
-    """
-    
-    sandbox_id: typing.Optional[str] = pydantic.Field(default=None)
-    """
-    Remote sandbox id to record alongside the continuity state.
+    Rename target.
     """
     
-    sandbox_turn_index: typing.Optional[int] = pydantic.Field(default=None)
+    description: typing.Optional[str] = pydantic.Field(default=None)
     """
-    the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
+    Rename target.
     """
     
     

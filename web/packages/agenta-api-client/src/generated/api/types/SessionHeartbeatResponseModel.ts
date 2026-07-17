@@ -5,4 +5,5 @@ import type * as AgentaApi from "../index.js";
 export interface SessionHeartbeatResponseModel {
     stream?: (AgentaApi.SessionStream | null) | undefined;
     replica_id: string;
+    is_current_turn?: boolean | undefined;
 }

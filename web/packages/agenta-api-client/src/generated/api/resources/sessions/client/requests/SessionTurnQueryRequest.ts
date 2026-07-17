@@ -6,10 +6,7 @@ import type * as AgentaApi from "../../../../index.js";
  * @example
  *     {}
  */
-export interface MountQueryRequest {
-    session_id?: string | null;
-    agent_id?: string | null;
-    include_archived?: boolean;
-    mount?: AgentaApi.MountQuery | null;
+export interface SessionTurnQueryRequest {
+    query?: AgentaApi.SessionTurnQuery | null;
     windowing?: AgentaApi.Windowing | null;
 }

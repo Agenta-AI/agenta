@@ -5,28 +5,30 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .mount_data import MountData
-from .mount_flags import MountFlags
+from .harness import Harness
+from .reference import Reference
 
 
-class Mount(UniversalBaseModel):
+class SessionTurn(UniversalBaseModel):
+    id: str
     created_at: typing.Optional[dt.datetime] = None
     updated_at: typing.Optional[dt.datetime] = None
     deleted_at: typing.Optional[dt.datetime] = None
     created_by_id: typing.Optional[str] = None
     updated_by_id: typing.Optional[str] = None
     deleted_by_id: typing.Optional[str] = None
-    name: typing.Optional[str] = None
-    description: typing.Optional[str] = None
-    slug: typing.Optional[str] = None
-    id: typing.Optional[str] = None
     project_id: str
-    session_id: typing.Optional[str] = None
-    agent_id: typing.Optional[str] = None
-    data: typing.Optional[MountData] = None
-    flags: typing.Optional[MountFlags] = None
-    tags: typing.Optional[typing.Dict[str, typing.Any]] = None
-    meta: typing.Optional[typing.Dict[str, typing.Any]] = None
+    session_id: str
+    stream_id: str
+    turn_index: int
+    harness: Harness
+    agent_session_id: typing.Optional[str] = None
+    sandbox_id: typing.Optional[str] = None
+    references: typing.Optional[typing.List[Reference]] = None
+    trace_id: typing.Optional[str] = None
+    root_span_id: typing.Optional[str] = None
+    start_time: typing.Optional[dt.datetime] = None
+    end_time: typing.Optional[dt.datetime] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

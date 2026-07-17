@@ -4,9 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .session_stream import SessionStream
 
 
-class SessionStateFlags(UniversalBaseModel):
+class SessionsResponse(UniversalBaseModel):
+    count: typing.Optional[int] = None
+    sessions: typing.Optional[typing.List[SessionStream]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
