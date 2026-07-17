@@ -904,10 +904,17 @@ async function runAndStreamWithApiBaseResolved(
     // The runner authenticates session calls AS the invoke caller (the run credential),
     // refreshing it for the turn's lifetime — never the admin key. Project scope is
     // resolved server-side from the credential, so no project_id rides the request.
+    //
+    // onInterrupted (W7.4): a cancel/steer/kill against this session (via
+    // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
+    // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
+    // `controller.abort()` is what makes the control-plane signal actually reach this
+    // in-flight run — before this, a session-owned run's controller was never aborted.
     const watchdog = startAliveWatchdog(
       sessionId,
       turnId,
       runCredential(request),
+      () => controller.abort(),
     );
     aliveWatchdog = watchdog;
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
