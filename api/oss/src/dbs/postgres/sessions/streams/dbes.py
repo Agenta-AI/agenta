@@ -37,7 +37,7 @@ class SessionStreamDBE(
     ``updated_at`` (LifecycleDBA) is the heartbeat timestamp — no separate column.
     ``name``/``description`` (HeaderDBA) are written only on the rename edit, never
     on a flag-mirror write, so heartbeats don't churn them.
-    sandbox_id is NOT stored here (it lives in session_states).
+    sandbox_id is NOT stored here (it lives on the latest session_turns row).
     """
 
     __tablename__ = "session_streams"
