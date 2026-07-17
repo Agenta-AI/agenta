@@ -51,30 +51,70 @@ export const isHiddenPath = (path: string): boolean =>
         .some((seg) => seg.startsWith("."))
 
 /**
- * Is this listing entry a FOLDER rather than a file? True when the backend flags it (`is_folder`),
- * when another entry nests under it (`<path>/…`), or when it's a zero-byte, extension-less entry —
- * the shape an agent's convention directory (e.g. `agent-files`) takes when the object store lists
- * it as a bare 0-byte key with no trailing-slash folder marker (so the backend can't flag it). We
- * infer it here so folders never leak into the flat file/recents lists (which show files, descending
- * INTO folders) and render as folders in the tree instead of a spurious 0 B "file".
+ * The set of every path that is a strict ancestor DIRECTORY of some listing entry — i.e. every
+ * `p` such that another entry's path is `p/…`. Precomputed ONCE per listing so folder inference is
+ * an O(1) set lookup instead of an O(n) `all.some(startsWith)` rescan per entry (which made the
+ * whole drive O(n²) and froze the main thread on large agent-written trees).
  */
-export const isFolderEntry = (file: MountFile, all: MountFile[]): boolean => {
+export const buildFolderIndex = (files: MountFile[] | null | undefined): Set<string> => {
+    const dirs = new Set<string>()
+    for (const f of files ?? []) {
+        const p = cleanPath(f.path)
+        // Add each strict prefix directory of `p` (everything up to, not including, `p` itself).
+        for (let slash = p.indexOf("/"); slash !== -1; slash = p.indexOf("/", slash + 1)) {
+            dirs.add(p.slice(0, slash))
+        }
+    }
+    return dirs
+}
+
+/**
+ * Is this listing entry a FOLDER rather than a file? True when the backend flags it (`is_folder`),
+ * when another entry nests under it (`folderIndex` holds its path), or when it's a zero-byte,
+ * extension-less entry — the shape an agent's convention directory (e.g. `agent-files`) takes when
+ * the object store lists it as a bare 0-byte key with no trailing-slash folder marker (so the
+ * backend can't flag it). We infer it here so folders never leak into the flat file/recents lists
+ * (which show files, descending INTO folders) and render as folders in the tree instead of a
+ * spurious 0 B "file". Pass a {@link buildFolderIndex} set built once from the same listing.
+ */
+export const isFolderEntry = (file: MountFile, folderIndex: Set<string>): boolean => {
     if (file.is_folder) return true
     const self = cleanPath(file.path)
     if (!self) return false
-    if (all.some((o) => o !== file && cleanPath(o.path).startsWith(`${self}/`))) return true
+    if (folderIndex.has(self)) return true
     return (file.size ?? 0) === 0 && !hasExtension(self.split("/").pop() ?? self)
+}
+
+export interface DriveFileStats {
+    /** Non-folder, non-internal entries — the real user files. */
+    files: MountFile[]
+    /** Sum of `files` sizes. */
+    totalSize: number
+}
+
+/** Filter a listing to real user files AND sum their sizes in a SINGLE O(n) pass sharing one
+ * folder index. Callers that need both the list and the total should use this rather than calling
+ * {@link driveFiles} and {@link driveTotalSize} separately (which would each rebuild the index). */
+export const driveFileStats = (files: MountFile[] | null | undefined): DriveFileStats => {
+    const list = files ?? []
+    const folderIndex = buildFolderIndex(list)
+    const out: MountFile[] = []
+    let totalSize = 0
+    for (const f of list) {
+        if (isFolderEntry(f, folderIndex) || isInternalDrivePath(f.path)) continue
+        out.push(f)
+        totalSize += f.size ?? 0
+    }
+    return {files: out, totalSize}
 }
 
 /** Non-folder entries only — the "n files" everywhere counts these. Folders (flagged or inferred)
  * and runner-internal runtime artifacts are excluded so the flat lists show only real user files. */
-export const driveFiles = (files: MountFile[] | null | undefined): MountFile[] => {
-    const list = files ?? []
-    return list.filter((f) => !isFolderEntry(f, list) && !isInternalDrivePath(f.path))
-}
+export const driveFiles = (files: MountFile[] | null | undefined): MountFile[] =>
+    driveFileStats(files).files
 
 export const driveTotalSize = (files: MountFile[] | null | undefined): number =>
-    driveFiles(files).reduce((sum, f) => sum + (f.size ?? 0), 0)
+    driveFileStats(files).totalSize
 
 export const humanSize = (bytes?: number | null): string => {
     if (bytes == null) return ""
@@ -121,10 +161,11 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
     }
 
     const list = files ?? []
+    const folderIndex = buildFolderIndex(list)
     for (const file of list) {
         const path = cleanPath(file.path)
         if (!path || isInternalDrivePath(path)) continue
-        if (isFolderEntry(file, list)) {
+        if (isFolderEntry(file, folderIndex)) {
             ensureFolder(path)
             continue
         }
