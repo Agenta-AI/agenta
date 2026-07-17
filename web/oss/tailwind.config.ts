@@ -139,6 +139,19 @@ export const createConfig = (content: string[] = []): Config => {
                 fontFamily: {
                     sans: ["var(--font-inter)"],
                 },
+                // Config-section title shimmer: sweeps a masked highlight overlay across the
+                // title (see ConfigAccordionSection). Ungated by motion-safe on purpose, to match
+                // the motion/react dot ripple it pairs with.
+                keyframes: {
+                    "config-shimmer": {
+                        "0%": {maskPosition: "180% 0", WebkitMaskPosition: "180% 0"},
+                        "100%": {maskPosition: "-80% 0", WebkitMaskPosition: "-80% 0"},
+                    },
+                },
+                // 2 sweeps, then hold off-screen (forwards) so it ends invisibly — no end flash.
+                animation: {
+                    "config-shimmer": "config-shimmer 1.8s ease-in-out 2 forwards",
+                },
                 colors: {
                     ...antdTailwind,
                     // Theme-aware scales (override the static antd-tailwind values
