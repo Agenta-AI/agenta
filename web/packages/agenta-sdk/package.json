@@ -17,10 +17,10 @@
         "./resources": "./src/resources.ts"
     },
     "dependencies": {
-        "@agentaai/api-client": "workspace:../agenta-api-client"
+        "@agentaai/api-client": "link:../agenta-api-client"
     },
     "devDependencies": {
-        "@types/node": "^20.19.20",
+        "@types/node": "^20.19.43",
         "typescript": "^5.9.3"
     }
 }

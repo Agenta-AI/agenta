@@ -107,8 +107,7 @@ export function hasAppReference(span: SpanWithReferences): boolean {
     if (agRefs && IDENTIFYING_REF_KEYS.some((k) => hasIdOrSlug(agRefs[k]))) return true
 
     const topRefs = span.references as
-        | {id?: string; slug?: string; attributes?: {key?: string}}[]
-        | undefined
+        {id?: string; slug?: string; attributes?: {key?: string}}[] | undefined
     if (Array.isArray(topRefs)) {
         return topRefs.some(
             (ref) =>
@@ -141,8 +140,7 @@ export function extractReferences(span: TraceSpanNode): TraceReferences {
     }
 
     const topRefs = span.references as
-        | {id?: string; slug?: string; version?: string; attributes?: {key?: string}}[]
-        | undefined
+        {id?: string; slug?: string; version?: string; attributes?: {key?: string}}[] | undefined
     if (topRefs && Array.isArray(topRefs)) {
         for (const ref of topRefs) {
             const key = ref.attributes?.key

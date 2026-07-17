@@ -473,8 +473,7 @@ export const pendingHydrations = {
  * Set by the OSS layer to integrate with playground selection state.
  */
 let selectionUpdateCallback:
-    | ((sourceId: string, localDraftId: string, index: number) => void)
-    | null = null
+    ((sourceId: string, localDraftId: string, index: number) => void) | null = null
 
 /**
  * Register a callback to update selection when pending hydrations create local drafts.

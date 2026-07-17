@@ -127,8 +127,7 @@ function buildWorkflowTraceReferences(
 
     if (isLocal && options?.includeVariantAndRevisionForLocalDraft !== false) {
         const localData = get(workflowLocalServerDataAtomFamily(workflowId)) as
-            | (Record<string, unknown> & {_sourceRevisionId?: string})
-            | null
+            (Record<string, unknown> & {_sourceRevisionId?: string}) | null
         const sourceRevisionId = localData?._sourceRevisionId
         const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
         if (variantId) {
@@ -192,9 +191,7 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
         // completion — chat apps accept `messages` as input, while completion apps
         // have prompt template messages in parameters but take simple variables as input.
         const inputSchema = entity?.data?.schemas?.inputs as
-            | Record<string, unknown>
-            | null
-            | undefined
+            Record<string, unknown> | null | undefined
         const inputProps = inputSchema?.properties as Record<string, unknown> | null | undefined
         if (inputProps?.messages) return "chat"
 
@@ -477,11 +474,10 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             // Build references from meta.sourceRef for trace attribution, but only if this is not an ephemeral (pre-creation) workflow
             const meta = entity.meta as Record<string, unknown> | null | undefined
             const sourceRef = meta?.sourceRef as
-                | {type?: string; id?: string; slug?: string; version?: string}
-                | undefined
+                {type?: string; id?: string; slug?: string; version?: string} | undefined
             let references:
-                | Record<string, {id?: string; slug?: string; version?: string}>
-                | undefined = undefined
+                Record<string, {id?: string; slug?: string; version?: string}> | undefined =
+                undefined
             // Only include references if the workflow has a real id or slug, and id is not a local draft or placeholder
             const idIsLocalDraft = sourceRef?.id && isLocalDraftId(sourceRef.id)
             const idIsPlaceholder = sourceRef?.id && isPlaceholderId(sourceRef.id)

@@ -25,13 +25,7 @@ export type PropertyType = "string" | "number" | "boolean" | "object" | "array"
  * Data type for field rendering decisions
  */
 export type DataType =
-    | "string"
-    | "messages"
-    | "json-object"
-    | "json-array"
-    | "boolean"
-    | "number"
-    | "null"
+    "string" | "messages" | "json-object" | "json-array" | "boolean" | "number" | "null"
 
 /**
  * Value storage mode - how values are stored in the data structure

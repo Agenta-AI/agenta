@@ -229,8 +229,7 @@ function buildApplicationSelfReferences(params: {
     revisionId: string
 }): TraceReferenceMap | undefined {
     const revision = params.get(workflowMolecule.selectors.data(params.revisionId)) as
-        | (Record<string, unknown> & {flags?: Record<string, unknown> | null})
-        | null
+        (Record<string, unknown> & {flags?: Record<string, unknown> | null}) | null
     if (!revision || revision.flags?.is_evaluator === true) return undefined
 
     const realId = (value: unknown): string | undefined => {
@@ -311,8 +310,7 @@ function buildEvaluatorSelfReferences(params: {
     if (requestRefs) return requestRefs
 
     const revision = params.get(workflowMolecule.selectors.data(params.revisionId)) as
-        | (Record<string, unknown> & {flags?: Record<string, unknown> | null})
-        | null
+        (Record<string, unknown> & {flags?: Record<string, unknown> | null}) | null
     if (!revision) return undefined
     if (!revision.flags?.is_evaluator) return undefined
 
@@ -651,8 +649,7 @@ export async function executeStepForSessionWithExecutionItems(
                             )
                             const inputSchema =
                                 (stageSchemas?.inputSchema as
-                                    | Record<string, unknown>
-                                    | undefined) ?? null
+                                    Record<string, unknown> | undefined) ?? null
                             const rootChatInputs =
                                 session.mode === "chat"
                                     ? buildSharedChatInputs(get, loadableId)

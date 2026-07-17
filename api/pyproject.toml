@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.105.1"
+version = "0.105.2"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [

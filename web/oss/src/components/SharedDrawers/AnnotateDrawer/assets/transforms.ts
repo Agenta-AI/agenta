@@ -128,8 +128,7 @@ export const getInitialMetricsFromAnnotations = ({
     for (const ann of annotations) {
         if (!ann) continue
         const annEvaluatorRef = ann.references?.evaluator as
-            | {id?: string; slug?: string}
-            | undefined
+            {id?: string; slug?: string} | undefined
         if (!annEvaluatorRef) continue
         const annEvalSlug =
             annEvaluatorRef?.slug ??

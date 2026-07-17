@@ -156,7 +156,7 @@ const goToAutoEvaluationStep = async (modal: Locator, step: string) => {
     await expect(tab).toBeVisible()
     await tab.click()
     await expect(tab).toHaveAttribute("aria-selected", "true")
-    await expect(modal.locator(".ant-tabs-tabpane-active").last()).toBeVisible()
+    await expect(modal.locator(".ant-tabs-content-active").last()).toBeVisible()
 }
 
 const selectAutoEvaluationModalTableInput = async ({
@@ -168,7 +168,7 @@ const selectAutoEvaluationModalTableInput = async ({
     rowText?: string
     inputType: "checkbox" | "radio"
 }) => {
-    const activePane = modal.locator(".ant-tabs-tabpane-active").last()
+    const activePane = modal.locator(".ant-tabs-content-active").last()
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
     const inputSelector =
         'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
