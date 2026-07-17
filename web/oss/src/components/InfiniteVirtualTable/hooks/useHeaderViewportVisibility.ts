@@ -25,8 +25,7 @@ const useHeaderViewportVisibility = ({
     containerRef: RefObject<HTMLDivElement | null>
     onVisibilityChange: ViewportVisibilityCallback | undefined
     onColumnUnregister?:
-        | ((payload: {scopeId: string | null; columnKey: string}) => void)
-        | undefined
+        ((payload: {scopeId: string | null; columnKey: string}) => void) | undefined
     enabled?: boolean
     viewportMargin?: string
     exitDebounceMs?: number

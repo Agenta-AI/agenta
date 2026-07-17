@@ -116,8 +116,7 @@ export interface ElicitationResult {
 }
 
 export type ElicitationParseResult =
-    | {ok: true; payload: ElicitationRequestPayload}
-    | {ok: false; reason: string}
+    {ok: true; payload: ElicitationRequestPayload} | {ok: false; reason: string}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)

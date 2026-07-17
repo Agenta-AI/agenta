@@ -237,8 +237,7 @@ export function extractEndpointSchema(
     }
 
     const properties = (rawRequestSchema as Record<string, unknown>)?.properties as
-        | Record<string, Record<string, unknown>>
-        | undefined
+        Record<string, Record<string, unknown>> | undefined
 
     if (!properties) {
         return {

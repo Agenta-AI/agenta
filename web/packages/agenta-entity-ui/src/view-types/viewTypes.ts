@@ -149,13 +149,7 @@ export function getDefaultViewForValue(value: unknown): ViewType {
 
 /** Declared port type from the runnable schema. */
 export type ExpectedType =
-    | "string"
-    | "number"
-    | "integer"
-    | "boolean"
-    | "object"
-    | "array"
-    | undefined
+    "string" | "number" | "integer" | "boolean" | "object" | "array" | undefined
 
 function isValueEmpty(value: unknown): boolean {
     return value === undefined || value === null || value === ""

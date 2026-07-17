@@ -187,8 +187,7 @@ export async function createAppFromTemplate({
             defaultParameters = cleanupDefaultParameters(explicitDefaults)
         } else {
             const parametersSchema = template.data?.schemas?.parameters as
-                | Record<string, unknown>
-                | undefined
+                Record<string, unknown> | undefined
             const rawDefaults = extractDefaultsFromSchema(parametersSchema)
             defaultParameters = cleanupDefaultParameters(rawDefaults)
         }

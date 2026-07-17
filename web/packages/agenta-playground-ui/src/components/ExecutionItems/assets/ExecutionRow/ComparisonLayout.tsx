@@ -92,8 +92,7 @@ const ComparisonLayout = ({
 
     // Chain nodes for per-step execution
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        | PlaygroundNode[]
-        | null
+        PlaygroundNode[] | null
     const rootNodes = useMemo(
         () => (nodes ? nodes.filter((node) => node.depth === 0) : []),
         [nodes],
