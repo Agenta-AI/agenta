@@ -92,15 +92,15 @@ class TestSessionStreamHeaderBasics:
         assert stream["name"] == "Via POST"
 
     def test_invalid_session_id_rejected(self, authed_api):
-        # slashes are not allowed
+        # slashes are not allowed (SessionIdInvalid -> 422 via the domain exception handler)
         response = authed_api(
             "GET", "/sessions/streams/", params={"session_id": "foo/bar"}
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_invalid_session_id_chars_rejected(self, authed_api):
-        # spaces are not allowed
+        # spaces are not allowed (SessionIdInvalid -> 422 via the domain exception handler)
         response = authed_api(
             "GET", "/sessions/streams/", params={"session_id": "foo bar"}
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
