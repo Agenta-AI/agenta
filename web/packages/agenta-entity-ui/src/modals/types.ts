@@ -18,12 +18,7 @@ import type {Atom, WritableAtom} from "jotai"
  * Supported entity types for modal operations
  */
 export type EntityType =
-    | "testset"
-    | "revision"
-    | "variant"
-    | "evaluator"
-    | "application"
-    | "simpleQueue"
+    "testset" | "revision" | "variant" | "evaluator" | "application" | "simpleQueue"
 
 /**
  * Reference to an entity for modal operations

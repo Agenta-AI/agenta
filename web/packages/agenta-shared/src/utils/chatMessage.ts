@@ -377,8 +377,7 @@ export function deriveToolViewModelFromResult(result: unknown): {
     displayValue: string
 } {
     const rawData = (result as Record<string, unknown>)?.response as
-        | Record<string, unknown>
-        | undefined
+        Record<string, unknown> | undefined
     const dataField = rawData?.data
     const contentCandidate =
         typeof dataField === "string"

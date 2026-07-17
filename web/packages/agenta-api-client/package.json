@@ -1,6 +1,6 @@
 {
   "name": "@agentaai/api-client",
-  "version": "0.105.1",
+  "version": "0.105.2",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -33,7 +33,7 @@
     "prepare": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@types/node": "^20.19.20",
+    "@types/node": "^20.19.43",
     "typescript": "^5.9.3"
   }
 }

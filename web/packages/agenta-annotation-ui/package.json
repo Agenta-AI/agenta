@@ -21,13 +21,13 @@
         "./add-to-queue": "./src/components/AddToQueuePopover/index.tsx"
     },
     "dependencies": {
-        "@agenta/annotation": "workspace:../agenta-annotation",
-        "@agenta/entities": "workspace:../agenta-entities",
-        "@agenta/entity-ui": "workspace:../agenta-entity-ui",
-        "@agenta/shared": "workspace:../agenta-shared",
-        "@agenta/ui": "workspace:../agenta-ui",
+        "@agenta/annotation": "link:../agenta-annotation",
+        "@agenta/entities": "link:../agenta-entities",
+        "@agenta/entity-ui": "link:../agenta-entity-ui",
+        "@agenta/shared": "link:../agenta-shared",
+        "@agenta/ui": "link:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
-        "dayjs": "^1.11.20"
+        "dayjs": "^1.11.21"
     },
     "peerDependencies": {
         "@phosphor-icons/react": ">=2.0.0",
@@ -37,9 +37,9 @@
         "react-dom": ">=18.0.0"
     },
     "devDependencies": {
-        "@types/node": "^20.19.20",
-        "@types/react": "^19.0.10",
-        "@types/react-dom": "^19.0.4",
+        "@types/node": "^20.19.43",
+        "@types/react": "^19.2.17",
+        "@types/react-dom": "^19.2.3",
         "typescript": "^5.9.3"
     }
 }

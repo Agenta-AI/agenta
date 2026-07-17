@@ -192,8 +192,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 domEvent,
                             }: {
                                 domEvent:
-                                    | React.MouseEvent<HTMLElement>
-                                    | React.KeyboardEvent<HTMLElement>
+                                    React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
                             }) => {
                                 if (isNavigableParent) {
                                     navigateToItem(item, domEvent)

@@ -32,11 +32,11 @@
         "./workflow-revision-drawer": "./src/components/WorkflowRevisionDrawer/index.ts"
     },
     "dependencies": {
-        "@agenta/entities": "workspace:../agenta-entities",
-        "@agenta/entity-ui": "workspace:../agenta-entity-ui",
-        "@agenta/playground": "workspace:../agenta-playground",
-        "@agenta/shared": "workspace:../agenta-shared",
-        "@agenta/ui": "workspace:../agenta-ui",
+        "@agenta/entities": "link:../agenta-entities",
+        "@agenta/entity-ui": "link:../agenta-entity-ui",
+        "@agenta/playground": "link:../agenta-playground",
+        "@agenta/shared": "link:../agenta-shared",
+        "@agenta/ui": "link:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
         "json5": "^2.2.3",
@@ -53,10 +53,10 @@
         "react-dom": ">=18.0.0"
     },
     "devDependencies": {
-        "@types/node": "^20.19.20",
-        "@types/react": "^19.0.10",
-        "@types/react-dom": "^19.0.4",
-        "jotai-family": "^1.0.1",
+        "@types/node": "^20.19.43",
+        "@types/react": "^19.2.17",
+        "@types/react-dom": "^19.2.3",
+        "jotai-family": "^1.0.2",
         "typescript": "^5.9.3"
     }
 }

@@ -577,8 +577,7 @@ export const ToolItemControl = memo(function ToolItemControl({
         (toolObj as Record<string, unknown>)?.function &&
         typeof (toolObj as Record<string, unknown>).function === "object"
             ? (((toolObj as Record<string, unknown>).function as Record<string, unknown>).name as
-                  | string
-                  | undefined)
+                  string | undefined)
             : undefined
 
     // Builtin detection

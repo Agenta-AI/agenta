@@ -362,15 +362,7 @@ const isBaseAtomFamily = atomFamily((workflowId: string) =>
  * Use this to switch UI rendering modes instead of checking multiple flags.
  */
 export type WorkflowType =
-    | "human"
-    | "llm"
-    | "code"
-    | "hook"
-    | "match"
-    | "custom"
-    | "agent"
-    | "chat"
-    | "completion"
+    "human" | "llm" | "code" | "hook" | "match" | "custom" | "agent" | "chat" | "completion"
 
 const workflowTypeAtomFamily = atomFamily((workflowId: string) =>
     atom<WorkflowType>((get) => {
@@ -621,8 +613,7 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 
         // Catalog template schemas.parameters may be settings_template format
         const templateParams = template.data?.schemas?.parameters as
-            | Record<string, unknown>
-            | undefined
+            Record<string, unknown> | undefined
 
         if (!templateParams) return storedSchema
 
@@ -1226,8 +1217,7 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
             // Nested form: feedback_config.json_schema.schema.properties
             const feedbackConfig = config?.feedback_config as Record<string, unknown> | undefined
             const jsonSchema = feedbackConfig?.json_schema as
-                | {schema?: {properties?: Record<string, unknown>}}
-                | undefined
+                {schema?: {properties?: Record<string, unknown>}} | undefined
             // Also check flat form (raw backend data): json_schema at top level
             const flatJsonSchema = config?.json_schema as typeof jsonSchema | undefined
             const fbProperties =

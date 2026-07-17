@@ -107,8 +107,7 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
             outputs: data.outputs ?? {},
             parameters: (data.parameters as Record<string, unknown>) ?? {},
             sourceRef: data.sourceRef as
-                | {type: "application" | "evaluator"; id: string; slug?: string}
-                | undefined,
+                {type: "application" | "evaluator"; id: string; slug?: string} | undefined,
             isEvaluator: data.isEvaluator === true,
             uri: typeof data.uri === "string" ? data.uri : undefined,
             envelope:
@@ -199,8 +198,7 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
         if (!isLocalDraftId(draftId)) return null
         const store = getDefaultStore()
         const localData = store.get(workflowLocalServerDataAtomFamily(draftId)) as
-            | (Record<string, unknown> & {_sourceRevisionId?: string})
-            | null
+            (Record<string, unknown> & {_sourceRevisionId?: string}) | null
         return localData?._sourceRevisionId ?? null
     },
 

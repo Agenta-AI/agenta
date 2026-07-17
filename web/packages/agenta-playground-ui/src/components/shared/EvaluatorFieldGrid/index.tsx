@@ -90,8 +90,7 @@ const EvaluatorFieldGrid = memo(function EvaluatorFieldGrid({
         // Enrich the "score" field schema with constraints from feedback_config
         if (feedbackConfig) {
             const jsonSchema = feedbackConfig.json_schema as
-                | {schema?: {properties?: {score?: Record<string, unknown>}}}
-                | undefined
+                {schema?: {properties?: {score?: Record<string, unknown>}}} | undefined
             const scoreConstraints = jsonSchema?.schema?.properties?.score
             if (scoreConstraints) {
                 const existing = base.score ?? ({} as Record<string, unknown>)
