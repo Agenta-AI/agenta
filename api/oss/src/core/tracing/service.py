@@ -23,6 +23,7 @@ from oss.src.core.tracing.utils.parsing import (
 from oss.src.core.tracing.utils.trees import (
     calculate_and_propagate_metrics_by_trace,
     infer_and_propagate_trace_type_by_trace,
+    promote_identity_by_trace,
     trace_map_to_traces,
 )
 from oss.src.core.tracing.streaming import publish_spans
@@ -147,6 +148,14 @@ class TracingService:
         except Exception:  # pylint: disable=broad-exception-caught
             log.error(
                 "Failed to calculate metrics; continuing without metrics",
+                exc_info=True,
+            )
+
+        try:
+            span_dtos = promote_identity_by_trace(span_dtos)
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.error(
+                "Failed to promote session/user/agent identity; continuing without it",
                 exc_info=True,
             )
 
