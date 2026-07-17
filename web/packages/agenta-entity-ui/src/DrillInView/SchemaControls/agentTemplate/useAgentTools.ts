@@ -50,7 +50,8 @@ export function useAgentTools({
                           ...(tool as Record<string, unknown>),
                           agenta_metadata: {
                               ...(((tool as Record<string, unknown>).agenta_metadata as
-                                  Record<string, unknown> | undefined) ?? {}),
+                                  | Record<string, unknown>
+                                  | undefined) ?? {}),
                               ...toolMeta,
                           },
                       }

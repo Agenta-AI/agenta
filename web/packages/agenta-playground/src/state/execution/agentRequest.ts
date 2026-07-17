@@ -305,7 +305,9 @@ export async function buildAgentRequest(
     const store = opts.store ?? getDefaultStore()
 
     const invocationUrl = store.get(workflowMolecule.selectors.invocationUrl(entityId)) as
-        string | null | undefined
+        | string
+        | null
+        | undefined
     if (!invocationUrl) return null
 
     // The agent lane talks to `/invoke` with `x-ag-messages-format: vercel`: the SDK
@@ -315,7 +317,9 @@ export async function buildAgentRequest(
 
     // Draft-aware config — unsaved left-panel prompt edits apply to the run.
     const config = store.get(workflowMolecule.selectors.configuration(entityId)) as
-        Record<string, unknown> | null | undefined
+        | Record<string, unknown>
+        | null
+        | undefined
     // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
     // `parameters.agent`. Default them, never overriding values the resolved config carries.
     const buildKitEnabled = store.get(workflowBuildKitEnabledAtomFamily(entityId)) as boolean
@@ -331,7 +335,9 @@ export async function buildAgentRequest(
     ) as Record<string, unknown>
 
     const entity = store.get(workflowMolecule.selectors.data(entityId)) as
-        RevisionLike | null | undefined
+        | RevisionLike
+        | null
+        | undefined
 
     // Field-level reference gate. The service derives draft-ness purely from the revision
     // reference — `sdks/python/agenta/sdk/agents/tracing.py` `_run_context_workflow`:

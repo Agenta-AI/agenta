@@ -827,7 +827,8 @@ export function extractVariablesFromConfig(
 
         // 2. Extract from llm_config: response_format and tools
         const llmConfig = (prompt.llm_config ?? prompt.llmConfig) as
-            Record<string, unknown> | undefined
+            | Record<string, unknown>
+            | undefined
         if (!llmConfig || typeof llmConfig !== "object") continue
 
         const responseFormat = llmConfig.response_format ?? llmConfig.responseFormat
@@ -974,7 +975,8 @@ function computePromptInputKeys(
 
     const sectionOpeners = extractSectionOpenersFromConfig({[promptKey]: promptConfig})
     const rawTf = (promptConfig.template_format ?? promptConfig.templateFormat) as
-        string | undefined
+        | string
+        | undefined
     const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
 
     const grouped = groupTemplateVariables(vars, {sectionOpeners, templateFormat})
@@ -1360,7 +1362,9 @@ export function extractVariablesFromEnhancedPrompts(
 
         // Read template_format from the enhanced prompt if available
         const tfWrapper = (promptObj?.template_format ?? promptObj?.templateFormat) as
-            Record<string, unknown> | string | undefined
+            | Record<string, unknown>
+            | string
+            | undefined
         const rawTf = typeof tfWrapper === "object" ? (tfWrapper?.value as string) : tfWrapper
         const effectiveFormat = resolveTemplateFormat(rawTf) ?? templateFormat
 

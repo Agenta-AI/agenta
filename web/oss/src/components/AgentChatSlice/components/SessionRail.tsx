@@ -6,9 +6,6 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
-// Direct file import — the barrel would statically pull the inspector drawer into this chunk.
-import SessionInspectorButton from "@/oss/components/SessionInspector/SessionInspectorButton"
-
 import {ROW_VARIANTS, SESSION_SPRING} from "../assets/sessionMotion"
 import {useChatScopeKey} from "../state/scope"
 import {
@@ -17,6 +14,7 @@ import {
     addSessionAtomFamily,
     deleteSessionAtomFamily,
     firstUserText,
+    isSessionHusk,
     openSessionAtomFamily,
     openSessionIdsAtomFamily,
     renameSessionAtomFamily,
@@ -30,10 +28,8 @@ import {SessionStatusDot} from "./SessionTagBar"
 
 interface SessionRailRowProps {
     session: AgentChatSession
-    artifactId?: string | null
     label: string
     active: boolean
-    open: boolean
     onSelect: () => void
     onDelete: () => void
     onRename: (title: string) => void
@@ -44,10 +40,8 @@ interface SessionRailRowProps {
  * enter/exit so nothing snaps. */
 const SessionRailRow = ({
     session,
-    artifactId,
     label,
     active,
-    open,
     onSelect,
     onDelete,
     onRename,
@@ -62,7 +56,9 @@ const SessionRailRow = ({
             animate="animate"
             exit="exit"
             transition={SESSION_SPRING}
-            className="overflow-hidden"
+            // shrink-0 so a long history overflows into a scroll instead of the flex column
+            // squashing every row to fit (which clips the timestamp line).
+            className="shrink-0 overflow-hidden"
         >
             <div
                 role="tab"
@@ -99,19 +95,7 @@ const SessionRailRow = ({
                     )}
                 </div>
                 <div className={clsx("flex shrink-0 items-center gap-0.5", renaming && "hidden")}>
-                    {open && !active && (
-                        <span className="ag-surface-chip rounded px-1.5 py-px text-[11px] text-colorTextSecondary">
-                            open
-                        </span>
-                    )}
-                    {active && (
-                        <SessionInspectorButton
-                            sessionId={session.id}
-                            artifactId={artifactId}
-                            iconSize={12}
-                            className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
-                        />
-                    )}
+                    {/* Inspection is build-mode only, so the chat-mode rail has no inspect entry. */}
                     <Tooltip title="Rename session">
                         <Button
                             type="text"
@@ -145,7 +129,6 @@ const SessionRailRow = ({
 export interface SessionRailProps {
     /** The resolved active session id (source of truth for the chat), used for row highlight. */
     activeId?: string
-    artifactId?: string | null
     /** Disable the New session (+) button (e.g. onboarding, until the founding run settles). */
     addDisabled?: boolean
     className?: string
@@ -157,7 +140,7 @@ export interface SessionRailProps {
  * the two stay consistent, and uses the space freed by maximizing to make every past session
  * directly reachable. Clicking a row reopens it as the active tab; rename inline, delete permanently.
  */
-const SessionRail = ({activeId, artifactId, addDisabled = false, className}: SessionRailProps) => {
+const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProps) => {
     const scope = useChatScopeKey()
     const history = useAtomValue(sessionHistoryAtomFamily(scope))
     const openIds = useAtomValue(openSessionIdsAtomFamily(scope))
@@ -172,10 +155,15 @@ const SessionRail = ({activeId, artifactId, addDisabled = false, className}: Ses
     const q = query.trim().toLowerCase()
     const currentActiveId = activeId ?? resolvedActiveId
 
-    const rows = history.map((session) => ({
-        session,
-        label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
-    }))
+    // Hide never-initiated husks (untitled, no messages) unless they're an open tab — so a blank
+    // in-progress session still shows, but abandoned empties don't clutter the list (the mount-time
+    // prune then drops them from storage). Matches the discard-on-close rule.
+    const rows = history
+        .filter((session) => openIds.has(session.id) || !isSessionHusk(session, allMessages))
+        .map((session) => ({
+            session,
+            label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
+        }))
     const filtered = q ? rows.filter((r) => r.label.toLowerCase().includes(q)) : rows
 
     return (
@@ -243,10 +231,8 @@ const SessionRail = ({activeId, artifactId, addDisabled = false, className}: Ses
                             <SessionRailRow
                                 key={session.id}
                                 session={session}
-                                artifactId={artifactId}
                                 label={label}
                                 active={session.id === currentActiveId}
-                                open={openIds.has(session.id)}
                                 onSelect={() => openSession(session.id)}
                                 onDelete={() => deleteSession(session.id)}
                                 onRename={(title) => renameSession({id: session.id, title})}

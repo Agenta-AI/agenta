@@ -39,7 +39,8 @@ export const primePreviewRunCache = (projectId: string, runs: any[] | undefined 
 }
 
 let previewRunBatcherCore:
-    ((key: PreviewRunBatchKey) => Promise<PreviewRunBatchValue | undefined>) | null = null
+    | ((key: PreviewRunBatchKey) => Promise<PreviewRunBatchValue | undefined>)
+    | null = null
 
 const getPreviewRunBatcherCore = () => {
     if (!previewRunBatcherCore) {

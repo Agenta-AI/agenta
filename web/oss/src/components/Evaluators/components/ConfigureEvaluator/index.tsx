@@ -41,7 +41,9 @@ const PlaygroundMainView = dynamic(
  */
 function EvaluatorSyncStateTag({rowId, loadableId}: {rowId: string; loadableId: string}) {
     const mode = useAtomValue(loadableController.selectors.mode(loadableId)) as
-        "local" | "connected" | null
+        | "local"
+        | "connected"
+        | null
     const isDirty = useAtomValue(useMemo(() => testcaseMolecule.isDirty(rowId), [rowId])) as boolean
     const discard = useSetAtom(testcaseMolecule.actions.discard)
     const handleDiscard = useCallback(() => discard(rowId), [discard, rowId])

@@ -136,7 +136,9 @@ export interface PaginatedCombinedState<TRow> {
  * Mirrors PaginatedControllerAction from @agenta/ui/table.
  */
 export type PaginatedControllerAction =
-    {type: "loadMore"} | {type: "refresh"} | {type: "select"; keys: Key[]}
+    | {type: "loadMore"}
+    | {type: "refresh"}
+    | {type: "select"; keys: Key[]}
 
 /**
  * Paginated controller state (rows + pagination + selection).

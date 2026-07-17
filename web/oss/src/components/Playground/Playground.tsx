@@ -37,10 +37,6 @@ const CatalogDrawer = dynamic(
     () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
     {ssr: false},
 )
-const SessionInspectorDrawer = dynamic(
-    () => import("@/oss/components/SessionInspector/SessionInspectorDrawer"),
-    {ssr: false},
-)
 
 /**
  * Sync state tag slot — renders the sync state badge in each row header.
@@ -52,7 +48,9 @@ const SessionInspectorDrawer = dynamic(
 // TODO: This should not live here, it should be in the separate component
 function PlaygroundSyncStateTag({rowId, loadableId}: {rowId: string; loadableId: string}) {
     const mode = useAtomValue(loadableController.selectors.mode(loadableId)) as
-        "local" | "connected" | null
+        | "local"
+        | "connected"
+        | null
     const isDirty = useAtomValue(useMemo(() => testcaseMolecule.isDirty(rowId), [rowId])) as boolean
     const discard = useSetAtom(testcaseMolecule.actions.discard)
 
@@ -131,7 +129,6 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
                     renderConfigOverride={agentOnboarding.renderConfigOverride}
                 />
                 <CatalogDrawer />
-                <SessionInspectorDrawer />
             </div>
         </OSSPlaygroundShell>
     )

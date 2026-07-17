@@ -312,7 +312,8 @@ const ChatTurnView = ({
 
     // Chain nodes for downstream evaluator results
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        PlaygroundNode[] | null
+        | PlaygroundNode[]
+        | null
     const isChain = (nodes?.length ?? 0) > 1
 
     const {nodeNames} = usePlaygroundNodeLabels(nodes)
@@ -425,12 +426,16 @@ const ChatTurnView = ({
                                 const hasToolCalls = Array.isArray(
                                     (
                                         fallbackAssistantMessage as
-                                            {tool_calls?: unknown[]} | null | undefined
+                                            | {tool_calls?: unknown[]}
+                                            | null
+                                            | undefined
                                     )?.tool_calls,
                                 )
                                     ? ((
                                           fallbackAssistantMessage as
-                                              {tool_calls?: unknown[]} | null | undefined
+                                              | {tool_calls?: unknown[]}
+                                              | null
+                                              | undefined
                                       )?.tool_calls?.length ?? 0)
                                     : 0
                                 return ChatTurnAssistantActions && entityId && hasToolCalls > 0 ? (

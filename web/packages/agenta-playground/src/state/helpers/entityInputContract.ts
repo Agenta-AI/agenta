@@ -75,11 +75,15 @@ function isNonEmptyString(value: unknown): value is string {
  */
 export function resolveEntityInputContract(get: Getter, entityId: string): EntityInputContract {
     const entity = get(workflowMolecule.selectors.data(entityId)) as
-        {flags?: Record<string, unknown> | null} | null | undefined
+        | {flags?: Record<string, unknown> | null}
+        | null
+        | undefined
     const isEvaluator = !!entity?.flags?.is_evaluator
 
     const mode = get(workflowMolecule.selectors.executionMode(entityId)) as
-        "chat" | "completion" | undefined
+        | "chat"
+        | "completion"
+        | undefined
     const isChat = mode === "chat"
 
     const inputPorts = (get(workflowMolecule.selectors.inputPorts(entityId)) ?? []) as {
@@ -90,7 +94,9 @@ export function resolveEntityInputContract(get: Getter, entityId: string): Entit
     )
 
     const requestPayload = get(workflowMolecule.selectors.requestPayload(entityId)) as
-        {variables?: unknown; __meta?: {variables?: unknown} | null} | null | undefined
+        | {variables?: unknown; __meta?: {variables?: unknown} | null}
+        | null
+        | undefined
     const metaVariables = requestPayload?.__meta?.variables
     const payloadVariables = requestPayload?.variables
     const rawPayloadVariables: unknown[] = Array.isArray(metaVariables)
@@ -213,7 +219,9 @@ export function collectDownstreamReferencedColumns(
     for (const node of nodes) {
         if (node.depth === 0) continue
         const settings = get(workflowMolecule.selectors.configuration(node.entityId)) as
-            Record<string, unknown> | null | undefined
+            | Record<string, unknown>
+            | null
+            | undefined
         if (!settings || typeof settings !== "object") continue
 
         // 1. `<input>_key` settings that map a column by name.

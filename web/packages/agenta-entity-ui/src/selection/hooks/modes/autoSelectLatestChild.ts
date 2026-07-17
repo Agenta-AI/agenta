@@ -1,7 +1,9 @@
 import type {LevelQueryState} from "../utilities"
 
 export type AutoSelectLatestChildDecision<T> =
-    {status: "wait"} | {status: "select"; child: T} | {status: "complete"}
+    | {status: "wait"}
+    | {status: "select"; child: T}
+    | {status: "complete"}
 
 interface ResolveAutoSelectLatestChildOptions<T> {
     children: T[]
