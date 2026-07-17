@@ -149,6 +149,7 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
 
         attributes.update(**{f"ag.session.{k}": v for k, v in features.session.items()})
         attributes.update(**{f"ag.user.{k}": v for k, v in features.user.items()})
+        attributes.update(**{f"ag.agent.{k}": v for k, v in features.agent.items()})
 
         attributes.update(**{f"ag.references.{k}": v for k, v in features.refs.items()})
 
