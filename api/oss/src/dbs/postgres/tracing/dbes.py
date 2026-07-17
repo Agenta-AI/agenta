@@ -41,6 +41,11 @@ class SpanDBE(
             "start_time",
         ),  # for sorting and scrolling
         Index(
+            "ix_spans_project_id_session_id",
+            "project_id",
+            "session_id",
+        ),  # for session filtering (root-only column)
+        Index(
             "ix_spans_project_id_trace_type",
             "project_id",
             "trace_type",

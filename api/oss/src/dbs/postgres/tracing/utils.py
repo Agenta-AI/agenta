@@ -787,6 +787,12 @@ def filter(  # pylint:disable=redefined-builtin
                 clauses.extend(_handle_uuid_field(condition))
             elif field == Fields.CONTENT:
                 clauses.extend(_handle_fts_field(condition))
+            elif field == Fields.SESSION_ID:
+                clauses.extend(_handle_string_field(condition))
+            elif field == Fields.USER_ID:
+                clauses.extend(_handle_string_field(condition))
+            elif field == Fields.AGENT_ID:
+                clauses.extend(_handle_string_field(condition))
             else:
                 # raise FilteringException(
                 #     f"Unsupported condition field: {field}",
