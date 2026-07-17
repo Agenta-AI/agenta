@@ -430,7 +430,8 @@ export function useModelHarness({
                     const picked = Array.isArray(option) ? option[0] : option
                     const metadata = (
                         picked as
-                            {metadata?: {connectionSlug?: string; provider?: string}} | undefined
+                            | {metadata?: {connectionSlug?: string; provider?: string}}
+                            | undefined
                     )?.metadata
                     writeModel({
                         modelId: (v as string) ?? null,
@@ -796,7 +797,8 @@ export function useModelHarness({
                                 modeSchema={
                                     (
                                         harnessProps.permissions?.properties as
-                                            Record<string, SchemaProperty> | undefined
+                                            | Record<string, SchemaProperty>
+                                            | undefined
                                     )?.default_mode
                                 }
                             />

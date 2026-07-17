@@ -8,7 +8,10 @@ import {getEnv} from "../../dynamicEnv"
 import {usePostHogAg} from "./usePostHogAg"
 
 type SurveyErrorCode =
-    "posthog-not-configured" | "posthog-unavailable" | "survey-fetch-error" | "survey-unavailable"
+    | "posthog-not-configured"
+    | "posthog-unavailable"
+    | "survey-fetch-error"
+    | "survey-unavailable"
 
 export interface SurveyError extends Error {
     code: SurveyErrorCode

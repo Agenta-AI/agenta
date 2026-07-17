@@ -14,12 +14,12 @@
     },
     "devDependencies": {
         "@playwright/test": "1.60.0",
-        "@types/node": "^20.19.43",
-        "dotenv": "^16.6.1",
-        "tsx": "^4.23.1",
+        "@types/node": "^20.19.20",
+        "dotenv": "^16.5.0",
+        "tsx": "^4.22.4",
         "typescript": "^5.9.3"
     },
     "dependencies": {
-        "axios": "^1.18.1"
+        "axios": "1.16.0"
     }
 }

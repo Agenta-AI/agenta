@@ -547,7 +547,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             workflowMolecule.selectors.requestPayload(params.entityId),
         ) as RequestPayloadData | null
         const invocationUrl = get(workflowMolecule.selectors.invocationUrl(params.entityId)) as
-            string | null
+            | string
+            | null
         const configuration = get(workflowMolecule.selectors.configuration(params.entityId))
         const entityData = configuration
             ? ({parameters: configuration} as TransformVariantInput)

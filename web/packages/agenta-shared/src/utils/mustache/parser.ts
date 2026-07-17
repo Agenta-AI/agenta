@@ -101,7 +101,11 @@ export interface DelimiterNode extends SourceSpan {
 }
 
 export type ParseErrorKind =
-    "unbalanced-section" | "unexpected-close" | "mismatched-close" | "malformed-tag" | "empty-tag"
+    | "unbalanced-section"
+    | "unexpected-close"
+    | "mismatched-close"
+    | "malformed-tag"
+    | "empty-tag"
 
 export interface ParseError {
     kind: ParseErrorKind

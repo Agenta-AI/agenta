@@ -125,7 +125,8 @@ export const extractMetrics = (evaluator: {
     const outputSchema = resolveOutputSchema(evaluator?.data)
     const properties = resolveOutputSchemaProperties(evaluator?.data) ?? {}
     const defs = (outputSchema?.$defs ?? outputSchema?.definitions) as
-        Record<string, unknown> | undefined
+        | Record<string, unknown>
+        | undefined
 
     return Object.entries(properties).map(([key, _schema]) => {
         // Resolve $ref pointers (e.g., match evaluator matcher keys reference $defs/result)

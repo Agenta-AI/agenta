@@ -42,7 +42,14 @@ export interface CompoundOption extends CommonOption {
 
 /** Common schema types */
 export type SchemaType =
-    "string" | "number" | "boolean" | "object" | "array" | "compound" | "null" | "integer"
+    | "string"
+    | "number"
+    | "boolean"
+    | "object"
+    | "array"
+    | "compound"
+    | "null"
+    | "integer"
 
 /** Base interface for all schema-related types */
 export interface BaseSchema extends Base {

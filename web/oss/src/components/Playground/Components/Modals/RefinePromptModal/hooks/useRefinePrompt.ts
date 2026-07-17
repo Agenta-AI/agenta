@@ -102,7 +102,8 @@ function parseRefineResponse(
     explanation: string
 } {
     const structured = (response as Record<string, unknown>)?.structuredContent as
-        Record<string, unknown> | undefined
+        | Record<string, unknown>
+        | undefined
     const explanation = (structured?.summary as string) || "Prompt refined successfully."
 
     if (structured?.messages && Array.isArray(structured.messages)) {
@@ -163,7 +164,8 @@ export function useRefinePrompt({
                 let promptToRefine = workingPromptRef.current
                 if (!promptToRefine) {
                     const currentConfig = configurationRef.current as
-                        Record<string, unknown> | undefined
+                        | Record<string, unknown>
+                        | undefined
                     const promptValue = currentConfig?.[promptKey]
                     promptToRefine = extractPromptTemplate(promptValue)
                 }
