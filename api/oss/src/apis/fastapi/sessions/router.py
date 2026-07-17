@@ -2,7 +2,6 @@
 
 Composes the sub-domain routers:
   - SessionStreamsRouter  — /sessions/streams/*
-  - SessionStatesRouter  — /sessions/states/
   - RecordsRouter        — /sessions/records/*
   - InteractionsRouter   — /sessions/interactions/*
   - SessionTurnsRouter    — /sessions/turns/*
@@ -89,9 +88,6 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionStreamQueryRequest,
     SessionStreamResponse,
     SessionStreamsResponse,
-    # states
-    SessionStateResponse,
-    SessionStateUpsertRequest,
     # records
     SessionRecordIngestRequest,
     SessionRecordQueryRequest,
@@ -234,6 +230,14 @@ class SessionStreamsRouter:
             self.heartbeat_session_stream,
             methods=["POST"],
             operation_id="heartbeat_session_stream",
+            tags=["Sessions"],
+        )
+
+        self.router.add_api_route(
+            "/sessions/streams/header",
+            self.set_session_stream_header,
+            methods=["PUT", "POST"],
+            operation_id="set_session_stream_header",
             tags=["Sessions"],
         )
 
@@ -396,74 +400,15 @@ class SessionStreamsRouter:
         )
         return SessionStreamsResponse(count=len(streams), streams=streams)
 
-
-class SessionStatesRouter:
-    """States sub-router — /sessions/states/?session_id=...
-
-    Thin header surface over the merged session_streams row (S8): GET reads the
-    header (name/description/flags/lifecycle); PUT/POST is the rename edit, a
-    full-PUT of {name, description}. No RMW blob, no runner write path here —
-    `session_states` (the old table) is present-but-unused, superseded by this.
-    """
-
-    __test__ = False
-
-    def __init__(self, *, streams_service: SessionStreamsService):
-        self.streams_service = streams_service
-        self.router = APIRouter()
-
-        self.router.add_api_route(
-            "/states/",
-            self.get_session_state,
-            methods=["GET"],
-            operation_id="get_state",
-            status_code=status.HTTP_200_OK,
-            response_model=SessionStateResponse,
-            response_model_exclude_none=True,
-        )
-        self.router.add_api_route(
-            "/states/",
-            self.set_session_state,
-            methods=["PUT", "POST"],
-            operation_id="set_state",
-            status_code=status.HTTP_200_OK,
-            response_model=SessionStateResponse,
-            response_model_exclude_none=True,
-        )
-
     @intercept_exceptions()
-    async def get_session_state(
+    @_handle_session_exceptions()
+    async def set_session_stream_header(
         self,
         request: Request,
         *,
+        header: SessionStreamHeaderEdit,
         session_id: str = Query(...),
-    ) -> SessionStateResponse:
-        _validate_session_id_http(session_id)
-
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
-
-        stream = await self.streams_service.fetch_header(
-            project_id=UUID(request.state.project_id),
-            session_id=session_id,
-        )
-        return SessionStateResponse(
-            count=1 if stream else 0,
-            session_state=stream,
-        )
-
-    @intercept_exceptions()
-    async def set_session_state(
-        self,
-        request: Request,
-        *,
-        session_state_upsert_request: SessionStateUpsertRequest,
-        session_id: str = Query(...),
-    ) -> SessionStateResponse:
+    ) -> SessionStreamResponse:
         _validate_session_id_http(session_id)
 
         if not await check_action_access(
@@ -473,18 +418,13 @@ class SessionStatesRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        stream = await self.streams_service.set_header(
+        stream = await self._service.set_header(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             session_id=session_id,
-            header=SessionStreamHeaderEdit(
-                **session_state_upsert_request.model_dump(exclude_unset=True)
-            ),
+            header=header,
         )
-        return SessionStateResponse(
-            count=1 if stream else 0,
-            session_state=stream,
-        )
+        return SessionStreamResponse(stream=stream)
 
 
 class RecordsRouter:
@@ -1150,7 +1090,7 @@ class SessionTurnsRouter:
                 session_id=body.session_id,
                 stream_id=body.stream_id,
                 turn_index=body.turn_index,
-                harness=body.harness,
+                harness_kind=body.harness_kind,
                 agent_session_id=body.agent_session_id,
                 sandbox_id=body.sandbox_id,
                 references=body.references,
@@ -1366,7 +1306,6 @@ class SessionsRouter:
 
     The entrypoint mounts:
       sessions_router.streams.router               → no prefix (paths include /sessions/streams/…)
-      sessions_router.states.router                → prefix /sessions (header surface, reads/writes the merged stream row)
       sessions_router.records.router               → prefix /sessions/records
       sessions_router.interactions.router          → prefix /sessions/interactions
       sessions_router.mounts.router                → prefix /sessions
@@ -1391,7 +1330,6 @@ class SessionsRouter:
             service=streams_service,
             interactions_service=interactions_service,
         )
-        self.states = SessionStatesRouter(streams_service=streams_service)
         self.records = RecordsRouter(records_service=records_service)
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,

@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import text
 
 from oss.src.core.sessions.turns.dtos import (
-    Harness,
+    HarnessKind,
     SessionTurnCreate,
     SessionTurnQuery,
 )
@@ -154,7 +154,7 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
             session_id=session_id,
             stream_id=stream_id,
             turn_index=0,
-            harness=Harness.pi_core,
+            harness_kind=HarnessKind.PI,
             agent_session_id="agent-sess-abc",
             sandbox_id="sandbox-1",
             references=[workflow_ref],
@@ -168,7 +168,7 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
     assert turn.session_id == session_id
     assert turn.stream_id == stream_id
     assert turn.turn_index == 0
-    assert turn.harness == Harness.pi_core
+    assert turn.harness_kind == HarnessKind.PI
     assert turn.agent_session_id == "agent-sess-abc"
     assert turn.sandbox_id == "sandbox-1"
     assert turn.references == [workflow_ref]
@@ -207,7 +207,7 @@ async def test_query_turns_filters_by_references_gin_contains(dao, project_and_s
             session_id=session_id,
             stream_id=stream_id,
             turn_index=0,
-            harness=Harness.pi_core,
+            harness_kind=HarnessKind.PI,
             references=[target_ref],
         ),
     )
@@ -218,7 +218,7 @@ async def test_query_turns_filters_by_references_gin_contains(dao, project_and_s
             session_id=session_id,
             stream_id=stream_id,
             turn_index=1,
-            harness=Harness.pi_core,
+            harness_kind=HarnessKind.PI,
             references=[other_ref],
         ),
     )
@@ -257,7 +257,7 @@ async def test_query_turns_windowed_newest_to_oldest(dao, project_and_stream):
                 session_id=session_id,
                 stream_id=stream_id,
                 turn_index=i,
-                harness=Harness.pi_core,
+                harness_kind=HarnessKind.PI,
             ),
         )
         created_ids.append(turn.id)
@@ -294,7 +294,7 @@ async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):
             session_id=session_id,
             stream_id=stream_id,
             turn_index=0,
-            harness=Harness.pi_core,
+            harness_kind=HarnessKind.PI,
             agent_session_id="pi-core-sess-0",
             sandbox_id="sandbox-0",
         ),
@@ -306,7 +306,7 @@ async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):
             session_id=session_id,
             stream_id=stream_id,
             turn_index=1,
-            harness=Harness.claude,
+            harness_kind=HarnessKind.CLAUDE,
             agent_session_id="claude-sess-1",
             sandbox_id="sandbox-1",
         ),
@@ -318,7 +318,7 @@ async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):
             session_id=session_id,
             stream_id=stream_id,
             turn_index=2,
-            harness=Harness.pi_core,
+            harness_kind=HarnessKind.PI,
             agent_session_id="pi-core-sess-2",
             sandbox_id="sandbox-2",
         ),
@@ -333,7 +333,7 @@ async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):
             session_id=session_id,
             stream_id=stream_id,
             turn_index=3,
-            harness=Harness.claude,
+            harness_kind=HarnessKind.CLAUDE,
             agent_session_id="claude-sess-3",
             sandbox_id="sandbox-3",
         ),
@@ -345,8 +345,8 @@ async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):
     assert latest.turn_index == 3
     assert latest.sandbox_id == "sandbox-3"
 
-    latest_for_pi_core = await dao.latest_turn_per_harness(
-        project_id=project_id, session_id=session_id, harness=Harness.pi_core
+    latest_for_pi_core = await dao.latest_turn_per_harness_kind(
+        project_id=project_id, session_id=session_id, harness_kind=HarnessKind.PI
     )
     assert latest_for_pi_core is not None
     assert latest_for_pi_core.id == latest_pi_core.id
@@ -377,7 +377,7 @@ async def test_delete_by_session_id_hard_deletes(dao, project_and_stream):
                 session_id=session_id,
                 stream_id=stream_id,
                 turn_index=i,
-                harness=Harness.pi_core,
+                harness_kind=HarnessKind.PI,
             ),
         )
 

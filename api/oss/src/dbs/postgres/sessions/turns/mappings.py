@@ -3,7 +3,7 @@ from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.sessions.turns.dtos import (
-    Harness,
+    HarnessKind,
     SessionTurn,
     SessionTurnCreate,
 )
@@ -42,7 +42,7 @@ def map_turn_dto_to_dbe_create(
         session_id=turn.session_id,
         stream_id=turn.stream_id,
         turn_index=turn.turn_index,
-        harness=turn.harness.value,
+        harness_kind=turn.harness_kind.value,
         agent_session_id=turn.agent_session_id,
         sandbox_id=turn.sandbox_id,
         references=_references_to_json(turn.references),
@@ -71,7 +71,7 @@ def map_turn_dbe_to_dto(
         session_id=turn_dbe.session_id,
         stream_id=turn_dbe.stream_id,
         turn_index=turn_dbe.turn_index,
-        harness=Harness(turn_dbe.harness),
+        harness_kind=HarnessKind(turn_dbe.harness_kind),
         agent_session_id=turn_dbe.agent_session_id,
         sandbox_id=turn_dbe.sandbox_id,
         references=_references_from_json(turn_dbe.references),

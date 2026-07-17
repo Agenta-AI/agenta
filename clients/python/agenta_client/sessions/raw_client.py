@@ -13,7 +13,7 @@ from ..core.pydantic_utilities import parse_obj_as
 from ..core.request_options import RequestOptions
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
-from ..types.harness import Harness
+from ..types.harness_kind import HarnessKind
 from ..types.http_validation_error import HttpValidationError
 from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_file_written_response import MountFileWrittenResponse
@@ -31,7 +31,6 @@ from ..types.session_mounts_response import SessionMountsResponse
 from ..types.session_record_response import SessionRecordResponse
 from ..types.session_records_query_response import SessionRecordsQueryResponse
 from ..types.session_response import SessionResponse
-from ..types.session_state_response import SessionStateResponse
 from ..types.session_stream_command_response import SessionStreamCommandResponse
 from ..types.session_stream_response import SessionStreamResponse
 from ..types.session_streams_response import SessionStreamsResponse
@@ -330,6 +329,60 @@ class RawSessionsClient:
                     SessionHeartbeatResult,
                     parse_obj_as(
                         type_ =SessionHeartbeatResult,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def set_session_stream_header(self, *, session_id: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStreamResponse]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[SessionStreamResponse]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "sessions/streams/header",method="PUT",
+            params={"session_id": session_id, }
+            ,
+            json={
+                "name": name,
+                "description": description,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SessionStreamResponse,
+                    parse_obj_as(
+                        type_ =SessionStreamResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1065,7 +1118,7 @@ class RawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness: Harness, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionTurnResponse]:
+    def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness_kind: HarnessKind, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionTurnResponse]:
         """
         Parameters
         ----------
@@ -1075,7 +1128,7 @@ class RawSessionsClient:
         
         turn_index : int
         
-        harness : Harness
+        harness_kind : HarnessKind
         
         agent_session_id : typing.Optional[str]
         
@@ -1105,7 +1158,7 @@ class RawSessionsClient:
                 "session_id": session_id,
                 "stream_id": stream_id,
                 "turn_index": turn_index,
-                "harness": harness,
+                "harness_kind": harness_kind,
                 "agent_session_id": agent_session_id,
                 "sandbox_id": sandbox_id,
                 "references": convert_and_respect_annotation_metadata(object_=references, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"),
@@ -1215,104 +1268,6 @@ class RawSessionsClient:
                     SessionTurnResponse,
                     parse_obj_as(
                         type_ =SessionTurnResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
-        """
-        Parameters
-        ----------
-        session_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[SessionStateResponse]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "sessions/states/",method="GET",
-            params={"session_id": session_id, }
-            ,
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    SessionStateResponse,
-                    parse_obj_as(
-                        type_ =SessionStateResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return HttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    def set_state(self, *, session_id: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SessionStateResponse]:
-        """
-        Parameters
-        ----------
-        session_id : str
-        
-        name : typing.Optional[str]
-            Rename target.
-        
-        description : typing.Optional[str]
-            Rename target.
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        HttpResponse[SessionStateResponse]
-            Successful Response
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "sessions/states/",method="PUT",
-            params={"session_id": session_id, }
-            ,
-            json={
-                "name": name,
-                "description": description,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    SessionStateResponse,
-                    parse_obj_as(
-                        type_ =SessionStateResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -1791,6 +1746,60 @@ class AsyncRawSessionsClient:
                     SessionHeartbeatResult,
                     parse_obj_as(
                         type_ =SessionHeartbeatResult,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
+                    HttpValidationError,
+                    parse_obj_as(
+                        type_ =HttpValidationError,  # type: ignore
+                        object_ =_response.json()
+                    )
+                ))
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def set_session_stream_header(self, *, session_id: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStreamResponse]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[SessionStreamResponse]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "sessions/streams/header",method="PUT",
+            params={"session_id": session_id, }
+            ,
+            json={
+                "name": name,
+                "description": description,
+            }
+            ,
+            headers={"content-type": "application/json", }
+            ,
+            request_options=request_options,omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    SessionStreamResponse,
+                    parse_obj_as(
+                        type_ =SessionStreamResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )
@@ -2526,7 +2535,7 @@ class AsyncRawSessionsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness: Harness, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionTurnResponse]:
+    async def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness_kind: HarnessKind, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionTurnResponse]:
         """
         Parameters
         ----------
@@ -2536,7 +2545,7 @@ class AsyncRawSessionsClient:
         
         turn_index : int
         
-        harness : Harness
+        harness_kind : HarnessKind
         
         agent_session_id : typing.Optional[str]
         
@@ -2566,7 +2575,7 @@ class AsyncRawSessionsClient:
                 "session_id": session_id,
                 "stream_id": stream_id,
                 "turn_index": turn_index,
-                "harness": harness,
+                "harness_kind": harness_kind,
                 "agent_session_id": agent_session_id,
                 "sandbox_id": sandbox_id,
                 "references": convert_and_respect_annotation_metadata(object_=references, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"),
@@ -2676,104 +2685,6 @@ class AsyncRawSessionsClient:
                     SessionTurnResponse,
                     parse_obj_as(
                         type_ =SessionTurnResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
-        """
-        Parameters
-        ----------
-        session_id : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[SessionStateResponse]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "sessions/states/",method="GET",
-            params={"session_id": session_id, }
-            ,
-            request_options=request_options,)
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    SessionStateResponse,
-                    parse_obj_as(
-                        type_ =SessionStateResponse,  # type: ignore
-                        object_ =_response.json()
-                    )
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(headers=dict(_response.headers), body=typing.cast(
-                    HttpValidationError,
-                    parse_obj_as(
-                        type_ =HttpValidationError,  # type: ignore
-                        object_ =_response.json()
-                    )
-                ))
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
-    
-    async def set_state(self, *, session_id: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SessionStateResponse]:
-        """
-        Parameters
-        ----------
-        session_id : str
-        
-        name : typing.Optional[str]
-            Rename target.
-        
-        description : typing.Optional[str]
-            Rename target.
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        AsyncHttpResponse[SessionStateResponse]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "sessions/states/",method="PUT",
-            params={"session_id": session_id, }
-            ,
-            json={
-                "name": name,
-                "description": description,
-            }
-            ,
-            headers={"content-type": "application/json", }
-            ,
-            request_options=request_options,omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    SessionStateResponse,
-                    parse_obj_as(
-                        type_ =SessionStateResponse,  # type: ignore
                         object_ =_response.json()
                     )
                 )

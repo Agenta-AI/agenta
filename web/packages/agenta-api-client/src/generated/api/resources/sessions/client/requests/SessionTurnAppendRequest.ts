@@ -8,14 +8,14 @@ import type * as AgentaApi from "../../../../index.js";
  *         session_id: "session_id",
  *         stream_id: "stream_id",
  *         turn_index: 1,
- *         harness: "pi_core"
+ *         harness_kind: "pi_core"
  *     }
  */
 export interface SessionTurnAppendRequest {
     session_id: string;
     stream_id: string;
     turn_index: number;
-    harness: AgentaApi.Harness;
+    harness_kind: AgentaApi.HarnessKind;
     agent_session_id?: string | null;
     sandbox_id?: string | null;
     references?: AgentaApi.Reference[] | null;

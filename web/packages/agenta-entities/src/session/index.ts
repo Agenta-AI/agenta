@@ -7,7 +7,6 @@
  */
 export {
     querySessionRecords,
-    getSessionState,
     queryInteractions,
     fetchInteraction,
     respondInteraction,
@@ -35,12 +34,10 @@ export {
 export {
     sessionRecordSchema,
     sessionRecordsQueryResponseSchema,
-    sessionStateSchema,
     sessionInteractionSchema,
     sessionStreamSchema,
     type SessionRecord,
     type SessionRecordsQueryResponse,
-    type SessionState,
     type SessionInteraction,
     type SessionInteractionKind,
     type SessionInteractionStatusCode,

@@ -8,7 +8,6 @@ export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
 export type { FetchTurnRequest } from "./FetchTurnRequest.js";
 export type { GetRecordEventRequest } from "./GetRecordEventRequest.js";
-export type { GetStateRequest } from "./GetStateRequest.js";
 export type { SessionDetachRequest } from "./SessionDetachRequest.js";
 export type { SessionHeartbeatRequest } from "./SessionHeartbeatRequest.js";
 export type { SessionInteractionCancelStaleRequest } from "./SessionInteractionCancelStaleRequest.js";
@@ -24,6 +23,6 @@ export type { SessionStreamCommandRequest } from "./SessionStreamCommandRequest.
 export type { SessionStreamQueryRequest } from "./SessionStreamQueryRequest.js";
 export type { SessionTurnAppendRequest } from "./SessionTurnAppendRequest.js";
 export type { SessionTurnQueryRequest } from "./SessionTurnQueryRequest.js";
-export type { SetStateRequest } from "./SetStateRequest.js";
+export type { SetSessionStreamHeaderRequest } from "./SetSessionStreamHeaderRequest.js";
 export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCredentialsRequest.js";
 export type { UnarchiveSessionRequest } from "./UnarchiveSessionRequest.js";

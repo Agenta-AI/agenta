@@ -1,8 +1,8 @@
 """Session turns service — one row per turn, the transcript twin of a trace.
 
-Absorbs the resume fold previously kept on session_states: the latest turn's
-agent_session_id / sandbox_id IS the current resume pointer (a query, not a stored
-fold — a late lower-index write can never win ORDER BY turn_index DESC LIMIT 1).
+The latest turn's agent_session_id / sandbox_id IS the current resume pointer (a
+query, not a stored fold — a late lower-index write can never win ORDER BY
+turn_index DESC LIMIT 1).
 """
 
 from typing import List, Optional
@@ -10,7 +10,7 @@ from uuid import UUID
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.sessions.turns.dtos import (
-    Harness,
+    HarnessKind,
     SessionTurn,
     SessionTurnCreate,
     SessionTurnQuery,
@@ -78,18 +78,18 @@ class SessionTurnsService:
             session_id=session_id,
         )
 
-    async def latest_turn_per_harness(
+    async def latest_turn_per_harness_kind(
         self,
         *,
         project_id: UUID,
         session_id: str,
-        harness: Harness,
+        harness_kind: HarnessKind,
     ) -> Optional[SessionTurn]:
-        """The per-harness resume-read (harness_sessions[harness] equivalent)."""
-        return await self._dao.latest_turn_per_harness(
+        """The per-harness-kind resume-read."""
+        return await self._dao.latest_turn_per_harness_kind(
             project_id=project_id,
             session_id=session_id,
-            harness=harness,
+            harness_kind=harness_kind,
         )
 
     async def delete_by_session_id(

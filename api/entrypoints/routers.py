@@ -137,8 +137,6 @@ from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
-from oss.src.dbs.postgres.sessions.states.dbes import SessionStateDBE  # noqa: F401
-
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
@@ -1034,10 +1032,9 @@ ai_services = AIServicesRouter(
     ai_services_service=ai_services_service,
 )
 
-# SESSION STATES ---------------------------------------------------------------
-# session_states (table + DAO/service) is superseded by the session_streams header
-# (name/description) — the /sessions/states/ router now reads/writes the merged
-# stream row via streams_service. Kept present-but-unused pending the WPI drop.
+# SESSIONS ---------------------------------------------------------------------
+# Session header rename (name/description) lives on the streams router
+# (PUT /sessions/streams/header) via streams_service.set_header.
 
 sessions_service = SessionsService(
     streams_service=session_streams_service,
@@ -1502,12 +1499,6 @@ app.include_router(
     router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
-)
-
-app.include_router(
-    router=sessions.states.router,
-    prefix="/sessions",
-    tags=["Sessions"],
 )
 
 app.include_router(

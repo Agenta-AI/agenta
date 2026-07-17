@@ -4,14 +4,14 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .harness import Harness
+from .harness_kind import HarnessKind
 from .reference import Reference
 
 
 class SessionTurnQuery(UniversalBaseModel):
     session_id: typing.Optional[str] = None
     stream_id: typing.Optional[str] = None
-    harness: typing.Optional[Harness] = None
+    harness_kind: typing.Optional[HarnessKind] = None
     references: typing.Optional[typing.List[Reference]] = None
     
     if IS_PYDANTIC_V2:

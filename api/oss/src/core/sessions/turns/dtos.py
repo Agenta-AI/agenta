@@ -1,22 +1,12 @@
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
 
+from agenta.sdk.agents.dtos import HarnessKind
+
 from oss.src.core.shared.dtos import Identifier, Lifecycle, Reference
-
-
-class Harness(str, Enum):
-    """The runner's harness identity (`services/runner/src/version.ts` HARNESSES).
-
-    A plain string column in the DB — this enum only validates the DTO boundary.
-    """
-
-    pi_core = "pi_core"
-    pi_agenta = "pi_agenta"
-    claude = "claude"
 
 
 class SessionTurn(Identifier, Lifecycle):
@@ -24,7 +14,7 @@ class SessionTurn(Identifier, Lifecycle):
     session_id: str
     stream_id: UUID
     turn_index: int
-    harness: Harness
+    harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
     references: Optional[List[Reference]] = None
@@ -38,7 +28,7 @@ class SessionTurnCreate(BaseModel):
     session_id: str
     stream_id: UUID
     turn_index: int
-    harness: Harness
+    harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
     references: Optional[List[Reference]] = None
@@ -51,5 +41,5 @@ class SessionTurnCreate(BaseModel):
 class SessionTurnQuery(BaseModel):
     session_id: Optional[str] = None
     stream_id: Optional[UUID] = None
-    harness: Optional[Harness] = None
+    harness_kind: Optional[HarnessKind] = None
     references: Optional[List[Reference]] = None

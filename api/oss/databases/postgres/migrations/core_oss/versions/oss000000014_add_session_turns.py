@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column("session_id", sa.String(), nullable=False),
         sa.Column("stream_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("turn_index", sa.Integer(), nullable=False),
-        sa.Column("harness", sa.String(), nullable=False),
+        sa.Column("harness_kind", sa.String(), nullable=False),
         sa.Column("agent_session_id", sa.String(), nullable=True),
         sa.Column("sandbox_id", sa.String(), nullable=True),
         sa.Column(

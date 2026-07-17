@@ -415,7 +415,7 @@ class SessionStreamsService:
         session_id: str,
     ) -> Optional[SessionStream]:
         """Fetch the session header (name/description/flags/lifecycle) — used by
-        GET /sessions/states/. Reads the same reconciled row as `fetch`.
+        GET /sessions/streams/. Reads the same reconciled row as `fetch`.
         """
         return await self.fetch(project_id=project_id, session_id=session_id)
 

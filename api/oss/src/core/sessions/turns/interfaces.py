@@ -4,7 +4,7 @@ from uuid import UUID
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.sessions.turns.dtos import (
-    Harness,
+    HarnessKind,
     SessionTurn,
     SessionTurnCreate,
     SessionTurnQuery,
@@ -50,12 +50,12 @@ class SessionTurnsDAOInterface(ABC):
     ) -> Optional[SessionTurn]: ...
 
     @abstractmethod
-    async def latest_turn_per_harness(
+    async def latest_turn_per_harness_kind(
         self,
         *,
         project_id: UUID,
         session_id: str,
-        harness: Harness,
+        harness_kind: HarnessKind,
     ) -> Optional[SessionTurn]: ...
 
     @abstractmethod

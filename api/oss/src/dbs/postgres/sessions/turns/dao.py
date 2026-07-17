@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import delete as sa_delete, select
 
 from oss.src.core.sessions.turns.dtos import (
-    Harness,
+    HarnessKind,
     SessionTurn,
     SessionTurnCreate,
     SessionTurnQuery,
@@ -89,9 +89,9 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                     stmt = stmt.where(
                         SessionTurnDBE.stream_id == query.stream_id,
                     )
-                if query.harness is not None:
+                if query.harness_kind is not None:
                     stmt = stmt.where(
-                        SessionTurnDBE.harness == query.harness.value,
+                        SessionTurnDBE.harness_kind == query.harness_kind.value,
                     )
                 if query.references is not None:
                     turn_references = query_turn_references(query)
@@ -136,12 +136,12 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
 
-    async def latest_turn_per_harness(
+    async def latest_turn_per_harness_kind(
         self,
         *,
         project_id: UUID,
         session_id: str,
-        harness: Harness,
+        harness_kind: HarnessKind,
     ) -> Optional[SessionTurn]:
         async with self.engine.session() as session:
             stmt = (
@@ -149,7 +149,7 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                 .where(
                     SessionTurnDBE.project_id == project_id,
                     SessionTurnDBE.session_id == session_id,
-                    SessionTurnDBE.harness == harness.value,
+                    SessionTurnDBE.harness_kind == harness_kind.value,
                 )
                 .order_by(SessionTurnDBE.turn_index.desc())
                 .limit(1)

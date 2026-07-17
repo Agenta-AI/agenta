@@ -14,7 +14,7 @@ export interface SessionTurn {
     session_id: string;
     stream_id: string;
     turn_index: number;
-    harness: AgentaApi.Harness;
+    harness_kind: AgentaApi.HarnessKind;
     agent_session_id?: (string | null) | undefined;
     sandbox_id?: (string | null) | undefined;
     references?: (AgentaApi.Reference[] | null) | undefined;

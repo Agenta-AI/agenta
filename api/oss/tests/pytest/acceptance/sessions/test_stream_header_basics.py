@@ -1,26 +1,23 @@
-"""Acceptance tests for /sessions/states/ endpoints (OSS edition).
+"""Acceptance tests for the session header surface on /sessions/streams/ (OSS edition).
 
-Post-merge (S1/S8): /sessions/states/ is the header surface over the merged
-session_streams row. GET reads {name, description, flags, ...}; PUT/POST is the
-rename edit, a full-PUT of {name, description}. There is no more data/sandbox_id
-RMW blob -- that lived in session_states, now superseded.
+GET /sessions/streams/ reads the merged stream row {name, description, flags, ...};
+PUT/POST /sessions/streams/header is the rename edit, a full-PUT of {name, description}.
 """
 
 import uuid
 
 
-class TestSessionStatesBasics:
-    """GET / PUT / POST /sessions/states/?session_id=... — happy paths."""
+class TestSessionStreamHeaderBasics:
+    """GET /sessions/streams/ + PUT/POST /sessions/streams/header — happy paths."""
 
-    def test_get_missing_state_returns_empty(self, authed_api):
+    def test_get_missing_stream_returns_empty(self, authed_api):
         session_id = str(uuid.uuid4())
         response = authed_api(
-            "GET", "/sessions/states/", params={"session_id": session_id}
+            "GET", "/sessions/streams/", params={"session_id": session_id}
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["count"] == 0
-        assert body.get("session_state") is None
+        assert body.get("stream") is None
 
     def test_put_renames_and_creates_row(self, authed_api):
         session_id = str(uuid.uuid4())
@@ -28,85 +25,82 @@ class TestSessionStatesBasics:
 
         response = authed_api(
             "PUT",
-            "/sessions/states/",
+            "/sessions/streams/header",
             params={"session_id": session_id},
             json=payload,
         )
         assert response.status_code == 200
-        body = response.json()
-        assert body["count"] == 1
-        state = body["session_state"]
-        assert state["session_id"] == session_id
-        assert state["name"] == "My Session"
-        assert state["description"] == "A test session."
+        stream = response.json()["stream"]
+        assert stream["session_id"] == session_id
+        assert stream["name"] == "My Session"
+        assert stream["description"] == "A test session."
 
     def test_get_returns_persisted_rename(self, authed_api):
         session_id = str(uuid.uuid4())
         authed_api(
             "PUT",
-            "/sessions/states/",
+            "/sessions/streams/header",
             params={"session_id": session_id},
             json={"name": "Persisted Name"},
         )
 
         response = authed_api(
-            "GET", "/sessions/states/", params={"session_id": session_id}
+            "GET", "/sessions/streams/", params={"session_id": session_id}
         )
         assert response.status_code == 200
-        body = response.json()
-        assert body["count"] == 1
-        assert body["session_state"]["session_id"] == session_id
-        assert body["session_state"]["name"] == "Persisted Name"
+        stream = response.json()["stream"]
+        assert stream["session_id"] == session_id
+        assert stream["name"] == "Persisted Name"
 
     def test_put_upserts_on_second_call(self, authed_api):
         session_id = str(uuid.uuid4())
 
         authed_api(
             "PUT",
-            "/sessions/states/",
+            "/sessions/streams/header",
             params={"session_id": session_id},
             json={"name": "First"},
         )
 
         response = authed_api(
             "PUT",
-            "/sessions/states/",
+            "/sessions/streams/header",
             params={"session_id": session_id},
             json={"name": "Second", "description": "updated"},
         )
         assert response.status_code == 200
-        state = response.json()["session_state"]
-        assert state["name"] == "Second"
-        assert state["description"] == "updated"
+        stream = response.json()["stream"]
+        assert stream["name"] == "Second"
+        assert stream["description"] == "updated"
 
         get_resp = authed_api(
-            "GET", "/sessions/states/", params={"session_id": session_id}
+            "GET", "/sessions/streams/", params={"session_id": session_id}
         )
-        assert get_resp.json()["session_state"]["name"] == "Second"
+        assert get_resp.json()["stream"]["name"] == "Second"
 
     def test_post_also_accepts_the_rename_edit(self, authed_api):
         session_id = str(uuid.uuid4())
         response = authed_api(
             "POST",
-            "/sessions/states/",
+            "/sessions/streams/header",
             params={"session_id": session_id},
             json={"name": "Via POST"},
         )
         assert response.status_code == 200
-        state = response.json()["session_state"]
-        assert state["session_id"] == session_id
-        assert state["name"] == "Via POST"
+        stream = response.json()["stream"]
+        assert stream["session_id"] == session_id
+        assert stream["name"] == "Via POST"
 
     def test_invalid_session_id_rejected(self, authed_api):
         # slashes are not allowed
         response = authed_api(
-            "GET", "/sessions/states/", params={"session_id": "foo/bar"}
+            "GET", "/sessions/streams/", params={"session_id": "foo/bar"}
         )
         assert response.status_code == 400
 
     def test_invalid_session_id_chars_rejected(self, authed_api):
         # spaces are not allowed
         response = authed_api(
-            "GET", "/sessions/states/", params={"session_id": "foo bar"}
+            "GET", "/sessions/streams/", params={"session_id": "foo bar"}
         )
         assert response.status_code == 400

@@ -4,12 +4,17 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .session_stream import SessionStream
 
 
-class SessionStateResponse(UniversalBaseModel):
-    count: typing.Optional[int] = None
-    session_state: typing.Optional[SessionStream] = None
+class SessionStreamHeaderEdit(UniversalBaseModel):
+    """
+    The rename edit: a full-PUT of the header fields only.
+    
+    Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
+    liveness-only writes can never carry name/description, and vice versa.
+    """
+    name: typing.Optional[str] = None
+    description: typing.Optional[str] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

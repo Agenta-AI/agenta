@@ -5,7 +5,7 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .harness import Harness
+from .harness_kind import HarnessKind
 from .reference import Reference
 
 
@@ -21,7 +21,7 @@ class SessionTurn(UniversalBaseModel):
     session_id: str
     stream_id: str
     turn_index: int
-    harness: Harness
+    harness_kind: HarnessKind
     agent_session_id: typing.Optional[str] = None
     sandbox_id: typing.Optional[str] = None
     references: typing.Optional[typing.List[Reference]] = None

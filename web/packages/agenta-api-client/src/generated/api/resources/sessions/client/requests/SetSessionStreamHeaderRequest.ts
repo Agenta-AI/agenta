@@ -9,7 +9,7 @@ import type * as AgentaApi from "../../../../index.js";
  *         body: {}
  *     }
  */
-export interface SetStateRequest {
+export interface SetSessionStreamHeaderRequest {
     session_id: string;
-    body: AgentaApi.SessionStateUpsertRequest;
+    body: AgentaApi.SessionStreamHeaderEdit;
 }

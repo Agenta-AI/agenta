@@ -17,7 +17,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
-from oss.src.core.sessions.turns.dtos import Harness, SessionTurn, SessionTurnQuery
+from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
 from oss.src.core.shared.dtos import Reference, Windowing
 
 
@@ -64,25 +64,6 @@ class SessionStreamResponse(BaseModel):
 class SessionStreamsResponse(BaseModel):
     count: int
     streams: List[SessionStream]
-
-
-# ---------------------------------------------------------------------------
-# States request/response models
-#
-# /sessions/states/ is the session header surface: it reads/writes the merged
-# session_streams row's name/description (S8). Rename is a full-PUT edit, not a
-# bespoke verb.
-# ---------------------------------------------------------------------------
-
-
-class SessionStateResponse(BaseModel):
-    count: int = Field(default=0)
-    session_state: Optional[SessionStream] = Field(default=None)
-
-
-class SessionStateUpsertRequest(BaseModel):
-    name: Optional[str] = Field(default=None, description="Rename target.")
-    description: Optional[str] = Field(default=None, description="Rename target.")
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +165,7 @@ class SessionTurnAppendRequest(BaseModel):
     session_id: str
     stream_id: UUID
     turn_index: int
-    harness: Harness
+    harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
     references: Optional[List[Reference]] = None

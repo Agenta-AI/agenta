@@ -15,7 +15,6 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
-    sessionStateResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
@@ -26,7 +25,6 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
-    type SessionState,
     type SessionStream,
     type SessionStreamCommandResponse,
 } from "../core/schema"
@@ -86,32 +84,6 @@ export interface SessionScopedParams {
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
-}
-
-/**
- * Read a session's durable state: the opaque SDK `SessionRecord` + the `sandbox_id` resume
- * pointer. Read-only from the FE — the record is owned and written by the runner/SDK, so the
- * FE never calls `setState(data)` (it would clobber the runner's record). Returns `null` when
- * absent (no run has persisted state yet) or on failure.
- */
-export async function getSessionState({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-}: SessionScopedParams): Promise<SessionState | null> {
-    if (!projectId || !sessionId) return null
-
-    const data = await callFern("[getSessionState]", () =>
-        getSessionsClient().getState(
-            {session_id: sessionId},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    const validated = safeParseWithLogging(sessionStateResponseSchema, data, "[getSessionState]")
-    return validated?.session_state ?? null
 }
 
 export interface QueryInteractionsParams extends SessionScopedParams {

@@ -50,7 +50,7 @@ describe("fetchLatestSessionTurn", () => {
     });
     assert.equal(url, "http://api:8000/sessions/turns/query");
     assert.deepEqual(body, {
-      query: { session_id: "sess-1", harness: "claude" },
+      query: { session_id: "sess-1", harness_kind: "claude" },
       windowing: { limit: 1, order: "descending" },
     });
   });
@@ -78,7 +78,7 @@ describe("fetchLatestSessionTurn", () => {
           count: 1,
           turns: [
             {
-              harness: "claude",
+              harness_kind: "claude",
               agent_session_id: "agent-1",
               sandbox_id: "sbx-1",
               turn_index: 3,
@@ -88,7 +88,7 @@ describe("fetchLatestSessionTurn", () => {
       log: SILENT,
     });
     assert.deepEqual(turn, {
-      harness: "claude",
+      harness_kind: "claude",
       agent_session_id: "agent-1",
       sandbox_id: "sbx-1",
       turn_index: 3,
@@ -128,7 +128,7 @@ describe("hydrateHarnessSessionFromDurable", () => {
         okResponse({
           turns: [
             {
-              harness: "claude",
+              harness_kind: "claude",
               agent_session_id: "agent-restored",
               turn_index: 2,
             },
@@ -153,7 +153,7 @@ describe("hydrateHarnessSessionFromDurable", () => {
         okResponse({
           turns: [
             {
-              harness: "claude",
+              harness_kind: "claude",
               agent_session_id: "agent-OLD",
               turn_index: 0,
             },
@@ -216,29 +216,29 @@ describe("hydrateHarnessSessionFromDurable", () => {
     const store = new SessionContinuityStore();
     const fetchImpl = (async (url: string, init?: RequestInit) => {
       const body = JSON.parse(init!.body as string) as {
-        query: { harness?: string };
+        query: { harness_kind?: string };
       };
-      if (body.query.harness === "claude") {
+      if (body.query.harness_kind === "claude") {
         return okResponse({
           turns: [
             {
-              harness: "claude",
+              harness_kind: "claude",
               agent_session_id: "agent-claude",
               turn_index: 1,
             },
           ],
         });
       }
-      if (body.query.harness === "pi") {
+      if (body.query.harness_kind === "pi") {
         return okResponse({
           turns: [
-            { harness: "pi", agent_session_id: "agent-pi", turn_index: 2 },
+            { harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 },
           ],
         });
       }
       // overall latest (no harness filter): pi's turn 2 wins.
       return okResponse({
-        turns: [{ harness: "pi", agent_session_id: "agent-pi", turn_index: 2 }],
+        turns: [{ harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 }],
       });
     }) as unknown as typeof fetch;
 
@@ -275,15 +275,15 @@ describe("hydrateHarnessSessionFromDurable", () => {
       authorization: "ApiKey abc",
       fetchImpl: (async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init!.body as string) as {
-          query: { harness?: string };
+          query: { harness_kind?: string };
         };
-        if (body.query.harness === "codex") {
+        if (body.query.harness_kind === "codex") {
           return okResponse({ turns: [] });
         }
         return okResponse({
           turns: [
             {
-              harness: "claude",
+              harness_kind: "claude",
               agent_session_id: "agent-claude",
               turn_index: 4,
             },
@@ -338,7 +338,7 @@ describe("appendSessionTurn", () => {
       session_id: "sess-1",
       stream_id: "stream-1",
       turn_index: 3,
-      harness: "claude",
+      harness_kind: "claude",
       agent_session_id: "agent-new",
     });
   });

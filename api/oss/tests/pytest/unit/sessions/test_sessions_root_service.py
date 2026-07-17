@@ -22,7 +22,7 @@ import pytest
 from oss.src.core.sessions.dtos import SessionQuery
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import SessionStream
-from oss.src.core.sessions.turns.dtos import Harness, SessionTurn
+from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn
 from oss.src.core.shared.dtos import Reference, Windowing
 
 
@@ -47,7 +47,7 @@ def _turn(session_id: str, references: Optional[List[Reference]] = None) -> Sess
         session_id=session_id,
         stream_id=uuid4(),
         turn_index=0,
-        harness=Harness.pi_core,
+        harness_kind=HarnessKind.PI,
         references=references,
     )
 

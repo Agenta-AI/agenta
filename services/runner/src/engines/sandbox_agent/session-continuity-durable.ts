@@ -19,7 +19,7 @@ function defaultLog(msg: string): void {
 export type TurnReference = { id?: string; slug?: string; version?: string };
 
 export interface WireSessionTurn {
-  harness?: string;
+  harness_kind?: string;
   agent_session_id?: string;
   sandbox_id?: string;
   turn_index?: number;
@@ -73,7 +73,7 @@ export async function fetchLatestSessionTurn(
       body: JSON.stringify({
         query: {
           session_id: sessionId,
-          ...(harness ? { harness } : {}),
+          ...(harness ? { harness_kind: harness } : {}),
         },
         windowing: { limit: 1, order: "descending" },
       }),
@@ -127,7 +127,7 @@ export async function hydrateHarnessSessionFromDurable(
   if (store.get(sessionId, harness)) return;
 
   const latestForHarness =
-    latestOverall?.harness === harness
+    latestOverall?.harness_kind === harness
       ? latestOverall
       : await fetchLatestSessionTurn(sessionId, harness, deps);
   if (
@@ -175,7 +175,7 @@ export async function appendSessionTurn(
         session_id: sessionId,
         stream_id: turn.streamId,
         turn_index: turnIndex,
-        harness,
+        harness_kind: harness,
         ...(turn.agentSessionId
           ? { agent_session_id: turn.agentSessionId }
           : {}),

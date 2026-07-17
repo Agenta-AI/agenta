@@ -1,5 +1,4 @@
-"""WP2 (S1/S8): session_states merged into session_streams — the header
-(name/description) now lives on the stream row.
+"""WP2 (S1/S8): the session header (name/description) lives on the stream row.
 
 Covers:
   - the header edit (rename) persists through the DAO mapping and round-trips

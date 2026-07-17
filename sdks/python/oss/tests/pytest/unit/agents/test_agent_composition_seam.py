@@ -12,7 +12,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
-from agenta.sdk.agents import AgentResult, HarnessType
+from agenta.sdk.agents import AgentResult, HarnessKind
 from agenta.sdk.agents.connections import (
     ConnectionResolutionError,
     ResolvedConnection,
@@ -77,7 +77,7 @@ class _FakeSession(Session):
 
 class _FakeBackend(Backend):
     supported_harnesses = frozenset(
-        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
     )
 
     def __init__(self, *, output: str = "hi") -> None:

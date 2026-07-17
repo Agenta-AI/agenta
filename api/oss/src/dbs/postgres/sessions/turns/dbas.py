@@ -23,8 +23,8 @@ class SessionTurnDBA(
 
     turn_index = Column(Integer, nullable=False)
 
-    # Enum-validated at the DTO (Harness); plain varchar column here.
-    harness = Column(String, nullable=False)
+    # Enum-validated at the DTO (HarnessKind); plain varchar column here.
+    harness_kind = Column(String, nullable=False)
 
     agent_session_id = Column(String, nullable=True)
     sandbox_id = Column(String, nullable=True)
