@@ -16,7 +16,11 @@ import type {EntitySelectionAdapter, EntitySelectionResult} from "../../types"
  * EntityPicker rendering variant
  */
 export type EntityPickerVariant =
-    "cascading" | "breadcrumb" | "list-popover" | "cascader" | "popover-cascader"
+    | "cascading"
+    | "breadcrumb"
+    | "list-popover"
+    | "cascader"
+    | "popover-cascader"
 
 // ============================================================================
 // BASE PROPS

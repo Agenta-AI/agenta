@@ -1565,7 +1565,8 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
                 let flatSchema = localData.data?.schemas?.parameters as
-                    Record<string, unknown> | undefined
+                    | Record<string, unknown>
+                    | undefined
 
                 // Ephemeral evaluator workflows (e.g. opened from a trace span) don't
                 // carry their own parameter schema. Reactively seed it from the builtin
@@ -1627,7 +1628,8 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
             // to drop hidden keys from the rendered data again.
             if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
                 const draftParams = localMerged.data?.parameters as
-                    Record<string, unknown> | undefined
+                    | Record<string, unknown>
+                    | undefined
                 const reNestSchema =
                     flatSchemaForReNest ??
                     (localMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
@@ -1666,7 +1668,8 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         if (merged.flags?.is_evaluator) {
             const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
             const flatSchema = merged.data?.schemas?.parameters as
-                Record<string, unknown> | undefined
+                | Record<string, unknown>
+                | undefined
 
             flatSchemaForReNest = flatSchema
 
@@ -1750,7 +1753,8 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
                 let flatSchema = localData.data?.schemas?.parameters as
-                    Record<string, unknown> | undefined
+                    | Record<string, unknown>
+                    | undefined
 
                 // Ephemeral evaluator workflows (e.g. opened from a trace span) don't
                 // carry their own parameter schema. Reactively seed it from the builtin
@@ -1812,7 +1816,8 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             // to drop hidden keys from the rendered data again.
             if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
                 const draftParams = localMerged.data?.parameters as
-                    Record<string, unknown> | undefined
+                    | Record<string, unknown>
+                    | undefined
                 const reNestSchema =
                     flatSchemaForReNest ??
                     (localMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
@@ -1964,7 +1969,8 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         if (merged.flags?.is_evaluator) {
             const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
             const flatSchema = merged.data?.schemas?.parameters as
-                Record<string, unknown> | undefined
+                | Record<string, unknown>
+                | undefined
 
             flatSchemaForReNest = flatSchema
 
@@ -2151,7 +2157,8 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         // side is nested (nestEvaluatorSchema in workflowBaseEntityAtomFamily).
         // Nest the server schema too so the whole-data diff is like-for-like.
         const rawServerSchemaParams = serverData.data?.schemas?.parameters as
-            Record<string, unknown> | undefined
+            | Record<string, unknown>
+            | undefined
         const serverSchemas =
             rawServerSchemaParams && serverData.flags?.is_evaluator
                 ? {
