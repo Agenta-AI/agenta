@@ -18,6 +18,7 @@ from oss.src.core.tracing.utils.trees import (
     infer_and_propagate_trace_type_by_trace,
     parse_span_dtos_to_span_idx,
     parse_span_idx_to_span_id_tree,
+    promote_identity_by_trace,
     trace_map_to_traces,
     traces_to_trace_map,
 )
@@ -43,6 +44,9 @@ def _span(
     errors: int = 0,
     start_offset_s: int = 0,
     span_type: SpanType = SpanType.TASK,
+    session_id: str | None = None,
+    user_id: str | None = None,
+    agent_id: str | None = None,
 ) -> OTelFlatSpan:
     total_tokens = prompt_tokens + completion_tokens
     total_cost = prompt_cost + completion_cost
@@ -65,6 +69,18 @@ def _span(
     if errors:
         metrics["errors"] = {"incremental": errors}
 
+    ag_attributes = {
+        "data": {"parameters": {"model": "gpt-4o-mini"}},
+        "meta": {"response": {"model": "gpt-4o-mini"}},
+        "metrics": metrics,
+    }
+    if session_id is not None:
+        ag_attributes["session"] = {"id": session_id}
+    if user_id is not None:
+        ag_attributes["user"] = {"id": user_id}
+    if agent_id is not None:
+        ag_attributes["agent"] = {"id": agent_id}
+
     return OTelFlatSpan(
         trace_id=trace_id,
         span_id=span_id,
@@ -73,13 +89,7 @@ def _span(
         span_type=span_type,
         start_time=datetime(2024, 1, 1, 0, 0, start_offset_s, tzinfo=timezone.utc),
         links=links,
-        attributes={
-            "ag": {
-                "data": {"parameters": {"model": "gpt-4o-mini"}},
-                "meta": {"response": {"model": "gpt-4o-mini"}},
-                "metrics": metrics,
-            }
-        },
+        attributes={"ag": ag_attributes},
     )
 
 
@@ -365,3 +375,59 @@ def test_trace_map_to_traces_and_back_and_get_span_helpers():
     assert get_span_from_trace(trace, ROOT_UUID) is not None
     assert get_span_from_trace(trace, CHILD_A_UUID) is not None
     assert get_span_from_trace(trace, str(UUID(int=1))) is None
+
+
+def test_promote_identity_by_trace_lifts_root_only():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        session_id="sess-1",
+        user_id="user-1",
+        agent_id="agent-1",
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child",
+        start_offset_s=1,
+    )
+
+    out = promote_identity_by_trace([root, child])
+    out_idx = {span.span_id: span for span in out}
+
+    assert out_idx[ROOT_UUID].session_id == "sess-1"
+    assert out_idx[ROOT_UUID].user_id == "user-1"
+    assert out_idx[ROOT_UUID].agent_id == "agent-1"
+
+    assert out_idx[CHILD_A_UUID].session_id is None
+    assert out_idx[CHILD_A_UUID].user_id is None
+    assert out_idx[CHILD_A_UUID].agent_id is None
+
+
+def test_promote_identity_by_trace_is_per_trace_and_ignores_missing_attrs():
+    trace_a = "trace-a"
+    trace_b = "trace-b"
+
+    root_a = _span(
+        span_id="root-a",
+        span_name="root",
+        trace_id=trace_a,
+        session_id="sess-a",
+    )
+    root_b = _span(
+        span_id="root-b",
+        span_name="root",
+        trace_id=trace_b,
+    )
+
+    out = promote_identity_by_trace([root_a, root_b])
+    out_idx = {span.span_id: span for span in out}
+
+    assert out_idx["root-a"].session_id == "sess-a"
+    assert out_idx["root-b"].session_id is None
+    assert out_idx["root-b"].user_id is None
+    assert out_idx["root-b"].agent_id is None
+
+
+def test_promote_identity_by_trace_empty_list_is_noop():
+    assert promote_identity_by_trace([]) == []
