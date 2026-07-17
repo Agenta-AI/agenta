@@ -6,6 +6,7 @@ import {
   messageTranscript,
   TOOL_RESULT_RENDER_MAX_CHARS,
 } from "../../src/engines/sandbox_agent/transcript.ts";
+import { TOOL_NOT_EXECUTED_PAUSED } from "../../src/tracing/otel.ts";
 import type { AgentRunRequest, ContentBlock } from "../../src/protocol.ts";
 
 const COMMIT_TOOL = "mcp__agenta-tools__commit_revision";
@@ -64,7 +65,10 @@ describe("messageTranscript", () => {
 
     assert.match(transcript, /APPROVED mcp__agenta-tools__commit_revision/);
     assert.match(transcript, /NOT run yet/);
-    assert.match(transcript, /Call the tool again with the same arguments now to execute it/);
+    assert.match(
+      transcript,
+      /Call the tool again with the same arguments now to execute it/,
+    );
     assert.doesNotMatch(transcript, /returned: \{"approved":true\}/);
   });
 
@@ -102,6 +106,34 @@ describe("messageTranscript", () => {
 
     assert.match(transcript, /APPROVED approval_status/);
     assert.match(transcript, /NOT run yet/);
+  });
+
+  // The parallel-approval bug: when the model fires several gated tool calls at once, the runner
+  // pauses on ONE and force-settles the siblings with `TOOL_NOT_EXECUTED_PAUSED` (isError=true).
+  // On the generic path that renders as `[<tool> error: …]`, which the model reads as a refusal —
+  // so it abandons the call instead of re-issuing it, and the second approval never surfaces.
+  it("renders a deferred (paused-sibling) result as a retry nudge, never as an error", () => {
+    const transcript = messageTranscript([
+      {
+        type: "tool_result",
+        toolCallId: "call-2",
+        toolName: "Read File",
+        output: TOOL_NOT_EXECUTED_PAUSED,
+        isError: true,
+      },
+    ]);
+
+    // The model must be told to re-issue the call, in the same "call it again now" language an
+    // approved-but-unexecuted call already gets.
+    assert.match(transcript, /Read File was NOT run/);
+    assert.match(transcript, /skipped, not denied/);
+    assert.match(
+      transcript,
+      /Call Read File again with the same arguments now to run it/,
+    );
+    // The load-bearing regression guard: the literal word the model was reading as a refusal.
+    assert.doesNotMatch(transcript, /Read File error:/);
+    assert.doesNotMatch(transcript, /DEFERRED_NOT_EXECUTED/);
   });
 });
 
@@ -202,7 +234,8 @@ describe("buildTurnText history window", () => {
 
 describe("buildTurnText approval-resume closing frame", () => {
   it("closes with the resume instruction when the newest content is an approved pending call", () => {
-    const staleCommand = "search for tools and add them if needed use the skill";
+    const staleCommand =
+      "search for tools and add them if needed use the skill";
     const request: AgentRunRequest = {
       messages: [
         { role: "user", content: staleCommand },
@@ -217,8 +250,14 @@ describe("buildTurnText approval-resume closing frame", () => {
     assert.doesNotMatch(text, /The user now says/);
     // The stale command stays in the replayed history, not in the closing frame.
     const closing = text.slice(text.lastIndexOf("\n\n"));
-    assert.ok(!closing.includes(staleCommand), "stale command is out of the frame");
-    assert.ok(text.includes(`user: ${staleCommand}`), "stale command stays in history");
+    assert.ok(
+      !closing.includes(staleCommand),
+      "stale command is out of the frame",
+    );
+    assert.ok(
+      text.includes(`user: ${staleCommand}`),
+      "stale command stays in history",
+    );
   });
 
   it("keeps the resume frame when the approval envelope rides a trailing user turn", () => {
@@ -252,7 +291,10 @@ describe("buildTurnText approval-resume closing frame", () => {
       { role: "assistant", content: toolApprovalContent(true) },
     ]);
 
-    assert.match(text, /Continue the conversation\. The user now says:\ncontinue/);
+    assert.match(
+      text,
+      /Continue the conversation\. The user now says:\ncontinue/,
+    );
     assert.doesNotMatch(text, /responded to the pending approval above/);
   });
 

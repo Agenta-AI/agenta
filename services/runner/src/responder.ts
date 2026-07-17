@@ -484,11 +484,15 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
 }
 
 /**
- * A sibling force-settle result: the turn paused on another interaction, so this client tool was
- * never executed and carries the `DEFERRED_NOT_EXECUTED` sentinel. It is not a browser output — the
+ * A sibling force-settle result: the turn paused on another interaction, so this tool call was
+ * never executed and carries the `DEFERRED_NOT_EXECUTED` sentinel. It is not a real output — the
  * model is meant to re-issue the same call, which must re-park rather than resolve against this.
+ *
+ * Exported because the cold-replay transcript renderer (`messageTranscript`) must recognise the same
+ * block: left on the generic tool-result path it renders as `[<tool> error: …]`, which the model
+ * reads as a denial and gives up instead of retrying — the parallel-approval bug.
  */
-function isDeferredNotExecuted(block: ContentBlock): boolean {
+export function isDeferredNotExecuted(block: ContentBlock): boolean {
   return (
     typeof block.output === "string" &&
     block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
