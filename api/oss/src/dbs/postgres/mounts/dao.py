@@ -247,6 +247,9 @@ class MountsDAO(MountsDAOInterface):
                 if mount_query.session_id is not None:
                     stmt = stmt.where(MountDBE.session_id == mount_query.session_id)
 
+                if mount_query.agent_id is not None:
+                    stmt = stmt.where(MountDBE.agent_id == mount_query.agent_id)
+
             else:
                 stmt = stmt.where(MountDBE.deleted_at.is_(None))
 

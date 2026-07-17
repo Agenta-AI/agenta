@@ -298,12 +298,14 @@ class MountsRouter:
         *,
         body: MountQueryRequest,
         session_id: Optional[str] = Query(default=None),
+        agent_id: Optional[str] = Query(default=None),
         include_archived: bool = Query(default=False),
     ) -> MountsResponse:
         await self._check(request, Permission.VIEW_MOUNTS)
 
         mount_query = merge_mount_query(
             session_id=session_id,
+            agent_id=agent_id,
             include_archived=include_archived,
             body_query=body.mount,
         )
