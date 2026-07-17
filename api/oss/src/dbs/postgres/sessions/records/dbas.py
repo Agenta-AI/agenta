@@ -4,6 +4,22 @@ from sqlalchemy import Column, UUID, TIMESTAMP, String, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 
 
+class RecordTurnSpanDBA:
+    __abstract__ = True
+
+    # Plain columns, no FK (cross-DB: turns live in the core DB, spans elsewhere in the
+    # tracing DB). Forward-fill only — the tracing DB is never backfilled/data-migrated, so
+    # both stay null on rows written before this column existed.
+    turn_id = Column(
+        String,
+        nullable=True,
+    )
+    span_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
+
 class RecordDBA:
     __abstract__ = True
 
