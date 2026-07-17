@@ -184,6 +184,7 @@ from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.service import SessionsService
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
@@ -1038,6 +1039,13 @@ ai_services = AIServicesRouter(
 # (name/description) — the /sessions/states/ router now reads/writes the merged
 # stream row via streams_service. Kept present-but-unused pending the WPI drop.
 
+sessions_service = SessionsService(
+    streams_service=session_streams_service,
+    turns_service=session_turns_service,
+    interactions_service=interactions_service,
+    mounts_service=mounts_service,
+)
+
 sessions = SessionsRouter(
     streams_service=session_streams_service,
     records_service=records_service,
@@ -1046,6 +1054,7 @@ sessions = SessionsRouter(
     session_mounts_service=session_mounts_service,
     mounts_service=mounts_service,
     turns_service=session_turns_service,
+    sessions_service=sessions_service,
     respond_task=_interactions_worker.respond_interaction,
 )
 
@@ -1498,6 +1507,11 @@ app.include_router(
 app.include_router(
     router=sessions.states.router,
     prefix="/sessions",
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=sessions.root.router,
     tags=["Sessions"],
 )
 

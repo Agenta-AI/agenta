@@ -23,6 +23,26 @@ from oss.src.core.shared.dtos import Reference, Windowing
 
 
 # ---------------------------------------------------------------------------
+# Root session-level request/response models (query/delete/archive/unarchive)
+# ---------------------------------------------------------------------------
+
+
+class SessionQueryRequest(BaseModel):
+    references: Optional[List[Reference]] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionsResponse(BaseModel):
+    count: int = 0
+    sessions: List[SessionStream] = Field(default_factory=list)
+
+
+class SessionResponse(BaseModel):
+    count: int = 0
+    session: Optional[SessionStream] = None
+
+
+# ---------------------------------------------------------------------------
 # Streams request/response models
 # ---------------------------------------------------------------------------
 
