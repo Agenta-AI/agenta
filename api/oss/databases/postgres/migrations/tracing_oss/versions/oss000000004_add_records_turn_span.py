@@ -1,7 +1,7 @@
 """add_records_turn_span
 
-Revision ID: oss000000003
-Revises: oss000000002
+Revision ID: oss000000004
+Revises: oss000000003
 Create Date: 2026-07-17 12:16:14.000000
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision: str = "oss000000003"
-down_revision: Union[str, None] = "oss000000002"
+revision: str = "oss000000004"
+down_revision: Union[str, None] = "oss000000003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
