@@ -726,7 +726,8 @@ function PlaygroundConfigSection({
     )
 
     const codeRuntime = (siblingGroups.code as Record<string, unknown> | undefined)?.runtime as
-        string | undefined
+        | string
+        | undefined
     const handleRuntimeChange = useCallback(
         (runtime: string) => {
             dispatchUpdate(revisionId, {__siblingData: {runtime}})
@@ -1107,7 +1108,8 @@ function PlaygroundConfigSection({
 
     const fallbackPolicyOptions = useMemo(() => {
         const schema = promptModelInfo?.promptSchemaProps.fallback_policy as
-            {enum?: unknown[]; "x-ag-metadata"?: Record<string, {description?: string}>} | undefined
+            | {enum?: unknown[]; "x-ag-metadata"?: Record<string, {description?: string}>}
+            | undefined
         const metadata = schema?.["x-ag-metadata"] ?? {}
         const enumValues = schema?.enum
         const values =
@@ -1123,7 +1125,8 @@ function PlaygroundConfigSection({
 
     const retryPolicyOptions = useMemo(() => {
         const schema = promptModelInfo?.promptSchemaProps.retry_policy as
-            {enum?: unknown[]; "x-ag-metadata"?: Record<string, {description?: string}>} | undefined
+            | {enum?: unknown[]; "x-ag-metadata"?: Record<string, {description?: string}>}
+            | undefined
         const metadata = schema?.["x-ag-metadata"] ?? {}
         const enumValues = schema?.enum
         const values =
@@ -1458,7 +1461,9 @@ function PlaygroundConfigSection({
                                                   fallbackPolicy={
                                                       (promptModelInfo?.promptValue
                                                           .fallback_policy as
-                                                          string | null | undefined) ?? null
+                                                          | string
+                                                          | null
+                                                          | undefined) ?? null
                                                   }
                                                   fallbackConfigs={fallbackConfigs}
                                                   fallbackConfigKeys={fallbackConfigKeys}
@@ -1466,12 +1471,14 @@ function PlaygroundConfigSection({
                                                   fallbackPolicySchema={
                                                       promptModelInfo?.promptSchemaProps
                                                           .fallback_policy as
-                                                          EntitySchemaProperty | undefined
+                                                          | EntitySchemaProperty
+                                                          | undefined
                                                   }
                                                   fallbackConfigsSchema={
                                                       promptModelInfo?.promptSchemaProps
                                                           .fallback_configs as
-                                                          EntitySchemaProperty | undefined
+                                                          | EntitySchemaProperty
+                                                          | undefined
                                                   }
                                                   onPolicyChange={handleFallbackPolicyChange}
                                                   onAddFallbackModel={handleAddFallbackModel}
@@ -1488,18 +1495,22 @@ function PlaygroundConfigSection({
                                               <RetryConfigTab
                                                   retryPolicy={
                                                       (promptModelInfo?.promptValue.retry_policy as
-                                                          string | null | undefined) ?? null
+                                                          | string
+                                                          | null
+                                                          | undefined) ?? null
                                                   }
                                                   retryPolicyOptions={retryPolicyOptions}
                                                   retryPolicySchema={
                                                       promptModelInfo?.promptSchemaProps
                                                           .retry_policy as
-                                                          EntitySchemaProperty | undefined
+                                                          | EntitySchemaProperty
+                                                          | undefined
                                                   }
                                                   retryConfigSchema={
                                                       promptModelInfo?.promptSchemaProps
                                                           .retry_config as
-                                                          EntitySchemaProperty | undefined
+                                                          | EntitySchemaProperty
+                                                          | undefined
                                                   }
                                                   maxRetries={effectiveRetryConfig.max_retries}
                                                   baseDelay={effectiveRetryConfig.base_delay}

@@ -2079,7 +2079,8 @@ const rowExecutionStaleStateAtomFamily = atomFamily(
             const agDataInputs = traceSummary.agData?.inputs as Record<string, unknown> | undefined
             // The actual input values are nested under another "inputs" key
             const traceInputs = (agDataInputs?.inputs ?? agDataInputs) as
-                Record<string, unknown> | undefined
+                | Record<string, unknown>
+                | undefined
 
             // If no trace inputs available, can't determine staleness
             if (!traceInputs) {

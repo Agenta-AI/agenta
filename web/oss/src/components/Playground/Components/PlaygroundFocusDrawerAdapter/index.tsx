@@ -48,7 +48,8 @@ const PlaygroundFocusDrawerAdapter = () => {
 
     const rowIds = useAtomValue(executionItemController.selectors.generationRowIds) as string[]
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        PlaygroundNode[] | null
+        | PlaygroundNode[]
+        | null
     const loadableId = useAtomValue(playgroundController.selectors.loadableId()) as string
     const loadableMode = useAtomValue(
         useMemo(() => loadableController.selectors.mode(loadableId), [loadableId]),

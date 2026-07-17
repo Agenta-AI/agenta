@@ -348,14 +348,18 @@ export function createAdapterFromRelations<
         getPlaceholderNode: rootLevel.getPlaceholderNode,
         getIcon: rootLevel.getIcon as ((entity: unknown) => ReactNode) | undefined,
         getDescription: rootLevel.getDescription as
-            ((entity: unknown) => string | undefined) | undefined,
+            | ((entity: unknown) => string | undefined)
+            | undefined,
         getSuffixNode: rootLevel.getSuffixNode as ((entity: unknown) => ReactNode) | undefined,
         hasChildren: rootLevel.hasChildren as boolean | ((entity: unknown) => boolean) | undefined,
         isSelectable: rootLevel.isSelectable as
-            boolean | ((entity: unknown) => boolean) | undefined,
+            | boolean
+            | ((entity: unknown) => boolean)
+            | undefined,
         onBeforeLoad: rootLevel.onBeforeLoad,
         getGroupKey: rootLevel.getGroupKey as
-            ((entity: unknown) => string | null | undefined) | undefined,
+            | ((entity: unknown) => string | null | undefined)
+            | undefined,
         getGroupLabel: rootLevel.getGroupLabel,
         buildTabs: rootLevel.buildTabs,
     })
@@ -395,7 +399,8 @@ export function createAdapterFromRelations<
             autoSelectSingle:
                 childConfig.overrides?.autoSelectSingle ?? relation?.selection?.autoSelectSingle,
             listAtomFamily: relation?.listAtomFamily as
-                ((parentId: string) => Atom<ListQueryState<unknown>>) | undefined,
+                | ((parentId: string) => Atom<ListQueryState<unknown>>)
+                | undefined,
             getId: childConfig.overrides?.getId,
             getLabel: childConfig.overrides?.getLabel,
             getLabelNode: childConfig.overrides?.getLabelNode,

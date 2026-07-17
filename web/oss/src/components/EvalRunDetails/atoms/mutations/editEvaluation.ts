@@ -136,7 +136,9 @@ const readRunStatusAuthoritative = async (
     invalidatePreviewRunCache(projectId, runId)
     try {
         const raw = (await getPreviewRunBatcher()({projectId, runId})) as
-            {status?: unknown} | null | undefined
+            | {status?: unknown}
+            | null
+            | undefined
         const status = raw?.status
         if (!status) return null
         return typeof status === "string" ? status : ((status as {value?: string}).value ?? null)

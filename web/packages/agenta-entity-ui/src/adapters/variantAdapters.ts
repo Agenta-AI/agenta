@@ -181,7 +181,8 @@ export const variantModalAdapter: EntityModalAdapter<Workflow> = createAndRegist
         // Check if it's a local draft
         if (entity.id && isLocalDraftId(entity.id)) {
             const sourceRevision = (entity as Record<string, unknown>)._sourceRevision as
-                number | null
+                | number
+                | null
             return formatLocalDraftLabel(sourceRevision)
         }
 

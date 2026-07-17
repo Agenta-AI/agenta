@@ -1,7 +1,11 @@
 import type {FilterValue} from "@/oss/lib/Types"
 
 type ReferenceCategory =
-    "reference" | "application" | "evaluator" | "application_variant" | "environment"
+    | "reference"
+    | "application"
+    | "evaluator"
+    | "application_variant"
+    | "environment"
 
 const REFERENCE_KEY_PREFIX_MAP: Record<Exclude<ReferenceCategory, "reference">, string> = {
     application: "application",

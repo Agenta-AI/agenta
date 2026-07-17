@@ -26,7 +26,12 @@
  */
 
 type ClassValue =
-    string | undefined | null | false | Record<string, boolean | undefined> | ClassValue[]
+    | string
+    | undefined
+    | null
+    | false
+    | Record<string, boolean | undefined>
+    | ClassValue[]
 
 /**
  * Utility function for conditionally joining class names.

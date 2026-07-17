@@ -105,10 +105,9 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
             } else {
                 const parent = path
                     .slice(0, -1)
-                    .reduce<Record<string, unknown>>(
-                        (acc, key) => acc[key] as Record<string, unknown>,
-                        currentRoot,
-                    )
+                    .reduce<
+                        Record<string, unknown>
+                    >((acc, key) => acc[key] as Record<string, unknown>, currentRoot)
                 parent[path[path.length - 1]] = newObj
             }
             // simpler set by path: assign

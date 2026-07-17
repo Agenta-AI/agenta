@@ -33,7 +33,7 @@
     "prepare": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@types/node": "^20.19.43",
+    "@types/node": "^20.19.20",
     "typescript": "^5.9.3"
   }
 }

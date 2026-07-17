@@ -472,7 +472,8 @@ export const linkedSpansAtom = atom<LinkedSpanRow[]>((get) => {
         const spanNode =
             (getNodeById(nodes as any, target.span_id) as TracesWithAnnotations | null) ||
             (flattened.find((item) => item.span_id === target.span_id) as
-                TracesWithAnnotations | undefined)
+                | TracesWithAnnotations
+                | undefined)
 
         if (!spanNode) return rows
 

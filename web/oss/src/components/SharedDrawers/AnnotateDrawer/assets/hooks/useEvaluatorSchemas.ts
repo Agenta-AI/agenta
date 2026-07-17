@@ -78,7 +78,8 @@ export function useEvaluatorSchemas(
                     ...((evaluator?.data as Record<string, unknown> | undefined) ?? {}),
                     schemas: {
                         ...(((evaluator?.data as Record<string, unknown> | undefined)?.schemas as
-                            Record<string, unknown> | undefined) ?? {}),
+                            | Record<string, unknown>
+                            | undefined) ?? {}),
                         ...(outputSchema ? {outputs: outputSchema} : {}),
                     },
                 },
