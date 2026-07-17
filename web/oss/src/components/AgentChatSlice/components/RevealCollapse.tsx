@@ -1,12 +1,14 @@
 import {type ReactNode} from "react"
 
+import {HeightCollapse} from "@agenta/ui"
+
 /**
- * Appear/disappear collapse for chat-composer chrome (connect-model banner, queued messages, HITL dock).
- * Animates height 0↔auto via the grid `0fr`↔`1fr` trick plus opacity — the same idiom the ApprovalDock
- * and the config sections use, so everything that enters/leaves the composer region does so consistently.
- * Content is clipped by `overflow-hidden` while collapsing; `inert` drops the hidden subtree from tab
- * order + a11y. Callers that render nothing when "closed" should latch their last content so it persists
- * through the leave (see `ConnectModelBanner`).
+ * Appear/disappear collapse for chat-composer chrome (connect-model banner, queued messages, HITL
+ * dock). A thin wrapper over the shared {@link HeightCollapse} with `fade` + `inert`, so everything
+ * that enters/leaves the composer region collapses the SAME CSS-native, reduced-motion-proof way as
+ * the config accordion sections and the config-pane notices — one language, no `motion-safe` gate.
+ * Callers that render nothing when "closed" should latch their last content so it persists through
+ * the leave (see `ConnectModelBanner`).
  */
 const RevealCollapse = ({
     open,
@@ -17,14 +19,9 @@ const RevealCollapse = ({
     className?: string
     children: ReactNode
 }) => (
-    <div
-        className={`grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-300 motion-safe:ease-out ${
-            open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-        } ${className ?? ""}`}
-        inert={!open}
-    >
-        <div className="min-h-0 overflow-hidden">{children}</div>
-    </div>
+    <HeightCollapse open={open} className={className} durationMs={240} fade inert>
+        {children}
+    </HeightCollapse>
 )
 
 export default RevealCollapse
