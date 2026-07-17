@@ -11,7 +11,8 @@ import {type FileOrigin} from "./useSessionDrive"
 // Agent-teal, matching the config self-commit indicator.
 export const AGENT_ACCENT = "var(--ag-c-13C2C2, #13c2c2)"
 
-const ORIGIN_TIP: Record<FileOrigin, string> = {
+// Shared so the Files filter tabs (All / Agent / Session) explain the same distinction the tags do.
+export const ORIGIN_TIP: Record<FileOrigin, string> = {
     agent: "Agent file — kept across every conversation with this agent.",
     session: "Session file — only in this conversation's working folder.",
 }

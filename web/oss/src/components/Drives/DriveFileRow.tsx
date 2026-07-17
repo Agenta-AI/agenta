@@ -12,7 +12,7 @@
  * shows as a left bar (row) or a ring (card/tile). Semantic tokens throughout so it sits correctly
  * on any surface. One component so every surface's file items align instead of drifting.
  */
-import {type ReactNode} from "react"
+import {type CSSProperties, type ReactNode} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 
@@ -23,6 +23,16 @@ import {AGENT_ACCENT, OriginTag} from "./OriginTag"
 import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "./useSessionDrive"
 
 export type DriveFileVariant = "row" | "card" | "tile"
+
+// Themed keyboard-focus ring (replaces the browser's default blue outline, which ignores the row's
+// radius and reads harsh). Inset so it stays within the row bounds. Matches the PrettyJsonView rows.
+// Exported so the non-DriveFileRow drive surfaces (tree rows, folder tiles) share one focus look.
+export const FOCUS_RING =
+    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--ant-color-primary)]"
+
+// "Just changed" border: a simple, muted accent border (no glow — it read wrong on dense file
+// rows). List rows also drop their radius (square) so the accent reads as a crisp edge.
+const RECENT_BORDER = `color-mix(in srgb, ${AGENT_ACCENT} 55%, transparent)`
 
 export const DriveFileRow = ({
     path,
@@ -64,8 +74,8 @@ export const DriveFileRow = ({
             <button
                 type="button"
                 onClick={onOpen}
-                className={`flex w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
-                style={recent ? {boxShadow: `inset 2px 0 0 ${AGENT_ACCENT}`} : undefined}
+                className={`flex w-full cursor-pointer items-center gap-2 border-y-0 border-r-0 border-l-2 border-solid border-transparent bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary ${FOCUS_RING} ${recent ? "rounded-none" : "rounded"} ${hidden ? "opacity-60" : ""}`}
+                style={recent ? {borderLeftColor: RECENT_BORDER} : undefined}
             >
                 <span className="shrink-0">{driveFileIcon(path)}</span>
                 {/* Name + tag are one left-aligned group so the tag hugs the filename and the size
@@ -104,8 +114,10 @@ export const DriveFileRow = ({
             {driveFileIcon(path, 22)}
         </div>
     )
-    const recentStyle = recent
-        ? {borderColor: AGENT_ACCENT, boxShadow: `0 0 0 1px ${AGENT_ACCENT}`}
+    // Just-changed on a card/tile: an accent on the LEFT edge only (matching the list rows); the
+    // card keeps its rounded corners and its other borders stay the neutral secondary.
+    const recentStyle: CSSProperties | undefined = recent
+        ? {borderLeftColor: RECENT_BORDER}
         : undefined
     const meta =
         showOrigin || folder || trailing != null ? (
@@ -128,7 +140,7 @@ export const DriveFileRow = ({
             <button
                 type="button"
                 onClick={onOpen}
-                className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
+                className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
                 style={recentStyle}
             >
                 {thumb}
@@ -149,7 +161,7 @@ export const DriveFileRow = ({
         <button
             type="button"
             onClick={onOpen}
-            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-1.5 text-left transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
+            className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-1.5 text-left transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
             style={recentStyle}
         >
             <div className="w-16 shrink-0">{thumb}</div>

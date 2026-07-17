@@ -7,7 +7,7 @@
  * Used by the Build DriveDrawer (two-pane inspector) and the chat Files window's list view — same
  * explorer, "build once, skin twice". Phase 1 is read-only.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
@@ -28,8 +28,9 @@ import {AnimatePresence, motion} from "motion/react"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {DriveFileRow} from "./DriveFileRow"
+import {DriveFileRow, FOCUS_RING} from "./DriveFileRow"
 import {driveFileIcon} from "./driveIcons"
+import {gridArrowKeyDown} from "./driveKeyboard"
 import {resolveDriveFileKind} from "./driveKinds"
 import {downloadMountFile} from "./driveMedia"
 import {
@@ -151,24 +152,29 @@ const TreeRow = ({
                 {node.isFolder ? (
                     <button
                         type="button"
+                        // Not a tab stop — the row's main button is the single stop; arrow keys drive
+                        // the rest. The caret stays mouse-clickable for expand/collapse.
+                        tabIndex={-1}
                         aria-label={isOpen ? "Collapse folder" : "Expand folder"}
                         onClick={(e) => {
                             e.stopPropagation()
                             onToggle(node.path)
                         }}
-                        className="flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText"
+                        className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText ${FOCUS_RING}`}
                     >
                         {isOpen ? <CaretDown size={10} /> : <CaretRight size={10} />}
                     </button>
                 ) : null}
                 <button
                     type="button"
+                    data-tree-main=""
+                    data-path={node.path}
                     onClick={() => {
                         onSelect(node.path)
                         // Reveal a folder's children on select; never collapse here.
                         if (node.isFolder && !isOpen) onToggle(node.path)
                     }}
-                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 pr-1.5 text-left text-xs ${
+                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 pr-1.5 text-left text-xs ${FOCUS_RING} ${
                         node.isFolder ? "" : "pl-4"
                     }`}
                 >
@@ -372,7 +378,7 @@ const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) =
         <button
             type="button"
             onClick={onOpen}
-            className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${hidden ? "opacity-60" : ""}`}
+            className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
         >
             <div className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
                 <FolderSimple size={40} weight="fill" className="text-colorWarning" />
@@ -436,7 +442,10 @@ const FolderView = ({
                         <div className="text-xs font-medium">Empty folder</div>
                     </div>
                 ) : (
-                    <div className="grid auto-rows-min grid-cols-3 gap-2">
+                    <div
+                        className="grid auto-rows-min grid-cols-3 gap-2"
+                        onKeyDown={gridArrowKeyDown}
+                    >
                         {folders.map((n) => (
                             <FolderTile key={n.path} node={n} onOpen={() => onSelect(n.path)} />
                         ))}
@@ -537,6 +546,84 @@ export function DriveExplorer({
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
     const showOrigin = driveHasMixedOrigins(drive.recents)
 
+    // Tree keyboard nav (WAI-ARIA tree pattern): ↑/↓ move focus through the visible rows (the main
+    // buttons, in DOM = visible order); → expands a collapsed folder then steps into it; ← collapses
+    // an open folder else steps to the parent; Home/End jump to the ends. Enter/Space stay the
+    // button's own onClick (select). The caret is tabIndex=-1, so each row is a single tab stop.
+    const onTreeKeyDown = useCallback(
+        (e: KeyboardEvent<HTMLDivElement>) => {
+            const keys = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"]
+            if (!keys.includes(e.key)) return
+            const rows = Array.from(
+                e.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-tree-main]"),
+            )
+            if (!rows.length) return
+            e.preventDefault()
+            const active = document.activeElement
+            const idx = rows.findIndex((r) => r === active)
+            const focusAt = (i: number) => rows[Math.min(Math.max(i, 0), rows.length - 1)]?.focus()
+
+            if (e.key === "Home") return focusAt(0)
+            if (e.key === "End") return focusAt(rows.length - 1)
+            if (e.key === "ArrowDown") return focusAt(idx < 0 ? 0 : idx + 1)
+            if (e.key === "ArrowUp") return focusAt(idx < 0 ? 0 : idx - 1)
+
+            const path = (active as HTMLElement | null)?.getAttribute("data-path")
+            if (path == null) return focusAt(idx < 0 ? 0 : idx)
+            const node = nodeByPath.get(path)
+            const isFolder = node?.isFolder === true
+            const isOpen = expanded.has(path)
+
+            if (e.key === "ArrowRight") {
+                if (isFolder && !isOpen) setExpanded((prev) => new Set(prev).add(path))
+                else if (isFolder && isOpen) focusAt(idx + 1)
+                return
+            }
+            // ArrowLeft: collapse an open folder, else move focus to the parent row.
+            if (isFolder && isOpen) {
+                setExpanded((prev) => {
+                    const next = new Set(prev)
+                    next.delete(path)
+                    return next
+                })
+                return
+            }
+            const parent = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null
+            if (parent) {
+                const pIdx = rows.findIndex((r) => r.getAttribute("data-path") === parent)
+                if (pIdx >= 0) focusAt(pIdx)
+            }
+        },
+        [expanded, nodeByPath, setExpanded],
+    )
+
+    // Initial focus: a <div>'s onKeyDown only fires when something inside is focused, so arrow keys
+    // do nothing until a row is clicked. Once the listing is ready, focus the selected (else first)
+    // row so keyboard nav works immediately on open. Runs once; won't steal focus from a field the
+    // user is typing in (e.g. search) or if focus is already in the tree.
+    const treeRef = useRef<HTMLDivElement>(null)
+    const didInitialFocus = useRef(false)
+    useEffect(() => {
+        if (didInitialFocus.current || drive.isLoading) return
+        const container = treeRef.current
+        if (!container) return
+        const rows = Array.from(
+            container.querySelectorAll<HTMLButtonElement>("button[data-tree-main]"),
+        )
+        if (!rows.length) return
+        const active = document.activeElement as HTMLElement | null
+        if (
+            active &&
+            (/^(input|textarea|select)$/i.test(active.tagName) || container.contains(active))
+        ) {
+            didInitialFocus.current = true
+            return
+        }
+        const target = rows.find((r) => r.getAttribute("data-path") === selectedPath) ?? rows[0]
+        target.focus()
+        didInitialFocus.current = true
+    }, [drive.isLoading, selectedPath])
+
     if (drive.errored) {
         return (
             <div className="w-full p-4">
@@ -600,7 +687,11 @@ export function DriveExplorer({
                         placeholder="Search files"
                         prefix={<MagnifyingGlass size={12} className="text-colorTextQuaternary" />}
                     />
-                    <div className="min-h-0 flex-1 overflow-auto">
+                    <div
+                        ref={treeRef}
+                        className="min-h-0 flex-1 overflow-auto"
+                        onKeyDown={onTreeKeyDown}
+                    >
                         {shownTree.length === 0 ? (
                             <Text type="secondary" className="px-1 !text-[11px]">
                                 No files match.

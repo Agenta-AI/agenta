@@ -13,7 +13,8 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
-import {DriveFileRow} from "./DriveFileRow"
+import {DriveFileRow, FOCUS_RING} from "./DriveFileRow"
+import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
@@ -171,7 +172,7 @@ const ExpandedRail = ({
                     </Tooltip>
                 </div>
             </div>
-            <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1">
+            <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1" onKeyDown={listArrowKeyDown}>
                 {drive.fileCount === 0 ? (
                     <Text type="secondary" className="px-1 pb-1 !text-[11px]">
                         {drive.isLoading ? "Loading…" : "No files yet."}
@@ -224,8 +225,11 @@ const ExpandedRail = ({
                         {drive.fileCount > 5 ? (
                             <button
                                 type="button"
-                                onClick={onOpenFiles}
-                                className="mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline"
+                                onClick={(e) => {
+                                    e.currentTarget.blur()
+                                    onOpenFiles()
+                                }}
+                                className={`mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline ${FOCUS_RING}`}
                             >
                                 View all files
                             </button>

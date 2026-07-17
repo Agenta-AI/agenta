@@ -7,15 +7,17 @@
 import {useMemo, useState} from "react"
 
 import {FolderSimple, ListBullets, MagnifyingGlass, SquaresFour, Tray} from "@phosphor-icons/react"
-import {Input, Segmented, Select, Skeleton, Typography} from "antd"
+import {Input, Segmented, Select, Skeleton, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {DriveExplorer} from "./DriveExplorer"
 import {DriveFileRow} from "./DriveFileRow"
+import {gridArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
+import {ORIGIN_TIP} from "./OriginTag"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {fileOrigin, useSessionDrive, type FileOrigin} from "./useSessionDrive"
@@ -81,8 +83,22 @@ export default function FilesWindow({
                                     onChange={(v) => setOrigin(v as OriginFilter)}
                                     options={[
                                         {value: "all", label: "All"},
-                                        {value: "agent", label: "Agent"},
-                                        {value: "session", label: "Session"},
+                                        {
+                                            value: "agent",
+                                            label: (
+                                                <Tooltip title={ORIGIN_TIP.agent}>
+                                                    <span>Agent</span>
+                                                </Tooltip>
+                                            ),
+                                        },
+                                        {
+                                            value: "session",
+                                            label: (
+                                                <Tooltip title={ORIGIN_TIP.session}>
+                                                    <span>Session</span>
+                                                </Tooltip>
+                                            ),
+                                        },
                                     ]}
                                 />
                             ) : null}
@@ -146,7 +162,10 @@ export default function FilesWindow({
                 </div>
             ) : (
                 <>
-                    <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto p-3">
+                    <div
+                        className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto p-3"
+                        onKeyDown={gridArrowKeyDown}
+                    >
                         <MotionConfig reducedMotion="user">
                             {/* No `layout`/popLayout here: on CSS-grid children they animate via
                                 transforms that ignore grid tracks and overlap tiles. Fade only. */}

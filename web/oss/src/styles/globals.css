@@ -275,12 +275,14 @@ body {
 .ag-row-hover:hover {
     background: var(--ag-surface-row-hover);
 }
-/* Selected list row — a lifted card surface with a brand accent bar on the left. Pairs with a base
-   `border border-solid` on the row (this sets the colour + a 2px accent left border + shadow). */
+/* Selected list row — a lifted card surface with a simple, muted accent bar on the LEFT edge only.
+   Square (no radius) so the bar reads as a crisp full-height edge and never hooks the corner (the
+   old rounded 2px bar did, and read harsh in dark mode). Pairs with a base `border border-solid`. */
 .ag-surface-selected {
     background: var(--ag-surface-card);
-    border-color: var(--ag-surface-card-border);
-    border-left: 2px solid var(--ag-surface-accent);
+    border-color: transparent;
+    border-left: 2px solid color-mix(in srgb, var(--ag-surface-accent) 55%, transparent);
+    border-radius: 0;
     box-shadow: var(--ag-surface-card-shadow);
 }
 
@@ -370,7 +372,8 @@ body {
 }
 .dark .ag-drawer-elevated .ag-drawer-row-selected {
     background: var(--ag-drawer-card);
-    border-left: 2px solid var(--ag-surface-accent);
+    border-left: 2px solid color-mix(in srgb, var(--ag-surface-accent) 55%, transparent);
+    border-radius: 0;
 }
 .dark .ag-drawer-elevated .ag-drawer-tag {
     background: var(--ag-drawer-tag-bg);

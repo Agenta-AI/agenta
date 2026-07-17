@@ -15,6 +15,7 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
 import {DriveDrawer} from "./DriveDrawer"
 import {DriveFileRow} from "./DriveFileRow"
+import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, isHiddenPath, relativeTime} from "./driveTree"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
@@ -67,7 +68,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
             ) : visibleRecents.length > 0 ? (
                 // Files win regardless of session status — the agent's durable folder is per-artifact,
                 // so it shows even before any conversation opens.
-                <div className="flex flex-col">
+                <div className="flex flex-col" onKeyDown={listArrowKeyDown}>
                     <MotionConfig reducedMotion="user">
                         <AnimatePresence mode="popLayout" initial={false}>
                             {visibleRecents.slice(0, 5).map((file) => (

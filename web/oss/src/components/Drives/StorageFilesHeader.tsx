@@ -11,6 +11,7 @@ import {Skeleton} from "antd"
 import {useSetAtom} from "jotai"
 
 import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
+import {FOCUS_RING} from "./DriveFileRow"
 
 export default function StorageFilesHeader({revisionId}: {revisionId?: string | null}) {
     const {drive} = useConfigDrive(revisionId)
@@ -34,8 +35,13 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
     return (
         <button
             type="button"
-            onClick={() => setDrawer({open: true, initialPath: null})}
-            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)]"
+            // Blur on open so the drawer's ESC-close doesn't restore a (keyboard-modality) focus ring
+            // to this trigger. Genuine Tab focus still shows the ring via FOCUS_RING.
+            onClick={(e) => {
+                e.currentTarget.blur()
+                setDrawer({open: true, initialPath: null})
+            }}
+            className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
         >
             {label}
             <ArrowSquareOut size={12} weight="bold" />
