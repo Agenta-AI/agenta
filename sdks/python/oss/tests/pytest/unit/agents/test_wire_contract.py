@@ -566,6 +566,8 @@ def test_result_from_wire_parses_ok(golden):
     # The event with no `type` is dropped on parse; the other three survive.
     assert [e.type for e in result.events] == ["message", "usage", "done"]
     assert result.events[0].data == {"type": "message", "text": "Hello!"}
+    # The terminal `done` event carries the run's trace id (durable-replay link to the trace).
+    assert result.events[2].data.get("traceId") == "trace-abc"
     assert result.usage == {"input": 10, "output": 5, "total": 15, "cost": 0.001}
     assert result.stop_reason == "end_turn"
     assert result.session_id == "sess-42"
