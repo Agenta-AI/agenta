@@ -78,17 +78,25 @@ def mint_session_slug(*, session_id: str, name: str) -> str:
     return f"{_RESERVED_SLUG_PREFIX}session__{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
 
 
+def mint_agent_id(*, artifact_id: str) -> str:
+    """Canonicalize an artifact id: UUID-parsed, rendered lowercase.
+
+    Shared by `mint_agent_slug` (the slug's id segment) and the mount's queryable
+    `agent_id` column, so both derive byte-identically from the same artifact id.
+    """
+    try:
+        return str(UUID(str(artifact_id)))
+    except (ValueError, TypeError, AttributeError) as e:
+        raise MountArtifactIdInvalid(str(artifact_id)) from e
+
+
 def mint_agent_slug(*, artifact_id: str, name: str) -> str:
     """Mint the deterministic reserved slug for an artifact mount.
 
     Artifact IDs are UUID-parsed and rendered lowercase. Sign and query must use
     this same derivation byte-identically so they address the same mount.
     """
-    try:
-        canonical_artifact_id = UUID(str(artifact_id))
-    except (ValueError, TypeError, AttributeError) as e:
-        raise MountArtifactIdInvalid(str(artifact_id)) from e
-
+    canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
     slug_name = slugify_mount_name(name)
     return f"{_RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
@@ -252,9 +260,11 @@ class MountsService:
         )
 
         slug_name = slugify_mount_name(name)
+        canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
         mount_create = MountCreate(
             slug=mint_agent_slug(artifact_id=artifact_id, name=name),
             name=slug_name,
+            agent_id=canonical_artifact_id,
         )
         return await self.mounts_dao.upsert_mount(
             project_id=project_id,
