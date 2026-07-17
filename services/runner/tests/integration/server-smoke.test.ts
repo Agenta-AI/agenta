@@ -47,8 +47,12 @@ const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
 
 async function listen(
   run: RunAgent,
+  token: string | null = TEST_TOKEN,
 ): Promise<{ url: string; close: () => Promise<void> }> {
-  if (!process.env[TOKEN_ENV]) process.env[TOKEN_ENV] = TEST_TOKEN;
+  // Force the configured token unconditionally (`null` = leave the env as the test set it,
+  // for the tokenless/pre-set-secret cases). A loaded dev env sets AGENTA_RUNNER_TOKEN=replace-me;
+  // a "set only if unset" guard would let that leak in and 401 the AUTH-bearer stream test.
+  if (token !== null) process.env[TOKEN_ENV] = token;
   const server = createAgentServer(run);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -96,7 +100,7 @@ describe("server integration — in-process server with fake engine", () => {
 
   it("POST /run returns 401 when AGENTA_RUNNER_TOKEN is set and no bearer supplied", async () => {
     process.env[TOKEN_ENV] = "integration-secret";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
@@ -113,7 +117,7 @@ describe("server integration — in-process server with fake engine", () => {
 
   it("POST /run accepts the correct bearer token", async () => {
     process.env[TOKEN_ENV] = "integration-secret";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
