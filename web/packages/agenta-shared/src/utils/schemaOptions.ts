@@ -22,7 +22,8 @@ export function getOptionsFromSchema<TSchema extends SchemaWithOptions>(
     const choices = schema.choices as Record<string, string[]> | undefined
     if (choices && typeof choices === "object" && !Array.isArray(choices)) {
         const modelMetadata = (schema["x-ag-metadata"] ?? schema["x-model-metadata"]) as
-            Record<string, Record<string, {input: number; output: number}>> | undefined
+            | Record<string, Record<string, {input: number; output: number}>>
+            | undefined
         const grouped = choices
         const options = Object.entries(grouped).map(([group, models]) => ({
             label: group.charAt(0).toUpperCase() + group.slice(1).replace(/_/g, " "),

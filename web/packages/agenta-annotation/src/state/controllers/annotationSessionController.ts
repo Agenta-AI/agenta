@@ -936,27 +936,33 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
             }
 
             dataColumns = [
-                ...inputCols.map((key): ScenarioListColumnDef => ({
-                    columnType: "testcase-input",
-                    key,
-                    title: key,
-                    width: 200,
-                    dataKey: key,
-                })),
-                ...outputCols.map((key): ScenarioListColumnDef => ({
-                    columnType: "testcase-output",
-                    key,
-                    title: key,
-                    width: 200,
-                    dataKey: key,
-                })),
-                ...expectedCols.map((key): ScenarioListColumnDef => ({
-                    columnType: "testcase-expected",
-                    key,
-                    title: key,
-                    width: 200,
-                    dataKey: key,
-                })),
+                ...inputCols.map(
+                    (key): ScenarioListColumnDef => ({
+                        columnType: "testcase-input",
+                        key,
+                        title: key,
+                        width: 200,
+                        dataKey: key,
+                    }),
+                ),
+                ...outputCols.map(
+                    (key): ScenarioListColumnDef => ({
+                        columnType: "testcase-output",
+                        key,
+                        title: key,
+                        width: 200,
+                        dataKey: key,
+                    }),
+                ),
+                ...expectedCols.map(
+                    (key): ScenarioListColumnDef => ({
+                        columnType: "testcase-expected",
+                        key,
+                        title: key,
+                        width: 200,
+                        dataKey: key,
+                    }),
+                ),
             ]
         } else {
             // Fallback: discover from scenario records (works if data is inline)
@@ -973,27 +979,33 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
             const expectedColsF = discovered.filter((c) => c.group === "expected")
 
             dataColumns = [
-                ...inputColsF.map((col): ScenarioListColumnDef => ({
-                    columnType: "testcase-input",
-                    key: col.key,
-                    title: col.title,
-                    width: 200,
-                    dataKey: col.key,
-                })),
-                ...outputColsF.map((col): ScenarioListColumnDef => ({
-                    columnType: "testcase-output",
-                    key: col.key,
-                    title: col.title,
-                    width: 200,
-                    dataKey: col.key,
-                })),
-                ...expectedColsF.map((col): ScenarioListColumnDef => ({
-                    columnType: "testcase-expected",
-                    key: col.key,
-                    title: col.title,
-                    width: 200,
-                    dataKey: col.key,
-                })),
+                ...inputColsF.map(
+                    (col): ScenarioListColumnDef => ({
+                        columnType: "testcase-input",
+                        key: col.key,
+                        title: col.title,
+                        width: 200,
+                        dataKey: col.key,
+                    }),
+                ),
+                ...outputColsF.map(
+                    (col): ScenarioListColumnDef => ({
+                        columnType: "testcase-output",
+                        key: col.key,
+                        title: col.title,
+                        width: 200,
+                        dataKey: col.key,
+                    }),
+                ),
+                ...expectedColsF.map(
+                    (col): ScenarioListColumnDef => ({
+                        columnType: "testcase-expected",
+                        key: col.key,
+                        title: col.title,
+                        width: 200,
+                        dataKey: col.key,
+                    }),
+                ),
             ]
         }
     }

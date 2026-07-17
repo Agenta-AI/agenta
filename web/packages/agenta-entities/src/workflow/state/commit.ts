@@ -72,7 +72,8 @@ function prepareCommitParameters(
     // The playground build-kit overlay lives in read-only additional_context/session atoms. Commit
     // reads only the user-owned revision config here, so platform ops and sandbox elevation stay out.
     const rawParams = stripAgentaMetadataDeep(entity.data?.parameters) as
-        Record<string, unknown> | undefined
+        | Record<string, unknown>
+        | undefined
     if (!rawParams) return undefined
 
     const isEvaluator = entity.flags?.is_evaluator ?? false

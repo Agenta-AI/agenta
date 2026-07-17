@@ -510,7 +510,8 @@ const EvaluationRunsTableActive = ({
     const exportResolveValue = useCallback(
         async ({column, row}: {column: any; row: EvaluationRunTableRow}): Promise<unknown> => {
             const metadata = column?.exportMetadata as
-                EvaluationRunsColumnExportMetadata | undefined
+                | EvaluationRunsColumnExportMetadata
+                | undefined
             if (!metadata || !row?.key) return EXPORT_RESOLVE_SKIP
             if (metadata.type === "reference") {
                 const resolved = resolveReferenceValueFromAtoms(
@@ -546,7 +547,8 @@ const EvaluationRunsTableActive = ({
     const resolveColumnLabel = useCallback(
         ({column}: TableExportColumnContext<EvaluationRunTableRow>) => {
             const metadata = column?.exportMetadata as
-                EvaluationRunsColumnExportMetadata | undefined
+                | EvaluationRunsColumnExportMetadata
+                | undefined
             if (!metadata || metadata.type !== "metric") {
                 return undefined
             }

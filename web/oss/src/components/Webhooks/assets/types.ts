@@ -5,7 +5,13 @@ import type {Rule} from "antd/lib/form"
 import {WebhookProvider} from "@/oss/services/webhooks/types"
 
 export type FieldComponent =
-    "input" | "input.password" | "select" | "multi-select" | "headers" | "auth" | "alert"
+    | "input"
+    | "input.password"
+    | "select"
+    | "multi-select"
+    | "headers"
+    | "auth"
+    | "alert"
 
 export interface FieldDescriptor {
     key: string

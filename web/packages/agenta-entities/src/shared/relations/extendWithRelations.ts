@@ -91,7 +91,8 @@ export function extendWithRelations<
 
         // Create atom family for child data: atoms.{name}(parentId)
         const childMolecule = relation.childMolecule as
-            Molecule<unknown, unknown> | LocalMolecule<unknown>
+            | Molecule<unknown, unknown>
+            | LocalMolecule<unknown>
 
         const dataAtomFamily = atomFamily((parentId: string) =>
             atom((get) => {
@@ -171,7 +172,8 @@ export function createRelationDataAtom<T, TChild>(
     relation: EntityRelation<T, TChild>,
 ): Atom<(TChild | null)[]> {
     const childMolecule = relation.childMolecule as
-        Molecule<TChild, unknown> | LocalMolecule<TChild>
+        | Molecule<TChild, unknown>
+        | LocalMolecule<TChild>
 
     return atom((get) => {
         const parent = get(molecule.atoms.data(parentId))

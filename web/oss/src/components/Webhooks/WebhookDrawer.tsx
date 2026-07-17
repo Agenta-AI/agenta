@@ -197,7 +197,9 @@ const WebhookDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             const {rawValues, payload} = await buildPayloadFromForm()
             let subscriptionId: string | undefined
             let testPayload:
-                WebhookSubscriptionCreateRequest | WebhookSubscriptionEditRequest | undefined
+                | WebhookSubscriptionCreateRequest
+                | WebhookSubscriptionEditRequest
+                | undefined
 
             if (isEdit && initialValues?.id) {
                 await updateWebhook({

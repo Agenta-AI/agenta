@@ -1418,7 +1418,8 @@ const Filters: React.FC<Props> = ({
                                                                 value={
                                                                     item.key && item.key !== ""
                                                                         ? (item.key as
-                                                                              string | number)
+                                                                              | string
+                                                                              | number)
                                                                         : undefined
                                                                 }
                                                                 onChange={(v) =>

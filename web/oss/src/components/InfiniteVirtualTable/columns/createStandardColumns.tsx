@@ -78,7 +78,10 @@ export interface ActionsColumnDef<T> {
 }
 
 export type StandardColumnDef<T = any> =
-    TextColumnDef | DateColumnDef | UserColumnDef<T> | ActionsColumnDef<T>
+    | TextColumnDef
+    | DateColumnDef
+    | UserColumnDef<T>
+    | ActionsColumnDef<T>
 
 /**
  * Create standard table columns from simplified definitions.

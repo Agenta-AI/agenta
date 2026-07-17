@@ -1395,7 +1395,8 @@ const AgentConversation = ({
                     const node = e.target as HTMLElement
                     if (node === el) continue // the viewport itself is not a row — never pin it
                     const check = node.checkVisibility as
-                        ((o?: {contentVisibilityAuto?: boolean}) => boolean) | undefined
+                        | ((o?: {contentVisibilityAuto?: boolean}) => boolean)
+                        | undefined
                     if (check && !check.call(node, {contentVisibilityAuto: true})) continue
                     const h = Math.round(node.getBoundingClientRect().height)
                     if (h > 0) node.style.containIntrinsicSize = `auto ${h}px`

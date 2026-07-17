@@ -21,7 +21,8 @@ export const appCreationInitialStatus: AppCreationStatus = {
 const statusAtom = atomWithImmer<AppCreationStatus>(appCreationInitialStatus)
 
 export type AppCreationStatusUpdate =
-    Partial<AppCreationStatus> | ((prev: AppCreationStatus) => AppCreationStatus)
+    | Partial<AppCreationStatus>
+    | ((prev: AppCreationStatus) => AppCreationStatus)
 
 export const appCreationStatusAtom = atom(
     (get) => get(statusAtom),

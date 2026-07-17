@@ -163,7 +163,8 @@ export async function createEphemeralAppFromTemplate({
     const resolvedName = defaultName ?? `${capitalize(type)}`
 
     const catalogSchemas = template.data?.schemas as
-        Record<string, Record<string, unknown> | null | undefined> | undefined
+        | Record<string, Record<string, unknown> | null | undefined>
+        | undefined
     let schemas: {
         inputs?: Record<string, unknown> | null
         outputs?: Record<string, unknown> | null

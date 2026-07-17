@@ -393,7 +393,8 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                       ...(newTool as Record<string, unknown>),
                       agenta_metadata: {
                           ...(((newTool as Record<string, unknown>).agenta_metadata as
-                              Record<string, unknown> | undefined) ?? {}),
+                              | Record<string, unknown>
+                              | undefined) ?? {}),
                           ...meta,
                       },
                   }

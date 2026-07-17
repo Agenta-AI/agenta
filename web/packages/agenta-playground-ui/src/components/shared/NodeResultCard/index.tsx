@@ -8,7 +8,13 @@ import clsx from "clsx"
 // ============================================================================
 
 export type NodeStatus =
-    "idle" | "running" | "pending" | "success" | "error" | "cancelled" | "skipped"
+    | "idle"
+    | "running"
+    | "pending"
+    | "success"
+    | "error"
+    | "cancelled"
+    | "skipped"
 
 // ============================================================================
 // NODE NAME TAG
