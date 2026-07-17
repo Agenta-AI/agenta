@@ -12,8 +12,8 @@ UUID, not a hash, so it is deterministically recoverable straight out of the
 slug. Session-mount slugs (`__ag__session__<uuid5(session_id)>__<name>`) hash
 the session id, so no session_id backfill is possible or attempted here.
 
-Revision ID: oss000000014
-Revises: oss000000013
+Revision ID: oss000000016
+Revises: oss000000015
 Create Date: 2026-07-17 00:00:00.000000
 
 """
@@ -23,8 +23,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "oss000000014"
-down_revision: Union[str, None] = "oss000000013"
+revision: str = "oss000000016"
+down_revision: Union[str, None] = "oss000000015"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
