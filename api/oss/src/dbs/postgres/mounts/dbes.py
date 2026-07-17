@@ -41,4 +41,10 @@ class MountDBE(Base, MountDBA):
             "session_id",
             postgresql_where=text("session_id IS NOT NULL"),
         ),
+        Index(
+            "ix_mounts_project_id_agent_id",
+            "project_id",
+            "agent_id",
+            postgresql_where=text("agent_id IS NOT NULL"),
+        ),
     )
