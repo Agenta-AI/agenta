@@ -264,7 +264,7 @@ class SessionStreamsRouter:
             user_id=user_id,
             request=SessionStreamCommandRequest(
                 session_id=payload.session_id,
-                prompt=payload.prompt,
+                data=payload.data,
                 force=payload.force,
                 detached=payload.detached,
             ),
@@ -387,6 +387,7 @@ class SessionStreamsRouter:
         return SessionHeartbeatResponseModel(
             stream=result.stream,
             replica_id=result.replica_id,
+            is_current_turn=result.is_current_turn,
         )
 
     @intercept_exceptions()

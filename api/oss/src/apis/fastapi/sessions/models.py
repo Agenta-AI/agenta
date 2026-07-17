@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from agenta.sdk.models.workflows import WorkflowServiceRequestData
+
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
@@ -48,8 +50,12 @@ class SessionResponse(BaseModel):
 
 
 class SessionStreamCommandRequestModel(BaseModel):
+    """`data.inputs` present-or-not × `force` selects send/steer/cancel/attach
+    (E6) — the same shape as `WorkflowInvokeRequest.data`, not a bespoke `prompt`.
+    """
+
     session_id: str
-    prompt: Optional[str] = None
+    data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False
 
@@ -90,6 +96,9 @@ class SessionHeartbeatResponseModel(BaseModel):
     # to its own replica_id to refuse serving a session it doesn't own.
     stream: Optional[SessionStream] = None
     replica_id: str
+    # False when this beat's turn_id was interrupted (cancel/steer/kill) since the last
+    # heartbeat — the runner's watchdog aborts the in-flight run on seeing this (W7.4).
+    is_current_turn: bool = True
 
 
 class SessionStreamsResponseModel(BaseModel):

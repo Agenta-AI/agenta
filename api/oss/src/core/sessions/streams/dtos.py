@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from agenta.sdk.models.workflows import WorkflowServiceRequestData
+
 
 class SessionStreamFlags(BaseModel):
     """The nest as primitive bools (alive ⊇ running ⊇ attached).
@@ -80,22 +82,25 @@ class SessionStreamQuery(BaseModel):
 
 
 class CommandMode(str, Enum):
-    """Derived from the prompt × force matrix."""
+    """Derived from the inputs/data × force matrix."""
 
-    send = "send"  # prompt + no force → 409 if alive
-    steer = "steer"  # prompt + force → cancel holder, run new
-    cancel = "cancel"  # no prompt + no force → cancel holder
-    attach = "attach"  # no prompt + force → steal attached, watch
+    send = "send"  # inputs + no force → 409 if alive
+    steer = "steer"  # inputs + force → cancel holder, run new
+    cancel = "cancel"  # no inputs + no force → cancel holder
+    attach = "attach"  # no inputs + force → steal attached, watch
 
 
 class SessionStreamCommandRequest(BaseModel):
     """The set_session_stream edit: a state mutation over the lock/row nest.
 
     Runs nothing itself — the runner (execution plane) is the only thing that runs.
+    `data` mirrors the workflow-invoke shape (`WorkflowServiceRequestData`, keyed on
+    `.inputs`) so the discriminator aligns with `WorkflowInvokeRequest.data.inputs`
+    rather than a bespoke `prompt` string.
     """
 
     session_id: str
-    prompt: Optional[str] = None
+    data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
 
@@ -130,7 +135,14 @@ class SessionHeartbeatResult(BaseModel):
 
     `stream` is None when a losing replica heartbeats a session that has no row yet: it may
     not create or stamp one, since that row belongs to the owner.
+
+    `is_current_turn` (W7.4) is False when this turn_id's alive/running lock was gone or
+    reassigned at the moment of this beat — i.e. a cancel/steer/kill interrupted this turn
+    since the last heartbeat. The runner's watchdog reads this to abort the in-flight run;
+    without it a cancel that raced a heartbeat's nx=True re-acquire would silently re-arm the
+    SAME lock under the SAME turn_id and the interruption would never surface.
     """
 
     stream: Optional[SessionStream] = None
     replica_id: str
+    is_current_turn: bool = True
