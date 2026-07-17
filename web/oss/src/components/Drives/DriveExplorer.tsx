@@ -7,7 +7,15 @@
  * Used by the Build DriveDrawer (two-pane inspector) and the chat Files window's list view — same
  * explorer, "build once, skin twice". Phase 1 is read-only.
  */
-import {type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {
+    type KeyboardEvent,
+    useCallback,
+    useDeferredValue,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
@@ -21,6 +29,7 @@ import {
     MagnifyingGlass,
     Tray,
 } from "@phosphor-icons/react"
+import {useVirtualizer} from "@tanstack/react-virtual"
 import {Alert, Button, Input, Skeleton, Splitter, Tooltip, Typography} from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -46,6 +55,7 @@ import {OriginTag} from "./OriginTag"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {DriveFileBody} from "./renderers"
 import {driveHasMixedOrigins, fileOrigin, type SessionDriveData} from "./useSessionDrive"
+import {VirtualTileGrid} from "./VirtualTileGrid"
 
 const {Text} = Typography
 
@@ -112,107 +122,110 @@ const DriveBreadcrumb = ({
     )
 }
 
-/** One tree row (folder or file), indented by depth; selection = fill + primary ring. */
+/** A visible tree row after {@link flattenTree}: the node plus its indentation depth. */
+interface FlatTreeRow {
+    node: DriveTreeNode
+    depth: number
+}
+
+/** Flatten the tree to only the rows currently VISIBLE (a folder's children appear only when it's
+ * expanded), pre-tagged with depth. This is what the virtualizer windows — so the DOM never holds
+ * more than a screenful of rows even when a 12k-entry folder is expanded (issue #5367). */
+const flattenTree = (nodes: DriveTreeNode[], expanded: Set<string>): FlatTreeRow[] => {
+    const out: FlatTreeRow[] = []
+    const walk = (list: DriveTreeNode[], depth: number) => {
+        for (const n of list) {
+            out.push({node: n, depth})
+            if (n.isFolder && expanded.has(n.path) && n.children.length) walk(n.children, depth + 1)
+        }
+    }
+    walk(nodes, 0)
+    return out
+}
+
+/** One tree row (folder or file), indented by depth; selection = fill + primary ring. Renders a
+ * SINGLE row — the hierarchy is materialized by {@link flattenTree}, not recursion, so each row is
+ * an independent virtualized item. */
 const TreeRow = ({
     node,
     depth,
-    expanded,
-    selectedPath,
+    isOpen,
+    selected,
     showOrigin,
     onToggle,
     onSelect,
 }: {
     node: DriveTreeNode
     depth: number
-    expanded: Set<string>
-    selectedPath: string | null
+    isOpen: boolean
+    selected: boolean
     /** Tag top-level nodes with their origin (agent-files vs session) — only when mixed. */
     showOrigin?: boolean
     onToggle: (path: string) => void
     onSelect: (path: string) => void
 }) => {
-    const isOpen = expanded.has(node.path)
-    const selected = node.path === selectedPath
     // Dot-prefixed (hidden) entries surface but dimmed, like a file browser greys .git/.claude.
     const hidden = isHiddenPath(node.path)
     return (
-        <>
-            {/* Caret and row are SEPARATE controls: the caret only expands/collapses the tree (never
-                touches the right-pane selection), so collapsing a folder while previewing a file
-                inside it keeps that preview. The row selects — a folder shows its folder view and
-                reveals its children, but selecting never collapses (that's the caret's job). */}
-            <div
-                className={`flex w-full items-center rounded transition-colors ${
-                    selected
-                        ? "bg-colorFillSecondary shadow-[inset_0_0_0_1px_var(--ag-colorPrimary)]"
-                        : "hover:bg-colorFillTertiary"
-                } ${hidden ? "opacity-60" : ""}`}
-                style={{paddingLeft: 6 + depth * 14}}
-            >
-                {node.isFolder ? (
-                    <button
-                        type="button"
-                        // Not a tab stop — the row's main button is the single stop; arrow keys drive
-                        // the rest. The caret stays mouse-clickable for expand/collapse.
-                        tabIndex={-1}
-                        aria-label={isOpen ? "Collapse folder" : "Expand folder"}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onToggle(node.path)
-                        }}
-                        className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText ${FOCUS_RING}`}
-                    >
-                        {isOpen ? <CaretDown size={10} /> : <CaretRight size={10} />}
-                    </button>
-                ) : null}
+        // Caret and row are SEPARATE controls: the caret only expands/collapses the tree (never
+        // touches the right-pane selection), so collapsing a folder while previewing a file inside it
+        // keeps that preview. The row selects — a folder shows its folder view and reveals its
+        // children, but selecting never collapses (that's the caret's job).
+        <div
+            className={`flex w-full items-center rounded transition-colors ${
+                selected
+                    ? "bg-colorFillSecondary shadow-[inset_0_0_0_1px_var(--ag-colorPrimary)]"
+                    : "hover:bg-colorFillTertiary"
+            } ${hidden ? "opacity-60" : ""}`}
+            style={{paddingLeft: 6 + depth * 14}}
+        >
+            {node.isFolder ? (
                 <button
                     type="button"
-                    data-tree-main=""
-                    data-path={node.path}
-                    onClick={() => {
-                        onSelect(node.path)
-                        // Reveal a folder's children on select; never collapse here.
-                        if (node.isFolder && !isOpen) onToggle(node.path)
+                    // Not a tab stop — the row's main button is the single stop; arrow keys drive
+                    // the rest. The caret stays mouse-clickable for expand/collapse.
+                    tabIndex={-1}
+                    aria-label={isOpen ? "Collapse folder" : "Expand folder"}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onToggle(node.path)
                     }}
-                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 pr-1.5 text-left text-xs ${FOCUS_RING} ${
-                        node.isFolder ? "" : "pl-4"
-                    }`}
+                    className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText ${FOCUS_RING}`}
                 >
-                    {node.isFolder ? (
-                        <FolderSimple size={14} className="shrink-0 text-colorWarning" />
-                    ) : (
-                        <span className="shrink-0">{driveFileIcon(node.path)}</span>
-                    )}
-                    {/* whitespace-nowrap (not truncate): the tree scrolls horizontally, so long names
-                        stay readable by scrolling rather than being clipped with an ellipsis. */}
-                    <span className="whitespace-nowrap font-mono">{node.name}</span>
-                    {/* Only the top-level items carry the tag; nested rows inherit it from their
-                        (already-tagged) agent-files folder, so the tree stays quiet. */}
-                    {showOrigin && depth === 0 ? (
-                        <OriginTag origin={fileOrigin(node.path)} />
-                    ) : null}
-                    {!node.isFolder && node.size != null ? (
-                        <span className="ml-auto shrink-0 text-[11px] text-colorTextQuaternary">
-                            {humanSize(node.size)}
-                        </span>
-                    ) : null}
+                    {isOpen ? <CaretDown size={10} /> : <CaretRight size={10} />}
                 </button>
-            </div>
-            {node.isFolder && isOpen
-                ? node.children.map((child) => (
-                      <TreeRow
-                          key={child.path}
-                          node={child}
-                          depth={depth + 1}
-                          expanded={expanded}
-                          selectedPath={selectedPath}
-                          showOrigin={showOrigin}
-                          onToggle={onToggle}
-                          onSelect={onSelect}
-                      />
-                  ))
-                : null}
-        </>
+            ) : null}
+            <button
+                type="button"
+                data-tree-main=""
+                data-path={node.path}
+                onClick={() => {
+                    onSelect(node.path)
+                    // Reveal a folder's children on select; never collapse here.
+                    if (node.isFolder && !isOpen) onToggle(node.path)
+                }}
+                className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 pr-1.5 text-left text-xs ${FOCUS_RING} ${
+                    node.isFolder ? "" : "pl-4"
+                }`}
+            >
+                {node.isFolder ? (
+                    <FolderSimple size={14} className="shrink-0 text-colorWarning" />
+                ) : (
+                    <span className="shrink-0">{driveFileIcon(node.path)}</span>
+                )}
+                {/* whitespace-nowrap (not truncate): the tree scrolls horizontally, so long names
+                    stay readable by scrolling rather than being clipped with an ellipsis. */}
+                <span className="whitespace-nowrap font-mono">{node.name}</span>
+                {/* Only the top-level items carry the tag; nested rows inherit it from their
+                    (already-tagged) agent-files folder, so the tree stays quiet. */}
+                {showOrigin && depth === 0 ? <OriginTag origin={fileOrigin(node.path)} /> : null}
+                {!node.isFolder && node.size != null ? (
+                    <span className="ml-auto shrink-0 text-[11px] text-colorTextQuaternary">
+                        {humanSize(node.size)}
+                    </span>
+                ) : null}
+            </button>
+        </div>
     )
 }
 
@@ -417,8 +430,12 @@ const FolderView = ({
         [drive.recents],
     )
     const folderName = folderPath === "" ? rootLabel : (folderPath.split("/").pop() ?? folderPath)
-    const folders = nodes.filter((n) => n.isFolder)
-    const files = nodes.filter((n) => !n.isFolder)
+    // Folders first (matching the tree's sort), then files — one combined list so the grid windows
+    // uniformly even when a folder holds thousands of immediate children.
+    const entries = useMemo(
+        () => [...nodes].sort((a, b) => (a.isFolder === b.isFolder ? 0 : a.isFolder ? -1 : 1)),
+        [nodes],
+    )
 
     return (
         <div className="flex h-full min-h-0 w-full flex-col">
@@ -435,41 +452,43 @@ const FolderView = ({
                 </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto p-4">
-                {nodes.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-1 p-8 text-center">
-                        <Tray size={26} className="text-colorTextQuaternary" />
-                        <div className="text-xs font-medium">Empty folder</div>
-                    </div>
-                ) : (
-                    <div
-                        className="grid auto-rows-min grid-cols-3 gap-2"
-                        onKeyDown={gridArrowKeyDown}
-                    >
-                        {folders.map((n) => (
-                            <FolderTile key={n.path} node={n} onOpen={() => onSelect(n.path)} />
-                        ))}
-                        {files.map((n) => {
-                            const file = recentsByPath.get(n.path)
-                            const resolved = drive.resolveMount(n.path)
-                            return (
-                                <DriveFileRow
-                                    key={n.path}
-                                    variant="tile"
-                                    path={n.path}
-                                    file={resolved && file ? {...file, path: resolved.path} : file}
-                                    mount={resolved?.mount ?? drive.mount}
-                                    showOrigin={showOrigin}
-                                    hideFolder
-                                    trailing={humanSize(n.size)}
-                                    recent={file ? isRecentlyChanged(file.touchedAt, now) : false}
-                                    onOpen={() => onSelect(n.path)}
-                                />
-                            )
-                        })}
-                    </div>
-                )}
-            </div>
+            {nodes.length === 0 ? (
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
+                    <Tray size={26} className="text-colorTextQuaternary" />
+                    <div className="text-xs font-medium">Empty folder</div>
+                </div>
+            ) : (
+                <VirtualTileGrid
+                    // Remount per folder so drilling in starts scrolled at the top, not wherever the
+                    // previous (possibly much longer) folder was scrolled to.
+                    key={folderPath}
+                    items={entries}
+                    columns={3}
+                    className="p-4"
+                    onKeyDown={gridArrowKeyDown}
+                    getKey={(n) => n.path}
+                    renderTile={(n) => {
+                        if (n.isFolder) {
+                            return <FolderTile node={n} onOpen={() => onSelect(n.path)} />
+                        }
+                        const file = recentsByPath.get(n.path)
+                        const resolved = drive.resolveMount(n.path)
+                        return (
+                            <DriveFileRow
+                                variant="tile"
+                                path={n.path}
+                                file={resolved && file ? {...file, path: resolved.path} : file}
+                                mount={resolved?.mount ?? drive.mount}
+                                showOrigin={showOrigin}
+                                hideFolder
+                                trailing={humanSize(n.size)}
+                                recent={file ? isRecentlyChanged(file.touchedAt, now) : false}
+                                onOpen={() => onSelect(n.path)}
+                            />
+                        )
+                    }}
+                />
+            )}
         </div>
     )
 }
@@ -521,13 +540,27 @@ export function DriveExplorer({
         setExpanded(new Set(ancestorPaths(target)))
     }, [drive.isLoading, drive.recents, selectedPath, select])
 
+    // Defer the search term so typing stays responsive on a 12k-entry tree — the input updates now,
+    // the filter/flatten trails a frame (React interrupts it if you keep typing).
+    const deferredSearch = useDeferredValue(search)
     const tree = useMemo(() => buildDriveTree(drive.files), [drive.files])
-    const shownTree = useMemo(() => filterDriveTree(tree, search), [tree, search])
+    const shownTree = useMemo(() => filterDriveTree(tree, deferredSearch), [tree, deferredSearch])
     // While searching, show every surviving branch expanded so matches are visible.
     const shownExpanded = useMemo(
-        () => (search.trim() ? new Set(collectFolderPaths(shownTree)) : expanded),
-        [search, shownTree, expanded],
+        () => (deferredSearch.trim() ? new Set(collectFolderPaths(shownTree)) : expanded),
+        [deferredSearch, shownTree, expanded],
     )
+    // The visible rows, flattened for virtualization (see flattenTree), plus a path→row-index map for
+    // O(1) keyboard navigation.
+    const flatRows = useMemo(
+        () => flattenTree(shownTree, shownExpanded),
+        [shownTree, shownExpanded],
+    )
+    const indexByPath = useMemo(() => {
+        const map = new Map<string, number>()
+        flatRows.forEach((r, i) => map.set(r.node.path, i))
+        return map
+    }, [flatRows])
     // Flat lookup of every tree node by path, so a selected FOLDER can render its children (folder
     // view) and a selected FILE the preview. Root ("") maps to the top-level nodes.
     const nodeByPath = useMemo(() => {
@@ -546,83 +579,107 @@ export function DriveExplorer({
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
     const showOrigin = driveHasMixedOrigins(drive.recents)
 
-    // Tree keyboard nav (WAI-ARIA tree pattern): ↑/↓ move focus through the visible rows (the main
-    // buttons, in DOM = visible order); → expands a collapsed folder then steps into it; ← collapses
-    // an open folder else steps to the parent; Home/End jump to the ends. Enter/Space stay the
-    // button's own onClick (select). The caret is tabIndex=-1, so each row is a single tab stop.
+    // The tree scroll container is the virtualizer's scroll element — only the visible rows (+
+    // overscan) mount, so expanding a folder with thousands of children never floods the DOM.
+    const treeRef = useRef<HTMLDivElement>(null)
+    const treeVirtualizer = useVirtualizer({
+        count: flatRows.length,
+        getScrollElement: () => treeRef.current,
+        estimateSize: () => 28,
+        overscan: 12,
+        getItemKey: (i) => flatRows[i]?.node.path ?? i,
+    })
+
+    // Focus a row by its flat index, scrolling it into view first (it may not be rendered yet when
+    // virtualized). Retries across a few frames until the row exists in the DOM.
+    const focusTreeRow = useCallback(
+        (index: number) => {
+            if (!flatRows.length) return
+            const clamped = Math.min(Math.max(index, 0), flatRows.length - 1)
+            treeVirtualizer.scrollToIndex(clamped, {align: "auto"})
+            let tries = 0
+            const tryFocus = () => {
+                const el = treeRef.current?.querySelector<HTMLButtonElement>(
+                    `[data-index="${clamped}"] button[data-tree-main]`,
+                )
+                if (el) el.focus()
+                else if (tries++ < 3) requestAnimationFrame(tryFocus)
+            }
+            requestAnimationFrame(tryFocus)
+        },
+        [flatRows.length, treeVirtualizer],
+    )
+
+    // Tree keyboard nav (WAI-ARIA tree pattern) over the FLAT index: ↑/↓ move focus one visible row;
+    // → expands a collapsed folder then steps into it; ← collapses an open folder else steps to the
+    // parent; Home/End jump to the ends. Enter/Space stay the button's own onClick (select).
     const onTreeKeyDown = useCallback(
         (e: KeyboardEvent<HTMLDivElement>) => {
             const keys = ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"]
             if (!keys.includes(e.key)) return
-            const rows = Array.from(
-                e.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-tree-main]"),
-            )
-            if (!rows.length) return
+            if (!flatRows.length) return
             e.preventDefault()
-            const active = document.activeElement
-            const idx = rows.findIndex((r) => r === active)
-            const focusAt = (i: number) => rows[Math.min(Math.max(i, 0), rows.length - 1)]?.focus()
+            const activePath = (document.activeElement as HTMLElement | null)?.getAttribute(
+                "data-path",
+            )
+            const idx = activePath != null ? (indexByPath.get(activePath) ?? -1) : -1
 
-            if (e.key === "Home") return focusAt(0)
-            if (e.key === "End") return focusAt(rows.length - 1)
-            if (e.key === "ArrowDown") return focusAt(idx < 0 ? 0 : idx + 1)
-            if (e.key === "ArrowUp") return focusAt(idx < 0 ? 0 : idx - 1)
+            if (e.key === "Home") return focusTreeRow(0)
+            if (e.key === "End") return focusTreeRow(flatRows.length - 1)
+            if (e.key === "ArrowDown") return focusTreeRow(idx < 0 ? 0 : idx + 1)
+            if (e.key === "ArrowUp") return focusTreeRow(idx < 0 ? 0 : idx - 1)
 
-            const path = (active as HTMLElement | null)?.getAttribute("data-path")
-            if (path == null) return focusAt(idx < 0 ? 0 : idx)
-            const node = nodeByPath.get(path)
+            if (activePath == null) return focusTreeRow(idx < 0 ? 0 : idx)
+            const node = nodeByPath.get(activePath)
             const isFolder = node?.isFolder === true
-            const isOpen = expanded.has(path)
+            const isOpen = expanded.has(activePath)
 
             if (e.key === "ArrowRight") {
-                if (isFolder && !isOpen) setExpanded((prev) => new Set(prev).add(path))
-                else if (isFolder && isOpen) focusAt(idx + 1)
+                if (isFolder && !isOpen) setExpanded((prev) => new Set(prev).add(activePath))
+                else if (isFolder && isOpen) focusTreeRow(idx + 1)
                 return
             }
             // ArrowLeft: collapse an open folder, else move focus to the parent row.
             if (isFolder && isOpen) {
                 setExpanded((prev) => {
                     const next = new Set(prev)
-                    next.delete(path)
+                    next.delete(activePath)
                     return next
                 })
                 return
             }
-            const parent = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null
-            if (parent) {
-                const pIdx = rows.findIndex((r) => r.getAttribute("data-path") === parent)
-                if (pIdx >= 0) focusAt(pIdx)
+            const parent = activePath.includes("/")
+                ? activePath.split("/").slice(0, -1).join("/")
+                : null
+            if (parent != null) {
+                const pIdx = indexByPath.get(parent)
+                if (pIdx != null) focusTreeRow(pIdx)
             }
         },
-        [expanded, nodeByPath, setExpanded],
+        [flatRows.length, indexByPath, nodeByPath, expanded, focusTreeRow],
     )
 
     // Initial focus: a <div>'s onKeyDown only fires when something inside is focused, so arrow keys
     // do nothing until a row is clicked. Once the listing is ready, focus the selected (else first)
     // row so keyboard nav works immediately on open. Runs once; won't steal focus from a field the
     // user is typing in (e.g. search) or if focus is already in the tree.
-    const treeRef = useRef<HTMLDivElement>(null)
     const didInitialFocus = useRef(false)
     useEffect(() => {
-        if (didInitialFocus.current || drive.isLoading) return
+        if (didInitialFocus.current || drive.isLoading || !flatRows.length) return
         const container = treeRef.current
-        if (!container) return
-        const rows = Array.from(
-            container.querySelectorAll<HTMLButtonElement>("button[data-tree-main]"),
-        )
-        if (!rows.length) return
         const active = document.activeElement as HTMLElement | null
         if (
             active &&
-            (/^(input|textarea|select)$/i.test(active.tagName) || container.contains(active))
+            (/^(input|textarea|select)$/i.test(active.tagName) ||
+                Boolean(container?.contains(active)))
         ) {
             didInitialFocus.current = true
             return
         }
-        const target = rows.find((r) => r.getAttribute("data-path") === selectedPath) ?? rows[0]
-        target.focus()
+        const idx = selectedPath != null ? (indexByPath.get(selectedPath) ?? 0) : 0
+        focusTreeRow(idx)
         didInitialFocus.current = true
-    }, [drive.isLoading, selectedPath])
+    }, [drive.isLoading, selectedPath, flatRows.length, indexByPath, focusTreeRow])
 
     if (drive.errored) {
         return (
@@ -692,33 +749,55 @@ export function DriveExplorer({
                         className="min-h-0 flex-1 overflow-auto"
                         onKeyDown={onTreeKeyDown}
                     >
-                        {shownTree.length === 0 ? (
+                        {flatRows.length === 0 ? (
                             <Text type="secondary" className="px-1 !text-[11px]">
                                 No files match.
                             </Text>
                         ) : (
-                            // w-max min-w-full: at least the pane width (rows fill it), but grows to
-                            // the widest row so the container scrolls horizontally for long names.
-                            <div className="flex w-max min-w-full flex-col">
-                                {shownTree.map((node) => (
-                                    <TreeRow
-                                        key={node.path}
-                                        node={node}
-                                        depth={0}
-                                        expanded={shownExpanded}
-                                        selectedPath={selectedPath}
-                                        showOrigin={showOrigin}
-                                        onToggle={(path) =>
-                                            setExpanded((prev) => {
-                                                const next = new Set(prev)
-                                                if (next.has(path)) next.delete(path)
-                                                else next.add(path)
-                                                return next
-                                            })
-                                        }
-                                        onSelect={select}
-                                    />
-                                ))}
+                            // Only the visible rows mount; each grows to its own width (nowrap names)
+                            // with a 100% floor, so the container still scrolls horizontally.
+                            <div
+                                style={{
+                                    height: treeVirtualizer.getTotalSize(),
+                                    position: "relative",
+                                    width: "100%",
+                                }}
+                            >
+                                {treeVirtualizer.getVirtualItems().map((vRow) => {
+                                    const {node, depth} = flatRows[vRow.index]
+                                    return (
+                                        <div
+                                            key={vRow.key}
+                                            data-index={vRow.index}
+                                            ref={treeVirtualizer.measureElement}
+                                            style={{
+                                                position: "absolute",
+                                                top: 0,
+                                                left: 0,
+                                                width: "max-content",
+                                                minWidth: "100%",
+                                                transform: `translateY(${vRow.start}px)`,
+                                            }}
+                                        >
+                                            <TreeRow
+                                                node={node}
+                                                depth={depth}
+                                                isOpen={shownExpanded.has(node.path)}
+                                                selected={node.path === selectedPath}
+                                                showOrigin={showOrigin}
+                                                onToggle={(path) =>
+                                                    setExpanded((prev) => {
+                                                        const next = new Set(prev)
+                                                        if (next.has(path)) next.delete(path)
+                                                        else next.add(path)
+                                                        return next
+                                                    })
+                                                }
+                                                onSelect={select}
+                                            />
+                                        </div>
+                                    )
+                                })}
                             </div>
                         )}
                     </div>

@@ -19,7 +19,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {cleanPath, driveFiles, driveTotalSize} from "./driveTree"
+import {cleanPath, driveFileStats} from "./driveTree"
 import type {DriveRecentFile, SessionDriveData} from "./useSessionDrive"
 
 export async function fetchAgentMount({
@@ -67,7 +67,7 @@ export function useAgentDrive(artifactId: string): SessionDriveData & {exists: b
 
     return useMemo(() => {
         const listing = filesQuery.data ?? null
-        const files = driveFiles(listing)
+        const {files, totalSize} = driveFileStats(listing)
         const recents: DriveRecentFile[] = [...files].sort((a, b) => a.path.localeCompare(b.path))
         const isLoading =
             Boolean(artifactId) && (mountQuery.isPending || Boolean(mount && filesQuery.isPending))
@@ -78,7 +78,7 @@ export function useAgentDrive(artifactId: string): SessionDriveData & {exists: b
             exists: Boolean(mount),
             files,
             fileCount: files.length,
-            totalSize: driveTotalSize(listing),
+            totalSize,
             recents,
             // Single-mount drive: every path maps straight to this mount.
             resolveMount: (path: string) => (mount ? {mount, path: cleanPath(path)} : null),

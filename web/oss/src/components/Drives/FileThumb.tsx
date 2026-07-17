@@ -28,8 +28,12 @@ const PDF_CAP = 4 * 1024 * 1024
 const TEXT_CAP = 256 * 1024
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv", "html"])
 
-/** Becomes true once the element scrolls within 200px of the viewport; latches so a tile loads
- * its thumbnail once and never re-tears it down on scroll-out. */
+/** Becomes true once the element scrolls within {@link THUMB_PREFETCH_MARGIN} of the viewport;
+ * latches so a tile loads its thumbnail once and never re-tears it down on scroll-out. Inside the
+ * virtualized grids only the overscan window is ever mounted, so this margin (larger than a screen)
+ * effectively means "fetch as soon as the virtualizer mounts the tile" — overscan is the real
+ * prefetch knob, giving the thumbnail a head start before the tile scrolls into view (issue #5367). */
+const THUMB_PREFETCH_MARGIN = "600px"
 function useInView<T extends Element>() {
     const ref = useRef<T>(null)
     const [inView, setInView] = useState(false)
@@ -43,7 +47,7 @@ function useInView<T extends Element>() {
                     obs.disconnect()
                 }
             },
-            {rootMargin: "200px"},
+            {rootMargin: THUMB_PREFETCH_MARGIN},
         )
         obs.observe(el)
         return () => obs.disconnect()

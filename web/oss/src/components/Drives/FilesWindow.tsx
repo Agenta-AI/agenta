@@ -4,23 +4,22 @@
  * Build drawer's two-pane explorer — build once, skin twice), with client-side search and
  * Recent/Name/Size sort. Read-only in phase 1, same endpoints as everything else.
  */
-import {useMemo, useState} from "react"
+import {useDeferredValue, useMemo, useState} from "react"
 
 import {FolderSimple, ListBullets, MagnifyingGlass, SquaresFour, Tray} from "@phosphor-icons/react"
 import {Input, Segmented, Select, Skeleton, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
-import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {DriveExplorer} from "./DriveExplorer"
 import {DriveFileRow} from "./DriveFileRow"
 import {gridArrowKeyDown} from "./driveKeyboard"
-import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {humanSize} from "./driveTree"
 import {ORIGIN_TIP} from "./OriginTag"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {fileOrigin, useSessionDrive, type FileOrigin} from "./useSessionDrive"
+import {VirtualTileGrid} from "./VirtualTileGrid"
 
 const {Text} = Typography
 
@@ -51,8 +50,11 @@ export default function FilesWindow({
         return kinds.has("agent") && kinds.has("session")
     }, [drive.recents])
 
+    // Defer the filter/sort work off the keystroke so typing in the search box stays responsive on a
+    // 12k-file drive (the input updates immediately; the heavy list recompute trails a frame).
+    const deferredSearch = useDeferredValue(search)
     const shown = useMemo(() => {
-        const q = search.trim().toLowerCase()
+        const q = deferredSearch.trim().toLowerCase()
         let filtered = drive.recents
         if (mixed && origin !== "all")
             filtered = filtered.filter((f) => fileOrigin(f.path) === origin)
@@ -63,7 +65,7 @@ export default function FilesWindow({
                 ? (a.path.split("/").pop() ?? "").localeCompare(b.path.split("/").pop() ?? "")
                 : (b.size ?? 0) - (a.size ?? 0),
         )
-    }, [drive.recents, search, sort, origin, mixed])
+    }, [drive.recents, deferredSearch, sort, origin, mixed])
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -162,51 +164,42 @@ export default function FilesWindow({
                 </div>
             ) : (
                 <>
-                    <div
-                        className="grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto p-3"
-                        onKeyDown={gridArrowKeyDown}
-                    >
-                        <MotionConfig reducedMotion="user">
-                            {/* No `layout`/popLayout here: on CSS-grid children they animate via
-                                transforms that ignore grid tracks and overlap tiles. Fade only. */}
-                            <AnimatePresence initial={false}>
-                                {shown.map((file) => {
-                                    // Thumbnail reads from the file's own mount (cwd or agent-files)
-                                    // with a mount-relative path; the tile shows the presented path.
-                                    const resolved = drive.resolveMount(file.path)
-                                    return (
-                                        <motion.div
-                                            key={file.path}
-                                            className="min-w-0"
-                                            variants={FILE_ITEM_VARIANTS}
-                                            initial="initial"
-                                            animate="animate"
-                                            exit="exit"
-                                            transition={FILE_SPRING}
-                                        >
-                                            <DriveFileRow
-                                                variant="tile"
-                                                path={file.path}
-                                                file={
-                                                    resolved ? {...file, path: resolved.path} : file
-                                                }
-                                                mount={resolved?.mount ?? drive.mount}
-                                                showOrigin={mixed}
-                                                trailing={humanSize(file.size)}
-                                                recent={isRecentlyChanged(file.touchedAt, now)}
-                                                onOpen={() => openQuickLook({path: file.path})}
-                                            />
-                                        </motion.div>
-                                    )
-                                })}
-                            </AnimatePresence>
-                        </MotionConfig>
-                        {shown.length === 0 ? (
-                            <Text type="secondary" className="col-span-3 !text-[11px]">
+                    {shown.length === 0 ? (
+                        <div className="min-h-0 flex-1 p-3">
+                            <Text type="secondary" className="!text-[11px]">
                                 No files match.
                             </Text>
-                        ) : null}
-                    </div>
+                        </div>
+                    ) : (
+                        // Windowed: only the visible tiles mount, so a 12k-file drive stays smooth
+                        // (each tile also mounts a thumbnail observer — never all at once).
+                        <VirtualTileGrid
+                            items={shown}
+                            columns={3}
+                            className="px-3 pt-3"
+                            onKeyDown={gridArrowKeyDown}
+                            getKey={(file) => file.path}
+                            renderTile={(file) => {
+                                // Thumbnail reads from the file's own mount (cwd or agent-files) with a
+                                // mount-relative path; the tile shows the presented path.
+                                const resolved = drive.resolveMount(file.path)
+                                return (
+                                    <div className="min-w-0">
+                                        <DriveFileRow
+                                            variant="tile"
+                                            path={file.path}
+                                            file={resolved ? {...file, path: resolved.path} : file}
+                                            mount={resolved?.mount ?? drive.mount}
+                                            showOrigin={mixed}
+                                            trailing={humanSize(file.size)}
+                                            recent={isRecentlyChanged(file.touchedAt, now)}
+                                            onOpen={() => openQuickLook({path: file.path})}
+                                        />
+                                    </div>
+                                )
+                            }}
+                        />
+                    )}
                     <div className="shrink-0 border-0 border-t border-solid border-colorBorderSecondary px-3 py-1.5 text-[11px] text-colorTextTertiary">
                         {drive.fileCount} file{drive.fileCount === 1 ? "" : "s"} ·{" "}
                         {humanSize(drive.totalSize) || "0 B"} · click a tile to Quick Look
