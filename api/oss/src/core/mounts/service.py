@@ -368,6 +368,78 @@ class MountsService:
             windowing=windowing,
         )
 
+    async def delete_session_mounts(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Hard-delete every mount bound to a session, tearing down each mount's
+        object-store prefix. Explicit + session-aware (S7/F1, WP5): mounts are
+        semi-independent (optional `session_id`, can outlive a session), so this
+        is a targeted fan-out, never a blind cascade."""
+        mounts = await self.mounts_dao.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        if self.mounts_store is not None and self.bucket:
+            for mount in mounts:
+                prefix = self._storage_key(project_id=project_id, mount=mount)
+                await self.mounts_store.delete_prefix(
+                    bucket=self.bucket,
+                    prefix=prefix,
+                )
+        return mounts
+
+    async def archive_session_mounts(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Soft-archive every mount bound to a session (reversible; folders
+        untouched). Session archive fan-out (S7/F2, WP5)."""
+        mounts = await self.mounts_dao.query_mounts(
+            project_id=project_id,
+            mount_query=MountQuery(session_id=session_id, include_archived=False),
+        )
+        archived: List[Mount] = []
+        for mount in mounts:
+            result = await self.mounts_dao.archive_mount(
+                project_id=project_id,
+                user_id=user_id,
+                mount_id=mount.id,
+            )
+            if result is not None:
+                archived.append(result)
+        return archived
+
+    async def unarchive_session_mounts(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Reverse of `archive_session_mounts`."""
+        mounts = await self.mounts_dao.query_mounts(
+            project_id=project_id,
+            mount_query=MountQuery(session_id=session_id, include_archived=True),
+        )
+        unarchived: List[Mount] = []
+        for mount in mounts:
+            if mount.deleted_at is None:
+                continue
+            result = await self.mounts_dao.unarchive_mount(
+                project_id=project_id,
+                user_id=user_id,
+                mount_id=mount.id,
+            )
+            if result is not None:
+                unarchived.append(result)
+        return unarchived
+
     # --- File ops (durable store contents) --------------------------------- #
 
     async def _resolve_mount(

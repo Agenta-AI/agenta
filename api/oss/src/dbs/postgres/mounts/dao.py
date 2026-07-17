@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
 
@@ -225,6 +225,36 @@ class MountsDAO(MountsDAOInterface):
             await session.refresh(mount_dbe)
 
             return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+
+    async def delete_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Hard delete the mount rows bound to a session. Mounts are semi-
+        independent (optional `session_id`, may outlive a session) — this is
+        the explicit, session-scoped fan-out (S7/F1, WP5), not a blind
+        cascade. Returns the deleted rows so the caller can tear down their
+        object-store prefixes."""
+        async with self.engine.session() as session:
+            stmt = select(MountDBE).where(
+                MountDBE.project_id == project_id,
+                MountDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            mount_dbes = list(result.scalars().all())
+            mounts = [map_mount_dbe_to_dto(mount_dbe=dbe) for dbe in mount_dbes]
+
+            if mount_dbes:
+                del_stmt = sa_delete(MountDBE).where(
+                    MountDBE.project_id == project_id,
+                    MountDBE.session_id == session_id,
+                )
+                await session.execute(del_stmt)
+                await session.commit()
+
+        return mounts
 
     async def query_mounts(
         self,

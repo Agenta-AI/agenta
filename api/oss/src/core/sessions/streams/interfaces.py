@@ -9,6 +9,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamHeaderEdit,
     SessionStreamQuery,
 )
+from oss.src.core.shared.dtos import Windowing
 
 
 class SessionStreamsDAOInterface(ABC):
@@ -30,6 +31,14 @@ class SessionStreamsDAOInterface(ABC):
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod
+    async def get_by_session_id_including_archived(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionStream]: ...
+
+    @abstractmethod
     async def get_by_id(
         self,
         *,
@@ -43,6 +52,8 @@ class SessionStreamsDAOInterface(ABC):
         *,
         project_id: UUID,
         filter: SessionStreamQuery,
+        windowing: Optional[Windowing] = None,
+        session_ids: Optional[List[str]] = None,
     ) -> List[SessionStream]: ...
 
     @abstractmethod
@@ -67,6 +78,23 @@ class SessionStreamsDAOInterface(ABC):
 
     @abstractmethod
     async def delete_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool: ...
+
+    @abstractmethod
+    async def unarchive_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]: ...
+
+    @abstractmethod
+    async def hard_delete_by_session_id(
         self,
         *,
         project_id: UUID,

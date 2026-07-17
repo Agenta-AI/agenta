@@ -57,6 +57,7 @@ from oss.src.core.sessions.streams.types import (
     SessionTurnInUse,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
 
@@ -433,10 +434,64 @@ class SessionStreamsService:
         *,
         project_id: UUID,
         filter: SessionStreamQuery,
+        windowing: Optional[Windowing] = None,
+        session_ids: Optional[List[str]] = None,
     ) -> List[SessionStream]:
         if filter.session_id:
             _validate_session_id(filter.session_id)
-        return await self._dao.query(project_id=project_id, filter=filter)
+        return await self._dao.query(
+            project_id=project_id,
+            filter=filter,
+            windowing=windowing,
+            session_ids=session_ids,
+        )
+
+    async def hard_delete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        """Hard delete the merged stream row (S7 delete fan-out, WP5). Distinct
+        from `kill`, which only soft-deletes via `delete_by_session_id`."""
+        _validate_session_id(session_id)
+        return await self._dao.hard_delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def archive(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Soft-archive the stream row (S7/F2 archive fan-out, WP5). Returns the
+        archived row (`deleted_at` set) as the caller's confirmation read."""
+        _validate_session_id(session_id)
+        await self._dao.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        return await self._dao.get_by_session_id_including_archived(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def unarchive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Reverse of `archive`: clears `deleted_at` on the stream row."""
+        _validate_session_id(session_id)
+        return await self._dao.unarchive_by_session_id(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
 
     async def check_runner_concurrency_limit(self, *, project_id: UUID) -> None:
         """Raise ConcurrencyLimitExceeded if the per-project limit is reached."""
