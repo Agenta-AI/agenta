@@ -169,13 +169,9 @@ import {
 } from "./sandbox_agent/agent-mount-guidance.ts";
 import {
   hydrateHarnessSessionFromDurable,
-  syncHarnessSessionDurable,
+  appendSessionTurn,
 } from "./sandbox_agent/session-continuity-durable.ts";
-import {
-  readStoredSandboxPointer,
-  clearSandboxPointer,
-  writeSandboxPointer,
-} from "./sandbox_agent/sandbox-reconnect.ts";
+import { readStoredSandboxPointer } from "./sandbox_agent/sandbox-reconnect.ts";
 import {
   assertLocalRunnerOwnership,
   eligibleAgentSessionId,
@@ -404,13 +400,12 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createRunLimits?: typeof createRunLimits;
   /** Session-continuity store override (tests inject their own; default is the process singleton). */
   sessionContinuityStore?: SessionContinuityStore;
-  /** Durable read-back/write-forward of the continuity store (tests inject fakes). */
+  /** Durable read-back/append-forward of the continuity store (tests inject fakes). */
   hydrateHarnessSessionFromDurable?: typeof hydrateHarnessSessionFromDurable;
-  syncHarnessSessionDurable?: typeof syncHarnessSessionDurable;
-  /** Durable read/write of the sandbox pointer, for the remote reconnect ladder. */
+  appendSessionTurn?: typeof appendSessionTurn;
+  /** Durable read of the sandbox pointer (the latest turn's sandbox_id), for the remote
+   * reconnect ladder. The write side is folded into `appendSessionTurn`. */
   readStoredSandboxPointer?: typeof readStoredSandboxPointer;
-  clearSandboxPointer?: typeof clearSandboxPointer;
-  writeSandboxPointer?: typeof writeSandboxPointer;
   /**
    * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
    * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
@@ -1302,31 +1297,13 @@ export async function acquireEnvironment(
         logger(
           `reconnect failed sandbox=${storedSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
         );
-        if (
-          err instanceof DaytonaReconnectTerminalError &&
-          sessionForMount &&
-          runCred
-        ) {
-          // The post-hydrate write later in acquire is authoritative. This clear only prevents
-          // repeated doomed reconnects if acquire fails before reaching that write. Hydrate
-          // first: after a runner restart the in-memory store is behind the durable
-          // latest_turn_index, and an unhydrated guard token would be rejected as stale.
-          await (
-            deps.hydrateHarnessSessionFromDurable ??
-            hydrateHarnessSessionFromDurable
-          )(
-            sessionForMount,
-            plan.harness,
-            deps.sessionContinuityStore ?? sessionContinuityStore,
-            { authorization: runCred, log: logger },
-          );
-          await (deps.clearSandboxPointer ?? clearSandboxPointer)(
-            sessionForMount,
-            nextTurnIndex(
-              sessionForMount,
-              deps.sessionContinuityStore ?? sessionContinuityStore,
-            ),
-            { authorization: runCred, log: logger },
+        // No explicit pointer clear needed: turns are append-only, so the fresh sandbox this
+        // turn creates below gets its own turn row at completion, and that row's higher
+        // turn_index naturally supersedes the dead one on the next `latest_turn` read — the
+        // staleness guard the old states model needed dissolves with the ordering.
+        if (err instanceof DaytonaReconnectTerminalError) {
+          logger(
+            `terminal Daytona state '${err.state}' for sandbox=${storedSandboxPointer.sandboxId}, not retrying reconnect`,
           );
         }
       } finally {
@@ -1630,24 +1607,9 @@ export async function acquireEnvironment(
     environment.continuityTurnIndex = continuitySessionKey
       ? nextTurnIndex(continuitySessionKey, continuityStore)
       : undefined;
-    // Daytona only: a local run must not overwrite a conversation's remote pointer (switching
-    // sandboxes mid-conversation would strand the parked Daytona instance).
-    if (plan.isDaytona && sessionForMount && runCred) {
-      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
-      const pointerWriteOutcome = await (
-        deps.writeSandboxPointer ?? writeSandboxPointer
-      )(
-        sessionForMount,
-        {
-          sandboxId: liveSandboxId,
-          turnIndex: environment.continuityTurnIndex ?? 0,
-        },
-        { authorization: runCred, log: logger },
-      );
-      logger(
-        `sandbox pointer write ${pointerWriteOutcome} session=${sessionForMount} sandbox=${liveSandboxId}`,
-      );
-    }
+    // The live sandbox id rides forward as a field on the turn-append row written at turn end
+    // (see `appendSessionTurn` call in `runTurn`), not a separate pre-turn pointer PUT: the
+    // turns table is append-only, so there is nothing to overwrite mid-conversation.
     let loadedFromContinuity = false;
     if (priorAgentSessionId && localSessionId) {
       await persist.updateSession({
@@ -2289,16 +2251,25 @@ export async function runTurn(
         env.session.agentSessionId,
         env.continuityTurnIndex,
       );
-      // Mirror the record durably so it survives a runner restart; fire-and-forget.
+      // Append this turn to the durable turns log; fire-and-forget (a plain INSERT, no race).
       const syncCred = runCredential(request);
-      if (syncCred) {
-        void (deps.syncHarnessSessionDurable ?? syncHarnessSessionDurable)(
+      if (syncCred && request.streamId) {
+        const workflowRefs = buildWorkflowReferences(
+          request.runContext?.workflow,
+        );
+        void (deps.appendSessionTurn ?? appendSessionTurn)(
           sessionId,
           plan.harness,
-          env.session.agentSessionId,
           env.continuityTurnIndex,
+          {
+            streamId: request.streamId,
+            agentSessionId: env.session.agentSessionId,
+            sandboxId: env.sandbox?.sandboxId,
+            references: workflowRefs ? Object.values(workflowRefs) : undefined,
+            traceId: run.traceId(),
+          },
           { authorization: syncCred, log: logger },
-        );
+        ).catch(() => {});
       }
     } else if (stopReason === "paused") {
       // A pause stopped mid-turn, after the harness may have written a partial turn natively.

@@ -40,7 +40,7 @@ afterEach(() => {
 describe("startAliveWatchdog onInterrupted", () => {
   it("does not fire onInterrupted while is_current_turn stays true", async () => {
     const onInterrupted = vi.fn();
-    const watchdog = startAliveWatchdog(
+    const watchdog = await startAliveWatchdog(
       "sess-ok",
       "turn-ok",
       "proj-1",
@@ -54,7 +54,7 @@ describe("startAliveWatchdog onInterrupted", () => {
 
   it("fires onInterrupted when a beat reports is_current_turn: false", async () => {
     const onInterrupted = vi.fn();
-    const watchdog = startAliveWatchdog(
+    const watchdog = await startAliveWatchdog(
       "sess-cancelled",
       "turn-cancelled",
       "proj-1",
@@ -69,7 +69,7 @@ describe("startAliveWatchdog onInterrupted", () => {
     // path is exercised in the interval test below; here we simulate the first beat itself
     // being interrupted (e.g. the lock was already gone before the watchdog's first heartbeat
     // observed it — a steer that raced session start).
-    const watchdog2 = startAliveWatchdog(
+    const watchdog2 = await startAliveWatchdog(
       "sess-cancelled-2",
       "turn-cancelled-2",
       "proj-1",
@@ -86,7 +86,7 @@ describe("startAliveWatchdog onInterrupted", () => {
   it("fires onInterrupted at most once even if later beats keep reporting interrupted", async () => {
     nextIsCurrentTurn = false;
     const onInterrupted = vi.fn();
-    const watchdog = startAliveWatchdog(
+    const watchdog = await startAliveWatchdog(
       "sess-repeat",
       "turn-repeat",
       "proj-1",
@@ -107,7 +107,7 @@ describe("startAliveWatchdog onInterrupted", () => {
       throw new Error("network down");
     });
     const onInterrupted = vi.fn();
-    const watchdog = startAliveWatchdog(
+    const watchdog = await startAliveWatchdog(
       "sess-neterr",
       "turn-neterr",
       "proj-1",

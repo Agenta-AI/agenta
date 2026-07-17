@@ -161,7 +161,7 @@ describe("session record persist — skipped when Redis unavailable", () => {
     // The alive watchdog POSTs to the API; without a live API server the fetch
     // will fail, but the module must swallow failures and never throw.
     const { startAliveWatchdog } = await import("../../src/sessions/alive.ts");
-    const watchdog = startAliveWatchdog("integ-sess", "integ-turn", "tok");
+    const watchdog = await startAliveWatchdog("integ-sess", "integ-turn", "tok");
     await assert.doesNotReject(() => watchdog.release());
   });
 

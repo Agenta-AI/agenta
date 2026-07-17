@@ -910,13 +910,17 @@ async function runAndStreamWithApiBaseResolved(
     // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
     // `controller.abort()` is what makes the control-plane signal actually reach this
     // in-flight run — before this, a session-owned run's controller was never aborted.
-    const watchdog = startAliveWatchdog(
+    // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
+    const watchdog = await startAliveWatchdog(
       sessionId,
       turnId,
       runCredential(request),
       () => controller.abort(),
     );
     aliveWatchdog = watchdog;
+    // The heartbeat response already carries the session_streams row id — free, no extra
+    // round-trip. Thread it onto the request so the engine's turn-append write has it.
+    request.streamId = watchdog.streamId();
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
     // the resume resolves that one). Best-effort, never blocks the turn.
