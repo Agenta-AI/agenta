@@ -230,7 +230,7 @@ export default function TriggerDeliveriesDrawer() {
                 setState(null)
             }}
             title={`Deliveries${state?.name ? ` · ${state.name}` : ""}`}
-            width={820}
+            size={820}
             destroyOnClose
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
