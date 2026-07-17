@@ -1620,10 +1620,30 @@ export async function acquireEnvironment(
       environment.agentMountedPath && plan.acpAgent === "claude"
         ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
         : undefined;
+    // Claude-only: request VISIBLE ("summarized") extended-thinking display. Recent Claude
+    // models default `thinking.display` to "omitted" (signature-only, empty text), so
+    // claude-agent-acp emits no `agent_thought_chunk` and the UI shows no reasoning — while
+    // haiku, which returns thinking text, works. Forcing summarized display surfaces the
+    // reasoning for every model. Rides `_meta.claudeCode.options`, which claude-agent-acp
+    // spreads over its env-derived thinking config (so it wins). See issue #5355.
+    const claudeThinkingMeta =
+      plan.acpAgent === "claude"
+        ? {
+            claudeCode: {
+              options: {
+                thinking: { type: "adaptive", display: "summarized" },
+              },
+            },
+          }
+        : undefined;
+    const claudeMeta =
+      claudeSystemPromptMeta || claudeThinkingMeta
+        ? { ...(claudeSystemPromptMeta ?? {}), ...(claudeThinkingMeta ?? {}) }
+        : undefined;
     const sessionInit = {
       cwd: plan.cwd,
       mcpServers: sessionMcp.servers,
-      ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
+      ...(claudeMeta ? { _meta: claudeMeta } : {}),
     };
 
     // If this harness authored the conversation's most recent turn (staleness-guarded) and we
@@ -2325,7 +2345,9 @@ export async function runTurn(
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
-    const output = run.finish();
+    // Pass the stop reason so a paused turn's `done` is tagged — the replay must not treat it as a
+    // turn boundary (the turn continues on the resume run).
+    const output = run.finish({ stopReason });
     await run.flush();
 
     if (swallowedError) {

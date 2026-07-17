@@ -1068,8 +1068,12 @@ export interface SandboxAgentOtel {
    * lands in both the live sink and the batch `events()` log in build order.
    */
   emitEvent(event: AgentEvent): void;
-  /** End all open spans. Returns the accumulated assistant text. */
-  finish(): string;
+  /**
+   * End all open spans. Returns the accumulated assistant text. `stopReason` is stamped on the
+   * terminal `done` event: a `"paused"` turn is NOT a real turn boundary (it continues on the
+   * resume run), so a replay must not close the message there — see the FE `transcriptToMessages`.
+   */
+  finish(opts?: { stopReason?: string }): string;
   /**
    * Record a run-level error on the agent span: the user-facing message (F-030) plus the
    * provider that failed, and an OTel exception event, so a trace carries the same diagnostic
@@ -1543,7 +1547,7 @@ export function createSandboxAgentOtel(
     }
   }
 
-  function finish(): string {
+  function finish(opts?: { stopReason?: string }): string {
     const text = stripStartupBanner(accumulated.trim());
     // The event log is independent of span emission, so build its tail either way.
     closeText();
@@ -1567,7 +1571,12 @@ export function createSandboxAgentOtel(
     }
     // Stamp the run's trace id on the turn's terminal event so a persisted transcript can link a
     // replayed turn back to its trace (undefined only in span-less mode with no valid traceparent).
-    record({ type: "done", ...(runTraceId ? { traceId: runTraceId } : {}) });
+    // `stopReason` rides too: a paused turn's `done` must not read as a turn boundary on replay.
+    record({
+      type: "done",
+      ...(opts?.stopReason ? { stopReason: opts.stopReason } : {}),
+      ...(runTraceId ? { traceId: runTraceId } : {}),
+    });
     if (!emitSpans) return text;
     if (llmSpan) {
       emitMessages(

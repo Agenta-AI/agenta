@@ -953,11 +953,15 @@ async function runAndStreamWithApiBaseResolved(
       liveEmit,
       seedForRun(request),
     );
-    // Record the inbound user turn first so the session record is the full conversation,
-    // not just agent output. Interaction replies ride tool_result blocks (no text) and are
-    // already recorded on the interaction, so an empty prompt persists nothing.
+    // Record the inbound user turn first so the session record is the full conversation, not just
+    // agent output. Only for a FRESH user turn: an approval resume re-sends the SAME prompt text
+    // (the request still carries it), so persisting unconditionally would append a duplicate user
+    // message on every resume — which then splits the parked turn from its resume on reload. An
+    // approval reply rides tool_result blocks (no fresh text) and is already recorded on the
+    // interaction, so `tailIsFreshUserMessage` is false for it.
     const promptText = resolvePromptText(request);
-    if (promptText) persist({ type: "message", text: promptText }, "user");
+    if (promptText && tailIsFreshUserMessage(request))
+      persist({ type: "message", text: promptText }, "user");
     emitFn = persistingEmit;
     flushPersist = flush;
     persistError = (message) => persist({ type: "error", message }, "agent");
