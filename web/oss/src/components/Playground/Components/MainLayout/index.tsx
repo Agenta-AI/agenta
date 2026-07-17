@@ -27,7 +27,9 @@ import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import AgentCommitNotice from "../AgentCommitNotice"
+import AlwaysAllowedNotice from "../AlwaysAllowedNotice"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
+import ProviderKeyNotice from "../ProviderKeyNotice"
 import type {BaseContainerProps} from "../types"
 const PlaygroundFocusDrawer = dynamic(() => import("../PlaygroundFocusDrawerAdapter"), {
     ssr: false,
@@ -437,7 +439,11 @@ const PlaygroundMainView = ({
                                 </>
                             </section>
                             {!isComparisonView && isAgentConfig && primaryConfigId ? (
-                                <AgentCommitNotice revisionId={primaryConfigId} />
+                                <>
+                                    <ProviderKeyNotice revisionId={primaryConfigId} />
+                                    <AlwaysAllowedNotice revisionId={primaryConfigId} />
+                                    <AgentCommitNotice revisionId={primaryConfigId} />
+                                </>
                             ) : null}
                         </div>
                     </SplitterPanel>
