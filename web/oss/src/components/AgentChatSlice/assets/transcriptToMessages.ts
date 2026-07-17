@@ -25,8 +25,6 @@ interface DraftMessage {
     /** Open streamed text/reasoning parts keyed by event id, for delta accumulation. */
     text: Map<string, Part>
     reasoning: Map<string, Part>
-    /** Tool parts keyed by toolCallId so results/approvals attach to the right call. */
-    tools: Map<string, Part>
     /** The turn's observability trace id, if the durable record carries one (see below). */
     traceId?: string
     /** Token/cost totals from the turn's persisted `usage` event, in the raw stream shape. */
@@ -74,13 +72,25 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
     parts: [],
     text: new Map(),
     reasoning: new Map(),
-    tools: new Map(),
 })
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
-/** Apply one transcript event's payload onto the current assistant/user draft message. */
-function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void {
+/**
+ * Apply one transcript event's payload onto the current draft.
+ *
+ * `tools` is TRANSCRIPT-GLOBAL, not per-draft: a parked tool call and the `tool_result` that
+ * settles it can land in DIFFERENT turns (the gate is emitted in the paused run, the result in the
+ * resume run). Keying tool parts globally lets that later result settle the earlier gate part in
+ * place, instead of being dropped for want of a matching part in its own draft — which left the
+ * gate stuck at "approval-requested" on reload. The part still lives in the draft where its
+ * `tool_call` first appeared.
+ */
+function applyEvent(
+    draft: DraftMessage,
+    payload: Record<string, unknown>,
+    tools: Map<string, Part>,
+): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
 
@@ -117,6 +127,15 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
         }
         case "tool_call": {
             const toolCallId = str(payload.id)
+            // A keep-alive resume re-emits the parked call's `tool_call` (so the live FE flips it to
+            // done); on replay that repeat must UPDATE the existing part, not push a duplicate that
+            // orphans the original approval-requested one. Keyed globally, so it also finds a part
+            // created in an earlier draft.
+            const existing = tools.get(toolCallId)
+            if (existing) {
+                if (payload.input !== undefined) existing.input = payload.input
+                return
+            }
             const part: Part = {
                 type: toolPartType(payload.name as string),
                 toolCallId,
@@ -124,11 +143,11 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
                 input: payload.input,
             }
             draft.parts.push(part)
-            draft.tools.set(toolCallId, part)
+            tools.set(toolCallId, part)
             return
         }
         case "tool_result": {
-            const part = draft.tools.get(str(payload.id))
+            const part = tools.get(str(payload.id))
             if (!part) return
             if (payload.denied) {
                 part.state = "output-denied"
@@ -151,7 +170,7 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
             const toolCallId = str(
                 reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
             )
-            let part = draft.tools.get(toolCallId)
+            let part = tools.get(toolCallId)
             if (!part) {
                 // The runner parked without first surfacing the tool call — synthesize one.
                 part = {
@@ -165,7 +184,7 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
                     input: toolCall.rawInput ?? toolCall.input,
                 }
                 draft.parts.push(part)
-                draft.tools.set(toolCallId, part)
+                tools.set(toolCallId, part)
             }
             // Only park if still unsettled — a later `tool_result` overwrites this.
             if (part.state === "input-available") {
@@ -218,6 +237,9 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
 export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
+    // Tool parts are keyed transcript-wide (see applyEvent): a parked gate and its settling result
+    // can span two turns (paused run → resume run).
+    const tools = new Map<string, Part>()
 
     for (const row of records) {
         const payload = row.payload
@@ -228,9 +250,12 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         const traceId = extractTraceId(row, p)
         // `done` terminates a turn. Records are runner-output-only (no user rows), so without
         // this every turn folds into one assistant bubble; closing the draft here starts a
-        // fresh message per turn.
+        // fresh message per turn. EXCEPT a PAUSED turn's `done`: it is not a real boundary — the
+        // turn continues on the resume run — so closing here would sever a parked gate from the
+        // result that settles it (gate stuck on reload). Keep the draft open across it.
         if (row.session_update === "done" || p.type === "done") {
             if (current && traceId && !current.traceId) current.traceId = traceId
+            if (p.stopReason === "paused") continue
             current = null
             continue
         }
@@ -240,7 +265,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p)
+        applyEvent(current, p, tools)
     }
 
     const messages = drafts
