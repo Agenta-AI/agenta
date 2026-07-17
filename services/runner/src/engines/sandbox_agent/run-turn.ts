@@ -567,7 +567,9 @@ export async function runTurn(
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
-    const output = run.finish();
+    // Pass the stop reason so a paused turn's `done` is tagged — the replay must not treat it as a
+    // turn boundary (the turn continues on the resume run).
+    const output = run.finish({ stopReason });
     await run.flush();
 
     if (swallowedError) {
