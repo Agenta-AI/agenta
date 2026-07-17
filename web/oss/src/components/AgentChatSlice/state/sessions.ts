@@ -5,7 +5,7 @@ import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
-import {clearSessionEphemera} from "./sessionEphemera"
+import {clearSessionEphemera, markSessionFresh} from "./sessionEphemera"
 
 /**
  * Multi-session model for the agent chat slice. The playground hosts several parallel agent
@@ -118,6 +118,17 @@ const currentOpenIds = (get: Getter, key: string): string[] => {
     return (get(sessionsByAppAtom)[key] ?? []).map((s) => s.id)
 }
 
+/**
+ * A "husk": a session the user never initiated — no user title AND no messages. It has no backend
+ * records and nothing to reopen, so it's only worth keeping while it's an open tab; once closed it's
+ * dropped rather than left in history. Reload-proof (reads persisted title + messages), so it also
+ * catches never-run sessions whose in-memory "fresh" marker was lost to a reload.
+ */
+export const isSessionHusk = (
+    session: AgentChatSession,
+    messages: Record<string, UIMessage[]>,
+): boolean => !session.title?.trim() && !messages[session.id]?.length
+
 /** All sessions for a scope (history), newest first. Backs the history picker. */
 export const sessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
@@ -152,6 +163,8 @@ export const openSessionIdsAtomFamily = atomFamily((key: string) =>
 export const addSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set) => {
         const id = generateId()
+        // Brand-new, never-run session: no backend records yet, so skip its empty-cache hydration.
+        markSessionFresh(id)
         // Read open ids BEFORE mutating history, else the fallback would re-count the new id.
         const open = currentOpenIds(get, key)
         const all = get(sessionsByAppAtom)
@@ -166,7 +179,10 @@ export const addSessionAtomFamily = atomFamily((key: string) =>
 )
 
 /** Close a tab: drop it from the open list (KEEP the session + messages so it can be reopened
- * from the history picker) and re-point the active tab to a neighbour if it was the one closed. */
+ * from the history picker) and re-point the active tab to a neighbour if it was the one closed.
+ * A never-run session (fresh, no messages) is the exception — it has no backend records and
+ * nothing to reopen, so closing discards it entirely rather than leaving an empty husk that piles
+ * up in history each time the user opens and closes a blank tab. */
 export const closeSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set, id: string) => {
         const open = currentOpenIds(get, key)
@@ -179,6 +195,39 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
             const neighbour = nextOpen[Math.min(closedIdx, nextOpen.length - 1)] ?? ""
             set(activeByAppAtom, {...active, [key]: neighbour})
         }
+
+        const all = get(sessionsByAppAtom)
+        const session = (all[key] ?? []).find((s) => s.id === id)
+        if (session && isSessionHusk(session, get(sessionMessagesAtom))) {
+            set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
+            clearSessionEphemera(id)
+        }
+    }),
+)
+
+/**
+ * Drop every closed husk (never-initiated, untitled, no messages) from a scope's history. Open tabs
+ * are never touched, so a blank in-progress tab survives. Run once on panel mount to clear husks
+ * accumulated before the close-time cleanup existed, and any that outlived a reload (when the
+ * in-memory "fresh" marker is already gone). Idempotent.
+ */
+export const pruneSessionHusksAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set) => {
+        const all = get(sessionsByAppAtom)
+        const list = all[key] ?? []
+        if (list.length === 0) return
+        const open = new Set(currentOpenIds(get, key))
+        const messages = get(sessionMessagesAtom)
+        const staleIds = new Set(
+            list.filter((s) => !open.has(s.id) && isSessionHusk(s, messages)).map((s) => s.id),
+        )
+        if (staleIds.size === 0) return
+        set(sessionsByAppAtom, {...all, [key]: list.filter((s) => !staleIds.has(s.id))})
+        const active = get(activeByAppAtom)
+        if (active[key] && staleIds.has(active[key])) {
+            set(activeByAppAtom, {...active, [key]: currentOpenIds(get, key)[0] ?? ""})
+        }
+        for (const id of staleIds) clearSessionEphemera(id)
     }),
 )
 
