@@ -19,7 +19,8 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sessions.turns.dtos import Harness, SessionTurn, SessionTurnQuery
+from oss.src.core.shared.dtos import Reference, Windowing
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +193,41 @@ class SessionMountResponse(BaseModel):
 class SessionMountsResponse(BaseModel):
     count: int = 0
     mounts: List[SessionMount] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Turns request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionTurnAppendRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    stream_id: UUID
+    turn_index: int
+    harness: Harness
+    agent_session_id: Optional[str] = None
+    sandbox_id: Optional[str] = None
+    references: Optional[List[Reference]] = None
+    trace_id: Optional[UUID] = None
+    root_span_id: Optional[UUID] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
+
+class SessionTurnQueryRequest(BaseModel):
+    query: Optional[SessionTurnQuery] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionTurnResponse(BaseModel):
+    count: int = 0
+    turn: Optional[SessionTurn] = None
+
+
+class SessionTurnsResponse(BaseModel):
+    count: int = 0
+    turns: List[SessionTurn] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

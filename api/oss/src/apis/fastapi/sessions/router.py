@@ -1,10 +1,11 @@
 """Unified sessions API router.
 
-Composes four sub-domain routers:
+Composes the sub-domain routers:
   - SessionStreamsRouter  — /sessions/streams/*
   - SessionStatesRouter  — /sessions/states/
   - RecordsRouter        — /sessions/records/*
   - InteractionsRouter   — /sessions/interactions/*
+  - SessionTurnsRouter    — /sessions/turns/*
 """
 
 import re
@@ -51,6 +52,8 @@ from oss.src.core.sessions.interactions.service import SessionInteractionsServic
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.core.sessions.mounts.dtos import SessionMountQuery
+from oss.src.core.sessions.turns.dtos import SessionTurnCreate
+from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
 from oss.src.apis.fastapi.mounts.utils import (
@@ -98,6 +101,11 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionMountQueryRequest,
     SessionMountResponse,  # noqa: F401  (exported for OpenAPI/single-mount future use)
     SessionMountsResponse,
+    # turns
+    SessionTurnAppendRequest,
+    SessionTurnQueryRequest,
+    SessionTurnResponse,
+    SessionTurnsResponse,
 )
 
 log = get_module_logger(__name__)
@@ -1085,6 +1093,122 @@ class SessionMountsRouter:
         )
 
 
+class SessionTurnsRouter:
+    """Turns sub-router — /sessions/turns/*"""
+
+    def __init__(self, *, turns_service: SessionTurnsService) -> None:
+        self.turns_service = turns_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/",
+            self.append_turn,
+            methods=["POST"],
+            operation_id="append_turn",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/query",
+            self.query_turns,
+            methods=["POST"],
+            operation_id="query_turns",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/{turn_id}",
+            self.fetch_turn,
+            methods=["GET"],
+            operation_id="fetch_turn",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnResponse,
+            response_model_exclude_none=True,
+        )
+
+    @intercept_exceptions()
+    async def append_turn(
+        self,
+        request: Request,
+        body: SessionTurnAppendRequest,
+    ) -> SessionTurnResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        turn = await self.turns_service.append_turn(
+            project_id=project_id,
+            user_id=user_id,
+            turn=SessionTurnCreate(
+                session_id=body.session_id,
+                stream_id=body.stream_id,
+                turn_index=body.turn_index,
+                harness=body.harness,
+                agent_session_id=body.agent_session_id,
+                sandbox_id=body.sandbox_id,
+                references=body.references,
+                trace_id=body.trace_id,
+                root_span_id=body.root_span_id,
+                start_time=body.start_time,
+                end_time=body.end_time,
+            ),
+        )
+        return SessionTurnResponse(count=1, turn=turn)
+
+    @intercept_exceptions()
+    async def query_turns(
+        self,
+        request: Request,
+        body: SessionTurnQueryRequest,
+    ) -> SessionTurnsResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        turns = await self.turns_service.query_turns(
+            project_id=project_id,
+            query=body.query,
+            windowing=body.windowing,
+        )
+        return SessionTurnsResponse(count=len(turns), turns=turns)
+
+    @intercept_exceptions()
+    async def fetch_turn(
+        self,
+        request: Request,
+        turn_id: UUID,
+    ) -> SessionTurnResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        turn = await self.turns_service.fetch_turn(
+            project_id=project_id,
+            turn_id=turn_id,
+        )
+        return SessionTurnResponse(count=1 if turn else 0, turn=turn)
+
+
 # ---------------------------------------------------------------------------
 # Top-level composer
 # ---------------------------------------------------------------------------
@@ -1099,6 +1223,7 @@ class SessionsRouter:
       sessions_router.records.router               → prefix /sessions/records
       sessions_router.interactions.router          → prefix /sessions/interactions
       sessions_router.mounts.router                → prefix /sessions
+      sessions_router.turns.router                 → prefix /sessions/turns
     """
 
     def __init__(
@@ -1111,6 +1236,7 @@ class SessionsRouter:
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
         mounts_service: MountsService,
+        turns_service: SessionTurnsService,
         respond_task: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
@@ -1128,3 +1254,4 @@ class SessionsRouter:
             session_mounts_service=session_mounts_service,
             mounts_service=mounts_service,
         )
+        self.turns = SessionTurnsRouter(turns_service=turns_service)

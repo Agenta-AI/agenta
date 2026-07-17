@@ -178,6 +178,10 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 
+from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+from oss.src.core.sessions.turns.service import SessionTurnsService
+
 # Interactions
 from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
@@ -549,6 +553,7 @@ environments_dao = GitDAO(
 evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
 session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
+session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
@@ -614,6 +619,10 @@ _lock_engine = get_lock_engine()
 session_streams_service = SessionStreamsService(
     streams_dao=session_streams_dao,
     lock_engine=_lock_engine,
+)
+
+session_turns_service = SessionTurnsService(
+    turns_dao=session_turns_dao,
 )
 
 workflows_service = WorkflowsService(
@@ -1042,6 +1051,7 @@ sessions = SessionsRouter(
     workflows_service=workflows_service,
     session_mounts_service=session_mounts_service,
     mounts_service=mounts_service,
+    turns_service=session_turns_service,
     respond_task=_interactions_worker.respond_interaction,
 )
 
@@ -1476,6 +1486,12 @@ app.include_router(
 app.include_router(
     router=sessions.records.router,
     prefix="/sessions/records",
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=sessions.turns.router,
+    prefix="/sessions/turns",
     tags=["Sessions"],
 )
 
