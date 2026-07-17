@@ -25,11 +25,6 @@ export interface WireSessionTurn {
   turn_index?: number;
 }
 
-interface SessionTurnsQueryResponseWire {
-  count?: number;
-  turns?: WireSessionTurn[];
-}
-
 export interface DurableContinuityDeps {
   apiBase?: string;
   authorization: string;
@@ -50,10 +45,10 @@ export interface SessionTurnAppend {
 }
 
 /**
- * Fetch the LATEST turn for a session, optionally scoped to one harness. Ordered by `id`
- * (uuid7 — insertion order, equivalent to `turn_index DESC` for an append-only table) via
- * `windowing: {limit: 1, order: "descending"}`. Returns undefined on any failure (row absent,
- * API unreachable) — every caller treats this as best-effort, degrading to cold replay.
+ * Fetch the LATEST turn for a session, optionally scoped to one harness. The `/latest` endpoint
+ * orders by `turn_index` (not insertion `id`), so a late/out-of-order write can't win the resume
+ * read. Returns undefined on any failure (row absent, API unreachable) — every caller treats this
+ * as best-effort, degrading to cold replay.
  */
 export async function fetchLatestSessionTurn(
   sessionId: string,
@@ -64,18 +59,15 @@ export async function fetchLatestSessionTurn(
   const doFetch = deps.fetchImpl ?? fetch;
   const base = deps.apiBase ?? apiBase();
   try {
-    const res = await doFetch(`${base}/sessions/turns/query`, {
+    const res = await doFetch(`${base}/sessions/turns/latest`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: deps.authorization,
       },
       body: JSON.stringify({
-        query: {
-          session_id: sessionId,
-          ...(harness ? { harness_kind: harness } : {}),
-        },
-        windowing: { limit: 1, order: "descending" },
+        session_id: sessionId,
+        ...(harness ? { harness_kind: harness } : {}),
       }),
     });
     if (!res.ok) {
@@ -84,8 +76,8 @@ export async function fetchLatestSessionTurn(
       );
       return undefined;
     }
-    const body = (await res.json()) as SessionTurnsQueryResponseWire;
-    return body.turns?.[0];
+    const body = (await res.json()) as { turn?: WireSessionTurn };
+    return body.turn;
   } catch (err) {
     log(
       `latest-turn failed session=${sessionId} harness=${harness ?? "-"}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,

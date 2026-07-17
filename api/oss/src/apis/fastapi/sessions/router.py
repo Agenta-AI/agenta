@@ -107,6 +107,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionMountsResponse,
     # turns
     SessionTurnAppendRequest,
+    SessionTurnLatestRequest,
     SessionTurnQueryRequest,
     SessionTurnResponse,
     SessionTurnsResponse,
@@ -1058,6 +1059,15 @@ class SessionTurnsRouter:
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
+            "/latest",
+            self.latest_turn,
+            methods=["POST"],
+            operation_id="latest_turn",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
             "/{turn_id}",
             self.fetch_turn,
             methods=["GET"],
@@ -1124,6 +1134,35 @@ class SessionTurnsRouter:
             windowing=body.windowing,
         )
         return SessionTurnsResponse(count=len(turns), turns=turns)
+
+    @intercept_exceptions()
+    async def latest_turn(
+        self,
+        request: Request,
+        body: SessionTurnLatestRequest,
+    ) -> SessionTurnResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        if body.harness_kind is not None:
+            turn = await self.turns_service.latest_turn_per_harness_kind(
+                project_id=project_id,
+                session_id=body.session_id,
+                harness_kind=body.harness_kind,
+            )
+        else:
+            turn = await self.turns_service.latest_turn(
+                project_id=project_id,
+                session_id=body.session_id,
+            )
+        return SessionTurnResponse(count=1 if turn else 0, turn=turn)
 
     @intercept_exceptions()
     async def fetch_turn(

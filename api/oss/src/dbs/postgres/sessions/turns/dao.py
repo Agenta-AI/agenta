@@ -127,7 +127,7 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                     SessionTurnDBE.project_id == project_id,
                     SessionTurnDBE.session_id == session_id,
                 )
-                .order_by(SessionTurnDBE.turn_index.desc())
+                .order_by(SessionTurnDBE.turn_index.desc(), SessionTurnDBE.id.desc())
                 .limit(1)
             )
             result = await session.execute(stmt)
@@ -151,7 +151,7 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                     SessionTurnDBE.session_id == session_id,
                     SessionTurnDBE.harness_kind == harness_kind.value,
                 )
-                .order_by(SessionTurnDBE.turn_index.desc())
+                .order_by(SessionTurnDBE.turn_index.desc(), SessionTurnDBE.id.desc())
                 .limit(1)
             )
             result = await session.execute(stmt)

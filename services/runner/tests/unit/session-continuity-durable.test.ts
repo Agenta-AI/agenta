@@ -35,7 +35,7 @@ function errResponse(status: number): Response {
 }
 
 describe("fetchLatestSessionTurn", () => {
-  it("POSTs a query scoped to session (+harness when given), windowed to the latest one", async () => {
+  it("POSTs the latest read scoped to session (+harness_kind when given)", async () => {
     let body: Record<string, unknown> | undefined;
     let url: string | undefined;
     await fetchLatestSessionTurn("sess-1", "claude", {
@@ -44,46 +44,44 @@ describe("fetchLatestSessionTurn", () => {
       fetchImpl: (async (u: string, init?: RequestInit) => {
         url = u;
         body = JSON.parse(init!.body as string);
-        return okResponse({ count: 0, turns: [] });
+        return okResponse({ count: 0 });
       }) as unknown as typeof fetch,
       log: SILENT,
     });
-    assert.equal(url, "http://api:8000/sessions/turns/query");
+    assert.equal(url, "http://api:8000/sessions/turns/latest");
     assert.deepEqual(body, {
-      query: { session_id: "sess-1", harness_kind: "claude" },
-      windowing: { limit: 1, order: "descending" },
+      session_id: "sess-1",
+      harness_kind: "claude",
     });
   });
 
-  it("omits harness from the query when not given", async () => {
+  it("omits harness_kind when not given", async () => {
     let body: Record<string, unknown> | undefined;
     await fetchLatestSessionTurn("sess-1", undefined, {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async (_u: string, init?: RequestInit) => {
         body = JSON.parse(init!.body as string);
-        return okResponse({ turns: [] });
+        return okResponse({ count: 0 });
       }) as unknown as typeof fetch,
       log: SILENT,
     });
-    assert.deepEqual(body!["query"], { session_id: "sess-1" });
+    assert.deepEqual(body, { session_id: "sess-1" });
   });
 
-  it("returns the first (latest) turn from the response", async () => {
+  it("returns the latest turn from the response", async () => {
     const turn = await fetchLatestSessionTurn("sess-1", "claude", {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async () =>
         okResponse({
           count: 1,
-          turns: [
-            {
-              harness_kind: "claude",
-              agent_session_id: "agent-1",
-              sandbox_id: "sbx-1",
-              turn_index: 3,
-            },
-          ],
+          turn: {
+            harness_kind: "claude",
+            agent_session_id: "agent-1",
+            sandbox_id: "sbx-1",
+            turn_index: 3,
+          },
         })) as unknown as typeof fetch,
       log: SILENT,
     });
@@ -126,13 +124,11 @@ describe("hydrateHarnessSessionFromDurable", () => {
       authorization: "ApiKey abc",
       fetchImpl: (async () =>
         okResponse({
-          turns: [
-            {
-              harness_kind: "claude",
-              agent_session_id: "agent-restored",
-              turn_index: 2,
-            },
-          ],
+          turn: {
+            harness_kind: "claude",
+            agent_session_id: "agent-restored",
+            turn_index: 2,
+          },
         })) as unknown as typeof fetch,
       log: SILENT,
     });
@@ -151,13 +147,11 @@ describe("hydrateHarnessSessionFromDurable", () => {
       authorization: "ApiKey abc",
       fetchImpl: (async () =>
         okResponse({
-          turns: [
-            {
-              harness_kind: "claude",
-              agent_session_id: "agent-OLD",
-              turn_index: 0,
-            },
-          ],
+          turn: {
+            harness_kind: "claude",
+            agent_session_id: "agent-OLD",
+            turn_index: 0,
+          },
         })) as unknown as typeof fetch,
       log: SILENT,
     });
@@ -203,7 +197,7 @@ describe("hydrateHarnessSessionFromDurable", () => {
       apiBase: "http://api:8000",
       authorization: "ApiKey abc",
       fetchImpl: (async () =>
-        okResponse({ turns: [] })) as unknown as typeof fetch,
+        okResponse({ count: 0 })) as unknown as typeof fetch,
       log: SILENT,
     });
     assert.equal(store.get("sess-1", "claude"), undefined);
@@ -216,29 +210,25 @@ describe("hydrateHarnessSessionFromDurable", () => {
     const store = new SessionContinuityStore();
     const fetchImpl = (async (url: string, init?: RequestInit) => {
       const body = JSON.parse(init!.body as string) as {
-        query: { harness_kind?: string };
+        harness_kind?: string;
       };
-      if (body.query.harness_kind === "claude") {
+      if (body.harness_kind === "claude") {
         return okResponse({
-          turns: [
-            {
-              harness_kind: "claude",
-              agent_session_id: "agent-claude",
-              turn_index: 1,
-            },
-          ],
+          turn: {
+            harness_kind: "claude",
+            agent_session_id: "agent-claude",
+            turn_index: 1,
+          },
         });
       }
-      if (body.query.harness_kind === "pi") {
+      if (body.harness_kind === "pi") {
         return okResponse({
-          turns: [
-            { harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 },
-          ],
+          turn: { harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 },
         });
       }
       // overall latest (no harness filter): pi's turn 2 wins.
       return okResponse({
-        turns: [{ harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 }],
+        turn: { harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 },
       });
     }) as unknown as typeof fetch;
 
@@ -275,19 +265,17 @@ describe("hydrateHarnessSessionFromDurable", () => {
       authorization: "ApiKey abc",
       fetchImpl: (async (_url: string, init?: RequestInit) => {
         const body = JSON.parse(init!.body as string) as {
-          query: { harness_kind?: string };
+          harness_kind?: string;
         };
-        if (body.query.harness_kind === "codex") {
-          return okResponse({ turns: [] });
+        if (body.harness_kind === "codex") {
+          return okResponse({ count: 0 });
         }
         return okResponse({
-          turns: [
-            {
-              harness_kind: "claude",
-              agent_session_id: "agent-claude",
-              turn_index: 4,
-            },
-          ],
+          turn: {
+            harness_kind: "claude",
+            agent_session_id: "agent-claude",
+            turn_index: 4,
+          },
         });
       }) as unknown as typeof fetch,
       log: SILENT,

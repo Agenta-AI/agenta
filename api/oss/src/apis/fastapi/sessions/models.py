@@ -180,6 +180,13 @@ class SessionTurnQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
+class SessionTurnLatestRequest(BaseModel):
+    # The latest turn is ordered by turn_index (not insertion id), so a late/out-of-order write
+    # can't win. Scoped per harness_kind when set — the resume read for that harness's continuity.
+    session_id: str
+    harness_kind: Optional[HarnessKind] = None
+
+
 class SessionTurnResponse(BaseModel):
     count: int = 0
     turn: Optional[SessionTurn] = None
