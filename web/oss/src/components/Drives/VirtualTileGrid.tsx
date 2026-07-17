@@ -18,7 +18,7 @@ export function VirtualTileGrid<T>({
     columns,
     getKey,
     renderTile,
-    estimateRowHeight = 132,
+    estimateRowHeight = 180,
     gap = 8,
     overscanRows = 4,
     className = "",

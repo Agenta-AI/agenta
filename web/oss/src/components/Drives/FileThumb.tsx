@@ -1,16 +1,22 @@
 /**
  * FileThumb — the grid-tile preview. Picks the cheapest faithful thumbnail per kind and stays
- * optimized: heavy strategies (PDF render, text-snippet fetch, video frame) are gated behind an
- * IntersectionObserver so an off-screen tile costs nothing, and each is size-capped. Any failure
- * falls back to the type icon — a tile never blocks or errors visibly.
+ * optimized: heavy strategies (PDF render, text-snippet fetch, video frame) each size-capped, and
+ * the fetched bytes are CACHED briefly ({@link mountFileThumbnailBlobQueryFamily}) so scrolling a
+ * tile out of the virtualized window and back doesn't refetch. Any failure falls back to the type
+ * icon — a tile never blocks or errors visibly.
  *
- *   image → native lazy <img> at the bytes URL (browser decode, no JS heap)
+ *   image → native <img> off the authenticated blob (browser decode)
  *   video → first frame via a metadata-only <video> seeked to 0.1s
  *   pdf   → first page rendered to a PNG data URL via lazy pdfjs (see pdfThumb)
  *   text  → first lines of the content (same shared query the preview uses)
  *   else  → the kind icon
+ *
+ * No IntersectionObserver gate: the grids that render tiles are virtualized, so only the visible +
+ * overscan tiles are ever mounted — mounting IS the "in view" signal, and fetching on mount gives
+ * the thumbnail a head start before the tile scrolls in (issue #5367). Memoized so scrolling the
+ * virtualized grid never re-renders an already-resolved tile.
  */
-import {useEffect, useRef, useState} from "react"
+import {memo, useEffect, useState} from "react"
 
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -19,7 +25,7 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import {driveFileIcon} from "./driveIcons"
 import {resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
-import {mountFileBlobQueryFamily, mountFileDownloadUrl} from "./driveMedia"
+import {mountFileDownloadUrl, mountFileThumbnailBlobQueryFamily} from "./driveMedia"
 import {renderPdfFirstPage} from "./pdfThumb"
 import {type DriveRecentFile} from "./useSessionDrive"
 
@@ -28,37 +34,10 @@ const PDF_CAP = 4 * 1024 * 1024
 const TEXT_CAP = 256 * 1024
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv", "html"])
 
-/** Becomes true once the element scrolls within {@link THUMB_PREFETCH_MARGIN} of the viewport;
- * latches so a tile loads its thumbnail once and never re-tears it down on scroll-out. Inside the
- * virtualized grids only the overscan window is ever mounted, so this margin (larger than a screen)
- * effectively means "fetch as soon as the virtualizer mounts the tile" — overscan is the real
- * prefetch knob, giving the thumbnail a head start before the tile scrolls into view (issue #5367). */
-const THUMB_PREFETCH_MARGIN = "600px"
-function useInView<T extends Element>() {
-    const ref = useRef<T>(null)
-    const [inView, setInView] = useState(false)
-    useEffect(() => {
-        const el = ref.current
-        if (!el || inView) return
-        const obs = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setInView(true)
-                    obs.disconnect()
-                }
-            },
-            {rootMargin: THUMB_PREFETCH_MARGIN},
-        )
-        obs.observe(el)
-        return () => obs.disconnect()
-    }, [inView])
-    return {ref, inView}
-}
-
-/** First page of a PDF as a data URL (lazy pdfjs); only fetches when in view and under cap. */
+/** First page of a PDF as a data URL (lazy pdfjs); only fetches when enabled and under cap. */
 function usePdfThumbnail(mount: Mount | null, path: string, enabled: boolean) {
     const query = useAtomValue(
-        mountFileBlobQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
+        mountFileThumbnailBlobQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
     )
     const blob = enabled ? (query.data ?? null) : null
     const [url, setUrl] = useState<string | null>(null)
@@ -82,7 +61,7 @@ function usePdfThumbnail(mount: Mount | null, path: string, enabled: boolean) {
  * `enabled`; revokes on change/unmount. */
 function useImageObjectUrl(mount: Mount | null, path: string, enabled: boolean) {
     const query = useAtomValue(
-        mountFileBlobQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
+        mountFileThumbnailBlobQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
     )
     const blob = enabled ? (query.data ?? null) : null
     const [url, setUrl] = useState<string | null>(null)
@@ -98,7 +77,8 @@ function useImageObjectUrl(mount: Mount | null, path: string, enabled: boolean) 
     return url
 }
 
-/** First lines of a text-family file (same shared content query the preview body reads). */
+/** First lines of a text-family file (same shared content query the preview body reads). Returns
+ * null while loading, "" for an empty file. */
 function useTextSnippet(mount: Mount | null, path: string, enabled: boolean) {
     const query = useAtomValue(
         mountFileContentQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
@@ -107,9 +87,8 @@ function useTextSnippet(mount: Mount | null, path: string, enabled: boolean) {
     return query.data.split("\n").slice(0, 10).join("\n")
 }
 
-export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | null}) {
+function FileThumbImpl({file, mount}: {file: DriveRecentFile; mount: Mount | null}) {
     const projectId = useAtomValue(projectIdAtom)
-    const {ref, inView} = useInView<HTMLDivElement>()
     const [failed, setFailed] = useState(false)
     const kind = resolveDriveFileKind(file.path)
     const size = file.size ?? 0
@@ -120,12 +99,13 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
     const isText = TEXT_KINDS.has(kind) && size > 0 && size <= TEXT_CAP
 
     const directUrl = mountFileDownloadUrl(mount, file.path, projectId)
-    const imgUrl = useImageObjectUrl(mount, file.path, isImage && inView && !failed)
-    const pdfUrl = usePdfThumbnail(mount, file.path, isPdf && inView && !failed)
-    const snippet = useTextSnippet(mount, file.path, isText && inView)
+    const imgUrl = useImageObjectUrl(mount, file.path, isImage && !failed)
+    const pdfUrl = usePdfThumbnail(mount, file.path, isPdf && !failed)
+    const snippet = useTextSnippet(mount, file.path, isText)
 
     // A consistent 4:3 preview so tiles line up and nothing letterboxes oddly; visual kinds fill
-    // it (object-cover), text/icon center within it.
+    // it (object-cover), text/icon center within it. Fixed aspect → the tile height never depends
+    // on whether the thumbnail has loaded, so the grid never reflows.
     const box =
         "flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary"
 
@@ -133,7 +113,7 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
     // which animate straight from the object URL.
     if (isImage && imgUrl && !failed) {
         return (
-            <div ref={ref} className={box}>
+            <div className={box}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- object URL for authed bytes; next/image can't optimize it */}
                 <img
                     src={imgUrl}
@@ -148,7 +128,7 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
     // Video — first frame via a metadata-only element seeked just past 0.
     if (isVideo && directUrl && !failed) {
         return (
-            <div ref={ref} className={box}>
+            <div className={box}>
                 {/* muted + playsInline so browsers render the poster frame without autoplay policy noise */}
                 <video
                     src={`${directUrl}#t=0.1`}
@@ -165,7 +145,7 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
     // PDF — first page rendered to a PNG (lazy pdfjs); icon until it resolves.
     if (isPdf && pdfUrl && !failed) {
         return (
-            <div ref={ref} className={box}>
+            <div className={box}>
                 {/* object-top so the tile shows the page's title area, not its middle. */}
                 {/* eslint-disable-next-line @next/next/no-img-element -- generated data URL */}
                 <img
@@ -182,7 +162,7 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
     // otherwise blow the tile up to the snippet's full height (broken grid). Absolute → out of flow.
     if (isText && snippet) {
         return (
-            <div ref={ref} className={`${box} relative`}>
+            <div className={`${box} relative`}>
                 <pre className="absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-all p-1.5 text-left font-mono text-[7px] leading-[1.35] text-colorTextTertiary">
                     {snippet}
                 </pre>
@@ -190,10 +170,28 @@ export function FileThumb({file, mount}: {file: DriveRecentFile; mount: Mount | 
         )
     }
 
-    // Fallback — the kind icon (also the not-yet-loaded state for lazy thumbnails).
+    // A thumbnailable file whose bytes are still loading → a soft skeleton pulse (not the type icon,
+    // which would flash-swap to the thumbnail a frame later). Non-thumbnailable files show the icon
+    // as their final state.
+    const loadingThumb =
+        !failed && ((isImage && !imgUrl) || (isPdf && !pdfUrl) || (isText && snippet === null))
     return (
-        <div ref={ref} className={box}>
-            {driveFileIcon(file.path, 22)}
+        <div className={box}>
+            {loadingThumb ? (
+                <div className="h-full w-full animate-pulse bg-colorFillSecondary" />
+            ) : (
+                driveFileIcon(file.path, 22)
+            )}
         </div>
     )
 }
+
+/** Memoized: identical file (path + mount + size drive the thumbnail) never re-renders when the
+ * virtualized grid re-renders on scroll. */
+export const FileThumb = memo(
+    FileThumbImpl,
+    (a, b) =>
+        a.file.path === b.file.path &&
+        a.mount?.id === b.mount?.id &&
+        (a.file.size ?? 0) === (b.file.size ?? 0),
+)

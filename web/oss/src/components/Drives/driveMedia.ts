@@ -60,6 +60,27 @@ export const mountFileBlobQueryFamily = atomFamily(
     (a, b) => a.mountId === b.mountId && a.path === b.path,
 )
 
+/** Same bytes, but for grid THUMBNAILS (capped image/pdf tiles) — a short `gcTime` keeps a recently
+ * seen thumbnail warm so scrolling it out of the virtualized window and back doesn't refetch and
+ * flash the tile (issue #5367). Separate key from {@link mountFileBlobQueryFamily} so the full-size
+ * viewer's `gcTime: 0` memory policy (never pin a 25 MB body) is untouched; thumbnails are capped
+ * small, so a 60s retention of the on-screen-ish set is cheap. */
+export const mountFileThumbnailBlobQueryFamily = atomFamily(
+    ({mountId, path}: {mountId: string; path: string}) =>
+        atomWithQuery<Blob | null>((get) => {
+            const projectId = get(projectIdAtom) ?? ""
+            return {
+                queryKey: ["mounts", "thumb-blob", projectId, mountId, path],
+                queryFn: () => fetchMountFileBlob({mountId, projectId, path}),
+                enabled: Boolean(mountId && path && projectId),
+                staleTime: Infinity,
+                gcTime: 60_000,
+                refetchOnWindowFocus: false,
+            }
+        }),
+    (a, b) => a.mountId === b.mountId && a.path === b.path,
+)
+
 /** Object URL for a drive file's bytes — revoked on change/unmount. */
 export function useMountFileObjectUrl(
     mount: Mount | null,

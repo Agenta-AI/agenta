@@ -134,7 +134,7 @@ export const relativeTime = (at?: number | null): string => {
     return `${Math.round(h / 24)}d ago`
 }
 
-export const isMarkdownPath = (path: string): boolean => /\.(md|markdown)$/i.test(path)
+export const isMarkdownPath = (path: string): boolean => /\.(md|markdown|mdx)$/i.test(path)
 
 /**
  * Build the expandable tree from the flat listing: intermediate folders are materialized from
