@@ -16,6 +16,10 @@ class SessionRecordEvent(BaseModel):
     record_source: Optional[str] = None
     attributes: Optional[Dict[str, Any]] = None
 
+    # Forward-fill only (tracing-DB rule): populated on new records, null on old ones.
+    turn_id: Optional[str] = None
+    span_id: Optional[UUID] = None
+
 
 class SessionRecord(BaseModel):
     record_id: UUID
@@ -28,6 +32,9 @@ class SessionRecord(BaseModel):
     record_type: Optional[str] = None
     record_source: Optional[str] = None
     attributes: Optional[Dict[str, Any]] = None
+
+    turn_id: Optional[str] = None
+    span_id: Optional[UUID] = None
 
     created_at: Optional[datetime] = None
 

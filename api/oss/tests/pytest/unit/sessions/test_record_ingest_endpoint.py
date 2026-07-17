@@ -100,3 +100,77 @@ async def test_record_ingest_rejects_without_permission():
             await router.ingest_record_event(request=request, body=body)
 
     assert exc_info.value.status_code == 403
+
+
+async def test_record_ingest_threads_turn_id_and_span_id():
+    records_service = AsyncMock()
+    router = RecordsRouter(records_service=records_service)
+
+    project_id = uuid4()
+    user_id = uuid4()
+    organization_id = uuid4()
+    session_id = uuid4()
+    span_id = uuid4()
+
+    body = SessionRecordIngestRequest(
+        session_id=str(session_id),
+        record_index=0,
+        record_source="agent",
+        attributes={"type": "message"},
+        turn_id="turn-abc",
+        span_id=span_id,
+    )
+
+    app = FastAPI()
+    request = _make_authed_request(app, project_id, user_id, organization_id)
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_publish,
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    event = mock_publish.await_args.kwargs["record_event"]
+    assert event.turn_id == "turn-abc"
+    assert event.span_id == span_id
+
+
+async def test_record_ingest_defaults_turn_id_and_span_id_to_none():
+    records_service = AsyncMock()
+    router = RecordsRouter(records_service=records_service)
+
+    project_id = uuid4()
+    user_id = uuid4()
+    organization_id = uuid4()
+    session_id = uuid4()
+
+    body = SessionRecordIngestRequest(session_id=str(session_id))
+
+    app = FastAPI()
+    request = _make_authed_request(app, project_id, user_id, organization_id)
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_publish,
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    event = mock_publish.await_args.kwargs["record_event"]
+    assert event.turn_id is None
+    assert event.span_id is None

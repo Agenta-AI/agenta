@@ -91,6 +91,8 @@ class RecordsDAO(RecordsDAOInterface):
                 "record_source": stmt.excluded.record_source,
                 "timestamp": stmt.excluded.timestamp,
                 "attributes": stmt.excluded.attributes,
+                "turn_id": stmt.excluded.turn_id,
+                "span_id": stmt.excluded.span_id,
             },
         ).returning(RecordDBE)
 

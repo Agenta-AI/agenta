@@ -592,6 +592,8 @@ class RecordsRouter:
                 record_type=body.record_type,
                 record_source=body.record_source,
                 attributes=body.attributes,
+                turn_id=body.turn_id,
+                span_id=body.span_id,
             ),
         )
         return {"ok": True}

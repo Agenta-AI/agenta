@@ -245,3 +245,7 @@ class SessionRecordIngestRequest(BaseModel):
     record_type: Optional[str] = None
     record_source: Optional[str] = None
     attributes: Optional[Dict[str, Any]] = None
+    # The turn this record belongs to; span_id bridges to observability when available.
+    # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
+    turn_id: Optional[str] = None
+    span_id: Optional[UUID] = None

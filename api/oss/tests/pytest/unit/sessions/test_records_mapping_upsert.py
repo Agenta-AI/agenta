@@ -44,6 +44,19 @@ def test_absent_record_id_falls_back_to_uuid4():
     assert dbe.record_id.version == 4
 
 
+def test_turn_id_and_span_id_map_through_to_the_dbe():
+    span_id = uuid5(_RECORDS_NS, "span")
+    dbe = map_record_event_to_dbe(event=_event(turn_id="turn-1", span_id=span_id))
+    assert dbe.turn_id == "turn-1"
+    assert dbe.span_id == span_id
+
+
+def test_turn_id_and_span_id_default_to_none():
+    dbe = map_record_event_to_dbe(event=_event())
+    assert dbe.turn_id is None
+    assert dbe.span_id is None
+
+
 class _FakeResult:
     def scalars(self):
         class _S:
@@ -117,6 +130,9 @@ def test_append_upserts_preserving_index():
     # payload columns are overwritten; the ordinal is not in the update set.
     assert "attributes" in compiled
     assert "set record_index" not in compiled
+    # turn_id/span_id ride the same upsert as the other payload columns.
+    assert "turn_id" in compiled
+    assert "span_id" in compiled
 
 
 def test_append_commits_when_it_opens_its_own_session():
