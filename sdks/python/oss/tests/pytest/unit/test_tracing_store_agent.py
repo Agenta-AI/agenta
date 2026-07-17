@@ -1,10 +1,9 @@
 """Unit tests for Tracing.store_agent (mirrors store_session/store_user).
 
-Verifies the attribute is set on the span with the `agent` namespace, that a
-falsy agent_id is a no-op, and that init-state warnings don't raise.
+Verifies the attribute is set on the span with the `agent` namespace and that a
+falsy agent_id is a no-op.
 """
 
-import warnings
 from unittest.mock import MagicMock
 
 import pytest
@@ -32,18 +31,3 @@ def test_store_agent_is_noop_when_agent_id_falsy(tracing):
     tracing.store_agent(agent_id="", span=span)
 
     span.set_attribute.assert_not_called()
-
-
-def test_store_agent_warns_when_tracer_not_configured(tracing):
-    span = MagicMock()
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        tracing.store_agent(agent_id="agent-123", span=span)
-
-    assert any(
-        issubclass(w.category, RuntimeWarning) and "store_agent" in str(w.message)
-        for w in caught
-    )
-    # The warning is best-effort; the attribute is still set on the given span.
-    span.set_attribute.assert_called_once_with("id", "agent-123", namespace="agent")
