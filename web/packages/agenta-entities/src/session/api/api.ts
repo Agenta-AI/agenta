@@ -15,6 +15,7 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
@@ -231,6 +232,41 @@ export async function querySessionStreams({
         "[querySessionStreams]",
     )
     return validated?.streams ?? null
+}
+
+export interface QuerySessionsParams {
+    projectId: string
+    /** Workflow refs to scope by — pass `[{id: appId}]` for one agent's sessions (JSONB `@>`
+     * containment against the turns' references). Omit for every session in the project. */
+    references?: {id?: string; slug?: string; version?: string}[]
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+}
+
+/**
+ * The durable session list for the project: merged stream rows (id, `name` title, flags,
+ * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
+ * server source the reconciling sidebar merges over its localStorage cache. Returns `null` on
+ * failure / missing project scope.
+ */
+export async function querySessions({
+    projectId,
+    references,
+    appId,
+    abortSignal,
+    lowPriority,
+}: QuerySessionsParams): Promise<SessionStream[] | null> {
+    if (!projectId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const data = await callFern("[querySessions]", () =>
+        client.querySessions({references}, projectScopedRequest(projectId, appId, abortSignal)),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(sessionsQueryResponseSchema, data, "[querySessions]")
+    return validated?.sessions ?? null
 }
 
 /** Fetch a session's current stream handle (liveness/attach state). Returns `null` if none. */
