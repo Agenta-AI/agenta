@@ -44,6 +44,10 @@ export interface ExecutionMetricsData {
     promptTokens?: number
     /** Completion/output tokens */
     completionTokens?: number
+    /** Prompt tokens served from the provider's cache (subset of promptTokens) */
+    cacheReadTokens?: number
+    /** Prompt tokens written to the provider's cache (subset of promptTokens) */
+    cacheWriteTokens?: number
     /** Total cost in dollars */
     totalCost?: number
 }
@@ -129,6 +133,23 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                                     <span>Prompt</span>
                                     <span>{formatTokens(metrics.promptTokens)}</span>
                                 </div>
+                                {(
+                                    [
+                                        ["Cached (read)", metrics.cacheReadTokens],
+                                        ["Cached (write)", metrics.cacheWriteTokens],
+                                    ] as const
+                                ).map(
+                                    ([label, value]) =>
+                                        !!value && (
+                                            <div
+                                                key={label}
+                                                className="flex items-center justify-between gap-3 opacity-65"
+                                            >
+                                                <span className="pl-3">{label}</span>
+                                                <span>{formatTokens(value)}</span>
+                                            </div>
+                                        ),
+                                )}
                                 <div className="flex items-center justify-between gap-3 opacity-85">
                                     <span>Completion</span>
                                     <span>{formatTokens(metrics.completionTokens)}</span>

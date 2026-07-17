@@ -33,10 +33,22 @@ export function mergePromptAndStreamUsage(
   const promptUsage = promptResult?.usage;
   const inputTokens = promptUsage?.inputTokens ?? streamUsage?.input ?? 0;
   const outputTokens = promptUsage?.outputTokens ?? streamUsage?.output ?? 0;
-  const total = inputTokens + outputTokens || streamUsage?.total || 0;
+  const cacheRead = promptUsage?.cachedReadTokens ?? streamUsage?.cacheRead;
+  const cacheWrite = promptUsage?.cachedWriteTokens ?? streamUsage?.cacheWrite;
+  const total =
+    inputTokens + outputTokens + (cacheRead ?? 0) + (cacheWrite ?? 0) ||
+    streamUsage?.total ||
+    0;
   const cost = streamUsage?.cost ?? 0;
   return total > 0 || cost > 0
-    ? { input: inputTokens, output: outputTokens, total, cost }
+    ? {
+        input: inputTokens,
+        output: outputTokens,
+        total,
+        cost,
+        ...(cacheRead != null ? { cacheRead } : {}),
+        ...(cacheWrite != null ? { cacheWrite } : {}),
+      }
     : undefined;
 }
 

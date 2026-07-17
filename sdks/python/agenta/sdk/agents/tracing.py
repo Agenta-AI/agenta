@@ -229,6 +229,14 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
         span.set_attribute("gen_ai.usage.prompt_tokens", input_tokens)
         span.set_attribute("gen_ai.usage.completion_tokens", output_tokens)
         span.set_attribute("gen_ai.usage.total_tokens", int(usage.get("total") or 0))
+        cache_read = usage.get("cacheRead")
+        if cache_read:
+            span.set_attribute("gen_ai.usage.cache_read.input_tokens", int(cache_read))
+        cache_write = usage.get("cacheWrite")
+        if cache_write:
+            span.set_attribute(
+                "gen_ai.usage.cache_creation.input_tokens", int(cache_write)
+            )
         cost = usage.get("cost")
         if cost:
             span.set_attribute("gen_ai.usage.cost", float(cost))

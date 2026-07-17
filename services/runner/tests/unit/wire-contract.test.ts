@@ -262,11 +262,14 @@ describe("wire contract: results (vs Python golden)", () => {
       typed.map((e) => e.type),
       ["message", "usage", "done"],
     );
+    // input excludes cached tokens — see AgentUsage in protocol.ts.
     assert.deepEqual(res.usage, {
       input: 10,
       output: 5,
-      total: 15,
+      total: 135,
       cost: 0.001,
+      cacheRead: 100,
+      cacheWrite: 20,
     });
     assert.equal(res.stopReason, "end_turn");
     assert.equal(res.sessionId, "sess-42");

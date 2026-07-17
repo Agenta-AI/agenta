@@ -141,6 +141,42 @@ def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     assert root_costs["total"] == pytest.approx(1.2)
 
 
+def test_cumulate_tokens_propagates_cache_split_when_present():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        prompt_tokens=1,
+        completion_tokens=2,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child",
+        prompt_tokens=4,
+        completion_tokens=5,
+        start_offset_s=1,
+    )
+    child.attributes["ag"]["metrics"]["tokens"]["incremental"].update(
+        {"cache_read": 100.0, "cache_creation": 20.0}
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([root, child])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    cumulate_tokens(tree, span_idx)
+
+    root_tokens = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["tokens"][
+        "cumulative"
+    ]
+    assert root_tokens == {
+        "prompt": 5.0,
+        "completion": 7.0,
+        "total": 12.0,
+        "cache_read": 100.0,
+        "cache_creation": 20.0,
+    }
+
+
 def test_cumulate_errors_propagates_scalar_counts_from_children_to_parent():
     root = _span(
         span_id=ROOT_UUID,

@@ -11,6 +11,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from ...dtos import AgentResult
 from ...streaming import AgentStream
 from ...utils.wire import sanitize_runner_error
+from ...wire_models import WireAgentUsage
 from .messages import TOOL_APPROVAL_REQUEST
 
 log = get_module_logger(__name__)
@@ -778,12 +779,14 @@ def _approval_tool_call_id(payload: Dict[str, Any]) -> Optional[Any]:
     return None
 
 
+# The wire model is the single source of truth for the usage field set (camelCase on the wire).
+_USAGE_KEYS = tuple(
+    field.alias or name for name, field in WireAgentUsage.model_fields.items()
+)
+
+
 def _usage_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        key: data[key]
-        for key in ("input", "output", "total", "cost")
-        if data.get(key) is not None
-    }
+    return {key: data[key] for key in _USAGE_KEYS if data.get(key) is not None}
 
 
 def _committed_revision_data(tool_name: Any, output: Any) -> Optional[Dict[str, Any]]:

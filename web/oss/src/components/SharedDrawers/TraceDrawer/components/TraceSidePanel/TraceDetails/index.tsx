@@ -7,6 +7,8 @@ import StatusRenderer from "@/oss/components/pages/observability/components/Stat
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
+    formattedSpanCacheReadTokensAtomFamily,
+    formattedSpanCacheWriteTokensAtomFamily,
     formattedSpanCompletionTokensAtomFamily,
     formattedSpanCostAtomFamily,
     formattedSpanLatencyAtomFamily,
@@ -29,6 +31,12 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const formattedPromptTokens = useAtomValue(formattedSpanPromptTokensAtomFamily(activeTrace))
     const formattedCompletionTokens = useAtomValue(
         formattedSpanCompletionTokensAtomFamily(activeTrace),
+    )
+    const formattedCacheReadTokens = useAtomValue(
+        formattedSpanCacheReadTokensAtomFamily(activeTrace),
+    )
+    const formattedCacheWriteTokens = useAtomValue(
+        formattedSpanCacheWriteTokensAtomFamily(activeTrace),
     )
     const traceStartTime = useAtomValue(spanStartTimeAtomFamily(activeTrace))
     const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
@@ -110,6 +118,23 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                 <div>{formattedPromptTokens}</div>
                                 <div>Prompt tokens</div>
                             </Space>
+                            {(
+                                [
+                                    ["Cached (read)", formattedCacheReadTokens],
+                                    ["Cached (write)", formattedCacheWriteTokens],
+                                ] as const
+                            ).map(
+                                ([label, value]) =>
+                                    value && (
+                                        <Space
+                                            key={label}
+                                            className={`${tokenContainerClass} pl-3 opacity-65`}
+                                        >
+                                            <div>{value}</div>
+                                            <div>{label}</div>
+                                        </Space>
+                                    ),
+                            )}
                             <Space className={tokenContainerClass}>
                                 <div>{formattedCompletionTokens}</div>
                                 <div>Completion tokens</div>
