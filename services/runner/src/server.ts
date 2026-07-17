@@ -931,6 +931,8 @@ async function runAndStreamWithApiBaseResolved(
       watchdog.credential,
       liveEmit,
       seedForRun(request),
+      turnId,
+      request.runContext?.trace?.span_id,
     );
     // Record the inbound user turn first so the session record is the full conversation,
     // not just agent output. Interaction replies ride tool_result blocks (no text) and are
