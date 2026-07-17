@@ -191,7 +191,7 @@ import {
 import {
   projectScopeFor,
   resolvesToLocalProvider,
-} from "./sandbox_agent/session-pool.ts";
+} from "./sandbox_agent/session-identity.ts";
 
 export {
   buildTurnText,
