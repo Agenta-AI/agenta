@@ -412,21 +412,27 @@ export async function runWithKeepalive(
     }
   };
 
-  // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi
-  // ACP gate). Only such a gate carries a `respondPermission`-answerable id; a client-tool MCP
-  // pause never records `parkedApproval`, and more than one pending gate cannot be answered by
-  // the single-gate resume — both stay on the cold path, logged.
+  // Whether a paused turn holds parkable permission gate(s) (Claude ACP or Pi ACP) we can answer
+  // live. Each carries a `respondPermission`-answerable id; a client-tool MCP pause records none.
+  // A parallel BATCH now parks together (collect-then-pause) and the resume answers every gate, so
+  // multi-gate no longer forces cold — only a client-tool pause or a stragglered sibling does.
   const approvalToPark = (
     env: SessionEnvironment,
     result: AgentRunResult,
   ): boolean => {
     if (result.stopReason !== "paused") return false;
-    if (!env.parkedApproval) {
+    if (!env.parkedApprovals?.length) {
       klog(`non-parkable-gate-no-park key=${key}`);
       return false;
     }
-    if ((env.approvalGateCount ?? 0) > 1) {
-      klog(`multi-gate-no-park key=${key} gates=${env.approvalGateCount}`);
+    // A sibling force-settled as "not run this turn" (see `deferredSiblingSettled`): a gate that
+    // arrived AFTER the collection window closed and the batch had already paused. Keep-alive would
+    // resume the live session where the harness surfaces it to the model as a denial; going cold
+    // replays it as a "call it again" nudge (buildTurnText/messageTranscript) so the model
+    // re-issues it and its own gate surfaces. (Collect-then-pause makes this rare — it only fires
+    // for a gate delivered slower than the window.)
+    if (env.deferredSiblingSettled) {
+      klog(`deferred-sibling-no-park key=${key}`);
       return false;
     }
     // An approval park waits for the HUMAN, who is still on the page even if the streaming client
@@ -445,7 +451,8 @@ export async function runWithKeepalive(
   // one destroy, so no double-destroy is possible. The promise already carries runTurn's
   // swallowing catch, so no unhandled rejection is introduced.
   const watchParkedPrompt = (env: SessionEnvironment): void => {
-    const promptPromise = env.parkedApproval?.promptPromise;
+    // Every parked gate shares the one blocked prompt; watch it via the first.
+    const promptPromise = env.parkedApprovals[0]?.promptPromise;
     const entry = pool.get(key);
     if (!promptPromise || !entry || entry.environment !== env) return;
     promptPromise.catch(() => {
@@ -472,7 +479,7 @@ export async function runWithKeepalive(
     };
     if (approvalToPark(env, result)) {
       klog(
-        `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
+        `park-approval key=${key} gates=${env.parkedApprovals.length} tools=${env.parkedApprovals.map((g) => g.toolName ?? "?").join(",")}`,
       );
       if (
         !(await pool.park(input, config.approvalTtlMs, "awaiting_approval"))
@@ -507,7 +514,7 @@ export async function runWithKeepalive(
     };
     if (approvalToPark(env, result)) {
       klog(
-        `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
+        `park-approval key=${key} gates=${env.parkedApprovals.length} tools=${env.parkedApprovals.map((g) => g.toolName ?? "?").join(",")}`,
       );
       if (
         !(await pool.repark(
@@ -657,29 +664,38 @@ export async function runWithKeepalive(
     // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
     // bound — if the parked session's mount credentials are past expiry, its durable cwd can no
     // longer be written, so evict to cold.
-    const parked = existing.environment.parkedApproval;
-    const decision = parked
-      ? approvalDecisionForToolCall(request, parked.toolCallId)
-      : undefined;
+    const parkedGates = existing.environment.parkedApprovals;
+    // Pair every parked gate with the human's decision from THIS request. The FE only resumes once
+    // it has answered ALL pending gates (its resume predicate waits for every tool part to settle),
+    // so the whole batch resolves in one turn; a gate still missing a decision means the request is
+    // not that resume (fresh text, or an answer for another id) → treat as a mismatch, go cold.
+    const answers = parkedGates.map((gate) => ({
+      gate,
+      decision: approvalDecisionForToolCall(request, gate.toolCallId),
+    }));
     const priorFp = historyFingerprint(priorConversation(request));
     let mismatch: string | undefined;
-    if (
-      !parked ||
-      (parked.gateType !== "claude-acp-permission" &&
-        parked.gateType !== "pi-acp-permission")
+    if (!parkedGates.length) {
+      mismatch = "no-parked-gate";
+    } else if (
+      parkedGates.some(
+        (g) =>
+          g.gateType !== "claude-acp-permission" &&
+          g.gateType !== "pi-acp-permission",
+      )
     ) {
       // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
       // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
       mismatch = "unrecognized-gate-type";
-    } else if (!decision) {
-      mismatch = "no-matching-approval"; // fresh user text, or an approval for another id
+    } else if (answers.some((a) => !a.decision)) {
+      mismatch = "no-matching-approval"; // fresh user text, or not every gate answered yet
     } else if (priorFp !== existing.historyFingerprint) {
       mismatch = "history";
     } else if (mountCredentialsExpired(existing.credentialEpoch)) {
       mismatch = "credentials-expired";
     }
 
-    if (mismatch || !parked || !decision) {
+    if (mismatch) {
       klog(
         `approval-mismatch (${mismatch ?? "unknown"}) key=${key}; evict + cold`,
       );
@@ -693,16 +709,25 @@ export async function runWithKeepalive(
 
     const live = pool.checkoutApproval(key);
     if (live) {
-      const reply = decision === "allow" ? "once" : "reject";
+      const gates = answers.map((a) => ({
+        permissionId: a.gate.permissionId,
+        reply: (a.decision === "allow" ? "once" : "reject") as
+          "once" | "reject",
+        toolCallId: a.gate.toolCallId,
+        toolName: a.gate.toolName,
+        args: a.gate.args,
+        interactionToken: a.gate.interactionToken,
+      }));
       klog(
-        `${reply === "once" ? "resume-approve" : "resume-reject"} key=${key} ` +
-          `tool=${parked.toolName ?? "?"}`,
+        `resume key=${key} gates=${gates.length} ` +
+          gates.map((g) => `${g.toolName ?? "?"}:${g.reply}`).join(","),
       );
       let result: AgentRunResult;
       try {
-        // Answer the parked gate on the SAME live session; the original prompt continues and this
-        // (new) turn owns streaming + tracing. The gated tool runs with its original byte-exact
-        // args — no model re-issues anything, so argument drift/task restart cannot happen.
+        // Answer every parked gate on the SAME live session; the original prompt continues once the
+        // harness has all answers, and this (new) turn owns streaming + tracing. Each gated tool
+        // runs with its original byte-exact args — no model re-issues anything, so argument drift /
+        // task restart cannot happen.
         result = await engine.runTurn(
           live.environment,
           request,
@@ -711,13 +736,8 @@ export async function runWithKeepalive(
           {
             approvalParkMode: true,
             resume: {
-              permissionId: parked.permissionId,
-              reply,
-              toolCallId: parked.toolCallId,
-              toolName: parked.toolName,
-              args: parked.args,
-              interactionToken: parked.interactionToken,
-              promptPromise: parked.promptPromise,
+              gates,
+              promptPromise: parkedGates[0]?.promptPromise,
             },
           },
         );
@@ -796,25 +816,26 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
 };
 
 /**
- * The durable interaction token of a parked approval gate this request answers in-band, if
- * any. The turn-start cancel-stale sweep must spare it: the gate belongs to the PREVIOUS turn
- * (so the sweep's own `turn_id` exemption misses it), an in-band answer never transitions the
- * row off `pending` (only the interactions-plane respond endpoint does), and the resume
- * resolves the token after consuming the decision. Swept first, the granted gate's record
- * lands as `cancelled` and the resolve 404s.
+ * The durable interaction tokens of parked approval gate(s) this request answers in-band. The
+ * turn-start cancel-stale sweep must spare them: the gates belong to the PREVIOUS turn (so the
+ * sweep's own `turn_id` exemption misses them), an in-band answer never transitions the row off
+ * `pending` (only the interactions-plane respond endpoint does), and the resume resolves each token
+ * after consuming its decision. Swept first, a granted gate's record lands as `cancelled` and the
+ * resolve 404s. A parallel batch parks several gates, so this returns every answered one.
  */
-function inBandAnswerToken(request: AgentRunRequest): string | undefined {
+function inBandAnsweredTokens(request: AgentRunRequest): string[] {
   const sessionId = request.sessionId?.trim();
-  if (!sessionId) return undefined;
+  if (!sessionId) return [];
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
-  if (!provider) return undefined;
-  const parked =
+  if (!provider) return [];
+  const parkedGates =
     keepalivePools[provider].awaitingApproval(sessionId)?.environment
-      .parkedApproval;
-  if (!parked) return undefined;
-  return approvalDecisionForToolCall(request, parked.toolCallId) !== undefined
-    ? parked.interactionToken
-    : undefined;
+      .parkedApprovals ?? [];
+  return parkedGates
+    .filter(
+      (g) => approvalDecisionForToolCall(request, g.toolCallId) !== undefined,
+    )
+    .map((g) => g.interactionToken);
 }
 
 /**
@@ -915,11 +936,11 @@ async function runAndStreamWithApiBaseResolved(
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
     // the resume resolves that one). Best-effort, never blocks the turn.
-    const answeredToken = inBandAnswerToken(request);
+    const answeredTokens = inBandAnsweredTokens(request);
     void cancelStaleInteractions(
       sessionId,
       turnId,
-      answeredToken ? [answeredToken] : undefined,
+      answeredTokens.length ? answeredTokens : undefined,
       watchdog.credential,
     );
     // Deny-set from THIS run's resolved provider keys + run credential (not process env,
@@ -1150,7 +1171,7 @@ export function createRequestListener(
       // Only .message goes on the wire: the raw thrown value (even via String()) is
       // stack-trace-tainted to CodeQL, and the stack itself stays server-side.
       const message = err instanceof Error ? err.message : "Internal error";
-      console.error(err instanceof Error ? err.stack ?? err.message : err);
+      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -1208,7 +1229,7 @@ if (isEntrypoint(import.meta.url)) {
   // run still returns its own error to its caller.
   process.on("unhandledRejection", (reason) => {
     process.stderr.write(
-      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`,
+      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
     );
   });
   process.on("uncaughtException", (err) => {

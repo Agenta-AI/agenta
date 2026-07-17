@@ -127,14 +127,24 @@ export interface ParkedApproval {
   promptPromise?: Promise<unknown>;
 }
 
-/** Answer a parked Claude ACP permission gate on the live session (the keep-alive resume input). */
-export interface ResumeApprovalInput {
+/** One parked gate's answer, applied on the live session via `respondPermission`. */
+export interface ResumeApprovalGate {
   permissionId: string;
   reply: "once" | "reject";
   toolCallId: string;
   toolName: string | undefined;
   args: unknown;
   interactionToken: string;
+}
+
+/**
+ * Answer parked ACP permission gate(s) on the live session (the keep-alive resume input). A turn
+ * can park SEVERAL concurrent gates (a parallel tool batch); they share the ONE blocked `prompt()`
+ * promise, which only continues once every gate has been answered.
+ */
+export interface ResumeApprovalInput {
+  gates: ResumeApprovalGate[];
+  /** The held original `prompt()` promise (one per turn, shared by every gate). */
   promptPromise?: Promise<unknown>;
 }
 
@@ -168,6 +178,18 @@ export interface RunTurnOptions {
  */
 export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
   return Boolean(opts.continuation || opts.loaded);
+}
+
+/**
+ * How long the runner keeps a keep-alive approval turn alive after a gate, collecting concurrent
+ * parallel gates before it parks (see `PendingApprovalPauseController.schedulePause`). Read per-call
+ * so a test can set it small. Default 800ms — comfortably above the ~0.5s inter-gate spacing the
+ * harness delivers at, and mostly hidden behind the human reading the first card. `0` disables
+ * collection (pause on the first gate), for A/B or if a harness ever streams gates too far apart.
+ */
+export function approvalCollectWindowMs(): number {
+  const raw = Number(process.env.AGENTA_RUNNER_APPROVAL_COLLECT_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 800;
 }
 
 /**
@@ -223,17 +245,26 @@ export interface SessionEnvironment {
    */
   lastTurnToolCallIds: string[];
   /**
-   * The Claude ACP permission gate the LAST turn paused on, or undefined. Set only for a harness
-   * ACP permission gate, reset at each turn start; the dispatch reads it after a paused turn to
-   * decide whether to park in `awaiting_approval` and, on the next request, how to resume.
+   * The parkable ACP permission gates the LAST turn paused on (empty if it did not pause on one).
+   * A parallel tool batch parks SEVERAL at once (collect-then-pause); the dispatch parks the
+   * session while any are pending and, on the next request, answers every one whose decision the
+   * resume carries. Reset at each turn start.
    */
-  parkedApproval?: ParkedApproval;
+  parkedApprovals: ParkedApproval[];
   /**
    * How many Claude ACP permission gates resolved to pendingApproval THIS turn (reset at turn
-   * start). More than one means parallel gates the single-gate resume cannot answer, so the
-   * dispatch does not park (tears down cold as today).
+   * start).
    */
   approvalGateCount: number;
+  /**
+   * A parallel-batch sibling was force-settled with `TOOL_NOT_EXECUTED_PAUSED` this turn (reset at
+   * turn start): the winning gate paused before this call could gate, so it was skipped, not run.
+   * This must NOT keep-alive park — a live resume continues the harness session, where the sibling
+   * reads as a denial and the model gives up. Going cold routes the next turn through
+   * `buildTurnText`/`messageTranscript`, which replays it as a "call it again" nudge so the model
+   * re-issues it and its own gate surfaces.
+   */
+  deferredSiblingSettled: boolean;
   destroyed: boolean;
   /** Complete, idempotent teardown selected from the typed teardown reason. */
   destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;

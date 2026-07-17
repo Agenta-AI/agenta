@@ -10,7 +10,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-approval.test.ts)
  */
-import { describe, it, vi } from "vitest";
+import { describe, it, vi, beforeEach, afterEach } from "vitest";
 import assert from "node:assert/strict";
 
 import type {
@@ -57,6 +57,8 @@ interface TurnScript {
     toolName?: string;
     /** How many gates pended (>1 = multi-gate; still records the first). Default 1. */
     gates?: number;
+    /** A parallel sibling was force-settled as "not run" this turn (single gate, but not parkable). */
+    deferredSibling?: boolean;
     /** The parked gate plane; default the Claude ACP gate. */
     gateType?: ParkedApproval["gateType"];
   };
@@ -75,8 +77,9 @@ interface DispatchFakeEnv {
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
-  parkedApproval?: ParkedApproval;
+  parkedApprovals: ParkedApproval[];
   approvalGateCount: number;
+  deferredSiblingSettled: boolean;
   clearTurn: () => void;
   destroyImpl: () => Promise<void>;
   destroy: () => Promise<void>;
@@ -112,8 +115,9 @@ function makeApprovalEngine(
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
-      parkedApproval: undefined,
+      parkedApprovals: [],
       approvalGateCount: 0,
+      deferredSiblingSettled: false,
       clearTurn: () => {
         env.turnsCleared += 1;
       },
@@ -142,38 +146,48 @@ function makeApprovalEngine(
     const idx = calls.turns.length;
     const script = scripts[idx] ?? {};
     // Mirror the real runTurn per-turn reset.
-    env.parkedApproval = undefined;
+    env.parkedApprovals = [];
     env.approvalGateCount = 0;
+    env.deferredSiblingSettled = false;
     env.lastTurnToolCallIds = script.toolCallIds ?? [];
     calls.turns.push({ env, opts, idx });
     if (opts?.resume) {
-      calls.resumes.push({
-        permissionId: opts.resume.permissionId,
-        reply: opts.resume.reply,
-        toolCallId: opts.resume.toolCallId,
-      });
+      for (const g of opts.resume.gates ?? []) {
+        calls.resumes.push({
+          permissionId: g.permissionId,
+          reply: g.reply,
+          toolCallId: g.toolCallId,
+        });
+      }
     }
     if (script.hold) {
       await new Promise<void>((resolve) => holds.set(idx, resolve));
     }
     if (script.approvalPause) {
-      env.approvalGateCount = script.approvalPause.gates ?? 1;
+      const gateCount = script.approvalPause.gates ?? 1;
+      env.approvalGateCount = gateCount;
+      env.deferredSiblingSettled =
+        script.approvalPause.deferredSibling ?? false;
       // The held original prompt: pending until the test settles it (mirrors the real Claude
       // prompt that never resolves on an unanswered gate). Carries the same swallowing catch
-      // runTurn attaches, so a test-driven rejection is never unhandled.
+      // runTurn attaches, so a test-driven rejection is never unhandled. Every parked gate of a
+      // batch shares this one promise.
       const promptPromise = new Promise((resolve, reject) => {
         calls.promptControls.push({ resolve, reject });
       });
       promptPromise.catch(() => {});
-      env.parkedApproval = {
-        gateType: script.approvalPause.gateType ?? "claude-acp-permission",
-        permissionId: script.approvalPause.permissionId,
-        toolCallId: script.approvalPause.toolCallId,
-        toolName: script.approvalPause.toolName,
+      const ap = script.approvalPause;
+      // Build the parked batch: the first gate uses the script's ids, extra gates get suffixed ids
+      // so a multi-gate park has distinct permission/tool-call ids like the real harness.
+      env.parkedApprovals = Array.from({ length: gateCount }, (_, i) => ({
+        gateType: ap.gateType ?? "claude-acp-permission",
+        permissionId: i === 0 ? ap.permissionId : `${ap.permissionId}-${i}`,
+        toolCallId: i === 0 ? ap.toolCallId : `${ap.toolCallId}-${i}`,
+        toolName: ap.toolName,
         args: {},
-        interactionToken: script.approvalPause.toolCallId,
+        interactionToken: i === 0 ? ap.toolCallId : `${ap.toolCallId}-${i}`,
         promptPromise,
-      };
+      }));
       return { ok: true, stopReason: "paused" };
     }
     if (script.nonClaudePause) return { ok: true, stopReason: "paused" };
@@ -399,7 +413,7 @@ describe("runWithKeepalive: approval park + resume", () => {
     );
   });
 
-  it("logs park-approval and resume-approve/reject", async () => {
+  it("logs park-approval and the resume", async () => {
     const cap = captureStderr();
     try {
       const { engine } = makeApprovalEngine([
@@ -416,7 +430,9 @@ describe("runWithKeepalive: approval park + resume", () => {
       await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
       await runWithKeepalive(approveResume(true), undefined, undefined, ctx);
       assert.ok(cap.lines.some((l) => l.includes("park-approval")));
-      assert.ok(cap.lines.some((l) => l.includes("resume-approve")));
+      assert.ok(
+        cap.lines.some((l) => l.includes("resume key=") && l.includes(":once")),
+      );
     } finally {
       cap.restore();
     }
@@ -443,7 +459,9 @@ describe("runWithKeepalive: never-park gate types stay cold", () => {
     }
   });
 
-  it("a multi-gate pause (parallel gates) never parks, tears down cold", async () => {
+  it("a multi-gate pause (parallel gates) now PARKS the whole batch", async () => {
+    // Behavior change (multi-gate hold): collect-then-pause records every gate and the resume
+    // answers them all, so a parallel batch parks live instead of tearing down cold.
     const cap = captureStderr();
     try {
       const { engine, calls } = makeApprovalEngine([
@@ -454,7 +472,45 @@ describe("runWithKeepalive: never-park gate types stay cold", () => {
             toolName: "commit",
             gates: 2,
           },
-          toolCallIds: ["tc-gate"],
+          toolCallIds: ["tc-gate", "tc-gate-1"],
+        },
+      ]);
+      const ctx = makeCtx(engine);
+      const r = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      assert.equal(r.stopReason, "paused");
+      assert.equal(
+        calls.acquiredEnvs[0].destroyed,
+        0,
+        "the batch parks live; nothing is destroyed",
+      );
+      assert.equal(ctx.pool.size(), 1, "the multi-gate batch is parked");
+      assert.ok(
+        cap.lines.some(
+          (l) => l.includes("park-approval") && l.includes("gates=2"),
+        ),
+      );
+    } finally {
+      cap.restore();
+    }
+  });
+
+  it("a single gate with a force-settled parallel sibling never parks, tears down cold", async () => {
+    // The winning gate paused before the sibling could raise its own gate, so approvalGateCount is
+    // 1 (the multi-gate check above misses it) but a sibling was skipped. Keep-alive here would
+    // resume the live session, where the harness surfaces the skipped sibling to the model as a
+    // denial; going cold instead replays it as a "call it again" nudge (see deferredSiblingSettled).
+    const cap = captureStderr();
+    try {
+      const { engine, calls } = makeApprovalEngine([
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "Read File",
+            gates: 1,
+            deferredSibling: true,
+          },
+          toolCallIds: ["tc-gate", "tc-sibling"],
         },
       ]);
       const ctx = makeCtx(engine);
@@ -463,10 +519,10 @@ describe("runWithKeepalive: never-park gate types stay cold", () => {
       assert.equal(
         calls.acquiredEnvs[0].destroyed,
         1,
-        "the single-gate resume cannot answer >1 gate -> cold",
+        "a deferred sibling must route to cold, not keep-alive",
       );
       assert.equal(ctx.pool.size(), 0);
-      assert.ok(cap.lines.some((l) => l.includes("multi-gate-no-park")));
+      assert.ok(cap.lines.some((l) => l.includes("deferred-sibling-no-park")));
     } finally {
       cap.restore();
     }
@@ -972,11 +1028,14 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
         isExcluded: (id: string) => boolean,
         message: string,
       ) {
+        let settled = 0;
         for (const id of [...run.open]) {
           if (isExcluded(id)) continue;
           run.open.delete(id);
           run.settled.push({ id, message });
+          settled += 1;
         }
+        return settled;
       },
       denied: [] as string[],
       markToolCallDenied(id: string | undefined) {
@@ -1043,6 +1102,19 @@ function updateEvent(update: Record<string, unknown>) {
 }
 
 describe("runTurn: real approval park + respondPermission resume", () => {
+  // These drive the REAL pause/park/resume through a fake ACP session. Default the collect window
+  // to 0 so a single gate pauses synchronously (deterministic); the multi-gate test overrides it to
+  // exercise collect-then-pause.
+  const savedCollect = process.env.AGENTA_RUNNER_APPROVAL_COLLECT_MS;
+  beforeEach(() => {
+    process.env.AGENTA_RUNNER_APPROVAL_COLLECT_MS = "0";
+  });
+  afterEach(() => {
+    if (savedCollect === undefined)
+      delete process.env.AGENTA_RUNNER_APPROVAL_COLLECT_MS;
+    else process.env.AGENTA_RUNNER_APPROVAL_COLLECT_MS = savedCollect;
+  });
+
   it("parks a Claude ACP gate (session alive), then answers it live and streams the continuation", async () => {
     const { calls, deps, captured } = pausableHarness();
     const acquired = await acquireEnvironment(engineReq, deps);
@@ -1076,14 +1148,16 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     const r1 = await p1;
 
     assert.equal(r1.stopReason, "paused");
-    assert.ok(env.parkedApproval, "the parked approval was recorded");
-    assert.equal(env.parkedApproval!.gateType, "claude-acp-permission");
-    assert.equal(env.parkedApproval!.permissionId, "perm-1");
-    assert.equal(env.parkedApproval!.toolCallId, "tc-gate");
-    assert.ok(
-      env.parkedApproval!.promptPromise,
-      "the held prompt promise is captured",
+    assert.equal(
+      env.parkedApprovals.length,
+      1,
+      "the parked approval was recorded",
     );
+    const parked = env.parkedApprovals[0];
+    assert.equal(parked.gateType, "claude-acp-permission");
+    assert.equal(parked.permissionId, "perm-1");
+    assert.equal(parked.toolCallId, "tc-gate");
+    assert.ok(parked.promptPromise, "the held prompt promise is captured");
     assert.deepEqual(env.lastTurnToolCallIds, ["tc-gate"]);
     assert.equal(
       calls.sessionDestroyed,
@@ -1094,16 +1168,20 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
     // Turn 2 (resume): the dispatch cleared the sink; answer the parked gate live.
     env.clearTurn();
-    const held = env.parkedApproval!.promptPromise!;
+    const held = parked.promptPromise!;
     const p2 = runTurn(env, approveResume(true), undefined, undefined, {
       approvalParkMode: true,
       resume: {
-        permissionId: "perm-1",
-        reply: "once",
-        toolCallId: "tc-gate",
-        toolName: "commit",
-        args: { message: "hi" },
-        interactionToken: "tc-gate",
+        gates: [
+          {
+            permissionId: "perm-1",
+            reply: "once",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: { message: "hi" },
+            interactionToken: "tc-gate",
+          },
+        ],
         promptPromise: held,
       },
     });
@@ -1138,8 +1216,8 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       "no new prompt was sent; the original continued",
     );
     assert.equal(
-      env.parkedApproval,
-      undefined,
+      env.parkedApprovals.length,
+      0,
       "the consumed approval was reset",
     );
     assert.equal(
@@ -1187,16 +1265,20 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await p1;
 
     env.clearTurn();
-    const held = env.parkedApproval!.promptPromise!;
+    const held = env.parkedApprovals[0].promptPromise!;
     const p2 = runTurn(env, approveResume(false), undefined, undefined, {
       approvalParkMode: true,
       resume: {
-        permissionId: "perm-1",
-        reply: "reject",
-        toolCallId: "tc-gate",
-        toolName: "commit",
-        args: {},
-        interactionToken: "tc-gate",
+        gates: [
+          {
+            permissionId: "perm-1",
+            reply: "reject",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-gate",
+          },
+        ],
         promptPromise: held,
       },
     });
@@ -1239,8 +1321,8 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
     assert.equal(r1.stopReason, "paused");
     assert.equal(
-      env.parkedApproval,
-      undefined,
+      env.parkedApprovals.length,
+      0,
       "a client-tool pause is not parkable",
     );
     assert.equal(
@@ -1294,7 +1376,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     const r1 = await p1;
 
     assert.equal(r1.stopReason, "paused");
-    assert.ok(env.parkedApproval, "the gate parked (park path)");
+    assert.equal(env.parkedApprovals.length, 1, "the gate parked (park path)");
     const run1 = calls.runs[0];
     assert.deepEqual(
       run1.settled,
@@ -1361,10 +1443,78 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     );
     assert.ok(run1.open.has("tc-g1"), "the winning gate's call stays open");
 
-    // The dispatch refuses to park a multi-gate pause and destroys: the teardown the park
-    // skipped (destroySession, sandbox teardown) runs through env.destroy().
+    // With the collection window OFF (0), the first gate pauses before the second is processed, so
+    // the second is force-settled as a sibling (the straggler fallback). env.destroy() then runs the
+    // teardown the park skipped.
     await env.destroy();
     assert.equal(calls.sessionDestroyed, 1, "destroy tore the session down");
     assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("collect-then-pause: two concurrent gates within the window BOTH park (no sibling settle)", async () => {
+    // The multi-gate-hold path. A non-zero window keeps the turn alive after the first gate so the
+    // second is emitted and recorded too — both park, and neither is force-settled.
+    process.env.AGENTA_RUNNER_APPROVAL_COLLECT_MS = "40";
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    // Two parallel Read gates arrive close together (as the harness delivers them).
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-a",
+        title: "Read File",
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-b",
+        title: "Read File",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-a",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-a", name: "Read File", rawInput: {} },
+    });
+    captured.onPermissionRequest!({
+      id: "perm-b",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-b", name: "Read File", rawInput: {} },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(
+      env.parkedApprovals.length,
+      2,
+      "both concurrent gates parked as one batch",
+    );
+    assert.deepEqual(env.parkedApprovals.map((g) => g.permissionId).sort(), [
+      "perm-a",
+      "perm-b",
+    ]);
+    assert.deepEqual(
+      calls.runs[0].settled,
+      [],
+      "no gate was force-settled as a sibling — both were collected",
+    );
+    // Two approval cards were emitted for the FE to show together.
+    assert.equal(
+      calls.runs[0].emitted.filter(
+        (e: AgentEvent) => e.type === "interaction_request",
+      ).length,
+      2,
+    );
+    await env.destroy();
   });
 });
