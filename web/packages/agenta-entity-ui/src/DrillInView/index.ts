@@ -267,6 +267,12 @@ export {
     normalizeMessages,
     denormalizeMessages,
     getOptionsFromSchema,
+    findGrantableTool,
+    withToolPermission,
+    gateRulePattern,
+    readHarnessAllowList,
+    findGrantableHarnessTool,
+    withHarnessToolAllow,
     type OptionGroup,
 } from "./SchemaControls"
 
@@ -291,6 +297,9 @@ export type {
     ObjectSchemaControlProps,
     SchemaPropertyRendererProps,
     FieldsDetectionContextValue,
+    GrantableTool,
+    ToolPermission,
+    GrantableHarnessTool,
 } from "./SchemaControls"
 
 // Agent config layout preference (read by the variant header menu's View selector).

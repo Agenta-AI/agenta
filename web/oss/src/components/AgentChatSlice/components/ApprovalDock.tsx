@@ -3,10 +3,11 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 import {HeightCollapse} from "@agenta/ui"
 import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Button, Typography} from "antd"
+import {Button, Switch, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {partToolName, resolveToolDisplay} from "../assets/toolDisplay"
+import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import {resolveApprovalRenderer} from "./approvals/registry"
@@ -125,20 +126,46 @@ const ApprovalDock = ({
     className,
 }: ApprovalDockProps) => {
     const open = approvals.length > 0
-    // Latch the last non-empty set so the card stays visible while the dock animates closed — a
-    // leave transition needs its content to persist through the height collapse.
+    // A resolve can answer SEVERAL gates at once — "Approve all", or "Approve" with the always-allow
+    // toggle on (which also clears that tool's other pending gates, since the user asked not to be
+    // prompted for it again). Each response settles asynchronously (the SDK's serial job queue), so
+    // the pending set shrinks across renders; without a latch the dock would step through the batch
+    // ("1 of 3 → 1 of 2"). `resolvingIds` holds the gates we fired responses for; while any is still
+    // pending we FREEZE the shown set so the card holds steady and the dock closes in one step (or,
+    // if only some gates were covered, then steps to the uncovered remainder).
+    const [resolvingIds, setResolvingIds] = useState<readonly string[] | null>(null)
+    const [resolveSource, setResolveSource] = useState<"all" | "one" | null>(null)
+    const resolving =
+        resolvingIds !== null && approvals.some((a) => resolvingIds.includes(a.approvalId))
+    // Latch the last non-empty set so the card stays visible while the dock animates closed (a leave
+    // transition needs its content through the height collapse) AND so a multi-gate resolve doesn't
+    // step through the batch.
     const shownRef = useRef(approvals)
-    if (open) shownRef.current = approvals
+    if (open && !resolving) shownRef.current = approvals
     const shown = shownRef.current
     const current = shown[0]
     const count = shown.length
 
     const [responding, setResponding] = useState(false)
+    // Armed "always allow this tool" intent for the current gate — applied only when the user
+    // clicks Approve, never on its own (the switch must not progress the flow).
+    const [alwaysAllowArmed, setAlwaysAllowArmed] = useState(false)
 
-    // The current gate changed (we answered one, the next slid in) — re-enable.
+    // The current gate changed (we answered one, the next slid in) — re-enable and disarm. Held
+    // during a resolve (current is frozen), so it fires only on a real step or a new batch.
     useEffect(() => {
         setResponding(false)
+        setResolveSource(null)
+        setAlwaysAllowArmed(false)
     }, [current?.approvalId])
+
+    // Once every gate we fired has settled (left the pending set), drop the latch — the dock then
+    // closes if nothing remains, or re-latches onto the uncovered gates (a mixed-tool batch).
+    useEffect(() => {
+        if (resolvingIds !== null && !approvals.some((a) => resolvingIds.includes(a.approvalId))) {
+            setResolvingIds(null)
+        }
+    }, [approvals, resolvingIds])
 
     // Friendly bodies are Chat-mode (maximized) sugar and need a revision to diff against;
     // Build and the entityId-less host keep the exact-payload card.
@@ -152,28 +179,54 @@ const ApprovalDock = ({
     // A source badge we can state factually from the tool name — not a guessed risk level.
     const source = friendly?.kind === "mcp" ? "MCP tool" : null
 
+    // "Always allow this tool": writes a config permission so the runner stops gating this tool
+    // (per-tool `permission` for gateway/custom-function tools; `harness.permissions.allow` for
+    // harness builtins like bash). Platform ops (commit_revision, schedules) and MCP are not
+    // eligible, so they always stay gated. The write happens on APPROVE (see `respond`), never when
+    // the switch is toggled — the switch only arms the intent. buildAgentRequest re-reads the draft
+    // on resume, so the grant takes effect for the current run and every future one.
+    const {infoFor, grant} = useAlwaysAllowTool(entityId)
+    const grantInfo = current ? infoFor(current.toolName) : null
+    const canAlwaysAllow = Boolean(grantInfo?.eligible && !grantInfo.alreadyAllowed)
+
     const respond = (approved: boolean) => {
         if (responding || !current) return
         setResponding(true)
+        setResolveSource("one")
+        // Apply the armed grant only on approve — never on deny, and never from the switch alone.
+        if (approved && alwaysAllowArmed && canAlwaysAllow) {
+            grant(current.toolName)
+            // "Always allow <tool>" also clears this tool's OTHER pending gates in the batch: the
+            // user said they don't want to be prompted for it again, so its siblings auto-approve
+            // in one step instead of making them click through 2/3, 3/3. Other tools stay gated and
+            // are shown next.
+            const covered = shown.filter((a) => a.toolName === current.toolName)
+            if (covered.length > 1) {
+                setResolvingIds(covered.map((a) => a.approvalId))
+                covered.forEach((a) => onApprovalResponse({id: a.approvalId, approved: true}))
+                return
+            }
+        }
         onApprovalResponse({id: current.approvalId, approved})
     }
     const approveAll = () => {
         if (responding) return
         setResponding(true)
+        setResolveSource("all")
+        if (alwaysAllowArmed && canAlwaysAllow && current) grant(current.toolName)
+        // Freeze the card so the dock doesn't step through the batch as each response settles — it
+        // holds "1 of N" and closes once all are answered (see `resolvingIds`).
+        setResolvingIds(shown.map((a) => a.approvalId))
         shown.forEach((a) => onApprovalResponse({id: a.approvalId, approved: true}))
     }
 
-    // Always mounted; enter + leave animate via the grid-rows 0fr↔1fr height collapse (+ opacity),
-    // the same idiom as the reasoning block and composer attachments. `inert` while closed drops the
-    // (clipped, latched) card from tab order + a11y so a keyboard user can't reach hidden buttons.
+    // Always mounted; enter + leave animate via the shared HeightCollapse (CSS height + fade,
+    // reduced-motion-proof) — the same primitive the queue, connect banner, and config sections use.
+    // `inert` while closed drops the (clipped, latched) card from tab order + a11y so a keyboard user
+    // can't reach hidden buttons.
     return (
-        <div
-            className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
-                open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-            } ${className ?? ""}`}
-            inert={!open}
-        >
-            <div className="min-h-0 overflow-hidden">
+        <HeightCollapse open={open} className={className} durationMs={240} fade inert>
+            <div className="min-h-0">
                 {current ? (
                     // The friendly two-pane body needs more air than the one-line payload card.
                     <div
@@ -275,7 +328,11 @@ const ApprovalDock = ({
                             ) : null}
                             <div className="ml-auto flex items-center gap-1.5">
                                 {count > 1 ? (
-                                    <Button disabled={responding} onClick={approveAll}>
+                                    <Button
+                                        loading={responding && resolveSource === "all"}
+                                        disabled={responding}
+                                        onClick={approveAll}
+                                    >
                                         Approve all
                                     </Button>
                                 ) : null}
@@ -284,17 +341,43 @@ const ApprovalDock = ({
                                 </Button>
                                 <Button
                                     type="primary"
-                                    loading={responding}
+                                    loading={responding && resolveSource === "one"}
                                     onClick={() => respond(true)}
                                 >
                                     {renderer?.approveLabel ?? "Approve"}
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Always-allow: arms a config write-through so this tool stops asking. The
+                            switch only ARMS the intent (it must not progress the flow); the grant is
+                            applied when the user clicks Approve. Shown only for gateway /
+                            custom-function / builtin gates that aren't already allowed. */}
+                        {canAlwaysAllow ? (
+                            <div className="flex items-center gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
+                                <Switch
+                                    checked={alwaysAllowArmed}
+                                    disabled={responding}
+                                    onChange={setAlwaysAllowArmed}
+                                />
+                                <div className="flex min-w-0 flex-col">
+                                    <Text className="!text-xs">
+                                        Always allow{" "}
+                                        <span className="font-medium">
+                                            {friendly?.label ?? current.toolName}
+                                        </span>{" "}
+                                        for this agent
+                                    </Text>
+                                    <Text type="secondary" className="!text-[11px]">
+                                        Applies when you approve; commit to use it in triggers.
+                                    </Text>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 ) : null}
             </div>
-        </div>
+        </HeightCollapse>
     )
 }
 
