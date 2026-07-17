@@ -4,7 +4,7 @@
  * @example
  *     {}
  */
-export interface SessionStreamQueryRequestModel {
+export interface SessionStreamQueryRequest {
     session_id?: string | null;
     is_alive?: boolean | null;
     is_running?: boolean | null;

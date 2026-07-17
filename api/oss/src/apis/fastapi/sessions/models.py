@@ -4,10 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from agenta.sdk.models.workflows import WorkflowServiceRequestData
-
 from oss.src.core.sessions.streams.dtos import (
-    CommandMode,
     SessionStream,
 )
 from oss.src.core.sessions.records.dtos import SessionRecord
@@ -49,59 +46,22 @@ class SessionResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class SessionStreamCommandRequestModel(BaseModel):
-    """`data.inputs` present-or-not × `force` selects send/steer/cancel/attach
-    (E6) — the same shape as `WorkflowInvokeRequest.data`, not a bespoke `prompt`.
-    """
-
-    session_id: str
-    data: Optional[WorkflowServiceRequestData] = None
-    force: bool = False
-    detached: bool = False
-
-
-class SessionHeartbeatRequestModel(BaseModel):
-    # project scope comes from the caller's credential, never the body
-    session_id: str
-    replica_id: str = Field(min_length=1)
-    turn_id: Optional[str] = None
-    is_running: bool = True
-
-
-class SessionDetachRequestModel(BaseModel):
+class SessionDetachRequest(BaseModel):
     session_id: str
     watcher_id: str
 
 
-class SessionStreamQueryRequestModel(BaseModel):
+class SessionStreamQueryRequest(BaseModel):
     session_id: Optional[str] = None
     is_alive: Optional[bool] = None
     is_running: Optional[bool] = None
 
 
-class SessionStreamCommandResponseModel(BaseModel):
-    mode: CommandMode
-    session_id: str
-    turn_id: Optional[str] = None
-    watcher_id: Optional[str] = None
-    detached: bool = False
-
-
-class SessionStreamResponseModel(BaseModel):
+class SessionStreamResponse(BaseModel):
     stream: Optional[SessionStream] = None
 
 
-class SessionHeartbeatResponseModel(BaseModel):
-    # the replica owning the session after the heartbeat's claim; the runner compares it
-    # to its own replica_id to refuse serving a session it doesn't own.
-    stream: Optional[SessionStream] = None
-    replica_id: str
-    # False when this beat's turn_id was interrupted (cancel/steer/kill) since the last
-    # heartbeat — the runner's watchdog aborts the in-flight run on seeing this (W7.4).
-    is_current_turn: bool = True
-
-
-class SessionStreamsResponseModel(BaseModel):
+class SessionStreamsResponse(BaseModel):
     count: int
     streams: List[SessionStream]
 
@@ -229,7 +189,7 @@ class SessionTurnAppendRequest(BaseModel):
     sandbox_id: Optional[str] = None
     references: Optional[List[Reference]] = None
     trace_id: Optional[UUID] = None
-    root_span_id: Optional[UUID] = None
+    span_id: Optional[UUID] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 

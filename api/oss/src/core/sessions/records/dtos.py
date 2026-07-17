@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from oss.src.core.shared.dtos import Lifecycle
+
 
 class SessionRecordEvent(BaseModel):
     project_id: UUID
@@ -21,7 +23,7 @@ class SessionRecordEvent(BaseModel):
     span_id: Optional[UUID] = None
 
 
-class SessionRecord(BaseModel):
+class SessionRecord(Lifecycle):
     record_id: UUID
 
     session_id: str
@@ -35,8 +37,6 @@ class SessionRecord(BaseModel):
 
     turn_id: Optional[str] = None
     span_id: Optional[UUID] = None
-
-    created_at: Optional[datetime] = None
 
 
 class SessionRecordQuery(BaseModel):

@@ -35,7 +35,7 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column("trace_id", sa.UUID(as_uuid=True), nullable=True),
-        sa.Column("root_span_id", sa.UUID(as_uuid=True), nullable=True),
+        sa.Column("span_id", sa.UUID(as_uuid=True), nullable=True),
         sa.Column("start_time", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("end_time", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column(

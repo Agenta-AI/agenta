@@ -3,13 +3,13 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionTurn {
-    id: string;
     created_at?: (string | null) | undefined;
     updated_at?: (string | null) | undefined;
     deleted_at?: (string | null) | undefined;
     created_by_id?: (string | null) | undefined;
     updated_by_id?: (string | null) | undefined;
     deleted_by_id?: (string | null) | undefined;
+    id?: (string | null) | undefined;
     project_id: string;
     session_id: string;
     stream_id: string;
@@ -19,7 +19,7 @@ export interface SessionTurn {
     sandbox_id?: (string | null) | undefined;
     references?: (AgentaApi.Reference[] | null) | undefined;
     trace_id?: (string | null) | undefined;
-    root_span_id?: (string | null) | undefined;
+    span_id?: (string | null) | undefined;
     start_time?: (string | null) | undefined;
     end_time?: (string | null) | undefined;
 }

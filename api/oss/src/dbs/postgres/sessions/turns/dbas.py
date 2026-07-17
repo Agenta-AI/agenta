@@ -34,7 +34,7 @@ class SessionTurnDBA(
 
     # Bridge — nullable.
     trace_id = Column(UUID(as_uuid=True), nullable=True)
-    root_span_id = Column(UUID(as_uuid=True), nullable=True)
+    span_id = Column(UUID(as_uuid=True), nullable=True)
 
     start_time = Column(TIMESTAMP(timezone=True), nullable=True)
     end_time = Column(TIMESTAMP(timezone=True), nullable=True)

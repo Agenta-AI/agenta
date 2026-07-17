@@ -3,17 +3,17 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionStream {
-    id: string;
     created_at?: (string | null) | undefined;
     updated_at?: (string | null) | undefined;
     deleted_at?: (string | null) | undefined;
     created_by_id?: (string | null) | undefined;
     updated_by_id?: (string | null) | undefined;
     deleted_by_id?: (string | null) | undefined;
-    project_id: string;
-    session_id: string;
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
+    id?: (string | null) | undefined;
+    project_id: string;
+    session_id: string;
     flags?: AgentaApi.SessionStreamFlags | undefined;
     tags?: (Record<string, unknown> | null) | undefined;
     meta?: (Record<string, unknown> | null) | undefined;

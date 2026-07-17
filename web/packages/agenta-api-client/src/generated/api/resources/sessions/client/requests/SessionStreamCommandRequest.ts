@@ -8,7 +8,7 @@ import type * as AgentaApi from "../../../../index.js";
  *         session_id: "session_id"
  *     }
  */
-export interface SessionStreamCommandRequestModel {
+export interface SessionStreamCommandRequest {
     session_id: string;
     data?: AgentaApi.WorkflowRequestData | null;
     force?: boolean;

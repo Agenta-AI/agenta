@@ -10,13 +10,13 @@ from .reference import Reference
 
 
 class SessionTurn(UniversalBaseModel):
-    id: str
     created_at: typing.Optional[dt.datetime] = None
     updated_at: typing.Optional[dt.datetime] = None
     deleted_at: typing.Optional[dt.datetime] = None
     created_by_id: typing.Optional[str] = None
     updated_by_id: typing.Optional[str] = None
     deleted_by_id: typing.Optional[str] = None
+    id: typing.Optional[str] = None
     project_id: str
     session_id: str
     stream_id: str
@@ -26,7 +26,7 @@ class SessionTurn(UniversalBaseModel):
     sandbox_id: typing.Optional[str] = None
     references: typing.Optional[typing.List[Reference]] = None
     trace_id: typing.Optional[str] = None
-    root_span_id: typing.Optional[str] = None
+    span_id: typing.Optional[str] = None
     start_time: typing.Optional[dt.datetime] = None
     end_time: typing.Optional[dt.datetime] = None
     

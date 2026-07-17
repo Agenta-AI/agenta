@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SessionStreamCommandResponseModel {
+export interface SessionStreamCommandResponse {
     mode: AgentaApi.CommandMode;
     session_id: string;
     turn_id?: (string | null) | undefined;

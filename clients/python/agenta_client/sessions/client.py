@@ -10,7 +10,7 @@ from ..types.harness import Harness
 from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_file_written_response import MountFileWrittenResponse
 from ..types.reference import Reference
-from ..types.session_heartbeat_response_model import SessionHeartbeatResponseModel
+from ..types.session_heartbeat_result import SessionHeartbeatResult
 from ..types.session_interaction_data import SessionInteractionData
 from ..types.session_interaction_flags import SessionInteractionFlags
 from ..types.session_interaction_kind import SessionInteractionKind
@@ -24,9 +24,9 @@ from ..types.session_record_response import SessionRecordResponse
 from ..types.session_records_query_response import SessionRecordsQueryResponse
 from ..types.session_response import SessionResponse
 from ..types.session_state_response import SessionStateResponse
-from ..types.session_stream_command_response_model import SessionStreamCommandResponseModel
-from ..types.session_stream_response_model import SessionStreamResponseModel
-from ..types.session_streams_response_model import SessionStreamsResponseModel
+from ..types.session_stream_command_response import SessionStreamCommandResponse
+from ..types.session_stream_response import SessionStreamResponse
+from ..types.session_streams_response import SessionStreamsResponse
 from ..types.session_turn_query import SessionTurnQuery
 from ..types.session_turn_response import SessionTurnResponse
 from ..types.session_turns_response import SessionTurnsResponse
@@ -52,7 +52,7 @@ class SessionsClient:
         """
         return self._raw_client
     
-    def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+    def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponse:
         """
         Parameters
         ----------
@@ -63,7 +63,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionStreamResponseModel
+        SessionStreamResponse
             Successful Response
         
         Examples
@@ -80,7 +80,7 @@ class SessionsClient:
         _response = self._raw_client.fetch_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def set_session_stream(self, *, session_id: str, data: typing.Optional[WorkflowRequestData] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponseModel:
+    def set_session_stream(self, *, session_id: str, data: typing.Optional[WorkflowRequestData] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponse:
         """
         Parameters
         ----------
@@ -97,7 +97,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionStreamCommandResponseModel
+        SessionStreamCommandResponse
             Successful Response
         
         Examples
@@ -142,7 +142,7 @@ class SessionsClient:
         _response = self._raw_client.delete_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponse:
         """
         Parameters
         ----------
@@ -157,7 +157,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionStreamsResponseModel
+        SessionStreamsResponse
             Successful Response
         
         Examples
@@ -203,7 +203,7 @@ class SessionsClient:
         _response = self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
-    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResponseModel:
+    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResult:
         """
         Parameters
         ----------
@@ -220,7 +220,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionHeartbeatResponseModel
+        SessionHeartbeatResult
             Successful Response
         
         Examples
@@ -692,7 +692,7 @@ class SessionsClient:
         _response = self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, turn_id=turn_id, span_id=span_id, request_options=request_options)
         return _response.data
     
-    def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness: Harness, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, root_span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
+    def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness: Harness, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
         """
         Parameters
         ----------
@@ -712,7 +712,7 @@ class SessionsClient:
         
         trace_id : typing.Optional[str]
         
-        root_span_id : typing.Optional[str]
+        span_id : typing.Optional[str]
         
         start_time : typing.Optional[dt.datetime]
         
@@ -740,7 +740,7 @@ class SessionsClient:
             harness="pi_core",
         )
         """
-        _response = self._raw_client.append_turn(session_id=session_id, stream_id=stream_id, turn_index=turn_index, harness=harness, agent_session_id=agent_session_id, sandbox_id=sandbox_id, references=references, trace_id=trace_id, root_span_id=root_span_id, start_time=start_time, end_time=end_time, request_options=request_options)
+        _response = self._raw_client.append_turn(session_id=session_id, stream_id=stream_id, turn_index=turn_index, harness=harness, agent_session_id=agent_session_id, sandbox_id=sandbox_id, references=references, trace_id=trace_id, span_id=span_id, start_time=start_time, end_time=end_time, request_options=request_options)
         return _response.data
     
     def query_turns(self, *, query: typing.Optional[SessionTurnQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnsResponse:
@@ -987,7 +987,7 @@ class AsyncSessionsClient:
         """
         return self._raw_client
     
-    async def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+    async def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponse:
         """
         Parameters
         ----------
@@ -998,7 +998,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionStreamResponseModel
+        SessionStreamResponse
             Successful Response
         
         Examples
@@ -1023,7 +1023,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.fetch_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def set_session_stream(self, *, session_id: str, data: typing.Optional[WorkflowRequestData] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponseModel:
+    async def set_session_stream(self, *, session_id: str, data: typing.Optional[WorkflowRequestData] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponse:
         """
         Parameters
         ----------
@@ -1040,7 +1040,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionStreamCommandResponseModel
+        SessionStreamCommandResponse
             Successful Response
         
         Examples
@@ -1101,7 +1101,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.delete_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    async def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponse:
         """
         Parameters
         ----------
@@ -1116,7 +1116,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionStreamsResponseModel
+        SessionStreamsResponse
             Successful Response
         
         Examples
@@ -1178,7 +1178,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
-    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResponseModel:
+    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResult:
         """
         Parameters
         ----------
@@ -1195,7 +1195,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionHeartbeatResponseModel
+        SessionHeartbeatResult
             Successful Response
         
         Examples
@@ -1787,7 +1787,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, turn_id=turn_id, span_id=span_id, request_options=request_options)
         return _response.data
     
-    async def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness: Harness, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, root_span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
+    async def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness: Harness, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
         """
         Parameters
         ----------
@@ -1807,7 +1807,7 @@ class AsyncSessionsClient:
         
         trace_id : typing.Optional[str]
         
-        root_span_id : typing.Optional[str]
+        span_id : typing.Optional[str]
         
         start_time : typing.Optional[dt.datetime]
         
@@ -1843,7 +1843,7 @@ class AsyncSessionsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.append_turn(session_id=session_id, stream_id=stream_id, turn_index=turn_index, harness=harness, agent_session_id=agent_session_id, sandbox_id=sandbox_id, references=references, trace_id=trace_id, root_span_id=root_span_id, start_time=start_time, end_time=end_time, request_options=request_options)
+        _response = await self._raw_client.append_turn(session_id=session_id, stream_id=stream_id, turn_index=turn_index, harness=harness, agent_session_id=agent_session_id, sandbox_id=sandbox_id, references=references, trace_id=trace_id, span_id=span_id, start_time=start_time, end_time=end_time, request_options=request_options)
         return _response.data
     
     async def query_turns(self, *, query: typing.Optional[SessionTurnQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnsResponse:

@@ -159,7 +159,7 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
             sandbox_id="sandbox-1",
             references=[workflow_ref],
             trace_id=uuid.uuid4(),
-            root_span_id=uuid.uuid4(),
+            span_id=uuid.uuid4(),
             start_time=datetime.now(timezone.utc),
         ),
     )

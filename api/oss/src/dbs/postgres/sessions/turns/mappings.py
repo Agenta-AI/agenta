@@ -47,7 +47,7 @@ def map_turn_dto_to_dbe_create(
         sandbox_id=turn.sandbox_id,
         references=_references_to_json(turn.references),
         trace_id=turn.trace_id,
-        root_span_id=turn.root_span_id,
+        span_id=turn.span_id,
         start_time=turn.start_time,
         end_time=turn.end_time,
     )
@@ -76,7 +76,7 @@ def map_turn_dbe_to_dto(
         sandbox_id=turn_dbe.sandbox_id,
         references=_references_from_json(turn_dbe.references),
         trace_id=turn_dbe.trace_id,
-        root_span_id=turn_dbe.root_span_id,
+        span_id=turn_dbe.span_id,
         start_time=turn_dbe.start_time,
         end_time=turn_dbe.end_time,
     )

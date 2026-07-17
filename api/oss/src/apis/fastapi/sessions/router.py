@@ -35,7 +35,9 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
+    SessionHeartbeatResult,
     SessionStreamCommandRequest,
+    SessionStreamCommandResponse,
     SessionStreamHeaderEdit,
     SessionStreamQuery,
     SessionStreamQueryFlags,
@@ -83,14 +85,10 @@ from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.apis.fastapi.sessions.models import (
     # streams
-    SessionDetachRequestModel,
-    SessionHeartbeatRequestModel,
-    SessionHeartbeatResponseModel,
-    SessionStreamCommandRequestModel,
-    SessionStreamCommandResponseModel,
-    SessionStreamQueryRequestModel,
-    SessionStreamResponseModel,
-    SessionStreamsResponseModel,
+    SessionDetachRequest,
+    SessionStreamQueryRequest,
+    SessionStreamResponse,
+    SessionStreamsResponse,
     # states
     SessionStateResponse,
     SessionStateUpsertRequest,
@@ -244,8 +242,8 @@ class SessionStreamsRouter:
     async def set_session_stream(
         self,
         request: Request,
-        payload: SessionStreamCommandRequestModel,
-    ) -> SessionStreamCommandResponseModel:
+        payload: SessionStreamCommandRequest,
+    ) -> SessionStreamCommandResponse:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -259,22 +257,10 @@ class SessionStreamsRouter:
 
         await self._service.check_runner_concurrency_limit(project_id=project_id)
 
-        result = await self._service.command(
+        return await self._service.command(
             project_id=project_id,
             user_id=user_id,
-            request=SessionStreamCommandRequest(
-                session_id=payload.session_id,
-                data=payload.data,
-                force=payload.force,
-                detached=payload.detached,
-            ),
-        )
-        return SessionStreamCommandResponseModel(
-            mode=result.mode,
-            session_id=result.session_id,
-            turn_id=result.turn_id,
-            watcher_id=result.watcher_id,
-            detached=result.detached,
+            request=payload,
         )
 
     @intercept_exceptions()
@@ -283,7 +269,7 @@ class SessionStreamsRouter:
         self,
         request: Request,
         session_id: str = Query(...),
-    ) -> SessionStreamResponseModel:
+    ) -> SessionStreamResponse:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -299,7 +285,7 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponseModel(stream=stream)
+        return SessionStreamResponse(stream=stream)
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -336,7 +322,7 @@ class SessionStreamsRouter:
     async def detach_session_stream(
         self,
         request: Request,
-        payload: SessionDetachRequestModel,
+        payload: SessionDetachRequest,
     ) -> dict:
         project_id = request.state.project_id
         user_id = request.state.user_id
@@ -362,8 +348,8 @@ class SessionStreamsRouter:
     async def heartbeat_session_stream(
         self,
         request: Request,
-        payload: SessionHeartbeatRequestModel,
-    ) -> SessionHeartbeatResponseModel:
+        payload: SessionHeartbeatRequest,
+    ) -> SessionHeartbeatResult:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -375,19 +361,9 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        result = await self._service.heartbeat(
+        return await self._service.heartbeat(
             project_id=project_id,
-            request=SessionHeartbeatRequest(
-                session_id=payload.session_id,
-                replica_id=payload.replica_id,
-                turn_id=payload.turn_id,
-                is_running=payload.is_running,
-            ),
-        )
-        return SessionHeartbeatResponseModel(
-            stream=result.stream,
-            replica_id=result.replica_id,
-            is_current_turn=result.is_current_turn,
+            request=payload,
         )
 
     @intercept_exceptions()
@@ -395,8 +371,8 @@ class SessionStreamsRouter:
     async def query_session_streams(
         self,
         request: Request,
-        payload: SessionStreamQueryRequestModel,
-    ) -> SessionStreamsResponseModel:
+        payload: SessionStreamQueryRequest,
+    ) -> SessionStreamsResponse:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -418,7 +394,7 @@ class SessionStreamsRouter:
                 ),
             ),
         )
-        return SessionStreamsResponseModel(count=len(streams), streams=streams)
+        return SessionStreamsResponse(count=len(streams), streams=streams)
 
 
 class SessionStatesRouter:
@@ -1179,7 +1155,7 @@ class SessionTurnsRouter:
                 sandbox_id=body.sandbox_id,
                 references=body.references,
                 trace_id=body.trace_id,
-                root_span_id=body.root_span_id,
+                span_id=body.span_id,
                 start_time=body.start_time,
                 end_time=body.end_time,
             ),

@@ -39,14 +39,14 @@ export class SessionsClient {
     public fetchSessionStream(
         request: AgentaApi.FetchSessionStreamRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionStreamResponseModel> {
+    ): core.HttpResponsePromise<AgentaApi.SessionStreamResponse> {
         return core.HttpResponsePromise.fromPromise(this.__fetchSessionStream(request, requestOptions));
     }
 
     private async __fetchSessionStream(
         request: AgentaApi.FetchSessionStreamRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionStreamResponseModel>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SessionStreamResponse>> {
         const { session_id: sessionId } = request;
         const _queryParams: Record<string, unknown> = {
             session_id: sessionId,
@@ -75,7 +75,7 @@ export class SessionsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SessionStreamResponseModel, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.SessionStreamResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -98,7 +98,7 @@ export class SessionsClient {
     }
 
     /**
-     * @param {AgentaApi.SessionStreamCommandRequestModel} request
+     * @param {AgentaApi.SessionStreamCommandRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -109,16 +109,16 @@ export class SessionsClient {
      *     })
      */
     public setSessionStream(
-        request: AgentaApi.SessionStreamCommandRequestModel,
+        request: AgentaApi.SessionStreamCommandRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionStreamCommandResponseModel> {
+    ): core.HttpResponsePromise<AgentaApi.SessionStreamCommandResponse> {
         return core.HttpResponsePromise.fromPromise(this.__setSessionStream(request, requestOptions));
     }
 
     private async __setSessionStream(
-        request: AgentaApi.SessionStreamCommandRequestModel,
+        request: AgentaApi.SessionStreamCommandRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionStreamCommandResponseModel>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SessionStreamCommandResponse>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -147,7 +147,7 @@ export class SessionsClient {
         });
         if (_response.ok) {
             return {
-                data: _response.body as AgentaApi.SessionStreamCommandResponseModel,
+                data: _response.body as AgentaApi.SessionStreamCommandResponse,
                 rawResponse: _response.rawResponse,
             };
         }
@@ -244,7 +244,7 @@ export class SessionsClient {
     }
 
     /**
-     * @param {AgentaApi.SessionStreamQueryRequestModel} request
+     * @param {AgentaApi.SessionStreamQueryRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -253,16 +253,16 @@ export class SessionsClient {
      *     await client.sessions.querySessionStreams()
      */
     public querySessionStreams(
-        request: AgentaApi.SessionStreamQueryRequestModel = {},
+        request: AgentaApi.SessionStreamQueryRequest = {},
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionStreamsResponseModel> {
+    ): core.HttpResponsePromise<AgentaApi.SessionStreamsResponse> {
         return core.HttpResponsePromise.fromPromise(this.__querySessionStreams(request, requestOptions));
     }
 
     private async __querySessionStreams(
-        request: AgentaApi.SessionStreamQueryRequestModel = {},
+        request: AgentaApi.SessionStreamQueryRequest = {},
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionStreamsResponseModel>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SessionStreamsResponse>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -290,10 +290,7 @@ export class SessionsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return {
-                data: _response.body as AgentaApi.SessionStreamsResponseModel,
-                rawResponse: _response.rawResponse,
-            };
+            return { data: _response.body as AgentaApi.SessionStreamsResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -316,7 +313,7 @@ export class SessionsClient {
     }
 
     /**
-     * @param {AgentaApi.SessionDetachRequestModel} request
+     * @param {AgentaApi.SessionDetachRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -328,14 +325,14 @@ export class SessionsClient {
      *     })
      */
     public detachSessionStream(
-        request: AgentaApi.SessionDetachRequestModel,
+        request: AgentaApi.SessionDetachRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): core.HttpResponsePromise<Record<string, unknown>> {
         return core.HttpResponsePromise.fromPromise(this.__detachSessionStream(request, requestOptions));
     }
 
     private async __detachSessionStream(
-        request: AgentaApi.SessionDetachRequestModel,
+        request: AgentaApi.SessionDetachRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): Promise<core.WithRawResponse<Record<string, unknown>>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
@@ -388,7 +385,7 @@ export class SessionsClient {
     }
 
     /**
-     * @param {AgentaApi.SessionHeartbeatRequestModel} request
+     * @param {AgentaApi.SessionHeartbeatRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
@@ -400,16 +397,16 @@ export class SessionsClient {
      *     })
      */
     public heartbeatSessionStream(
-        request: AgentaApi.SessionHeartbeatRequestModel,
+        request: AgentaApi.SessionHeartbeatRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionHeartbeatResponseModel> {
+    ): core.HttpResponsePromise<AgentaApi.SessionHeartbeatResult> {
         return core.HttpResponsePromise.fromPromise(this.__heartbeatSessionStream(request, requestOptions));
     }
 
     private async __heartbeatSessionStream(
-        request: AgentaApi.SessionHeartbeatRequestModel,
+        request: AgentaApi.SessionHeartbeatRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionHeartbeatResponseModel>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SessionHeartbeatResult>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -437,10 +434,7 @@ export class SessionsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return {
-                data: _response.body as AgentaApi.SessionHeartbeatResponseModel,
-                rawResponse: _response.rawResponse,
-            };
+            return { data: _response.body as AgentaApi.SessionHeartbeatResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {

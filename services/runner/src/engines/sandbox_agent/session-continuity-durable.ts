@@ -44,7 +44,7 @@ export interface SessionTurnAppend {
   sandboxId?: string;
   references?: TurnReference[];
   traceId?: string;
-  rootSpanId?: string;
+  spanId?: string;
   startTime?: string;
   endTime?: string;
 }
@@ -182,7 +182,7 @@ export async function appendSessionTurn(
         ...(turn.sandboxId ? { sandbox_id: turn.sandboxId } : {}),
         ...(turn.references?.length ? { references: turn.references } : {}),
         ...(turn.traceId ? { trace_id: turn.traceId } : {}),
-        ...(turn.rootSpanId ? { root_span_id: turn.rootSpanId } : {}),
+        ...(turn.spanId ? { span_id: turn.spanId } : {}),
         ...(turn.startTime ? { start_time: turn.startTime } : {}),
         ...(turn.endTime ? { end_time: turn.endTime } : {}),
       }),

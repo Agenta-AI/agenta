@@ -4,12 +4,10 @@
  * @example
  *     {
  *         session_id: "session_id",
- *         replica_id: "replica_id"
+ *         watcher_id: "watcher_id"
  *     }
  */
-export interface SessionHeartbeatRequestModel {
+export interface SessionDetachRequest {
     session_id: string;
-    replica_id: string;
-    turn_id?: string | null;
-    is_running?: boolean;
+    watcher_id: string;
 }

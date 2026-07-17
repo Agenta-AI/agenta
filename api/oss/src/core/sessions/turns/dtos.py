@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import Reference
+from oss.src.core.shared.dtos import Identifier, Lifecycle, Reference
 
 
 class Harness(str, Enum):
@@ -19,16 +19,7 @@ class Harness(str, Enum):
     claude = "claude"
 
 
-class SessionTurn(BaseModel):
-    id: UUID
-    #
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    deleted_at: Optional[datetime] = None
-    created_by_id: Optional[UUID] = None
-    updated_by_id: Optional[UUID] = None
-    deleted_by_id: Optional[UUID] = None
-    #
+class SessionTurn(Identifier, Lifecycle):
     project_id: UUID
     session_id: str
     stream_id: UUID
@@ -38,7 +29,7 @@ class SessionTurn(BaseModel):
     sandbox_id: Optional[str] = None
     references: Optional[List[Reference]] = None
     trace_id: Optional[UUID] = None
-    root_span_id: Optional[UUID] = None
+    span_id: Optional[UUID] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
@@ -52,7 +43,7 @@ class SessionTurnCreate(BaseModel):
     sandbox_id: Optional[str] = None
     references: Optional[List[Reference]] = None
     trace_id: Optional[UUID] = None
-    root_span_id: Optional[UUID] = None
+    span_id: Optional[UUID] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 

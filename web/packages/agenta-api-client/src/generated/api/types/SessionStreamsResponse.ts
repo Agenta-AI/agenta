@@ -2,6 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SessionStreamResponseModel {
-    stream?: (AgentaApi.SessionStream | null) | undefined;
+export interface SessionStreamsResponse {
+    count: number;
+    streams: AgentaApi.SessionStream[];
 }

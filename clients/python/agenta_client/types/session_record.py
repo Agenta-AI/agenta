@@ -8,6 +8,12 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
 class SessionRecord(UniversalBaseModel):
+    created_at: typing.Optional[dt.datetime] = None
+    updated_at: typing.Optional[dt.datetime] = None
+    deleted_at: typing.Optional[dt.datetime] = None
+    created_by_id: typing.Optional[str] = None
+    updated_by_id: typing.Optional[str] = None
+    deleted_by_id: typing.Optional[str] = None
     record_id: str
     session_id: str
     project_id: str
@@ -18,7 +24,6 @@ class SessionRecord(UniversalBaseModel):
     attributes: typing.Optional[typing.Dict[str, typing.Any]] = None
     turn_id: typing.Optional[str] = None
     span_id: typing.Optional[str] = None
-    created_at: typing.Optional[dt.datetime] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

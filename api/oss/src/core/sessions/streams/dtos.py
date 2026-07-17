@@ -1,11 +1,12 @@
-from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
+
+from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
 
 
 class SessionStreamFlags(BaseModel):
@@ -26,54 +27,36 @@ class SessionStreamQueryFlags(BaseModel):
     is_attached: Optional[bool] = None
 
 
-class SessionStream(BaseModel):
-    id: UUID
-    #
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    deleted_at: Optional[datetime] = None
-    created_by_id: Optional[UUID] = None
-    updated_by_id: Optional[UUID] = None
-    deleted_by_id: Optional[UUID] = None
-    #
+class SessionStream(Identifier, Header, Lifecycle):
     project_id: UUID
     session_id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
     flags: SessionStreamFlags = SessionStreamFlags()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
 
 
-class SessionStreamCreate(BaseModel):
+class SessionStreamCreate(Header):
     session_id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
     flags: Optional[SessionStreamFlags] = None
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
 
 
-class SessionStreamEdit(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
+class SessionStreamEdit(Header):
     flags: Optional[SessionStreamFlags] = None
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
 
 
-class SessionStreamHeaderEdit(BaseModel):
+class SessionStreamHeaderEdit(Header):
     """The rename edit: a full-PUT of the header fields only.
 
     Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
     liveness-only writes can never carry name/description, and vice versa.
     """
-
-    name: Optional[str] = None
-    description: Optional[str] = None
 
 
 class SessionStreamQuery(BaseModel):
@@ -115,7 +98,7 @@ class SessionStreamCommandResponse(BaseModel):
 
 class SessionHeartbeatRequest(BaseModel):
     session_id: str
-    replica_id: str  # the runner CONTAINER (affinity / owner key)
+    replica_id: str = Field(min_length=1)  # the runner CONTAINER (affinity / owner key)
     turn_id: Optional[str] = None  # the current TURN (proves alive-lock ownership)
     is_running: bool = True
 

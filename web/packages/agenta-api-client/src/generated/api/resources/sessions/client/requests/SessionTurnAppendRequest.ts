@@ -20,7 +20,7 @@ export interface SessionTurnAppendRequest {
     sandbox_id?: string | null;
     references?: AgentaApi.Reference[] | null;
     trace_id?: string | null;
-    root_span_id?: string | null;
+    span_id?: string | null;
     start_time?: string | null;
     end_time?: string | null;
 }

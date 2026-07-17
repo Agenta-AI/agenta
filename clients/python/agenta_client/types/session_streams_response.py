@@ -7,10 +7,9 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .session_stream import SessionStream
 
 
-class SessionHeartbeatResponseModel(UniversalBaseModel):
-    stream: typing.Optional[SessionStream] = None
-    replica_id: str
-    is_current_turn: typing.Optional[bool] = None
+class SessionStreamsResponse(UniversalBaseModel):
+    count: int
+    streams: typing.List[SessionStream]
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
