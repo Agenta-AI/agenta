@@ -1824,16 +1824,20 @@ function PlaygroundConfigSection({
                 return <div className="px-4 py-1.5">{props.defaultRender()}</div>
             }
 
-            // The agent_config body is always expanded (its header is suppressed above), so it renders
-            // without the HeightCollapse toggle.
+            // The agent body is always expanded (its header is suppressed above), so it renders
+            // without the HeightCollapse toggle. Match BOTH markers (modern `agent-template`,
+            // legacy `agent_config`) — same detection as the header suppressor above.
             const fieldSchema = schema?.properties
                 ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
                 : null
+            const isAgentBody = (v: unknown) => v === "agent-template" || v === "agent_config"
             if (
-                fieldSchema?.["x-ag-type-ref"] === "agent_config" ||
-                fieldSchema?.["x-ag-type"] === "agent_config"
+                isAgentBody(fieldSchema?.["x-ag-type-ref"]) ||
+                isAgentBody(fieldSchema?.["x-ag-type"])
             ) {
-                return <div className="px-4 py-3">{props.defaultRender()}</div>
+                // pb-3 only: the first section row (ConfigAccordionSection) carries its own py-3
+                // header, so a top py-3 here would double into a dead 24px band under the header bar.
+                return <div className="px-4 pb-3">{props.defaultRender()}</div>
             }
 
             return (
@@ -1858,10 +1862,10 @@ function PlaygroundConfigSection({
 
     if (isConfigLoading) {
         if (loadingFallback) {
-            // px-4 py-3 mirrors the field-content wrapper the real sections (and the lazy
-            // control's Suspense fallback) render inside — without it the fallback skeleton
-            // sits 16px wider / 12px higher and visibly shifts when the schema lands.
-            return <div className={clsx("px-4 py-3", className)}>{loadingFallback}</div>
+            // px-4 pb-3 mirrors the field-content wrapper the real sections (and the lazy
+            // control's Suspense fallback) render inside — same inset, so the fallback skeleton
+            // doesn't shift when the schema lands.
+            return <div className={clsx("px-4 pb-3", className)}>{loadingFallback}</div>
         }
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>

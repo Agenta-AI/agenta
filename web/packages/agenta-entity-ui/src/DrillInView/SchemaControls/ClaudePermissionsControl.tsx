@@ -135,7 +135,15 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
 
     return (
         <>
-            <RailField label={railInfoLabel(modeLabel, modeDescription)} align="center">
+            {/* `path` marks the row when it has an uncommitted change (see ChangedPathsProvider).
+                These are the flattened dot-paths the commit-diff classifier emits for this slice —
+                `harness.permissions.*` — so an approval card's "Always allow" grant (which appends
+                to `allow`) marks the Allow-rules row it actually wrote to. */}
+            <RailField
+                label={railInfoLabel(modeLabel, modeDescription)}
+                align="center"
+                path="harness.permissions.default_mode"
+            >
                 <Select<ClaudePermissionMode>
                     value={current.defaultMode ?? undefined}
                     onChange={(v) => write({defaultMode: v ?? null})}
@@ -148,6 +156,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
             </RailField>
 
             <RailField
+                path="harness.permissions.allow"
                 label={railInfoLabel(
                     "Allow rules",
                     'Per-tool allow rules, one per line (e.g. "Read", "Bash(npm run:*)").',
@@ -164,6 +173,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
             </RailField>
 
             <RailField
+                path="harness.permissions.ask"
                 label={railInfoLabel(
                     "Ask rules",
                     "Per-tool rules that prompt before use, one per line.",
@@ -180,6 +190,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
             </RailField>
 
             <RailField
+                path="harness.permissions.deny"
                 label={railInfoLabel(
                     "Deny rules",
                     "Per-tool rules that are always blocked, one per line.",

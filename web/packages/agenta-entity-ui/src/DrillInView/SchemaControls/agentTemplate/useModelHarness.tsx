@@ -2,7 +2,7 @@
  * useModelHarness — the Model & harness + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {
     customSecretsAtom,
@@ -17,10 +17,20 @@ import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Check, Cube, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
-import {Select, Typography} from "antd"
+import {
+    ArrowCounterClockwise,
+    Check,
+    Cube,
+    Lightbulb,
+    ShieldCheck,
+    Sparkle,
+    Warning,
+} from "@phosphor-icons/react"
+import {Button, Popconfirm, Select, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
+import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
 import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
 import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {ClaudePermissionsControl} from "../ClaudePermissionsControl"
@@ -40,6 +50,7 @@ import {
 import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
 import {HarnessSelectControl} from "../HarnessSelectControl"
+import {PiAutoApproveControl} from "../PiAutoApproveControl"
 import {PiSettingsControl} from "../PiSettingsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
@@ -399,6 +410,86 @@ export function useModelHarness({
         enabledOverride: buildKitEnabledOverride,
     })
 
+    // Which Advanced sub-sections own an uncommitted change (see `ChangedPathsProvider`). Drives
+    // `defaultOpen` so a drawer opened from a "something changed" indicator lands with the changed
+    // group ALREADY expanded instead of three closed rows. Mount-time is the right moment:
+    // `SectionDrawer` uses `destroyOnClose`, so this re-evaluates on every open.
+    const sandboxChanged = useHasChangedUnder("sandbox")
+    const runnerChanged = useHasChangedUnder("runner")
+    const harnessChanged = useHasChangedUnder("harness")
+    const permissionsChanged = runnerChanged || harnessChanged
+    const changedIndicator = (changed: boolean) =>
+        changed ? ({tone: "draft", tooltip: "Unsaved changes in this group."} as const) : undefined
+
+    // Section-scoped undo: restore every changed property in this group to its committed value. The
+    // per-row dot reverts ONE property; this is "undo the whole group". Null when nothing changed or
+    // the surface offers no revert, so the header keeps its normal actions.
+    const revertSandbox = useRevertUnder("sandbox")
+    const revertRunner = useRevertUnder("runner")
+    const revertHarness = useRevertUnder("harness")
+    const revertPermissions = useCallback(() => {
+        revertRunner?.()
+        revertHarness?.()
+    }, [revertRunner, revertHarness])
+
+    // Model & harness sub-sections (drawer): each owns one property bucket — harness.kind / llm.model /
+    // llm.connection.* — so the same mark + section-scoped revert the Advanced groups get. Scoped to
+    // `harness.kind` (NOT all of `harness`) so a permissions edit doesn't light up the Harness header.
+    const harnessKindChanged = useHasChangedUnder("harness.kind")
+    const modelChanged = useHasChangedUnder("llm.model")
+    const credentialsChanged = useHasChangedUnder("llm.connection")
+    const revertHarnessKind = useRevertUnder("harness.kind")
+    const revertModel = useRevertUnder("llm.model")
+    const revertCredentials = useRevertUnder("llm.connection")
+    // Confirmed, because unlike the per-row undo (which is reached THROUGH the popover showing the
+    // exact value it restores — see `RailField`) this one discards every change in the group at once
+    // and names none of them.
+    const revertAction = (onRevert: (() => void) | null) =>
+        onRevert ? (
+            <Popconfirm
+                title="Revert this group?"
+                description="Every unsaved change in it goes back to the committed value."
+                okText="Revert"
+                cancelText="Cancel"
+                placement="bottomRight"
+                onConfirm={onRevert}
+            >
+                <Button
+                    type="text"
+                    icon={<ArrowCounterClockwise size={13} />}
+                    // The header is a toggle — don't collapse the group while undoing inside it.
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={disabled}
+                    className="!h-auto !px-1 !py-0.5 !text-[11px] !text-[var(--ag-colorTextSecondary)]"
+                >
+                    Revert
+                </Button>
+            </Popconfirm>
+        ) : undefined
+
+    // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
+    // config panel showing only what changed — a group renders only if it owns one of them, and the
+    // rows filter themselves. Chrome follows the content: with changes in ONE group there is nothing
+    // to disambiguate, so it renders FLAT (just the controls, like the Connect-key field); spread
+    // across several, the group headers earn their keep by saying which change belongs where.
+    const focus = useFocusPaths()
+    const sandboxInFocus = useHasFocusUnder("sandbox")
+    const runnerInFocus = useHasFocusUnder("runner")
+    const harnessInFocus = useHasFocusUnder("harness")
+    const permissionsInFocus = runnerInFocus || harnessInFocus
+    const focusedGroupCount = (sandboxInFocus ? 1 : 0) + (permissionsInFocus ? 1 : 0)
+    const flatFocus = focus.active && focusedGroupCount <= 1
+
+    // Same, for the Model & harness inline body: its three groups own harness.kind / llm.model /
+    // llm.connection.*, so under a change filter only the group(s) that actually changed render (a
+    // model swap shows the Model group, and Provider credentials too only if it moved the connection),
+    // flat when just one survives — instead of unfolding the entire section.
+    const modelInFocus = useHasFocusUnder("llm.model")
+    const credentialsInFocus = useHasFocusUnder("llm.connection")
+    const modelHarnessFocusedCount =
+        (harnessInFocus ? 1 : 0) + (modelInFocus ? 1 : 0) + (credentialsInFocus ? 1 : 0)
+    const modelHarnessFlatFocus = focus.active && modelHarnessFocusedCount <= 1
+
     const hasAdvanced = Boolean(
         sandboxProps.kind ||
         sandboxProps.permissions ||
@@ -468,6 +559,7 @@ export function useModelHarness({
                     : "Model"
             }
             align="center"
+            path="llm.model"
         >
             {modelControl}
         </RailField>
@@ -596,18 +688,33 @@ export function useModelHarness({
 
     // Provider credentials section: identical in both the capability-aware and flat layouts below,
     // rendered once and reused so the two branches don't carry a duplicate prop list.
-    const providerCredentialsSection = props.llm ? (
+    const providerCredentialsProps = props.llm
+        ? {
+              mode: connection.mode,
+              onModeChange: (m: ConnectionMode) => writeModel({mode: m}),
+              selectedProviderFamily,
+              selectedConnectionSlug: connection.slug ?? null,
+              modeOptions,
+              isCloud,
+              selfHostingGuideUrl: deployment?.selfHostingGuideUrl,
+              providerNeedsKey,
+              openConfigureProvider: openConfigureProviderAdopting,
+              disabled,
+              revisionId: revisionId ?? null,
+              indicator: changedIndicator(credentialsChanged),
+              revertControl: revertAction(revertCredentials),
+          }
+        : null
+    // The full pane (own header + rail) for the drawer body; the `bare` variant (toggle + key form /
+    // self-managed, no header, no rail) for the inline "Connect key" quick-action under the section.
+    const providerCredentialsSection = providerCredentialsProps ? (
+        <ProviderCredentialsSection {...providerCredentialsProps} />
+    ) : null
+    const providerCredentialsInline = providerCredentialsProps ? (
         <ProviderCredentialsSection
-            mode={connection.mode}
-            onModeChange={(m) => writeModel({mode: m})}
-            selectedProviderFamily={selectedProviderFamily}
-            selectedConnectionSlug={connection.slug ?? null}
-            modeOptions={modeOptions}
-            isCloud={isCloud}
-            selfHostingGuideUrl={deployment?.selfHostingGuideUrl}
-            providerNeedsKey={providerNeedsKey}
-            openConfigureProvider={openConfigureProviderAdopting}
-            disabled={disabled}
+            {...providerCredentialsProps}
+            bare
+            modelControl={modelControl}
         />
     ) : null
 
@@ -615,54 +722,83 @@ export function useModelHarness({
     // left (each card owns its model-compat state), version history on the right — same two-panel
     // shape as the Advanced drawer. Without capabilities: the plain harness select, single column.
     // Shared Model & harness controls — rendered by both the wide drawer body and the tabs-inline body.
+    // A focused (change/connect-key) surface renders only the groups that own a changed property, and
+    // drops to FLAT chrome when just one survives; unfocused (drawer/tabs) everything renders as-is.
+    const modelControlGroup = (
+        <div className="flex flex-col gap-2 py-0.5">
+            {modelControl}
+            {!focus.active && hasInspectModels ? (
+                <Typography.Text type="secondary" className="!text-[11px] !leading-snug">
+                    Filtered to the models this harness can reach. Selecting a model also sets its
+                    provider.
+                </Typography.Text>
+            ) : null}
+        </div>
+    )
+
     const modelHarnessControls = capabilities ? (
         <>
-            <ConfigAccordionSection
-                size="compact"
-                icon={<Cube size={15} />}
-                title="Harness"
-                status={harnessValue ? "complete" : "default"}
-                summary={selectedHarnessLabel ?? undefined}
-                summaryCollapsedOnly
-            >
-                <div className="flex gap-2.5 rounded-md bg-[var(--ag-colorFillQuaternary)] p-3">
-                    <Lightbulb
-                        size={16}
-                        className="mt-0.5 shrink-0 text-[var(--ag-colorTextSecondary)]"
-                    />
-                    <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
-                        The harness is the runtime that executes your agent. It decides which
-                        providers, hosting and connection options you can use.
-                    </span>
-                </div>
-                {harnessSection}
-            </ConfigAccordionSection>
+            {harnessInFocus ? (
+                modelHarnessFlatFocus ? (
+                    harnessSection
+                ) : (
+                    <ConfigAccordionSection
+                        size="compact"
+                        icon={<Cube size={15} />}
+                        title="Harness"
+                        status={harnessValue ? "complete" : "default"}
+                        indicator={changedIndicator(harnessKindChanged)}
+                        extra={revertAction(revertHarnessKind)}
+                        summary={selectedHarnessLabel ?? undefined}
+                        summaryCollapsedOnly
+                    >
+                        {focus.active ? null : (
+                            <div className="flex gap-2.5 rounded-md bg-[var(--ag-colorFillQuaternary)] p-3">
+                                <Lightbulb
+                                    size={16}
+                                    className="mt-0.5 shrink-0 text-[var(--ag-colorTextSecondary)]"
+                                />
+                                <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
+                                    The harness is the runtime that executes your agent. It decides
+                                    which providers, hosting and connection options you can use.
+                                </span>
+                            </div>
+                        )}
+                        {harnessSection}
+                    </ConfigAccordionSection>
+                )
+            ) : null}
 
-            <ConfigAccordionSection
-                size="compact"
-                icon={<Sparkle size={15} />}
-                title="Model"
-                status={!modelId || !selectedKeepsModel ? "warning" : "complete"}
-                summary={modelId ?? undefined}
-                summaryCollapsedOnly
-            >
-                <div className="flex flex-col gap-2 py-0.5">
-                    {modelControl}
-                    {hasInspectModels ? (
-                        <Typography.Text type="secondary" className="!text-[11px] !leading-snug">
-                            Filtered to the models this harness can reach. Selecting a model also
-                            sets its provider.
-                        </Typography.Text>
-                    ) : null}
-                </div>
-            </ConfigAccordionSection>
+            {modelInFocus ? (
+                modelHarnessFlatFocus ? (
+                    // Flat (a change surface narrowed to just the model): a labelled RailField row, so
+                    // the changed control marks itself and its label opens the committed-value + Restore
+                    // popover — the same property-scoped affordance the Advanced rows get.
+                    <RailField label="Model" align="center" path="llm.model">
+                        {modelControl}
+                    </RailField>
+                ) : (
+                    <ConfigAccordionSection
+                        size="compact"
+                        icon={<Sparkle size={15} />}
+                        title="Model"
+                        status={!modelId || !selectedKeepsModel ? "warning" : "complete"}
+                        indicator={changedIndicator(modelChanged)}
+                        extra={revertAction(revertModel)}
+                        summary={modelId ?? undefined}
+                        summaryCollapsedOnly
+                    >
+                        {modelControlGroup}
+                    </ConfigAccordionSection>
+                )
+            ) : null}
 
-            {providerCredentialsSection}
+            {credentialsInFocus ? providerCredentialsSection : null}
         </>
     ) : (
         <>
-            {harnessProps.kind && (
-                <RailField label="Harness" align="center">
+            {harnessInFocus && harnessProps.kind && (
+                <RailField label="Harness" align="center" path="harness.kind">
                     <HarnessSelectControl
                         schema={harnessProps.kind}
                         visibleValues={harnessList}
@@ -673,8 +809,8 @@ export function useModelHarness({
                     />
                 </RailField>
             )}
-            {modelPicker}
-            {providerCredentialsSection}
+            {modelInFocus ? modelPicker : null}
+            {credentialsInFocus ? providerCredentialsSection : null}
         </>
     )
 
@@ -705,119 +841,194 @@ export function useModelHarness({
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
     // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
     // `SectionRail` (mode groups) and `RailField` (labelled control rows).
+    /**
+     * One Advanced group. Under a focus filter it disappears unless it owns a focused property, and
+     * drops its chrome entirely when it's the only survivor — the body (the real controls) is the
+     * same either way, so nothing is rendered twice.
+     */
+    const advancedGroup = (
+        opts: {
+            inFocus: boolean
+            defaultOpen: boolean
+            indicator: ReturnType<typeof changedIndicator>
+            extra: ReactNode
+            icon: ReactNode
+            title: string
+            summary?: string
+            caption: ReactNode
+        },
+        body: ReactNode,
+    ) => {
+        if (!opts.inFocus) return null
+        // Flat: just the focused control(s) — the group header would only restate the section.
+        if (flatFocus) return <div className="flex flex-col gap-3">{body}</div>
+        return (
+            <ConfigAccordionSection
+                size="compact"
+                defaultOpen={opts.defaultOpen}
+                indicator={opts.indicator}
+                extra={opts.extra}
+                icon={opts.icon}
+                title={opts.title}
+                summary={opts.summary}
+                summaryCollapsedOnly
+            >
+                {opts.caption}
+                {body}
+            </ConfigAccordionSection>
+        )
+    }
+
+    const executionBody = (
+        <>
+            {sandboxProps.kind ? (
+                <RailField label="Sandbox" align="center" path="sandbox.kind">
+                    <EnumSelectControl
+                        schema={sandboxProps.kind}
+                        options={sandboxOptions}
+                        value={(sandbox.kind as string | null) ?? null}
+                        onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
+                        withTooltip={withTooltip}
+                        disabled={disabled}
+                    />
+                </RailField>
+            ) : null}
+            {sandboxProps.permissions && sandbox.kind !== "local" ? (
+                <>
+                    {focus.active ? null : permissionOverrideHint}
+                    {/* Renders its knobs as peer RailField rows (Network egress / Filesystem
+                        / Enforcement) sharing this section's rail — no nested sub-form. */}
+                    <SandboxPermissionControl
+                        value={(sandbox.permissions as Record<string, unknown> | null) ?? null}
+                        onChange={(v) => setSection("sandbox", {...sandbox, permissions: v})}
+                        disabled={disabled}
+                    />
+                </>
+            ) : null}
+        </>
+    )
+
+    const permissionsBody = (
+        <>
+            {runnerPermissionSchema ? (
+                <RailField label="Policy" align="center" path="runner.permissions.default">
+                    <Select<PermissionPolicy>
+                        value={currentRunnerPermission}
+                        onChange={(v) =>
+                            setSection("runner", {
+                                ...runner,
+                                permissions: {...runnerPermissions, default: v},
+                            })
+                        }
+                        options={runnerPermissionOptions}
+                        optionLabelProp="title"
+                        disabled={disabled}
+                        className="w-full"
+                    />
+                </RailField>
+            ) : null}
+            {hasClaudePermissions ? (
+                <>
+                    {/* Caption then peer rail rows (mode / allow / ask / deny) sharing the
+                        section rail — the control renders its own RailField rows. */}
+                    {focus.active ? null : (
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                            Claude harness
+                        </span>
+                    )}
+                    <ClaudePermissionsControl
+                        value={claudePermissions}
+                        onChange={setClaudePermissions}
+                        disabled={disabled}
+                        // Mode options + labels come from the harness `permissions`
+                        // sub-schema (`default_mode` enum) so they follow the template.
+                        modeSchema={
+                            (
+                                harnessProps.permissions?.properties as
+                                    | Record<string, SchemaProperty>
+                                    | undefined
+                            )?.default_mode
+                        }
+                    />
+                </>
+            ) : null}
+            {hasPiSettings ? (
+                <>
+                    {focus.active ? null : (
+                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
+                            Pi harness
+                        </span>
+                    )}
+                    {/* Availability, not permission — it declares no config path, so a focus
+                        filter drops it and only the changed permission rows remain. */}
+                    {focus.active ? null : (
+                        <PiSettingsControl
+                            tools={agentTools}
+                            onChange={setAgentTools}
+                            disabled={disabled}
+                        />
+                    )}
+                    <PiAutoApproveControl
+                        value={(harness.permissions as Record<string, unknown> | null) ?? null}
+                        onChange={(permissions) => setSection("harness", {...harness, permissions})}
+                        disabled={disabled}
+                    />
+                </>
+            ) : null}
+        </>
+    )
+
     const advancedControls = (
         <>
-            {buildKitSection}
+            {/* Playground-only overlay — it owns no committed property, so a focus filter drops it. */}
+            {focus.active ? null : buildKitSection}
 
-            {hasExecutionGroup ? (
-                <ConfigAccordionSection
-                    size="compact"
-                    defaultOpen={false}
-                    icon={<Cube size={15} />}
-                    title="Execution environment"
-                    summary={sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined}
-                    summaryCollapsedOnly
-                >
-                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
-                        Where the agent&apos;s tools and code run, and what that sandbox may touch.
-                    </Typography.Text>
-                    {sandboxProps.kind ? (
-                        <RailField label="Sandbox" align="center">
-                            <EnumSelectControl
-                                schema={sandboxProps.kind}
-                                options={sandboxOptions}
-                                value={(sandbox.kind as string | null) ?? null}
-                                onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
-                                withTooltip={withTooltip}
-                                disabled={disabled}
-                            />
-                        </RailField>
-                    ) : null}
-                    {sandboxProps.permissions && sandbox.kind !== "local" ? (
-                        <>
-                            {permissionOverrideHint}
-                            {/* Renders its knobs as peer RailField rows (Network egress / Filesystem
-                                / Enforcement) sharing this section's rail — no nested sub-form. */}
-                            <SandboxPermissionControl
-                                value={
-                                    (sandbox.permissions as Record<string, unknown> | null) ?? null
-                                }
-                                onChange={(v) =>
-                                    setSection("sandbox", {...sandbox, permissions: v})
-                                }
-                                disabled={disabled}
-                            />
-                        </>
-                    ) : null}
-                </ConfigAccordionSection>
-            ) : null}
+            {hasExecutionGroup
+                ? advancedGroup(
+                      {
+                          inFocus: sandboxInFocus,
+                          defaultOpen: sandboxChanged,
+                          indicator: changedIndicator(sandboxChanged),
+                          extra: revertAction(revertSandbox),
+                          icon: <Cube size={15} />,
+                          title: "Execution environment",
+                          summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
+                          caption: (
+                              <Typography.Text
+                                  type="secondary"
+                                  className="text-[11px] leading-snug"
+                              >
+                                  Where the agent&apos;s tools and code run, and what that sandbox
+                                  may touch.
+                              </Typography.Text>
+                          ),
+                      },
+                      executionBody,
+                  )
+                : null}
 
-            {hasPermissionsGroup ? (
-                <ConfigAccordionSection
-                    size="compact"
-                    defaultOpen={false}
-                    icon={<ShieldCheck size={15} />}
-                    title="Permissions"
-                    summary={runnerPermissionSummary}
-                    summaryCollapsedOnly
-                >
-                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
-                        What the agent may do on its own before it must ask.
-                    </Typography.Text>
-                    {runnerPermissionSchema ? (
-                        <RailField label="Policy" align="center">
-                            <Select<PermissionPolicy>
-                                value={currentRunnerPermission}
-                                onChange={(v) =>
-                                    setSection("runner", {
-                                        ...runner,
-                                        permissions: {...runnerPermissions, default: v},
-                                    })
-                                }
-                                options={runnerPermissionOptions}
-                                optionLabelProp="title"
-                                disabled={disabled}
-                                className="w-full"
-                            />
-                        </RailField>
-                    ) : null}
-                    {hasClaudePermissions ? (
-                        <>
-                            {/* Caption then peer rail rows (mode / allow / ask / deny) sharing the
-                                section rail — the control renders its own RailField rows. */}
-                            <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
-                                Claude harness
-                            </span>
-                            <ClaudePermissionsControl
-                                value={claudePermissions}
-                                onChange={setClaudePermissions}
-                                disabled={disabled}
-                                // Mode options + labels come from the harness `permissions`
-                                // sub-schema (`default_mode` enum) so they follow the template.
-                                modeSchema={
-                                    (
-                                        harnessProps.permissions?.properties as
-                                            | Record<string, SchemaProperty>
-                                            | undefined
-                                    )?.default_mode
-                                }
-                            />
-                        </>
-                    ) : null}
-                    {hasPiSettings ? (
-                        <>
-                            <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
-                                Pi harness
-                            </span>
-                            <PiSettingsControl
-                                tools={agentTools}
-                                onChange={setAgentTools}
-                                disabled={disabled}
-                            />
-                        </>
-                    ) : null}
-                </ConfigAccordionSection>
-            ) : null}
+            {hasPermissionsGroup
+                ? advancedGroup(
+                      {
+                          inFocus: permissionsInFocus,
+                          defaultOpen: permissionsChanged,
+                          indicator: changedIndicator(permissionsChanged),
+                          extra: permissionsChanged ? revertAction(revertPermissions) : undefined,
+                          icon: <ShieldCheck size={15} />,
+                          title: "Permissions",
+                          summary: runnerPermissionSummary,
+                          caption: (
+                              <Typography.Text
+                                  type="secondary"
+                                  className="text-[11px] leading-snug"
+                              >
+                                  What the agent may do on its own before it must ask.
+                              </Typography.Text>
+                          ),
+                      },
+                      permissionsBody,
+                  )
+                : null}
         </>
     )
 
@@ -843,6 +1054,10 @@ export function useModelHarness({
         // The selected model's provider has a standard vault slot but no key yet — the config panel
         // highlights the Model & harness section and the chat gates on it until it's connected.
         needsProviderKey: providerNeedsKey,
+        // The compact `bare` credentials pane (mode toggle + selected provider's key form or
+        // self-managed card; no nested header/badge, no rail) for the inline "Connect key"
+        // quick-action under the section header — aligned with the drawer without duplicating it.
+        providerCredentialsInline,
         // A model is selected but the chosen harness can't run it — a *model* problem (the harness
         // itself stays valid), so the config panel flags the Model & harness section as invalid.
         modelUnsupported: !!modelId && !selectedKeepsModel,
