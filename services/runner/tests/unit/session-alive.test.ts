@@ -3,20 +3,28 @@
  *
  * Verifies observable behaviors via fetch interception:
  *  - the watchdog fires an immediate heartbeat on start
+ *  - the FIRST heartbeat's response `stream.id` is captured and exposed via `streamId()`
  *  - release() calls the heartbeat endpoint with is_running=false and status=ended
- *  - heartbeat failures are swallowed (no throw)
+ *  - heartbeat failures are swallowed (no throw), and `streamId()` stays undefined
  */
 import { describe, it, beforeEach, afterEach, vi } from "vitest";
 import assert from "node:assert/strict";
 
 const fetchCalls: Array<{ url: string; body: unknown }> = [];
 let fetchShouldFail = false;
+let streamIdToReturn: string | undefined = "stream-default";
 
 vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
   const body = init?.body ? JSON.parse(init.body as string) : undefined;
   fetchCalls.push({ url, body });
   if (fetchShouldFail) return new Response("", { status: 500 });
-  return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      stream: streamIdToReturn ? { id: streamIdToReturn } : undefined,
+    }),
+    { status: 200 },
+  );
 });
 
 const { startAliveWatchdog } = await import("../../src/sessions/alive.ts");
@@ -29,6 +37,7 @@ function flushMicrotasks(): Promise<void> {
 beforeEach(() => {
   fetchCalls.length = 0;
   fetchShouldFail = false;
+  streamIdToReturn = "stream-default";
 });
 
 afterEach(() => {
@@ -37,8 +46,7 @@ afterEach(() => {
 
 describe("startAliveWatchdog", () => {
   it("sends an immediate heartbeat on start carrying turn_id and is_running=true", async () => {
-    const watchdog = startAliveWatchdog("sess-1", "turn-abc", "proj-1");
-    await flushMicrotasks();
+    const watchdog = await startAliveWatchdog("sess-1", "turn-abc", "proj-1");
 
     const hb = fetchCalls.find((c) => c.url.includes("heartbeat"));
     assert.ok(hb, "expected a heartbeat call");
@@ -53,11 +61,35 @@ describe("startAliveWatchdog", () => {
     await watchdog.release();
   });
 
+  it("captures stream_id from the first heartbeat's response — no extra round-trip", async () => {
+    streamIdToReturn = "stream-xyz";
+    const watchdog = await startAliveWatchdog("sess-1", "turn-abc", "proj-1");
+
+    assert.equal(watchdog.streamId(), "stream-xyz");
+    // Exactly one heartbeat call was needed to obtain it.
+    const heartbeats = fetchCalls.filter((c) => c.url.includes("heartbeat"));
+    assert.equal(heartbeats.length, 1);
+
+    await watchdog.release();
+  });
+
+  it("streamId() is undefined when the heartbeat response carries no stream", async () => {
+    streamIdToReturn = undefined;
+    const watchdog = await startAliveWatchdog("sess-1", "turn-abc", "proj-1");
+    assert.equal(watchdog.streamId(), undefined);
+    await watchdog.release();
+  });
+
+  it("streamId() is undefined when the first heartbeat fails", async () => {
+    fetchShouldFail = true;
+    const watchdog = await startAliveWatchdog("sess-1", "turn-abc", "proj-1");
+    assert.equal(watchdog.streamId(), undefined);
+    await watchdog.release();
+  });
+
   it("uses a stable replica_id across turns (distinct from turn_id)", async () => {
-    const w1 = startAliveWatchdog("sess-a", "turn-1", "proj-1");
-    await flushMicrotasks();
-    const w2 = startAliveWatchdog("sess-b", "turn-2", "proj-1");
-    await flushMicrotasks();
+    const w1 = await startAliveWatchdog("sess-a", "turn-1", "proj-1");
+    const w2 = await startAliveWatchdog("sess-b", "turn-2", "proj-1");
 
     const replicas = fetchCalls
       .filter((c) => c.url.includes("heartbeat"))
@@ -71,8 +103,7 @@ describe("startAliveWatchdog", () => {
   });
 
   it("release() sends a final heartbeat with is_running=false (status derived server-side)", async () => {
-    const watchdog = startAliveWatchdog("sess-2", "turn-xyz", "proj-2");
-    await flushMicrotasks();
+    const watchdog = await startAliveWatchdog("sess-2", "turn-xyz", "proj-2");
     fetchCalls.length = 0; // reset after the start heartbeat
 
     await watchdog.release();
@@ -82,15 +113,34 @@ describe("startAliveWatchdog", () => {
     const body = final.body as Record<string, unknown>;
     assert.equal(body["is_running"], false);
     assert.equal(body["turn_id"], "turn-xyz");
-    assert.ok(!("status" in body), "status was dropped from the heartbeat contract");
+    assert.ok(
+      !("status" in body),
+      "status was dropped from the heartbeat contract",
+    );
   });
 
   it("swallows heartbeat failures — never throws", async () => {
     fetchShouldFail = true;
-    const watchdog = startAliveWatchdog("sess-3", "run-fail", "proj-3");
-    await flushMicrotasks();
+    const watchdog = await startAliveWatchdog("sess-3", "run-fail", "proj-3");
 
     // release() should not throw even if fetch fails.
     await assert.doesNotReject(() => watchdog.release());
+  });
+
+  it("a later heartbeat updates streamId() when it returns a fresh id", async () => {
+    vi.useFakeTimers();
+    try {
+      streamIdToReturn = "stream-first";
+      const watchdog = await startAliveWatchdog("sess-1", "turn-abc", "proj-1");
+      assert.equal(watchdog.streamId(), "stream-first");
+
+      streamIdToReturn = "stream-second";
+      await vi.advanceTimersByTimeAsync(30_000);
+      assert.equal(watchdog.streamId(), "stream-second");
+
+      await watchdog.release();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

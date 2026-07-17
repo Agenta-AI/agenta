@@ -49,13 +49,17 @@ function log(msg: string): void {
  * container `replica_id` (refreshes `owner` affinity) and the `turn_id` (proves alive ownership).
  * Authenticates AS the invoke caller (the run credential) — project scope is resolved server-side
  * from that credential, so no `project_id` rides the request.
+ *
+ * Returns the response's `stream.id` (the `session_streams` row uuid), the free gift of a call
+ * the runner already makes every turn — no new round-trip to obtain it. `undefined` on any
+ * failure (non-2xx, network error, or a body without a `stream.id`).
  */
 async function sendHeartbeat(
   sessionId: string,
   turnId: string,
   authorization: string,
   isRunning = true,
-): Promise<void> {
+): Promise<string | undefined> {
   try {
     const url = `${apiBase()}/sessions/streams/heartbeat`;
     const res = await fetch(url, {
@@ -73,15 +77,21 @@ async function sendHeartbeat(
     });
     if (!res.ok) {
       log(`heartbeat HTTP ${res.status} session=${sessionId} turn=${turnId}`);
-    } else {
-      log(
-        `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}`,
-      );
+      return undefined;
     }
+    log(
+      `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}`,
+    );
+    const body = (await res.json()) as { stream?: { id?: unknown } | null };
+    const streamId = body.stream?.id;
+    return typeof streamId === "string" && streamId.length > 0
+      ? streamId
+      : undefined;
   } catch (err) {
     log(
       `heartbeat failed session=${sessionId} turn=${turnId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
+    return undefined;
   }
 }
 
@@ -132,20 +142,26 @@ export async function claimSessionOwnership(
  * inherits ownership via `turnId`. This watchdog heartbeats the API on the contract interval,
  * keeping the lock's TTL refreshed and the stream row `running`.
  *
- * Returns a `release()` function the caller MUST await in the run's `finally` so the
- * heartbeat stops and the session row is marked `ended`.
+ * Awaits the FIRST heartbeat (only) so its response's `stream_id` is ready before the caller
+ * starts the turn — every later heartbeat stays fire-and-forget, unchanged. Returns a
+ * `release()` function the caller MUST await in the run's `finally` so the heartbeat stops and
+ * the session row is marked `ended`.
  */
-export function startAliveWatchdog(
+export async function startAliveWatchdog(
   sessionId: string,
   turnId: string,
   authorization: string,
-): { release: () => Promise<void>; credential: () => string } {
+): Promise<{
+  release: () => Promise<void>;
+  credential: () => string;
+  streamId: () => string | undefined;
+}> {
   // The run credential is an ephemeral Secret (~15-min TTL). Hold it mutably and refresh it
   // every Nth heartbeat (re-/check mints a fresh-expiry token) so a long turn never 401s.
   let credential = authorization;
   let beats = 0;
 
-  void sendHeartbeat(sessionId, turnId, credential);
+  let streamId = await sendHeartbeat(sessionId, turnId, credential);
 
   const interval = setInterval(() => {
     void (async () => {
@@ -154,7 +170,8 @@ export function startAliveWatchdog(
         const fresh = await refreshCredential(apiBase(), credential);
         if (fresh) credential = fresh;
       }
-      void sendHeartbeat(sessionId, turnId, credential);
+      const id = await sendHeartbeat(sessionId, turnId, credential);
+      if (id) streamId = id;
     })();
   }, REFRESH_INTERVAL_MS);
 
@@ -170,5 +187,6 @@ export function startAliveWatchdog(
       await sendHeartbeat(sessionId, turnId, credential, false);
     },
     credential: () => credential,
+    streamId: () => streamId,
   };
 }

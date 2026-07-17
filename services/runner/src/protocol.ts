@@ -511,6 +511,13 @@ export interface AgentRunRequest {
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
    */
   projectId?: string;
+  /**
+   * The session's `session_streams` row id, captured for free from the alive-watchdog's
+   * heartbeat response (`sessions/alive.ts`) and threaded here before the engine runs. Present
+   * only for session-owned streaming runs; consumed at the turn-append write site
+   * (`engines/sandbox_agent.ts`) as `session_turns.stream_id`.
+   */
+  streamId?: string;
 }
 
 export interface AgentRunResult {

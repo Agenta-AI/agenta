@@ -904,12 +904,15 @@ async function runAndStreamWithApiBaseResolved(
     // The runner authenticates session calls AS the invoke caller (the run credential),
     // refreshing it for the turn's lifetime — never the admin key. Project scope is
     // resolved server-side from the credential, so no project_id rides the request.
-    const watchdog = startAliveWatchdog(
+    const watchdog = await startAliveWatchdog(
       sessionId,
       turnId,
       runCredential(request),
     );
     aliveWatchdog = watchdog;
+    // The heartbeat response already carries the session_streams row id — free, no extra
+    // round-trip. Thread it onto the request so the engine's turn-append write has it.
+    request.streamId = watchdog.streamId();
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
     // the resume resolves that one). Best-effort, never blocks the turn.
