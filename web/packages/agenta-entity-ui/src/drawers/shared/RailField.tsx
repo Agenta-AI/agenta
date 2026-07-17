@@ -11,13 +11,23 @@
  */
 import type {ReactNode} from "react"
 
-import {Info} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
+import {ArrowCounterClockwise, Info} from "@phosphor-icons/react"
+import {Button, Popover, Tooltip} from "antd"
+
+import {useChangedDetail, useChangedPath, useRevertPath} from "./ChangedPathsContext"
+import {useIsPathVisible} from "./FocusPathsContext"
 
 export interface RailFieldProps {
     label: ReactNode
     /** Vertical alignment of the label against the content. @default "top" */
     align?: "top" | "center"
+    /**
+     * This row's config dot-path (e.g. `runner.permissions.default`). When it has an uncommitted
+     * change — per the surrounding {@link ChangedPathsProvider} — the label marks itself and opens
+     * the change's detail, so a surface shows WHICH property changed rather than just that
+     * something did. Opt-in: without a path (or a provider) the row renders exactly as before.
+     */
+    path?: string
     children: ReactNode
 }
 
@@ -34,15 +44,98 @@ export const railInfoLabel = (label: ReactNode, hint: ReactNode): ReactNode => (
     </span>
 )
 
-export function RailField({label, align = "top", children}: RailFieldProps) {
+// Unpack the classifier's JSON.stringify'd scalar back to what the field shows (one rule per line),
+// naming the empty cases rather than printing wire syntax like `[]`.
+export function formatCommitted(before: string | undefined): {text: string; muted: boolean} {
+    if (before === undefined) return {text: "Not set", muted: true}
+    let value: unknown = before
+    try {
+        value = JSON.parse(before)
+    } catch {
+        // A plain string the classifier passed through as-is.
+    }
+    if (Array.isArray(value)) {
+        return value.length
+            ? {text: value.map((entry) => String(entry)).join("\n"), muted: false}
+            : {text: "Empty", muted: true}
+    }
+    if (value && typeof value === "object") {
+        return Object.keys(value).length
+            ? {text: JSON.stringify(value, null, 2), muted: false}
+            : {text: "Empty", muted: true}
+    }
+    const text = String(value ?? "")
+    return text.trim() ? {text, muted: false} : {text: "Empty", muted: true}
+}
+
+// The committed value ("changed from what?") and its undo on one surface: the value shown IS the
+// revert's confirmation, so no separate confirm step is needed.
+function ChangedDetail({
+    before,
+    onRevert,
+}: {
+    before: string | undefined
+    onRevert: (() => void) | null
+}) {
+    const {text, muted} = formatCommitted(before)
+    return (
+        <div className="flex w-[200px] flex-col gap-2">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                Committed value
+            </div>
+            <div
+                className={`max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-1 text-xs ${
+                    muted
+                        ? "italic text-[var(--ag-colorTextTertiary)]"
+                        : "font-mono text-[var(--ag-colorText)]"
+                }`}
+            >
+                {text}
+            </div>
+            {onRevert ? (
+                <Button
+                    icon={<ArrowCounterClockwise size={13} />}
+                    onClick={onRevert}
+                    block
+                    className="!text-xs"
+                >
+                    {before === undefined ? "Remove change" : "Restore"}
+                </Button>
+            ) : null}
+        </div>
+    )
+}
+
+export function RailField({label, align = "top", path, children}: RailFieldProps) {
+    const changed = useChangedPath(path)
+    const detail = useChangedDetail(path)
+    const revert = useRevertPath(path)
+    // Focus filter (see FocusPathsContext): each row self-filters on its own `path`.
+    const visible = useIsPathVisible(path)
+    if (!visible) return null
     return (
         <div className="flex gap-3">
             <div
-                className={`box-border w-[116px] shrink-0 px-2.5 text-xs text-[var(--ag-colorTextSecondary)] ${
+                className={`box-border w-[116px] shrink-0 px-2.5 text-xs ${
                     align === "center" ? "self-center" : "pt-1.5"
-                }`}
+                } ${changed ? "text-[var(--ag-colorText)]" : "text-[var(--ag-colorTextSecondary)]"}`}
             >
-                {label}
+                {/* The label carries the change via emphasis (colorTextSecondary → colorText) plus a
+                    colorInfo dotted underline — no marker glyph, so changed and unchanged rows share
+                    the same box. */}
+                {changed ? (
+                    <Popover
+                        trigger="click"
+                        placement="topLeft"
+                        content={<ChangedDetail before={detail?.before} onRevert={revert} />}
+                    >
+                        <span className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4">
+                            {label}
+                        </span>
+                    </Popover>
+                ) : (
+                    label
+                )}
             </div>
             <div className="flex min-w-0 max-w-prose flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
                 {children}
