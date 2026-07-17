@@ -579,15 +579,31 @@ class SessionStreamsService:
                 )
                 created = True
             except SessionStreamAlreadyExists:
-                # A concurrent first touch won; its row is the one we wanted.
+                # The unique slot is held by either a concurrent first touch (live row) or a
+                # soft-deleted tombstone (STOP_KILLS_SESSION / archive). The update reconciles
+                # the live case; a None result means the tombstone case, handled below.
                 pass
         if not created:
-            await self._dao.update(
+            updated = await self._dao.update(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
                 stream=SessionStreamEdit(flags=flags, turn_id=turn_id),
             )
+            if updated is None:
+                # No live row matched: a killed/archived tombstone occupies the slot. Resume must
+                # re-nest that same row (keeps its id + header) — clear deleted_at, then re-flag it.
+                await self._dao.unarchive_by_session_id(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                await self._dao.update(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    stream=SessionStreamEdit(flags=flags, turn_id=turn_id),
+                )
         return turn_id
 
     async def _mirror_flags(
