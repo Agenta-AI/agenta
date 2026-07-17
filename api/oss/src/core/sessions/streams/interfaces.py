@@ -6,6 +6,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
+    SessionStreamHeaderEdit,
     SessionStreamQuery,
 )
 
@@ -52,6 +53,16 @@ class SessionStreamsDAOInterface(ABC):
         user_id: UUID,
         session_id: str,
         stream: SessionStreamEdit,
+    ) -> Optional[SessionStream]: ...
+
+    @abstractmethod
+    async def update_header(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        header: SessionStreamHeaderEdit,
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod

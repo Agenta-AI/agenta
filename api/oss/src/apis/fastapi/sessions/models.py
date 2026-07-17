@@ -8,7 +8,6 @@ from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
 )
-from oss.src.core.sessions.states.dtos import SessionState, SessionStateData
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -80,30 +79,21 @@ class SessionStreamsResponseModel(BaseModel):
 
 # ---------------------------------------------------------------------------
 # States request/response models
+#
+# /sessions/states/ is the session header surface: it reads/writes the merged
+# session_streams row's name/description (S8). Rename is a full-PUT edit, not a
+# bespoke verb.
 # ---------------------------------------------------------------------------
 
 
 class SessionStateResponse(BaseModel):
     count: int = Field(default=0)
-    session_state: Optional[SessionState] = Field(default=None)
+    session_state: Optional[SessionStream] = Field(default=None)
 
 
 class SessionStateUpsertRequest(BaseModel):
-    data: Optional[SessionStateData] = Field(
-        default=None,
-        description="Full replacement of the continuity state (resume ids + staleness guard).",
-    )
-    sandbox_id: Optional[str] = Field(
-        default=None,
-        description="Remote sandbox id to record alongside the continuity state.",
-    )
-    sandbox_turn_index: Optional[int] = Field(
-        default=None,
-        description=(
-            "the writer's conversation turn index; the pointer write is applied only "
-            "when it is >= the row's data.latest_turn_index."
-        ),
-    )
+    name: Optional[str] = Field(default=None, description="Rename target.")
+    description: Optional[str] = Field(default=None, description="Rename target.")
 
 
 # ---------------------------------------------------------------------------

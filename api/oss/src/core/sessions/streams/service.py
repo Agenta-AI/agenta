@@ -47,6 +47,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
+    SessionStreamHeaderEdit,
     SessionStreamQuery,
 )
 from oss.src.core.sessions.streams.types import (
@@ -371,6 +372,61 @@ class SessionStreamsService:
         # Redis is authoritative for the nest bools; overlay them on the durable row.
         stream.flags = flags
         return stream
+
+    async def fetch_header(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Fetch the session header (name/description/flags/lifecycle) — used by
+        GET /sessions/states/. Reads the same reconciled row as `fetch`.
+        """
+        return await self.fetch(project_id=project_id, session_id=session_id)
+
+    async def set_header(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        header: SessionStreamHeaderEdit,
+    ) -> Optional[SessionStream]:
+        """The rename edit: full-PUT {name, description} onto the merged stream row.
+
+        Pure DB write — no Redis nest interaction, no flags/turn_id touched. Off the
+        runner's write path. Creates the row if the session has never heartbeat/run
+        yet (a caller may name a session before its first turn), mirroring
+        `_start_turn`'s create-or-update pattern.
+        """
+        _validate_session_id(session_id)
+        updated = await self._dao.update_header(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            header=header,
+        )
+        if updated is not None:
+            return updated
+        try:
+            return await self._dao.create(
+                project_id=project_id,
+                user_id=user_id,
+                stream=SessionStreamCreate(
+                    session_id=session_id,
+                    name=header.name,
+                    description=header.description,
+                ),
+            )
+        except SessionStreamAlreadyExists:
+            # A concurrent first touch (heartbeat/rename) won the race; the row now
+            # exists — apply the header edit onto it.
+            return await self._dao.update_header(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                header=header,
+            )
 
     async def query_streams(
         self,

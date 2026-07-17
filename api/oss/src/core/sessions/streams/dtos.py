@@ -36,6 +36,8 @@ class SessionStream(BaseModel):
     #
     project_id: UUID
     session_id: str
+    name: Optional[str] = None
+    description: Optional[str] = None
     flags: SessionStreamFlags = SessionStreamFlags()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
@@ -44,6 +46,8 @@ class SessionStream(BaseModel):
 
 class SessionStreamCreate(BaseModel):
     session_id: str
+    name: Optional[str] = None
+    description: Optional[str] = None
     flags: Optional[SessionStreamFlags] = None
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
@@ -51,10 +55,23 @@ class SessionStreamCreate(BaseModel):
 
 
 class SessionStreamEdit(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
     flags: Optional[SessionStreamFlags] = None
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+
+
+class SessionStreamHeaderEdit(BaseModel):
+    """The rename edit: a full-PUT of the header fields only.
+
+    Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
+    liveness-only writes can never carry name/description, and vice versa.
+    """
+
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 
 class SessionStreamQuery(BaseModel):

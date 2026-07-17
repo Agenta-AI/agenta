@@ -9,6 +9,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
+    SessionStreamHeaderEdit,
     SessionStreamQuery,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
@@ -23,6 +24,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     map_stream_dbe_to_dto,
     map_stream_dto_to_dbe_create,
     map_stream_dto_to_dbe_edit,
+    map_stream_dto_to_dbe_header_edit,
 )
 
 
@@ -138,6 +140,34 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                 stream_dbe=dbe,
                 user_id=user_id,
                 stream=stream,
+            )
+            dbe.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(dbe)
+        return map_stream_dbe_to_dto(stream_dbe=dbe)
+
+    async def update_header(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        header: SessionStreamHeaderEdit,
+    ) -> Optional[SessionStream]:
+        async with self.engine.session() as session:
+            stmt = select(SessionStreamDBE).where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.session_id == session_id,
+                SessionStreamDBE.deleted_at.is_(None),
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            if dbe is None:
+                return None
+            map_stream_dto_to_dbe_header_edit(
+                stream_dbe=dbe,
+                user_id=user_id,
+                header=header,
             )
             dbe.updated_at = datetime.now(timezone.utc)
             await session.commit()

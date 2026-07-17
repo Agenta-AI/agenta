@@ -10,6 +10,7 @@ from sqlalchemy import (
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.shared.dbas import (
     FlagsDBA,
+    HeaderDBA,
     IdentifierDBA,
     LifecycleDBA,
     MetaDBA,
@@ -22,17 +23,20 @@ class SessionStreamDBE(
     Base,
     IdentifierDBA,
     ProjectScopeDBA,
+    HeaderDBA,
     LifecycleDBA,
     FlagsDBA,
     TagsDBA,
     MetaDBA,
 ):
-    """Ephemeral run/liveness facet for a session — the durable mirror of the
-    Redis nest (alive ⊇ running ⊇ attached).
+    """The session's one row: identity (name/description) and run/liveness (the
+    durable mirror of the Redis nest, alive ⊇ running ⊇ attached).
 
     1:1 with session_id per project. Redis is authoritative for the nest bools;
     this row mirrors them in ``flags`` for durability / orphan sweep / observability.
     ``updated_at`` (LifecycleDBA) is the heartbeat timestamp — no separate column.
+    ``name``/``description`` (HeaderDBA) are written only on the rename edit, never
+    on a flag-mirror write, so heartbeats don't churn them.
     sandbox_id is NOT stored here (it lives in session_states).
     """
 
