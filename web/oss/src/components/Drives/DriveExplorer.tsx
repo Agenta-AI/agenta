@@ -75,7 +75,7 @@ export const driveRootLabel = (mount: Mount | null): string =>
 /** Clickable path breadcrumb: each folder segment (and the home root) navigates via `onNavigate`
  * (a folder path, "" = root). The last segment is the current file/folder (plain). Scrolls
  * horizontally rather than truncating, so every part stays reachable. */
-const DriveBreadcrumb = ({
+export const DriveBreadcrumb = ({
     shown,
     rootLabel,
     onNavigate,
@@ -384,7 +384,7 @@ const DriveFilePreview = ({
 
 /** A subfolder tile — same shape as the file tile (4:3 icon "thumbnail" + name + meta) so folders
  * and files form ONE uniform grid instead of short folder cards stretching to the file-tile height. */
-const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) => {
+export const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) => {
     const hidden = isHiddenPath(node.path)
     const count = node.children.length
     return (

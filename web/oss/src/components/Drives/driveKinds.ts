@@ -61,7 +61,7 @@ export const driveCodeLanguage = (path: string): string => {
 }
 
 const EXT_KINDS: [RegExp, DriveFileKind][] = [
-    [/\.(md|markdown)$/i, "markdown"],
+    [/\.(md|markdown|mdx)$/i, "markdown"],
     [/\.(txt|log|env)$/i, "text"],
     [/\.(json|yaml|yml)$/i, "json"],
     [/\.csv$/i, "csv"],
