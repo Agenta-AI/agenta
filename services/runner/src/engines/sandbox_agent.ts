@@ -92,12 +92,17 @@ import {
   configurePiSessionWorkspace,
   configurePiSkillSnapshot,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
+  PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
   writeOtlpAuthFile,
 } from "./sandbox_agent/pi-assets.ts";
+import {
+  buildPiModelConfigPlan,
+  type PiModelConfigPlan,
+} from "./sandbox_agent/pi-model-config.ts";
 import {
   uploadToolMcpAssets,
   type ToolMcpAssets,
@@ -298,8 +303,7 @@ function shouldSuppressPausedToolCallUpdate(
   pause: PendingApprovalPauseController,
 ): boolean {
   const frame = update as
-    | { sessionUpdate?: unknown; toolCallId?: unknown }
-    | undefined;
+    { sessionUpdate?: unknown; toolCallId?: unknown } | undefined;
   const kind = frame?.sessionUpdate;
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
   const toolCallId =
@@ -646,8 +650,7 @@ export interface SessionEnvironment {
 }
 
 export type AcquireEnvironmentResult =
-  | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
 
 /**
  * Sign the session's durable mount up front so keep-alive can build a pool key (the mount's
@@ -857,10 +860,44 @@ export async function acquireEnvironment(
       );
     }
   }
+  // Translate a managed OpenAI-compatible custom connection into Pi's native models.json plan
+  // (design Decision 5). Non-applicable requests yield no plan (current behavior); an applicable
+  // but incomplete request throws — captured here and re-thrown inside the try below so the
+  // engine's own catch turns it into `{ ok: false, error }` and a visible error frame (fail loud,
+  // never a silent fall-back to a default provider). Only the env var NAME enters the plan.
+  let piModelConfig: PiModelConfigPlan | undefined;
+  let piModelConfigError: Error | undefined;
+  if (plan.isPi) {
+    try {
+      piModelConfig = buildPiModelConfigPlan(request, plan.secrets);
+    } catch (err) {
+      piModelConfigError = err as Error;
+    }
+  }
+  if (piModelConfig) {
+    logger(
+      `pi model-config plan provider=${piModelConfig.providerId} api=${piModelConfig.api} ` +
+        `model=${piModelConfig.models.map((m) => m.id).join(",")}`,
+    );
+  }
+
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
-  const localPiAssets = prepareLocalPiAssets({ plan, env, log: logger });
+  const localPiAssets = prepareLocalPiAssets({
+    plan,
+    env,
+    piModelConfig,
+    log: logger,
+  });
   let runAgentDir = localPiAssets.dir;
+  // Fail closed (Decision 6): a local managed custom run whose models.json could not be written
+  // must stop rather than run on a default provider. Recorded here (the write ran above) and
+  // thrown inside the try below, like the permission-extension gate.
+  const localModelConfigUnwritable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    !!piModelConfig &&
+    !localPiAssets.modelConfigWritten;
   // Fail closed (Decision 2): when the policy could gate a Pi built-in tool but the permission
   // extension did not install, the run must stop rather than run those tools unprotected. Recorded
   // here (the install ran above) and thrown inside the try below so the engine's own catch turns it
@@ -1237,10 +1274,20 @@ export async function acquireEnvironment(
   };
 
   try {
+    // Fail loud before any sandbox/mount infra spins up: an applicable-but-incomplete
+    // OpenAI-compatible custom request is a hard error, never a silent fall-back (Decision 5).
+    if (piModelConfigError) {
+      throw piModelConfigError;
+    }
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
     if (localBuiltinGatingUnenforceable) {
       throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+    }
+    // Fail closed: a local managed custom run whose models.json could not be materialized cannot
+    // fall through to a default provider (Decision 6).
+    if (localModelConfigUnwritable) {
+      throw new Error(PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE);
     }
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
@@ -1362,6 +1409,7 @@ export async function acquireEnvironment(
       )({
         sandbox: environment.sandbox,
         plan: { ...plan, skillDirs: [] },
+        piModelConfig,
         log: logger,
       });
       // Fail closed (Decision 2): same guarantee as the local path. A genuine upload failure on the
@@ -1698,9 +1746,22 @@ export async function acquireEnvironment(
 
     // Resolve the model first: when the harness rejects the requested id and keeps its own
     // default, `model` is undefined and the chat span is labelled "chat".
+    //
+    // For a managed OpenAI-compatible custom run, request the FULLY QUALIFIED
+    // `<connection-slug>/<model-id>` that pi-acp advertises for this provider, not the bare wire
+    // model id (design Decision 7). `applyModel`/`pickModel` fall back to suffix matching, which
+    // returns the FIRST advertised id whose suffix matches — so a built-in `openai/<model>` that
+    // Pi still advertises (the vault key rides in as `OPENAI_API_KEY`, keeping Pi's built-in
+    // openai provider live) would be selected ahead of the custom `<slug>/<model>` when both share
+    // the model id. That would silently route to api.openai.com instead of the user's endpoint.
+    // The qualified id is an EXACT match, so it always wins over any bare-suffix collision.
+    const wantedModel =
+      piModelConfig && piModelConfig.models.length > 0
+        ? `${piModelConfig.providerId}/${piModelConfig.models[0].id}`
+        : request.model;
     environment.model = await (deps.applyModel ?? applyModel)(
       environment.session,
-      request.model,
+      wantedModel,
       logger,
       { strict: strictModel },
     );
