@@ -49,8 +49,7 @@ interface ChatMessageContentFile {
 }
 
 type ChatMessageContent =
-    | string
-    | (ChatMessageContentText | ChatMessageContentImage | ChatMessageContentFile)[]
+    string | (ChatMessageContentText | ChatMessageContentImage | ChatMessageContentFile)[]
 
 export interface ChatInputMessage {
     role: ChatRole

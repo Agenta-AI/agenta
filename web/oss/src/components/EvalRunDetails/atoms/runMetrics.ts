@@ -1001,9 +1001,7 @@ export const previewRunMetricStatsLoadableFamily = atomFamily(
 )
 
 type LoadableState<T> =
-    | {state: "loading"}
-    | {state: "hasError"; error: unknown}
-    | {state: "hasData"; data: T}
+    {state: "loading"} | {state: "hasError"; error: unknown} | {state: "hasData"; data: T}
 
 export interface RunLevelMetricSelection {
     state: LoadableState<BasicStats | undefined>["state"]
@@ -1045,9 +1043,7 @@ export const previewRunMetricStatsSelectorFamily = atomFamily(
             }
 
             const rawStats = loadableResult.data as
-                | RunLevelStatsMap
-                | {data?: RunLevelStatsMap}
-                | undefined
+                RunLevelStatsMap | {data?: RunLevelStatsMap} | undefined
             const statsMap =
                 rawStats && typeof rawStats === "object" && "data" in rawStats
                     ? ((rawStats.data as RunLevelStatsMap) ?? {})

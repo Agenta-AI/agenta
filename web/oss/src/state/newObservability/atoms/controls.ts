@@ -92,9 +92,7 @@ export const sortAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
  * downstream atoms (scope filter, query body) read that derived value.
  */
 export type TraceTypeChoice =
-    | {kind: "default"}
-    | {kind: "value"; value: "annotation" | "invocation"}
-    | {kind: "cleared"}
+    {kind: "default"} | {kind: "value"; value: "annotation" | "invocation"} | {kind: "cleared"}
 
 // --- Persisted filter state (per app, per tab) -------------------------------
 //

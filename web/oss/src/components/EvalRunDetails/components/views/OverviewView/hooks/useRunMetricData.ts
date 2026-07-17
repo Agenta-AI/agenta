@@ -197,9 +197,7 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
         if (metricsLoadable.state !== "hasData") return {}
 
         const rawData = metricsLoadable.data as
-            | Record<string, BasicStats>
-            | {data?: Record<string, BasicStats>}
-            | undefined
+            Record<string, BasicStats> | {data?: Record<string, BasicStats>} | undefined
         if (!rawData) return {}
         if ("data" in rawData && rawData.data && typeof rawData.data === "object") {
             return rawData.data as Record<string, BasicStats>

@@ -27,8 +27,7 @@ export const getMessageTraceId = (message: UIMessage): string | undefined => {
     if (metaTraceId) return metaTraceId
 
     const tracePart = message.parts.find((p) => p.type === "data-trace") as
-        | {type: "data-trace"; data?: TracePartData}
-        | undefined
+        {type: "data-trace"; data?: TracePartData} | undefined
     if (!tracePart?.data) return undefined
     return tracePart.data.traceId || parseTraceIdFromUrl(tracePart.data.url)
 }
