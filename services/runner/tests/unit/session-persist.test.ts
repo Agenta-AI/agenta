@@ -25,10 +25,8 @@ vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 });
 
-const {
-  buildPersistingEmitter,
-  drainPersist,
-} = await import("../../src/sessions/persist.ts");
+const { buildPersistingEmitter, drainPersist } =
+  await import("../../src/sessions/persist.ts");
 
 beforeEach(() => {
   postedBodies.length = 0;
@@ -89,8 +87,8 @@ describe("buildPersistingEmitter", () => {
     const live: unknown[] = [];
     const { emit, flush } = buildPersistingEmitter(
       "sess-2",
-      () => "Secret t", (e) =>
-      live.push(e),
+      () => "Secret t",
+      (e) => live.push(e),
     );
 
     emit({ type: "message_start", id: "m1" });
@@ -147,8 +145,18 @@ describe("buildPersistingEmitter", () => {
 
     // A tool call streams a growing partial-args snapshot for one id.
     emit({ type: "tool_call", id: "call_1", name: "bash", input: {} });
-    emit({ type: "tool_call", id: "call_1", name: "bash", input: { command: "fi" } });
-    emit({ type: "tool_call", id: "call_1", name: "bash", input: { command: "find ." } });
+    emit({
+      type: "tool_call",
+      id: "call_1",
+      name: "bash",
+      input: { command: "fi" },
+    });
+    emit({
+      type: "tool_call",
+      id: "call_1",
+      name: "bash",
+      input: { command: "find ." },
+    });
     // A different step closes the open call.
     emit({ type: "tool_result", id: "call_1", output: "ok" });
     emit({ type: "done" });
@@ -173,10 +181,23 @@ describe("buildPersistingEmitter", () => {
   });
 
   it("a different tool id flushes the previous open call", async () => {
-    const { emit, flush } = buildPersistingEmitter("sess-tc2", () => "Secret t");
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-tc2",
+      () => "Secret t",
+    );
 
-    emit({ type: "tool_call", id: "call_a", name: "read", input: { path: "/x" } });
-    emit({ type: "tool_call", id: "call_b", name: "read", input: { path: "/y" } });
+    emit({
+      type: "tool_call",
+      id: "call_a",
+      name: "read",
+      input: { path: "/x" },
+    });
+    emit({
+      type: "tool_call",
+      id: "call_b",
+      name: "read",
+      input: { path: "/y" },
+    });
     await flush();
 
     const bodies = postedBodies as Array<Record<string, unknown>>;
@@ -184,14 +205,25 @@ describe("buildPersistingEmitter", () => {
       (b) => (b["attributes"] as Record<string, unknown>)["input"],
     );
     assert.deepEqual(inputs, [{ path: "/x" }, { path: "/y" }]);
-    assert.deepEqual(bodies.map((b) => b["record_index"]), [0, 1]);
+    assert.deepEqual(
+      bodies.map((b) => b["record_index"]),
+      [0, 1],
+    );
   });
 
   it("flushes an open (paused) tool_call on drain", async () => {
-    const { emit, flush } = buildPersistingEmitter("sess-tc3", () => "Secret t");
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-tc3",
+      () => "Secret t",
+    );
 
     // A paused call ends the turn with its slot still open.
-    emit({ type: "tool_call", id: "call_p", name: "bash", input: { command: "ls" } });
+    emit({
+      type: "tool_call",
+      id: "call_p",
+      name: "bash",
+      input: { command: "ls" },
+    });
     await flush();
 
     const bodies = postedBodies as Array<Record<string, unknown>>;
@@ -205,15 +237,28 @@ describe("buildPersistingEmitter", () => {
   it("flushes an open tool_call when the idle TTL fires", async () => {
     vi.useFakeTimers();
     try {
-      const { emit, flush } = buildPersistingEmitter("sess-tc4", () => "Secret t");
+      const { emit, flush } = buildPersistingEmitter(
+        "sess-tc4",
+        () => "Secret t",
+      );
 
-      emit({ type: "tool_call", id: "call_ttl", name: "bash", input: { command: "x" } });
+      emit({
+        type: "tool_call",
+        id: "call_ttl",
+        name: "bash",
+        input: { command: "x" },
+      });
       // Nothing follows; only the TTL can close it.
       assert.equal(postedBodies.length, 0);
       await vi.advanceTimersByTimeAsync(3000);
       assert.equal(postedBodies.length, 1);
       assert.equal(
-        ((postedBodies[0] as Record<string, unknown>)["attributes"] as Record<string, unknown>)["type"],
+        (
+          (postedBodies[0] as Record<string, unknown>)["attributes"] as Record<
+            string,
+            unknown
+          >
+        )["type"],
         "tool_call",
       );
       await flush();
@@ -225,13 +270,16 @@ describe("buildPersistingEmitter", () => {
 
 describe("buildPersistingEmitter turn/span tagging", () => {
   it("stamps turn_id and span_id on every posted record when both are supplied", async () => {
+    // A real 16-hex OTel span id (the runContext.trace.span_id shape), NOT a UUID — the API
+    // types this field as a 16-hex string, so anything else 422s (FINDING-record-ingest-422).
+    const spanId = "a1b2c3d4e5f6a7b8";
     const { emit, persist, flush } = buildPersistingEmitter(
       "sess-turn",
       () => "Secret t",
       undefined,
       undefined,
       "turn-abc",
-      "span-def",
+      spanId,
     );
 
     persist({ type: "message", text: "hi" }, "user");
@@ -243,12 +291,15 @@ describe("buildPersistingEmitter turn/span tagging", () => {
     assert.equal(bodies.length, 3);
     for (const body of bodies) {
       assert.equal(body["turn_id"], "turn-abc");
-      assert.equal(body["span_id"], "span-def");
+      assert.equal(body["span_id"], spanId);
     }
   });
 
   it("omits turn_id/span_id from the body when neither is supplied", async () => {
-    const { emit, flush } = buildPersistingEmitter("sess-noturn", () => "Secret t");
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-noturn",
+      () => "Secret t",
+    );
 
     emit({ type: "message", text: "hello" });
     await flush();
@@ -270,7 +321,12 @@ describe("buildPersistingEmitter turn/span tagging", () => {
     emit({ type: "message_start", id: "m1" });
     emit({ type: "message_delta", id: "m1", delta: "hi" });
     emit({ type: "message_end", id: "m1" });
-    emit({ type: "tool_call", id: "call_1", name: "bash", input: { command: "ls" } });
+    emit({
+      type: "tool_call",
+      id: "call_1",
+      name: "bash",
+      input: { command: "ls" },
+    });
     emit({ type: "tool_result", id: "call_1", output: "ok" });
     await flush();
 
@@ -283,13 +339,79 @@ describe("buildPersistingEmitter turn/span tagging", () => {
   });
 });
 
+describe("buildPersistingEmitter API contract", () => {
+  // The API's SessionRecordIngestRequest types span_id as a 16-hex OTel span id. A stub that
+  // returns 200 for ANY body (like the other tests here) hid the real bug: the field used to
+  // be typed as UUID and every ingest 422'd. This stub enforces the real contract, so a
+  // regression to a non-span-shaped span_id fails here instead of silently dropping records.
+  const OTEL_SPAN_ID = /^[0-9a-fA-F]{16}$/;
+
+  it("emits a span_id the API contract accepts (16-hex OTel span id, not a UUID)", async () => {
+    const accepted: Array<Record<string, unknown>> = [];
+    const rejected: Array<Record<string, unknown>> = [];
+    const contractFetch = (async (_url: string, init?: RequestInit) => {
+      const body = init?.body
+        ? (JSON.parse(init.body as string) as Record<string, unknown>)
+        : {};
+      if (
+        body.span_id !== undefined &&
+        !OTEL_SPAN_ID.test(String(body.span_id))
+      ) {
+        rejected.push(body);
+        return new Response(JSON.stringify({ detail: "uuid_parsing" }), {
+          status: 422,
+        });
+      }
+      accepted.push(body);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+
+    const prior = globalThis.fetch;
+    globalThis.fetch = contractFetch;
+    try {
+      const spanId = "a1b2c3d4e5f6a7b8"; // the runContext.trace.span_id shape
+      const { emit, persist, flush } = buildPersistingEmitter(
+        "sess-contract",
+        () => "Secret t",
+        undefined,
+        undefined,
+        "turn-1",
+        spanId,
+      );
+      persist({ type: "message", text: "hi" }, "user");
+      emit({ type: "message", text: "hello" });
+      emit({ type: "done" });
+      await flush();
+
+      // Every record cleared the contract-validating stub; nothing 422'd or dropped.
+      assert.equal(rejected.length, 0);
+      assert.equal(accepted.length, 3);
+      for (const body of accepted)
+        assert.match(String(body.span_id), OTEL_SPAN_ID);
+    } finally {
+      globalThis.fetch = prior;
+    }
+  });
+
+  it("the contract stub has teeth: a non-span-shaped span_id would 422", () => {
+    // Guards the test above: the old mock returned 200 for any body, so a UUID (or any
+    // arbitrary string) sailed through. The real contract rejects both.
+    assert.equal(OTEL_SPAN_ID.test("a1b2c3d4e5f6a7b8"), true);
+    assert.equal(OTEL_SPAN_ID.test("span-def"), false);
+    assert.equal(OTEL_SPAN_ID.test("f".repeat(32)), false); // a UUID (32 hex) is not a span id
+  });
+});
+
 describe("drainPersist", () => {
   it("resolves immediately when no events are pending", async () => {
     await assert.doesNotReject(() => drainPersist("no-session"));
   });
 
   it("waits for all queued events before resolving", async () => {
-    const { emit, flush } = buildPersistingEmitter("sess-drain", () => "Secret t");
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-drain",
+      () => "Secret t",
+    );
     emit({ type: "message", text: "x" });
     emit({ type: "done" });
     await flush(); // same as drainPersist internally
