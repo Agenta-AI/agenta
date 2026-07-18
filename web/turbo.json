@@ -120,6 +120,19 @@
             "outputs": [".next/**", "!.next/cache/**"],
             "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
         },
+        "@agenta/mobile#build": {
+            "inputs": ["src/**", "public/**", "next.config.ts", "postcss.config.mjs", "tsconfig.json", "components.json"],
+            "outputs": [".next/**", "!.next/cache/**"],
+            "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
+        },
+        "@agenta/mobile#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
+            "outputs": []
+        },
+        "@agenta/mobile#types:check": {
+            "inputs": ["src/**", "next.config.ts", "tsconfig.json"],
+            "outputs": []
+        },
         "@agenta/shared#lint": {
             "inputs": ["src/**/*.ts", "src/**/*.tsx"],
             "outputs": []
