@@ -73,6 +73,7 @@ import {
   type MountCredentials,
 } from "./mount.ts";
 import {
+  PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
   prepareLocalPiAssets,
   uploadSystemPromptToSandbox,
@@ -266,9 +267,12 @@ export async function acquireEnvironment(
     env,
     environment,
     localBuiltinGatingUnenforceable,
+    localModelConfigUnwritable,
     logger,
     mcpAbort,
     piExtEnv,
+    piModelConfig,
+    piModelConfigError,
     piSessionDir,
     piSkillSnapshot,
     plan,
@@ -562,10 +566,20 @@ export async function acquireEnvironment(
   };
 
   try {
+    // Fail loud before any sandbox/mount infra spins up: an applicable-but-incomplete
+    // OpenAI-compatible custom request is a hard error, never a silent fall-back (Decision 5).
+    if (piModelConfigError) {
+      throw piModelConfigError;
+    }
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
     if (localBuiltinGatingUnenforceable) {
       throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+    }
+    // Fail closed: a local managed custom run whose models.json could not be materialized cannot
+    // fall through to a default provider (Decision 6).
+    if (localModelConfigUnwritable) {
+      throw new Error(PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE);
     }
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
@@ -687,6 +701,7 @@ export async function acquireEnvironment(
       )({
         sandbox: environment.sandbox,
         plan: { ...plan, skillDirs: [] },
+        piModelConfig,
         log: logger,
       });
       // Fail closed (Decision 2): same guarantee as the local path. A genuine upload failure on the
@@ -1023,9 +1038,22 @@ export async function acquireEnvironment(
 
     // Resolve the model first: when the harness rejects the requested id and keeps its own
     // default, `model` is undefined and the chat span is labelled "chat".
+    //
+    // For a managed OpenAI-compatible custom run, request the FULLY QUALIFIED
+    // `<connection-slug>/<model-id>` that pi-acp advertises for this provider, not the bare wire
+    // model id (design Decision 7). `applyModel`/`pickModel` fall back to suffix matching, which
+    // returns the FIRST advertised id whose suffix matches — so a built-in `openai/<model>` that
+    // Pi still advertises (the vault key rides in as `OPENAI_API_KEY`, keeping Pi's built-in
+    // openai provider live) would be selected ahead of the custom `<slug>/<model>` when both share
+    // the model id. That would silently route to api.openai.com instead of the user's endpoint.
+    // The qualified id is an EXACT match, so it always wins over any bare-suffix collision.
+    const wantedModel =
+      piModelConfig && piModelConfig.models.length > 0
+        ? `${piModelConfig.providerId}/${piModelConfig.models[0].id}`
+        : request.model;
     environment.model = await (deps.applyModel ?? applyModel)(
       environment.session,
-      request.model,
+      wantedModel,
       logger,
       { strict: strictModel },
     );

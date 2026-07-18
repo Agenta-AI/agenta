@@ -27,6 +27,10 @@ import {
   resolvePiSkillSnapshot,
   writeOtlpAuthFile,
 } from "./pi-assets.ts";
+import {
+  buildPiModelConfigPlan,
+  type PiModelConfigPlan,
+} from "./pi-model-config.ts";
 import { buildRunPlan } from "./run-plan.ts";
 import type {
   SandboxAgentDeps,
@@ -219,10 +223,44 @@ export async function prepareEnvironmentSetup(
       );
     }
   }
+  // Translate a managed OpenAI-compatible custom connection into Pi's native models.json plan
+  // (design Decision 5). Non-applicable requests yield no plan (current behavior); an applicable
+  // but incomplete request throws — captured here and re-thrown inside the try below so the
+  // engine's own catch turns it into `{ ok: false, error }` and a visible error frame (fail loud,
+  // never a silent fall-back to a default provider). Only the env var NAME enters the plan.
+  let piModelConfig: PiModelConfigPlan | undefined;
+  let piModelConfigError: Error | undefined;
+  if (plan.isPi) {
+    try {
+      piModelConfig = buildPiModelConfigPlan(request, plan.secrets);
+    } catch (err) {
+      piModelConfigError = err as Error;
+    }
+  }
+  if (piModelConfig) {
+    logger(
+      `pi model-config plan provider=${piModelConfig.providerId} api=${piModelConfig.api} ` +
+        `model=${piModelConfig.models.map((m) => m.id).join(",")}`,
+    );
+  }
+
   // undefined is fine: the local provider runs its own resolution and errors clearly.
   const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
-  const localPiAssets = prepareLocalPiAssets({ plan, env, log: logger });
+  const localPiAssets = prepareLocalPiAssets({
+    plan,
+    env,
+    piModelConfig,
+    log: logger,
+  });
   let runAgentDir = localPiAssets.dir;
+  // Fail closed (Decision 6): a local managed custom run whose models.json could not be written
+  // must stop rather than run on a default provider. Recorded here (the write ran above) and
+  // thrown inside the try below, like the permission-extension gate.
+  const localModelConfigUnwritable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    !!piModelConfig &&
+    !localPiAssets.modelConfigWritten;
   // Fail closed (Decision 2): when the policy could gate a Pi built-in tool but the permission
   // extension did not install, the run must stop rather than run those tools unprotected. Recorded
   // here (the install ran above) and thrown inside the try below so the engine's own catch turns it
@@ -329,8 +367,11 @@ export async function prepareEnvironmentSetup(
     environment,
     localBuiltinGatingUnenforceable,
     logger,
+    localModelConfigUnwritable,
     mcpAbort,
     piExtEnv,
+    piModelConfig,
+    piModelConfigError,
     piSessionDir,
     piSkillSnapshot,
     plan,
