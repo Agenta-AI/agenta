@@ -571,6 +571,24 @@ export const workflowVariantsListDataAtomFamily = atomFamily((workflowId: string
     }),
 )
 
+const EMPTY_WORKFLOW_VARIANTS: WorkflowVariant[] = []
+
+// Passive peek at the cached variants list — never mounts/fetches the query.
+// Non-reactive to cache writes; swap to the mounting atom once data is needed.
+export const workflowVariantsCachedListAtomFamily = atomFamily((workflowId: string) =>
+    atom<WorkflowVariant[]>((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        if (!projectId || !workflowId) return EMPTY_WORKFLOW_VARIANTS
+        const cached = get(queryClientAtom).getQueryData<WorkflowVariantsResponse>([
+            "workflows",
+            "variants",
+            workflowId,
+            projectId,
+        ])
+        return cached?.workflow_variants ?? EMPTY_WORKFLOW_VARIANTS
+    }),
+)
+
 // ============================================================================
 // REVISION LIST QUERY BY WORKFLOW (for 2-level hierarchy: Workflow → Revision)
 // ============================================================================
@@ -1318,7 +1336,7 @@ export const simpleApplicationQueryAtomFamily = atomFamily((applicationId: strin
     }),
 )
 
-export const agentBuildKitOverlayAtom = atomWithQuery((get) => {
+export const agentBuildKitOverlayAtom = atomWithQuery<AgentBuildKitOverlay | null>((get) => {
     const projectId = get(workflowProjectIdAtom)
     return {
         queryKey: ["agentBuildKitOverlay", AGENT_BUILD_KIT_WORKFLOW_SLUG, projectId],
@@ -1327,8 +1345,10 @@ export const agentBuildKitOverlayAtom = atomWithQuery((get) => {
             return fetchAgentBuildKitOverlay(projectId)
         },
         enabled: get(sessionAtom) && !!projectId,
-        staleTime: Infinity,
+        // Platform-managed slug (Class B): paint from disk, revalidate when >5m old.
+        staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn,
     }
 })
 

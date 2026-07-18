@@ -287,6 +287,33 @@ when the list is skipped. Two follow-up increments landed:
   the no-selection default path (playground.ts ensurePlaygroundDefaults) keeps its
   list fallback.
 
+**HAR-driven burst-reduction batch (2026-07-19):** a real reload waterfall
+(32 requests) drove these; all landed:
+
+- `idleReadyAtom` moved to `@agenta/shared/state` (oss consumer re-pointed).
+- Idle-gated out of the cold burst: `tools/connections`, `triggers/subscriptions`,
+  `triggers/schedules` (query-level `enabled`), and the environments list via the
+  playground's `revisionDeploymentAtomFamily` badge atom (the shared list query is
+  untouched — it is render-critical on the deployments dashboard).
+- Variants list deferred to dropdown-open: `workflowVariantsCachedListAtomFamily`
+  passive peek + sticky activation latches in `SelectVariant` and
+  `DeployVariantButton` (which double-mounted the list via `useAppEnvironments`).
+  Collapsed label falls back to revision name → stripped variant slug from the
+  revision body.
+- Zombie null-fetch fixed: `DeployVariantButton` fed the WORKFLOW id into the
+  revision-keyed `workflowMolecule.selectors.isEvaluator` → guaranteed-null
+  `/revisions/query` every load. Now reads `workflowDetailQueryAtomFamily`
+  (cache-shared with the router).
+- Build-kit overlay (`__ag__build_kit`) persisted via `catalogPersister`
+  (staleTime Infinity → 5m).
+
+Known remaining from the HAR (not in this batch): mounts/files 24s listing (owned
+on a separate branch), `sessions/records` triple-fetch (duplicate query stores),
+`spans/query` 1.9MB payload trim, billing-502 gating on OSS, and three secondary
+sites reusing the workflow-id-into-revision-molecule anti-pattern
+(`EvaluatorPlaygroundHeader.tsx:47`, `WorkflowRevisionDrawer/MetadataSidebar.tsx:44`,
+`evaluatorColumns.tsx:49` — fire on other views).
+
 Still open: live browser verification (warm-reload paint without revision request;
 commit → reload shows new revision; drawer catalogs instant on reopen; the jotai
 "store mutation during atom read" dev warning A/B via the kill switch), then
