@@ -22,6 +22,7 @@
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
         "next": "15.5.18",
+        "radix-ui": "^1.6.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "tailwind-merge": "^3.3.1"
