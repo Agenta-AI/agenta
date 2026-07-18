@@ -24,7 +24,7 @@ import {readLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMet
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
-import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
+import {getDisplayFontUrl, getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {shouldShowRegionSelector} from "@/oss/lib/helpers/region"
 import {isDemo} from "@/oss/lib/helpers/utils"
@@ -424,13 +424,25 @@ const Auth = () => {
         ? providersToShow.filter((provider) => provider.id !== promotedProvider.id)
         : providersToShow
     const heading = isReturning ? "Welcome back" : "Welcome to Agenta"
+    // Optional deploy-time display font for the headlines; Inter when unset.
+    const displayFontUrl = getDisplayFontUrl()
     // The pre-discovery entry screen where residency + methods are first shown.
     // Gated on the normal flow (not the email flow) so the auth-upgrade state still
     // renders social buttons; email-only pieces are gated on shouldShowEmailFlow below.
     const showEntryScreen = shouldShowNormalAuthFlow && !emailSubmitted && !isLoginCodeVisible
 
     return (
-        <main className="auth-redesign flex h-screen w-screen items-stretch justify-center gap-3 overflow-hidden p-3">
+        <main
+            className="auth-redesign flex h-screen w-screen items-stretch justify-center gap-3 overflow-hidden p-3"
+            data-display-font={displayFontUrl ? "serif" : undefined}
+        >
+            {displayFontUrl && (
+                <style
+                    dangerouslySetInnerHTML={{
+                        __html: `@font-face{font-family:"Agenta Display";src:url("${displayFontUrl}");font-weight:300;font-display:swap;}`,
+                    }}
+                />
+            )}
             <section className="relative flex w-full flex-col overflow-y-auto lg:w-[560px] lg:shrink-0">
                 <div className="px-9 pt-7 pb-10">
                     {/* eslint-disable-next-line @next/next/no-img-element -- local SVG logo, no optimization needed */}
@@ -447,9 +459,7 @@ const Auth = () => {
                 <div className="flex flex-1 items-center justify-center px-4 pb-10">
                     <div className="flex w-full max-w-[400px] flex-col gap-[22px]">
                         <div className="flex flex-col gap-1">
-                            <h1 className="auth-headline font-fraunces text-[34px] leading-[40px]">
-                                {heading}
-                            </h1>
+                            <h1 className="auth-headline auth-headline-form">{heading}</h1>
                             {!isReturning && (
                                 <p className="auth-subline">Sign in or create an account.</p>
                             )}

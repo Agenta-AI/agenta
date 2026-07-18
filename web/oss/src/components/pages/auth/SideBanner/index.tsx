@@ -24,7 +24,7 @@ const SideBanner = () => {
                     <ArrowUpRight size={13} weight="bold" />
                 </a>
 
-                <h2 className="auth-headline font-fraunces text-[48px] leading-[52px]">
+                <h2 className="auth-headline auth-headline-panel">
                     Build agents that automate your work
                 </h2>
 

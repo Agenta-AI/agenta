@@ -77,6 +77,7 @@ export const processEnv = {
         process.env.NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_POLICY: process.env.NEXT_PUBLIC_SUPERTOKENS_PASSWORD_POLICY,
     NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX: process.env.NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX,
+    NEXT_PUBLIC_AGENTA_DISPLAY_FONT_URL: process.env.NEXT_PUBLIC_AGENTA_DISPLAY_FONT_URL,
     NEXT_PUBLIC_LOG_APP_ATOMS: "true",
     // process.env.NEXT_PUBLIC_LOG_APP_ATOMS,
     NEXT_PUBLIC_ENABLE_ATOM_LOGS: "true",
@@ -104,6 +105,10 @@ export const getEnabledSandboxProviders = (): string[] => {
         .filter(Boolean)
     return providers.length > 0 ? providers : ["local"]
 }
+
+// Optional deploy-time URL for a woff2 display font used on the auth headlines.
+// Unset (the default everywhere) means headlines render in Inter.
+export const getDisplayFontUrl = (): string => getEnv("NEXT_PUBLIC_AGENTA_DISPLAY_FONT_URL").trim()
 
 export const getEffectiveAuthConfig = () => {
     const googleOAuthClientId = getEnv("NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID")

@@ -1,29 +1,36 @@
 /* Sign-in / sign-up redesign — scoped brand tokens and component styles.
    These values come straight from the design handoff (design_handoff_signin_redesign)
    and are intentionally raw brand tokens rather than the app's antd palette: the auth
-   screen is a bare marketing surface with its own literary type + yellow keycap language.
+   screen is a bare marketing surface with its own yellow keycap language.
    Everything is scoped under .auth-redesign so nothing leaks into the product app. */
 
-/* ── Fraunces (headlines only) ───────────────────────────────────────────── */
-@font-face {
-    font-family: "Fraunces";
-    src: url("/assets/fonts/Fraunces-VF.woff2") format("woff2-variations");
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
+/* ── Headlines ───────────────────────────────────────────────────────────────
+   Default (every install): Inter, weighted so the headings read as an intentional
+   choice, not a fallback. A deploy-time display font is optional — when its URL is
+   configured, the page injects an @font-face for "Agenta Display" and sets
+   data-display-font="serif" on the root, switching to the lighter display treatment. */
+.auth-headline {
+    font-family:
+        "Agenta Display", var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--a-heading);
 }
-
-/* Pinned to render sharp + literary (high optical size, no softness/wonk),
-   not the default soft retro Fraunces. */
-.font-fraunces {
-    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+.auth-headline-form {
+    font-size: 34px;
+    line-height: 40px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+.auth-headline-panel {
+    font-size: 48px;
+    line-height: 52px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+/* With the optional display font loaded, use its lighter weight and natural spacing. */
+.auth-redesign[data-display-font="serif"] .auth-headline {
     font-weight: 300;
-    font-optical-sizing: none;
-    font-variation-settings:
-        "opsz" 144,
-        "wght" 300,
-        "SOFT" 0,
-        "WONK" 0;
+    letter-spacing: 0;
 }
 
 /* ── Scoped design tokens ────────────────────────────────────────────────── */
@@ -96,11 +103,6 @@
     transition: color 0.15s ease;
 }
 .auth-chip:hover {
-    color: var(--a-heading);
-}
-
-/* Headlines */
-.auth-headline {
     color: var(--a-heading);
 }
 
