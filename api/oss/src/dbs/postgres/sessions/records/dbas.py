@@ -14,8 +14,9 @@ class RecordTurnSpanDBA:
         String,
         nullable=True,
     )
+    # OTel span id (16 hex chars), NOT a UUID — stored as text (see OTelSpanId).
     span_id = Column(
-        UUID(as_uuid=True),
+        String,
         nullable=True,
     )
 

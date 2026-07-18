@@ -23,7 +23,8 @@ def upgrade() -> None:
     # nullable and forward-fill only — the tracing DB is never backfilled/data-migrated;
     # existing rows carry no turn key to reconstruct one from, so they stay null.
     op.add_column("records", sa.Column("turn_id", sa.String(), nullable=True))
-    op.add_column("records", sa.Column("span_id", sa.UUID(), nullable=True))
+    # OTel span id: 64-bit / 16 hex chars, NOT a UUID (128-bit / 32 hex). Text, not UUID.
+    op.add_column("records", sa.Column("span_id", sa.String(), nullable=True))
 
     op.create_index(
         "ix_records_project_id_session_id_turn_id",

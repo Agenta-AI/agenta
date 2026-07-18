@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from agenta.sdk.models.shared import (  # noqa: F401
     BoolJson,
@@ -49,6 +49,12 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     Span,
     Spans,
 )
+
+
+# An OpenTelemetry span id: 64-bit, exactly 16 hex chars. NOT a UUID (which is 128-bit /
+# 32 hex). Typing this as UUID rejected every runner record-ingest with a 422 (16 vs 32 hex).
+# Trace ids ARE 128-bit (32 hex) and correctly continue to ride as UUID.
+OTelSpanId = Annotated[str, StringConstraints(pattern=r"^[0-9a-fA-F]{16}$")]
 
 
 class Status(BaseModel):

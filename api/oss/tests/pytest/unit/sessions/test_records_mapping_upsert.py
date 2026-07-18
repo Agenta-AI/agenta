@@ -45,7 +45,8 @@ def test_absent_record_id_falls_back_to_uuid4():
 
 
 def test_turn_id_and_span_id_map_through_to_the_dbe():
-    span_id = uuid5(_RECORDS_NS, "span")
+    # A 16-hex OTel span id (what the runner sends), NOT a UUID.
+    span_id = uuid5(_RECORDS_NS, "span").hex[:16]
     dbe = map_record_event_to_dbe(event=_event(turn_id="turn-1", span_id=span_id))
     assert dbe.turn_id == "turn-1"
     assert dbe.span_id == span_id

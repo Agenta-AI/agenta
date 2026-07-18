@@ -46,7 +46,8 @@ def _ids():
 async def test_new_record_carries_turn_id_and_span_id():
     project_id, session_id = _ids()
     turn_id = f"turn-{uuid.uuid4().hex[:8]}"
-    span_id = uuid.uuid4()
+    # 16-hex OTel span id (runner shape), NOT a UUID.
+    span_id = uuid.uuid4().hex[:16]
     dao = RecordsDAO(engine=get_analytics_engine())
 
     record = await dao.append(
@@ -175,7 +176,7 @@ async def test_old_records_with_null_turn_id_still_readable_under_session():
             record_source="agent",
             attributes={"text": "post-WP4 record"},
             turn_id=turn_id,
-            span_id=uuid.uuid4(),
+            span_id=uuid.uuid4().hex[:16],
         )
     )
 
