@@ -43,7 +43,7 @@ import {HarnessSelectControl} from "../HarnessSelectControl"
 import {PiSettingsControl} from "../PiSettingsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
-import {enumLabel} from "./agentTemplateUtils"
+import {enumLabel, resolveSandboxKind} from "./agentTemplateUtils"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
 import {useBuildKit} from "./useBuildKit"
 
@@ -148,12 +148,8 @@ export function useModelHarness({
 
     const sandboxValue = typeof sandbox.kind === "string" ? sandbox.kind : null
     useEffect(() => {
-        const availableValue = sandboxOptions.some((option) => option.value === sandboxValue)
-            ? sandboxValue
-            : (sandboxOptions[0]?.value ?? null)
-        if (availableValue && availableValue !== sandboxValue) {
-            setSection("sandbox", {...sandbox, kind: availableValue})
-        }
+        const nextKind = resolveSandboxKind(sandboxValue, sandboxOptions)
+        if (nextKind !== null) setSection("sandbox", {...sandbox, kind: nextKind})
     }, [sandbox, sandboxOptions, sandboxValue, setSection])
 
     // Model + credential connection (`llm`). It is ALWAYS a structured object (the harness-filtered

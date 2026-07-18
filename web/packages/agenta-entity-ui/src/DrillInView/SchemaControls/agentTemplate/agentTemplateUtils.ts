@@ -21,6 +21,21 @@ export function enumLabel(schema: SchemaProperty | undefined, value: unknown): s
     return v
 }
 
+/**
+ * The sandbox kind to write when normalizing to this deployment's enabled providers, or `null`
+ * when nothing should change. An UNSET sandbox is left alone so a pristine new agent is not
+ * dirtied into draft state (the backend defaults an absent sandbox to `local`); only an explicit
+ * value this deployment cannot run is snapped to the first available option.
+ */
+export function resolveSandboxKind(
+    current: string | null,
+    options: {value: string}[],
+): string | null {
+    if (current === null) return null
+    if (options.some((option) => option.value === current)) return null
+    return options[0]?.value ?? null
+}
+
 /** "3 tools" / "1 server" / "None" — the count line shown in a collapsed section header. */
 export const countSummary = (n: number, noun: string): string =>
     n > 0 ? `${n} ${noun}${n === 1 ? "" : "s"}` : "None"
