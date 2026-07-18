@@ -715,6 +715,13 @@ class TestAttributeMapUpdates:
 
         assert features.meta["provider.name"] == "openai"
 
+    def test_agent_id_mapped_to_agent_feature(self, adapter):
+        bag = _make_bag({"gen_ai.agent.id": "agent-42"})
+        features = SpanFeatures()
+        adapter.process(bag, features)
+
+        assert features.agent["id"] == "agent-42"
+
 
 # ── Edge Cases ──────────────────────────────────────────────────────
 

@@ -6,6 +6,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
+    SessionStreamHeaderEdit,
 )
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 
@@ -20,6 +21,8 @@ def map_stream_dto_to_dbe_create(
         project_id=project_id,
         created_by_id=user_id,
         session_id=stream.session_id,
+        name=stream.name,
+        description=stream.description,
         flags=stream.flags.model_dump(mode="json") if stream.flags else None,
         tags=stream.tags,
         meta=stream.meta,
@@ -41,6 +44,8 @@ def map_stream_dbe_to_dto(
         deleted_by_id=stream_dbe.deleted_by_id,
         project_id=stream_dbe.project_id,
         session_id=stream_dbe.session_id,
+        name=stream_dbe.name,
+        description=stream_dbe.description,
         turn_id=stream_dbe.turn_id,
         flags=SessionStreamFlags.model_validate(stream_dbe.flags)
         if stream_dbe.flags
@@ -57,6 +62,10 @@ def map_stream_dto_to_dbe_edit(
     stream: SessionStreamEdit,
 ) -> None:
     stream_dbe.updated_by_id = user_id
+    if stream.name is not None:
+        stream_dbe.name = stream.name
+    if stream.description is not None:
+        stream_dbe.description = stream.description
     if stream.flags is not None:
         stream_dbe.flags = stream.flags.model_dump(mode="json")
     if stream.tags is not None:
@@ -65,3 +74,17 @@ def map_stream_dto_to_dbe_edit(
         stream_dbe.meta = stream.meta
     if stream.turn_id is not None:
         stream_dbe.turn_id = stream.turn_id
+
+
+def map_stream_dto_to_dbe_header_edit(
+    *,
+    stream_dbe: SessionStreamDBE,
+    user_id: Optional[UUID],
+    header: SessionStreamHeaderEdit,
+) -> None:
+    """The rename edit: only ever touches name/description — never flags/turn_id."""
+    stream_dbe.updated_by_id = user_id
+    if header.name is not None:
+        stream_dbe.name = header.name
+    if header.description is not None:
+        stream_dbe.description = header.description

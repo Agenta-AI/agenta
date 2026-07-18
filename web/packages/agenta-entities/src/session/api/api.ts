@@ -15,7 +15,6 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
-    sessionStateResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
@@ -26,7 +25,6 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
-    type SessionState,
     type SessionStream,
     type SessionStreamCommandResponse,
 } from "../core/schema"
@@ -86,32 +84,6 @@ export interface SessionScopedParams {
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
-}
-
-/**
- * Read a session's durable state: the opaque SDK `SessionRecord` + the `sandbox_id` resume
- * pointer. Read-only from the FE — the record is owned and written by the runner/SDK, so the
- * FE never calls `setState(data)` (it would clobber the runner's record). Returns `null` when
- * absent (no run has persisted state yet) or on failure.
- */
-export async function getSessionState({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-}: SessionScopedParams): Promise<SessionState | null> {
-    if (!projectId || !sessionId) return null
-
-    const data = await callFern("[getSessionState]", () =>
-        getSessionsClient().getState(
-            {session_id: sessionId},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    const validated = safeParseWithLogging(sessionStateResponseSchema, data, "[getSessionState]")
-    return validated?.session_state ?? null
 }
 
 export interface QueryInteractionsParams extends SessionScopedParams {
@@ -289,7 +261,6 @@ export async function fetchSessionStream({
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {
-    prompt?: string
     /** Steal the run lock from whoever holds it. */
     force?: boolean
     /** Fire-and-forget: start the run without holding a connection. */
@@ -313,15 +284,15 @@ export async function commandSessionStream({
     projectId,
     appId,
     abortSignal,
-    prompt,
     force,
     detached,
 }: CommandSessionStreamParams): Promise<SessionStreamCommandResponse | null> {
     if (!projectId || !sessionId) return null
 
+    // The prompt→request.data (inputs) mapping is defined by the sessions feature owner when the send path gets wired (see PR #5375 body).
     const data = await callFern("[commandSessionStream]", () =>
         getSessionsClient().setSessionStream(
-            {session_id: sessionId, prompt, force, detached},
+            {session_id: sessionId, force, detached},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import func, select, update as sa_update
+from sqlalchemy import delete as sa_delete, func, select, update as sa_update
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.interactions.dtos import (
@@ -208,3 +208,20 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
 
             result = await session.execute(stmt)
             return [map_interaction_dbe_to_dto(dbe) for dbe in result.scalars().all()]
+
+    async def delete_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> int:
+        """Hard delete — no soft-delete for interactions today (session-scoped
+        fan-out, WP5)."""
+        async with self.engine.session() as session:
+            stmt = sa_delete(SessionInteractionDBE).where(
+                SessionInteractionDBE.project_id == project_id,
+                SessionInteractionDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount or 0

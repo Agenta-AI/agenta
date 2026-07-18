@@ -22,14 +22,14 @@ from __future__ import annotations
 
 from typing import Mapping, Optional
 
-from ..dtos import HarnessAgentTemplate, HarnessType, RunContext, TraceContext
+from ..dtos import HarnessAgentTemplate, HarnessKind, RunContext, TraceContext
 from ..interfaces import Backend, Sandbox, Session
 
 
 class LocalBackend(Backend):
     """Run Pi (bundled JS) or Claude (``claude-agent-sdk``) on this machine."""
 
-    supported_harnesses = frozenset({HarnessType.PI, HarnessType.CLAUDE})
+    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
 
     async def create_sandbox(self) -> Sandbox:
         raise NotImplementedError(
@@ -42,7 +42,7 @@ class LocalBackend(Backend):
         sandbox: Sandbox,
         config: HarnessAgentTemplate,
         *,
-        harness: HarnessType,
+        harness: HarnessKind,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,

@@ -62,11 +62,13 @@ class MountsClient:
         _response = self._raw_client.create_mount(mount=mount, request_options=request_options)
         return _response.data
     
-    def query_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
+    def query_mounts(self, *, session_id: typing.Optional[str] = None, agent_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
         """
         Parameters
         ----------
         session_id : typing.Optional[str]
+        
+        agent_id : typing.Optional[str]
         
         include_archived : typing.Optional[bool]
         
@@ -91,7 +93,7 @@ class MountsClient:
         )
         client.mounts.query_mounts()
         """
-        _response = self._raw_client.query_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
+        _response = self._raw_client.query_mounts(session_id=session_id, agent_id=agent_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
     def sign_agent_mount_credentials(self, *, artifact_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:
@@ -536,11 +538,13 @@ class AsyncMountsClient:
         _response = await self._raw_client.create_mount(mount=mount, request_options=request_options)
         return _response.data
     
-    async def query_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
+    async def query_mounts(self, *, session_id: typing.Optional[str] = None, agent_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> MountsResponse:
         """
         Parameters
         ----------
         session_id : typing.Optional[str]
+        
+        agent_id : typing.Optional[str]
         
         include_archived : typing.Optional[bool]
         
@@ -573,7 +577,7 @@ class AsyncMountsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_mounts(session_id=session_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
+        _response = await self._raw_client.query_mounts(session_id=session_id, agent_id=agent_id, include_archived=include_archived, mount=mount, windowing=windowing, request_options=request_options)
         return _response.data
     
     async def sign_agent_mount_credentials(self, *, artifact_id: str, name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> MountCredentialsResponse:

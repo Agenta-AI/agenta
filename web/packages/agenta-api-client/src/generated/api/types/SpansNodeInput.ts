@@ -21,6 +21,9 @@ export interface SpansNodeInput {
     end_time?: (SpansNodeInput.EndTime | null) | undefined;
     status_code?: (AgentaApi.OTelStatusCode | null) | undefined;
     status_message?: (string | null) | undefined;
+    session_id?: (string | null) | undefined;
+    user_id?: (string | null) | undefined;
+    agent_id?: (string | null) | undefined;
     attributes?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;
     references?: (AgentaApi.OTelReferenceInput[] | null) | undefined;
     links?: (AgentaApi.OTelLinkInput[] | null) | undefined;

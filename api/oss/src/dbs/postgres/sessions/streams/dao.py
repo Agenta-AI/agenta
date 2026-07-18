@@ -2,27 +2,31 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete as sa_delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
+    SessionStreamHeaderEdit,
     SessionStreamQuery,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+from oss.src.core.shared.dtos import Windowing
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
+from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     map_stream_dbe_to_dto,
     map_stream_dto_to_dbe_create,
     map_stream_dto_to_dbe_edit,
+    map_stream_dto_to_dbe_header_edit,
 )
 
 
@@ -74,6 +78,25 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             return None
         return map_stream_dbe_to_dto(stream_dbe=dbe)
 
+    async def get_by_session_id_including_archived(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Like `get_by_session_id`, but also returns a soft-archived row — the
+        confirmation read for `archive`/`unarchive` (S7/F2, WP5)."""
+        async with self.engine.session() as session:
+            stmt = select(SessionStreamDBE).where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+        if dbe is None:
+            return None
+        return map_stream_dbe_to_dto(stream_dbe=dbe)
+
     async def get_by_id(
         self,
         *,
@@ -97,6 +120,8 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
         *,
         project_id: UUID,
         filter: SessionStreamQuery,
+        windowing: Optional[Windowing] = None,
+        session_ids: Optional[List[str]] = None,
     ) -> List[SessionStream]:
         async with self.engine.session() as session:
             stmt = select(SessionStreamDBE).where(
@@ -105,13 +130,24 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             )
             if filter.session_id is not None:
                 stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
+            if session_ids is not None:
+                stmt = stmt.where(SessionStreamDBE.session_id.in_(session_ids))
             if filter.flags is not None:
                 flags_filter = filter.flags.model_dump(
                     exclude_none=True, exclude_unset=True
                 )
                 if flags_filter:
                     stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
-            stmt = stmt.order_by(SessionStreamDBE.created_at.desc())
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=SessionStreamDBE,
+                    attribute="id",
+                    order="descending",
+                    windowing=windowing,
+                )
+            else:
+                stmt = stmt.order_by(SessionStreamDBE.created_at.desc())
             result = await session.execute(stmt)
             dbes = result.scalars().all()
         return [map_stream_dbe_to_dto(stream_dbe=dbe) for dbe in dbes]
@@ -144,6 +180,34 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             await session.refresh(dbe)
         return map_stream_dbe_to_dto(stream_dbe=dbe)
 
+    async def update_header(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        header: SessionStreamHeaderEdit,
+    ) -> Optional[SessionStream]:
+        async with self.engine.session() as session:
+            stmt = select(SessionStreamDBE).where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.session_id == session_id,
+                SessionStreamDBE.deleted_at.is_(None),
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            if dbe is None:
+                return None
+            map_stream_dto_to_dbe_header_edit(
+                stream_dbe=dbe,
+                user_id=user_id,
+                header=header,
+            )
+            dbe.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(dbe)
+        return map_stream_dbe_to_dto(stream_dbe=dbe)
+
     async def delete_by_session_id(
         self,
         *,
@@ -163,6 +227,49 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             dbe.deleted_at = datetime.now(timezone.utc)
             await session.commit()
         return True
+
+    async def unarchive_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Clear `deleted_at` on the stream row — the reverse of the archive
+        fan-out's `delete_by_session_id` soft-delete (S7/F2, WP5)."""
+        async with self.engine.session() as session:
+            stmt = select(SessionStreamDBE).where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            if dbe is None:
+                return None
+            dbe.deleted_at = None
+            dbe.updated_by_id = user_id
+            dbe.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(dbe)
+        return map_stream_dbe_to_dto(stream_dbe=dbe)
+
+    async def hard_delete_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        """Hard delete the merged stream row — `kill`/`delete_by_session_id` only
+        soft-delete; this is new plumbing for the session-scoped hard-delete
+        fan-out (S7/F1, WP5)."""
+        async with self.engine.session() as session:
+            stmt = sa_delete(SessionStreamDBE).where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            return bool(result.rowcount)
 
     async def count_active(
         self,

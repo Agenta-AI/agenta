@@ -7,6 +7,7 @@ export interface MountCreate {
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     session_id?: (string | null) | undefined;
+    agent_id?: (string | null) | undefined;
     flags?: AgentaApi.MountFlags | undefined;
     tags?: (Record<string, unknown> | null) | undefined;
     meta?: (Record<string, unknown> | null) | undefined;

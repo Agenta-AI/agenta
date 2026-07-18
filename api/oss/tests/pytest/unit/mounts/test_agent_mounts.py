@@ -3,8 +3,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.mounts.dtos import Mount, MountCreate
-from oss.src.core.mounts.service import MountsService, mint_agent_slug
+from oss.src.core.mounts.dtos import Mount, MountCreate, MountQuery
+from oss.src.core.mounts.service import MountsService, mint_agent_id, mint_agent_slug
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
     MountArtifactNotFound,
@@ -47,6 +47,23 @@ class InMemoryMountsDAO:
                 return archived
         return None
 
+    async def query_mounts(self, *, project_id, mount_query=None, windowing=None):
+        results = [
+            mount
+            for (mount_project_id, _), mount in self.mounts.items()
+            if mount_project_id == project_id
+        ]
+        if mount_query:
+            if not mount_query.include_archived:
+                results = [m for m in results if m.deleted_at is None]
+            if mount_query.session_id is not None:
+                results = [m for m in results if m.session_id == mount_query.session_id]
+            if mount_query.agent_id is not None:
+                results = [m for m in results if m.agent_id == mount_query.agent_id]
+        else:
+            results = [m for m in results if m.deleted_at is None]
+        return results
+
     @staticmethod
     def _mount(project_id, mount_create):
         return Mount(
@@ -55,6 +72,7 @@ class InMemoryMountsDAO:
             slug=mount_create.slug,
             name=mount_create.name,
             session_id=mount_create.session_id,
+            agent_id=mount_create.agent_id,
         )
 
 
@@ -90,6 +108,7 @@ async def test_agent_mount_upsert_is_idempotent(mount_context):
     )
     assert first.id == second.id
     assert first.session_id is None
+    assert first.agent_id == mint_agent_id(artifact_id=artifact_id)
     assert dao.upsert_calls == 2
     assert len(dao.mounts) == 1
 
@@ -254,3 +273,62 @@ async def test_sign_accepts_static_catalog_artifact_without_db_lookup():
 
     assert mount is not None
     assert workflows.fetch_calls == 0
+
+
+# --- agent_id column (session_id/agent_id symmetry, WP6) -------------------- #
+
+
+@pytest.mark.asyncio
+async def test_new_agent_mount_has_agent_id_matching_slug_segment(mount_context):
+    """The populate site (get_or_create_agent_mount): agent_id is the same
+    canonical id minted into the slug's `__ag__agent__<id>__...` segment."""
+    service, _, project_id, user_id = mount_context
+    artifact_id = "A0B1C2D3-E4F5-4678-9ABC-DEF012345678"
+
+    mount = await service.get_or_create_agent_mount(
+        project_id=project_id, user_id=user_id, artifact_id=artifact_id
+    )
+
+    slug_id_segment = mount.slug.removeprefix("__ag__agent__").split("__", 1)[0]
+    assert mount.agent_id == slug_id_segment
+    assert mount.agent_id == "a0b1c2d3-e4f5-4678-9abc-def012345678"
+
+
+@pytest.mark.asyncio
+async def test_session_mount_leaves_agent_id_null(mount_context):
+    """Session mounts stay agent_id-null — only agent mounts populate it."""
+    service, _, project_id, user_id = mount_context
+
+    mount = await service.get_or_create_session_mount(
+        project_id=project_id, user_id=user_id, session_id="sess-1"
+    )
+
+    assert mount.session_id is not None
+    assert mount.agent_id is None
+
+
+@pytest.mark.asyncio
+async def test_query_mounts_filters_by_agent_id(mount_context):
+    """The mount query DTO/filter mirrors session_id: query mounts for agent X."""
+    service, dao, project_id, user_id = mount_context
+    artifact_a = str(uuid4())
+    artifact_b = str(uuid4())
+
+    mount_a = await service.get_or_create_agent_mount(
+        project_id=project_id, user_id=user_id, artifact_id=artifact_a
+    )
+    await service.get_or_create_agent_mount(
+        project_id=project_id, user_id=user_id, artifact_id=artifact_b
+    )
+    await service.get_or_create_session_mount(
+        project_id=project_id, user_id=user_id, session_id="sess-1"
+    )
+
+    results = await service.query_mounts(
+        project_id=project_id,
+        mount_query=MountQuery(agent_id=mint_agent_id(artifact_id=artifact_a)),
+    )
+
+    assert len(results) == 1
+    assert results[0].id == mount_a.id
+    assert results[0].agent_id == mint_agent_id(artifact_id=artifact_a)

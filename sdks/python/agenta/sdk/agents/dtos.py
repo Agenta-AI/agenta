@@ -42,7 +42,7 @@ from .tools.models import PermissionMode, coerce_tool_spec
 # ---------------------------------------------------------------------------
 
 
-class HarnessType(str, Enum):
+class HarnessKind(str, Enum):
     """The coding agent program a run drives. A backend declares which it supports.
 
     ``pi_core`` is plain Pi; ``pi_agenta`` is Pi with Agenta's forced skills, prompt, and
@@ -54,7 +54,7 @@ class HarnessType(str, Enum):
     AGENTA = "pi_agenta"
 
     @classmethod
-    def coerce(cls, value: "HarnessType | str") -> "HarnessType":
+    def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
         """Accept either an enum or a loose string (the playground sends a string)."""
         if isinstance(value, cls):
             return value
@@ -76,7 +76,7 @@ class HarnessType(str, Enum):
 class HarnessIdentity(BaseModel):
     """One harness's interface identity: its bare value, versioned slug, and display name.
 
-    ``value`` is the wire/runtime selector (the ``HarnessType`` value); ``slug`` is the
+    ``value`` is the wire/runtime selector (the ``HarnessKind`` value); ``slug`` is the
     versioned contract identity in the repo's slug grammar; ``name`` is the human-facing label
     the playground dropdown shows. This is the single source the agent_template schema builds the
     harness ``oneOf`` from, so the slug, name, and value never drift across the SDK, the service
@@ -87,22 +87,22 @@ class HarnessIdentity(BaseModel):
     name: str
 
 
-# One entry per ``HarnessType``. The slug version is ``v0`` for every harness today (the
+# One entry per ``HarnessKind``. The slug version is ``v0`` for every harness today (the
 # contract has not broken). ``HARNESS_IDENTITIES`` is the single source of truth.
 HARNESS_IDENTITIES: List[HarnessIdentity] = [
     HarnessIdentity(
-        value=HarnessType.PI.value,
-        slug=f"agenta:harness:{HarnessType.PI.value}:v0",
+        value=HarnessKind.PI.value,
+        slug=f"agenta:harness:{HarnessKind.PI.value}:v0",
         name="Pi",
     ),
     HarnessIdentity(
-        value=HarnessType.AGENTA.value,
-        slug=f"agenta:harness:{HarnessType.AGENTA.value}:v0",
+        value=HarnessKind.AGENTA.value,
+        slug=f"agenta:harness:{HarnessKind.AGENTA.value}:v0",
         name="Pi (Agenta)",
     ),
     HarnessIdentity(
-        value=HarnessType.CLAUDE.value,
-        slug=f"agenta:harness:{HarnessType.CLAUDE.value}:v0",
+        value=HarnessKind.CLAUDE.value,
+        slug=f"agenta:harness:{HarnessKind.CLAUDE.value}:v0",
         name="Claude Code",
     ),
 ]
@@ -691,7 +691,7 @@ class HarnessAgentTemplate(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    harness: ClassVar[HarnessType]
+    harness: ClassVar[HarnessKind]
 
     agents_md: Optional[str] = None
     # ``model`` stays the back-compat plain string the adapter hands to the harness.
@@ -852,7 +852,7 @@ class PiAgentTemplate(HarnessAgentTemplate):
     either way, so AGENTS.md remains the right home for project conventions and these are
     only for changing or extending Pi's base persona."""
 
-    harness: ClassVar[HarnessType] = HarnessType.PI
+    harness: ClassVar[HarnessKind] = HarnessKind.PI
 
     builtin_names: List[str] = Field(
         default_factory=list,
@@ -900,7 +900,7 @@ class PiAgentTemplate(HarnessAgentTemplate):
 class ClaudeAgentTemplate(HarnessAgentTemplate):
     """Claude's config. No Pi built-ins; tools are delivered over MCP."""
 
-    harness: ClassVar[HarnessType] = HarnessType.CLAUDE
+    harness: ClassVar[HarnessKind] = HarnessKind.CLAUDE
 
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
@@ -958,7 +958,7 @@ class AgentaAgentTemplate(PiAgentTemplate):
     system-prompt layers). ``skills`` ride the inherited :meth:`wire_skills` seam as resolved
     inline packages, not through ``wire_tools`` (skills are not tools)."""
 
-    harness: ClassVar[HarnessType] = HarnessType.AGENTA
+    harness: ClassVar[HarnessKind] = HarnessKind.AGENTA
 
 
 # ---------------------------------------------------------------------------

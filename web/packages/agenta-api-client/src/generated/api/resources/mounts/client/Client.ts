@@ -116,9 +116,10 @@ export class MountsClient {
         request: AgentaApi.MountQueryRequest = {},
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.MountsResponse>> {
-        const { session_id: sessionId, include_archived: includeArchived, ..._body } = request;
+        const { session_id: sessionId, agent_id: agentId, include_archived: includeArchived, ..._body } = request;
         const _queryParams: Record<string, unknown> = {
             session_id: sessionId,
+            agent_id: agentId,
             include_archived: includeArchived,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();

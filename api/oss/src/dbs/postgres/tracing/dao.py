@@ -889,6 +889,9 @@ class TracingDAO(TracingDAOInterface):
 
             # BASE QUERY: Use DISTINCT ON pattern (like query() does for traces)
             # DISTINCT ON picks one row per identifier based on ORDER BY
+            # TODO(WP0.7, deferred): SpanDBE.session_id/user_id are now indexed
+            # root-only columns (see migration oss000000003) — this JSONB path
+            # scan can become a column scan. Left as-is; not blocking.
             id_column = SpanDBE.attributes["ag"][group]["id"].as_string()
             base = (
                 select(
