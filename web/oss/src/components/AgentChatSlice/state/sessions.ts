@@ -1,9 +1,11 @@
+import {setSessionHeader} from "@agenta/entities/session"
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
 import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {clearSessionEphemera, markSessionFresh} from "./sessionEphemera"
 
@@ -472,6 +474,12 @@ export const renameSessionAtomFamily = atomFamily((key: string) =>
             s.id === id ? {...s, title: title.trim() || undefined} : s,
         )
         set(sessionsByAppAtom, {...all, [key]: list})
+
+        // Persist the title to the durable stream header so it syncs across devices and survives a
+        // localStorage wipe. Best-effort/optimistic — the local update above already shows it. Send
+        // the trimmed string (empty clears the server name too, since the header merge is partial).
+        const projectId = get(projectIdAtom)
+        if (projectId) void setSessionHeader({sessionId: id, projectId, name: title.trim()})
     }),
 )
 

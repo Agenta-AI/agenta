@@ -12,6 +12,7 @@ export {
     respondInteraction,
     querySessionStreams,
     querySessions,
+    setSessionHeader,
     fetchSessionStream,
     commandSessionStream,
     killSession,
