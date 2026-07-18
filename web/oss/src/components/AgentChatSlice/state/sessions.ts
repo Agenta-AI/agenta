@@ -37,6 +37,9 @@ export interface AgentChatSession {
     title?: string
     /** Creation time (ms epoch). Orders the history picker; absent on pre-upgrade sessions. */
     createdAt?: number
+    /** Set once the server list confirms this session exists. Distinguishes a remotely-deleted
+     * session (was true, now absent from the server → drop) from a purely-local optimistic one. */
+    serverKnown?: boolean
 }
 
 export const GLOBAL_APP_KEY = "__global__"
@@ -127,7 +130,7 @@ const currentOpenIds = (get: Getter, key: string): string[] => {
 export const isSessionHusk = (
     session: AgentChatSession,
     messages: Record<string, UIMessage[]>,
-): boolean => !session.title?.trim() && !messages[session.id]?.length
+): boolean => !session.serverKnown && !session.title?.trim() && !messages[session.id]?.length
 
 /** All sessions for a scope (history), newest first. Backs the history picker. */
 export const sessionHistoryAtomFamily = atomFamily((key: string) =>
@@ -288,6 +291,93 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
         }
 
         clearSessionEphemera(id)
+    }),
+)
+
+/** One session as the server list reports it (mapped from a `SessionStream` by the caller). */
+export interface ServerSessionSummary {
+    id: string
+    title?: string
+    createdAt?: number
+}
+
+/**
+ * Fold the server's durable session list for a scope over the localStorage cache:
+ *  - adopt sessions the server knows and we don't (cross-device / post-localStorage-wipe),
+ *  - enrich `title`/`createdAt` from the server (a local user title always wins),
+ *  - drop a session the server DROPPED — present-before, gone-now = hard-deleted elsewhere —
+ *    but never a purely-local optimistic session (one the server never confirmed).
+ * Open tabs / active stay per-device. Idempotent: a no-op when already reconciled.
+ *
+ * MUST be called only with a SUCCESSFUL full server result — an empty list from a failed fetch
+ * would wrongly drop everything, so the caller gates on query success (see `useReconcileServerSessions`).
+ */
+export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, server: ServerSessionSummary[]) => {
+        const serverById = new Map(server.map((s) => [s.id, s] as const))
+        const existing = get(sessionsByAppAtom)[key] ?? []
+        const existingIds = new Set(existing.map((s) => s.id))
+
+        const dropped: string[] = []
+        const merged: AgentChatSession[] = []
+        for (const s of existing) {
+            const remote = serverById.get(s.id)
+            if (remote) {
+                merged.push({
+                    ...s,
+                    serverKnown: true,
+                    title: s.title?.trim() ? s.title : remote.title,
+                    createdAt: s.createdAt ?? remote.createdAt,
+                })
+            } else if (s.serverKnown) {
+                dropped.push(s.id)
+            } else {
+                merged.push(s)
+            }
+        }
+        for (const s of server) {
+            if (existingIds.has(s.id)) continue
+            merged.push({id: s.id, title: s.title, createdAt: s.createdAt, serverKnown: true})
+        }
+
+        const changed =
+            merged.length !== existing.length ||
+            merged.some((m, i) => {
+                const e = existing[i]
+                return (
+                    !e ||
+                    e.id !== m.id ||
+                    e.title !== m.title ||
+                    e.createdAt !== m.createdAt ||
+                    e.serverKnown !== m.serverKnown
+                )
+            })
+        if (!changed) return
+
+        set(sessionsByAppAtom, {...get(sessionsByAppAtom), [key]: merged})
+
+        if (dropped.length > 0) {
+            const droppedSet = new Set(dropped)
+            const open = currentOpenIds(get, key)
+            const nextOpen = open.filter((id) => !droppedSet.has(id))
+            if (nextOpen.length !== open.length) {
+                set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+            }
+            const active = get(activeByAppAtom)
+            if (active[key] && droppedSet.has(active[key])) {
+                set(activeByAppAtom, {...active, [key]: nextOpen[0] ?? ""})
+            }
+            const messages = {...get(sessionMessagesAtom)}
+            let msgsChanged = false
+            for (const id of dropped) {
+                if (id in messages) {
+                    delete messages[id]
+                    msgsChanged = true
+                }
+                clearSessionEphemera(id)
+            }
+            if (msgsChanged) set(sessionMessagesAtom, messages)
+        }
     }),
 )
 

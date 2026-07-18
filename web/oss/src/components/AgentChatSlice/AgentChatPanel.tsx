@@ -13,6 +13,7 @@ import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
+import {useReconcileServerSessions} from "./state/projectSessions"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -68,6 +69,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
     const pruneSessionHusks = useSetAtom(pruneSessionHusksAtomFamily(scope))
+    // Fold the agent's server session list into the local cache (adopt cross-device / post-wipe,
+    // enrich titles, drop remotely-deleted) — the scope key is the agent's appId (artifact id).
+    useReconcileServerSessions(scope)
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Shared entrance latch: the composer's Reveal plays for the first conversation this
     // panel mounts; every additional session pane skips it (no per-switch flash).
