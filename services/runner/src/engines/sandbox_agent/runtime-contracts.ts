@@ -18,8 +18,8 @@ import { PendingApprovalPauseController } from "./pause.ts";
 import { buildSandboxProvider } from "./provider.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import { type BuildRunPlanDeps, type RunPlan } from "./run-plan.ts";
-import { clearSandboxPointer, readStoredSandboxPointer, writeSandboxPointer } from "./sandbox-reconnect.ts";
-import { hydrateHarnessSessionFromDurable, syncHarnessSessionDurable } from "./session-continuity-durable.ts";
+import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
+import { appendSessionTurn, hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
@@ -57,13 +57,12 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createRunLimits?: typeof createRunLimits;
   /** Session-continuity store override (tests inject their own; default is the process singleton). */
   sessionContinuityStore?: SessionContinuityStore;
-  /** Durable read-back/write-forward of the continuity store (tests inject fakes). */
+  /** Durable read-back/append-forward of the continuity store (tests inject fakes). */
   hydrateHarnessSessionFromDurable?: typeof hydrateHarnessSessionFromDurable;
-  syncHarnessSessionDurable?: typeof syncHarnessSessionDurable;
-  /** Durable read/write of the sandbox pointer, for the remote reconnect ladder. */
+  appendSessionTurn?: typeof appendSessionTurn;
+  /** Durable read of the sandbox pointer (the latest turn's sandbox_id), for the remote
+   * reconnect ladder. The write side is folded into `appendSessionTurn`. */
   readStoredSandboxPointer?: typeof readStoredSandboxPointer;
-  clearSandboxPointer?: typeof clearSandboxPointer;
-  writeSandboxPointer?: typeof writeSandboxPointer;
   /**
    * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
    * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner

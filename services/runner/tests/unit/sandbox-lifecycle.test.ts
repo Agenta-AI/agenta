@@ -45,12 +45,17 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     paused: 0,
     destroyed: 0,
     disposed: 0,
-    wrote: [] as Array<{ sandboxId: string; turnIndex: number }>,
-    cleared: [] as Array<{ sessionId: string; turnIndex: number }>,
+    appended: [] as Array<{
+      sessionId: string;
+      harness: string;
+      turnIndex: number;
+      sandboxId: string | undefined;
+    }>,
     logs: [] as string[],
   };
   const session = {
     id: "session-1",
+    agentSessionId: "agent-fake-1",
     onEvent() {},
     onPermissionRequest() {},
     async prompt() {
@@ -106,7 +111,14 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     createPersist: () => ({}) as any,
     sessionContinuityStore: continuityStore,
     hydrateHarnessSessionFromDurable: async () => {},
-    syncHarnessSessionDurable: async () => {},
+    appendSessionTurn: async (sessionId, harness, turnIndex, turn) => {
+      calls.appended.push({
+        sessionId,
+        harness,
+        turnIndex,
+        sandboxId: turn.sandboxId,
+      });
+    },
     startSandboxAgent: (async (startOpts: any) => {
       calls.starts.push({ sandboxId: startOpts.sandboxId });
       // The dead rung: Daytona already archived/deleted the parked sandbox, so reconnect
@@ -164,17 +176,6 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     // Lifecycle seam under test:
     readStoredSandboxPointer: async () =>
       sandboxId ? { sandboxId } : undefined,
-    clearSandboxPointer: async (sessionId, turnIndex) => {
-      calls.cleared.push({ sessionId, turnIndex });
-      return "applied";
-    },
-    writeSandboxPointer: async (_sessionId, pointer) => {
-      calls.wrote.push({
-        sandboxId: pointer.sandboxId,
-        turnIndex: pointer.turnIndex,
-      });
-      return "applied";
-    },
   };
   return { calls, deps };
 }
@@ -183,8 +184,9 @@ const daytonaRequest: AgentRunRequest = {
   harness: "claude",
   sandbox: "daytona",
   sessionId: "sess-1",
+  streamId: "stream-1",
   messages: [{ role: "user", content: "hello" }],
-  // A session-owned run always carries the invoke credential; the read/write helpers need it.
+  // A session-owned run always carries the invoke credential; the read/append helpers need it.
   telemetry: {
     exporters: { otlp: { headers: { authorization: "ApiKey abc" } } },
   } as any,
@@ -235,7 +237,7 @@ describe("remote sandbox reconnect ladder", () => {
     assert.equal(calls.starts[0].sandboxId, undefined);
   });
 
-  it("falls through to a fresh create without clearing on a transient reconnect failure", async () => {
+  it("falls through to a fresh create on a transient reconnect failure", async () => {
     const { calls, deps } = fakeSandbox("sbx-gone", { reconnectThrows: true });
     const result = await runSandboxAgent(
       daytonaRequest,
@@ -259,10 +261,9 @@ describe("remote sandbox reconnect ladder", () => {
       undefined,
       "the retry carries no id",
     );
-    assert.deepEqual(calls.cleared, []);
   });
 
-  it("clears the pointer before a fresh create on a terminal reconnect failure", async () => {
+  it("falls through to a fresh create on a terminal reconnect failure, no pointer clear needed", async () => {
     const { calls, deps } = fakeSandbox("sbx-gone", {
       reconnectTerminalState: "not-found",
     });
@@ -276,62 +277,37 @@ describe("remote sandbox reconnect ladder", () => {
 
     assert.equal(result.ok, true);
     assert.equal(calls.starts.length, 2);
-    assert.deepEqual(calls.cleared, [{ sessionId: "sess-1", turnIndex: 0 }]);
+    // No explicit clear call exists anymore: the fresh sandbox this turn creates gets its own
+    // turn row at completion, whose higher turn_index naturally supersedes the dead pointer on
+    // the next `latest_turn` read.
+    assert.equal(calls.appended.length, 1);
   });
 
-  it("hydrates the turn index before the guarded clear (post-restart token)", async () => {
-    const { calls, deps } = fakeSandbox("sbx-gone", {
-      reconnectTerminalState: "not-found",
-    });
-    // A restarted runner has an empty in-memory store; the durable row knows turn 5.
-    deps.hydrateHarnessSessionFromDurable = async (
-      sessionId,
-      _harness,
-      store,
-    ) => {
-      store.restoreLatestTurn(sessionId, 5);
-    };
-
-    const result = await runSandboxAgent(
-      daytonaRequest,
-      undefined,
-      undefined,
-      deps,
-    );
-
-    assert.equal(result.ok, true);
-    assert.deepEqual(
-      calls.cleared,
-      [{ sessionId: "sess-1", turnIndex: 6 }],
-      "the clear must carry the hydrated index, not the cold store's 0",
-    );
-  });
-
-  it("does not write a pointer for a local run", async () => {
+  it("does not append a turn for a local run without a streamId", async () => {
     const { calls, deps } = fakeSandbox(undefined);
 
     const result = await runSandboxAgent(
-      { ...daytonaRequest, sandbox: "local" },
+      { ...daytonaRequest, sandbox: "local", streamId: undefined },
       undefined,
       undefined,
       deps,
     );
 
     assert.equal(result.ok, true);
-    assert.deepEqual(
-      calls.wrote,
-      [],
-      "a local run must not overwrite a conversation's remote pointer",
-    );
+    assert.deepEqual(calls.appended, []);
   });
 
-  it("writes the live sandbox id forward for the next turn", async () => {
+  it("appends the live sandbox id forward on the completed turn's row", async () => {
     const { calls, deps } = fakeSandbox("sbx-99");
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
-    assert.deepEqual(calls.wrote, [{ sandboxId: "sbx-99", turnIndex: 0 }]);
+    assert.equal(calls.appended.length, 1);
+    assert.equal(calls.appended[0].sessionId, "sess-1");
+    assert.equal(calls.appended[0].harness, "claude");
+    assert.equal(calls.appended[0].turnIndex, 0);
+    assert.equal(calls.appended[0].sandboxId, "sbx-99");
   });
 
-  it("writes the next turn index after durable continuity hydration", async () => {
+  it("appends at the next turn index after durable continuity hydration", async () => {
     const { calls, deps } = fakeSandbox("sbx-99");
     deps.hydrateHarnessSessionFromDurable = async (
       sessionId,
@@ -343,7 +319,8 @@ describe("remote sandbox reconnect ladder", () => {
 
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
 
-    assert.deepEqual(calls.wrote, [{ sandboxId: "sbx-99", turnIndex: 6 }]);
+    assert.equal(calls.appended.length, 1);
+    assert.equal(calls.appended[0].turnIndex, 6);
   });
 
   it("trusts a stored pointer and reconnects by id without a compatibility check", async () => {
@@ -362,27 +339,21 @@ describe("remote sandbox reconnect ladder", () => {
     );
   });
 
-  it("awaits a rejected pointer write and logs the outcome without failing", async () => {
-    const { calls, deps } = fakeSandbox(undefined);
-    let writeFinished = false;
-    deps.writeSandboxPointer = async () => {
-      await Promise.resolve();
-      writeFinished = true;
-      return "rejected";
+  it("never throws when the turn-append call fails", async () => {
+    const { deps } = fakeSandbox(undefined);
+    deps.appendSessionTurn = async () => {
+      throw new Error("network error");
     };
 
+    // appendSessionTurn is called fire-and-forget (`void`), so a rejection here must never
+    // surface as an unhandled rejection or fail the run.
     const result = await runSandboxAgent(
       daytonaRequest,
       undefined,
       undefined,
       deps,
     );
-
     assert.equal(result.ok, true);
-    assert.equal(writeFinished, true);
-    assert.ok(
-      calls.logs.some((message) => message.includes("pointer write rejected")),
-    );
   });
 });
 

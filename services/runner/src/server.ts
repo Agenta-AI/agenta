@@ -906,12 +906,23 @@ async function runAndStreamWithApiBaseResolved(
     // The runner authenticates session calls AS the invoke caller (the run credential),
     // refreshing it for the turn's lifetime — never the admin key. Project scope is
     // resolved server-side from the credential, so no project_id rides the request.
-    const watchdog = startAliveWatchdog(
+    //
+    // onInterrupted (W7.4): a cancel/steer/kill against this session (via
+    // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
+    // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
+    // `controller.abort()` is what makes the control-plane signal actually reach this
+    // in-flight run — before this, a session-owned run's controller was never aborted.
+    // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
+    const watchdog = await startAliveWatchdog(
       sessionId,
       turnId,
       runCredential(request),
+      () => controller.abort(),
     );
     aliveWatchdog = watchdog;
+    // The heartbeat response already carries the session_streams row id — free, no extra
+    // round-trip. Thread it onto the request so the engine's turn-append write has it.
+    request.streamId = watchdog.streamId();
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
     // the resume resolves that one). Best-effort, never blocks the turn.
@@ -933,6 +944,8 @@ async function runAndStreamWithApiBaseResolved(
       watchdog.credential,
       liveEmit,
       seedForRun(request),
+      turnId,
+      request.runContext?.trace?.span_id,
     );
     // Record the inbound user turn first so the session record is the full conversation,
     // not just agent output. Interaction replies ride tool_result blocks (no text) and are

@@ -1,13 +1,12 @@
 /**
  * Durable mirror of `session-continuity.ts`'s in-memory store, so continuity survives a
- * runner restart. Reads the `session_states` row back into the in-memory store at session
- * setup, and writes the just-completed turn's record forward after
- * `SessionContinuityStore.record()`. Any failure (row absent, API unreachable) is best-effort:
- * it degrades to cold text replay, never a hard error.
+ * runner restart. Reads the session's LATEST `session_turns` row back into the in-memory
+ * store at session setup, and appends a fresh turn row after
+ * `SessionContinuityStore.record()`.
  *
- * The API row's `data` is replaced wholesale, not per-key-patched server-side, so
- * `syncHarnessSessionDurable` does a read-modify-write: GET the current row, splice in this
- * harness's fresh entry, PUT the whole `data` object back.
+ * `appendSessionTurn` is a plain INSERT (`POST /sessions/turns/`) — no read-modify-write, no
+ * race. It replaces the old `syncHarnessSessionDurable`, which GET-then-PUT the whole
+ * `session_states.data` blob.
  */
 import { apiBase } from "../../apiBase.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
@@ -16,19 +15,19 @@ function defaultLog(msg: string): void {
   process.stderr.write(`[session-continuity/durable] ${msg}\n`);
 }
 
-interface WireHarnessSessionRecord {
+/** A platform entity reference (the API `Reference` shape). */
+export type TurnReference = { id?: string; slug?: string; version?: string };
+
+export interface WireSessionTurn {
+  harness_kind?: string;
   agent_session_id?: string;
+  sandbox_id?: string;
   turn_index?: number;
 }
 
-interface SessionStateDataWire {
-  latest_agent_session_id?: string;
-  harness_sessions?: Record<string, WireHarnessSessionRecord>;
-  latest_turn_index?: number;
-}
-
-interface SessionStateWire {
-  data?: SessionStateDataWire | null;
+interface SessionTurnsQueryResponseWire {
+  count?: number;
+  turns?: WireSessionTurn[];
 }
 
 export interface DurableContinuityDeps {
@@ -38,12 +37,69 @@ export interface DurableContinuityDeps {
   log?: (msg: string) => void;
 }
 
+/** The fields the turn-append write carries, beyond the (session, harness, turnIndex) key. */
+export interface SessionTurnAppend {
+  streamId: string;
+  agentSessionId?: string;
+  sandboxId?: string;
+  references?: TurnReference[];
+  traceId?: string;
+  spanId?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
 /**
- * Read the durable row back into `store` for ONE harness, so a resume after a runner restart
- * (the in-memory map is empty) still sees a prior turn's eligibility exactly as if the process
- * had stayed up. Best-effort: any failure (row absent, API unreachable, storage disabled)
- * leaves `store` untouched — the caller then behaves exactly as it does today with an empty
- * store (cold replay), never throwing for a missing durable record.
+ * Fetch the LATEST turn for a session, optionally scoped to one harness. Ordered by `id`
+ * (uuid7 — insertion order, equivalent to `turn_index DESC` for an append-only table) via
+ * `windowing: {limit: 1, order: "descending"}`. Returns undefined on any failure (row absent,
+ * API unreachable) — every caller treats this as best-effort, degrading to cold replay.
+ */
+export async function fetchLatestSessionTurn(
+  sessionId: string,
+  harness: string | undefined,
+  deps: DurableContinuityDeps,
+): Promise<WireSessionTurn | undefined> {
+  const log = deps.log ?? defaultLog;
+  const doFetch = deps.fetchImpl ?? fetch;
+  const base = deps.apiBase ?? apiBase();
+  try {
+    const res = await doFetch(`${base}/sessions/turns/query`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: deps.authorization,
+      },
+      body: JSON.stringify({
+        query: {
+          session_id: sessionId,
+          ...(harness ? { harness_kind: harness } : {}),
+        },
+        windowing: { limit: 1, order: "descending" },
+      }),
+    });
+    if (!res.ok) {
+      log(
+        `latest-turn HTTP ${res.status} session=${sessionId} harness=${harness ?? "-"}`,
+      );
+      return undefined;
+    }
+    const body = (await res.json()) as SessionTurnsQueryResponseWire;
+    return body.turns?.[0];
+  } catch (err) {
+    log(
+      `latest-turn failed session=${sessionId} harness=${harness ?? "-"}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
+    );
+    return undefined;
+  }
+}
+
+/**
+ * Read the durable turn log back into `store` for ONE harness, so a resume after a runner
+ * restart (the in-memory map is empty) still sees a prior turn's eligibility exactly as if the
+ * process had stayed up. Best-effort: any failure (no turns yet, API unreachable) leaves
+ * `store` untouched — the caller then behaves exactly as it does today with an empty store
+ * (cold replay), never throwing for a missing durable record.
  */
 export async function hydrateHarnessSessionFromDurable(
   sessionId: string,
@@ -52,124 +108,91 @@ export async function hydrateHarnessSessionFromDurable(
   deps: DurableContinuityDeps,
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
-  const doFetch = deps.fetchImpl ?? fetch;
-  const base = deps.apiBase ?? apiBase();
-  try {
-    const res = await doFetch(
-      `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,
-      {
-        method: "GET",
-        headers: { authorization: deps.authorization },
-      },
-    );
-    if (!res.ok) {
-      log(`hydrate HTTP ${res.status} session=${sessionId} — starting cold`);
-      return;
-    }
-    const body = (await res.json()) as {
-      session_state?: SessionStateWire | null;
-    };
-    const data = body.session_state?.data;
 
-    // Restore the cross-harness latest-turn counter FIRST, independent of whether THIS harness
-    // has a record: it may exceed this harness's own turn (another harness ran the later turn),
-    // and understating it would make `isHarnessLoadEligible` wrongly pass a stale harness after
-    // a restart.
-    if (data?.latest_turn_index !== undefined) {
-      store.restoreLatestTurn(sessionId, data.latest_turn_index);
-    }
-
-    const record = data?.harness_sessions?.[harness];
-    if (!record?.agent_session_id || record.turn_index === undefined) {
-      return;
-    }
-    // Only seed the store when it has NOTHING for this (session, harness) yet — a live
-    // in-process record (this restart never happened) is always fresher than the durable
-    // mirror and must not be clobbered by a stale read.
-    if (store.get(sessionId, harness)) return;
-    store.record(
-      sessionId,
-      harness,
-      record.agent_session_id,
-      record.turn_index,
-    );
-    log(
-      `hydrated session=${sessionId} harness=${harness} turn=${record.turn_index}`,
-    );
-  } catch (err) {
-    log(
-      `hydrate failed session=${sessionId} harness=${harness}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
-    );
+  // Restore the cross-harness latest-turn counter FIRST, independent of whether THIS harness
+  // authored it: another harness may have run the later turn, and understating the counter
+  // would make `isHarnessLoadEligible` wrongly pass a stale harness after a restart.
+  const latestOverall = await fetchLatestSessionTurn(
+    sessionId,
+    undefined,
+    deps,
+  );
+  if (latestOverall?.turn_index !== undefined) {
+    store.restoreLatestTurn(sessionId, latestOverall.turn_index);
   }
+
+  // Only seed the store when it has NOTHING for this (session, harness) yet — a live
+  // in-process record (this restart never happened) is always fresher than the durable
+  // mirror and must not be clobbered by a stale read.
+  if (store.get(sessionId, harness)) return;
+
+  const latestForHarness =
+    latestOverall?.harness_kind === harness
+      ? latestOverall
+      : await fetchLatestSessionTurn(sessionId, harness, deps);
+  if (
+    !latestForHarness?.agent_session_id ||
+    latestForHarness.turn_index === undefined
+  ) {
+    return;
+  }
+  store.record(
+    sessionId,
+    harness,
+    latestForHarness.agent_session_id,
+    latestForHarness.turn_index,
+  );
+  log(
+    `hydrated session=${sessionId} harness=${harness} turn=${latestForHarness.turn_index}`,
+  );
 }
 
 /**
- * Write this harness's just-completed-turn record forward to the durable row (read-modify-write
- * on `harness_sessions`, full-PUT semantics — see module doc). Call AFTER
- * `SessionContinuityStore.record()` so the value persisted matches the in-memory one exactly.
- * Best-effort and fire-and-forget from the caller's perspective: a failure here only means the
- * NEXT restart cold-replays this harness turn, never a broken current turn.
+ * Append this harness's just-completed-turn as a new `session_turns` row (a plain INSERT —
+ * no read, no merge, no race). Call AFTER `SessionContinuityStore.record()` so the persisted
+ * turn_index matches the in-memory one exactly. Best-effort and fire-and-forget from the
+ * caller's perspective: a failure here only means the NEXT restart cold-replays this harness
+ * turn, never a broken current turn.
  */
-export async function syncHarnessSessionDurable(
+export async function appendSessionTurn(
   sessionId: string,
   harness: string,
-  agentSessionId: string,
   turnIndex: number,
+  turn: SessionTurnAppend,
   deps: DurableContinuityDeps,
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
   const base = deps.apiBase ?? apiBase();
   try {
-    const getRes = await doFetch(
-      `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,
-      { method: "GET", headers: { authorization: deps.authorization } },
-    );
-    const existingData: SessionStateDataWire = getRes.ok
-      ? (((await getRes.json()) as { session_state?: SessionStateWire | null })
-          .session_state?.data ?? {})
-      : {};
-    const existing = existingData.harness_sessions ?? {};
-
-    const merged: Record<string, WireHarnessSessionRecord> = {
-      ...existing,
-      [harness]: {
-        agent_session_id: agentSessionId,
+    const res = await doFetch(`${base}/sessions/turns/`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: deps.authorization,
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        stream_id: turn.streamId,
         turn_index: turnIndex,
-      },
-    };
-
-    // Never regress the cross-harness counter: another harness may already have persisted a
-    // higher latest turn. Take the max so the durable `latest_turn_index` is monotonic.
-    const latestTurnIndex = Math.max(
-      existingData.latest_turn_index ?? -1,
-      turnIndex,
-    );
-
-    const res = await doFetch(
-      `${base}/sessions/states/?session_id=${encodeURIComponent(sessionId)}`,
-      {
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-          authorization: deps.authorization,
-        },
-        body: JSON.stringify({
-          data: {
-            ...existingData,
-            latest_agent_session_id: agentSessionId,
-            latest_turn_index: latestTurnIndex,
-            harness_sessions: merged,
-          },
-        }),
-      },
-    );
+        harness_kind: harness,
+        ...(turn.agentSessionId
+          ? { agent_session_id: turn.agentSessionId }
+          : {}),
+        ...(turn.sandboxId ? { sandbox_id: turn.sandboxId } : {}),
+        ...(turn.references?.length ? { references: turn.references } : {}),
+        ...(turn.traceId ? { trace_id: turn.traceId } : {}),
+        ...(turn.spanId ? { span_id: turn.spanId } : {}),
+        ...(turn.startTime ? { start_time: turn.startTime } : {}),
+        ...(turn.endTime ? { end_time: turn.endTime } : {}),
+      }),
+    });
     log(
-      `sync ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} harness=${harness} turn=${turnIndex}`,
+      `append ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} harness=${harness} turn=${turnIndex}`,
     );
   } catch (err) {
     log(
-      `sync failed session=${sessionId} harness=${harness}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
+      `append failed session=${sessionId} harness=${harness}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
     );
   }
 }

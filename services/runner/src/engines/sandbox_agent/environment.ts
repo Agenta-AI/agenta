@@ -99,11 +99,7 @@ import {
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
 import { buildSandboxProvider } from "./provider.ts";
-import {
-  clearSandboxPointer,
-  readStoredSandboxPointer,
-  writeSandboxPointer,
-} from "./sandbox-reconnect.ts";
+import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
 import type {
   AcquireEnvironmentResult,
   SandboxAgentDeps,
@@ -642,31 +638,13 @@ export async function acquireEnvironment(
         logger(
           `reconnect failed sandbox=${storedSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
         );
-        if (
-          err instanceof DaytonaReconnectTerminalError &&
-          sessionForMount &&
-          runCred
-        ) {
-          // The post-hydrate write later in acquire is authoritative. This clear only prevents
-          // repeated doomed reconnects if acquire fails before reaching that write. Hydrate
-          // first: after a runner restart the in-memory store is behind the durable
-          // latest_turn_index, and an unhydrated guard token would be rejected as stale.
-          await (
-            deps.hydrateHarnessSessionFromDurable ??
-            hydrateHarnessSessionFromDurable
-          )(
-            sessionForMount,
-            plan.harness,
-            deps.sessionContinuityStore ?? sessionContinuityStore,
-            { authorization: runCred, log: logger },
-          );
-          await (deps.clearSandboxPointer ?? clearSandboxPointer)(
-            sessionForMount,
-            nextTurnIndex(
-              sessionForMount,
-              deps.sessionContinuityStore ?? sessionContinuityStore,
-            ),
-            { authorization: runCred, log: logger },
+        // No explicit pointer clear needed: turns are append-only, so the fresh sandbox this
+        // turn creates below gets its own turn row at completion, and that row's higher
+        // turn_index naturally supersedes the dead one on the next `latest_turn` read — the
+        // staleness guard the old states model needed dissolves with the ordering.
+        if (err instanceof DaytonaReconnectTerminalError) {
+          logger(
+            `terminal Daytona state '${err.state}' for sandbox=${storedSandboxPointer.sandboxId}, not retrying reconnect`,
           );
         }
       } finally {
@@ -984,24 +962,9 @@ export async function acquireEnvironment(
     environment.continuityTurnIndex = continuitySessionKey
       ? nextTurnIndex(continuitySessionKey, continuityStore)
       : undefined;
-    // Daytona only: a local run must not overwrite a conversation's remote pointer (switching
-    // sandboxes mid-conversation would strand the parked Daytona instance).
-    if (plan.isDaytona && sessionForMount && runCred) {
-      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
-      const pointerWriteOutcome = await (
-        deps.writeSandboxPointer ?? writeSandboxPointer
-      )(
-        sessionForMount,
-        {
-          sandboxId: liveSandboxId,
-          turnIndex: environment.continuityTurnIndex ?? 0,
-        },
-        { authorization: runCred, log: logger },
-      );
-      logger(
-        `sandbox pointer write ${pointerWriteOutcome} session=${sessionForMount} sandbox=${liveSandboxId}`,
-      );
-    }
+    // The live sandbox id rides forward as a field on the turn-append row written at turn end
+    // (see `appendSessionTurn` call in `runTurn`), not a separate pre-turn pointer PUT: the
+    // turns table is append-only, so there is nothing to overwrite mid-conversation.
     let loadedFromContinuity = false;
     if (priorAgentSessionId && localSessionId) {
       await persist.updateSession({

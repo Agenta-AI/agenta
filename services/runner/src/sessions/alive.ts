@@ -49,13 +49,20 @@ function log(msg: string): void {
  * container `replica_id` (refreshes `owner` affinity) and the `turn_id` (proves alive ownership).
  * Authenticates AS the invoke caller (the run credential) — project scope is resolved server-side
  * from that credential, so no `project_id` rides the request.
+ *
+ * Returns both signals the one response body carries: `streamId` (the `session_streams` row
+ * uuid — the free gift of a call the runner already makes every turn, no new round-trip) and
+ * `interrupted: true` when the API reports `is_current_turn: false` (a cancel/steer/kill took
+ * this turn's alive/running lock since the last beat — W7.4, the control-signal path). A
+ * network/HTTP failure yields `{ streamId: undefined, interrupted: false }` (fail-open: a
+ * transient API blip must neither abort a healthy run nor fabricate a stream id).
  */
 async function sendHeartbeat(
   sessionId: string,
   turnId: string,
   authorization: string,
   isRunning = true,
-): Promise<void> {
+): Promise<{ streamId: string | undefined; interrupted: boolean }> {
   try {
     const url = `${apiBase()}/sessions/streams/heartbeat`;
     const res = await fetch(url, {
@@ -73,15 +80,27 @@ async function sendHeartbeat(
     });
     if (!res.ok) {
       log(`heartbeat HTTP ${res.status} session=${sessionId} turn=${turnId}`);
-    } else {
-      log(
-        `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}`,
-      );
+      return { streamId: undefined, interrupted: false };
     }
+    const body = (await res.json()) as {
+      stream?: { id?: unknown } | null;
+      is_current_turn?: unknown;
+    };
+    const rawStreamId = body.stream?.id;
+    const streamId =
+      typeof rawStreamId === "string" && rawStreamId.length > 0
+        ? rawStreamId
+        : undefined;
+    const interrupted = body.is_current_turn === false;
+    log(
+      `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}${interrupted ? " INTERRUPTED" : ""}`,
+    );
+    return { streamId, interrupted };
   } catch (err) {
     log(
       `heartbeat failed session=${sessionId} turn=${turnId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
+    return { streamId: undefined, interrupted: false };
   }
 }
 
@@ -132,20 +151,49 @@ export async function claimSessionOwnership(
  * inherits ownership via `turnId`. This watchdog heartbeats the API on the contract interval,
  * keeping the lock's TTL refreshed and the stream row `running`.
  *
- * Returns a `release()` function the caller MUST await in the run's `finally` so the
- * heartbeat stops and the session row is marked `ended`.
+ * `onInterrupted` (W7.4) fires AT MOST ONCE, the first time a beat reports the lock was taken
+ * by a cancel/steer/kill since the last beat — the caller wires this to `controller.abort()` so
+ * a control-plane cancel actually reaches the in-flight run. Before this, losing the alive lock
+ * was invisible to the runner process: a heartbeat's nx=True re-acquire silently re-armed the
+ * same lock under the same turn_id and the run continued as if nothing happened.
+ *
+ * Awaits the FIRST heartbeat (only) so its response's `stream_id` is ready before the caller
+ * starts the turn — every later heartbeat stays fire-and-forget. Returns a `release()` function
+ * the caller MUST await in the run's `finally` so the heartbeat stops and the row is marked
+ * `ended`.
  */
-export function startAliveWatchdog(
+export async function startAliveWatchdog(
   sessionId: string,
   turnId: string,
   authorization: string,
-): { release: () => Promise<void>; credential: () => string } {
+  onInterrupted?: () => void,
+): Promise<{
+  release: () => Promise<void>;
+  credential: () => string;
+  streamId: () => string | undefined;
+}> {
   // The run credential is an ephemeral Secret (~15-min TTL). Hold it mutably and refresh it
   // every Nth heartbeat (re-/check mints a fresh-expiry token) so a long turn never 401s.
   let credential = authorization;
   let beats = 0;
+  let interruptedFired = false;
+  let streamId: string | undefined;
 
-  void sendHeartbeat(sessionId, turnId, credential);
+  const handleBeat = (result: {
+    streamId: string | undefined;
+    interrupted: boolean;
+  }): void => {
+    if (result.streamId) streamId = result.streamId;
+    if (result.interrupted && !interruptedFired) {
+      interruptedFired = true;
+      log(`interrupted session=${sessionId} turn=${turnId} -> aborting`);
+      onInterrupted?.();
+    }
+  };
+
+  // Await the FIRST beat so streamId is ready before the caller starts the turn.
+  const first = await sendHeartbeat(sessionId, turnId, credential);
+  handleBeat(first);
 
   const interval = setInterval(() => {
     void (async () => {
@@ -154,7 +202,7 @@ export function startAliveWatchdog(
         const fresh = await refreshCredential(apiBase(), credential);
         if (fresh) credential = fresh;
       }
-      void sendHeartbeat(sessionId, turnId, credential);
+      handleBeat(await sendHeartbeat(sessionId, turnId, credential));
     })();
   }, REFRESH_INTERVAL_MS);
 
@@ -170,5 +218,6 @@ export function startAliveWatchdog(
       await sendHeartbeat(sessionId, turnId, credential, false);
     },
     credential: () => credential,
+    streamId: () => streamId,
   };
 }

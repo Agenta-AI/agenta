@@ -64,7 +64,7 @@ import {
   shouldSuppressPausedToolCallUpdate,
 } from "./runtime-policy.ts";
 import {
-  syncHarnessSessionDurable,
+  appendSessionTurn,
 } from "./session-continuity-durable.ts";
 import { sessionContinuityStore } from "./session-continuity.ts";
 import { priorMessages } from "./transcript.ts";
@@ -567,16 +567,25 @@ export async function runTurn(
         env.session.agentSessionId,
         env.continuityTurnIndex,
       );
-      // Mirror the record durably so it survives a runner restart; fire-and-forget.
+      // Append this turn to the durable turns log; fire-and-forget (a plain INSERT, no race).
       const syncCred = runCredential(request);
-      if (syncCred) {
-        void (deps.syncHarnessSessionDurable ?? syncHarnessSessionDurable)(
+      if (syncCred && request.streamId) {
+        const workflowRefs = buildWorkflowReferences(
+          request.runContext?.workflow,
+        );
+        void (deps.appendSessionTurn ?? appendSessionTurn)(
           sessionId,
           plan.harness,
-          env.session.agentSessionId,
           env.continuityTurnIndex,
+          {
+            streamId: request.streamId,
+            agentSessionId: env.session.agentSessionId,
+            sandboxId: env.sandbox?.sandboxId,
+            references: workflowRefs ? Object.values(workflowRefs) : undefined,
+            traceId: run.traceId(),
+          },
           { authorization: syncCred, log: logger },
-        );
+        ).catch(() => {});
       }
     } else if (stopReason === "paused") {
       // A pause stopped mid-turn, after the harness may have written a partial turn natively.
