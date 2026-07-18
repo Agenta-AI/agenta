@@ -242,3 +242,75 @@ entry; imports from outside a subfolder go through its index only.
     environment-setup.ts drives it.
 Grouping is behavior-safe for every file EXCEPT daemon.ts (path depth) once the cross-lane files can
 move, and it is fully gated by typecheck plus the unit suite for the non-daemon files.
+
+## Milestone: rebased onto v0.105.4 main (2026-07-18)
+
+The lane was rebased from old main onto the released v0.105.4 main and is now conflict-free,
+green, and pushed. PR #5369 flipped from CONFLICTING to MERGEABLE.
+
+- **New base:** `80daf23257` (Merge #5368 release/v0.105.4). Reached via `but pull`, which also
+  archived the three now-merged lanes it saw applied (feat/pi-openai-compatible-ui,
+  feat-runsh-overrides-and-recreate, fix/runner-daytona-client-only-tools-gate) and cleanly
+  rebased the two unrelated applied lanes (fix/claude-fable-model-id, qa-agent-release-gate).
+- **Lane tip:** `db13a17add`. Remote == local verified after `but push -f`.
+
+### Conflicts hit and how resolved
+
+`but pull` left five of the nine extraction commits conflicted, each in `sandbox_agent.ts`, all
+because a release fix touched a region the refactor was moving out of the monolith. Resolved
+bottom-up with `but resolve <commit>` / `but resolve finish`:
+
+1. **runtime-policy extraction** — the `shouldSuppressPausedToolCallUpdate` region. The only
+   base-vs-ancestor difference was cosmetic type-union reformatting (no behavior). Accepted the
+   refactor's deletion (functions live in `runtime-policy.ts`).
+2. **runtime-contracts extraction** — the `AcquireEnvironmentResult` region; again only cosmetic
+   union reformatting. Accepted the deletion (types live in `runtime-contracts.ts`).
+3. **environment extraction** — two regions: the import block (took the refactor's minimal facade
+   imports) and the whole `acquireEnvironment` body (accepted deletion — it moved to
+   `environment.ts`). Main's #5345 delta to `acquireEnvironment` was extracted and set aside here,
+   then re-homed (see below), so nothing was dropped.
+4. **run-turn extraction, engine extraction** — cleared automatically once the lower commits were
+   resolved (no residual markers).
+
+### Re-homing the #5345 delta (the one real behavioral merge)
+
+Main's #5345 added the OpenAI-compatible model-config plan inside `acquireEnvironment` (7 hunks).
+Because the refactor split that function across `environment-setup.ts` (the setup prefix) and
+`environment.ts` (the acquire body), the delta was threaded through the split in a dedicated
+commit `db13a17add`:
+- `prepareEnvironmentSetup` (environment-setup.ts) now builds `piModelConfig` / `piModelConfigError`,
+  passes `piModelConfig` into `prepareLocalPiAssets`, computes `localModelConfigUnwritable`, and
+  returns all three in its bundle. Imports `buildPiModelConfigPlan` / `PiModelConfigPlan`.
+- `acquireEnvironment` (environment.ts) destructures those three, throws `piModelConfigError` /
+  `PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE` at the fail-loud/fail-closed gates, passes `piModelConfig`
+  into `prepareDaytonaPiAssets`, and selects the fully-qualified `wantedModel`. Imports
+  `PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE`.
+This is a faithful transcription of main's logic, verified below.
+
+### No release code lost
+
+Every unmoved release file in the lane tip is byte-identical to `origin/main` (0-line diff):
+transcript.ts (#5364), run-plan.ts (#5366), daytona.ts, pi-assets.ts, pi-model-config.ts (#5345),
+tracing/otel.ts (#5362), package.json, pnpm-lock.yaml.
+
+### Verification
+
+- `pnpm run typecheck`: clean (after `pnpm install` picked up the release's OTel 2.x / Daytona
+  0.198 bump — the stale node_modules was the only typecheck failure and is not a lane change).
+- `pnpm test`: 76 files, **1192 tests, all pass** (was 1158/75; the +34/+1 are the release's own
+  new suites now running green on the rebased tree).
+- `pnpm run build:extension`: pass.
+- Runner runtime smoke test: booted the rebased runner with the new deps; `/health` -> 200 with the
+  full harness list, `/run {}` -> correct structured validation error, no crash. Evidence in
+  `debug/qa-refactor-rebase/` (runner-boot.log, health.json).
+- Full product `agent-release-gate`: NOT run. It needs a rebuild + services-repoint on the shared
+  custom-named EE-dev stack (whose product agent path is currently pointed at a dead sidecar). The
+  v0.105.4 release is already product-gate-clean (`debug/qa-105.4/`) and this change is
+  behavior-identical to it, so it is deferred as the recommended pre-merge step on a dedicated stack.
+
+### State
+
+Draft PR #5369, base main, head `db13a17add`, MERGEABLE. Do not merge (Mahmoud merges). The
+morning re-apply of pi-openai (#5345/#5346) noted earlier in this doc is now moot — pi-openai is
+merged into main and its runner delta is already in the rebased base; only the acquireEnvironment
+re-home (commit db13a17add) was needed.
