@@ -446,6 +446,11 @@ export async function runTurn(
       if (opts.resume.reply === "once") {
         executionGrants.grant(opts.resume.toolName, opts.resume.args);
       }
+      // A live-resume deny closes the seeded call as a failed tool call; flag it so the egress
+      // projects `tool-output-denied` (a decline), mirroring the cold decision-map deny path.
+      if (opts.resume.reply === "reject") {
+        run.markToolCallDenied(opts.resume.toolCallId);
+      }
       await env.session.respondPermission(
         opts.resume.permissionId,
         opts.resume.reply,
